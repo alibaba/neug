@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 import logging
 import os
 import shutil
@@ -487,3 +488,77 @@ def test_drop_add_edge_table_column():
     # assert list(ret) == [["unknown"], ["unknown"], ["unknown"], ["unknown"], ["test"]]
     conn2.close()
     db2.close()
+
+
+def _get_edge_pair_relations_by_type_name(schema_text: str):
+    """Return map edge type_name -> list of vertex_type_pair relation dicts (JSON from get_schema)."""
+    data = json.loads(schema_text)
+    out = {}
+    for et in data.get("schema", {}).get("edge_types", []):
+        name = et.get("type_name")
+        if not name:
+            continue
+        out[name] = et.get("vertex_type_pair_relations", [])
+    return out
+
+
+def test_create_rel_table_edge_multiplicity(tmp_path):
+    """
+    `CREATE REL TABLE` with a multiplicity token (e.g. MANY_TO_ONE) is compiled to
+    a physical `CreateEdgeSchema` with a matching `multiplicity` value. The Python
+    API does not return raw physical plan text; the persisted graph schema from
+    `get_schema()` exposes the same information per triplet as the ``relation``
+    field (MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, MANY_TO_MANY).
+
+    Example: ``CREATE REL TABLE LivesIn(FROM User TO City, MANY_TO_ONE);`` — use
+    ``pytest -s`` to see the printed lines.
+    """
+    cases = [
+        # (edge_table, Cypher token) -> same labels as CreateEdgeSchema::Multiplicity
+        ("LivesIn", "MANY_TO_ONE", "MANY_TO_ONE"),
+        ("Serves", "ONE_TO_MANY", "ONE_TO_MANY"),
+        ("Tie", "ONE_TO_ONE", "ONE_TO_ONE"),
+        ("Social", "MANY_TO_MANY", "MANY_TO_MANY"),
+    ]
+    for rel_name, mul_token, expect_relation in cases:
+        db_dir = str(tmp_path / f"test_edge_mul_{rel_name}")
+        shutil.rmtree(db_dir, ignore_errors=True)
+
+        db = Database(db_dir, "w")
+        conn = db.connect()
+        conn.execute("CREATE NODE TABLE User(id INT64 PRIMARY KEY, name STRING);")
+        conn.execute("CREATE NODE TABLE City(id INT64 PRIMARY KEY, name STRING);")
+        conn.execute(f"CREATE REL TABLE {rel_name}(FROM User TO City, {mul_token});")
+        schema_text = conn.get_schema()
+        by_edge = _get_edge_pair_relations_by_type_name(schema_text)
+        pairs = by_edge.get(rel_name, [])
+        assert len(pairs) == 1, f"{rel_name}: {pairs!r}"
+        rel = pairs[0].get("relation")
+        assert (
+            rel == expect_relation
+        ), f"{rel_name} {mul_token}: got {rel!r}, want {expect_relation!r}"
+        print(
+            f"CREATE REL TABLE {rel_name}(..., {mul_token}) -> "
+            f"CreateEdgeSchema multiplicity: {rel}"
+        )
+        conn.close()
+        db.close()
+
+
+def test_create_rel_table_with_options(tmp_path):
+    """
+    `CREATE REL TABLE` may include a trailing ``WITH (k=v, ...)`` clause; only
+    checks that the DDL runs without error (no return-value assertions).
+    """
+    db_dir = str(tmp_path / "test_rel_table_options")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE User(id INT64 PRIMARY KEY, name STRING);")
+    conn.execute("CREATE NODE TABLE City(id INT64 PRIMARY KEY, name STRING);")
+    conn.execute(
+        "CREATE REL TABLE LivesIn (FROM User TO City) WITH (sort_key='creationDate');"
+    )
+    # todo: check options in graph schema
+    conn.close()
+    db.close()

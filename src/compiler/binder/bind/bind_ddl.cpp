@@ -268,6 +268,7 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
       srcMultiplicity, dstMultiplicity, storageDirection,
       srcEntry->getTableID(), dstEntry->getTableID(),
       std::move(propertyDefinitions));
+  boundExtraInfo->options = std::move(boundOptions);
   return BoundCreateTableInfo(
       CatalogEntryType::REL_TABLE_ENTRY, info->tableName, info->onConflict,
       std::move(boundExtraInfo), clientContext->useInternalCatalogEntry());

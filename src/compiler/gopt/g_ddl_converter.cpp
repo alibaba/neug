@@ -275,6 +275,10 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
   create_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
+  for (const auto& [k, v] : firstRelInfo->options) {
+    (*create_edge->mutable_options())[k] = v.toString();
+  }
+
   return physical_opr;
 }
 
@@ -319,6 +323,10 @@ GDDLConverter::convertToCreateEdgeSchema(
   // Set conflict action
   create_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
+
+  for (const auto& [k, v] : relInfo->options) {
+    (*create_edge->mutable_options())[k] = v.toString();
+  }
 
   return physical_opr;
 }

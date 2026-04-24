@@ -337,7 +337,7 @@ def test_create_rel_table(tmp_path):
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     # create single relationship edge table
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     conn.close()
     db.close()
@@ -381,17 +381,17 @@ def test_create_rel_table_errors(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. create duplicate edge table
     with pytest.raises(Exception) as excinfo:
         conn.execute(
-            "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+            "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
         )
     assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
-        conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
+        conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_TO_MANY);")
     assert str(ERR_COMPILATION) in str(excinfo.value)
     conn.close()
     db.close()
@@ -405,9 +405,9 @@ def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, MANY_MANY);")
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, MANY_TO_MANY);")
     conn.close()
     db.close()
 
@@ -486,7 +486,7 @@ def test_alter_edge_table(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. add property
     # correctly add a new property
@@ -514,7 +514,7 @@ def test_alter_edge_table_drop_property(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # correctly drop a property
     conn.execute("ALTER TABLE knows DROP weight;")
@@ -535,7 +535,7 @@ def test_drop_table(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. DROP edge table
     conn.execute("DROP TABLE knows;")
@@ -551,7 +551,7 @@ def test_drop_table_errors(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. DROP vertex table will also drop all edges connected to it by default
     conn.execute("DROP TABLE person;")
@@ -606,7 +606,7 @@ def test_insert_edge(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY);"
     )
     # 插入端点
     conn.execute("CREATE (u:person{name:'Alice'});")
@@ -697,7 +697,7 @@ def test_set_multi_edge_property(tmp_path):
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute("CREATE NODE TABLE software(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE create_software(FROM person TO software, since INT64, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE create_software(FROM person TO software, since INT64, weight DOUBLE, MANY_TO_MANY);"
     )
     conn.execute("CREATE (u:person{name:'Alice'});")
     conn.execute("CREATE (u:person{name:'Bob'});")
@@ -740,7 +740,7 @@ def test_set_edge_property(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY);"
     )
     conn.execute("CREATE REL TABLE likes(FROM person TO person, since INT64);")
     conn.execute("CREATE (u:person{name:'Alice'});")
