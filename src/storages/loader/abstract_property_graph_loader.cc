@@ -190,7 +190,7 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
     graph_.Dump(false);
 
   } catch (const std::exception& e) {
-    printDiskRemaining(work_dir_);
+    printDiskRemaining(ws_.db_dir());
     LOG(ERROR) << "Load fragment failed: " << e.what();
     return result<bool>(false);
   }

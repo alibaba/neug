@@ -14,10 +14,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <chrono>
 #include <iostream>
 #include <string>
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
+#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -40,6 +42,7 @@ class IMMutableCsrTest : public ::testing::Test {
     std::filesystem::create_directories(temp_dir_ / "snapshot");
     std::filesystem::create_directories(temp_dir_ / "work");
     std::filesystem::create_directories(temp_dir_ / "work" / "runtime" / "tmp");
+    ws.Open(temp_dir_.string());
   }
 
   void TearDown() override {
@@ -48,10 +51,10 @@ class IMMutableCsrTest : public ::testing::Test {
     }
   }
 
-  void load_csr_data(ImmutableCsr<EDATA_T>& csr) {
-    auto work_dir = this->WorkDirectory();
-    auto snapshot_dir = this->SnapshotDirectory();
-    csr.open("csr", snapshot_dir.string(), work_dir.string());
+  Checkpoint& load_csr_data(ImmutableCsr<EDATA_T>& csr) {
+    auto ckp_id = Workspace().CreateCheckpoint();
+    auto& ckp = Workspace().GetCheckpoint(ckp_id);
+    csr.Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, false);
     csr.resize(500);
@@ -63,12 +66,13 @@ class IMMutableCsrTest : public ::testing::Test {
       edata_list.push_back(std::get<2>(edges[i]));
     }
     csr.batch_put_edges(src_list, dst_list, edata_list, 0);
+    return ckp;
   }
 
-  void load_single_csr_data(SingleImmutableCsr<EDATA_T>& csr) {
-    auto work_dir = this->WorkDirectory();
-    auto snapshot_dir = this->SnapshotDirectory();
-    csr.open("csr", snapshot_dir.string(), work_dir.string());
+  Checkpoint& load_single_csr_data(SingleImmutableCsr<EDATA_T>& csr) {
+    auto ckp_id = Workspace().CreateCheckpoint();
+    auto& ckp = Workspace().GetCheckpoint(ckp_id);
+    csr.Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, true);
     csr.resize(500);
@@ -80,6 +84,7 @@ class IMMutableCsrTest : public ::testing::Test {
       edata_list.push_back(std::get<2>(edges[i]));
     }
     csr.batch_put_edges(src_list, dst_list, edata_list, 0);
+    return ckp;
   }
 
   bool check_edge_data_ordered(GenericView& generic_view) {
@@ -205,6 +210,7 @@ class IMMutableCsrTest : public ::testing::Test {
     return true;
   }
 
+  neug::Workspace& Workspace() { return ws; }
   std::filesystem::path WorkDirectory() const { return temp_dir_ / "work"; }
   std::filesystem::path SnapshotDirectory() const {
     return temp_dir_ / "snapshot";
@@ -228,6 +234,7 @@ class IMMutableCsrTest : public ::testing::Test {
 
  private:
   std::filesystem::path temp_dir_;
+  neug::Workspace ws;
 
   std::string GetTestName() const {
     const testing::TestInfo* const test_info =
@@ -273,36 +280,32 @@ TYPED_TEST(IMMutableCsrTest, TestBasicFunction) {
 
 TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   ImmutableCsr<TypeParam> immutable_csr;
-  this->load_csr_data(immutable_csr);
-  immutable_csr.dump("dumped_csr_data", this->WorkDirectory());
-  std::filesystem::create_directories(tmp_dir(this->WorkDirectory()));
+  auto& ckp = this->load_csr_data(immutable_csr);
+  auto desc = immutable_csr.Dump(ckp);
+
   ImmutableCsr<TypeParam> fmap_immutable_csr, memory_immutable_csr,
       hugepage_immutable_csr;
-  fmap_immutable_csr.open("dumped_csr_data", this->WorkDirectory(),
-                          this->WorkDirectory());
+  fmap_immutable_csr.Open(ckp, desc, MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_immutable_csr.edge_num(), 10000);
-  memory_immutable_csr.open_in_memory(std::string(this->WorkDirectory()) +
-                                      "/dumped_csr_data");
-
+  memory_immutable_csr.Open(ckp, desc, MemoryLevel::kInMemory);
   EXPECT_EQ(memory_immutable_csr.edge_num(), 10000);
-  hugepage_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  hugepage_immutable_csr.Open(ckp, desc, MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_immutable_csr.edge_num(), 10000);
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
-  this->load_single_csr_data(single_immutable_csr);
-  single_immutable_csr.dump("dumped_csr_data", this->WorkDirectory());
-  std::filesystem::create_directories(tmp_dir(this->WorkDirectory()));
+  auto& single_ckp = this->load_single_csr_data(single_immutable_csr);
+  auto single_desc = single_immutable_csr.Dump(single_ckp);
+
   SingleImmutableCsr<TypeParam> fmap_single_immutable_csr,
       memory_single_immutable_csr, hugepage_single_immutable_csr;
-  fmap_single_immutable_csr.open("dumped_csr_data", this->WorkDirectory(),
-                                 this->WorkDirectory());
+  fmap_single_immutable_csr.Open(single_ckp, single_desc,
+                                 MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_single_immutable_csr.edge_num(), 500);
-  memory_single_immutable_csr.open_in_memory(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  memory_single_immutable_csr.Open(single_ckp, single_desc,
+                                   MemoryLevel::kInMemory);
   EXPECT_EQ(memory_single_immutable_csr.edge_num(), 500);
-  hugepage_single_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  hugepage_single_immutable_csr.Open(single_ckp, single_desc,
+                                     MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
 }
 
@@ -311,13 +314,13 @@ TYPED_TEST(IMMutableCsrTest, TestResize) {
   this->load_csr_data(immutable_csr);
   immutable_csr.resize(498);
   EXPECT_EQ(immutable_csr.size(), 498);
-  immutable_csr.close();
+  immutable_csr.Close();
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);
   single_immutable_csr.resize(498);
   EXPECT_EQ(single_immutable_csr.size(), 498);
-  single_immutable_csr.close();
+  single_immutable_csr.Close();
 }
 
 TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
@@ -329,7 +332,7 @@ TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
   GenericView immutable_view = immutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(immutable_view.type(), CsrViewType::kMultipleImmutable);
   EXPECT_TRUE(this->check_edge_data_ordered(immutable_view));
-  immutable_csr.close();
+  immutable_csr.Close();
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);
@@ -337,7 +340,7 @@ TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
   GenericView single_immutable_view =
       single_immutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(single_immutable_view.type(), CsrViewType::kSingleImmutable);
-  single_immutable_csr.close();
+  single_immutable_csr.Close();
 }
 
 TYPED_TEST(IMMutableCsrTest, TestBatchDeleteVertices) {

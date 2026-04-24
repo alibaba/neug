@@ -32,10 +32,13 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/i_container.h"
-#include "neug/storages/file_names.h"
+#include "neug/storages/container/mmap_container.h"
+#include "neug/storages/module/module.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
@@ -43,25 +46,16 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
+#include <glog/logging.h>
+
 namespace neug {
 class Table;
 
 std::string_view truncate_utf8(std::string_view str, size_t length);
 
-class ColumnBase {
+class ColumnBase : public Module {
  public:
   virtual ~ColumnBase() {}
-
-  virtual void open(const std::string& name, const std::string& snapshot_dir,
-                    const std::string& work_dir) = 0;
-
-  virtual void open_in_memory(const std::string& name) = 0;
-
-  virtual void open_with_hugepages(const std::string& name) = 0;
-
-  virtual void close() = 0;
-
-  virtual void dump(const std::string& filename) = 0;
 
   virtual size_t size() const = 0;
 
@@ -90,28 +84,25 @@ template <typename T>
 class TypedColumn : public ColumnBase {
  public:
   explicit TypedColumn() : size_(0) {}
-  ~TypedColumn() { close(); }
+  ~TypedColumn() { Close(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    buffer_ = OpenContainer(snapshot_dir + "/" + name, work_dir + "/" + name,
-                            MemoryLevel::kSyncToFile);
+  void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+            MemoryLevel level) override {
+    assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
+    size_ = desc.size;
+    buffer_ = ckp.OpenFile(desc.path, level);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
-  void open_in_memory(const std::string& name) override {
-    buffer_ = OpenContainer(name, "", MemoryLevel::kInMemory);
-    size_ = buffer_->GetDataSize() / sizeof(T);
+  void Close() override { buffer_.reset(); }
+
+  ModuleDescriptor Dump(Checkpoint& ckp) override {
+    ModuleDescriptor desc;
+    desc.path = ckp.Commit(*buffer_);
+    desc.size = size_;
+    desc.module_type = ModuleTypeName();
+    return desc;
   }
-
-  void open_with_hugepages(const std::string& name) override {
-    buffer_ = OpenContainer(name, "", MemoryLevel::kHugePagePreferred);
-    size_ = buffer_->GetDataSize() / sizeof(T);
-  }
-
-  void close() override { buffer_.reset(); }
-
-  void dump(const std::string& filename) override { buffer_->Dump(filename); }
 
   size_t size() const override { return size_; }
 
@@ -172,6 +163,19 @@ class TypedColumn : public ColumnBase {
   const IDataContainer& buffer() const { return *buffer_; }
   size_t buffer_size() const { return size_; }
 
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto new_col = std::make_unique<TypedColumn<T>>();
+    new_col->buffer_ = buffer_->Fork(ckp, level);
+    new_col->size_ = size_;
+    return new_col;
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "Column<" + type_name_string<T>() + ">";
+  }
+
  private:
   std::unique_ptr<IDataContainer> buffer_;
   size_t size_;
@@ -196,12 +200,11 @@ class TypedColumn<EmptyType> : public ColumnBase {
   explicit TypedColumn() {}
   ~TypedColumn() {}
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
-  void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name) override {}
-  void dump(const std::string& filename) override {}
-  void close() override {}
+  void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+            MemoryLevel level) override {}
+
+  ModuleDescriptor Dump(Checkpoint& ckp) override { return ModuleDescriptor(); }
+  void Close() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
   void resize(size_t size, const Property& default_value) override {}
@@ -220,6 +223,14 @@ class TypedColumn<EmptyType> : public ColumnBase {
   EmptyType get_view(size_t index) const { return EmptyType(); }
 
   void ingest(uint32_t index, OutArchive& arc) override {}
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    return std::make_unique<TypedColumn<EmptyType>>();
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() { return "Column<EmptyType>"; }
 };
 
 struct string_item {
@@ -246,38 +257,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
     type_ = rhs.type_;
   }
 
-  ~TypedColumn() { close(); }
+  ~TypedColumn() { Close(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
-    items_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".items",
-                                  work_dir + "/" + name + ".items",
-                                  MemoryLevel::kSyncToFile);
-    data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
-                                 work_dir + "/" + name + ".data",
-                                 MemoryLevel::kSyncToFile);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
-    init_pos(snapshot_dir + "/" + name + ".pos");
-  }
-
-  void open_in_memory(const std::string& prefix) override {
+  void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+            MemoryLevel level) override {
+    size_ = desc.size;
     items_buffer_ =
-        OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
-    data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
-    init_pos(prefix + ".pos");
-  }
-
-  void open_with_hugepages(const std::string& prefix) override {
-    items_buffer_ =
-        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePreferred);
+        ckp.OpenFile(desc.get_sub_module_or_default("items").path, level);
     data_buffer_ =
-        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePreferred);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
-    init_pos(prefix + ".pos");
+        ckp.OpenFile(desc.get_sub_module_or_default("data").path, level);
+    CHECK(size_ == items_buffer_->GetDataSize() / sizeof(string_item));
+    pos_.store(std::stoull(desc.get("pos").value_or("0")));
+    assert(pos_.load() <= data_buffer_->GetDataSize());
   }
 
-  void close() override {
+  void Close() override {
     if (items_buffer_) {
       items_buffer_->Close();
     }
@@ -286,11 +280,50 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  void dump(const std::string& filename) override {
+  bool is_data_unmodified() const {
+    if (items_buffer_->IsDirty() || items_buffer_->GetPath().empty()) {
+      return false;
+    }
+    auto casted_data = dynamic_cast<MMapContainer*>(data_buffer_.get());
+    if (casted_data && !casted_data->GetPath().empty() &&
+        casted_data->GetHeader()) {
+      FileHeader data_header;
+      MD5((unsigned char*) data_buffer_->GetData(), pos_.load(),
+          data_header.data_md5);
+      return memcmp(casted_data->GetHeader()->data_md5, data_header.data_md5,
+                    sizeof(data_header.data_md5)) == 0;
+    } else {
+      return false;
+    }
+  }
+
+  ModuleDescriptor Dump(Checkpoint& ckp) override {
+    ModuleDescriptor desc;
+    desc.size = size_;
+    desc.module_type = ModuleTypeName();
     if (!items_buffer_ || !data_buffer_) {
       THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
     }
-    auto data_file = filename + ".data";
+    // Fast path: neither buffer has been modified – link existing files into
+    // snapshot_dir without rewriting any data.
+    if (is_data_unmodified()) {
+      desc.set("pos", std::to_string(pos_.load()));
+      {
+        ModuleDescriptor items_desc;
+        items_desc.path = ckp.LinkToSnapshot(items_buffer_->GetPath());
+        items_desc.size = size_;
+        desc.set_sub_module("items", std::move(items_desc));
+      }
+      {
+        ModuleDescriptor data_desc;
+        data_desc.path = ckp.LinkToSnapshot(data_buffer_->GetPath());
+        data_desc.size = pos_.load();
+        desc.set_sub_module("data", std::move(data_desc));
+      }
+      return desc;
+    }
+    auto data_uuid = ckp.create_runtime_object();
+    auto data_file = ckp.runtime_dir() + "/" + data_uuid;
     std::ofstream data_out(data_file, std::ios::binary);
     if (!data_out) {
       THROW_IO_EXCEPTION("Failed to open file for dumping: " + data_file);
@@ -298,7 +331,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     FileHeader header;
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    auto item_file = filename + ".items";
+    auto item_uuid = ckp.create_runtime_object();
+    auto item_file = ckp.runtime_dir() + "/" + item_uuid;
     std::ofstream item_out(item_file, std::ios::binary);
     if (!item_out) {
       THROW_IO_EXCEPTION("Failed to open file for dumping: " + item_file);
@@ -355,7 +389,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
     size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
     size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
-    size_t truncated_size = avg_size * count;
+    size_t truncated_size = avg_size * count + sizeof(FileHeader);
     int rt = truncate(data_file.c_str(), truncated_size);
     if (rt != 0) {
       std::stringstream ss;
@@ -364,9 +398,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
       LOG(ERROR) << ss.str();
       THROW_IO_EXCEPTION(ss.str());
     }
-    size_t pos_val = pos_.load();
-    // No-compaction path: dump containers as-is.
-    write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
+
+    desc.set("pos", std::to_string(pos_.load()));
+    {
+      ModuleDescriptor items_desc;
+      items_desc.path = ckp.CommitRuntimeObject(item_uuid);
+      items_desc.size = size_;
+      desc.set_sub_module("items", std::move(items_desc));
+    }
+    {
+      ModuleDescriptor data_desc;
+      data_desc.path = ckp.CommitRuntimeObject(data_uuid);
+      data_desc.size = pos_.load();
+      desc.set_sub_module("data", std::move(data_desc));
+    }
+    return desc;
   }
 
   size_t size() const override { return size_; }
@@ -482,6 +528,16 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, val);
   }
 
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
+    new_col->items_buffer_ = items_buffer_->Fork(ckp, level);
+    new_col->data_buffer_ = data_buffer_->Fork(ckp, level);
+    new_col->size_ = size_;
+    new_col->pos_ = pos_.load();
+    new_col->type_ = type_;
+    return new_col;
+  }
+
   size_t available_space() const {
     if (!data_buffer_) {
       return 0;
@@ -489,6 +545,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     assert(pos_.load() <= data_buffer_->GetDataSize());
     return data_buffer_->GetDataSize() - pos_.load();
   }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() { return "Column<std::string_view>"; }
 
  private:
   inline void init_pos(const std::string& file_path) {

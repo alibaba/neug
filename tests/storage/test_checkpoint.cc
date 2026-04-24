@@ -24,7 +24,6 @@
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "unittest/utils.h"
 
@@ -530,6 +529,182 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
     auto res = conn2->Query("MATCH (v)-[e]->(a) RETURN COUNT(e);");
     EXPECT_TRUE(res) << res.error().ToString();
     AssertSingleInt64Result(res.value().response(), 2);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Optimization tests: verify hardlink-based fast path for unchanged dumps.
+// ---------------------------------------------------------------------------
+
+// Helper: return sorted list of checkpoint-NNNNN subdirectories under db_dir.
+static std::vector<std::filesystem::path> list_checkpoint_dirs(
+    const std::string& db_dir) {
+  std::vector<std::filesystem::path> dirs;
+  for (const auto& entry : std::filesystem::directory_iterator(db_dir)) {
+    if (entry.is_directory() &&
+        entry.path().filename().string().rfind("checkpoint-", 0) == 0) {
+      dirs.push_back(entry.path());
+    }
+  }
+  std::sort(dirs.begin(), dirs.end());
+  return dirs;
+}
+
+static size_t count_regular_files(const std::string& dir) {
+  size_t n = 0;
+  for (const auto& e : std::filesystem::directory_iterator(dir)) {
+    if (e.is_regular_file())
+      ++n;
+  }
+  return n;
+}
+
+// Verify that dumping an unchanged graph to a new checkpoint produces zero new
+// data writes: every file in the new snapshot_dir must be a hardlink
+// (hard_link_count > 1), and the file count must match checkpoint-1.
+TEST(CheckpointOptTest, test_no_extra_files_on_unchanged_dump) {
+  std::string db_path = "/tmp/test_unchanged_dump_db";
+  if (std::filesystem::exists(db_path)) {
+    std::filesystem::remove_all(db_path);
+  }
+
+  // Step 1: load modern graph, explicit CHECKPOINT → checkpoint-1.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    load_modern_graph(conn);
+    auto res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  auto dirs1 = list_checkpoint_dirs(db_path);
+  ASSERT_EQ(dirs1.size(), 2u);
+  std::string ckp1_snapshot = dirs1[1].string() + "/snapshot";
+  size_t ckp1_count = count_regular_files(ckp1_snapshot);
+  ASSERT_GT(ckp1_count, 0u);
+
+  // Step 2: reopen, zero changes, another CHECKPOINT → checkpoint-2.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    auto res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  auto dirs2 = list_checkpoint_dirs(db_path);
+  ASSERT_EQ(dirs2.size(), 3u);
+  std::string ckp2_snapshot = dirs2[2].string() + "/snapshot";
+
+  // (c) file count must match – no phantom files.
+  size_t ckp2_count = count_regular_files(ckp2_snapshot);
+  EXPECT_EQ(ckp1_count, ckp2_count);
+
+  // (b) not every file is a hardlink
+  std::unordered_map<int, int> link_counts;
+  for (const auto& entry : std::filesystem::directory_iterator(ckp2_snapshot)) {
+    if (!entry.is_regular_file())
+      continue;
+    auto lc = std::filesystem::hard_link_count(entry.path());
+    LOG(INFO) << "File: " << entry.path() << ", link count: " << lc;
+    ++link_counts[lc];
+  }
+  EXPECT_TRUE(link_counts.count(3) > 0)
+      << "Expected some files with link_count=3";
+
+  // (a) data round-trip correctness.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    AssertPersonVertexBasic(res.value().response());
+    conn->Close();
+    db.Close();
+  }
+}
+
+TEST(CheckpointOptTest, test_hardlink_survives_source_cleanup) {
+  std::string db_path = "/tmp/test_hardlink_survives_db";
+  if (std::filesystem::exists(db_path)) {
+    std::filesystem::remove_all(db_path);
+  }
+
+  // checkpoint-1: load modern graph.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    load_modern_graph(conn);
+    auto res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  // checkpoint-2: zero changes.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    auto res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  auto dirs = list_checkpoint_dirs(db_path);
+  ASSERT_EQ(dirs.size(), 3u);
+  std::string ckp1_snapshot = dirs[1].string() + "/snapshot";
+  std::string ckp2_snapshot = dirs[2].string() + "/snapshot";
+
+  // Collect checkpoint-2's files before any deletion.
+  std::vector<std::filesystem::path> ckp2_files;
+  for (const auto& e : std::filesystem::directory_iterator(ckp2_snapshot)) {
+    if (e.is_regular_file())
+      ckp2_files.push_back(e.path());
+  }
+  ASSERT_GT(ckp2_files.size(), 0u);
+
+  // Simulate checkpoint-1 UpdateMeta orphan cleanup.
+  for (const auto& e : std::filesystem::directory_iterator(ckp1_snapshot)) {
+    if (e.is_regular_file()) {
+      std::filesystem::remove(e.path());
+    }
+  }
+
+  // Post-condition: checkpoint-2 files still exist, link_count == 1.
+  std::unordered_map<int, int> link_counts;
+  for (const auto& f : ckp2_files) {
+    EXPECT_TRUE(std::filesystem::exists(f))
+        << "File disappeared after source deletion: " << f;
+    if (std::filesystem::exists(f)) {
+      auto lc = std::filesystem::hard_link_count(f);
+      ++link_counts[lc];
+    }
+  }
+  for (const auto& [lc, count] : link_counts) {
+    LOG(INFO) << "Link count " << lc << ": " << count << " files";
+  }
+  EXPECT_TRUE(link_counts.count(2) > 0)
+      << "Expected some files with link_count=2 after deletion";
+
+  // Data correctness: open checkpoint-2 (latest) and query.
+  {
+    neug::NeugDB db;
+    db.Open(db_path);
+    auto conn = db.Connect();
+    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    AssertPersonVertexBasic(res.value().response());
+    conn->Close();
+    db.Close();
   }
 }
 

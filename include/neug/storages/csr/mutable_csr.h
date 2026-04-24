@@ -35,6 +35,7 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
@@ -48,7 +49,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   MutableCsr() : locks_(nullptr) {}
-  ~MutableCsr() { close(); }
+  ~MutableCsr() { Close(); }
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
@@ -69,15 +70,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -87,7 +83,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -177,19 +173,50 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  void fork_vertex(vid_t vid, Allocator& alloc) override {
+    auto v_cap = vertex_capacity();
+    if (vid >= v_cap) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Vertex id out of range: " + std::to_string(vid) +
+          " >= " + std::to_string(v_cap));
+    }
+    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
+    locks_[vid].lock();
+    auto cap = caps[vid];
+    void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
+    memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * cap);
+    buffers[vid] = static_cast<nbr_t*>(new_adj_list);
+    locks_[vid].unlock();
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<MutableCsr<EDATA_T>>();
+    fork->locks_ = new SpinLock[vertex_capacity()];
+    fork->adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
+    fork->degree_list_ = degree_list_->Fork(ckp, level);
+    fork->cap_list_ = cap_list_->Fork(ckp, level);
+    // NOTE: we intentionally share the nbr_list_ to forked csr. The forker csr
+    // need to call fork_vertex() to get its own copy of the neighbor list for a
+    // vertex before ANY MUTATIONs.
+    fork->nbr_list_ = nbr_list_;
+    fork->unsorted_since_ = unsorted_since_;
+    fork->edge_num_ = edge_num_.load();
+    return fork;
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "MutableCSR<" + type_name_string<EDATA_T>() + ">";
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-
-  void dump_meta(const std::string& prefix) const;
-
-  void open_internal(const std::string& snapshot_prefix,
-                     const std::string& tmp_prefix, MemoryLevel mem_level);
-
   SpinLock* locks_;
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_;
   std::unique_ptr<IDataContainer> cap_list_;
-  std::unique_ptr<IDataContainer> nbr_list_;
+  std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
 
@@ -208,7 +235,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   SingleMutableCsr() {}
-  ~SingleMutableCsr() { close(); }
+  ~SingleMutableCsr() { Close(); }
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 
@@ -229,15 +256,10 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -247,7 +269,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -292,10 +314,22 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
- private:
-  void load_meta(const std::string& prefix);
-  void dump_meta(const std::string& prefix) const;
+  void fork_vertex(vid_t vid, Allocator& alloc) override {}
 
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<SingleMutableCsr<EDATA_T>>();
+    fork->nbr_list_ = nbr_list_->Fork(ckp, level);
+    fork->edge_num_ = edge_num_.load();
+    return fork;
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "SingleMutableCSR<" + type_name_string<EDATA_T>() + ">";
+  }
+
+ private:
   std::unique_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
 
@@ -328,15 +362,14 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return 0; }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel /* level */) override {}
 
-  void open_in_memory(const std::string& prefix) override {}
-
-  void open_with_hugepages(const std::string& prefix) override {}
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {}
+  ModuleDescriptor Dump(Checkpoint& ckp) override {
+    ModuleDescriptor desc;
+    desc.module_type = ModuleTypeName();
+    return desc;
+  }
 
   void reset_timestamp() override {}
 
@@ -346,7 +379,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override { return 0; }
 
-  void close() override {}
+  void Close() override {}
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
@@ -369,6 +402,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
+  void fork_vertex(vid_t vid, Allocator& alloc) override {}
+
   int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                    Allocator&) override {
     return 0;
@@ -377,6 +412,16 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     return {};
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    return std::make_unique<EmptyCsr<EDATA_T>>();
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "EmptyCSR<" + type_name_string<EDATA_T>() + ">";
   }
 };
 

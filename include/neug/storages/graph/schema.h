@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <rapidjson/document.h>
 #include <stddef.h>
 #include <cstdint>
 #include <map>
@@ -750,6 +751,10 @@ class Schema {
   bool Equals(const Schema& other) const;
 
   neug::result<YAML::Node> to_yaml() const;
+
+  neug::result<rapidjson::Document> ToJson() const;
+
+  void FromJson(const rapidjson::Value& j);
 
   inline void SetGraphName(const std::string& name) { name_ = name; }
 

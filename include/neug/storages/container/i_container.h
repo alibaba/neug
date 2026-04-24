@@ -23,6 +23,8 @@
 
 namespace neug {
 
+class Checkpoint;
+
 enum class ContainerType {
   kAnonMMap = 0,
   kAnonHugeMMap = 1,
@@ -78,7 +80,9 @@ class IDataContainer {
 
   /**
    * @brief Dump the container contents to a file.
-   * @note This will close the container after writing.
+   * @note Post-condition: the container is closed after this call returns.
+   *       Callers must not access GetData() or call Close() again.
+   *       All implementations must ensure Close() is called internally.
    */
   virtual void Dump(const std::string& path) = 0;
 
@@ -91,6 +95,12 @@ class IDataContainer {
    * @brief Check if the data has been modified.
    */
   virtual bool IsDirty() = 0;
+
+  /**
+   * @brief Create a fork (copy) of this container.
+   */
+  virtual std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
+                                               MemoryLevel level) = 0;
 
  protected:
   void* data_;

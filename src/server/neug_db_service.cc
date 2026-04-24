@@ -41,7 +41,7 @@ void NeugDBService::init(const ServiceConfig& config) {
 
   session_pool_ = std::make_unique<neug::SessionPool>(
       db_.graph(), db_.GetPlanner(), db_.GetQueryCache(), version_manager_,
-      db_.allocators_, db_config_, wal_dir(db_.work_dir()));
+      db_.allocators_, db_config_);
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
   hdl_mgr_->Init(config);

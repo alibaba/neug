@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <stdexcept>
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/mmap_container.h"
 #include "neug/utils/file_utils.h"
@@ -107,7 +108,9 @@ void MMapContainer::Resize(size_t size) {
   void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (new_mmap_data == MAP_FAILED) {
-    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing");
+    int err = errno;
+    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing: " +
+                       std::to_string(err) + ", size: " + std::to_string(size));
   }
 
   // Copy existing payload only when there is payload to copy
@@ -164,6 +167,19 @@ bool MMapContainer::IsDirty() {
   MD5((unsigned char*) data_, size_, md5);
   return memcmp(md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
                 MD5_DIGEST_LENGTH) != 0;
+}
+
+std::unique_ptr<IDataContainer> MMapContainer::Fork(Checkpoint& checkpoint,
+                                                    MemoryLevel level) {
+  Sync();
+  if (!IsDirty()) {
+    return checkpoint.OpenFile(path_, level);
+  } else {
+    auto ret = checkpoint.CreateRuntimeContainer(this->GetDataSize(), level);
+    memcpy(ret->GetData(), data_, size_);
+    ret->Sync();
+    return ret;
+  }
 }
 
 }  // namespace neug

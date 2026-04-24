@@ -26,6 +26,8 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/module/module.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -39,6 +41,7 @@ class IRecordBatchSupplier;
 
 class EdgeTable {
  public:
+  EdgeTable() = default;
   EdgeTable(std::shared_ptr<const EdgeSchema> meta);
   EdgeTable(EdgeTable&& edge_table);
 
@@ -49,9 +52,12 @@ class EdgeTable {
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level);
 
-  void Dump(const std::string& checkpoint_dir_path);
+  ModuleDescriptor Dump(Checkpoint& ckp);
+
+  void Close();
 
   void SortByEdgeData(timestamp_t ts);
 
@@ -98,11 +104,12 @@ class EdgeTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void AddProperties(const std::vector<std::string>& names,
+  void AddProperties(Checkpoint& ckp, const std::vector<std::string>& names,
                      const std::vector<DataType>& types,
                      const std::vector<Property>& default_values = {});
 
-  void DeleteProperties(const std::vector<std::string>& col_names);
+  void DeleteProperties(Checkpoint& ckp,
+                        const std::vector<std::string>& col_names);
 
   void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                   int32_t ie_offset, timestamp_t ts);
@@ -129,14 +136,12 @@ class EdgeTable {
   size_t Capacity() const;
 
  private:
-  void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
-  void dropAndCreateNewUnbundledCSR(bool delete_property);
-  std::string get_next_csr_path_suffix();
+  void dropAndCreateNewBundledCSR(Checkpoint& ckp,
+                                  std::shared_ptr<ColumnBase> prev_data_col);
+  void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 
   std::shared_ptr<const EdgeSchema> meta_;
-  std::string work_dir_;
   MemoryLevel memory_level_{MemoryLevel::kSyncToFile};
-  std::atomic<int32_t> csr_alter_version_{0};
   std::unique_ptr<CsrBase> out_csr_;
   std::unique_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;

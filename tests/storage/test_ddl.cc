@@ -21,8 +21,8 @@
 #include "column_assertions.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 class DDLTestDBFixture : public ::testing::Test {
  protected:
