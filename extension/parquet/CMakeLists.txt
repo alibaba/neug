@@ -17,23 +17,16 @@ if(ARROW_INCLUDE_DIRS)
     target_include_directories(neug_parquet_extension PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
 endif()
 
-# Link libraries
-# Core Arrow symbols are already in neug (which links arrow_static,
-# arrow_dataset_static, etc.). However, the linker strips unreferenced symbols
-# from static archives — both arrow::parquet::* and arrow::dataset::Parquet* symbols
-# are stripped because neug itself doesn't use them.
-#
-# Link the Arrow OBJECT libraries directly to include these symbols:
-# - arrow_dataset_objlib: provides arrow::dataset::ParquetFileFormat,
-#   ParquetFragmentScanOptions, and other dataset symbols used by the extension.
-#
-# Additionally, link ARROW_PARQUET_LIB (the Parquet static library) with
-# arrow::parquet::* symbols (e.g., ParquetFileReader, ArrowReaderProperties).
-#
-# Using OBJECT library targets (resolved at build time) instead of file(GLOB)
-# for .o files (which fails on clean builds since GLOB runs at configure time).
+# Link only the Arrow components this extension actually needs, instead of
+# the full ${ARROW_LIB} (which includes acero, etc.).
+# This significantly reduces the extension binary size.
+# Extension symbols are hidden by neug_apply_symbol_visibility (in
+# build_extension_lib) to avoid conflicts with pyarrow.
 target_link_libraries(neug_parquet_extension PRIVATE
     neug
+    ${ARROW_BASE_LIB}
+    ${ARROW_DATASET_LIB}
+    ${ARROW_PARQUET_LIB}
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

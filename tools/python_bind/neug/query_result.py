@@ -145,3 +145,14 @@ class QueryResult(object):
             The result in Bolt response format.
         """
         return self._result.get_bolt_response()
+
+    def to_arrow(self):
+        """
+        Convert the result to an Arrow table.
+
+        Returns
+        -------
+        pyarrow.Table
+            The result converted to an Arrow table.
+        """
+        return self._result.to_arrow()

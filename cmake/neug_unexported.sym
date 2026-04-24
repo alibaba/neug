@@ -1,0 +1,44 @@
+# Symbols to hide from libneug.dylib on macOS.
+# This prevents conflicts with pyarrow's bundled Arrow/protobuf/abseil.
+#
+# Format: one mangled symbol pattern per line.
+# Wildcards (*) are supported.
+
+# Arrow C++ symbols
+__ZN5arrow*
+__ZNK5arrow*
+__ZTI*5arrow*
+__ZTV*5arrow*
+__ZTS*5arrow*
+__ZTh*5arrow*
+
+# Parquet symbols
+__ZN7parquet*
+__ZNK7parquet*
+__ZTI*7parquet*
+__ZTV*7parquet*
+__ZTS*7parquet*
+
+# Protobuf symbols (google::protobuf::*)
+__ZN6google8protobuf*
+__ZNK6google8protobuf*
+__ZTI*8protobuf*
+__ZTV*8protobuf*
+__ZTS*8protobuf*
+# Protobuf global data symbols
+__ZGV*8protobuf*
+# Protobuf table structs
+_TableStruct_google*
+# pb:: namespace (protobuf internal)
+__ZN2pb*
+__ZNK2pb*
+
+# Abseil symbols (absl::*)
+__ZN4absl*
+__ZNK4absl*
+__ZTI*4absl*
+__ZTV*4absl*
+__ZTS*4absl*
+
+# utf8_range (protobuf dependency)
+_utf8_range*

@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include <google/protobuf/util/json_util.h>
+#include <google/protobuf/message.h>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -40,32 +40,11 @@ class Value;
 std::vector<std::string> parse_result_schema_column_names(
     const std::string& result_schema);
 
-// Helper function to set up JsonPrintOptions with compatibility across protobuf
-// versions
-inline void configure_json_print_options_for_all_fields(
-    google::protobuf::util::JsonPrintOptions& options) {
-#if PROTOBUF_VERSION < \
-    4026000  // Before v26.0 where always_print_primitive_fields was removed
-  options.always_print_primitive_fields = true;
-#else
-  options.always_print_fields_with_no_presence = true;  // Replacement field
-#endif
-}
-
-template <typename T>
-std::string proto_to_string(const T& proto) {
-  std::string json_str;
-  google::protobuf::util::JsonPrintOptions options;
-  options.add_whitespace = true;
-  configure_json_print_options_for_all_fields(options);
-  auto status =
-      google::protobuf::util::MessageToJsonString(proto, &json_str, options);
-  if (!status.ok()) {
-    THROW_RUNTIME_ERROR("Failed to convert proto to string: " +
-                        status.ToString());
-  }
-  return json_str;
-}
+// Convert any protobuf Message to pretty-printed JSON string.
+// This is a non-inline exported function so that test binaries do not need to
+// link ${Protobuf_LIBRARIES} directly (the implementation lives inside
+// libneug, avoiding protobuf descriptor double-registration).
+NEUG_API std::string proto_to_string(const google::protobuf::Message& proto);
 
 bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,

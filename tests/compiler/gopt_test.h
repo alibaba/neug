@@ -23,7 +23,6 @@
 #include <memory>
 #include <sstream>
 
-#include <google/protobuf/util/json_util.h>
 #include <gtest/gtest.h>
 #include <rapidjson/document.h>
 #include <yaml-cpp/node/emit.h>
@@ -49,6 +48,7 @@
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/service_utils.h"
 
 namespace neug {
@@ -56,27 +56,7 @@ namespace gopt {
 class Utils {
  public:
   static std::string getPhysicalJson(const ::physical::PhysicalPlan& plan) {
-    google::protobuf::util::JsonPrintOptions options;
-    options.add_whitespace = true;  // Enables pretty-printing
-
-    // Protobuf version compatibility:
-    // - always_print_primitive_fields was removed in v26.0 (commit 06e7caba5,
-    // Feb 2024)
-    // - always_print_fields_with_no_presence is the replacement with consistent
-    // behavior
-#if PROTOBUF_VERSION < 4026000  // Before v26.0
-    options.always_print_primitive_fields =
-        true;  // Print fields even if default values
-#else
-    options.always_print_fields_with_no_presence =
-        true;  // Replacement for v26.0+
-#endif
-
-    options.preserve_proto_field_names =
-        true;  // Optional: use proto field names instead of camelCase
-    std::string json;
-    (void) google::protobuf::util::MessageToJsonString(plan, &json, options);
-    return json;
+    return neug::proto_to_string(plan);
   }
 
   static std::string getEnvVarOrDefault(const char* varName,

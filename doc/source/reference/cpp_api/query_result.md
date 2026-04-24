@@ -29,7 +29,13 @@ Get result schema metadata.
 
 #### `response() const`
 
-Get underlying protobuf response.
+Get underlying protobuf response (`const` reference).
+
+#### `shared_response() const`
+
+Get shared ownership of the underlying protobuf response.
+
+Useful when callers need to extend the lifetime of the response beyond the `QueryResult` (e.g. zero-copy Arrow export).
 
 #### `Serialize() const`
 

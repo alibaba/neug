@@ -104,7 +104,7 @@ endforeach()
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 
 include(CheckCXXCompilerFlag)
-
+include(cmake/neug_symbol_visibility.cmake)
 
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -425,9 +425,9 @@ function(add_neug_test TEST_NAME)
     find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug   
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
         ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
-        ${CRYPTO_LIB})
+        ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
         target_link_options(${TEST_NAME} PRIVATE --coverage)
@@ -596,9 +596,11 @@ if(BUILD_EXTENSIONS AND "parquet" IN_LIST BUILD_EXTENSIONS)
 endif()
 
 set(NEUG_USE_SYSTEM_ARROW OFF)
-if(DEFINED ENV{CI} AND "$ENV{CI}" STREQUAL "ON")
-    set(NEUG_USE_SYSTEM_ARROW ON)
-    message(STATUS "CI=ON detected – using system-installed Arrow")
+if(DEFINED ENV{CI})
+    if("$ENV{CI}" STREQUAL "ON")
+        set(NEUG_USE_SYSTEM_ARROW ON)
+        message(STATUS "CI=ON detected – using system-installed Arrow")
+    endif()
 endif()
 
 if(NEUG_USE_SYSTEM_ARROW)
@@ -644,6 +646,7 @@ if(NEUG_USE_SYSTEM_ARROW)
     if (NOT _ARROW_BASE_TARGET)
         message(FATAL_ERROR "Failed to find Arrow library target.")
     endif()
+    set(ARROW_BASE_LIB ${_ARROW_BASE_TARGET})
     set(ARROW_LIB ${_ARROW_BASE_TARGET})
 
     set(_ARROW_LOCATION "")
@@ -679,6 +682,7 @@ if(NEUG_USE_SYSTEM_ARROW)
         set(ARROW_DATASET_LIB ${_ARROW_DATASET_LIB})
     endif()
     if (_ARROW_ACERO_LIB)
+        set(ARROW_ACERO_LIB ${_ARROW_ACERO_LIB})
         list(APPEND ARROW_LIB ${_ARROW_ACERO_LIB})
     endif()
     if (_ARROW_CSV_LIB)
@@ -692,10 +696,17 @@ if(NEUG_USE_SYSTEM_ARROW)
     # find_package(Parquet) must be called first to register Parquet::parquet_*
     # targets, which resolve_system_arrow_component can then locate.
     if(ARROW_ENABLE_PARQUET)
+        set(_SYSTEM_PARQUET_TARGET "")
         find_package(Parquet CONFIG QUIET)
         if(NOT Parquet_FOUND)
             message(WARNING "System Parquet package not found; parquet extension headers may be missing")
         else()
+            foreach(_parquet_target Parquet::parquet_static Parquet::parquet parquet_static parquet)
+                if(TARGET ${_parquet_target})
+                    set(_SYSTEM_PARQUET_TARGET ${_parquet_target})
+                    break()
+                endif()
+            endforeach()
             # Extract Parquet include directories so extension sources and tests
             # can find <parquet/properties.h> and <parquet/arrow/writer.h> when
             # compiling against system Arrow.
@@ -734,10 +745,22 @@ if(NEUG_USE_SYSTEM_ARROW)
             endif()
         endif()
         resolve_system_arrow_component(parquet ARROW_PARQUET_LIB)
+        if((NOT ARROW_PARQUET_LIB) AND _SYSTEM_PARQUET_TARGET)
+            set(ARROW_PARQUET_LIB ${_SYSTEM_PARQUET_TARGET})
+            message(STATUS "Using system Parquet target fallback: ${ARROW_PARQUET_LIB}")
+        endif()
         if(ARROW_PARQUET_LIB)
             list(APPEND ARROW_LIB ${ARROW_PARQUET_LIB})
             message(STATUS "Found system parquet lib: ${ARROW_PARQUET_LIB}")
         endif()
+    endif()
+
+    # GNU ld scans static archives left-to-right in a single pass.  Sub-libs
+    # (dataset, acero, parquet …) reference symbols from the base arrow lib,
+    # so we append it again at the end to let ld resolve those back-references
+    # without requiring --start-group/--end-group.
+    if(NOT APPLE)
+        list(APPEND ARROW_LIB ${_ARROW_BASE_TARGET})
     endif()
 else()
     include(cmake/BuildArrowAsThirdParty.cmake)

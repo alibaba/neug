@@ -356,6 +356,14 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/transaction/elle_tester_insert.py
 
+    - name: Run PyArrow related test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pip install pyarrow==18.0.0
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_to_arrow.py
+        python3 -m pip uninstall -y pyarrow
+
     - name: Test CLI tool
       if: steps.scope.outputs.extension_only != 'true'
       run: |

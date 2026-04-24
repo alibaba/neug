@@ -52,6 +52,7 @@ function(build_extension_lib ext_name)
         target_compile_options(neug_${ext_name}_extension PRIVATE --coverage)
         target_link_options(neug_${ext_name}_extension PRIVATE --coverage)
     endif()
+    neug_apply_symbol_visibility(neug_${ext_name}_extension)
     SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
     SET(EXTENSION_LIB_NAME "${ext_name}")
     set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})
@@ -101,9 +102,10 @@ function(add_extension_test)
     target_link_libraries(${_test_name} PUBLIC
         neug::GTest
         neug
-        ${ARG_EXTRA_LINK_LIBS}
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}
+        ${Protobuf_LIBRARIES}
+        ${ARG_EXTRA_LINK_LIBS}
         ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB})
     if(ENABLE_GCOV)
