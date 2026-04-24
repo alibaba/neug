@@ -35,7 +35,6 @@ endif()
 target_link_libraries(neug_parquet_extension PRIVATE
     neug
     ${ARROW_LIB}
-    ${Protobuf_LIBRARIES}
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)
