@@ -298,15 +298,13 @@ Status PropertyGraph::CreateEdgeType(
     property_types.emplace_back(type);
     default_property_values.emplace_back(default_value);
   }
-  EdgeStrategy cur_ie = EdgeStrategy::kMultiple;
-  EdgeStrategy cur_oe = EdgeStrategy::kMultiple;
   bool oe_mutable = true, ie_mutable = true;
   bool cur_sort_on_compaction = false;
   std::string description;
-  schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
-                       property_types, property_names, cur_oe, cur_ie,
-                       oe_mutable, ie_mutable, cur_sort_on_compaction,
-                       description, default_property_values);
+  schema_.AddEdgeLabel(
+      src_vertex_type, dst_vertex_type, edge_type_name, property_types,
+      property_names, oe_edge_strategy, ie_edge_strategy, oe_mutable,
+      ie_mutable, cur_sort_on_compaction, description, default_property_values);
   edge_label_total_count_ = schema_.edge_label_frontier();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);

@@ -136,7 +136,9 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
       storageDirection{other.storageDirection},
       srcTableID{other.srcTableID},
       dstTableID{other.dstTableID} {
-  options = other.options;
+  for (const auto& [key, value] : other.options) {
+    options.emplace(key, value);
+  }
 }
 
 }  // namespace binder
