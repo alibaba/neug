@@ -1,3 +1,5 @@
+#include <string>
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/query/return_with_clause/bound_projection_body.h"
@@ -17,12 +19,33 @@ void Planner::planProjectionBody(
   }
 }
 
+void Planner::resetExprUniqueNames(const expression_vector& expressions) {
+  // group expressions by unique name
+  auto exprGroup = std::unordered_map<std::string, expression_vector>();
+  for (size_t pos; pos < expressions.size(); pos++) {
+    const auto& expr = expressions[pos];
+    auto& group = exprGroup[expr->getUniqueName()];
+    if (std::find_if(group.begin(), group.end(), [&expr](const auto& a) {
+          return a->getAlias() == expr->getAlias();
+        }) != group.end()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Multiple expressions with the same unique name and alias are not "
+          "supported.");
+    }
+    if (!group.empty()) {
+      expr->setUniqueName(expr->getUniqueName() + "_" + std::to_string(pos));
+    }
+    group.push_back(expr);
+  }
+}
+
 void Planner::planProjectionBody(const BoundProjectionBody* projectionBody,
                                  LogicalPlan& plan) {
   auto expressionsToProject = projectionBody->getProjectionExpressions();
   if (expressionsToProject.empty()) {
     return;
   }
+  resetExprUniqueNames(expressionsToProject);
   if (plan.isEmpty()) {  // e.g. RETURN 1, COUNT(2)
     // if the pre query is not null, we set updateClause as true to skip the
     // dummy scan in physical plan convertor
