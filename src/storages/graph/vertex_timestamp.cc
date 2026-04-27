@@ -16,22 +16,26 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
 
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
-void VertexTimestamp::Open(const std::string& tracker_file_prefix) {
-  std::string ts_filename = tracker_file_prefix + ".ts";
-  if (std::filesystem::exists(ts_filename)) {
-    load_ts(ts_filename);
+void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+                           MemoryLevel level) {
+  assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
+  if (std::filesystem::exists(desc.path)) {
+    load_ts(desc.path);
   } else {
     Init(0, 4096);
   }
 }
 
-void VertexTimestamp::Dump(const std::string& tracker_file_prefix) {
-  std::string ts_filename = tracker_file_prefix + ".ts";
+ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
+  auto uuid = ckp.create_runtime_object();
+  std::string ts_filename = ckp.runtime_dir() + "/" + uuid;
   // Before dump, reset the timestamp of modified vertices
   vid_t num = max_vertex_num_ - init_vertex_num_;
   for (vid_t v = 0; v < num; ++v) {
@@ -41,6 +45,11 @@ void VertexTimestamp::Dump(const std::string& tracker_file_prefix) {
   }
   Compact();
   dump_ts(ts_filename);
+  ModuleDescriptor descriptor;
+  descriptor.size = max_vertex_num_;
+  descriptor.path = ckp.CommitRuntimeObject(uuid);
+  descriptor.module_type = ModuleTypeName();
+  return descriptor;
 }
 
 void VertexTimestamp::Init(vid_t init_vertex_num, vid_t max_vertex_num) {
@@ -279,4 +288,30 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   }
   inserted_vertices_.swap(new_inserted_vertices);
 }
+
+std::unique_ptr<Module> VertexTimestamp::Fork(Checkpoint& ckp,
+                                              MemoryLevel level) {
+  auto new_vertex_ts = std::make_unique<VertexTimestamp>();
+  new_vertex_ts->init_vertex_num_ = init_vertex_num_;
+  new_vertex_ts->max_vertex_num_ = max_vertex_num_;
+  if (inserted_vertices_) {
+    new_vertex_ts->inserted_vertices_ =
+        std::make_unique<std::atomic<timestamp_t>[]>(max_vertex_num_ -
+                                                     init_vertex_num_);
+    vid_t num = max_vertex_num_ - init_vertex_num_;
+    for (vid_t v = 0; v < num; ++v) {
+      new_vertex_ts->inserted_vertices_[v].store(inserted_vertices_[v].load());
+    }
+  }
+  if (removed_vertices_) {
+    new_vertex_ts->removed_vertices_ =
+        std::make_unique<std::set<vid_t>>(*removed_vertices_);
+  }
+  return new_vertex_ts;
+}
+
+void VertexTimestamp::Close() { Reset(); }
+
+NEUG_REGISTER_MODULE(VertexTimestamp);
+
 }  // namespace neug

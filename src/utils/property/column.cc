@@ -18,6 +18,7 @@
 #include <limits>
 
 #include "neug/storages/container/container_utils.h"
+#include "neug/storages/module/module_factory.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -100,5 +101,18 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   }
   }
 }
+
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, EmptyType);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, bool);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, int32_t);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, uint32_t);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, int64_t);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, uint64_t);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, float);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, double);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, Date);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, DateTime);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, Interval);
+NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, std::string_view);
 
 }  // namespace neug

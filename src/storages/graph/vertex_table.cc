@@ -14,44 +14,26 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
+
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/module_descriptor.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+void VertexTable::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+                       MemoryLevel memory_level) {
   memory_level_ = memory_level;
-  work_dir_ = work_dir;
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
 
-  const auto& label_name = vertex_schema_->label_name;
-  std::string vertex_tracker_filename =
-      checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
-  auto indexer_filename =
-      IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
-  if (memory_level_ == MemoryLevel::kSyncToFile) {
-    indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
-    table_->open(vertex_table_prefix(label_name), work_dir_,
-                 vertex_schema_->property_names,
-                 vertex_schema_->property_types);
-
-  } else if (memory_level_ == MemoryLevel::kInMemory) {
-    indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
-    table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
-                           vertex_schema_->property_names,
-                           vertex_schema_->property_types);
-
-  } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
-    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
-    table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
-                                vertex_schema_->property_names,
-                                vertex_schema_->property_types);
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " +
-                                     std::to_string(memory_level_));
-  }
-  v_ts_.Open(vertex_tracker_filename);
+  indexer_.Open(ckp, descriptor.get_sub_module_or_default("indexer"),
+                memory_level);
+  table_->Open(ckp, descriptor.get_sub_module_or_default("property_table"),
+               memory_level, vertex_schema_->property_names,
+               vertex_schema_->property_types);
+  v_ts_.Open(ckp, descriptor.get_sub_module_or_default("vertex_timestamp"),
+             memory_level);
 }
 
 void VertexTable::insert_vertices(
@@ -74,16 +56,17 @@ void VertexTable::insert_vertices(
   }
 }
 
-void VertexTable::Dump(const std::string& target_dir) {
-  const auto& label_name = vertex_schema_->label_name;
-  indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
-                target_dir);
-  table_->dump(vertex_table_prefix(label_name), target_dir);
-  v_ts_.Dump(target_dir + "/" + vertex_tracker_file(label_name));
+ModuleDescriptor VertexTable::Dump(Checkpoint& ckp) {
+  ModuleDescriptor descriptor;
+  descriptor.module_type = ModuleTypeName();
+  descriptor.set_sub_module("indexer", indexer_.Dump(ckp));
+  descriptor.set_sub_module("property_table", table_->Dump(ckp));
+  descriptor.set_sub_module("vertex_timestamp", v_ts_.Dump(ckp));
+  return descriptor;
 }
 
 void VertexTable::Close() {
-  indexer_.close();
+  indexer_.Close();
   table_->close();
   v_ts_.Clear();
 }
@@ -234,11 +217,12 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   }
 }
 
-void VertexTable::AddProperties(const std::vector<std::string>& properties,
+void VertexTable::AddProperties(Checkpoint& ckp,
+                                const std::vector<std::string>& properties,
                                 const std::vector<DataType>& types,
                                 const std::vector<Property>& default_values) {
-  table_->add_columns(properties, types, default_values, indexer_.capacity(),
-                      memory_level_);
+  table_->add_columns(ckp, properties, types, default_values,
+                      indexer_.capacity(), memory_level_);
 }
 
 void VertexTable::Drop() {

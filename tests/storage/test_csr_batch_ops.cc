@@ -1,9 +1,15 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/config.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
+
+using neug::Checkpoint;
+using neug::MemoryLevel;
+using neug::ModuleDescriptor;
 
 using CsrTypes = ::testing::Types<
     neug::MutableCsr<int32_t>, neug::MutableCsr<int64_t>,
@@ -30,37 +36,13 @@ class CsrBatchTest : public ::testing::Test {
     if (std::filesystem::exists(temp_dir_)) {
       std::filesystem::remove_all(temp_dir_);
     }
-    std::filesystem::create_directories(temp_dir_);
-    std::filesystem::create_directories(temp_dir_ / "snapshot");
-    std::filesystem::create_directories(temp_dir_ / "work");
-    std::filesystem::create_directories(temp_dir_ / "work" / "runtime" / "tmp");
+    ws.Open(temp_dir_.string());
   }
 
   void TearDown() override {
     if (std::filesystem::exists(temp_dir_)) {
       std::filesystem::remove_all(temp_dir_);
     }
-  }
-
-  std::filesystem::path WorkDirectory() const { return temp_dir_ / "work"; }
-  std::filesystem::path SnapshotDirectory() const {
-    return temp_dir_ / "snapshot";
-  }
-
-  void CreateDirectory(const std::string& name) {
-    std::filesystem::create_directories(temp_dir_ / name);
-  }
-
-  std::filesystem::path GetDirectory(const std::string& name) const {
-    return temp_dir_ / name;
-  }
-
-  void ClearWorkDirectory() {
-    auto work_dir = WorkDirectory();
-    if (std::filesystem::exists(work_dir)) {
-      std::filesystem::remove_all(work_dir);
-    }
-    std::filesystem::create_directories(work_dir);
   }
 
   void CheckEqual(const std::vector<std::tuple<neug::vid_t, neug::vid_t,
@@ -86,7 +68,10 @@ class CsrBatchTest : public ::testing::Test {
     }
   }
 
+  neug::Workspace& Workspace() { return ws; }
+
   std::unique_ptr<CsrType> csr = nullptr;
+  neug::Workspace ws;
 
  private:
   std::filesystem::path temp_dir_;
@@ -101,9 +86,9 @@ class CsrBatchTest : public ::testing::Test {
 TYPED_TEST_SUITE(CsrBatchTest, CsrTypes);
 
 TYPED_TEST(CsrBatchTest, OpenInsertScan) {
-  auto work_dir = this->WorkDirectory();
-  auto snapshot_dir = this->SnapshotDirectory();
-  this->csr->open("csr", snapshot_dir.string(), work_dir.string());
+  auto ckp_id = this->Workspace().CreateCheckpoint();
+  auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges0 = generate_random_edges<typename TypeParam::data_t>(
       500, 1000, 10000,
@@ -175,11 +160,11 @@ TYPED_TEST(CsrBatchTest, OpenInsertScan) {
 }
 
 TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
-  auto work_dir = this->WorkDirectory();
-  auto snapshot_dir = this->SnapshotDirectory();
   // open -> dump -> open
   {
-    this->csr->open("csr0", snapshot_dir.string(), work_dir.string());
+    auto ckp_id = this->Workspace().CreateCheckpoint();
+    auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -200,11 +185,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    this->csr->dump("csr0", snapshot_dir.string());
+    auto desc = this->csr->Dump(ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open("csr0", snapshot_dir.string(), work_dir.string());
+    this->csr->Open(ckp, desc, MemoryLevel::kSyncToFile);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 
@@ -216,7 +201,9 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open
   {
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr1");
+    auto ckp_id = this->Workspace().CreateCheckpoint();
+    auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     this->csr->resize(1000);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
@@ -238,11 +225,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    this->csr->dump("csr1", snapshot_dir.string());
+    auto desc = this->csr->Dump(ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open("csr1", snapshot_dir.string(), work_dir.string());
+    this->csr->Open(ckp, desc, MemoryLevel::kSyncToFile);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 
@@ -254,7 +241,9 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open_in_memory
   {
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr2");
+    auto ckp_id = this->Workspace().CreateCheckpoint();
+    auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -275,11 +264,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    this->csr->dump("csr2", snapshot_dir.string());
+    auto desc = this->csr->Dump(ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr2");
+    this->csr->Open(ckp, desc, MemoryLevel::kInMemory);
     this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
@@ -292,7 +281,9 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open -> dump -> open_in_memory
   {
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open("csr3", snapshot_dir.string(), work_dir.string());
+    auto ckp_id = this->Workspace().CreateCheckpoint();
+    auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -313,11 +304,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    this->csr->dump("csr3", snapshot_dir.string());
+    auto desc = this->csr->Dump(ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr3");
+    this->csr->Open(ckp, desc, MemoryLevel::kInMemory);
     this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
@@ -330,9 +321,9 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteVertices) {
-  auto work_dir = this->WorkDirectory();
-  auto snapshot_dir = this->SnapshotDirectory();
-  this->csr->open("csr", snapshot_dir.string(), work_dir.string());
+  auto ckp_id = this->Workspace().CreateCheckpoint();
+  auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
@@ -370,9 +361,9 @@ TYPED_TEST(CsrBatchTest, DeleteVertices) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteEdges) {
-  auto work_dir = this->WorkDirectory();
-  auto snapshot_dir = this->SnapshotDirectory();
-  this->csr->open("csr", snapshot_dir.string(), work_dir.string());
+  auto ckp_id = this->Workspace().CreateCheckpoint();
+  auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
@@ -422,9 +413,9 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteEdgesAndCompact) {
-  auto work_dir = this->WorkDirectory();
-  auto snapshot_dir = this->SnapshotDirectory();
-  this->csr->open("csr", snapshot_dir.string(), work_dir.string());
+  auto ckp_id = this->Workspace().CreateCheckpoint();
+  auto& ckp = this->Workspace().GetCheckpoint(ckp_id);
+  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,

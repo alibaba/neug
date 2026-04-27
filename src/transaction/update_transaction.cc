@@ -29,7 +29,6 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view_utils.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"

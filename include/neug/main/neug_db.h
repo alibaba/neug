@@ -30,6 +30,7 @@
 #include "neug/main/connection.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/workspace.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -282,7 +283,7 @@ class NeugDB {
 
   inline const Schema& schema() const { return graph_.schema(); }
 
-  std::string work_dir() const { return work_dir_; }
+  std::string work_dir() const { return ws_.db_dir(); }
 
   inline const NeugDBConfig& config() const { return config_; }
 
@@ -296,7 +297,7 @@ class NeugDB {
 
  private:
   void preprocessConfig();
-  void initAllocators();
+  void initAllocators(const std::string& allocator_dir);
   void openGraphAndIngestWals();
   void ingestWals(IWalParser& parser);
   void initPlannerAndQueryProcessor();
@@ -321,6 +322,7 @@ class NeugDB {
   bool is_pure_memory_;
   int thread_num_;
   NeugDBConfig config_;
+  Workspace ws_;
   std::string work_dir_;
   std::unique_ptr<FileLock> file_lock_;
 

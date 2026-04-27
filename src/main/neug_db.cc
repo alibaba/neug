@@ -36,8 +36,8 @@
 #include "neug/main/query_processor.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/workspace.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -45,6 +45,11 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+inline std::string allocator_prefix(const std::string& allocator_dir,
+                                    int thread_id) {
+  return allocator_dir + "allocator_" + std::to_string(thread_id) + "_";
+}
 
 class Connection;
 static void IngestWalRange(PropertyGraph& graph,
@@ -81,9 +86,7 @@ NeugDB::~NeugDB() {
   try {
     if (is_pure_memory_) {
       VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
-      remove_directory(work_dir_);
-    } else {
-      remove_directory(tmp_dir(work_dir_));
+      remove_directory(ws_.db_dir());
     }
   } catch (const std::exception& e) {
     LOG(WARNING) << "Failed to remove temp dir for " << work_dir_ << ": "
@@ -110,21 +113,16 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
 bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
+  ws_.Open(config_.data_dir);
+  VLOG(1) << "Opening NeuGDB at " << ws_.db_dir();
+  file_lock_ = std::make_unique<FileLock>(ws_.db_dir());
 
-  work_dir_ = config_.data_dir;
-  VLOG(1) << "Opening NeuGDB at " << work_dir_
-          << ", memory level: " << std::to_string(config_.memory_level);
-  if (!std::filesystem::exists(work_dir_)) {
-    std::filesystem::create_directories(work_dir_);
-  }
-  file_lock_ = std::make_unique<FileLock>(work_dir_);
   std::string error_msg;
-
-  if (!file_lock_->lock(error_msg, config_.mode)) {
-    THROW_DATABASE_LOCKED_EXCEPTION(error_msg);
+  if (!file_lock_->lock(error_msg, config.mode)) {
+    THROW_DATABASE_LOCKED_EXCEPTION("Failed to lock data directory: " +
+                                    ws_.db_dir() + ", error: " + error_msg);
   }
   neug::execution::PlanParser::get().init();
-  initAllocators();
   openGraphAndIngestWals();
   initPlannerAndQueryProcessor();
 
@@ -211,30 +209,40 @@ void NeugDB::preprocessConfig() {
   }
 }
 
-void NeugDB::initAllocators() {
+void NeugDB::initAllocators(const std::string& allocator_dir) {
   // Initialize the default allocator for ingesting wals
-  remove_directory(allocator_dir(work_dir_));
-  std::filesystem::create_directories(allocator_dir(work_dir_));
+  remove_directory(allocator_dir);
+  std::filesystem::create_directories(allocator_dir);
   assert(config_.thread_num > 0);
   for (int i = 0; i < config_.thread_num; ++i) {
     allocators_.emplace_back(std::make_shared<Allocator>(
         config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
                                   ? ""
-                                  : wal_ingest_allocator_prefix(work_dir_, i)));
+                                  : allocator_prefix(allocator_dir, i)));
   }
 }
 
 void NeugDB::openGraphAndIngestWals() {
-  if (!std::filesystem::exists(work_dir_)) {
-    std::filesystem::create_directories(work_dir_);
-  }
-
   thread_num_ = config_.thread_num;
   try {
-    graph_.Open(work_dir_, config_.memory_level);
+    int ckp_id;
+    if (ws_.HeadId() >= 0) {
+      ckp_id = ws_.HeadId();
+    } else {
+      ckp_id = ws_.CreateCheckpoint();
+      LOG(INFO) << "No checkpoint found, created new checkpoint: " << ckp_id;
+    }
+    auto& ckp = ws_.GetCheckpoint(ckp_id);
+    LOG(INFO) << "Opening graph from checkpoint " << ckp.path();
+    graph_.Open(ckp, config_.memory_level);
+
+    // Init allocators before ingesting wals
+    initAllocators(ckp.allocator_dir());
+
     neug::WalParserFactory::Init();
-    auto wal_parser = WalParserFactory::CreateWalParser(wal_dir(work_dir_));
+    auto wal_parser = WalParserFactory::CreateWalParser(ckp.wal_dir());
     ingestWals(*wal_parser);
+
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());
@@ -295,8 +303,10 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
     graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                    MAX_TIMESTAMP);
   }
-  graph_.Dump(reopen);
-  VLOG(1) << "Finish checkpoint";
+  auto ckp_id = ws_.CreateCheckpoint();
+  auto& ckp = ws_.GetCheckpoint(ckp_id);
+  graph_.Dump(ckp, reopen);
+  VLOG(1) << "Finish checkpoint: " << ckp.path();
 }
 
 }  // namespace neug
