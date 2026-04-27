@@ -53,8 +53,12 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   }
 
   std::unique_ptr<LogicalOperator> copy() override {
-    return std::make_unique<LogicalTableFunctionCall>(tableFunc,
-                                                      bindData->copy());
+    auto funcCall =
+        std::make_unique<LogicalTableFunctionCall>(tableFunc, bindData->copy());
+    if (this->getNumChildren() > 0) {
+      funcCall->addChild(this->getChild(0));
+    }
+    return funcCall;
   }
 
  private:
