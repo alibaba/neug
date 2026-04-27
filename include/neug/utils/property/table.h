@@ -89,7 +89,7 @@ class Table {
   std::vector<ColumnBase*>& column_ptrs();
 
   void insert(size_t index, const std::vector<Property>& values,
-              bool insert_safe = false);
+              bool insert_safe);
 
   void resize(size_t row_num);
   /**
