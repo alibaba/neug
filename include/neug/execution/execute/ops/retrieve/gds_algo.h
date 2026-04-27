@@ -14,6 +14,7 @@
 #pragma once
 
 #include "neug/compiler/function/gds/gds_algo_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
@@ -24,7 +25,7 @@ namespace ops {
 
 class GDSAlgoOpr : public IOperator {
  public:
-  GDSAlgoOpr(physical::Subgraph subgraph, function::options_t options,
+  GDSAlgoOpr(std::unique_ptr<function::CallFuncInputBase> algo_input,
              function::GDSAlgoFunction* algo_func);
 
   ~GDSAlgoOpr() override = default;
@@ -37,8 +38,7 @@ class GDSAlgoOpr : public IOperator {
       neug::execution::OprTimer* timer) override;
 
  private:
-  physical::Subgraph subgraph_;
-  function::options_t options_;
+  std::unique_ptr<function::CallFuncInputBase> algo_input_;
   function::GDSAlgoFunction* algo_func_;
 };
 

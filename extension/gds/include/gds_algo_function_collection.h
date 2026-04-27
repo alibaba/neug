@@ -38,7 +38,7 @@ struct NEUG_API LabelPropagationFunction {
         {"node", common::LogicalTypeID::NODE},
         {"label", common::LogicalTypeID::INT64}};
 
-    // todo: set algo_exec_func_t
+    // todo: set bind_func and exec_func
 
     funcSet.emplace_back(std::make_unique<function::GDSAlgoFunction>(
         name, inputTypes, outputColumns));

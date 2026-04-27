@@ -40,7 +40,8 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
 using call_exec_func_t = std::function<execution::Context(
-    const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
+    const CallFuncInputBase& input, neug::IStorageInterface& graph,
+    neug::execution::Context& ctx)>;  // input context
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;

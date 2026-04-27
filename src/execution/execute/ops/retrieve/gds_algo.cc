@@ -14,6 +14,7 @@
 
 #include "neug/execution/execute/ops/retrieve/gds_algo.h"
 
+#include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
@@ -22,11 +23,9 @@ namespace neug {
 namespace execution {
 namespace ops {
 
-GDSAlgoOpr::GDSAlgoOpr(physical::Subgraph subgraph, function::options_t options,
+GDSAlgoOpr::GDSAlgoOpr(std::unique_ptr<function::CallFuncInputBase> algo_input,
                        function::GDSAlgoFunction* algo_func)
-    : subgraph_(std::move(subgraph)),
-      options_(std::move(options)),
-      algo_func_(algo_func) {}
+    : algo_input_(std::move(algo_input)), algo_func_(algo_func) {}
 
 neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
@@ -36,11 +35,11 @@ neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
   if (algo_func_ == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOpr: GDSAlgoFunction pointer is null");
   }
-  if (!algo_func_->algoExec) {
+  if (algo_func_->execFunc == nullptr) {
     THROW_RUNTIME_ERROR(
         "GDSAlgoOpr: algoExec not registered for GDS algorithm");
   }
-  return algo_func_->algoExec(ctx, subgraph_, options_, graph_interface);
+  return algo_func_->execFunc(*algo_input_, graph_interface, ctx);
 }
 
 neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
@@ -55,23 +54,25 @@ neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
     THROW_RUNTIME_ERROR("GDSAlgoOprBuilder: GDS function not found: " +
                         algo_name);
   }
-  auto* gds_func = dynamic_cast<function::GDSAlgoFunction*>(func);
-  if (gds_func == nullptr) {
+  auto* algo_func = dynamic_cast<function::GDSAlgoFunction*>(func);
+  if (algo_func == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOprBuilder: function is not GDSAlgoFunction: " +
                         algo_name);
   }
 
-  function::options_t options;
-  for (const auto& kv : gds_pb.options()) {
-    options[kv.first] = kv.second;
+  if (algo_func->bindFunc == nullptr) {
+    THROW_RUNTIME_ERROR(
+        "GDSAlgoOprBuilder: bind function not registered for GDS algorithm");
   }
-  // copy subgraph from protobuf
-  physical::Subgraph subgraph = gds_pb.sub_graph();
+
+  auto algo_input = algo_func->bindFunc(schema, ctx_meta, plan, op_idx);
+  if (algo_input == nullptr) {
+    THROW_RUNTIME_ERROR("GDSAlgoOprBuilder: algo input is null");
+  }
 
   ContextMeta ret_meta = ctx_meta;
-  return std::make_pair(std::make_unique<GDSAlgoOpr>(
-                            std::move(subgraph), std::move(options), gds_func),
-                        ret_meta);
+  return std::make_pair(
+      std::make_unique<GDSAlgoOpr>(std::move(algo_input), algo_func), ret_meta);
 }
 
 }  // namespace ops

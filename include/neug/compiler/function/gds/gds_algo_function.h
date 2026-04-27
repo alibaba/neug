@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,9 +25,6 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/graph/graph_entry.h"
-#include "neug/execution/common/context.h"
-#include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 namespace main {
@@ -38,13 +34,6 @@ class ClientContext;
 namespace function {
 
 using options_t = common::case_insensitive_map_t<std::string>;
-
-// Execution hook for GDS algorithms; distinct from [`call_exec_func_t`] until
-// the runtime passes subgraph/options from the physical operator.
-using algo_exec_func_t = std::function<execution::Context(
-    execution::Context& ctx, const ::physical::Subgraph& subgraph,
-    const options_t& options, IStorageInterface& graph)>;
-
 struct NEUG_API GDSFuncBindData : TableFuncBindData {
   graph::GraphEntry graphEntry;
   common::case_insensitive_map_t<std::string> options;
@@ -67,11 +56,8 @@ NEUG_API std::unique_ptr<TableFuncBindData> bindGDSFunction(
     call_output_columns outputColumns);
 
 // [`NeugCallFunction`] specialization for graph algorithms: wires
-// [`TableFunction::bindFunc`] to
-// [`bindGDSFunction`] and exposes [`algo_exec_func_t`] for engine integration.
+// [`TableFunction::bindFunc`] to [`bindGDSFunction`].
 struct NEUG_API GDSAlgoFunction : public NeugCallFunction {
-  algo_exec_func_t algoExec;
-
   GDSAlgoFunction(std::string name,
                   std::vector<common::LogicalTypeID> inputTypes,
                   call_output_columns outputColumns);
