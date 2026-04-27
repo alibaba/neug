@@ -1,0 +1,107 @@
+name: LDBC SNB Nightly Benchmark
+
+on:
+  schedule:
+    # UTC+8 03:00 Wednesday = UTC 19:00 Tuesday
+    # UTC+8 03:00 Sunday    = UTC 19:00 Saturday
+    - cron: "0 19 * * 2,6"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  start-server:
+    name: Build, Load and Start LDBC Server
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, ldbc-benchmark-server]
+    timeout-minutes: 240
+    outputs:
+      result-dir: ${{ steps.load.outputs.result_dir }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Clean previous database
+        run: rm -rf ldbc/
+
+      - name: Build NeuG Python package
+        env:
+          TMPDIR: /data/large_tmp
+        working-directory: tools/python_bind
+        run: |
+          export BUILD_HTTP_SERVER=ON
+          export WITH_MIMALLOC=ON
+          make build
+
+      - name: Load LDBC dataset
+        id: load
+        run: |
+          export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
+          export DATA_PATH=/data/benchmark/social_network-sf10-CsvComposite-StringDateFormatter
+          RESULT_DIR="/data/benchmark-result/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
+          mkdir -p "$RESULT_DIR"
+          echo "result_dir=$RESULT_DIR" >> "$GITHUB_OUTPUT"
+          start=$(date +%s)
+          python3 benchmark/interactive/load_ldbc.py
+          end=$(date +%s)
+          LOAD_DURATION=$((end - start))
+          echo "Load LDBC dataset took ${LOAD_DURATION} seconds" | tee "$RESULT_DIR/load.log"
+          echo "::notice::Load LDBC dataset took ${LOAD_DURATION} seconds"
+
+      - name: Start NeuG server
+        run: |
+          export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
+          export DEBUG=ON
+          setsid python3 benchmark/interactive/serve_ldbc.py > ${{ github.workspace }}/serve.log 2>&1 &
+          echo $! > ${{ github.workspace }}/serve.pid
+          for i in $(seq 1 2700); do
+            if grep -q "Brpc server started on : 0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
+              echo "::notice::NeuG server started (PID $(cat ${{ github.workspace }}/serve.pid))"
+              break
+            fi
+            if ! kill -0 $(cat ${{ github.workspace }}/serve.pid) 2>/dev/null; then
+              echo "::error::NeuG server process exited unexpectedly"
+              cat ${{ github.workspace }}/serve.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if ! grep -q "Brpc server started on : 0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
+            echo "::error::NeuG server did not start within 2700 seconds"
+            cat ${{ github.workspace }}/serve.log
+            exit 1
+          fi
+
+  run-benchmark:
+    name: Run LDBC Benchmark
+    needs: [start-server]
+    runs-on: [self-hosted, ldbc-benchmark-client]
+    timeout-minutes: 180
+    steps:
+      - name: Run benchmark
+        run: |
+          RESULT_DIR="${{ needs.start-server.outputs.result-dir }}"
+          mkdir -p "$RESULT_DIR"
+          /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf10.properties 2>&1 | tee "$RESULT_DIR/benchmark.log"
+          echo "::notice::Benchmark results saved to $RESULT_DIR"
+
+  cleanup-server:
+    name: Cleanup NeuG Server
+    needs: [start-server, run-benchmark]
+    if: always()
+    runs-on: [self-hosted, ldbc-benchmark-server]
+    timeout-minutes: 10
+    steps:
+      - name: Stop NeuG server and save logs
+        run: |
+          RESULT_DIR="${{ needs.start-server.outputs.result-dir }}"
+          if [ -f ${{ github.workspace }}/serve.pid ]; then
+            kill $(cat ${{ github.workspace }}/serve.pid) 2>/dev/null && echo "NeuG server stopped" || true
+            rm -f ${{ github.workspace }}/serve.pid
+          fi
+          if [ -n "$RESULT_DIR" ] && [ -f ${{ github.workspace }}/serve.log ]; then
+            cp ${{ github.workspace }}/serve.log "$RESULT_DIR/serve.log" 2>/dev/null || true
+          fi
