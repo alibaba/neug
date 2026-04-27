@@ -290,8 +290,30 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const override {
-    LOG(FATAL) << "not implemented...";
-    return {};
+    std::vector<vid_t> src_list, dst_list;
+    std::vector<EDATA_T> data_list;
+    const nbr_t* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
+    for (vid_t src = 0; src < static_cast<vid_t>(vertex_capacity()); ++src) {
+      const auto& nbr = nbrs[src];
+      if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        src_list.push_back(src);
+        dst_list.push_back(nbr.neighbor);
+        data_list.push_back(nbr.data);
+      }
+    }
+    if (prev_data_col) {
+      auto casted =
+          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      if (!casted) {
+        THROW_INTERNAL_EXCEPTION(
+            "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
+      }
+      casted->resize(data_list.size());
+      for (size_t i = 0; i < data_list.size(); ++i) {
+        casted->set_value(i, data_list[i]);
+      }
+    }
+    return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
  private:
