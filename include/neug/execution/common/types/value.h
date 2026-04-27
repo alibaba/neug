@@ -26,6 +26,7 @@
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/numeric_cast.h"
+#include "neug/utils/property/list_view.h"
 
 namespace neug {
 class Property;
@@ -720,6 +721,11 @@ inline Value performCast<neug::Date>(const Value& input) {
 Value performCastToString(const Value& input);
 
 void encode_value(const Value& val, Encoder& encoder);
+
+// Convert a storage-layer ListView into an execution-layer Value::LIST.
+// The ListView's underlying buffer must remain valid for the duration of
+// this call (the resulting Value owns its data independently).
+Value ListViewToValue(const neug::ListView& lv);
 
 }  // namespace execution
 }  // namespace neug

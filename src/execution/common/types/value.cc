@@ -22,6 +22,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/list_view.h"
 #include "neug/utils/property/property.h"
 
 namespace neug {
@@ -741,6 +742,58 @@ rapidjson::Value Value::ToJson(const Value& value,
   return rapidjson::Value();  // unreachable
 }
 
+// Recursively serialize an execution Value::LIST back into the binary blob
+// format understood by ListView / ListColumn.
+static std::string ValueToListBlob(const Value& list_val) {
+  assert(list_val.type().id() == DataTypeId::kList);
+  const DataType& child_type = ListType::GetChildType(list_val.type());
+  const auto& children = ListValue::GetChildren(list_val);
+
+  ListViewBuilder builder;
+  if (is_pod_type(child_type.id())) {
+    switch (child_type.id()) {
+#define APPEND_POD(type_enum, cpp_type)           \
+  case DataTypeId::type_enum:                     \
+    for (const auto& c : children) {              \
+      builder.append_pod(c.GetValue<cpp_type>()); \
+    }                                             \
+    return builder.finish_pod<cpp_type>();
+      APPEND_POD(kBoolean, bool)
+      APPEND_POD(kInt8, int8_t)
+      APPEND_POD(kUInt8, uint8_t)
+      APPEND_POD(kInt16, int16_t)
+      APPEND_POD(kUInt16, uint16_t)
+      APPEND_POD(kInt32, int32_t)
+      APPEND_POD(kUInt32, uint32_t)
+      APPEND_POD(kInt64, int64_t)
+      APPEND_POD(kUInt64, uint64_t)
+      APPEND_POD(kFloat, float)
+      APPEND_POD(kDouble, double)
+      APPEND_POD(kDate, date_t)
+      APPEND_POD(kTimestampMs, timestamp_ms_t)
+      APPEND_POD(kInterval, interval_t)
+#undef APPEND_POD
+    default:
+      break;
+    }
+  }
+  // Non-POD: varchar or nested list
+  if (child_type.id() == DataTypeId::kVarchar) {
+    for (const auto& c : children) {
+      builder.append_blob(StringValue::Get(c));
+    }
+  } else if (child_type.id() == DataTypeId::kList) {
+    for (const auto& c : children) {
+      builder.append_blob(ValueToListBlob(c));
+    }
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported list child type in ValueToListBlob: " +
+        std::to_string(static_cast<int>(child_type.id())));
+  }
+  return builder.finish_varlen();
+}
+
 Property value_to_property(const Value& value) {
   switch (value.type().id()) {
   case DataTypeId::kBoolean:
@@ -765,6 +818,12 @@ Property value_to_property(const Value& value) {
     return Property::from_datetime(value.GetValue<timestamp_ms_t>());
   case DataTypeId::kInterval:
     return Property::from_interval(value.GetValue<interval_t>());
+  case DataTypeId::kList: {
+    // TODO(zhanglei,lexiao): This is incorrect, will cause use-after-free if
+    // the list value is destructed and the blob is accessed later.
+    std::string blob = ValueToListBlob(value);
+    return Property::from_list_data(blob);
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected type: " +
@@ -801,6 +860,10 @@ Value property_to_value(const Property& property, const DataType& type) {
     return Value::TIMESTAMPMS(property.as_datetime());
   case DataTypeId::kInterval:
     return Value::INTERVAL(property.as_interval());
+  case DataTypeId::kList: {
+    ListView lv(type, property.as_list_data());
+    return ListViewToValue(lv);
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected property type: " + std::to_string(property.type()) +
@@ -875,6 +938,71 @@ void encode_value(const Value& val, Encoder& encoder) {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type.id())));
   }
+}
+
+Value ListViewToValue(const neug::ListView& lv) {
+  const DataType& child_type = ListType::GetChildType(lv.type_);
+  const size_t n = lv.size();
+  std::vector<Value> children;
+  children.reserve(n);
+
+  switch (child_type.id()) {
+  case DataTypeId::kBoolean:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::BOOLEAN(lv.GetElem<bool>(i)));
+    break;
+  case DataTypeId::kInt32:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::INT32(lv.GetElem<int32_t>(i)));
+    break;
+  case DataTypeId::kInt64:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::INT64(lv.GetElem<int64_t>(i)));
+    break;
+  case DataTypeId::kUInt32:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::UINT32(lv.GetElem<uint32_t>(i)));
+    break;
+  case DataTypeId::kUInt64:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::UINT64(lv.GetElem<uint64_t>(i)));
+    break;
+  case DataTypeId::kFloat:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::FLOAT(lv.GetElem<float>(i)));
+    break;
+  case DataTypeId::kDouble:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::DOUBLE(lv.GetElem<double>(i)));
+    break;
+  case DataTypeId::kDate:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::DATE(lv.GetElem<date_t>(i)));
+    break;
+  case DataTypeId::kTimestampMs:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::TIMESTAMPMS(lv.GetElem<timestamp_ms_t>(i)));
+    break;
+  case DataTypeId::kInterval:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(Value::INTERVAL(lv.GetElem<interval_t>(i)));
+    break;
+  case DataTypeId::kVarchar:
+    for (size_t i = 0; i < n; ++i) {
+      auto sv = lv.GetChildStringView(i);
+      children.push_back(Value::STRING(std::string(sv)));
+    }
+    break;
+  case DataTypeId::kList:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(ListViewToValue(lv.GetChildListView(i)));
+    break;
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("ListViewToValue: unsupported child type " +
+                                  child_type.ToString());
+  }
+
+  return Value::LIST(child_type, std::move(children));
 }
 
 Value performCastToString(const Value& input) {

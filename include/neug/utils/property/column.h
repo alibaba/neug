@@ -39,6 +39,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/property/list_view.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -540,6 +541,228 @@ class TypedColumn<std::string_view> : public ColumnBase {
 };
 
 using StringColumn = TypedColumn<std::string_view>;
+
+// ---------------------------------------------------------------------------
+// list_storage_item
+// ---------------------------------------------------------------------------
+// Index entry used by ListColumn.  Wider than string_item (which has a 16-bit
+// length field) to accommodate large list blobs.
+struct list_storage_item {
+  uint64_t offset;  // byte offset in the ListColumn data buffer
+  uint32_t length;  // byte length of the serialized blob
+  uint32_t padding{0};
+};
+static_assert(sizeof(list_storage_item) == 16,
+              "list_storage_item size must be 16 bytes");
+
+// ---------------------------------------------------------------------------
+// ListColumn
+// ---------------------------------------------------------------------------
+// Stores a column of list-typed property values.  Each entry is a serialized
+// binary blob produced by ListViewBuilder::finish_pod<T>() or
+// ListViewBuilder::finish_varlen().
+//
+// Storage layout on disk (prefix = column name):
+//   <prefix>.items  -- mmap_array<list_storage_item>: offset+length per entry
+//   <prefix>.data   -- mmap_array<char>: packed blob storage
+//   <prefix>.pos    -- uint64_t: committed write frontier in data buffer
+//
+// Reading:
+//   ListView lv = col.get_view(idx);
+//   // access via lv.GetElem<T>() / lv.GetChildStringView() etc.
+//
+// Writing:
+//   ListViewBuilder b;
+//   b.append_pod(val);          // or b.append_blob(sv);
+//   Property p = Property::from_list_data(b.finish_pod<int32_t>());
+//   col.set_any(idx, p, /*insert_safe=*/true);
+class ListColumn : public ColumnBase {
+ public:
+  explicit ListColumn(const DataType& list_type)
+      : list_type_(list_type), size_(0), pos_(0) {}
+  ~ListColumn() override { close(); }
+
+  void open(const std::string& name, const std::string& snapshot_dir,
+            const std::string& work_dir) override {
+    std::string basic = snapshot_dir + "/" + name;
+    if (std::filesystem::exists(basic + ".items")) {
+      items_.open(basic + ".items", false, false);
+      data_.open(basic + ".data", false, false);
+      size_ = items_.size();
+      init_pos(basic + ".pos");
+    } else if (!work_dir.empty()) {
+      std::string work = work_dir + "/" + name;
+      items_.open(work + ".items", true);
+      data_.open(work + ".data", true);
+      size_ = items_.size();
+      init_pos(work + ".pos");
+    } else {
+      size_ = 0;
+      pos_.store(0);
+    }
+  }
+
+  void open_in_memory(const std::string& prefix) override {
+    if (!prefix.empty()) {
+      items_.open(prefix + ".items", false);
+      data_.open(prefix + ".data", false);
+      size_ = items_.size();
+      init_pos(prefix + ".pos");
+    } else {
+      size_ = 0;
+      pos_.store(0);
+    }
+  }
+
+  void open_with_hugepages(const std::string& prefix) override {
+    if (!prefix.empty()) {
+      items_.open_with_hugepages(prefix + ".items");
+      data_.open_with_hugepages(prefix + ".data");
+      size_ = items_.size();
+      init_pos(prefix + ".pos");
+    } else {
+      size_ = 0;
+      pos_.store(0);
+    }
+  }
+
+  void close() override {
+    items_.reset();
+    data_.reset();
+  }
+
+  void dump(const std::string& filename) override {
+    size_t pos_val = pos_.load();
+    write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
+    items_.dump(filename + ".items");
+    data_.dump(filename + ".data");
+  }
+
+  size_t size() const override { return size_; }
+
+  void resize(size_t size) override {
+    std::unique_lock<std::shared_mutex> lk(rw_mutex_);
+    items_.resize(size);
+    // Keep at least as much data space as already committed.
+    size_t needed = std::max(data_.size(), pos_.load());
+    data_.resize(std::max(needed, size * 64));  // 64B heuristic per list
+    size_ = size;
+  }
+
+  void resize(size_t size, const Property& default_value) override {
+    if (default_value.type() != DataTypeId::kList &&
+        default_value.type() != DataTypeId::kEmpty) {
+      THROW_RUNTIME_ERROR("Default value type does not match list column");
+    }
+    size_t old_size = size_;
+    resize(size);  // allocates items_ and data_, updates size_
+    if (old_size >= size) {
+      return;
+    }
+    std::string_view blob = default_value.as_list_data();
+    if (blob.empty()) {
+      // Zero-initialized items_ already represent empty lists.
+      return;
+    }
+    // Store the default blob once and share the same {offset, length} across
+    // all new slots — avoids duplicating blob bytes N times.
+    size_t offset = pos_.fetch_add(blob.size());
+    {
+      std::unique_lock<std::shared_mutex> lk(rw_mutex_);
+      if (offset + blob.size() > data_.size()) {
+        data_.resize(std::max(data_.size() * 2, offset + blob.size()));
+      }
+    }
+    std::memcpy(data_.data() + offset, blob.data(), blob.size());
+    list_storage_item item{static_cast<uint64_t>(offset),
+                           static_cast<uint32_t>(blob.size())};
+    for (size_t i = old_size; i < size; ++i) {
+      items_.set(i, item);
+    }
+  }
+
+  DataTypeId type() const override { return DataTypeId::kList; }
+
+  // Return the full DataType::List(...) of this column.
+  const DataType& list_type() const { return list_type_; }
+
+  // Store a pre-built blob (from ListViewBuilder::finish_*) at index idx.
+  // The blob bytes are copied into the internal data buffer.
+  void set_value(size_t idx, std::string_view blob) {
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range in ListColumn::set_value");
+    }
+    size_t offset = pos_.fetch_add(blob.size());
+    if (offset + blob.size() > data_.size()) {
+      std::unique_lock<std::shared_mutex> lk(rw_mutex_);
+      if (offset + blob.size() > data_.size()) {
+        data_.resize(
+            std::max(data_.size() * 2, offset + blob.size() + blob.size()));
+      }
+    }
+    if (!blob.empty()) {
+      std::memcpy(data_.data() + offset, blob.data(), blob.size());
+    }
+    items_.set(idx, {static_cast<uint64_t>(offset),
+                     static_cast<uint32_t>(blob.size())});
+  }
+
+  void set_any(size_t idx, const Property& value, bool insert_safe) override {
+    set_value(idx, value.as_list_data());
+  }
+
+  ListView get_view(size_t idx) const {
+    assert(idx < size_);
+    const auto& item = items_.get(idx);
+    return ListView(list_type_,
+                    std::string_view(data_.data() + item.offset, item.length));
+  }
+
+  Property get_prop(size_t idx) const override {
+    const auto& item = items_.get(idx);
+    return Property::from_list_data(
+        std::string_view(data_.data() + item.offset, item.length));
+  }
+
+  void set_prop(size_t idx, const Property& prop) override {
+    set_value(idx, prop.as_list_data());
+  }
+
+  void ingest(uint32_t idx, OutArchive& arc) override {
+    std::string_view sv;
+    arc >> sv;
+    set_value(idx, sv);
+  }
+
+  void ensure_writable(const std::string& work_dir) override {
+    items_.ensure_writable(work_dir);
+    data_.ensure_writable(work_dir);
+  }
+
+ private:
+  void init_pos(const std::string& pos_path) {
+    if (std::filesystem::exists(pos_path)) {
+      size_t v = 0;
+      read_file(pos_path, &v, sizeof(v), 1);
+      pos_.store(v);
+    } else {
+      size_t total = 0;
+      for (size_t i = 0; i < items_.size(); ++i) {
+        const auto& it = items_.get(i);
+        total = std::max(total, static_cast<size_t>(it.offset) + it.length);
+      }
+      pos_.store(total);
+    }
+  }
+
+  DataType list_type_;
+  mmap_array<list_storage_item> items_;
+  mmap_array<char> data_;
+  size_t size_;
+  std::atomic<size_t> pos_;
+  // TOOD(zhanglei): Remove the mutex.
+  mutable std::shared_mutex rw_mutex_;
+};
 
 std::shared_ptr<ColumnBase> CreateColumn(DataType type);
 

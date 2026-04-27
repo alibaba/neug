@@ -21,6 +21,7 @@
 #include <string_view>
 #include <variant>
 
+#include "neug/utils/property/list_view.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -142,6 +143,28 @@ class Property {
     value_.s = v;
   }
 
+  // Store a raw serialized list blob (output of ListViewBuilder::finish_*).
+  // The pointed-to memory must outlive this Property (same rule as
+  // set_string_view).
+  void set_list_data(std::string_view v) {
+    type_ = DataTypeId::kList;
+    value_.s = v;  // value_.s and value_.lv share the same union slot
+  }
+
+  // Retrieve the raw list blob.
+  std::string_view as_list_data() const {
+    assert(type() == DataTypeId::kList);
+    return value_.s;
+  }
+
+  // Convenience wrapper: build a zero-copy ListView directly from this
+  // property.  The caller must supply the full DataType (with child-type
+  // info) because Property only stores the raw blob.
+  ListView as_list_view(const DataType& type) const {
+    assert(this->type() == DataTypeId::kList);
+    return ListView(type, value_.s);
+  }
+
   void set_float(float v) {
     type_ = DataTypeId::kFloat;
     value_.f = v;
@@ -258,6 +281,8 @@ class Property {
       return as_bool() ? "true" : "false";
     } else if (type == DataTypeId::kEmpty) {
       return "EMPTY";
+    } else if (type == DataTypeId::kList) {
+      return "LIST[" + std::to_string(as_list_data().size()) + "B]";
     } else {
       return "UNKNOWN";
     }
@@ -298,6 +323,12 @@ class Property {
   static Property from_string_view(const std::string_view& v) {
     Property ret;
     ret.set_string_view(v);
+    return ret;
+  }
+
+  static Property from_list_data(std::string_view v) {
+    Property ret;
+    ret.set_list_data(v);
     return ret;
   }
 
