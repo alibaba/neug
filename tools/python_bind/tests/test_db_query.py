@@ -2986,6 +2986,8 @@ def test_unwind_t1_l3_l4_read_from_explicit_schema(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
 def test_duplicate_project_column(tmp_path):
     """Duplicate `RETURN` of the same property, including ORDER BY output alias cases."""
 
