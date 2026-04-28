@@ -2983,8 +2983,7 @@
 7
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight<$i32_param return m.id; {"i32_param": 999}
----- 2
-7
+---- 1
 4
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight>$i64_param return m.id; {"i64_param": 123456789012345}
@@ -3220,8 +3219,7 @@
 7
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight<$i32_param return m.id; {"i32_param": 999}
----- 2
-7
+---- 1
 4
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight>$i64_param return m.id; {"i64_param": 123456789012345}
