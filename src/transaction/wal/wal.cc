@@ -137,202 +137,89 @@ WalParserFactory::getKnownWalParsers() {
 
 ////////////////////////// Serialization operators //////////////////////////
 
-void CreateVertexTypeRedo::Serialize(
-    InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    const std::vector<std::string>& primary_key_names) {
+void CreateVertexTypeRedo::Serialize(InArchive& arc,
+                                     const CreateVertexTypeConfig& config) {
   arc << static_cast<uint8_t>(OpType::kCreateVertexType);
-  arc << vertex_type;
-  arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type;
-    arc << name;
-    arc << default_value;
-  }
-  arc << static_cast<uint32_t>(primary_key_names.size());
-  for (const auto& key : primary_key_names) {
-    arc << key;
-  }
+  config.Serialize(arc);
 }
 
-void CreateVertexTypeRedo::Deserialize(OutArchive& arc,
-                                       CreateVertexTypeRedo& redo) {
-  arc >> redo.vertex_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.properties.resize(prop_size);
-  for (auto& [type, name, default_value] : redo.properties) {
-    arc >> type >> name >> default_value;
-  }
-  uint32_t key_size;
-  arc >> key_size;
-  redo.primary_key_names.resize(key_size);
-  for (auto& key : redo.primary_key_names) {
-    arc >> key;
-  }
+CreateVertexTypeConfig CreateVertexTypeRedo::Deserialize(OutArchive& arc) {
+  return CreateVertexTypeConfig::Deserialize(arc);
 }
 
-void CreateEdgeTypeRedo::Serialize(
-    InArchive& arc, const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
+void CreateEdgeTypeRedo::Serialize(InArchive& arc,
+                                   const CreateEdgeTypeConfig& config) {
   arc << static_cast<uint8_t>(OpType::kCreateEdgeType);
-  arc << src_type << dst_type << edge_type;
-  arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << default_value;
-  }
-  arc << oe_edge_strategy << ie_edge_strategy;
+  config.Serialize(arc);
 }
 
-void CreateEdgeTypeRedo::Deserialize(OutArchive& arc,
-                                     CreateEdgeTypeRedo& redo) {
-  arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.properties.resize(prop_size);
-  for (auto& [type, name, default_value] : redo.properties) {
-    arc >> type >> name >> default_value;
-  }
-  arc >> redo.oe_edge_strategy >> redo.ie_edge_strategy;
+CreateEdgeTypeConfig CreateEdgeTypeRedo::Deserialize(OutArchive& arc) {
+  return CreateEdgeTypeConfig::Deserialize(arc);
 }
 
 void AddVertexPropertiesRedo::Serialize(
-    InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        properties) {
+    InArchive& arc, const AddVertexPropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kAddVertexProp);
-  arc << vertex_type;
-  arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << default_value;
-  }
+  config.Serialize(arc);
 }
 
-void AddVertexPropertiesRedo::Deserialize(OutArchive& arc,
-                                          AddVertexPropertiesRedo& redo) {
-  arc >> redo.vertex_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.properties.resize(prop_size);
-  for (auto& [type, name, default_value] : redo.properties) {
-    arc >> type >> name >> default_value;
-  }
+AddVertexPropertiesConfig AddVertexPropertiesRedo::Deserialize(
+    OutArchive& arc) {
+  return AddVertexPropertiesConfig::Deserialize(arc);
 }
 
-void AddEdgePropertiesRedo::Serialize(
-    InArchive& arc, const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        properties) {
+void AddEdgePropertiesRedo::Serialize(InArchive& arc,
+                                      const AddEdgePropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kAddEdgeProp);
-  arc << src_type << dst_type << edge_type;
-  arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << default_value;
-  }
+  config.Serialize(arc);
 }
 
-void AddEdgePropertiesRedo::Deserialize(OutArchive& arc,
-                                        AddEdgePropertiesRedo& redo) {
-  arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.properties.resize(prop_size);
-  for (auto& [type, name, default_value] : redo.properties) {
-    arc >> type >> name >> default_value;
-  }
+AddEdgePropertiesConfig AddEdgePropertiesRedo::Deserialize(OutArchive& arc) {
+  return AddEdgePropertiesConfig::Deserialize(arc);
 }
 
 void RenameVertexPropertiesRedo::Serialize(
-    InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::pair<std::string, std::string>>& update_properties) {
+    InArchive& arc, const RenameVertexPropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kRenameVertexProp);
-  arc << vertex_type;
-  arc << static_cast<uint32_t>(update_properties.size());
-  for (const auto& [old_name, new_name] : update_properties) {
-    arc << old_name << new_name;
-  }
+  config.Serialize(arc);
 }
 
-void RenameVertexPropertiesRedo::Deserialize(OutArchive& arc,
-                                             RenameVertexPropertiesRedo& redo) {
-  arc >> redo.vertex_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.update_properties.resize(prop_size);
-  for (auto& [old_name, new_name] : redo.update_properties) {
-    arc >> old_name >> new_name;
-  }
+RenameVertexPropertiesConfig RenameVertexPropertiesRedo::Deserialize(
+    OutArchive& arc) {
+  return RenameVertexPropertiesConfig::Deserialize(arc);
 }
 
 void RenameEdgePropertiesRedo::Serialize(
-    InArchive& arc, const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::pair<std::string, std::string>>& update_properties) {
+    InArchive& arc, const RenameEdgePropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kRenameEdgeProp);
-  arc << src_type << dst_type << edge_type;
-  arc << static_cast<uint32_t>(update_properties.size());
-  for (const auto& [old_name, new_name] : update_properties) {
-    arc << old_name << new_name;
-  }
+  config.Serialize(arc);
 }
 
-void RenameEdgePropertiesRedo::Deserialize(OutArchive& arc,
-                                           RenameEdgePropertiesRedo& redo) {
-  arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.update_properties.resize(prop_size);
-  for (auto& [old_name, new_name] : redo.update_properties) {
-    arc >> old_name >> new_name;
-  }
+RenameEdgePropertiesConfig RenameEdgePropertiesRedo::Deserialize(
+    OutArchive& arc) {
+  return RenameEdgePropertiesConfig::Deserialize(arc);
 }
 
 void DeleteVertexPropertiesRedo::Serialize(
-    InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::string>& delete_properties) {
+    InArchive& arc, const DeleteVertexPropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kDeleteVertexProp);
-  arc << vertex_type;
-  arc << static_cast<uint32_t>(delete_properties.size());
-  for (const auto& name : delete_properties) {
-    arc << name;
-  }
+  config.Serialize(arc);
 }
 
-void DeleteVertexPropertiesRedo::Deserialize(OutArchive& arc,
-                                             DeleteVertexPropertiesRedo& redo) {
-  arc >> redo.vertex_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.delete_properties.resize(prop_size);
-  for (auto& name : redo.delete_properties) {
-    arc >> name;
-  }
+DeleteVertexPropertiesConfig DeleteVertexPropertiesRedo::Deserialize(
+    OutArchive& arc) {
+  return DeleteVertexPropertiesConfig::Deserialize(arc);
 }
 
 void DeleteEdgePropertiesRedo::Serialize(
-    InArchive& arc, const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::string>& delete_properties) {
+    InArchive& arc, const DeleteEdgePropertiesConfig& config) {
   arc << static_cast<uint8_t>(OpType::kDeleteEdgeProp);
-  arc << src_type << dst_type << edge_type;
-  arc << static_cast<uint32_t>(delete_properties.size());
-  for (const auto& name : delete_properties) {
-    arc << name;
-  }
+  config.Serialize(arc);
 }
 
-void DeleteEdgePropertiesRedo::Deserialize(OutArchive& arc,
-                                           DeleteEdgePropertiesRedo& redo) {
-  arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
-  uint32_t prop_size;
-  arc >> prop_size;
-  redo.delete_properties.resize(prop_size);
-  for (auto& name : redo.delete_properties) {
-    arc >> name;
-  }
+DeleteEdgePropertiesConfig DeleteEdgePropertiesRedo::Deserialize(
+    OutArchive& arc) {
+  return DeleteEdgePropertiesConfig::Deserialize(arc);
 }
 
 void DeleteVertexTypeRedo::Serialize(InArchive& arc,
@@ -459,64 +346,6 @@ void RemoveEdgeRedo::Deserialize(OutArchive& arc, RemoveEdgeRedo& redo) {
 }
 
 InArchive& operator<<(InArchive& in_archive,
-                      const CreateVertexTypeRedo& value) {
-  CreateVertexTypeRedo::Serialize(in_archive, value.vertex_type,
-                                  value.properties, value.primary_key_names);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive, const CreateEdgeTypeRedo& value) {
-  CreateEdgeTypeRedo::Serialize(in_archive, value.src_type, value.dst_type,
-                                value.edge_type, value.properties,
-                                value.oe_edge_strategy, value.ie_edge_strategy);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const AddVertexPropertiesRedo& value) {
-  AddVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
-                                     value.properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const AddEdgePropertiesRedo& value) {
-  AddEdgePropertiesRedo::Serialize(in_archive, value.src_type, value.dst_type,
-                                   value.edge_type, value.properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const RenameVertexPropertiesRedo& value) {
-  RenameVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
-                                        value.update_properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const RenameEdgePropertiesRedo& value) {
-  RenameEdgePropertiesRedo::Serialize(in_archive, value.src_type,
-                                      value.dst_type, value.edge_type,
-                                      value.update_properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const DeleteVertexPropertiesRedo& value) {
-  DeleteVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
-                                        value.delete_properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
-                      const DeleteEdgePropertiesRedo& value) {
-  DeleteEdgePropertiesRedo::Serialize(in_archive, value.src_type,
-                                      value.dst_type, value.edge_type,
-                                      value.delete_properties);
-  return in_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive,
                       const DeleteVertexTypeRedo& value) {
   DeleteVertexTypeRedo::Serialize(in_archive, value.vertex_type);
   return in_archive;
@@ -568,51 +397,6 @@ InArchive& operator<<(InArchive& in_archive, const RemoveEdgeRedo& value) {
 }
 
 ////////////////////////// Deserialization operators //////////////////////////
-
-OutArchive& operator>>(OutArchive& out_archive, CreateVertexTypeRedo& value) {
-  CreateVertexTypeRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive, CreateEdgeTypeRedo& value) {
-  CreateEdgeTypeRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive,
-                       AddVertexPropertiesRedo& value) {
-  AddVertexPropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive, AddEdgePropertiesRedo& value) {
-  AddEdgePropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive,
-                       RenameVertexPropertiesRedo& value) {
-  RenameVertexPropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive,
-                       RenameEdgePropertiesRedo& value) {
-  RenameEdgePropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive,
-                       DeleteVertexPropertiesRedo& value) {
-  DeleteVertexPropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive,
-                       DeleteEdgePropertiesRedo& value) {
-  DeleteEdgePropertiesRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
 
 OutArchive& operator>>(OutArchive& out_archive, DeleteVertexTypeRedo& value) {
   DeleteVertexTypeRedo::Deserialize(out_archive, value);

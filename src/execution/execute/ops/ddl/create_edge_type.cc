@@ -46,11 +46,15 @@ class CreateEdgeTypeOpr : public IOperator {
         property_tuples.emplace_back(prop_value.type(), prop_name,
                                      value_to_property(prop_value));
       }
-      status = storage.CreateEdgeType(
-          std::get<0>(create_edge_def), std::get<1>(create_edge_def),
-          std::get<2>(create_edge_def), property_tuples,
-          std::get<4>(create_edge_def), std::get<5>(create_edge_def),
-          std::get<6>(create_edge_def));
+      CreateEdgeTypeConfigBuilder config_builder;
+      config_builder.WithSrcLabel(std::get<0>(create_edge_def))
+          .WithDstLabel(std::get<1>(create_edge_def))
+          .WithEdgeLabel(std::get<2>(create_edge_def))
+          .WithProperties(property_tuples)
+          .WithOEEdgeStrategy(std::get<5>(create_edge_def))
+          .WithIEEdgeStrategy(std::get<6>(create_edge_def));
+      status = storage.CreateEdgeType(config_builder.Build(),
+                                      std::get<4>(create_edge_def));
       if (!status.ok()) {
         LOG(ERROR) << "Fail to insert edge triplet: "
                    << std::get<0>(create_edge_def) << ", "
