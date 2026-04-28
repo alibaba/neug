@@ -22,13 +22,9 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <ostream>
-#include <shared_mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "neug/config.h"
@@ -226,31 +222,21 @@ class TypedColumn<EmptyType> : public ColumnBase {
 struct var_len_item {
   uint64_t offset : 48;
   uint32_t length : 16;
-
-  static var_len_item from(uint64_t off, uint32_t len) {
-    return var_len_item{off, len};
-  }
 };
 
-// ---------------------------------------------------------------------------
-// VarLenColumn<ItemT>
-// ---------------------------------------------------------------------------
-// Base class for variable-length column types (string, list, etc.).
-//
-// Template parameter ItemT must be a POD struct with public members:
-//   - offset  (uint64_t or 48-bit bitfield)
-//   - length  (uint32_t or 16-bit bitfield)
-//   - static ItemT from(uint64_t offset, uint32_t length)
-//
-// Provides shared dual-buffer storage logic:
-//   items_buffer_  — index array (one ItemT per row)
-//   data_buffer_   — packed blob storage
-//   pos_           — write frontier in data buffer
-//
-// Subclasses must implement type-specific methods:
-//   type(), default_avg_size(), avg_size(),
-//   resize(size, default_value), set_any(), get_prop(), set_prop()
-template <typename ItemT>
+/**
+ * @brief VarLenColumn is a non-template base class for variable-length column
+ * types (string, list, etc.) that provides shared dual-buffer storage logic.
+ *
+ * Storage layout:
+ * - items_buffer_: stores a var_len_item (offset + length) per row.
+ * - data_buffer_:  stores the actual variable-length byte blobs.
+ * - pos_:          atomic write frontier in data_buffer_.
+ *
+ * Subclasses (TypedColumn<std::string_view>, TypedColumn<ListView>) must
+ * implement: type(), default_avg_size(), resize(size, default_value),
+ * set_any(), get_prop(), and set_prop().
+ */
 class VarLenColumn : public ColumnBase {
  public:
   VarLenColumn() : size_(0), pos_(0) {}
@@ -264,7 +250,7 @@ class VarLenColumn : public ColumnBase {
     data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
                                  work_dir + "/" + name + ".data",
                                  MemoryLevel::kSyncToFile);
-    size_ = items_buffer_->GetDataSize() / sizeof(ItemT);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
@@ -272,7 +258,7 @@ class VarLenColumn : public ColumnBase {
     items_buffer_ =
         OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
     data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
-    size_ = items_buffer_->GetDataSize() / sizeof(ItemT);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
     init_pos(prefix + ".pos");
   }
 
@@ -281,7 +267,7 @@ class VarLenColumn : public ColumnBase {
         OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePreferred);
     data_buffer_ =
         OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePreferred);
-    size_ = items_buffer_->GetDataSize() / sizeof(ItemT);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
     init_pos(prefix + ".pos");
   }
 
@@ -313,14 +299,14 @@ class VarLenColumn : public ColumnBase {
     }
     item_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    auto raw_data = data_ptr();
+    auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
     MD5_CTX data_ctx, item_ctx;
     MD5_Init(&data_ctx);
     MD5_Init(&item_ctx);
-    ItemT cur_item = ItemT::from(0, 0);
+    var_len_item cur_item = var_len_item{0, 0};
     size_t offset = 0;
     size_t count_no_empty = 0;
-    ItemT pre_item = ItemT::from(0, 0);
+    var_len_item pre_item = var_len_item{0, 0};
     for (size_t i = 0; i < size_; ++i) {
       const auto item = get_item(i);
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
@@ -331,7 +317,8 @@ class VarLenColumn : public ColumnBase {
       }
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
-      cur_item = ItemT::from(offset, item.length);
+      cur_item = var_len_item{static_cast<uint64_t>(offset),
+                              static_cast<uint32_t>(item.length)};
       MD5_Update(&data_ctx, raw_data + item.offset, item.length);
       MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
@@ -376,11 +363,11 @@ class VarLenColumn : public ColumnBase {
 
   void resize(size_t size) override {
     if (items_buffer_->GetDataSize() == 0) {
-      items_buffer_->Resize(size * sizeof(ItemT));
+      items_buffer_->Resize(size * sizeof(var_len_item));
       data_buffer_->Resize(std::max(size * default_avg_size(), pos_.load()));
     } else {
       size_t a = avg_size() > 0 ? avg_size() : default_avg_size();
-      items_buffer_->Resize(size * sizeof(ItemT));
+      items_buffer_->Resize(size * sizeof(var_len_item));
       data_buffer_->Resize(std::max(size * a, pos_.load()));
     }
     size_ = size;
@@ -402,7 +389,6 @@ class VarLenColumn : public ColumnBase {
 
   // --- Pure virtual methods for subclasses ---
   virtual size_t default_avg_size() const = 0;
-  virtual size_t avg_size() const = 0;
 
  protected:
   // Append blob to data buffer at current pos_ and record item at idx.
@@ -411,35 +397,48 @@ class VarLenColumn : public ColumnBase {
     assert(idx < size_);
     size_t offset = pos_.fetch_add(blob.size());
     if (!blob.empty()) {
-      std::memcpy(mutable_data_ptr() + offset, blob.data(), blob.size());
+      std::memcpy(reinterpret_cast<char*>(data_buffer_->GetData()) + offset,
+                  blob.data(), blob.size());
     }
-    set_item(idx, ItemT::from(static_cast<uint64_t>(offset),
-                              static_cast<uint32_t>(blob.size())));
+    set_item(idx, var_len_item{static_cast<uint64_t>(offset),
+                               static_cast<uint32_t>(blob.size())});
   }
 
   // Return raw view of the blob at idx.
   std::string_view get_raw_view(size_t idx) const {
     assert(idx < size_);
     const auto item = get_item(idx);
-    return std::string_view(data_ptr() + item.offset, item.length);
+    return std::string_view(
+        reinterpret_cast<const char*>(data_buffer_->GetData()) + item.offset,
+        item.length);
   }
 
-  inline ItemT get_item(size_t idx) const {
+  inline var_len_item get_item(size_t idx) const {
     assert(idx < size_);
-    return reinterpret_cast<const ItemT*>(items_buffer_->GetData())[idx];
+    return reinterpret_cast<const var_len_item*>(items_buffer_->GetData())[idx];
   }
 
-  inline void set_item(size_t idx, const ItemT& item) {
+  inline void set_item(size_t idx, const var_len_item& item) {
     assert(idx < size_);
-    reinterpret_cast<ItemT*>(items_buffer_->GetData())[idx] = item;
+    reinterpret_cast<var_len_item*>(items_buffer_->GetData())[idx] = item;
   }
 
-  inline const char* data_ptr() const {
-    return reinterpret_cast<const char*>(data_buffer_->GetData());
-  }
-
-  inline char* mutable_data_ptr() {
-    return reinterpret_cast<char*>(data_buffer_->GetData());
+  size_t avg_size() const {
+    if (size_ == 0) {
+      return 0;
+    }
+    size_t total_length = 0;
+    size_t non_zero_count = 0;
+    for (size_t i = 0; i < size_; ++i) {
+      auto item = get_item(i);
+      if (item.length > 0) {
+        total_length += item.length;
+        non_zero_count++;
+      }
+    }
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
   }
 
   std::unique_ptr<IDataContainer> items_buffer_;
@@ -460,15 +459,14 @@ class VarLenColumn : public ColumnBase {
 };
 
 template <>
-class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
+class TypedColumn<std::string_view> : public VarLenColumn {
  public:
-  using VarLenColumn<var_len_item>::resize;
+  using VarLenColumn::resize;
 
   TypedColumn(uint16_t width) : width_(width), type_(DataTypeId::kVarchar) {}
   explicit TypedColumn()
       : width_(STRING_DEFAULT_MAX_LENGTH), type_(DataTypeId::kVarchar) {}
-  TypedColumn(TypedColumn<std::string_view>&& rhs)
-      : VarLenColumn<var_len_item>() {
+  TypedColumn(TypedColumn<std::string_view>&& rhs) : VarLenColumn() {
     items_buffer_ = std::move(rhs.items_buffer_);
     data_buffer_ = std::move(rhs.data_buffer_);
     size_ = rhs.size_;
@@ -479,12 +477,9 @@ class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
 
   ~TypedColumn() { close(); }
 
-  // --- VarLenColumn interface ---
-  DataTypeId type() const override { return type_; }
   size_t default_avg_size() const override {
     return static_cast<size_t>(width_);
   }
-  size_t avg_size() const override { return string_avg_size(); }
 
   void resize(size_t size, const Property& default_value) override {
     if (default_value.type() != type()) {
@@ -498,7 +493,7 @@ class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
     size_t new_items = (size > old_size) ? (size - old_size) : 0;
     items_buffer_->Resize(size * sizeof(var_len_item));
     size_t needed = pos_.load() + new_items * static_cast<size_t>(width_);
-    data_buffer_->Resize(std::max(needed, size * string_avg_size()));
+    data_buffer_->Resize(std::max(needed, size * avg_size()));
 
     if (default_str.size() == 0 || old_size >= size) {
       return;
@@ -538,15 +533,7 @@ class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
     set_value(idx, dst_value);
   }
 
-  Property get_prop(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
-  }
-
-  void set_prop(size_t index, const Property& prop) override {
-    set_value(index, PropUtils<std::string_view>::to_typed(prop));
-  }
-
-  // --- StringColumn-specific public methods ---
+  DataTypeId type() const override { return type_; }
 
   void set_value(size_t idx, const std::string_view& val) {
     auto copied_val = val;
@@ -567,28 +554,20 @@ class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
     return get_raw_view(idx);
   }
 
+  Property get_prop(size_t index) const override {
+    return PropUtils<std::string_view>::to_prop(get_view(index));
+  }
+
+  void set_prop(size_t index, const Property& prop) override {
+    set_value(index, PropUtils<std::string_view>::to_typed(prop));
+  }
+
+  // --- StringColumn-specific public methods ---
+
   const IDataContainer& buffer() const { return *data_buffer_; }
   size_t buffer_size() const { return size_; }
 
  private:
-  size_t string_avg_size() const {
-    if (size_ == 0) {
-      return 0;
-    }
-    size_t total_length = 0;
-    size_t non_zero_count = 0;
-    for (size_t i = 0; i < size_; ++i) {
-      auto item = get_item(i);
-      if (item.length > 0) {
-        total_length += item.length;
-        non_zero_count++;
-      }
-    }
-    return non_zero_count > 0
-               ? (total_length + non_zero_count - 1) / non_zero_count
-               : 0;
-  }
-
   uint16_t width_;
   DataTypeId type_;
 };
@@ -596,17 +575,17 @@ class TypedColumn<std::string_view> : public VarLenColumn<var_len_item> {
 using StringColumn = TypedColumn<std::string_view>;
 
 template <>
-class TypedColumn<ListView> : public VarLenColumn<var_len_item> {
+class TypedColumn<ListView> : public VarLenColumn {
  public:
-  using VarLenColumn<var_len_item>::resize;
+  using VarLenColumn::resize;
+  static constexpr uint16_t DEFAULT_LIST_LENGTH = 64;
 
   explicit TypedColumn(const DataType& list_type) : list_type_(list_type) {}
   ~TypedColumn() override { close(); }
 
   // --- VarLenColumn interface ---
   DataTypeId type() const override { return DataTypeId::kList; }
-  size_t default_avg_size() const override { return 64; }
-  size_t avg_size() const override { return list_avg_size(); }
+  size_t default_avg_size() const override { return DEFAULT_LIST_LENGTH; }
 
   void resize(size_t size, const Property& default_value) override {
     if (default_value.type() != DataTypeId::kList &&
@@ -614,25 +593,25 @@ class TypedColumn<ListView> : public VarLenColumn<var_len_item> {
       THROW_RUNTIME_ERROR("Default value type does not match list column");
     }
     size_t old_size = size_;
-    VarLenColumn<var_len_item>::resize(size);  // allocates buffers
+    VarLenColumn::resize(size);
     if (old_size >= size) {
       return;
     }
-    std::string_view blob = default_value.as_list_data();
+    std::string_view blob = default_value.type() == DataTypeId::kEmpty
+                                ? std::string_view{}
+                                : default_value.as_list_data();
     if (blob.empty()) {
-      // Zero-initialized items already represent empty lists.
       return;
     }
-    // Store the default blob once and share the same {offset, length} across
-    // all new slots — avoids duplicating blob bytes N times.
     size_t offset = pos_.fetch_add(blob.size());
     if (offset + blob.size() > data_buffer_->GetDataSize()) {
       data_buffer_->Resize(
-          std::max(data_buffer_->GetDataSize() * 2, offset + blob.size()));
+          std::max(data_buffer_->GetDataSize(), offset + blob.size()));
     }
-    std::memcpy(mutable_data_ptr() + offset, blob.data(), blob.size());
-    auto item = var_len_item::from(static_cast<uint64_t>(offset),
-                                   static_cast<uint32_t>(blob.size()));
+    std::memcpy(reinterpret_cast<char*>(data_buffer_->GetData()) + offset,
+                blob.data(), blob.size());
+    auto item = var_len_item{static_cast<uint64_t>(offset),
+                             static_cast<uint32_t>(blob.size())};
     for (size_t i = old_size; i < size; ++i) {
       set_item(i, item);
     }
@@ -672,9 +651,6 @@ class TypedColumn<ListView> : public VarLenColumn<var_len_item> {
     set_value(idx, prop.as_list_data());
   }
 
-  // --- ListColumn-specific public methods ---
-
-  // Return the full DataType::List(...) of this column.
   const DataType& list_type() const { return list_type_; }
 
   // Store a pre-built blob (from ListViewBuilder::finish_*) at index idx.
@@ -695,24 +671,6 @@ class TypedColumn<ListView> : public VarLenColumn<var_len_item> {
   }
 
  private:
-  size_t list_avg_size() const {
-    if (size_ == 0) {
-      return 0;
-    }
-    size_t total_length = 0;
-    size_t non_zero_count = 0;
-    for (size_t i = 0; i < size_; ++i) {
-      auto item = get_item(i);
-      if (item.length > 0) {
-        total_length += item.length;
-        non_zero_count++;
-      }
-    }
-    return non_zero_count > 0
-               ? (total_length + non_zero_count - 1) / non_zero_count
-               : 0;
-  }
-
   DataType list_type_;
 };
 using ListColumn = TypedColumn<ListView>;
