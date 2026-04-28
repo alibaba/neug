@@ -68,7 +68,7 @@ CREATE REL TABLE IF NOT EXISTS knows (
 
 **Table options (`WITH`)**
 
-You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. A common key is `sort_key`, whose value is typically a string literal naming an edge property used for ordering. The clause is optional.
+You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. A common key is `sort_key_for_nbr`, whose value is typically a string literal naming an edge property used for ordering. The clause is optional.
 
 Example, still with `person`, `knows`, and `weight` only—here `weight` is used as the sort column name:
 
@@ -76,7 +76,7 @@ Example, still with `person`, `knows`, and `weight` only—here `weight` is used
 CREATE REL TABLE IF NOT EXISTS knows (
     FROM person TO person,
     weight DOUBLE
-) WITH (sort_key = 'weight');
+) WITH (sort_key_for_nbr = 'weight');
 ```
 
 **Where multiplicity and options apply**

@@ -103,6 +103,7 @@ class CreateEdgeTypeParam {
   std::vector<std::tuple<DataType, std::string, Property>> properties;
   EdgeStrategy oe_edge_strategy;
   EdgeStrategy ie_edge_strategy;
+  std::optional<std::string> sort_key_for_nbr;
   CreateEdgeTypeParam() = default;
   friend class CreateEdgeTypeParamBuilder;
 
@@ -116,6 +117,9 @@ class CreateEdgeTypeParam {
   }
   EdgeStrategy GetOEEdgeStrategy() const { return oe_edge_strategy; }
   EdgeStrategy GetIEEdgeStrategy() const { return ie_edge_strategy; }
+  const std::optional<std::string>& GetSortKeyForNbr() const {
+    return sort_key_for_nbr;
+  }
 
   void Serialize(InArchive& arc) const;
   static CreateEdgeTypeParam Deserialize(OutArchive& arc);
@@ -127,6 +131,7 @@ class CreateEdgeTypeParamBuilder {
   CreateEdgeTypeParamBuilder() {
     config.oe_edge_strategy = EdgeStrategy::kMultiple;
     config.ie_edge_strategy = EdgeStrategy::kMultiple;
+    config.sort_key_for_nbr = std::nullopt;
   }
   CreateEdgeTypeParamBuilder& SrcLabel(const std::string& src_label) {
     config.src_label_name = src_label;
@@ -164,6 +169,12 @@ class CreateEdgeTypeParamBuilder {
 
   CreateEdgeTypeParamBuilder& IEEdgeStrategy(EdgeStrategy ie_edge_strategy) {
     config.ie_edge_strategy = ie_edge_strategy;
+    return *this;
+  }
+
+  CreateEdgeTypeParamBuilder& SortKeyForNbr(
+      const std::optional<std::string>& sort_key_for_nbr) {
+    config.sort_key_for_nbr = sort_key_for_nbr;
     return *this;
   }
 

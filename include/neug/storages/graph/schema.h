@@ -237,7 +237,8 @@ struct EdgeSchema {
    */
   EdgeSchema(const std::string& src_label_name_,
              const std::string& dst_label_name_,
-             const std::string& edge_label_name_, bool sort_on_compaction_,
+             const std::string& edge_label_name_,
+             std::optional<std::string> sort_key_for_nbr_,
              const std::string& description_, bool ie_mutable_,
              bool oe_mutable_, EdgeStrategy oe_strategy_,
              EdgeStrategy ie_strategy_,
@@ -247,7 +248,7 @@ struct EdgeSchema {
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
         edge_label_name(edge_label_name_),
-        sort_on_compaction(sort_on_compaction_),
+        sort_key_for_nbr(sort_key_for_nbr_),
         description(description_),
         ie_mutable(ie_mutable_),
         oe_mutable(oe_mutable_),
@@ -298,7 +299,7 @@ struct EdgeSchema {
   }
 
   std::string src_label_name, dst_label_name, edge_label_name;
-  bool sort_on_compaction;
+  std::optional<std::string> sort_key_for_nbr;
   std::string description;
   bool ie_mutable;
   bool oe_mutable;
@@ -461,7 +462,7 @@ class Schema {
                     EdgeStrategy oe = EdgeStrategy::kMultiple,
                     EdgeStrategy ie = EdgeStrategy::kMultiple,
                     bool oe_mutable = true, bool ie_mutable = true,
-                    bool sort_on_compaction = false,
+                    std::optional<std::string> sort_key_for_nbr = std::nullopt,
                     const std::string& description = "",
                     const std::vector<Property>& default_property_values = {});
 
@@ -711,12 +712,13 @@ class Schema {
                              const std::string& dst_label,
                              const std::string& label) const;
 
-  bool get_sort_on_compaction(const std::string& src_label,
-                              const std::string& dst_label,
-                              const std::string& label) const;
+  std::optional<std::string> get_sort_key_for_nbr(
+      const std::string& src_label, const std::string& dst_label,
+      const std::string& label) const;
 
-  bool get_sort_on_compaction(label_t src_label, label_t dst_label,
-                              label_t label) const;
+  std::optional<std::string> get_sort_key_for_nbr(label_t src_label,
+                                                  label_t dst_label,
+                                                  label_t label) const;
 
   bool contains_edge_label(const std::string& label) const;
 

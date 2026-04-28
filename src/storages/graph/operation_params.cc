@@ -64,6 +64,11 @@ void CreateEdgeTypeParam::Serialize(InArchive& arc) const {
     arc << type << name << default_value;
   }
   arc << oe_edge_strategy << ie_edge_strategy;
+  if (sort_key_for_nbr.has_value()) {
+    arc << static_cast<uint8_t>(1) << sort_key_for_nbr.value();
+  } else {
+    arc << static_cast<uint8_t>(0);
+  }
 }
 
 CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
@@ -85,6 +90,13 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
   EdgeStrategy oe_edge_strategy, ie_edge_strategy;
   arc >> oe_edge_strategy >> ie_edge_strategy;
   builder.OEEdgeStrategy(oe_edge_strategy).IEEdgeStrategy(ie_edge_strategy);
+  uint8_t has_sort_key;
+  arc >> has_sort_key;
+  if (has_sort_key) {
+    std::string sort_key;
+    arc >> sort_key;
+    builder.SortKeyForNbr(sort_key);
+  }
   return builder.Build();
 }
 

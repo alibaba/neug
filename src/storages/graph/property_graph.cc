@@ -299,13 +299,15 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config,
     property_types.emplace_back(type);
     default_property_values.emplace_back(default_value);
   }
+  const auto& oe_strategy = config.GetOEEdgeStrategy();
+  const auto& ie_strategy = config.GetIEEdgeStrategy();
   bool oe_mutable = true, ie_mutable = true;
-  bool cur_sort_on_compaction = false;
+  auto sort_key_for_nbr = config.GetSortKeyForNbr();
   std::string description;
-  schema_.AddEdgeLabel(
-      src_vertex_type, dst_vertex_type, edge_type_name, property_types,
-      property_names, oe_edge_strategy, ie_edge_strategy, oe_mutable,
-      ie_mutable, cur_sort_on_compaction, description, default_property_values);
+  schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
+                       property_types, property_names, oe_strategy, ie_strategy,
+                       oe_mutable, ie_mutable, sort_key_for_nbr, description,
+                       default_property_values);
   edge_label_total_count_ = schema_.edge_label_frontier();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
@@ -958,11 +960,11 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
             schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           size_t index =
               schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-          bool sort_on_compaction = schema_.get_sort_on_compaction(
-              src_label_i, dst_label_i, e_label_i);
+          const auto& sort_key_for_nbr =
+              schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
           if (edge_tables_.count(index) > 0) {
             auto& edge_table = edge_tables_.at(index);
-            edge_table.Compact(compact_csr, sort_on_compaction, ts);
+            edge_table.Compact(compact_csr, sort_key_for_nbr, ts);
           }
         }
       }

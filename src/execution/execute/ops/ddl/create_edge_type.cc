@@ -26,7 +26,7 @@ class CreateEdgeTypeOpr : public IOperator {
   using property_def_t = std::vector<std::pair<std::string, Value>>;
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t, bool,
-                 EdgeStrategy, EdgeStrategy>;
+                 EdgeStrategy, EdgeStrategy, std::optional<std::string>>;
   CreateEdgeTypeOpr(const std::vector<create_edge_type_t>& create_edge_types)
       : create_edge_types_(create_edge_types) {}
 
@@ -52,7 +52,8 @@ class CreateEdgeTypeOpr : public IOperator {
           .EdgeLabel(std::get<2>(create_edge_def))
           .Properties(property_tuples)
           .OEEdgeStrategy(std::get<5>(create_edge_def))
-          .IEEdgeStrategy(std::get<6>(create_edge_def));
+          .IEEdgeStrategy(std::get<6>(create_edge_def))
+          .SortKeyForNbr(std::get<7>(create_edge_def));
       status = storage.CreateEdgeType(config_builder.Build(),
                                       std::get<4>(create_edge_def));
       if (!status.ok()) {
@@ -88,11 +89,47 @@ class CreateEdgeTypeOpr : public IOperator {
   std::vector<create_edge_type_t> create_edge_types_;
 };
 
+static void parse_sort_key_for_nbr(
+    const physical::CreateEdgeSchema& create_edges,
+    std::optional<std::string>& sort_key_for_nbr) {
+  if (create_edges.options_size() > 0) {
+    for (const auto& option : create_edges.options()) {
+      if (option.first == "sort_key_for_nbr") {
+        sort_key_for_nbr = option.second;
+        break;
+      } else {
+        LOG(WARNING) << "Unknown option: " << option.first
+                     << " in CreateEdgeSchema, it will be ignored";
+      }
+    }
+  }
+  if (sort_key_for_nbr.has_value()) {
+    bool valid_sort_key = false;
+    for (const auto& t : create_edges.properties()) {
+      if (t.name() == sort_key_for_nbr.value()) {
+        valid_sort_key = true;
+        break;
+      }
+    }
+    if (!valid_sort_key) {
+      LOG(ERROR) << "Invalid sort key: " << sort_key_for_nbr.value()
+                 << " for CreateEdgeTypeOpr, it should be one of the "
+                    "property names";
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Invalid sort key: " + sort_key_for_nbr.value() +
+          " for CreateEdgeTypeOpr, it should be one of "
+          "the property names");
+    }
+  }
+}
+
 neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
   auto tuple_res = property_defs_to_value(create_edges.properties());
+  std::optional<std::string> sort_key_for_nbr = std::nullopt;
+  parse_sort_key_for_nbr(create_edges, sort_key_for_nbr);
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
@@ -122,7 +159,8 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     }
     create_edge_defs.emplace_back(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name, tuple_res.value(),
-                                  conflict_action, oe_stragety, ie_stragety);
+                                  conflict_action, oe_stragety, ie_stragety,
+                                  sort_key_for_nbr);
   }
 
   return std::make_pair(std::make_unique<CreateEdgeTypeOpr>(create_edge_defs),

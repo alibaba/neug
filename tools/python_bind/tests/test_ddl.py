@@ -557,7 +557,7 @@ def test_create_rel_table_with_options(tmp_path):
     conn.execute("CREATE NODE TABLE User(id INT64 PRIMARY KEY, name STRING);")
     conn.execute("CREATE NODE TABLE City(id INT64 PRIMARY KEY, name STRING);")
     conn.execute(
-        "CREATE REL TABLE LivesIn (FROM User TO City) WITH (sort_key='creationDate');"
+        "CREATE REL TABLE LivesIn (FROM User TO City, creationDate INT64) WITH (sort_key_for_nbr='creationDate');"
     )
     # todo: check options in graph schema
     conn.close()

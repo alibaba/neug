@@ -417,8 +417,8 @@ void Schema::AddEdgeLabel(
     const std::string& src_label, const std::string& dst_label,
     const std::string& edge_label, const std::vector<DataType>& properties,
     const std::vector<std::string>& prop_names, EdgeStrategy oe,
-    EdgeStrategy ie, bool oe_mutable, bool ie_mutable, bool sort_on_compaction,
-    const std::string& description,
+    EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
+    std::optional<std::string> sort_key_for_nbr, const std::string& description,
     const std::vector<Property>& default_property_values) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
@@ -431,7 +431,7 @@ void Schema::AddEdgeLabel(
       generate_edge_label(src_label_id, dst_label_id, edge_label_id);
   e_schemas_.emplace(
       label_id, std::make_shared<EdgeSchema>(
-                    src_label, dst_label, edge_label, sort_on_compaction,
+                    src_label, dst_label, edge_label, sort_key_for_nbr,
                     description, ie_mutable, oe_mutable, oe, ie, properties,
                     prop_names, default_property_values));
   if (label_id >= elabel_triplet_tomb_.size()) {
@@ -756,25 +756,26 @@ bool Schema::incoming_edge_mutable(const std::string& src_label,
   return e_schemas_.at(index)->ie_mutable;
 }
 
-bool Schema::get_sort_on_compaction(const std::string& src_label,
-                                    const std::string& dst_label,
-                                    const std::string& label) const {
+std::optional<std::string> Schema::get_sort_key_for_nbr(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& label) const {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(label);
   ensure_edge_triplet_valid(src, dst, edge);
-  return get_sort_on_compaction(src, dst, edge);
+  return get_sort_key_for_nbr(src, dst, edge);
 }
 
-bool Schema::get_sort_on_compaction(label_t src_label, label_t dst_label,
-                                    label_t label) const {
+std::optional<std::string> Schema::get_sort_key_for_nbr(label_t src_label,
+                                                        label_t dst_label,
+                                                        label_t label) const {
   ensure_vertex_label_valid(src_label);
   ensure_vertex_label_valid(dst_label);
   ensure_edge_label_valid(label);
   ensure_edge_triplet_valid(src_label, dst_label, label);
   uint32_t index = generate_edge_label(src_label, dst_label, label);
   assert(e_schemas_.count(index) > 0);
-  return e_schemas_.at(index)->sort_on_compaction;
+  return e_schemas_.at(index)->sort_key_for_nbr;
 }
 
 bool Schema::edge_triplet_valid(label_t src, label_t dst, label_t edge) const {
@@ -1288,7 +1289,6 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
 
   EdgeStrategy default_ie = EdgeStrategy::kMultiple;
   EdgeStrategy default_oe = EdgeStrategy::kMultiple;
-  bool default_sort_on_compaction = false;
 
   // get vertex type pair relation
   auto vertex_type_pair_node = node["vertex_type_pair_relations"];
@@ -1308,7 +1308,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
     auto cur_node = vertex_type_pair_node[i];
     EdgeStrategy cur_ie = default_ie;
     EdgeStrategy cur_oe = default_oe;
-    bool cur_sort_on_compaction = default_sort_on_compaction;
+    std::optional<std::string> sort_key_for_nbr = std::nullopt;
     if (!get_scalar(cur_node, "source_vertex", src_label_name)) {
       LOG(ERROR) << "Expect field source_vertex for edge [" << edge_label_name
                  << "] in vertex_type_pair_relations";
@@ -1374,28 +1374,30 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
         }
       }
       // try to parse sort on compaction
-      if (csr_node["sort_on_compaction"]) {
+      if (csr_node["sort_key_for_nbr"]) {
         std::string sort_on_compaction_str;
-        if (get_scalar(csr_node, "sort_on_compaction",
-                       sort_on_compaction_str)) {
-          if (sort_on_compaction_str == "true" ||
-              sort_on_compaction_str == "TRUE") {
-            VLOG(10) << "Sort on compaction for edge: " << src_label_name
-                     << "-[" << edge_label_name << "]->" << dst_label_name;
-            cur_sort_on_compaction = true;
-          } else if (sort_on_compaction_str == "false" ||
-                     sort_on_compaction_str == "FALSE") {
-            VLOG(10) << "Do not sort on compaction for edge: " << src_label_name
-                     << "-[" << edge_label_name << "]->" << dst_label_name;
-            cur_sort_on_compaction = false;
-          } else {
-            LOG(ERROR) << "sort_on_compaction is not set properly for edge: "
-                       << src_label_name << "-[" << edge_label_name << "]->"
-                       << dst_label_name << "expect TRUE/FALSE";
-            return Status(StatusCode::ERR_INVALID_SCHEMA,
-                          "sort_on_compaction is not set properly for edge: " +
-                              src_label_name + "-[" + edge_label_name + "]->" +
-                              dst_label_name + "expect TRUE/FALSE");
+        if (get_scalar(csr_node, "sort_key_for_nbr", sort_on_compaction_str)) {
+          sort_key_for_nbr = sort_on_compaction_str;
+          bool found = false;
+          for (const auto& prop_name : prop_names) {
+            if (prop_name == sort_on_compaction_str) {
+              VLOG(10) << "Sort on compaction for edge: " << src_label_name
+                       << "-[" << edge_label_name << "]->" << dst_label_name
+                       << " with sort key: " << sort_on_compaction_str;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            LOG(ERROR)
+                << "sort_key_for_nbr is not found in properties for edge: "
+                << src_label_name << "-[" << edge_label_name << "]->"
+                << dst_label_name;
+            return Status(
+                StatusCode::ERR_INVALID_SCHEMA,
+                "sort_key_for_nbr is not found in properties for edge: " +
+                    src_label_name + "-[" + edge_label_name + "]->" +
+                    dst_label_name);
           }
         }
       } else {
@@ -1454,7 +1456,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
              << " properties";
     schema.AddEdgeLabel(src_label_name, dst_label_name, edge_label_name,
                         property_types, prop_names, cur_oe, cur_ie, oe_mutable,
-                        ie_mutable, cur_sort_on_compaction, description);
+                        ie_mutable, sort_key_for_nbr, description);
   }
 
   // check the type_id equals to storage's label_id
@@ -2251,23 +2253,36 @@ OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
 
 InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
   archive << e_schema.src_label_name << e_schema.dst_label_name
-          << e_schema.edge_label_name << e_schema.sort_on_compaction
-          << e_schema.description << e_schema.ie_mutable << e_schema.oe_mutable
-          << e_schema.ie_strategy << e_schema.oe_strategy << e_schema.properties
+          << e_schema.edge_label_name << e_schema.description
+          << e_schema.ie_mutable << e_schema.oe_mutable << e_schema.ie_strategy
+          << e_schema.oe_strategy << e_schema.properties
           << e_schema.property_names << e_schema.default_property_values
           << e_schema.eprop_soft_deleted;
+  if (e_schema.sort_key_for_nbr.has_value()) {
+    archive << static_cast<uint8_t>(1) << e_schema.sort_key_for_nbr.value();
+  } else {
+    archive << static_cast<uint8_t>(0);
+  }
   return archive;
 }
 
 OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
   archive >> e_schema.src_label_name >> e_schema.dst_label_name >>
-      e_schema.edge_label_name >> e_schema.sort_on_compaction >>
-      e_schema.description >> e_schema.ie_mutable >> e_schema.oe_mutable >>
-      e_schema.ie_strategy >> e_schema.oe_strategy >> e_schema.properties >>
-      e_schema.property_names >> e_schema.default_property_values >>
-      e_schema.eprop_soft_deleted;
+      e_schema.edge_label_name >> e_schema.description >> e_schema.ie_mutable >>
+      e_schema.oe_mutable >> e_schema.ie_strategy >> e_schema.oe_strategy >>
+      e_schema.properties >> e_schema.property_names >>
+      e_schema.default_property_values >> e_schema.eprop_soft_deleted;
   process_default_values(e_schema.default_property_values,
                          e_schema.default_property_strings);
+  uint8_t has_sort_key_for_nbr;
+  archive >> has_sort_key_for_nbr;
+  if (has_sort_key_for_nbr) {
+    std::string sort_key_for_nbr;
+    archive >> sort_key_for_nbr;
+    e_schema.sort_key_for_nbr = sort_key_for_nbr;
+  } else {
+    e_schema.sort_key_for_nbr = std::nullopt;
+  }
   return archive;
 }
 
