@@ -309,8 +309,18 @@ property_defs_to_value(
                  << property.default_value().DebugString();
       }
     } else {
-      default_value =
-          execution::property_to_value(get_default_value(type.id()), type);
+      if (type.id() == DataTypeId::kVarchar) {
+        int32_t width =
+            type.RawExtraTypeInfo()
+                ? type.RawExtraTypeInfo()->Cast<StringTypeInfo>().max_length
+                : STRING_DEFAULT_MAX_LENGTH;
+        default_value = execution::Value::VARCHAR(
+            std::string(get_default_value(type.id()).as_string_view()), width);
+      } else {
+        default_value =
+            execution::property_to_value(get_default_value(type.id()));
+      }
+
       VLOG(1) << "No default value, use type default:"
               << default_value.to_string()
               << " type: " << default_value.type().ToString();

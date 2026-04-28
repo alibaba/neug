@@ -2925,6 +2925,69 @@ def test_drop_and_recreate_table_same_name(tmp_path):
         db.close()
 
 
+def test_unwind_t1_l3_l4_read_from_explicit_schema(tmp_path):
+    """Minimal graph for the read query taken from tools/python_bind/batch_log (lines 49, 125, 136, 272).
+
+    Schema and values are hand-written. ``(n2 :L3 :L4)`` is modelled with ``id = 120`` in both
+    ``L3`` and ``L4`` (same property map as line 125). T1(120->44) matches line 136.
+
+    With the fixture data, ``UNWIND`` expands ``a1`` to ``{n2.k20, -986093799, n1.k20}``; with
+    ``n2.k20=512128668`` and ``n1.k20=1400705806`` (n1 id 44) and ``r1.k43`` true, ``DISTINCT a1, a2``
+    yields three rows (order not guaranteed), all with ``a2 == true``.
+    """
+    _cols = (
+        "id INT64, k19 BOOL, k18 BOOL, k20 INT64, k22 BOOL, k21 INT64, k24 STRING, k23 BOOL, "
+        "k30 BOOL, k25 STRING, k26 BOOL, k28 INT64, k27 INT64, k29 INT64, PRIMARY KEY (id)"
+    )
+    ddl = (
+        f"CREATE NODE TABLE L3 ({_cols});",
+        f"CREATE NODE TABLE L4 ({_cols});",
+        "CREATE REL TABLE T1 ("
+        "FROM L3 TO L3, k39 STRING, k38 BOOL, k40 BOOL, k42 INT64, k41 STRING, id INT64, k43 BOOL"
+        ");",
+    )
+    # batch_log: line 49 (L3 id 44), line 125 (L3:L4 id 120) — duplicated into L3 and L4 for 120
+    dml = (
+        "CREATE (n0 :L3 {k19 : false, k18 : true, k20 : 1400705806, k22 : true, id : 44, k21 : 685854768, k23 : false});",
+        'CREATE (n0 :L3 {k20 : 512128668, k30 : true, k22 : true, k21 : -1607710882, k24 : "ct", '
+        'k23 : false, k26 : false, k25 : "0", k28 : -1022812775, k27 : 1963567328, k19 : false, '
+        "k29 : 787123989, k18 : true, id : 120});",
+        'CREATE (n0 :L4 {k20 : 512128668, k30 : true, k22 : true, k21 : -1607710882, k24 : "ct", '
+        'k23 : false, k26 : false, k25 : "0", k28 : -1022812775, k27 : 1963567328, k19 : false, '
+        "k29 : 787123989, k18 : true, id : 120});",
+        "MATCH (n0 :L3 {id : 120}), (n1 :L3 {id : 44}) "
+        'CREATE (n0)-[r :T1{k39 : "Q", k38 : false, k40 : false, k42 : 1062135372, k41 : "g", '
+        "id : 131, k43 : true}]->(n1);",
+    )
+    read_q = (
+        "MATCH (n1 :L3)<-[r1 :T1]-(n2 :L3 :L4) "
+        "WHERE ((r1.id) > -1) "
+        "UNWIND [(n2.k28), -1206557154, (n2.k28)] AS a0 "
+        "UNWIND [(n2.k20), -986093799, (n1.k20)] AS a1 "
+        "RETURN DISTINCT a1, (r1.k43) AS a2;"
+    )
+
+    db_dir = tmp_path / "unwind_t1_l3_l4"
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        for s in ddl:
+            conn.execute(s, access_mode="schema")
+        for s in dml:
+            conn.execute(s, access_mode="update")
+        res = conn.execute(read_q, access_mode="read", parameters=None)
+        rows = list(res)
+        # n2=120: k20=512128668; n1=44: k20=1400705806; r1.k43 from edge = true; literal -986093799
+        expected_a1 = {-986093799, 512128668, 1400705806}
+        assert len(rows) == 3
+        assert {r[0] for r in rows} == expected_a1
+        for r in rows:
+            assert r[1] is True or r[1] == 1
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_duplicate_project_column(tmp_path):
     """Duplicate `RETURN` of the same property, including ORDER BY output alias cases."""
 

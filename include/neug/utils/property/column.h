@@ -311,7 +311,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     MD5_CTX data_ctx, item_ctx;
     MD5_Init(&data_ctx);
     MD5_Init(&item_ctx);
-    string_item cur_item;
+    string_item cur_item = {0, 0};
     size_t offset = 0;
     size_t count_no_empty = 0;
     string_item pre_item = {0, 0};
@@ -364,7 +364,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       LOG(ERROR) << ss.str();
       THROW_IO_EXCEPTION(ss.str());
     }
-    size_t pos_val = pos_.load();
+    size_t pos_val = offset;
     // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
   }
