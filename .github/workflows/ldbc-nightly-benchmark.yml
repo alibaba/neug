@@ -56,6 +56,7 @@ jobs:
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
           export DEBUG=ON
           setsid python3 benchmark/interactive/serve_ldbc.py > ${{ github.workspace }}/serve.log 2>&1 &
+          disown
           echo $! > ${{ github.workspace }}/serve.pid
           for i in $(seq 1 2700); do
             if grep -q "Brpc server started on : 0.0.0.0:57380" ${{ github.workspace }}/serve.log 2>/dev/null; then
