@@ -198,31 +198,23 @@ void UpdateTransaction::revert_changes() {
   }
 }
 
-Status UpdateTransaction::CreateVertexType(const CreateVertexTypeParam& config,
-                                           bool error_on_conflict) {
+Status UpdateTransaction::CreateVertexType(
+    const CreateVertexTypeParam& config) {
   auto name = config.GetVertexLabel();
   if (graph_.schema().contains_vertex_label(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + name + " already exists.");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + name + " already exists.");
   }
-  {
-    CreateVertexTypeRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  { undo_logs_.push(std::make_unique<CreateVertexTypeUndo>(name)); }
-  auto status = graph_.CreateVertexType(config, error_on_conflict);
-
+  CreateVertexTypeRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.CreateVertexType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create vertex type " << name << ": "
                << status.ToString();
-    undo_logs_.pop();
     return status;
   }
+  undo_logs_.push(std::make_unique<CreateVertexTypeUndo>(name));
   auto label_id = graph_.schema().get_vertex_label_id(name);
   if (deleted_vertex_labels_.find(label_id) != deleted_vertex_labels_.end()) {
     deleted_vertex_labels_.erase(label_id);
@@ -231,37 +223,27 @@ Status UpdateTransaction::CreateVertexType(const CreateVertexTypeParam& config,
   return status;
 }
 
-Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config,
-                                         bool error_on_conflict) {
+Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
   if (graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " already exists between "
                << src_type << " and " << dst_type << ".";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " already exists between " +
-                        src_type + " and " + dst_type + ".");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " already exists between " +
+                      src_type + " and " + dst_type + ".");
   }
-  {
-    CreateEdgeTypeRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(
-        std::make_unique<CreateEdgeTypeUndo>(src_type, dst_type, edge_type));
-  }
-  auto status = graph_.CreateEdgeType(config, error_on_conflict);
+  CreateEdgeTypeRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.CreateEdgeType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create edge type " << edge_type << " between "
                << src_type << " and " << dst_type << ": " << status.ToString();
-    undo_logs_.pop();
     return status;
   }
+  undo_logs_.push(
+      std::make_unique<CreateEdgeTypeUndo>(src_type, dst_type, edge_type));
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
@@ -276,38 +258,29 @@ Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config,
 }
 
 Status UpdateTransaction::AddVertexProperties(
-    const AddVertexPropertiesParam& config, bool error_on_conflict) {
+    const AddVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& add_properties = config.GetProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + vertex_type_name + " does not exist.");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + vertex_type_name + " does not exist.");
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
-  {
-    AddVertexPropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    std::vector<std::string> add_property_names;
-    for (const auto& prop : add_properties) {
-      add_property_names.push_back(std::get<1>(prop));
-    }
-    undo_logs_.push(
-        std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
-  }
-  auto status = graph_.AddVertexProperties(config, error_on_conflict);
+  AddVertexPropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.AddVertexProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type " << vertex_type_name
                << ": " << status.ToString();
-    undo_logs_.pop();
     return status;
   }
+  std::vector<std::string> add_property_names;
+  for (const auto& prop : add_properties) {
+    add_property_names.push_back(std::get<1>(prop));
+  }
+  undo_logs_.push(
+      std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
   if (deleted_vertex_properties_.size() > v_label) {
     for (const auto& prop : add_properties) {
       if (deleted_vertex_properties_[v_label].find(std::get<1>(prop)) !=
@@ -321,7 +294,7 @@ Status UpdateTransaction::AddVertexProperties(
 }
 
 Status UpdateTransaction::AddEdgeProperties(
-    const AddEdgePropertiesParam& config, bool error_on_conflict) {
+    const AddEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
@@ -329,37 +302,28 @@ Status UpdateTransaction::AddEdgeProperties(
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " does not exist between " +
-                        src_type + " and " + dst_type + ".");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " does not exist between " +
+                      src_type + " and " + dst_type + ".");
   }
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
-  {
-    AddEdgePropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    std::vector<std::string> add_property_names;
-    for (const auto& prop : add_properties) {
-      add_property_names.push_back(std::get<1>(prop));
-    }
-    undo_logs_.push(std::make_unique<AddEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, add_property_names));
-  }
-  auto status = graph_.AddEdgeProperties(config, error_on_conflict);
+  AddEdgePropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.AddEdgeProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
-    undo_logs_.pop();
     return status;
   }
+  std::vector<std::string> add_property_names;
+  for (const auto& prop : add_properties) {
+    add_property_names.push_back(std::get<1>(prop));
+  }
+  undo_logs_.push(std::make_unique<AddEdgePropUndo>(
+      src_label_id, dst_label_id, edge_label_id, add_property_names));
   auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
                                                    edge_label_id);
   if (deleted_edge_properties_.find(index) != deleted_edge_properties_.end()) {
@@ -375,43 +339,35 @@ Status UpdateTransaction::AddEdgeProperties(
 }
 
 Status UpdateTransaction::RenameVertexProperties(
-    const RenameVertexPropertiesParam& config, bool error_on_conflict) {
+    const RenameVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& rename_properties = config.GetRenameProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + vertex_type_name + " does not exist.");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + vertex_type_name + " does not exist.");
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
   ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
   for (const auto& [old_name, _] : rename_properties) {
     ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, old_name);
   }
-  {
-    RenameVertexPropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(
-        std::make_unique<RenameVertexPropUndo>(v_label, rename_properties));
-  }
-  auto status = graph_.RenameVertexProperties(config, error_on_conflict);
+  RenameVertexPropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.RenameVertexProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
                << vertex_type_name << ": " << status.ToString();
-    undo_logs_.pop();
+    return status;
   }
+  undo_logs_.push(
+      std::make_unique<RenameVertexPropUndo>(v_label, rename_properties));
   schema_changed_ = true;
   return status;
 }
 
 Status UpdateTransaction::RenameEdgeProperties(
-    const RenameEdgePropertiesParam& config, bool error_on_conflict) {
+    const RenameEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
@@ -419,13 +375,9 @@ Status UpdateTransaction::RenameEdgeProperties(
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " does not exist between " +
-                        src_type + " and " + dst_type + ".");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " does not exist between " +
+                      src_type + " and " + dst_type + ".");
   }
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
@@ -438,37 +390,29 @@ Status UpdateTransaction::RenameEdgeProperties(
                                                      edge_label_id);
     ENSURE_EDGE_PROPERTY_NOT_DELETED(index, old_name);
   }
-  {
-    RenameEdgePropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(std::make_unique<RenameEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, rename_properties));
-  }
-  auto status = graph_.RenameEdgeProperties(config, error_on_conflict);
+  RenameEdgePropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
+  auto status = graph_.RenameEdgeProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
-    undo_logs_.pop();
+    return status;
   }
+  undo_logs_.push(std::make_unique<RenameEdgePropUndo>(
+      src_label_id, dst_label_id, edge_label_id, rename_properties));
   schema_changed_ = true;
   return status;
 }
 
 Status UpdateTransaction::DeleteVertexProperties(
-    const DeleteVertexPropertiesParam& config, bool error_on_conflict) {
+    const DeleteVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& delete_properties = config.GetDeleteProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + vertex_type_name + " does not exist.");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + vertex_type_name + " does not exist.");
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
   for (auto& prop_name : delete_properties) {
@@ -479,16 +423,12 @@ Status UpdateTransaction::DeleteVertexProperties(
                         vertex_type_name + "].");
     }
   }
-  {
-    DeleteVertexPropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(
-        std::make_unique<DeleteVertexPropUndo>(v_label, delete_properties));
-  }
+  DeleteVertexPropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
   graph_.mutable_schema().DeleteVertexProperties(vertex_type_name,
                                                  delete_properties, true);
+  undo_logs_.push(
+      std::make_unique<DeleteVertexPropUndo>(v_label, delete_properties));
   if (deleted_vertex_properties_.size() <= v_label) {
     deleted_vertex_properties_.resize(v_label + 1);
   }
@@ -500,7 +440,7 @@ Status UpdateTransaction::DeleteVertexProperties(
 }
 
 Status UpdateTransaction::DeleteEdgeProperties(
-    const DeleteEdgePropertiesParam& config, bool error_on_conflict) {
+    const DeleteEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
@@ -508,13 +448,9 @@ Status UpdateTransaction::DeleteEdgeProperties(
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " does not exist between " +
-                        src_type + " and " + dst_type + ".");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " does not exist between " +
+                      src_type + " and " + dst_type + ".");
   }
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
@@ -531,16 +467,12 @@ Status UpdateTransaction::DeleteEdgeProperties(
                         dst_type + "].");
     }
   }
-  {
-    DeleteEdgePropertiesRedo::Serialize(arc_, config);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(std::make_unique<DeleteEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, delete_properties));
-  }
+  DeleteEdgePropertiesRedo::Serialize(arc_, config);
+  op_num_ += 1;
   graph_.mutable_schema().DeleteEdgeProperties(src_type, dst_type, edge_type,
                                                delete_properties, true);
+  undo_logs_.push(std::make_unique<DeleteEdgePropUndo>(
+      src_label_id, dst_label_id, edge_label_id, delete_properties));
   auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
                                                    edge_label_id);
   if (deleted_edge_properties_.find(index) == deleted_edge_properties_.end()) {
@@ -553,35 +485,25 @@ Status UpdateTransaction::DeleteEdgeProperties(
   return Status::OK();
 }
 
-Status UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
-                                           bool error_on_conflict) {
+Status UpdateTransaction::DeleteVertexType(
+    const std::string& vertex_type_name) {
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + vertex_type_name + " does not exist.");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + vertex_type_name + " does not exist.");
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
-  {
-    DeleteVertexTypeRedo::Serialize(arc_, vertex_type_name);
-    op_num_ += 1;
-  }
-  { undo_logs_.push(std::make_unique<DeleteVertexTypeUndo>(vertex_type_name)); }
   if (graph_.schema().IsVertexLabelSoftDeleted(v_label)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name
                << " is already deleted (soft delete).";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex type " + vertex_type_name +
-                        " is already deleted (soft delete).");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex type " + vertex_type_name +
+                      " is already deleted (soft delete).");
   }
+  DeleteVertexTypeRedo::Serialize(arc_, vertex_type_name);
+  op_num_ += 1;
   graph_.mutable_schema().DeleteVertexLabel(vertex_type_name, true);
+  undo_logs_.push(std::make_unique<DeleteVertexTypeUndo>(vertex_type_name));
   // Mark the vertex table as deleted in this transaction
   deleted_vertex_labels_.emplace(v_label);
   auto vertex_label_num = graph_.schema().vertex_label_frontier();
@@ -607,45 +529,31 @@ Status UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
 
 Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
                                          const std::string& dst_type,
-                                         const std::string& edge_type,
-                                         bool error_on_conflict) {
+                                         const std::string& edge_type) {
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " does not exist between " +
-                        src_type + " and " + dst_type + ".");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " does not exist between " +
+                      src_type + " and " + dst_type + ".");
   }
   label_t src_label_id = graph_.schema().get_vertex_label_id(src_type);
   label_t dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   label_t edge_label_id = graph_.schema().get_edge_label_id(edge_type);
-  {
-    DeleteEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type);
-    op_num_ += 1;
-  }
-  {
-    undo_logs_.push(
-        std::make_unique<DeleteEdgeTypeUndo>(src_type, dst_type, edge_type));
-  }
   if (graph_.schema().IsEdgeLabelSoftDeleted(src_label_id, dst_label_id,
                                              edge_label_id)) {
     LOG(ERROR) << "Edge type " << edge_type << " between " << src_type
                << " and " << dst_type << " is already deleted (soft delete).";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge type " + edge_type + " between " + src_type +
-                        " and " + dst_type +
-                        " is already deleted (soft delete).");
-    } else {
-      return Status::OK();
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge type " + edge_type + " between " + src_type + " and " +
+                      dst_type + " is already deleted (soft delete).");
   }
+  DeleteEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type);
+  op_num_ += 1;
   graph_.mutable_schema().DeleteEdgeLabel(src_label_id, dst_label_id,
                                           edge_label_id, true);
+  undo_logs_.push(
+      std::make_unique<DeleteEdgeTypeUndo>(src_type, dst_type, edge_type));
   // Mark the edge table as deleted in this transaction
   deleted_edge_labels_.emplace(
       std::make_tuple(src_label_id, dst_label_id, edge_label_id));
@@ -1026,10 +934,10 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     arc >> op_type;
     if (op_type == OpType::kCreateVertexType) {
       CreateVertexTypeParam redo = CreateVertexTypeRedo::Deserialize(arc);
-      graph.CreateVertexType(redo, true);
+      graph.CreateVertexType(redo);
     } else if (op_type == OpType::kCreateEdgeType) {
       const auto& redo = CreateEdgeTypeRedo::Deserialize(arc);
-      graph.CreateEdgeType(redo, true);
+      graph.CreateEdgeType(redo);
     } else if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
@@ -1156,7 +1064,7 @@ void UpdateTransaction::release() {
 
 void UpdateTransaction::applyVertexTypeDeletions() {
   for (auto label : deleted_vertex_labels_) {
-    auto status = graph_.DeleteVertexType(label, true);
+    auto status = graph_.DeleteVertexType(label);
     if (!status.ok()) {
       LOG(ERROR) << "Failed to delete vertex type " << (int32_t) label << ": "
                  << status.ToString();
@@ -1190,9 +1098,8 @@ void UpdateTransaction::applyVertexPropDeletion() {
       prop_names.push_back(prop_name);
     }
     DeleteVertexPropertiesParamBuilder builder;
-    auto config = builder.VertexLabel(v_label_name)
-                      .DeleteProperties(prop_names)
-                      .Build();
+    auto config =
+        builder.VertexLabel(v_label_name).DeleteProperties(prop_names).Build();
     graph_.DeleteVertexProperties(config);
   }
   deleted_vertex_properties_.clear();
@@ -1309,54 +1216,53 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
 }
 
 Status StorageTPUpdateInterface::CreateVertexType(
-    const CreateVertexTypeParam& config, bool error_on_conflict) {
-  return txn_.CreateVertexType(config, error_on_conflict);
+    const CreateVertexTypeParam& config) {
+  return txn_.CreateVertexType(config);
 }
 
 Status StorageTPUpdateInterface::CreateEdgeType(
-    const CreateEdgeTypeParam& config, bool error_on_conflict) {
-  return txn_.CreateEdgeType(config, error_on_conflict);
+    const CreateEdgeTypeParam& config) {
+  return txn_.CreateEdgeType(config);
 }
 
 Status StorageTPUpdateInterface::AddVertexProperties(
-    const AddVertexPropertiesParam& config, bool error_on_conflict) {
-  return txn_.AddVertexProperties(config, error_on_conflict);
+    const AddVertexPropertiesParam& config) {
+  return txn_.AddVertexProperties(config);
 }
 
 Status StorageTPUpdateInterface::AddEdgeProperties(
-    const AddEdgePropertiesParam& config, bool error_on_conflict) {
-  return txn_.AddEdgeProperties(config, error_on_conflict);
+    const AddEdgePropertiesParam& config) {
+  return txn_.AddEdgeProperties(config);
 }
 
 Status StorageTPUpdateInterface::RenameVertexProperties(
-    const RenameVertexPropertiesParam& config, bool error_on_conflict) {
-  return txn_.RenameVertexProperties(config, error_on_conflict);
+    const RenameVertexPropertiesParam& config) {
+  return txn_.RenameVertexProperties(config);
 }
 Status StorageTPUpdateInterface::RenameEdgeProperties(
-    const RenameEdgePropertiesParam& config, bool error_on_conflict) {
-  return txn_.RenameEdgeProperties(config, error_on_conflict);
+    const RenameEdgePropertiesParam& config) {
+  return txn_.RenameEdgeProperties(config);
 }
 
 Status StorageTPUpdateInterface::DeleteVertexProperties(
-    const DeleteVertexPropertiesParam& config, bool error_on_conflict) {
-  return txn_.DeleteVertexProperties(config, error_on_conflict);
+    const DeleteVertexPropertiesParam& config) {
+  return txn_.DeleteVertexProperties(config);
 }
 
 Status StorageTPUpdateInterface::DeleteEdgeProperties(
-    const DeleteEdgePropertiesParam& config, bool error_on_conflict) {
-  return txn_.DeleteEdgeProperties(config, error_on_conflict);
+    const DeleteEdgePropertiesParam& config) {
+  return txn_.DeleteEdgeProperties(config);
 }
 
 Status StorageTPUpdateInterface::DeleteVertexType(
-    const std::string& vertex_type_name, bool error_on_conflict) {
-  return txn_.DeleteVertexType(vertex_type_name, error_on_conflict);
+    const std::string& vertex_type_name) {
+  return txn_.DeleteVertexType(vertex_type_name);
 }
 
 Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
                                                 const std::string& dst_type,
-                                                const std::string& edge_type,
-                                                bool error_on_conflict) {
-  return txn_.DeleteEdgeType(src_type, dst_type, edge_type, error_on_conflict);
+                                                const std::string& edge_type) {
+  return txn_.DeleteEdgeType(src_type, dst_type, edge_type);
 }
 
 }  // namespace neug

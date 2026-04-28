@@ -73,6 +73,10 @@ class Status {
     }                                                          \
   } while (0)
 
+inline bool IsSchemaConflictError(const Status& status) {
+  return status.error_code() == StatusCode::ERR_SCHEMA_MISMATCH;
+}
+
 template <typename ReturnType>
 using result = tl::expected<ReturnType, neug::Status>;
 

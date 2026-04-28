@@ -312,7 +312,7 @@ def test_create_node_table_errors(tmp_path):
     # 1. create duplicate node table
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY (name));")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")

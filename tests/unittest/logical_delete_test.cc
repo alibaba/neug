@@ -77,8 +77,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
       const std::string& vertex_type,
       const std::vector<std::string>& delete_properties) {
     DeleteVertexPropertiesParamBuilder builder;
-    builder.VertexLabel(vertex_type)
-        .DeleteProperties(delete_properties);
+    builder.VertexLabel(vertex_type).DeleteProperties(delete_properties);
     return builder.Build();
   }
 
@@ -165,15 +164,12 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   EXPECT_EQ(graph_.schema().get_vertex_label_name(v_label), "Person");
 
   // Logical delete
-  status = graph_.DeleteVertexType("Person", true);
+  status = graph_.DeleteVertexType("Person");
   ASSERT_TRUE(status.ok());
 
-  // Trying to create again should either:
-  // 1. Fail with error_on_conflict=true
-  // 2. Act as revert with error_on_conflict=false
-
+  // Trying to create again after delete should succeed
   status = graph_.CreateVertexType(
-      BuildCreateVertexTypeParam("Person", properties, pk_names), false);
+      BuildCreateVertexTypeParam("Person", properties, pk_names));
   ASSERT_TRUE(status.ok());
 }
 
@@ -255,7 +251,7 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   // Delete property logically
   std::vector<std::string> delete_props = {"age"};
   status = graph_.DeleteVertexProperties(
-      BuildDeleteVertexPropertiesParam("Person", delete_props), true);
+      BuildDeleteVertexPropertiesParam("Person", delete_props));
   ASSERT_TRUE(status.ok());
 
   // Property should be logically hidden
@@ -441,18 +437,12 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeletePrimaryKeyProperty_ShouldFail) {
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", properties, pk_names));
 
-  EXPECT_THROW(
-      {
-        graph_.DeleteVertexProperties(
-            BuildDeleteVertexPropertiesParam("Person", {"id"}));
-      },
-      neug::exception::Exception);
-  EXPECT_THROW(
-      {
-        graph_.DeleteVertexProperties(
-            BuildDeleteVertexPropertiesParam("Person", {"id"}));
-      },
-      neug::exception::RuntimeError);
+  EXPECT_THROW(graph_.DeleteVertexProperties(
+                   BuildDeleteVertexPropertiesParam("Person", {"id"})),
+               neug::exception::Exception);
+  EXPECT_THROW(graph_.DeleteVertexProperties(
+                   BuildDeleteVertexPropertiesParam("Person", {"id"})),
+               neug::exception::RuntimeError);
 }
 
 // Test physical delete of properties after logical delete
@@ -530,14 +520,14 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   std::vector<std::tuple<DataType, std::string, Property>> e_props_locatedat = {
       {DataTypeId::kInt32, "since", Property::from_int32(0)},
       {DataTypeId::kVarchar, "city", Property::from_string_view("string")}};
-  graph_.CreateEdgeType(BuildCreateEdgeTypeParam("Person", "Company",
-                                                  "WorksAt", e_props_workat));
+  graph_.CreateEdgeType(
+      BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props_workat));
   graph_.CreateEdgeType(BuildCreateEdgeTypeParam(
       "Company", "Location", "LocatedAt", e_props_locatedat));
   // Logical delete vertex label
-  graph_.DeleteVertexType("Person", true);
+  graph_.DeleteVertexType("Person");
   // Logical delete edge label
-  graph_.DeleteEdgeType("Person", "Company", "WorksAt", true);
+  graph_.DeleteEdgeType("Person", "Company", "WorksAt");
   // Logical delete vertex property
   graph_.DeleteVertexProperties(
       BuildDeleteVertexPropertiesParam("Company", {"Name"}));
@@ -573,12 +563,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
       BuildCreateVertexTypeParam("Person", properties, pk_names));
   ASSERT_TRUE(status.ok());
 
-  EXPECT_THROW(
-      {
-        graph_.DeleteVertexProperties(
-            BuildDeleteVertexPropertiesParam("Person", {"id"}));
-      },
-      neug::exception::Exception);
+  EXPECT_THROW(graph_.DeleteVertexProperties(
+                   BuildDeleteVertexPropertiesParam("Person", {"id"})),
+               neug::exception::Exception);
 }
 
 TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
@@ -607,7 +594,7 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
   EXPECT_TRUE(stats.find("\"vertex_type_statistics\"") != std::string::npos);
   EXPECT_TRUE(stats.find("\"edge_type_statistics\"") != std::string::npos);
 
-  graph_.DeleteVertexType("Person", true);
+  graph_.DeleteVertexType("Person");
   graph_.DeleteVertexProperties(
       BuildDeleteVertexPropertiesParam("Company", {"Name"}));
   graph_.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(

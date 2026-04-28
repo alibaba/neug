@@ -287,11 +287,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
         DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     CreateVertexTypeParamBuilder builder;
-    auto status =
-        graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
-                                   .Properties(properties)
-                                   .PrimaryKeyNames(primary_keys)
-                                   .Build());
+    auto status = graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
+                                             .Properties(properties)
+                                             .PrimaryKeyNames(primary_keys)
+                                             .Build());
     EXPECT_TRUE(status.ok());
     std::cout << "Get vertex label num: "
               << static_cast<size_t>(graph.schema().vertex_label_num()) << "\n";
