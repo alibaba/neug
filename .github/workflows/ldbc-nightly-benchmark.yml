@@ -38,7 +38,7 @@ jobs:
         id: load
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
-          export DATA_PATH=/data/benchmark/social_network-sf10-CsvComposite-StringDateFormatter
+          export DATA_PATH=/data/benchmark/social_network-sf100-CsvComposite-StringDateFormatter
           RESULT_DIR="/data/benchmark-result/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
           mkdir -p "$RESULT_DIR"
           echo "result_dir=$RESULT_DIR" >> "$GITHUB_OUTPUT"
@@ -76,7 +76,7 @@ jobs:
       - name: Run benchmark via SSH
         run: |
           RESULT_DIR="${{ steps.load.outputs.result_dir }}"
-          ssh -o StrictHostKeyChecking=no client-host "mkdir -p $RESULT_DIR && /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf10.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
+          ssh -o StrictHostKeyChecking=no client-host "mkdir -p $RESULT_DIR && /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
           echo "::notice::Benchmark results saved to $RESULT_DIR"
 
       - name: Stop NeuG server and save logs
