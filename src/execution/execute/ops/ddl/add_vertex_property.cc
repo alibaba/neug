@@ -43,8 +43,11 @@ class AddVertexPropertySchemaOpr : public IOperator {
       property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
-    auto res = storage.AddVertexProperties(vertex_type_, property_tuples,
-                                           error_on_conflict_);
+    AddVertexPropertiesParamBuilder builder;
+    auto config = builder.VertexLabel(vertex_type_)
+                      .Properties(property_tuples)
+                      .Build();
+    auto res = storage.AddVertexProperties(config, error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
                  << ", reason: " << res.ToString();

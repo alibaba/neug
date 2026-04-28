@@ -286,8 +286,12 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
         DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
+    CreateVertexTypeParamBuilder builder;
     auto status =
-        graph.CreateVertexType(vertex_label_name, properties, primary_keys);
+        graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
+                                   .Properties(properties)
+                                   .PrimaryKeyNames(primary_keys)
+                                   .Build());
     EXPECT_TRUE(status.ok());
     std::cout << "Get vertex label num: "
               << static_cast<size_t>(graph.schema().vertex_label_num()) << "\n";
@@ -304,8 +308,12 @@ void testOpenEmptyGraph(const std::string& graph_dir,
         std::make_tuple<DataType, std::string, Property>(
             DataTypeId::kFloat, std::string("weight"),
             Property::from_float(0.0)));
-    auto status = graph.CreateEdgeType(src_vertex_label, dst_vertex_label,
-                                       edge_label_name, edge_properties);
+    CreateEdgeTypeParamBuilder builder;
+    auto status = graph.CreateEdgeType(builder.SrcLabel(src_vertex_label)
+                                           .DstLabel(dst_vertex_label)
+                                           .EdgeLabel(edge_label_name)
+                                           .Properties(edge_properties)
+                                           .Build());
     EXPECT_TRUE(status.ok());
     auto edge_label_num = graph.schema().edge_label_num();
     std::cout << "Get edge label num: " << static_cast<size_t>(edge_label_num)
@@ -361,8 +369,12 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     add_properties.emplace_back(
         std::make_tuple(DataTypeId::kTimestampMs, "creationDate",
                         Property::from_datetime(DateTime(0))));
-    graph.AddEdgeProperties(src_vertex_type, dst_vertex_type, edge_type_name,
-                            add_properties);
+    AddEdgePropertiesParamBuilder builder;
+    graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)
+                                .DstLabel(dst_vertex_type)
+                                .EdgeLabel(edge_type_name)
+                                .Properties(add_properties)
+                                .Build());
   }
 
   // Traverse edge PERSON-KNOWS->PERSON

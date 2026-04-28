@@ -40,13 +40,14 @@ class CreateVertexTypeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    CreateVertexTypeParamBuilder builder;
+    builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
+      builder.AddProperty(prop_value.type(), prop_name,
+                           value_to_property(prop_value));
     }
-    auto res = storage.CreateVertexType(type_name_, property_tuples, pks_,
-                                        error_on_conflict_);
+    auto res = storage.CreateVertexType(builder.Build(), error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to create vertex type: " << type_name_
                  << ", reason: " << res.ToString();

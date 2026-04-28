@@ -45,8 +45,13 @@ class AddEdgePropertySchemaOpr : public IOperator {
       property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
-    auto res = storage.AddEdgeProperties(src_type_, dst_type_, edge_type_,
-                                         property_tuples, error_on_conflict_);
+    AddEdgePropertiesParamBuilder builder;
+    auto config = builder.SrcLabel(src_type_)
+                      .DstLabel(dst_type_)
+                      .EdgeLabel(edge_type_)
+                      .Properties(property_tuples)
+                      .Build();
+    auto res = storage.AddEdgeProperties(config, error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to add edge property to type: " << edge_type_
                  << ", reason: " << res.ToString();

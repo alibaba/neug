@@ -72,7 +72,11 @@ void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
                              std::to_string(label));
   }
   auto label_name = graph.schema().get_vertex_label_name(label);
-  auto status = graph.DeleteVertexProperties(label_name, prop_names);
+  DeleteVertexPropertiesParamBuilder builder;
+  auto config = builder.VertexLabel(label_name)
+                    .DeleteProperties(prop_names)
+                    .Build();
+  auto status = graph.DeleteVertexProperties(config);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR("Failed to undo AddVertexProp for label " + label_name +
                         ": " + status.error_message());
@@ -88,8 +92,13 @@ void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   auto src_label_name = graph.schema().get_vertex_label_name(src_label);
   auto dst_label_name = graph.schema().get_vertex_label_name(dst_label);
   auto edge_label_name = graph.schema().get_edge_label_name(edge_label);
-  auto status = graph.DeleteEdgeProperties(src_label_name, dst_label_name,
-                                           edge_label_name, prop_names);
+  DeleteEdgePropertiesParamBuilder builder;
+  auto config = builder.SrcLabel(src_label_name)
+                    .DstLabel(dst_label_name)
+                    .EdgeLabel(edge_label_name)
+                    .DeleteProperties(prop_names)
+                    .Build();
+  auto status = graph.DeleteEdgeProperties(config);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR("Failed to undo AddEdgeProp for edge " +
                         src_label_name + "->" + dst_label_name + ":" +
@@ -107,8 +116,11 @@ void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   for (const auto& pair : old_names_to_new_names) {
     new_names_to_old_names.emplace_back(pair.second, pair.first);
   }
-  auto status =
-      graph.RenameVertexProperties(label_name, new_names_to_old_names);
+  RenameVertexPropertiesParamBuilder builder;
+  auto config = builder.VertexLabel(label_name)
+                    .RenameProperties(new_names_to_old_names)
+                    .Build();
+  auto status = graph.RenameVertexProperties(config);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR("Failed to undo RenameVertexProp for label " +
                         label_name + ": " + status.error_message());
@@ -128,8 +140,13 @@ void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   for (const auto& pair : old_names_to_new_names) {
     new_names_to_old_names.emplace_back(pair.second, pair.first);
   }
-  auto status = graph.RenameEdgeProperties(
-      src_label_name, dst_label_name, edge_label_name, new_names_to_old_names);
+  RenameEdgePropertiesParamBuilder builder;
+  auto config = builder.SrcLabel(src_label_name)
+                    .DstLabel(dst_label_name)
+                    .EdgeLabel(edge_label_name)
+                    .RenameProperties(new_names_to_old_names)
+                    .Build();
+  auto status = graph.RenameEdgeProperties(config);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR("Failed to undo RenameEdgeProp for edge " +
                         src_label_name + "->" + dst_label_name + ":" +

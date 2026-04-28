@@ -75,7 +75,7 @@ class ColumnBase {
   // value is fixed length, we should already have enough space allocated, so
   // insert_safe can be false.
   virtual void set_any(size_t index, const Property& value,
-                       bool insert_safe = false) = 0;
+                       bool insert_safe) = 0;
 
   virtual Property get_prop(size_t index) const = 0;
 
@@ -311,7 +311,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     MD5_CTX data_ctx, item_ctx;
     MD5_Init(&data_ctx);
     MD5_Init(&item_ctx);
-    string_item cur_item;
+    string_item cur_item = {0, 0};
     size_t offset = 0;
     size_t count_no_empty = 0;
     string_item pre_item = {0, 0};
@@ -364,7 +364,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       LOG(ERROR) << ss.str();
       THROW_IO_EXCEPTION(ss.str());
     }
-    size_t pos_val = pos_.load();
+    size_t pos_val = offset;
     // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
   }
@@ -443,10 +443,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     auto dst_value = value.as_string_view();
     if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
-      size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
-      size_t new_len =
-          std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
-      data_buffer_->Resize(new_len);
+      if (insert_safe) {
+        size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+        size_t new_len =
+            std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
+        data_buffer_->Resize(new_len);
+      } else {
+        std::stringstream ss;
+        ss << "Not enough space in buffer for new value, and insert_safe is "
+              "false. "
+           << "Current buffer size: " << data_buffer_->GetDataSize()
+           << ", current position: " << pos_.load()
+           << ", new value size: " << dst_value.size();
+        THROW_STORAGE_EXCEPTION(ss.str());
+      }
     }
     set_value(idx, dst_value);
   }
@@ -516,7 +526,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
         non_zero_count++;
       }
     }
-    return non_zero_count > 0 ? total_length / non_zero_count : 0;
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
   }
 
   std::unique_ptr<IDataContainer> items_buffer_;

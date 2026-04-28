@@ -198,10 +198,9 @@ void UpdateTransaction::revert_changes() {
   }
 }
 
-Status UpdateTransaction::CreateVertexType(
-    const std::string& name,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
+Status UpdateTransaction::CreateVertexType(const CreateVertexTypeParam& config,
+                                           bool error_on_conflict) {
+  auto name = config.GetVertexLabel();
   if (graph_.schema().contains_vertex_label(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
     if (error_on_conflict) {
@@ -212,12 +211,11 @@ Status UpdateTransaction::CreateVertexType(
     }
   }
   {
-    CreateVertexTypeRedo::Serialize(arc_, name, properties, primary_key_names);
+    CreateVertexTypeRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   { undo_logs_.push(std::make_unique<CreateVertexTypeUndo>(name)); }
-  auto status = graph_.CreateVertexType(name, properties, primary_key_names,
-                                        error_on_conflict);
+  auto status = graph_.CreateVertexType(config, error_on_conflict);
 
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create vertex type " << name << ": "
@@ -233,12 +231,11 @@ Status UpdateTransaction::CreateVertexType(
   return status;
 }
 
-Status UpdateTransaction::CreateEdgeType(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-    EdgeStrategy ie_edge_strategy) {
+Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config,
+                                         bool error_on_conflict) {
+  const auto& src_type = config.GetSrcLabel();
+  const auto& dst_type = config.GetDstLabel();
+  const auto& edge_type = config.GetEdgeLabel();
   if (graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " already exists between "
                << src_type << " and " << dst_type << ".";
@@ -251,17 +248,14 @@ Status UpdateTransaction::CreateEdgeType(
     }
   }
   {
-    CreateEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type,
-                                  properties, oe_edge_strategy,
-                                  ie_edge_strategy);
+    CreateEdgeTypeRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
     undo_logs_.push(
         std::make_unique<CreateEdgeTypeUndo>(src_type, dst_type, edge_type));
   }
-  auto status = graph_.CreateEdgeType(src_type, dst_type, edge_type, properties,
-                                      true, oe_edge_strategy, ie_edge_strategy);
+  auto status = graph_.CreateEdgeType(config, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create edge type " << edge_type << " between "
                << src_type << " and " << dst_type << ": " << status.ToString();
@@ -282,10 +276,9 @@ Status UpdateTransaction::CreateEdgeType(
 }
 
 Status UpdateTransaction::AddVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
+    const AddVertexPropertiesParam& config, bool error_on_conflict) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& add_properties = config.GetProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
     if (error_on_conflict) {
@@ -297,7 +290,7 @@ Status UpdateTransaction::AddVertexProperties(
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
   {
-    AddVertexPropertiesRedo::Serialize(arc_, vertex_type_name, add_properties);
+    AddVertexPropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
@@ -308,8 +301,7 @@ Status UpdateTransaction::AddVertexProperties(
     undo_logs_.push(
         std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
   }
-  auto status = graph_.AddVertexProperties(vertex_type_name, add_properties,
-                                           error_on_conflict);
+  auto status = graph_.AddVertexProperties(config, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type " << vertex_type_name
                << ": " << status.ToString();
@@ -329,11 +321,11 @@ Status UpdateTransaction::AddVertexProperties(
 }
 
 Status UpdateTransaction::AddEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
+    const AddEdgePropertiesParam& config, bool error_on_conflict) {
+  const auto& src_type = config.GetSrcLabel();
+  const auto& dst_type = config.GetDstLabel();
+  const auto& edge_type = config.GetEdgeLabel();
+  const auto& add_properties = config.GetProperties();
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
@@ -349,8 +341,7 @@ Status UpdateTransaction::AddEdgeProperties(
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
   {
-    AddEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
-                                     add_properties);
+    AddEdgePropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
@@ -361,8 +352,7 @@ Status UpdateTransaction::AddEdgeProperties(
     undo_logs_.push(std::make_unique<AddEdgePropUndo>(
         src_label_id, dst_label_id, edge_label_id, add_property_names));
   }
-  auto status = graph_.AddEdgeProperties(src_type, dst_type, edge_type,
-                                         add_properties, error_on_conflict);
+  auto status = graph_.AddEdgeProperties(config, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
@@ -385,9 +375,9 @@ Status UpdateTransaction::AddEdgeProperties(
 }
 
 Status UpdateTransaction::RenameVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
+    const RenameVertexPropertiesParam& config, bool error_on_conflict) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& rename_properties = config.GetRenameProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
     if (error_on_conflict) {
@@ -403,16 +393,14 @@ Status UpdateTransaction::RenameVertexProperties(
     ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, old_name);
   }
   {
-    RenameVertexPropertiesRedo::Serialize(arc_, vertex_type_name,
-                                          rename_properties);
+    RenameVertexPropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
     undo_logs_.push(
         std::make_unique<RenameVertexPropUndo>(v_label, rename_properties));
   }
-  auto status = graph_.RenameVertexProperties(
-      vertex_type_name, rename_properties, error_on_conflict);
+  auto status = graph_.RenameVertexProperties(config, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
                << vertex_type_name << ": " << status.ToString();
@@ -423,10 +411,11 @@ Status UpdateTransaction::RenameVertexProperties(
 }
 
 Status UpdateTransaction::RenameEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
+    const RenameEdgePropertiesParam& config, bool error_on_conflict) {
+  const auto& src_type = config.GetSrcLabel();
+  const auto& dst_type = config.GetDstLabel();
+  const auto& edge_type = config.GetEdgeLabel();
+  const auto& rename_properties = config.GetRenameProperties();
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
@@ -450,16 +439,14 @@ Status UpdateTransaction::RenameEdgeProperties(
     ENSURE_EDGE_PROPERTY_NOT_DELETED(index, old_name);
   }
   {
-    RenameEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
-                                        rename_properties);
+    RenameEdgePropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
     undo_logs_.push(std::make_unique<RenameEdgePropUndo>(
         src_label_id, dst_label_id, edge_label_id, rename_properties));
   }
-  auto status = graph_.RenameEdgeProperties(
-      src_type, dst_type, edge_type, rename_properties, error_on_conflict);
+  auto status = graph_.RenameEdgeProperties(config, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
@@ -471,8 +458,9 @@ Status UpdateTransaction::RenameEdgeProperties(
 }
 
 Status UpdateTransaction::DeleteVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+    const DeleteVertexPropertiesParam& config, bool error_on_conflict) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& delete_properties = config.GetDeleteProperties();
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
     if (error_on_conflict) {
@@ -492,8 +480,7 @@ Status UpdateTransaction::DeleteVertexProperties(
     }
   }
   {
-    DeleteVertexPropertiesRedo::Serialize(arc_, vertex_type_name,
-                                          delete_properties);
+    DeleteVertexPropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
@@ -513,9 +500,11 @@ Status UpdateTransaction::DeleteVertexProperties(
 }
 
 Status UpdateTransaction::DeleteEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+    const DeleteEdgePropertiesParam& config, bool error_on_conflict) {
+  const auto& src_type = config.GetSrcLabel();
+  const auto& dst_type = config.GetDstLabel();
+  const auto& edge_type = config.GetEdgeLabel();
+  const auto& delete_properties = config.GetDeleteProperties();
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
@@ -543,8 +532,7 @@ Status UpdateTransaction::DeleteEdgeProperties(
     }
   }
   {
-    DeleteEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
-                                        delete_properties);
+    DeleteEdgePropertiesRedo::Serialize(arc_, config);
     op_num_ += 1;
   }
   {
@@ -1037,16 +1025,11 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     OpType op_type;
     arc >> op_type;
     if (op_type == OpType::kCreateVertexType) {
-      CreateVertexTypeRedo redo;
-      arc >> redo;
-      graph.CreateVertexType(redo.vertex_type, redo.properties,
-                             redo.primary_key_names, true);
+      CreateVertexTypeParam redo = CreateVertexTypeRedo::Deserialize(arc);
+      graph.CreateVertexType(redo, true);
     } else if (op_type == OpType::kCreateEdgeType) {
-      CreateEdgeTypeRedo redo;
-      arc >> redo;
-      graph.CreateEdgeType(redo.src_type, redo.dst_type, redo.edge_type,
-                           redo.properties, true, redo.oe_edge_strategy,
-                           redo.ie_edge_strategy);
+      const auto& redo = CreateEdgeTypeRedo::Deserialize(arc);
+      graph.CreateEdgeType(redo, true);
     } else if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
@@ -1107,32 +1090,23 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                        redo.edge_label, redo.oe_offset, redo.ie_offset,
                        timestamp);
     } else if (op_type == OpType::kAddVertexProp) {
-      AddVertexPropertiesRedo redo;
-      arc >> redo;
-      graph.AddVertexProperties(redo.vertex_type, redo.properties);
+      auto config = AddVertexPropertiesRedo::Deserialize(arc);
+      graph.AddVertexProperties(config);
     } else if (op_type == OpType::kAddEdgeProp) {
-      AddEdgePropertiesRedo redo;
-      arc >> redo;
-      graph.AddEdgeProperties(redo.src_type, redo.dst_type, redo.edge_type,
-                              redo.properties);
+      auto config = AddEdgePropertiesRedo::Deserialize(arc);
+      graph.AddEdgeProperties(config);
     } else if (op_type == OpType::kRenameVertexProp) {
-      RenameVertexPropertiesRedo redo;
-      arc >> redo;
-      graph.RenameVertexProperties(redo.vertex_type, redo.update_properties);
+      auto config = RenameVertexPropertiesRedo::Deserialize(arc);
+      graph.RenameVertexProperties(config);
     } else if (op_type == OpType::kRenameEdgeProp) {
-      RenameEdgePropertiesRedo redo;
-      arc >> redo;
-      graph.RenameEdgeProperties(redo.src_type, redo.dst_type, redo.edge_type,
-                                 redo.update_properties);
+      auto config = RenameEdgePropertiesRedo::Deserialize(arc);
+      graph.RenameEdgeProperties(config);
     } else if (op_type == OpType::kDeleteVertexProp) {
-      DeleteVertexPropertiesRedo redo;
-      arc >> redo;
-      graph.DeleteVertexProperties(redo.vertex_type, redo.delete_properties);
+      auto config = DeleteVertexPropertiesRedo::Deserialize(arc);
+      graph.DeleteVertexProperties(config);
     } else if (op_type == OpType::kDeleteEdgeProp) {
-      DeleteEdgePropertiesRedo redo;
-      arc >> redo;
-      graph.DeleteEdgeProperties(redo.src_type, redo.dst_type, redo.edge_type,
-                                 redo.delete_properties);
+      auto config = DeleteEdgePropertiesRedo::Deserialize(arc);
+      graph.DeleteEdgeProperties(config);
     } else if (op_type == OpType::kDeleteVertexType) {
       DeleteVertexTypeRedo redo;
       arc >> redo;
@@ -1215,7 +1189,11 @@ void UpdateTransaction::applyVertexPropDeletion() {
     for (const auto& prop_name : deleted_vertex_properties_[v_label]) {
       prop_names.push_back(prop_name);
     }
-    graph_.DeleteVertexProperties(v_label_name, prop_names);
+    DeleteVertexPropertiesParamBuilder builder;
+    auto config = builder.VertexLabel(v_label_name)
+                      .DeleteProperties(prop_names)
+                      .Build();
+    graph_.DeleteVertexProperties(config);
   }
   deleted_vertex_properties_.clear();
 }
@@ -1241,8 +1219,13 @@ void UpdateTransaction::applyEdgePropDeletion() {
     for (const auto& prop_name : prop_names_set) {
       prop_names.push_back(prop_name);
     }
-    graph_.DeleteEdgeProperties(src_label_name, dst_label_name, edge_label_name,
-                                prop_names);
+    DeleteEdgePropertiesParamBuilder builder;
+    auto config = builder.SrcLabel(src_label_name)
+                      .DstLabel(dst_label_name)
+                      .EdgeLabel(edge_label_name)
+                      .DeleteProperties(prop_names)
+                      .Build();
+    graph_.DeleteEdgeProperties(config);
   }
   deleted_edge_properties_.clear();
 }
@@ -1326,72 +1309,42 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
 }
 
 Status StorageTPUpdateInterface::CreateVertexType(
-    const std::string& name,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
-  return txn_.CreateVertexType(name, properties, primary_key_names,
-                               error_on_conflict);
+    const CreateVertexTypeParam& config, bool error_on_conflict) {
+  return txn_.CreateVertexType(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::CreateEdgeType(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-    EdgeStrategy ie_edge_strategy) {
-  return txn_.CreateEdgeType(src_type, dst_type, edge_type, properties,
-                             error_on_conflict, oe_edge_strategy,
-                             ie_edge_strategy);
+    const CreateEdgeTypeParam& config, bool error_on_conflict) {
+  return txn_.CreateEdgeType(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::AddVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  return txn_.AddVertexProperties(vertex_type_name, add_properties,
-                                  error_on_conflict);
+    const AddVertexPropertiesParam& config, bool error_on_conflict) {
+  return txn_.AddVertexProperties(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::AddEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  return txn_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,
-                                error_on_conflict);
+    const AddEdgePropertiesParam& config, bool error_on_conflict) {
+  return txn_.AddEdgeProperties(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::RenameVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
-  return txn_.RenameVertexProperties(vertex_type_name, rename_properties,
-                                     error_on_conflict);
+    const RenameVertexPropertiesParam& config, bool error_on_conflict) {
+  return txn_.RenameVertexProperties(config, error_on_conflict);
 }
 Status StorageTPUpdateInterface::RenameEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
-  return txn_.RenameEdgeProperties(src_type, dst_type, edge_type,
-                                   rename_properties, error_on_conflict);
+    const RenameEdgePropertiesParam& config, bool error_on_conflict) {
+  return txn_.RenameEdgeProperties(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::DeleteVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
-  return txn_.DeleteVertexProperties(vertex_type_name, delete_properties,
-                                     error_on_conflict);
+    const DeleteVertexPropertiesParam& config, bool error_on_conflict) {
+  return txn_.DeleteVertexProperties(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::DeleteEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
-  return txn_.DeleteEdgeProperties(src_type, dst_type, edge_type,
-                                   delete_properties, error_on_conflict);
+    const DeleteEdgePropertiesParam& config, bool error_on_conflict) {
+  return txn_.DeleteEdgeProperties(config, error_on_conflict);
 }
 
 Status StorageTPUpdateInterface::DeleteVertexType(
