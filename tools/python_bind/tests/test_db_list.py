@@ -93,7 +93,8 @@ def test_return_nesting_lists(tmp_path):
 
     conn.close()
     db.close()
-    
+
+
 def test_nested_list(tmp_path):
     db_dir = tmp_path / "nested_list"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -104,17 +105,13 @@ def test_nested_list(tmp_path):
     conn.execute(
         "CREATE NODE TABLE PERSON(id INT64, string_prop STRING[][], PRIMARY KEY(id));"
     )
-    conn.execute(
-        "CREATE (p: PERSON {id: 0, string_prop: [['a', 'b'], ['c', 'd']]} );"
-    )
-    conn.execute(
-        "CREATE (p: PERSON {id: 1, string_prop: [['e', 'f'], ['g', 'h']]} );"
-    )
-    
+    conn.execute("CREATE (p: PERSON {id: 0, string_prop: [['a', 'b'], ['c', 'd']]} );")
+    conn.execute("CREATE (p: PERSON {id: 1, string_prop: [['e', 'f'], ['g', 'h']]} );")
+
     result = conn.execute("MATCH (p: PERSON) RETURN p.string_prop;")
     result = list(result)
-    assert result[0][0] == [['a', 'b'], ['c', 'd']]
-    assert result[1][0] == [['e', 'f'], ['g', 'h']]
+    assert result[0][0] == [["a", "b"], ["c", "d"]]
+    assert result[1][0] == [["e", "f"], ["g", "h"]]
 
     conn.close()
     db.close()

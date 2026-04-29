@@ -163,6 +163,7 @@ class GExprConverter {
   std::shared_ptr<binder::Expression> foldFunction(
       std::shared_ptr<binder::Expression> expr);
 
+ private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
   gopt::GPhysicalTypeConverter typeConverter;
   gopt::GPrecedence preced;

@@ -308,7 +308,7 @@ class VarLenColumn : public ColumnBase {
     size_t count_no_empty = 0;
     var_len_item pre_item = var_len_item{0, 0};
     for (size_t i = 0; i < size_; ++i) {
-      const auto item = get_item(i);
+      const auto& item = get_item(i);
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
         MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
@@ -317,8 +317,7 @@ class VarLenColumn : public ColumnBase {
       }
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
-      cur_item = var_len_item{static_cast<uint64_t>(offset),
-                              static_cast<uint32_t>(item.length)};
+      cur_item = var_len_item{offset, item.length};
       MD5_Update(&data_ctx, raw_data + item.offset, item.length);
       MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
@@ -330,6 +329,7 @@ class VarLenColumn : public ColumnBase {
     }
 
     MD5_Final(header.data_md5, &data_ctx);
+
     data_out.seekp(0);
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
@@ -343,10 +343,10 @@ class VarLenColumn : public ColumnBase {
     data_out.close();
     item_out.close();
 
-    size_t avg =
+    size_t avg_size =
         count_no_empty > 0 ? offset / count_no_empty : default_avg_size();
     size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
-    size_t truncated_size = avg * count;
+    size_t truncated_size = avg_size * count;
     int rt = truncate(data_file.c_str(), truncated_size);
     if (rt != 0) {
       std::stringstream ss;
@@ -366,9 +366,9 @@ class VarLenColumn : public ColumnBase {
       items_buffer_->Resize(size * sizeof(var_len_item));
       data_buffer_->Resize(std::max(size * default_avg_size(), pos_.load()));
     } else {
-      size_t a = avg_size() > 0 ? avg_size() : default_avg_size();
+      size_t avg_size_ = avg_size() > 0 ? avg_size() : default_avg_size();
       items_buffer_->Resize(size * sizeof(var_len_item));
-      data_buffer_->Resize(std::max(size * a, pos_.load()));
+      data_buffer_->Resize(std::max(size * avg_size_, pos_.load()));
     }
     size_ = size;
   }
@@ -719,55 +719,46 @@ class TypedRefColumn : public RefColumnBase {
   size_t basic_size;
 };
 
-template <>
-class TypedRefColumn<std::string_view> : public RefColumnBase {
+template <typename ViewT, typename ColumnT>
+class VarLenRefColumn : public RefColumnBase {
  public:
-  using value_type = std::string_view;
+  using value_type = ViewT;
 
-  explicit TypedRefColumn(const TypedColumn<std::string_view>& column)
-      : column_(column), basic_size(column.size()) {}
-  ~TypedRefColumn() {}
+  explicit VarLenRefColumn(const ColumnT& column)
+      : column_(column), basic_size_(column.size()) {}
+  ~VarLenRefColumn() override = default;
 
-  inline std::string_view get_view(size_t index) const {
-    assert(index < basic_size);
+  inline ViewT get_view(size_t index) const {
+    assert(index < basic_size_);
     return column_.get_view(index);
   }
 
   Property get(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
-  }
-
-  DataTypeId type() const override {
-    return PropUtils<std::string_view>::prop_type();
+    return PropUtils<ViewT>::to_prop(get_view(index));
   }
 
   ColType col_type() const override { return ColType::kInternal; }
 
- private:
-  const TypedColumn<std::string_view>& column_;
-  size_t basic_size;
+ protected:
+  const ColumnT& column_;
+  size_t basic_size_;
 };
 
 template <>
-class TypedRefColumn<ListView> : public RefColumnBase {
+class TypedRefColumn<std::string_view>
+    : public VarLenRefColumn<std::string_view, TypedColumn<std::string_view>> {
  public:
-  using value_type = ListView;
-  explicit TypedRefColumn(const ListColumn& column)
-      : column_(column), basic_size(column.size()) {}
-  ~TypedRefColumn() {}
-  inline ListView get_view(size_t index) const {
-    assert(index < basic_size);
-    return column_.get_view(index);
+  using VarLenRefColumn::VarLenRefColumn;
+  DataTypeId type() const override {
+    return PropUtils<std::string_view>::prop_type();
   }
-  Property get(size_t index) const override {
-    return PropUtils<ListView>::to_prop(get_view(index));
-  }
-  DataTypeId type() const override { return column_.list_type().id(); }
-  ColType col_type() const override { return ColType::kInternal; }
+};
 
- private:
-  const ListColumn& column_;
-  size_t basic_size;
+template <>
+class TypedRefColumn<ListView> : public VarLenRefColumn<ListView, ListColumn> {
+ public:
+  using VarLenRefColumn::VarLenRefColumn;
+  DataTypeId type() const override { return column_.list_type().id(); }
 };
 
 // Create a reference column from a ColumnBase that contains a const reference
