@@ -160,7 +160,7 @@ class GExprConverter {
 
   std::unique_ptr<::common::Value> castLiteral(
       const binder::Expression& castExpr);
-  std::shared_ptr<binder::Expression> foldFunction(
+  std::shared_ptr<binder::Expression> foldExpression(
       std::shared_ptr<binder::Expression> expr);
 
  private:
