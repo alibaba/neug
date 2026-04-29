@@ -348,16 +348,14 @@ std::unique_ptr<CatalogSet> CatalogSet::deserialize(
 void CatalogSet::validateExistNoLock(const Transaction* transaction,
                                      const std::string& name) const {
   if (!containsEntryNoLock(transaction, name)) {
-    THROW_CATALOG_EXCEPTION(
-        stringFormat("{} does not exist in catalog.", name));
+    THROW_SCHEMA_MISMATCH(stringFormat("{} does not exist in catalog.", name));
   }
 }
 
 void CatalogSet::validateNotExistNoLock(const Transaction* transaction,
                                         const std::string& name) const {
   if (containsEntryNoLock(transaction, name)) {
-    THROW_CATALOG_EXCEPTION(
-        stringFormat("{} already exists in catalog.", name));
+    THROW_SCHEMA_MISMATCH(stringFormat("{} already exists in catalog.", name));
   }
 }
 

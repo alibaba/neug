@@ -222,9 +222,6 @@ inline std::string to_string(const neug::interactive::Code& status) {
   } catch (const neug::exception::StorageException& err) {                     \
     RETURN_ERROR(                                                              \
         neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
-  } catch (const neug::exception::PropertyNotFoundException& err) {            \
-    RETURN_ERROR(                                                              \
-        neug::Status(neug::StatusCode::ERR_PROPERTY_NOT_FOUND, err.what()));   \
   } catch (const neug::exception::Exception& err) {                            \
     RETURN_ERROR(                                                              \
         neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \

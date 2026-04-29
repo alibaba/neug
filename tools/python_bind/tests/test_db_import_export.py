@@ -350,12 +350,12 @@ def test_export_vertex_edge(tmp_path):
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
         conn.execute("COPY (MATCH (v:person) RETURN v) to 'person.csv';")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     with pytest.raises(Exception) as excinfo:
         conn.execute(
             "COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) to 'person_knows_person.csv' (HEADER = true);"
         )
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 

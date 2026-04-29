@@ -29,6 +29,7 @@
 #include "kuzu_fwd.h"
 #include "neug/compiler/parser/statement.h"
 #include "neug/utils/api.h"
+#include "neug/utils/result.h"
 #include "query_summary.h"
 
 namespace neug {
@@ -47,14 +48,6 @@ class PreparedStatement {
  public:
   bool isTransactionStatement() const;
   /**
-   * @return the query is prepared successfully or not.
-   */
-  NEUG_API bool isSuccess() const;
-  /**
-   * @return the error message if the query is not prepared successfully.
-   */
-  NEUG_API std::string getErrorMessage() const;
-  /**
    * @return the prepared statement is read-only or not.
    */
   NEUG_API bool isReadOnly() const;
@@ -69,8 +62,6 @@ class PreparedStatement {
   NEUG_API ~PreparedStatement();
 
   std::unique_ptr<planner::LogicalPlan> logicalPlan;
-  bool success = true;
-  std::string errMsg;
 
  private:
   bool isProfile() const;

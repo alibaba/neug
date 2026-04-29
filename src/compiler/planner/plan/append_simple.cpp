@@ -71,7 +71,7 @@ bool Planner::tryGetTableEntry(const std::string& labelName) {
     if (!entry) {
       return false;
     }
-  } catch (const exception::CatalogException& e) { return false; }
+  } catch (const exception::SchemaMismatchException& e) { return false; }
   return true;
 }
 

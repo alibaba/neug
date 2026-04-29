@@ -36,8 +36,6 @@ from neug import Session
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
-from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
-from neug.proto.error_pb2 import ERR_PROPERTY_NOT_FOUND
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
@@ -244,7 +242,7 @@ def test_insert_type_check(tmp_path):
     # DATETIME invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 5, dttm: 'notadatetime'})")
-    assert str(ERR_PROPERTY_NOT_FOUND) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # INTERVAL invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 6, ivl: 'notaninterval'})")
@@ -392,7 +390,7 @@ def test_create_rel_table_errors(tmp_path):
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -558,11 +556,11 @@ def test_drop_table_errors(tmp_path):
     # the edge table has already been dropped, so this will fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE knows;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. DROP table that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE person;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -584,7 +582,7 @@ def test_insert_node(tmp_path):
     # case 3: insert without primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{age:36});")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     # case 4: duplicate primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26});")
@@ -592,7 +590,7 @@ def test_insert_node(tmp_path):
     # case 5: insert values inconsistent with schema, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26, addr:'aa'});")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -639,7 +637,7 @@ def test_insert_edge(tmp_path):
         conn.execute(
             "CREATE (u:person {name: 'Alice2'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
         )
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 

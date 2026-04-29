@@ -287,16 +287,7 @@ INSTANTIATE_TEST_SUITE_P(
               return new neug::exception::TxStateConflictException(m, f);
             },
             "Transaction state conflict: ",
-            neug::StatusCode::ERR_TX_STATE_CONFLICT},
-        ExceptionTestParam{
-            [](const std::string& m) -> neug::exception::Exception* {
-              return new neug::exception::PropertyNotFoundException(m);
-            },
-            [](const std::string& m,
-               const std::string& f) -> neug::exception::Exception* {
-              return new neug::exception::PropertyNotFoundException(m, f);
-            },
-            "Property not found: ", neug::StatusCode::ERR_PROPERTY_NOT_FOUND}));
+            neug::StatusCode::ERR_TX_STATE_CONFLICT}));
 
 TEST(CheckpointExceptionTest, FromStdException) {
   std::runtime_error std_e("disk full");
@@ -379,8 +370,6 @@ TEST_THROW_MACRO(THROW_SCHEMA_MISMATCH, SchemaMismatchException,
                  "Schema mismatch: ")
 TEST_THROW_MACRO(THROW_TX_STATE_CONFLICT, TxStateConflictException,
                  "Transaction state conflict: ")
-TEST_THROW_MACRO(THROW_PROPERTY_NOT_FOUND, PropertyNotFoundException,
-                 "Property not found: ")
 
 TEST(BaseExceptionTest, WithErrorCode) {
   neug::exception::Exception e("base error",
