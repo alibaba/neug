@@ -2858,49 +2858,34 @@
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<$datetime_param return e.double_weight; {"datetime_param": "2023-10-20"}
--UNSUPPORTED: datetime not supported
----- 6
+---- 3
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-8.37951e-312
+
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight=$datetime_param return e.double_weight; {"datetime_param": "2023-05-17"}
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<>$datetime_param return e.double_weight; {"datetime_param": "2023-12-31"}
--UNSUPPORTED: datetime not supported
----- 10
+---- 6
 -2.71828
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-1.22161e-242
-8.37951e-312
-8.39403e-312
+
+
 -2.71828
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>=$datetime_param return e.double_weight; {"datetime_param": "2023-08-01"}
--UNSUPPORTED: datetime not supported
----- 7
+---- 6
 -2.71828
 -0.693147
-1.22161e-242
-8.37951e-312
-8.39403e-312
+
+
 -2.71828
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<=$datetime_param return e.double_weight; {"datetime_param": "2023-04-30"}
--UNSUPPORTED: datetime not supported
----- 3
-1.6976e-313
-4.93572e-321
--5.26953e+302
+---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight>$i32_param return m.id; {"i32_param": 42}
 ---- 1
