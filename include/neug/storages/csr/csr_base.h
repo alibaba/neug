@@ -72,6 +72,8 @@ class CsrBase {
 
   virtual void close() = 0;
 
+  virtual void drop() = 0;
+
   virtual void batch_sort_by_edge_data(timestamp_t ts) {
     LOG(FATAL) << "not supported...";
   }

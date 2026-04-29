@@ -166,4 +166,16 @@ void FileSharedMMap::Dump(const std::string& path) {
   ::unlink(src_path.c_str());
 }
 
+void FileSharedMMap::Drop() {
+  if (!path_.empty()) {
+    try {
+      std::filesystem::remove(path_);
+    } catch (const std::filesystem::filesystem_error& e) {
+      LOG(WARNING) << "Failed to delete file: " << path_
+                   << ", error: " << e.what();
+    }
+  }
+  Close();
+}
+
 }  // namespace neug

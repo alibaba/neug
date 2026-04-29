@@ -83,6 +83,13 @@ class IDataContainer {
   virtual void Dump(const std::string& path) = 0;
 
   /**
+   * @brief Drop the container and release all resources.
+   * @note If the container is file-backed, this will delete the underlying
+   * file.
+   */
+  virtual void Drop() = 0;
+
+  /**
    * @brief Close the container and release resources.
    */
   virtual void Close() = 0;

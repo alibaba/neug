@@ -104,6 +104,22 @@ void ImmutableCsr<EDATA_T>::dump(const std::string& name,
 }
 
 template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::drop() {
+  if (adj_list_buffer_) {
+    adj_list_buffer_->Drop();
+    adj_list_buffer_.reset();
+  }
+  if (degree_list_buffer_) {
+    degree_list_buffer_->Drop();
+    degree_list_buffer_.reset();
+  }
+  if (nbr_list_buffer_) {
+    nbr_list_buffer_->Drop();
+    nbr_list_buffer_.reset();
+  }
+}
+
+template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
@@ -448,6 +464,14 @@ void SingleImmutableCsr<EDATA_T>::dump(const std::string& name,
                                        const std::string& new_snapshot_dir) {
   dump_meta(new_snapshot_dir + "/" + name);
   nbr_list_buffer_->Dump(new_snapshot_dir + "/" + name + ".snbr");
+}
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::drop() {
+  if (nbr_list_buffer_) {
+    nbr_list_buffer_->Drop();
+    nbr_list_buffer_.reset();
+  }
 }
 
 template <typename EDATA_T>

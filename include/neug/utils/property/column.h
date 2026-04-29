@@ -61,6 +61,8 @@ class ColumnBase {
 
   virtual void close() = 0;
 
+  virtual void drop() = 0;
+
   virtual void dump(const std::string& filename) = 0;
 
   virtual size_t size() const = 0;
@@ -110,6 +112,12 @@ class TypedColumn : public ColumnBase {
   }
 
   void close() override { buffer_.reset(); }
+
+  void drop() override {
+    if (buffer_) {
+      buffer_->Drop();
+    }
+  }
 
   void dump(const std::string& filename) override { buffer_->Dump(filename); }
 
@@ -202,6 +210,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void open_with_hugepages(const std::string& name) override {}
   void dump(const std::string& filename) override {}
   void close() override {}
+  void drop() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
   void resize(size_t size, const Property& default_value) override {}
@@ -283,6 +292,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     if (data_buffer_) {
       data_buffer_->Close();
+    }
+  }
+
+  void drop() override {
+    if (items_buffer_) {
+      items_buffer_->Drop();
+    }
+    if (data_buffer_) {
+      data_buffer_->Drop();
     }
   }
 

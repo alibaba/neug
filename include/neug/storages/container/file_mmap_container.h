@@ -78,6 +78,8 @@ class FileSharedMMap : public MMapContainer {
    */
   void Dump(const std::string& path) override;
 
+  void Drop() override;
+
  protected:
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;

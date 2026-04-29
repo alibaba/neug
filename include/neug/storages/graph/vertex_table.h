@@ -79,6 +79,13 @@ class VertexSet {
 class PropertyGraph;
 class VertexTable {
  public:
+  VertexTable()
+      : table_(nullptr),
+        vertex_schema_(nullptr),
+        v_ts_(),
+        memory_level_(MemoryLevel::kInMemory),
+        work_dir_("") {}
+
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
       : indexer_(std::make_shared<IndexerType>()),
         table_(std::make_unique<Table>()),
@@ -112,7 +119,8 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
+  void Open(const std::string& work_dir, MemoryLevel memory_level,
+            bool load_from_checkpoint = true);
 
   void Dump(const std::string& target_dir);
 

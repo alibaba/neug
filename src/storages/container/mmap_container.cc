@@ -79,6 +79,8 @@ void MMapContainer::Close() {
   size_ = 0;
 }
 
+void MMapContainer::Drop() { Close(); }
+
 void MMapContainer::Sync() {}
 
 void MMapContainer::Resize(size_t size) {
