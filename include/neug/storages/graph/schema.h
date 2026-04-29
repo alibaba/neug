@@ -224,7 +224,8 @@ struct EdgeSchema {
    * @param src_label_name_ Source vertex type name
    * @param dst_label_name_ Destination vertex type name
    * @param edge_label_name_ Edge label name
-   * @param sort_on_compaction_ Sort edges during compaction
+   * @param sort_key_for_nbr_ Optional property name to sort neighbors by in CSR
+   * storage
    * @param description_ Human-readable description
    * @param ie_mutable_ Incoming edges can be modified
    * @param oe_mutable_ Outgoing edges can be modified

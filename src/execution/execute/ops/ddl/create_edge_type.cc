@@ -89,12 +89,11 @@ class CreateEdgeTypeOpr : public IOperator {
   std::vector<create_edge_type_t> create_edge_types_;
 };
 
-static void parse_sort_key_for_nbr(
-    const physical::CreateEdgeSchema& create_edges,
-    std::optional<std::string>& sort_key_for_nbr) {
+static void parse_options(const physical::CreateEdgeSchema& create_edges,
+                          std::optional<std::string>& sort_key_for_nbr) {
   if (create_edges.options_size() > 0) {
     for (const auto& option : create_edges.options()) {
-      if (option.first == "sort_key_for_nbr") {
+      if (option.first == "SORT_KEY_FOR_NBR") {
         sort_key_for_nbr = option.second;
         break;
       } else {
@@ -128,8 +127,8 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
   auto tuple_res = property_defs_to_value(create_edges.properties());
-  std::optional<std::string> sort_key_for_nbr = std::nullopt;
-  parse_sort_key_for_nbr(create_edges, sort_key_for_nbr);
+  std::optional<std::string> sortkey_for_nbr = std::nullopt;
+  parse_options(create_edges, sortkey_for_nbr);
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
@@ -160,7 +159,7 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     create_edge_defs.emplace_back(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name, tuple_res.value(),
                                   conflict_action, oe_stragety, ie_stragety,
-                                  sort_key_for_nbr);
+                                  sortkey_for_nbr);
   }
 
   return std::make_pair(std::make_unique<CreateEdgeTypeOpr>(create_edge_defs),

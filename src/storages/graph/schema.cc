@@ -1375,15 +1375,15 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
       }
       // try to parse sort on compaction
       if (csr_node["sort_key_for_nbr"]) {
-        std::string sort_on_compaction_str;
-        if (get_scalar(csr_node, "sort_key_for_nbr", sort_on_compaction_str)) {
-          sort_key_for_nbr = sort_on_compaction_str;
+        std::string sort_key_for_nbr_str;
+        if (get_scalar(csr_node, "sort_key_for_nbr", sort_key_for_nbr_str)) {
+          sort_key_for_nbr = sort_key_for_nbr_str;
           bool found = false;
           for (const auto& prop_name : prop_names) {
-            if (prop_name == sort_on_compaction_str) {
+            if (prop_name == sort_key_for_nbr_str) {
               VLOG(10) << "Sort on compaction for edge: " << src_label_name
                        << "-[" << edge_label_name << "]->" << dst_label_name
-                       << " with sort key: " << sort_on_compaction_str;
+                       << " with sort key: " << sort_key_for_nbr_str;
               found = true;
               break;
             }
