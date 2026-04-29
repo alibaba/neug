@@ -40,9 +40,13 @@ class RenameEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res =
-        storage.RenameEdgeProperties(src_type_, dst_type_, edge_type_,
-                                     rename_properties_, error_on_conflict_);
+    RenameEdgePropertiesParamBuilder builder;
+    auto config = builder.SrcLabel(src_type_)
+                      .DstLabel(dst_type_)
+                      .EdgeLabel(edge_type_)
+                      .RenameProperties(rename_properties_)
+                      .Build();
+    auto res = storage.RenameEdgeProperties(config, error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to rename edge property in type: " << edge_type_
                  << ", reason: " << res.ToString();

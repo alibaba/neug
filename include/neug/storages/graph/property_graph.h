@@ -29,6 +29,7 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/exception/exception.h"
@@ -182,17 +183,18 @@ class PropertyGraph {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * std::vector<std::tuple<DataType, std::string, Property>> props = {
-   *     {{DataType::kInt64}, "id", Property()},
-   *     {{DataType::kVarchar}, "name", Property()},
-   *     {{DataType::kInt32}, "age", Property()}
-   * };
-   * graph.CreateVertexType("Person", props, {"id"});
+   * CreateVertexTypeParamBuilder builder;
+   * auto config = builder.VertexLabel("Person")
+   *                   .AddProperty(DataType::kInt64, "id", Property())
+   *                   .AddProperty(DataType::kVarchar, "name", Property())
+   *                   .AddProperty(DataType::kInt32, "age", Property())
+   *                   .AddPrimaryKeyName("id")
+   *                   .Build();
+   * graph.CreateVertexType(config, true);
    * @endcode
    *
-   * @param vertex_type_name Name of the new vertex type
-   * @param properties Vector of (type, name, default_value) tuples
-   * @param primary_key_names Names of properties forming the primary key
+   * @param config Vertex type creation config, including type name,
+   *        properties, and primary keys
    * @param error_on_conflict If true, returns error if type exists;
    *        if false, silently skips creation
    *
@@ -200,12 +202,8 @@ class PropertyGraph {
    *
    * @since v0.1.0
    */
-  Status CreateVertexType(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      const std::vector<std::string>& primary_key_names,
-      bool error_on_conflict = true);
+  Status CreateVertexType(const CreateVertexTypeParam& config,
+                          bool error_on_conflict = true);
 
   /**
    * @brief Create a new edge type in the graph schema.
@@ -214,34 +212,28 @@ class PropertyGraph {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * std::vector<std::tuple<DataType, std::string, Property>> props = {
-   *     {{DataType::kInt64}, "since", Property()},
-   *     {{DataType::kDouble}, "weight", Property()}
-   * };
-   * graph.CreateEdgeType("Person", "Person", "KNOWS", props);
+   * CreateEdgeTypeParamBuilder builder;
+   * auto config = builder.SrcLabel("Person")
+   *                   .DstLabel("Person")
+   *                   .EdgeLabel("KNOWS")
+   *                   .AddProperty(DataType::kInt64, "since", Property())
+   *                   .AddProperty(DataType::kDouble, "weight", Property())
+   *                   .OEEdgeStrategy(EdgeStrategy::kMultiple)
+   *                   .IEEdgeStrategy(EdgeStrategy::kMultiple)
+   *                   .Build();
+   * graph.CreateEdgeType(config, true);
    * @endcode
    *
-   * @param src_vertex_type Source vertex type name
-   * @param dst_vertex_type Destination vertex type name
-   * @param edge_type_name Name of the new edge type
-   * @param properties Vector of (type, name, default_value) tuples
+   * @param config Edge type creation config, including source/destination,
+   *        edge label, properties, and edge strategies
    * @param error_on_conflict If true, returns error if type exists
-   * @param oe_strategy Outgoing edge storage strategy (kMultiple, kSingle,
-   * kNone)
-   * @param ie_strategy Incoming edge storage strategy
    *
    * @return Status indicating success or failure
    *
    * @since v0.1.0
    */
-  Status CreateEdgeType(
-      const std::string& src_vertex_type, const std::string& dst_vertex_type,
-      const std::string& edge_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      bool error_on_conflict = true,
-      EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
-      EdgeStrategy ie_strategy = EdgeStrategy::kMultiple);
+  Status CreateEdgeType(const CreateEdgeTypeParam& config,
+                        bool error_on_conflict = true);
 
   /**
    * @brief Delete a vertex type physically from the graph storage, could not be
@@ -262,39 +254,22 @@ class PropertyGraph {
   Status DeleteEdgeType(label_t src_label, label_t dst_label,
                         label_t edge_label, bool error_on_conflict = true);
 
-  Status AddVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict = true);
+  Status AddVertexProperties(const AddVertexPropertiesParam& config,
+                             bool error_on_conflict = true);
 
-  Status AddEdgeProperties(
-      const std::string& src_type_name, const std::string& dst_type_name,
-      const std::string& edge_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict = true);
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config,
+                           bool error_on_conflict = true);
 
-  Status RenameVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict = true);
+  Status RenameVertexProperties(const RenameVertexPropertiesParam& config,
+                                bool error_on_conflict = true);
 
-  Status RenameEdgeProperties(
-      const std::string& src_type_name, const std::string& dst_type_name,
-      const std::string& edge_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict = true);
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config,
+                              bool error_on_conflict = true);
 
-  Status DeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict = true);
+  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config,
+                                bool error_on_conflict = true);
 
-  Status DeleteEdgeProperties(const std::string& src_type_name,
-                              const std::string& dst_type_name,
-                              const std::string& edge_type_name,
-                              const std::vector<std::string>& delete_properties,
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config,
                               bool error_on_conflict = true);
 
   Status EnsureCapacity(label_t v_label, size_t capacity);

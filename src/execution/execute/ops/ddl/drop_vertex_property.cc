@@ -37,8 +37,11 @@ class DropVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteVertexProperties(vertex_type_, property_names_,
-                                              error_on_conflict_);
+    DeleteVertexPropertiesParamBuilder builder;
+    auto config = builder.VertexLabel(vertex_type_)
+                      .DeleteProperties(property_names_)
+                      .Build();
+    auto res = storage.DeleteVertexProperties(config, error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to drop vertex property from type: " << vertex_type_
                  << ", reason: " << res.ToString();

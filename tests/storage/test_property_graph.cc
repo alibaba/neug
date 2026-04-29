@@ -43,39 +43,41 @@ class PropertyGraphTest : public ::testing::Test {
   }
 
   void CreateModernGraphSchema() {
-    EXPECT_TRUE(graph_
-                    ->CreateVertexType(
-                        "person",
-                        {
-                            std::make_tuple(DataTypeId::kInt64, "id",
-                                            Property::from_int64(0)),
-                            std::make_tuple(DataTypeId::kVarchar, "name",
-                                            Property::from_string_view("")),
-                            std::make_tuple(DataTypeId::kInt32, "age",
-                                            Property::from_int32(0)),
-                            std::make_tuple(DataTypeId::kDouble, "score",
-                                            Property::from_double(0.0)),
-                        },
-                        {"id"})
-                    .ok());
-    EXPECT_TRUE(graph_
-                    ->CreateVertexType(
-                        "company",
-                        {
-                            std::make_tuple(DataTypeId::kInt64, "id",
-                                            Property::from_int64(0)),
-                            std::make_tuple(DataTypeId::kVarchar, "name",
-                                            Property::from_string_view("")),
-                        },
-                        {"id"})
-                    .ok());
+    CreateVertexTypeParamBuilder person_builder;
     EXPECT_TRUE(
         graph_
-            ->CreateEdgeType("person", "person", "knows",
-                             {
-                                 std::make_tuple(DataTypeId::kDouble, "weight",
-                                                 Property::from_double(0.0)),
-                             })
+            ->CreateVertexType(person_builder.VertexLabel("person")
+                                   .AddProperty(DataTypeId::kInt64, "id",
+                                                 Property::from_int64(0))
+                                   .AddProperty(DataTypeId::kVarchar, "name",
+                                                 Property::from_string_view(""))
+                                   .AddProperty(DataTypeId::kInt32, "age",
+                                                 Property::from_int32(0))
+                                   .AddProperty(DataTypeId::kDouble, "score",
+                                                 Property::from_double(0.0))
+                                   .AddPrimaryKeyName("id")
+                                   .Build())
+            .ok());
+    CreateVertexTypeParamBuilder company_builder;
+    EXPECT_TRUE(
+        graph_
+            ->CreateVertexType(company_builder.VertexLabel("company")
+                                   .AddProperty(DataTypeId::kInt64, "id",
+                                                 Property::from_int64(0))
+                                   .AddProperty(DataTypeId::kVarchar, "name",
+                                                 Property::from_string_view(""))
+                                   .AddPrimaryKeyName("id")
+                                   .Build())
+            .ok());
+    CreateEdgeTypeParamBuilder knows_builder;
+    EXPECT_TRUE(
+        graph_
+            ->CreateEdgeType(knows_builder.SrcLabel("person")
+                                 .DstLabel("person")
+                                 .EdgeLabel("knows")
+                                 .AddProperty(DataTypeId::kDouble, "weight",
+                                               Property::from_double(0.0))
+                                 .Build())
             .ok());
   }
 };
