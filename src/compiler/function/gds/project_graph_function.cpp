@@ -217,10 +217,9 @@ function_set ProjectGraphFunction::getFunctionSet() {
     return std::make_unique<ProjectGraphCallInput>();
   };
 
-  func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
-    return execution::Context{};
-  };
+  func->execFunc =
+      [](const CallFuncInputBase& /*input*/, neug::IStorageInterface& /*graph*/,
+         neug::execution::Context& /*ctx*/) { return execution::Context{}; };
 
   function_set functionSet;
   functionSet.push_back(std::move(func));
@@ -241,10 +240,9 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
     return std::make_unique<DropProjectedGraphCallInput>();
   };
 
-  func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
-    return execution::Context{};
-  };
+  func->execFunc =
+      [](const CallFuncInputBase& /*input*/, neug::IStorageInterface& /*graph*/,
+         neug::execution::Context& /*ctx*/) { return execution::Context{}; };
 
   function_set functionSet;
   functionSet.push_back(std::move(func));
@@ -265,9 +263,10 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
     return std::make_unique<ShowProjectedGraphsCallInput>();
   };
 
-  function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& graph) {
-    neug::execution::Context ctx;
+  function->execFunc = [](const CallFuncInputBase& /*input*/,
+                          neug::IStorageInterface& /*graph*/,
+                          neug::execution::Context& /*ctx*/) {
+    neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
     if (metadataManager == nullptr) {
@@ -279,9 +278,9 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
     for (const auto& [name, _] : nameToEntryMap) {
       name_builder.push_back_opt(name);
     }
-    ctx.set(0, name_builder.finish());
-    ctx.tag_ids = {0};
-    return ctx;
+    out.set(0, name_builder.finish());
+    out.tag_ids = {0};
+    return out;
   };
 
   function_set functionSet;
@@ -317,8 +316,9 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& graph) {
-    neug::execution::Context ctx;
+                          neug::IStorageInterface& /*graph*/,
+                          neug::execution::Context& /*ctx*/) {
+    neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     neug::execution::ValueColumnBuilder<std::string> predicate_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
@@ -344,10 +344,10 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
       name_builder.push_back_opt(std::move(triplets));
       predicate_builder.push_back_opt(relInfo.predicate);
     }
-    ctx.set(0, name_builder.finish());
-    ctx.set(1, predicate_builder.finish());
-    ctx.tag_ids = {0, 1};
-    return ctx;
+    out.set(0, name_builder.finish());
+    out.set(1, predicate_builder.finish());
+    out.tag_ids = {0, 1};
+    return out;
   };
 
   function_set functionSet;
