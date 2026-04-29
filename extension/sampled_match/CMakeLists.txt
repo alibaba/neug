@@ -47,37 +47,46 @@ target_link_libraries(neug_sampled_match_extension PRIVATE
     protobuf::libprotobuf
 )
 
-# Build test by compiling extension sources directly (no link to neug_sampled_match_extension)
+# Runtime test: link only Neug + gtest; extension code runs exclusively from
+# libsampled_match.neug_extension after LOAD. Embedding the same extension
+# sources into the test binary and also dlopening the .so duplicates globals
+# (e.g. GraphDataCache) and breaks RTTI across the DSO boundary, which showed
+# up as a segfault right after CALL INITIALIZE() returned.
 if(BUILD_TEST)
-    add_extension_test(NAME sampled_match
-        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/sampled_match_test.cpp
-        EXTRA_INCLUDE_DIRS
-            ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
-            ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include
-        EXTRA_LINK_LIBS
-            GSL::gsl
-            GSL::gslcblas
-            Boost::boost
-    )
-    # The project bundles googletest 1.13 via FetchContent and links
-    # libgtest.a built from those sources. On Homebrew Macs the root
-    # CMakeLists adds /opt/homebrew/include project-wide (via
-    # include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR}) -> SYSTEM list),
-    # which contains a newer gtest with a different MakeAndRegisterTestInfo
-    # signature. The two SYSTEM dirs share -isystem priority and homebrew
-    # is listed first, so its header silently wins -> undefined symbols at
-    # link time. Force the bundled gtest headers to be searched first by
-    # adding them as a non-SYSTEM PRIVATE include: -I always beats -isystem
-    # in clang's search order.
-    if(TARGET sampled_match_extension_test)
-        target_include_directories(sampled_match_extension_test BEFORE PRIVATE
-            ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
-            ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
-        # The test calls LOAD sampled_match; at runtime, which dlopens the
-        # libsampled_match.neug_extension produced by build_extension_lib().
-        # add_extension_test does not wire this build-order dependency, so
-        # add it explicitly — otherwise `make sampled_match_extension_test`
-        # produces the binary without the .so it expects to find.
-        add_dependencies(sampled_match_extension_test neug_sampled_match_extension)
+    set(_sm_test_name sampled_match_extension_test)
+    find_package(OpenSSL REQUIRED)
+    add_executable(${_sm_test_name}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/sampled_match_test.cpp)
+    target_include_directories(${_sm_test_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR})
+    if(ARROW_INCLUDE_DIRS)
+        target_include_directories(${_sm_test_name} PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
     endif()
+    target_include_directories(${_sm_test_name} PRIVATE SYSTEM
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
+        ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
+    target_link_libraries(${_sm_test_name} PUBLIC
+        neug::GTest
+        neug
+        GSL::gsl
+        GSL::gslcblas
+        Boost::boost
+        ${GLOG_LIBRARIES}
+        ${ARROW_LIB}
+        ${OPENSSL_LIBRARIES}
+        ${CRYPTO_LIB})
+    if(ENABLE_GCOV)
+        target_compile_options(${_sm_test_name} PRIVATE --coverage)
+        target_link_options(${_sm_test_name} PRIVATE --coverage)
+    endif()
+    include(GoogleTest)
+    add_test(NAME ${_sm_test_name} COMMAND ${_sm_test_name})
+    gtest_add_tests(TARGET ${_sm_test_name} TEST_LIST ${_sm_test_name}_tests)
+    # Bundled gtest headers must beat Homebrew's -isystem gtest (see json tests).
+    target_include_directories(${_sm_test_name} BEFORE PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
+    add_dependencies(${_sm_test_name} neug_sampled_match_extension)
 endif()
