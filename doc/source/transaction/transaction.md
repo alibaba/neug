@@ -80,7 +80,7 @@ This simple locking model is sufficient for single-user analytical workloads and
 
 Changes are persisted to disk **only** after:
 - An explicit `CHECKPOINT` statement, or
-- Database closure with `checkpoint_when_close=True` (default)
+- Database closure with `checkpoint_on_close=True` (default)
 
 For in-memory databases, durability is not applicable as data exists only in volatile memory.
 
@@ -98,7 +98,7 @@ conn.execute("CHECKPOINT")
 
 # Or rely on automatic checkpoint at close
 conn.close()
-db.close()  # checkpoint_when_close=True by default
+db.close()  # checkpoint_on_close=True by default
 ```
 
 ### Service Mode
