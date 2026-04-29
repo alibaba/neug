@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "neug/compiler/common/system_config.h"
 #include "neug/transaction/wal/wal.h"
 
 namespace neug {
@@ -27,7 +28,8 @@ class LocalWalWriter : public IWalWriter {
   static std::unique_ptr<IWalWriter> Make(const std::string& wal_uri,
                                           int thread_id);
 
-  static constexpr size_t TRUNC_SIZE = 1ul << 30;
+  // 1ul << 30 = 1GB by default
+  static constexpr size_t TRUNC_SIZE = common::WalConfig::DEFAULT_WAL_SIZE;
   LocalWalWriter(const std::string& wal_uri, int thread_id)
       : wal_uri_(wal_uri),
         thread_id_(thread_id),

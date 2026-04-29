@@ -83,6 +83,14 @@ struct CopyConfig {
       50 * DEFAULT_VECTOR_CAPACITY;
 };
 
+struct WalConfig {
+  // clang-format off
+  static constexpr uint64_t DEFAULT_WAL_SIZE_LOG2 = @NEUG_DEFAULT_WAL_SIZE_LOG2@;
+  // clang-format on
+  static constexpr uint64_t DEFAULT_WAL_SIZE = static_cast<uint64_t>(1)
+                                               << DEFAULT_WAL_SIZE_LOG2;
+};
+
 }  // namespace common
 }  // namespace neug
 
