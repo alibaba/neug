@@ -22,7 +22,7 @@ void Planner::planProjectionBody(
 void Planner::resetExprUniqueNames(const expression_vector& expressions) {
   // group expressions by unique name
   auto exprGroup = std::unordered_map<std::string, expression_vector>();
-  for (size_t pos; pos < expressions.size(); pos++) {
+  for (size_t pos = 0; pos < expressions.size(); pos++) {
     const auto& expr = expressions[pos];
     auto& group = exprGroup[expr->getUniqueName()];
     if (std::find_if(group.begin(), group.end(), [&expr](const auto& a) {
