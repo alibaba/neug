@@ -251,7 +251,7 @@ Return k;
 
 ### Match Simple Path
 
-Using the `SIMPLE` option, you can further restrict repeated paths to ensure no nodes are repeated, guaranteeing output of simple paths.
+Using the `ACYCLIC` option, you can further restrict repeated paths to ensure no nodes are repeated, guaranteeing output of simple paths.
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k:knows* ACYCLIC 1..2]->(f:person)
