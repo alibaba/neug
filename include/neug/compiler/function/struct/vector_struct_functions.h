@@ -53,5 +53,17 @@ struct StructExtractFunctions {
       std::shared_ptr<common::ValueVector>& result);
 };
 
+struct StructPackFunctions {
+  static constexpr const char* name = "STRUCT_PACK";
+
+  static function_set getFunctionSet();
+
+  static void execFunc(
+      const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
+      const std::vector<common::SelectionVector*>& parameterSelVectors,
+      common::ValueVector& result, common::SelectionVector* resultSelVector,
+      void* /*dataPtr*/ = nullptr);
+};
+
 }  // namespace function
 }  // namespace neug

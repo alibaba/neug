@@ -52,9 +52,18 @@ MetadataManager::MetadataManager() {
   auto statsManager = std::make_shared<neug::storage::StatsManager>(
       emptyStats, this, *this->memoryManager);
   this->statsManager = std::move(statsManager);
+  this->graphEntrySet = std::make_unique<graph::GraphEntrySet>();
 }
 
 MetadataManager::~MetadataManager() = default;
+
+graph::GraphEntrySet& MetadataManager::getGraphEntrySetUnsafe() {
+  return *graphEntrySet;
+}
+
+const graph::GraphEntrySet& MetadataManager::getGraphEntrySet() const {
+  return *graphEntrySet;
+}
 
 std::shared_ptr<storage::StatsManager> MetadataManager::getStatsManager()
     const {
