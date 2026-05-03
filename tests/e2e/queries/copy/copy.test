@@ -51,7 +51,7 @@
 
 
 -LOG AddRelProperty
--STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_ONE);
+-STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_TO_ONE);
 ---- ok
 -STATEMENT copy replyOf from '${GS_TEST_DIR}/neug/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
 ---- ok
