@@ -42,6 +42,11 @@ class SinkOpr : public IOperator {
   std::vector<int> tag_ids_;
 };
 
+// These operators do not require a sink for their results.
+bool dummy_sink(const ::physical::PhysicalOpr_Operator& opr) {
+  return opr.has_load_vertex() || opr.has_load_edge();
+}
+
 neug::result<OpBuildResultT> SinkOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
@@ -52,7 +57,8 @@ neug::result<OpBuildResultT> SinkOprBuilder::Build(
   }
   if (tag_ids.empty() && op_idx) {
     while (op_idx - 1 && (!plan.plan(op_idx - 1).opr().has_project()) &&
-           (!plan.plan(op_idx - 1).opr().has_group_by())) {
+           (!plan.plan(op_idx - 1).opr().has_group_by()) &&
+           !dummy_sink(plan.plan(op_idx - 1).opr())) {
       op_idx--;
     }
     auto prev_opr = plan.plan(op_idx - 1).opr();

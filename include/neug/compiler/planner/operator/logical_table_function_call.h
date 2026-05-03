@@ -27,8 +27,8 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   const function::TableFunction& getTableFunc() const { return tableFunc; }
   function::TableFuncBindData* getBindData() const { return bindData.get(); }
 
-  void setColumnSkips(std::vector<bool> columnSkips) {
-    bindData->setColumnSkips(std::move(columnSkips));
+  void setProjectColumns(std::vector<std::string> projectColumns) {
+    bindData->setProjectColumns(std::move(projectColumns));
   }
 
   void setNodeMaskRoots(std::vector<std::shared_ptr<LogicalOperator>> roots) {
@@ -53,8 +53,12 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   }
 
   std::unique_ptr<LogicalOperator> copy() override {
-    return std::make_unique<LogicalTableFunctionCall>(tableFunc,
-                                                      bindData->copy());
+    auto funcCall =
+        std::make_unique<LogicalTableFunctionCall>(tableFunc, bindData->copy());
+    if (this->getNumChildren() > 0) {
+      funcCall->addChild(this->getChild(0));
+    }
+    return funcCall;
   }
 
  private:
