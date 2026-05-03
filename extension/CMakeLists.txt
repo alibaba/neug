@@ -126,5 +126,7 @@ endfunction()
 add_extension_if_enabled("json")
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add sampled_match extension
+add_extension_if_enabled("sampled_match")
 
 message(STATUS "=== Extension configuration complete ===")
