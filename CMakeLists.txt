@@ -65,6 +65,13 @@ if(NOT NEUG_NODE_GROUP_SIZE_LOG2)
     set(NEUG_NODE_GROUP_SIZE_LOG2 17)
 endif()
 message(STATUS "NEUG_NODE_GROUP_SIZE_LOG2: ${NEUG_NODE_GROUP_SIZE_LOG2}")
+
+# 1ul << 30 = 1GB WAL file size by default
+option(NEUG_DEFAULT_WAL_SIZE_LOG2 "Log2 of the default WAL pre-allocation size per thread." 30)
+if(NOT NEUG_DEFAULT_WAL_SIZE_LOG2)
+    set(NEUG_DEFAULT_WAL_SIZE_LOG2 30)
+endif()
+message(STATUS "NEUG_DEFAULT_WAL_SIZE_LOG2: ${NEUG_DEFAULT_WAL_SIZE_LOG2}")
 option(ENABLE_WERROR "Treat all warnings as errors" FALSE)
 option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer." FALSE)
 option(ENABLE_THREAD_SANITIZER "Enable thread sanitizer." FALSE)
