@@ -26,12 +26,12 @@ class DropEdgePropertySchemaOpr : public IOperator {
                             const std::string& dst_type,
                             const std::string& edge_type,
                             const std::vector<std::string>& property_names,
-                            bool error_on_conflict)
+                            bool ignore_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
         edge_type_(edge_type),
         property_names_(property_names),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "DropEdgePropertySchemaOpr";
@@ -46,8 +46,11 @@ class DropEdgePropertySchemaOpr : public IOperator {
                       .EdgeLabel(edge_type_)
                       .DeleteProperties(property_names_)
                       .Build();
-    auto res = storage.DeleteEdgeProperties(config, error_on_conflict_);
+    auto res = storage.DeleteEdgeProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -58,7 +61,7 @@ class DropEdgePropertySchemaOpr : public IOperator {
  private:
   std::string src_type_, dst_type_, edge_type_;
   std::vector<std::string> property_names_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> DropEdgePropertySchemaOprBuilder::Build(
@@ -70,13 +73,13 @@ neug::result<OpBuildResultT> DropEdgePropertySchemaOprBuilder::Build(
   for (const auto& prop_name : drop_edge_property.properties()) {
     property_names.push_back(prop_name);
   }
-  bool conflict_action =
-      conflict_action_to_bool(drop_edge_property.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(drop_edge_property.conflict_action());
   const auto& edge_type = drop_edge_property.edge_type();
   return std::make_pair(
       std::make_unique<DropEdgePropertySchemaOpr>(
           edge_type.src_type_name().name(), edge_type.dst_type_name().name(),
-          edge_type.type_name().name(), property_names, conflict_action),
+          edge_type.type_name().name(), property_names, ignore_conflict),
       ctx_meta);
 }
 

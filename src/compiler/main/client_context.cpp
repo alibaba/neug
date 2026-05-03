@@ -182,28 +182,16 @@ void ClientContext::cleanUp() {}
 std::unique_ptr<PreparedStatement> ClientContext::prepare(
     std::string_view query) {
   std::unique_lock lck{mtx};
-  auto parsedStatements = std::vector<std::shared_ptr<Statement>>();
-  try {
-    parsedStatements = parseQuery(query);
-  } catch (std::exception& exception) {
-    return preparedStatementWithError(exception.what());
-  }
+  auto parsedStatements = parseQuery(query);
+
   if (parsedStatements.size() > 1) {
-    return preparedStatementWithError(
-        "Connection Exception: We do not support prepare multiple statements.");
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "We do not support preparing multiple statements in one query.");
   }
   auto result =
       prepareNoLock(parsedStatements[0], true /*shouldCommitNewTransaction*/);
   useInternalCatalogEntry_ = false;
   return result;
-}
-
-std::unique_ptr<PreparedStatement> ClientContext::preparedStatementWithError(
-    std::string_view errMsg) {
-  auto preparedStatement = std::make_unique<PreparedStatement>();
-  preparedStatement->success = false;
-  preparedStatement->errMsg = errMsg;
-  return preparedStatement;
 }
 
 std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
@@ -255,35 +243,30 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
   auto preparedStatement = std::make_unique<PreparedStatement>();
   auto prepareTimer = TimeMetric(true /* enable */);
   prepareTimer.start();
-  try {
-    preparedStatement->preparedSummary.statementType =
-        parsedStatement->getStatementType();
-    auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
 
-    readWriteAnalyzer.visit(*parsedStatement);
+  preparedStatement->preparedSummary.statementType =
+      parsedStatement->getStatementType();
+  auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
 
-    preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
-    preparedStatement->parsedStatement = std::move(parsedStatement);
+  readWriteAnalyzer.visit(*parsedStatement);
 
-    auto binder = Binder(this);
-    if (inputParams) {
-      binder.setInputParameters(*inputParams);
-    }
-    const auto boundStatement =
-        binder.bind(*preparedStatement->parsedStatement);
-    preparedStatement->parameterMap = binder.getParameterMap();
-    preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
-        boundStatement->getStatementResult()->copy());
-    auto planner = Planner(this);
-    auto bestPlan = planner.getBestPlan(*boundStatement);
-    optimizer::Optimizer::optimize(bestPlan.get(), this,
-                                   planner.getCardinalityEstimator());
-    preparedStatement->logicalPlan = std::move(bestPlan);
+  preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
+  preparedStatement->parsedStatement = std::move(parsedStatement);
 
-  } catch (std::exception& exception) {
-    preparedStatement->success = false;
-    preparedStatement->errMsg = exception.what();
+  auto binder = Binder(this);
+  if (inputParams) {
+    binder.setInputParameters(*inputParams);
   }
+  const auto boundStatement = binder.bind(*preparedStatement->parsedStatement);
+  preparedStatement->parameterMap = binder.getParameterMap();
+  preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
+      boundStatement->getStatementResult()->copy());
+  auto planner = Planner(this);
+  auto bestPlan = planner.getBestPlan(*boundStatement);
+  optimizer::Optimizer::optimize(bestPlan.get(), this,
+                                 planner.getCardinalityEstimator());
+  preparedStatement->logicalPlan = std::move(bestPlan);
+
   preparedStatement->useInternalCatalogEntry = useInternalCatalogEntry_;
   prepareTimer.stop();
   preparedStatement->preparedSummary.compilingTime =

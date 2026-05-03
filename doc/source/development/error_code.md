@@ -45,7 +45,6 @@ NeuG defines all runtime/service error codes in the protobuf file [`error.proto`
 | Schema & Types | `ERR_TYPE_CONVERSION` | 5003 | Illegal type conversion requested. |
 | Schema & Types | `ERR_TYPE_OVERFLOW` | 5004 | Value cannot fit into the target data type. |
 | Schema & Types | `ERR_INDEX_ERROR` | 5005 | Index/offset out of bounds. |
-| Schema & Types | `ERR_PROPERTY_NOT_FOUND` | 5006 | Requested property missing in schema. |
 | Deployment / Platform | `ERR_PLATFORM_ABI` | 6001 | ABI mismatch between binaries and host platform. |
 | Deployment / Platform | `ERR_PY_BIND_INIT` | 6002 | Python binding initialization failed. |
 | Deployment / Platform | `ERR_ARCH_MISMATCH` | 6003 | Binary architecture does not match runtime environment. |

@@ -157,36 +157,27 @@ class UpdateTransaction {
 
   void Abort();
 
-  Status CreateVertexType(const CreateVertexTypeParam& config,
-                          bool error_on_conflict);
+  Status CreateVertexType(const CreateVertexTypeParam& config);
 
-  Status CreateEdgeType(const CreateEdgeTypeParam& config,
-                        bool error_on_conflict);
+  Status CreateEdgeType(const CreateEdgeTypeParam& config);
 
-  Status AddVertexProperties(const AddVertexPropertiesParam& config,
-                             bool error_on_conflict);
+  Status AddVertexProperties(const AddVertexPropertiesParam& config);
 
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config,
-                           bool error_on_conflict);
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config);
 
-  Status RenameVertexProperties(const RenameVertexPropertiesParam& config,
-                                bool error_on_conflict);
+  Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
 
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config,
-                              bool error_on_conflict);
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config);
 
-  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config,
-                                bool error_on_conflict);
+  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config);
 
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config,
-                              bool error_on_conflict);
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
 
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true);
+  Status DeleteVertexType(const std::string& vertex_type_name);
 
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
-                        const std::string& edge_type, bool error_on_conflict);
+                        const std::string& edge_type);
 
   bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props, vid_t& vid);
@@ -403,28 +394,20 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
-  Status CreateVertexType(const CreateVertexTypeParam& config,
-                          bool error_on_conflict) override;
-  Status CreateEdgeType(const CreateEdgeTypeParam& config,
-                        bool error_on_conflict) override;
-  Status AddVertexProperties(const AddVertexPropertiesParam& config,
-                             bool error_on_conflict) override;
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config,
-                           bool error_on_conflict) override;
-  Status RenameVertexProperties(const RenameVertexPropertiesParam& config,
-                                bool error_on_conflict) override;
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config,
-                              bool error_on_conflict) override;
-  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config,
-                                bool error_on_conflict) override;
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config,
-                              bool error_on_conflict) override;
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true) override;
+  Status CreateVertexType(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
+  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
+  Status RenameVertexProperties(
+      const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
+  Status DeleteVertexProperties(
+      const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexType(const std::string& vertex_type_name) override;
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
-                        const std::string& edge_type,
-                        bool error_on_conflict) override;
+                        const std::string& edge_type) override;
 
  private:
   UpdateTransaction& txn_;
