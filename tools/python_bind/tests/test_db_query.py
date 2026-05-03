@@ -3007,3 +3007,56 @@ def test_duplicate_project_column(tmp_path):
         "ORDER BY node_id LIMIT 100"
     )
     assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
+
+
+def test_drop_and_recreate_node_table_no_stale_data(tmp_path):
+    """After DROP + re-CREATE of a node table, old rows must not reappear."""
+    db_dir = tmp_path / "drop_recreate_stale"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CHECKPOINT")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["alice"]]
+
+    # Drop and re-create with the same schema
+    conn.execute("DROP TABLE IF EXISTS Person;")
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+
+    # Old data must be gone
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Only newly inserted data should be visible
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["bob"]]
+
+    conn.close()
+    db.close()
+
+
+def test_delete_all_rows_then_reinsert_visible(tmp_path):
+    """After deleting all rows and checkpointing, newly inserted rows must be visible."""
+    db_dir = tmp_path / "delete_reinsert"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    conn.execute("CHECKPOINT")
+    assert sorted(list(conn.execute("MATCH (p:Person) RETURN p.id;"))) == [
+        ["alice"],
+        ["bob"],
+    ]
+
+    # Delete all rows
+    conn.execute("MATCH (a:Person) DELETE a;")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Re-insert — new data must be visible
+    conn.execute("CREATE (p:Person {id: 'charlie'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["charlie"]]
+
+    conn.close()
+    db.close()

@@ -89,6 +89,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void close() override;
 
+  void drop() override;
+
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
   void batch_delete_vertices(const std::set<vid_t>& src_set,
@@ -248,6 +250,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   size_t capacity() const override;
 
   void close() override;
+
+  void drop() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 

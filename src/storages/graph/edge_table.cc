@@ -548,10 +548,12 @@ void load_statistic_file(const std::string& work_dir,
   table_idx_atomic.store(size);
 }
 
-void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level,
+                     bool load_from_checkpoint) {
   work_dir_ = work_dir;
   memory_level_ = memory_level;
-  auto ckp_dir_path = checkpoint_dir(work_dir);
+  std::string ckp_dir_path =
+      load_from_checkpoint ? checkpoint_dir(work_dir) : "";
   auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                                   meta_->edge_label_name);
   auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -597,6 +599,31 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
           "capacity in statistic file not match actual table capacity, maybe "
           "the graph is not dumped properly");
     }
+  }
+}
+
+void EdgeTable::Close() {
+  if (out_csr_) {
+    out_csr_->close();
+  }
+  if (in_csr_) {
+    in_csr_->close();
+  }
+  if (table_) {
+    table_->close();
+  }
+}
+
+void EdgeTable::Drop() {
+  if (out_csr_) {
+    out_csr_->drop();
+  }
+  if (in_csr_) {
+    in_csr_->drop();
+  }
+  if (table_) {
+    table_->drop();
+    table_.reset();
   }
 }
 

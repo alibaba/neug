@@ -19,8 +19,10 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "column_assertions.h"
+#include "neug/config.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
@@ -30,6 +32,22 @@
 
 namespace {
 
+// ---------------------------------------------------------------------------
+// Memory level traits for typed tests.
+// ---------------------------------------------------------------------------
+template <neug::MemoryLevel kLevel>
+struct MemoryLevelTag {
+  static constexpr neug::MemoryLevel value = kLevel;
+};
+
+using InMemoryLevel = MemoryLevelTag<neug::MemoryLevel::kInMemory>;
+using SyncToFileLevel = MemoryLevelTag<neug::MemoryLevel::kSyncToFile>;
+
+using AllMemoryLevels = ::testing::Types<InMemoryLevel, SyncToFileLevel>;
+
+// ---------------------------------------------------------------------------
+// Test data constants
+// ---------------------------------------------------------------------------
 constexpr std::array<int64_t, 4> kPersonIds = {1, 2, 4, 6};
 const std::vector<int64_t> kPersonIdValues(kPersonIds.begin(),
                                            kPersonIds.end());
@@ -39,6 +57,9 @@ constexpr std::array<int64_t, 4> kPersonAges = {29, 27, 32, 35};
 const std::vector<int64_t> kPersonAgeValues(kPersonAges.begin(),
                                             kPersonAges.end());
 
+// ---------------------------------------------------------------------------
+// Assertion helpers
+// ---------------------------------------------------------------------------
 void AssertPersonVertexBasic(const neug::QueryResponse& table) {
   ASSERT_EQ(table.row_count(), 4);
   ASSERT_EQ(table.arrays_size(), 3);
@@ -130,438 +151,601 @@ void AssertCreatedEdgesSnapshotResult(
   neug::test::AssertInt64Column(table, 1, since);
   neug::test::AssertInt64Column(table, 2, software_ids);
 }
+
 }  // namespace
 
 namespace neug {
-
 namespace test {
 
-class CheckpointTest : public ::testing::Test {
+// ===========================================================================
+// Base fixture — shared DB lifecycle helpers for all checkpoint suites.
+// Parameterized by MemoryLevelTag<kLevel> via CRTP so typed tests inherit it.
+// ===========================================================================
+template <typename MemoryLevelT>
+class CheckpointTestBase : public ::testing::Test {
+ protected:
+  static constexpr neug::MemoryLevel kMemoryLevel = MemoryLevelT::value;
+
+  // -- Config / open helpers (single source of truth) ----------------------
+
+  static neug::NeugDBConfig MakeConfig(const std::string& data_dir) {
+    neug::NeugDBConfig config;
+    config.data_dir = data_dir;
+    config.memory_level = kMemoryLevel;
+    config.checkpoint_on_close = true;
+    config.compact_on_close = true;
+    config.compact_csr = true;
+    config.enable_auto_compaction = false;
+    return config;
+  }
+
+  static void OpenDB(neug::NeugDB& db, const std::string& data_dir) {
+    db.Open(MakeConfig(data_dir));
+  }
+
+  // -- Directory lifecycle -------------------------------------------------
+
+  static void CleanDir(const std::string& dir) {
+    if (std::filesystem::exists(dir)) {
+      std::filesystem::remove_all(dir);
+    }
+  }
+
+  static void EnsureCleanDir(const std::string& dir) {
+    CleanDir(dir);
+    std::filesystem::create_directories(dir);
+  }
+
+  // -- Query helpers (avoid repetitive boilerplate) ------------------------
+
+  static void ExpectQuery(neug::Connection& conn, const std::string& cypher) {
+    auto res = conn.Query(cypher);
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  static neug::QueryResponse RunQuery(neug::Connection& conn,
+                                      const std::string& cypher) {
+    auto res = conn.Query(cypher);
+    EXPECT_TRUE(res) << res.error().ToString();
+    return res.value().response();
+  }
+
+  // -- Common assertion combos used across many tests ----------------------
+
+  static void AssertBasicPersonAndKnows(neug::Connection& conn,
+                                        const std::vector<double>& weights) {
+    AssertPersonVertexBasic(RunQuery(conn, "MATCH (v:person) RETURN v.*;"));
+    AssertKnowsWeight(
+        RunQuery(conn, "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+        weights);
+  }
+};
+
+// ===========================================================================
+// CheckpointTest — modern-graph based checkpoint scenarios
+// ===========================================================================
+template <typename T>
+class CheckpointTest : public CheckpointTestBase<T> {
  protected:
   static constexpr const char* DB_DIR = "/tmp/checkpoint_test";
 
   void SetUp() override {
-    if (std::filesystem::exists(DB_DIR)) {
-      std::filesystem::remove_all(DB_DIR);
-    }
-    std::filesystem::create_directories(DB_DIR);
-
-    std::unique_ptr<neug::NeugDB> db_ = std::make_unique<neug::NeugDB>();
-    neug::NeugDBConfig config;
-    config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
-    config.compact_on_close = true;
-    config.compact_csr = true;
-    config.enable_auto_compaction = false;  // TODO(zhanglei): very slow
-    db_->Open(config);
-    auto conn = db_->Connect();
-
+    this->EnsureCleanDir(DB_DIR);
+    neug::NeugDB db;
+    this->OpenDB(db, DB_DIR);
+    auto conn = db.Connect();
     load_modern_graph(conn);
     LOG(INFO) << "[CheckPointTest]: Finished loading modern graph";
     conn->Close();
-    db_->Close();
-    db_.reset();
+    db.Close();
   }
 
-  void TearDown() override {}
+  void TearDown() override { this->CleanDir(DB_DIR); }
 };
 
-TEST_F(CheckpointTest, test_basic) {
-  std::unique_ptr<neug::NeugDB> db_ = std::make_unique<neug::NeugDB>();
-  db_->Open(DB_DIR);
-  auto conn = db_->Connect();
+TYPED_TEST_SUITE(CheckpointTest, AllMemoryLevels);
 
-  db_->Close();
-  db_->Open(DB_DIR);
-
-  conn = db_->Connect();
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeight(table, {0.5, 1.0});
-  }
+TYPED_TEST(CheckpointTest, basic) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+  this->AssertBasicPersonAndKnows(*conn, {0.5, 1.0});
 }
 
-TEST_F(CheckpointTest, test_after_add_vertex_property) {
+TYPED_TEST(CheckpointTest, after_add_vertex_property) {
   neug::NeugDB db;
-  db.Open(DB_DIR);
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn, "ALTER TABLE person ADD created STRING;");
+
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  conn = db.Connect();
+
+  AssertPersonVertexWithCreated(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"), {"", "", "", ""});
+  AssertKnowsWeight(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0});
+}
+
+TYPED_TEST(CheckpointTest, after_delete_vertex_property) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn, "ALTER TABLE person DROP age;");
+
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  conn = db.Connect();
+
+  AssertPersonVertexWithoutAge(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertKnowsWeight(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0});
+}
+
+TYPED_TEST(CheckpointTest, after_delete_vertex) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn, "MATCH (v:person) WHERE v.id = 1 DELETE v;");
+
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  conn = db.Connect();
+
+  AssertPersonVertexAfterDelete(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertKnowsWeight(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {});
+}
+
+TYPED_TEST(CheckpointTest, after_add_edge_property1) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn, "ALTER TABLE knows ADD registration DATE;");
+
+  AssertKnowsWeightAndRegistration(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0}, {0, 0});
+
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  conn = db.Connect();
+
+  AssertPersonVertexBasic(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertKnowsWeightAndRegistration(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0}, {0, 0});
+}
+
+TYPED_TEST(CheckpointTest, after_add_edge_property2) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
   auto conn = db.Connect();
 
-  {
-    auto res = conn->Query("ALTER TABLE person ADD created STRING;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
+  AssertPersonVertexBasic(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  this->ExpectQuery(*conn, "ALTER TABLE knows ADD description STRING;");
 
   db.Close();
-  db.Open(DB_DIR);
-
+  this->OpenDB(db, this->DB_DIR);
   conn = db.Connect();
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexWithCreated(table, {"", "", "", ""});
-  }
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeight(table, {0.5, 1.0});
-  }
+
+  AssertKnowsWeightAndDescription(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0}, {"", ""});
+
+  this->ExpectQuery(*conn, "ALTER TABLE knows ADD date DATE;");
+
+  db.Close();
+  this->OpenDB(db, this->DB_DIR);
+  conn = db.Connect();
+
+  AssertPersonVertexBasic(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertKnowsFullSchema(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN e.*;"),
+      {0.5, 1.0}, {"", ""}, {0, 0});
 }
 
-TEST_F(CheckpointTest, test_after_delete_vertex_property) {
+TYPED_TEST(CheckpointTest, after_delete_edge_property) {
   neug::NeugDB db;
-  db.Open(DB_DIR);
-  auto conn = db.Connect();
-
-  {
-    auto res = conn->Query("ALTER TABLE person DROP age;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
-
-  db.Close();
-  db.Open(DB_DIR);
-  conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexWithoutAge(table);
-  }
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeight(table, {0.5, 1.0});
-  }
-}
-
-TEST_F(CheckpointTest, test_after_delete_vertex) {
-  neug::NeugDB db;
-  db.Open(DB_DIR);
-  auto conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
-
-  db.Close();
-  db.Open(DB_DIR);
-  conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexAfterDelete(table);
-  }
-
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeight(table, {});
-  }
-}
-
-TEST_F(CheckpointTest, test_after_add_edge_property1) {
-  neug::NeugDB db;
-  db.Open(DB_DIR);
-  auto conn = db.Connect();
-
-  {
-    auto res = conn->Query("ALTER TABLE knows ADD registration DATE;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
-
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeightAndRegistration(table, {0.5, 1.0}, {0, 0});
-  }
-
-  db.Close();
-  db.Open(DB_DIR);
-
-  conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeightAndRegistration(table, {0.5, 1.0}, {0, 0});
-  }
-}
-
-// Add a test test_after_add_edge_property2 which add property to an edge
-// table which already have 2 properties
-TEST_F(CheckpointTest, test_after_add_edge_property2) {
-  neug::NeugDB db;
-  db.Open(DB_DIR);
-  auto conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-  {
-    auto res = conn->Query("ALTER TABLE knows ADD description STRING;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
-
-  db.Close();
-  db.Open(DB_DIR);
-
-  conn = db.Connect();
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeightAndDescription(table, {0.5, 1.0}, {"", ""});
-  }
-
-  {
-    // Add another edge to check if the new property is added correctly
-    auto res = conn->Query("ALTER TABLE knows ADD date DATE;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
-
-  db.Close();
-  db.Open(DB_DIR);
-
-  conn = db.Connect();
-
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsFullSchema(table, {0.5, 1.0}, {"", ""}, {0, 0});
-  }
-}
-
-TEST_F(CheckpointTest, test_after_delete_edge_property) {
-  neug::NeugDB db;
-  db.Open(DB_DIR);
-
+  this->OpenDB(db, this->DB_DIR);
   {
     auto conn = db.Connect();
-    auto res = conn->Query("ALTER TABLE knows DROP weight");
-    EXPECT_TRUE(res) << res.error().ToString();
+    this->ExpectQuery(*conn, "ALTER TABLE knows DROP weight");
   }
 
   db.Close();
-  db.Open(DB_DIR);
+  this->OpenDB(db, this->DB_DIR);
   auto conn = db.Connect();
 
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-
-  {
-    auto res = conn->Query("MATCH (v:person)-[e:knows]->(:person) RETURN e;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertMapColumn(table, 2);
-  }
+  AssertPersonVertexBasic(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertMapColumn(
+      this->RunQuery(*conn, "MATCH (v:person)-[e:knows]->(:person) RETURN e;"),
+      2);
 }
 
-TEST_F(CheckpointTest, test_after_delete_edge) {
+TYPED_TEST(CheckpointTest, after_delete_edge) {
   neug::NeugDB db;
-  db.Open(DB_DIR);
-
+  this->OpenDB(db, this->DB_DIR);
   {
     auto conn = db.Connect();
-    auto res = conn->Query(
+    this->ExpectQuery(
+        *conn,
         "MATCH (v:person)-[e:knows]->(:person) WHERE v.id = 1 DELETE e;");
-    EXPECT_TRUE(res) << res.error().ToString();
   }
 
   db.Close();
-  db.Open(DB_DIR);
+  this->OpenDB(db, this->DB_DIR);
   auto conn = db.Connect();
 
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertPersonVertexBasic(table);
-  }
-  {
-    auto res = conn->Query("MATCH (:person)-[e:knows]->(v:person) RETURN e.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    const auto& table = res.value().response();
-    AssertKnowsWeight(table, {});
-  }
+  AssertPersonVertexBasic(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN v.*;"));
+  AssertKnowsWeight(
+      this->RunQuery(*conn,
+                     "MATCH (:person)-[e:knows]->(v:person) RETURN e.*;"),
+      {});
 }
 
-TEST_F(CheckpointTest, test_compact) {
+TYPED_TEST(CheckpointTest, compact) {
   std::string db_path = "/tmp/test_compact_db";
-  if (std::filesystem::exists(db_path)) {
-    std::filesystem::remove_all(db_path);
-  }
-  std::filesystem::create_directories(db_path);
+  this->EnsureCleanDir(db_path);
+
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    this->OpenDB(db, db_path);
     auto conn = db.Connect();
     load_modern_graph(conn);
     conn->Close();
     auto svc = std::make_shared<neug::NeugDBService>(db);
-
     auto sess = svc->AcquireSession();
-    auto compact_txn = sess->GetCompactTransaction();
-    compact_txn.Commit();
-
+    sess->GetCompactTransaction().Commit();
     db.Close();
   }
 
   neug::NeugDB db2;
-  db2.Open(db_path);
+  this->OpenDB(db2, db_path);
   auto svc = std::make_shared<neug::NeugDBService>(db2);
   auto conn2 = db2.Connect();
-  {
-    auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 4);
-  }
 
-  {
-    // Delete half vertices
-    auto res = conn2->Query("MATCH (v:person) WHERE v.id <= 2 DELETE v;");
-    EXPECT_TRUE(res) << res.error().ToString();
-  }
+  AssertSingleInt64Result(
+      this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 4);
+  this->ExpectQuery(*conn2, "MATCH (v:person) WHERE v.id <= 2 DELETE v;");
 
-  auto sess2 = svc->AcquireSession();
-  auto compact_txn2 = sess2->GetCompactTransaction();
-  compact_txn2.Commit();
+  svc->AcquireSession()->GetCompactTransaction().Commit();
 
-  {
-    auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 2);
-  }
+  AssertSingleInt64Result(
+      this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 2);
+  AssertSingleInt64Result(
+      this->RunQuery(*conn2,
+                     "MATCH (v:person)-[e:knows]->(:person) RETURN count(e);"),
+      0);
 
-  {
-    auto res =
-        conn2->Query("MATCH (v:person)-[e:knows]->(:person) RETURN count(e);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 0);
-  }
   conn2->Close();
   db2.Close();
+  this->CleanDir(db_path);
 }
 
-TEST_F(CheckpointTest, test_recover_from_checkpoint) {
+TYPED_TEST(CheckpointTest, recover_from_checkpoint) {
   neug::NeugDB db;
-  db.Open(DB_DIR);
+  this->OpenDB(db, this->DB_DIR);
   auto conn = db.Connect();
 
-  {
-    auto res = conn->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 4);
-  }
-  {
-    auto res = conn->Query("MATCH (v)-[e]->(a) RETURN COUNT(e);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 6);
-  }
+  AssertSingleInt64Result(
+      this->RunQuery(*conn, "MATCH (v:person) RETURN COUNT(v);"), 4);
+  AssertSingleInt64Result(
+      this->RunQuery(*conn, "MATCH (v)-[e]->(a) RETURN COUNT(e);"), 6);
+  AssertCreatedEdgesSnapshotResult(
+      this->RunQuery(*conn,
+                     "MATCH (v:person)-[e:created]->(f:software) return v.id, "
+                     "e.since, f.id;"),
+      {1, 4, 4, 6}, {2020, 2022, 2021, 2023}, {3, 3, 5, 3});
 
-  {
-    auto res = conn->Query(
-        "MATCH (v:person)-[e:created]->(f:software) return v.id, e.since, "
-        "f.id;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertCreatedEdgesSnapshotResult(res.value().response(), {1, 4, 4, 6},
-                                     {2020, 2022, 2021, 2023}, {3, 3, 5, 3});
-  }
-
-  EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;"));
-  EXPECT_TRUE(
-      conn->Query("MATCH (v:person)-[e:created]->(f:software) WHERE "
-                  "v.id > 4 DELETE e;"));
-  auto res = conn->Query(
-      "MATCH (v:person)-[e:created]->(f:software) return v.id, e.since, "
-      "f.id;");
-  EXPECT_TRUE(res) << res.error().ToString();
+  this->ExpectQuery(*conn, "MATCH (v:person) WHERE v.id = 1 DELETE v;");
+  this->ExpectQuery(
+      *conn,
+      "MATCH (v:person)-[e:created]->(f:software) WHERE v.id > 4 DELETE e;");
   conn->Close();
   db.Close();
 
-  // Reopen the db, should recover from checkpoint
   neug::NeugDB db2;
-  db2.Open(DB_DIR);
+  this->OpenDB(db2, this->DB_DIR);
   auto conn2 = db2.Connect();
+  AssertSingleInt64Result(
+      this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 3);
+  AssertSingleInt64Result(
+      this->RunQuery(*conn2, "MATCH (v)-[e]->(a) RETURN COUNT(e);"), 2);
+}
+
+TYPED_TEST(CheckpointTest, checkpoint_with_string_edge_prop) {
+  std::string db_path = "/tmp/test_checkpoint_string_edge_prop_db";
+  this->EnsureCleanDir(db_path);
   {
-    auto res = conn2->Query("MATCH (v:person) RETURN COUNT(v);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 3);
+    neug::NeugDB db;
+    this->OpenDB(db, db_path);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE A (id STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE B (id STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn, "CREATE REL TABLE R (FROM A TO B, prop STRING);");
+    this->ExpectQuery(*conn, "CREATE (a:A {id: 'a1'})");
+    this->ExpectQuery(*conn, "CREATE (b:B {id: 'b1'})");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+    this->ExpectQuery(
+        *conn,
+        "MATCH (a:A {id: 'a1'}), (b:B {id: 'b1'}) CREATE (a)-[:R {prop: "
+        "'hello'}]->(b)");
+    conn->Close();
+    db.Close();
   }
+  this->CleanDir(db_path);
+}
+
+// ===========================================================================
+// DropTableCheckpointTest — DROP TABLE checkpoint correctness
+// ===========================================================================
+template <typename T>
+class DropTableCheckpointTest : public CheckpointTestBase<T> {
+ protected:
+  static constexpr const char* DB_DIR = "/tmp/drop_table_checkpoint_test";
+
+  void SetUp() override { this->EnsureCleanDir(DB_DIR); }
+  void TearDown() override { this->CleanDir(DB_DIR); }
+
+  void CreateAndCheckpointPerson() {
+    neug::NeugDB db;
+    this->OpenDB(db, DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Person"
+                      "(id STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn, "CREATE (p:Person {id: 'alice'});");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+    auto table = this->RunQuery(*conn, "MATCH (p:Person) RETURN p.id;");
+    ASSERT_EQ(table.row_count(), 1);
+    conn->Close();
+    db.Close();
+  }
+
+  // Creates Person + Software vertex tables and a Created edge table,
+  // inserts sample data, and checkpoints.
+  void CreateGraphWithEdgesAndCheckpoint() {
+    neug::NeugDB db;
+    this->OpenDB(db, DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Person"
+                      "(id STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Software"
+                      "(id STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn,
+                      "CREATE REL TABLE IF NOT EXISTS Created"
+                      "(FROM Person TO Software, weight DOUBLE);");
+    this->ExpectQuery(*conn, "CREATE (p:Person {id: 'alice'});");
+    this->ExpectQuery(*conn, "CREATE (s:Software {id: 'neug'});");
+    this->ExpectQuery(
+        *conn,
+        "MATCH (p:Person {id: 'alice'}), (s:Software {id: 'neug'}) "
+        "CREATE (p)-[:Created {weight: 1.0}]->(s);");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+
+    AssertSingleInt64Result(
+        this->RunQuery(
+            *conn,
+            "MATCH (p:Person)-[e:Created]->(s:Software) RETURN count(e);"),
+        1);
+    conn->Close();
+    db.Close();
+  }
+
+  void ReopenAndVerifyPersonEmpty() {
+    neug::NeugDB db;
+    this->OpenDB(db, DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Person"
+                      "(id STRING, PRIMARY KEY(id));");
+    auto table = this->RunQuery(*conn, "MATCH (p:Person) RETURN p.id;");
+    EXPECT_EQ(table.row_count(), 0);
+    conn->Close();
+    db.Close();
+  }
+};
+
+TYPED_TEST_SUITE(DropTableCheckpointTest, AllMemoryLevels);
+
+TYPED_TEST(DropTableCheckpointTest, drop_and_recreate_clears_stale_data) {
+  this->CreateAndCheckpointPerson();
+
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+
+  this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Person;");
+  this->ExpectQuery(
+      *conn,
+      "CREATE NODE TABLE IF NOT EXISTS Person(id STRING, PRIMARY KEY(id));");
+
+  auto table = this->RunQuery(*conn, "MATCH (p:Person) RETURN p.id;");
+  EXPECT_EQ(table.row_count(), 0)
+      << "Stale data visible after DROP TABLE + re-CREATE";
+
+  this->ExpectQuery(*conn, "CREATE (p:Person {id: 'bob'});");
+  auto table2 = this->RunQuery(*conn, "MATCH (p:Person) RETURN p.id;");
+  EXPECT_EQ(table2.row_count(), 1)
+      << "Expected only 'bob', but stale data may be present";
+  neug::test::AssertStringColumn(table2, 0, {"bob"});
+
+  conn->Close();
+  db.Close();
+}
+
+TYPED_TEST(DropTableCheckpointTest, checkpoint_after_drop_succeeds) {
+  this->CreateAndCheckpointPerson();
+
   {
-    auto res = conn2->Query("MATCH (v)-[e]->(a) RETURN COUNT(e);");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertSingleInt64Result(res.value().response(), 2);
+    neug::NeugDB db;
+    this->OpenDB(db, this->DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Person;");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+    conn->Close();
+    db.Close();
+  }
+
+  this->ReopenAndVerifyPersonEmpty();
+}
+
+TYPED_TEST(DropTableCheckpointTest,
+           drop_checkpoint_reopen_recreate_has_no_stale_data) {
+  this->CreateAndCheckpointPerson();
+
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Person;");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+    conn->Close();
+    db.Close();
+  }
+
+  this->ReopenAndVerifyPersonEmpty();
+}
+
+TYPED_TEST(DropTableCheckpointTest, drop_edge_table_and_checkpoint) {
+  this->CreateGraphWithEdgesAndCheckpoint();
+
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->DB_DIR);
+    auto conn = db.Connect();
+
+    // Drop the edge table while keeping vertex tables intact
+    this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Created;");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+
+    conn->Close();
+    db.Close();
+  }
+
+  // Reopen: vertex tables should survive, edge table should be gone
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->DB_DIR);
+    auto conn = db.Connect();
+
+    // Vertices are still present
+    auto person_table =
+        this->RunQuery(*conn, "MATCH (p:Person) RETURN p.id;");
+    EXPECT_EQ(person_table.row_count(), 1);
+
+    auto software_table =
+        this->RunQuery(*conn, "MATCH (s:Software) RETURN s.id;");
+    EXPECT_EQ(software_table.row_count(), 1);
+
+    // Re-create the edge table — it should be empty
+    this->ExpectQuery(*conn,
+                      "CREATE REL TABLE IF NOT EXISTS Created"
+                      "(FROM Person TO Software, weight DOUBLE);");
+    AssertSingleInt64Result(
+        this->RunQuery(
+            *conn,
+            "MATCH (p:Person)-[e:Created]->(s:Software) RETURN count(e);"),
+        0);
+
+    conn->Close();
+    db.Close();
   }
 }
 
-TEST(CheckpointTestStringProp, test_checkpoint_with_string_edge_prop) {
-  std::string db_path = "/tmp/test_checkpoint_string_edge_prop_db";
-  if (std::filesystem::exists(db_path)) {
-    std::filesystem::remove_all(db_path);
-  }
-  std::filesystem::create_directories(db_path);
+TYPED_TEST(DropTableCheckpointTest,
+           drop_edge_table_and_recreate_clears_stale_data) {
+  this->CreateGraphWithEdgesAndCheckpoint();
+
+  neug::NeugDB db;
+  this->OpenDB(db, this->DB_DIR);
+  auto conn = db.Connect();
+
+  // Drop + re-create in the same session
+  this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Created;");
+  this->ExpectQuery(*conn,
+                    "CREATE REL TABLE IF NOT EXISTS Created"
+                    "(FROM Person TO Software, weight DOUBLE);");
+
+  // Old edge data must not be visible
+  AssertSingleInt64Result(
+      this->RunQuery(
+          *conn,
+          "MATCH (p:Person)-[e:Created]->(s:Software) RETURN count(e);"),
+      0);
+
+  // Insert fresh edge — only this one should appear
+  this->ExpectQuery(
+      *conn,
+      "MATCH (p:Person {id: 'alice'}), (s:Software {id: 'neug'}) "
+      "CREATE (p)-[:Created {weight: 2.0}]->(s);");
+  AssertSingleInt64Result(
+      this->RunQuery(
+          *conn,
+          "MATCH (p:Person)-[e:Created]->(s:Software) RETURN count(e);"),
+      1);
+
+  conn->Close();
+  db.Close();
+}
+
+TYPED_TEST(DropTableCheckpointTest,
+           drop_edge_table_checkpoint_reopen_recreate_has_no_stale_data) {
+  this->CreateGraphWithEdgesAndCheckpoint();
+
+  // Drop edge table + checkpoint
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    this->OpenDB(db, this->DB_DIR);
     auto conn = db.Connect();
-    EXPECT_TRUE(
-        conn->Query("CREATE NODE TABLE A (id STRING, PRIMARY KEY(id));"));
-    EXPECT_TRUE(
-        conn->Query("CREATE NODE TABLE B (id STRING, PRIMARY KEY(id));"));
-    EXPECT_TRUE(conn->Query("CREATE REL TABLE R (FROM A TO B, prop STRING);"));
-    EXPECT_TRUE(conn->Query("CREATE (a:A {id: 'a1'})"));
-    EXPECT_TRUE(conn->Query("CREATE (b:B {id: 'b1'})"));
-    EXPECT_TRUE(conn->Query("CHECKPOINT;"));
+    this->ExpectQuery(*conn, "DROP TABLE IF EXISTS Created;");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+    conn->Close();
+    db.Close();
+  }
 
-    auto ret = conn->Query(
-        "MATCH (a:A {id: 'a1'}), (b:B {id: 'b1'}) CREATE (a)-[:R {prop: "
-        "'hello'}]->(b)");
-    EXPECT_TRUE(ret) << ret.error().ToString();
-
+  // Reopen, re-create edge table, verify empty
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->DB_DIR);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE REL TABLE IF NOT EXISTS Created"
+                      "(FROM Person TO Software, weight DOUBLE);");
+    AssertSingleInt64Result(
+        this->RunQuery(
+            *conn,
+            "MATCH (p:Person)-[e:Created]->(s:Software) RETURN count(e);"),
+        0);
     conn->Close();
     db.Close();
   }
 }
 
 }  // namespace test
-
 }  // namespace neug

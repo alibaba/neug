@@ -19,11 +19,12 @@
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level,
+                       bool load_from_checkpoint) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
+  std::string checkpoint_dir_path =
+      load_from_checkpoint ? checkpoint_dir(work_dir_) : "";
 
   const auto& label_name = vertex_schema_->label_name;
   std::string vertex_tracker_filename =

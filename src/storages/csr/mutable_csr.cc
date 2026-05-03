@@ -264,6 +264,31 @@ void MutableCsr<EDATA_T>::close() {
 }
 
 template <typename EDATA_T>
+void MutableCsr<EDATA_T>::drop() {
+  if (locks_ != nullptr) {
+    delete[] locks_;
+    locks_ = nullptr;
+  }
+  auto close_and_delete = [](std::unique_ptr<IDataContainer>& container) {
+    if (container) {
+      std::string path = container->GetPath();
+      auto con_type = container->GetContainerType();
+      container->Close();
+      container.reset();
+      if (con_type == ContainerType::kFileSharedMMap && !path.empty() &&
+          std::filesystem::exists(path)) {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+      }
+    }
+  };
+  close_and_delete(adj_list_buffer_);
+  close_and_delete(degree_list_);
+  close_and_delete(cap_list_);
+  close_and_delete(nbr_list_);
+}
+
+template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (adj_list_buffer_ != nullptr) {
     size_t vnum = vertex_capacity();
@@ -558,8 +583,12 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
   close();
-  load_meta(snapshot_dir + "/" + name);
-  nbr_list_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
+  std::string snap_prefix =
+      (!snapshot_dir.empty() && std::filesystem::exists(snapshot_dir))
+          ? snapshot_dir + "/" + name
+          : "";
+  load_meta(snap_prefix);
+  nbr_list_ = OpenContainer(snap_prefix.empty() ? "" : snap_prefix + ".snbr",
                             tmp_dir(work_dir) + "/" + name + ".snbr",
                             MemoryLevel::kSyncToFile);
 }
@@ -628,6 +657,21 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::close() {
   if (nbr_list_) {
     nbr_list_->Close();
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::drop() {
+  if (nbr_list_) {
+    std::string path = nbr_list_->GetPath();
+    auto con_type = nbr_list_->GetContainerType();
+    nbr_list_->Close();
+    nbr_list_.reset();
+    if (con_type == ContainerType::kFileSharedMMap && !path.empty() &&
+        std::filesystem::exists(path)) {
+      std::error_code ec;
+      std::filesystem::remove(path, ec);
+    }
   }
 }
 

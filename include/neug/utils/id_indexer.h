@@ -470,11 +470,26 @@ class LFIndexer {
       indices_->Close();
     }
     indices_size_ = 0;
+    num_elements_.store(0);
+    num_slots_minus_one_ = 0;
   }
 
   void drop() {
-    close();
-    // TODO(zhanglei): delete files in work_dir
+    if (keys_) {
+      keys_->drop();
+    }
+    if (indices_) {
+      std::string path = indices_->GetPath();
+      indices_->Close();
+      indices_.reset();
+      if (!path.empty() && std::filesystem::exists(path)) {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+      }
+    }
+    indices_size_ = 0;
+    num_elements_.store(0);
+    num_slots_minus_one_ = 0;
   }
 
   void dump_meta(const std::string& filename) const {

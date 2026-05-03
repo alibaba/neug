@@ -49,7 +49,12 @@ class EdgeTable {
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
+  void Open(const std::string& work_dir, MemoryLevel memory_level,
+            bool load_from_checkpoint = true);
+
+  void Close();
+
+  void Drop();
 
   void Dump(const std::string& checkpoint_dir_path);
 
