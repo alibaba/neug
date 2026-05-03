@@ -51,6 +51,26 @@ struct ParquetParseOptions {
 };
 
 /**
+ * @brief Parquet export options
+ *
+ * These options control Parquet file writing behavior:
+ * - COMPRESSION: Compression codec (default: snappy)
+ *   Supported values: none, snappy, zlib, zstd
+ * - ROW_GROUP_SIZE: Number of rows per row group (default: 1048576)
+ * - DICTIONARY_ENCODING: Enable dictionary encoding (default: true)
+ *   Valid values: true, false
+ *
+ */
+struct ParquetExportOptions {
+  Option<std::string> compression =
+      Option<std::string>::StringOption("COMPRESSION", "snappy");
+  Option<int64_t> row_group_size =
+      Option<int64_t>::Int64Option("ROW_GROUP_SIZE", 1048576);
+  Option<bool> dictionary_encoding =
+      Option<bool>::BoolOption("DICTIONARY_ENCODING", true);
+};
+
+/**
  * @brief Parquet-specific implementation of Arrow scan options builder
  *
  * This class extends ArrowOptionsBuilder to provide Parquet-specific

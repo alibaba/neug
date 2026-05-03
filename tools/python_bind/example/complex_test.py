@@ -230,6 +230,108 @@ def run_jsonl_tests(conn_json, export_dir=None):
             fail("Export LOAD result to JSONL", e)
 
 
+def run_parquet_export_tests(conn_parquet, export_dir):
+    """Test Parquet export functionality with various options."""
+    if not export_dir:
+        return
+
+    # Test 1: Basic export
+    export_path_1 = os.path.join(export_dir, "export_basic.parquet")
+    try:
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p.ID, p.fName, p.age) TO "
+            f"'{export_path_1}';"
+        )
+        assert os.path.isfile(export_path_1), "Export file not created"
+        file_size = os.path.getsize(export_path_1)
+        assert file_size > 0, "Export file should not be empty"
+        ok(f"Basic Parquet export: {file_size} bytes to {export_path_1}")
+    except Exception as e:
+        fail("Basic Parquet export", e)
+
+    # Test 2: Export with ZSTD compression
+    export_path_2 = os.path.join(export_dir, "export_zstd.parquet")
+    try:
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p.*) TO "
+            f"'{export_path_2}' (compression='zstd');"
+        )
+        assert os.path.isfile(export_path_2), "ZSTD export file not created"
+        file_size = os.path.getsize(export_path_2)
+        assert file_size > 0, "ZSTD export file should not be empty"
+        ok(f"ZSTD Parquet export: {file_size} bytes to {export_path_2}")
+    except Exception as e:
+        fail("ZSTD Parquet export", e)
+
+    # Test 3: Export with custom row_group_size
+    export_path_3 = os.path.join(export_dir, "export_rowgroup.parquet")
+    try:
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p.ID, p.fName) TO "
+            f"'{export_path_3}' (row_group_size=1000);"
+        )
+        assert os.path.isfile(export_path_3), "Row group export file not created"
+        file_size = os.path.getsize(export_path_3)
+        assert file_size > 0, "Row group export file should not be empty"
+        ok(f"Custom row_group_size Parquet export: {file_size} bytes")
+    except Exception as e:
+        fail("Custom row_group_size Parquet export", e)
+
+    # Test 4: Export without compression
+    export_path_4 = os.path.join(export_dir, "export_nocomp.parquet")
+    try:
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p.fName, p.age) TO "
+            f"'{export_path_4}' (compression='none');"
+        )
+        assert os.path.isfile(export_path_4), "No compression export file not created"
+        file_size = os.path.getsize(export_path_4)
+        assert file_size > 0, "No compression export file should not be empty"
+        ok(f"No compression Parquet export: {file_size} bytes")
+    except Exception as e:
+        fail("No compression Parquet export", e)
+
+    # Test 5: Export vertex objects (struct type)
+    export_path_5 = os.path.join(export_dir, "export_vertex.parquet")
+    try:
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p) TO " f"'{export_path_5}';"
+        )
+        assert os.path.isfile(export_path_5), "Vertex export file not created"
+        file_size = os.path.getsize(export_path_5)
+        assert file_size > 0, "Vertex export file should not be empty"
+        ok(f"Vertex struct Parquet export: {file_size} bytes")
+    except Exception as e:
+        fail("Vertex struct Parquet export", e)
+
+    # Test 6: Round-trip test - export and load back
+    export_path_6 = os.path.join(export_dir, "export_roundtrip.parquet")
+    try:
+        # Export
+        conn_parquet.execute(
+            f"COPY (MATCH (p:person) RETURN p.ID, p.fName, p.age) TO "
+            f"'{export_path_6}';"
+        )
+        assert os.path.isfile(export_path_6), "Round-trip export file not created"
+
+        # Load back and verify
+        def _verify_roundtrip(rows):
+            print(f"       Round-trip: loaded {len(rows)} rows from exported Parquet")
+            if rows:
+                print(f"       First row: {rows[0]}")
+            assert len(rows) > 0, "Expected at least 1 row from round-trip"
+            return f"Round-trip verification: {len(rows)} rows"
+
+        run_query_with_handler(
+            conn_parquet,
+            "Parquet round-trip (export → load)",
+            f'LOAD FROM "{export_path_6}" RETURN *;',
+            _verify_roundtrip,
+        )
+    except Exception as e:
+        fail("Parquet round-trip test", e)
+
+
 def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
     statements = [
         ("LOAD PARQUET succeeded", "LOAD PARQUET;"),
@@ -284,6 +386,29 @@ def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
             f'LOAD FROM "{PARQUET_FILE}" WHERE age > 30 RETURN fName, age;',
             _filter,
         )
+
+    # Close current connection and load tinysnb dataset for export tests
+    conn_parquet.close()
+    try:
+        db_parquet.load_builtin_dataset("tinysnb")
+        ok("Loaded tinysnb dataset for Parquet export tests")
+    except Exception as e:
+        fail("Load tinysnb dataset for Parquet export", e)
+        # Continue with import tests even if dataset loading fails
+        conn_parquet = db_parquet.connect()
+        conn_parquet.close()
+        db_parquet.close()
+        ok("Closed Parquet extension test database")
+        shutil.rmtree(db_path_parquet, ignore_errors=True)
+        return
+
+    # Reconnect after loading dataset
+    conn_parquet = db_parquet.connect()
+    ok("Reconnected to database with tinysnb dataset")
+
+    # Export tests
+    if db_path_parquet:
+        run_parquet_export_tests(conn_parquet, db_path_parquet)
 
     conn_parquet.close()
     db_parquet.close()
@@ -656,7 +781,7 @@ else:
 # ================================================================
 #  6. Extensions — Parquet Extension
 # ================================================================
-section("6. Extensions — Parquet Extension (Install / Load / Query)")
+section("6. Extensions — Parquet Extension (Import / Export)")
 
 _run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
 _run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")

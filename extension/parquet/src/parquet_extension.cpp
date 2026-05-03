@@ -17,6 +17,7 @@
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/utils/exception/exception.h"
 
+#include "parquet_export_function.h"
 #include "parquet_read_function.h"
 
 extern "C" {
@@ -30,9 +31,14 @@ void Init() {
         neug::function::ParquetReadFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
+    // Register Parquet export function (COPY_PARQUET)
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::ExportParquetFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
-            "parquet", "Provides functions to read Parquet files."});
+            "parquet", "Provides functions to read and export Parquet files."});
 
     LOG(INFO) << "[parquet extension] functions registered successfully";
   } catch (const std::exception& e) {
