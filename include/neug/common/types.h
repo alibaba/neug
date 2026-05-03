@@ -101,6 +101,28 @@ enum class DataTypeId : uint8_t {
   DATA_TYPES_DATETIME(M)          \
   M(kVarchar, std::string)
 
+inline bool is_pod_type(DataTypeId id) {
+  switch (id) {
+  case DataTypeId::kBoolean:
+  case DataTypeId::kInt8:
+  case DataTypeId::kInt16:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt8:
+  case DataTypeId::kUInt16:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
+  case DataTypeId::kDate:
+  case DataTypeId::kTimestampMs:
+  case DataTypeId::kInterval:
+    return true;
+  default:
+    return false;
+  }
+}
+
 struct ExtraTypeInfo;
 
 struct DataType {

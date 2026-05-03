@@ -487,3 +487,135 @@ def test_drop_add_edge_table_column():
     # assert list(ret) == [["unknown"], ["unknown"], ["unknown"], ["unknown"], ["test"]]
     conn2.close()
     db2.close()
+
+
+def test_list_type():
+    db_dir = "/tmp/test_list_type"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    res = conn.execute("Return ['tag1', 'tag2'];")
+    assert list(res) == [[["tag1", "tag2"]]]
+    conn.execute(
+        "CREATE NODE TABLE TestNode(id INT64, tags STRING[], PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (:TestNode {id: 1, tags: ['tag1', 'tag2']});")
+    res = conn.execute("Match (n:TestNode) Return n.tags;")
+    assert list(res) == [[["tag1", "tag2"]]]
+    conn.close()
+    db.close()
+
+
+def test_nested_list_type():
+    """Test creating and querying tables with various list element types."""
+    db_dir = "/tmp/test_nested_list_type"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # INT64 list
+    conn.execute("CREATE NODE TABLE IntListNode(id INT64 PRIMARY KEY, values INT64[]);")
+    conn.execute("CREATE (:IntListNode {id: 1, values: [10, 20, 30]});")
+    res = conn.execute("MATCH (n:IntListNode) RETURN n.values;")
+    assert list(res) == [[[10, 20, 30]]]
+
+    # DOUBLE list
+    conn.execute(
+        "CREATE NODE TABLE DoubleListNode(id INT64 PRIMARY KEY, scores DOUBLE[]);"
+    )
+    conn.execute("CREATE (:DoubleListNode {id: 1, scores: [1.5, 2.5, 3.5]});")
+    res = conn.execute("MATCH (n:DoubleListNode) RETURN n.scores;")
+    assert list(res) == [[[1.5, 2.5, 3.5]]]
+
+    # Multiple list columns on the same table
+    conn.execute(
+        "CREATE NODE TABLE MultiListNode("
+        "id INT64 PRIMARY KEY, "
+        "names STRING[], "
+        "ages INT64[], "
+        "weights DOUBLE[]);"
+    )
+    conn.execute(
+        "CREATE (:MultiListNode {id: 1, "
+        "names: ['Alice', 'Bob'], "
+        "ages: [30, 25], "
+        "weights: [55.5, 70.2]});"
+    )
+    res = conn.execute("MATCH (n:MultiListNode) RETURN n.names, n.ages, n.weights;")
+    assert list(res) == [[["Alice", "Bob"], [30, 25], [55.5, 70.2]]]
+
+    # Verify multiple rows
+    conn.execute("CREATE (:IntListNode {id: 2, values: [40, 50]});")
+    res = conn.execute("MATCH (n:IntListNode) RETURN n.values ORDER BY n.id;")
+    assert list(res) == [[[10, 20, 30]], [[40, 50]]]
+
+    conn.close()
+    db.close()
+
+    # Reopen and verify persistence
+    db2 = Database(db_dir, "r")
+    conn2 = db2.connect()
+    res2 = conn2.execute("MATCH (n:MultiListNode) RETURN n.names, n.ages, n.weights;")
+    assert list(res2) == [[["Alice", "Bob"], [30, 25], [55.5, 70.2]]]
+    conn2.close()
+    db2.close()
+
+
+def test_list_type_with_default_values():
+    """Test that list columns with DEFAULT values work correctly."""
+    db_dir = "/tmp/test_list_type_default"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # Create table with a list column that has a default value
+    conn.execute(
+        "CREATE NODE TABLE TaggedNode("
+        "id INT64 PRIMARY KEY, "
+        "tags STRING[] DEFAULT ['default_tag']);"
+    )
+
+    # Insert without specifying tags — should use default value
+    conn.execute("CREATE (:TaggedNode {id: 1});")
+
+    # Insert with explicit tags — should override default
+    conn.execute("CREATE (:TaggedNode {id: 2, tags: ['custom1', 'custom2']});")
+
+    # Insert with a different explicit value
+    conn.execute("CREATE (:TaggedNode {id: 3, tags: ['override']});")
+
+    res = conn.execute("MATCH (n:TaggedNode) RETURN n.id, n.tags ORDER BY n.id;")
+    rows = list(res)
+    assert rows[0] == [1, ["default_tag"]], f"Expected default value, got {rows[0]}"
+    assert rows[1] == [
+        2,
+        ["custom1", "custom2"],
+    ], f"Expected custom values, got {rows[1]}"
+    assert rows[2] == [3, ["override"]], f"Expected override value, got {rows[2]}"
+
+    # Also test INT64 list default
+    conn.execute(
+        "CREATE NODE TABLE ScoredNode("
+        "id INT64 PRIMARY KEY, "
+        "scores INT64[] DEFAULT [0, 0, 0]);"
+    )
+    conn.execute("CREATE (:ScoredNode {id: 1});")
+    conn.execute("CREATE (:ScoredNode {id: 2, scores: [100, 200]});")
+    res = conn.execute("MATCH (n:ScoredNode) RETURN n.id, n.scores ORDER BY n.id;")
+    rows = list(res)
+    assert rows[0] == [1, [0, 0, 0]], f"Expected default scores, got {rows[0]}"
+    assert rows[1] == [2, [100, 200]], f"Expected custom scores, got {rows[1]}"
+
+    conn.close()
+    db.close()
+
+    # Reopen and verify persistence of defaults
+    db2 = Database(db_dir, "r")
+    conn2 = db2.connect()
+    res2 = conn2.execute("MATCH (n:TaggedNode) RETURN n.id, n.tags ORDER BY n.id;")
+    rows2 = list(res2)
+    assert rows2[0] == [1, ["default_tag"]]
+    assert rows2[1] == [2, ["custom1", "custom2"]]
+    assert rows2[2] == [3, ["override"]]
+    conn2.close()
+    db2.close()

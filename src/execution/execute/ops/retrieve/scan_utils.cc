@@ -93,8 +93,8 @@ std::vector<Property> parse_ids_from_idx_predicate(
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kVarchar) {
-      auto sw = value_to_property(params.at(triplet.param().name()));
-      ret.emplace_back(sw);
+      auto owned_sw = value_to_property(params.at(triplet.param().name()));
+      ret.emplace_back(owned_sw.prop());
       return ret;
     }
   }

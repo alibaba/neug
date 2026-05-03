@@ -418,59 +418,87 @@ TEST_F(ValueTest, GetValueTemplate) {
 
 TEST_F(ValueTest, PropertyConversion) {
   Value original_bool = Value::BOOLEAN(true);
-  Property prop_bool = value_to_property(original_bool);
-  Value converted_bool = property_to_value(prop_bool);
+  auto owned_bool = value_to_property(original_bool);
+  Value converted_bool =
+      property_to_value(owned_bool.prop(), DataType::BOOLEAN);
   EXPECT_TRUE(converted_bool == original_bool);
 
   Value original_int32 = Value::INT32(-42);
-  Property prop_int32 = value_to_property(original_int32);
-  Value converted_int32 = property_to_value(prop_int32);
+  auto owned_int32 = value_to_property(original_int32);
+  Value converted_int32 =
+      property_to_value(owned_int32.prop(), DataType::INT32);
   EXPECT_TRUE(converted_int32 == original_int32);
 
   Value original_int64 = Value::INT64(123456789012345LL);
-  Property prop_int64 = value_to_property(original_int64);
-  Value converted_int64 = property_to_value(prop_int64);
+  auto owned_int64 = value_to_property(original_int64);
+  Value converted_int64 =
+      property_to_value(owned_int64.prop(), DataType::INT64);
   EXPECT_TRUE(converted_int64 == original_int64);
 
   Value original_uint32 = Value::UINT32(428);
-  Property prop_uint32 = value_to_property(original_uint32);
-  Value converted_uint32 = property_to_value(prop_uint32);
+  auto owned_uint32 = value_to_property(original_uint32);
+  Value converted_uint32 =
+      property_to_value(owned_uint32.prop(), DataType::UINT32);
   EXPECT_TRUE(converted_uint32 == original_uint32);
 
   Value original_uint64 = Value::UINT64(123456789012345ULL);
-  Property prop_uint64 = value_to_property(original_uint64);
-  Value converted_uint64 = property_to_value(prop_uint64);
+  auto owned_uint64 = value_to_property(original_uint64);
+  Value converted_uint64 =
+      property_to_value(owned_uint64.prop(), DataType::UINT64);
   EXPECT_TRUE(converted_uint64 == original_uint64);
 
   Value original_str = Value::STRING("round trip test");
-  Property prop_str = value_to_property(original_str);
-  Value converted_str = property_to_value(prop_str);
+  auto owned_str = value_to_property(original_str);
+  Value converted_str = property_to_value(owned_str.prop(), DataType::VARCHAR);
   EXPECT_TRUE(converted_str == original_str);
 
   Value original_float = Value::FLOAT(3.1415);
-  Property prop_float = value_to_property(original_float);
-  Value converted_float = property_to_value(prop_float);
+  auto owned_float = value_to_property(original_float);
+  Value converted_float =
+      property_to_value(owned_float.prop(), DataType::FLOAT);
   EXPECT_TRUE(converted_float == original_float);
 
   Value original_double = Value::DOUBLE(3.141592653589793);
-  Property prop_double = value_to_property(original_double);
-  Value converted_double = property_to_value(prop_double);
+  auto owned_double = value_to_property(original_double);
+  Value converted_double =
+      property_to_value(owned_double.prop(), DataType::DOUBLE);
   EXPECT_TRUE(converted_double == original_double);
 
   Value original_date = Value::DATE(Date(std::string("2020-01-01")));
-  Property prop_date = value_to_property(original_date);
-  Value converted_date = property_to_value(prop_date);
+  auto owned_date = value_to_property(original_date);
+  Value converted_date = property_to_value(owned_date.prop(), DataType::DATE);
   EXPECT_TRUE(converted_date == original_date);
 
   Value original_datetime = Value::TIMESTAMPMS(DateTime(293092399));
-  Property prop_datetime = value_to_property(original_datetime);
-  Value converted_datetime = property_to_value(prop_datetime);
+  auto owned_datetime = value_to_property(original_datetime);
+  Value converted_datetime =
+      property_to_value(owned_datetime.prop(), DataType::TIMESTAMP_MS);
   EXPECT_TRUE(converted_datetime == original_datetime);
 
   Value original_interval = Value::INTERVAL(Interval(std::string("3years")));
-  Property prop_interval = value_to_property(original_interval);
-  Value converted_interval = property_to_value(prop_interval);
+  auto owned_interval = value_to_property(original_interval);
+  Value converted_interval =
+      property_to_value(owned_interval.prop(), DataType::INTERVAL);
   EXPECT_TRUE(converted_interval == original_interval);
+
+  // List round-trip: the OwnedProperty keeps the blob alive.
+  Value original_list =
+      Value::LIST(DataType(DataTypeId::kInt32),
+                  {Value::INT32(10), Value::INT32(20), Value::INT32(30)});
+  auto owned_list = value_to_property(original_list);
+  auto list_type = DataType::List(DataType(DataTypeId::kInt32));
+  Value converted_list = property_to_value(owned_list.prop(), list_type);
+  EXPECT_TRUE(converted_list == original_list);
+
+  // Verify OwnedProperty move semantics keep blob valid.
+  OwnedProperty moved_list = std::move(owned_list);
+  Value converted_moved = property_to_value(moved_list.prop(), list_type);
+  EXPECT_TRUE(converted_moved == original_list);
+
+  // Verify OwnedProperty copy semantics keep blob valid.
+  OwnedProperty copied_list = moved_list;
+  Value converted_copied = property_to_value(copied_list.prop(), list_type);
+  EXPECT_TRUE(converted_copied == original_list);
 }
 
 TEST_F(ValueTest, EdgeCases) {
@@ -479,8 +507,9 @@ TEST_F(ValueTest, EdgeCases) {
   // LOG(FATAL) calls abort(); EXPECT_DEATH is unreliable under sanitizers.
 #if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \
     !defined(UNDEFINED_SANITIZER)
-  EXPECT_DEATH({ ValueConverter<bool>::typed_from_string("invalid"); },
-               "Invalid boolean string");
+  EXPECT_DEATH(
+      { ValueConverter<bool>::typed_from_string("invalid"); },
+      "Invalid boolean string");
 #endif
 }
 

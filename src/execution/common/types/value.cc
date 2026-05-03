@@ -22,6 +22,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/list_view.h"
 #include "neug/utils/property/property.h"
 
 namespace neug {
@@ -741,30 +742,85 @@ rapidjson::Value Value::ToJson(const Value& value,
   return rapidjson::Value();  // unreachable
 }
 
-Property value_to_property(const Value& value) {
+// Recursively serialize an execution Value::LIST back into the binary blob
+// format understood by ListView / ListColumn.
+static std::string ValueToListBlob(const Value& list_val) {
+  assert(list_val.type().id() == DataTypeId::kList);
+  const DataType& child_type = ListType::GetChildType(list_val.type());
+  const auto& children = ListValue::GetChildren(list_val);
+
+  ListViewBuilder builder;
+  if (is_pod_type(child_type.id())) {
+    switch (child_type.id()) {
+#define APPEND_POD(type_enum, cpp_type)           \
+  case DataTypeId::type_enum:                     \
+    for (const auto& c : children) {              \
+      builder.append_pod(c.GetValue<cpp_type>()); \
+    }                                             \
+    return builder.finish_pod<cpp_type>();
+      APPEND_POD(kBoolean, bool)
+      APPEND_POD(kInt32, int32_t)
+      APPEND_POD(kUInt32, uint32_t)
+      APPEND_POD(kInt64, int64_t)
+      APPEND_POD(kUInt64, uint64_t)
+      APPEND_POD(kFloat, float)
+      APPEND_POD(kDouble, double)
+      APPEND_POD(kDate, date_t)
+      APPEND_POD(kTimestampMs, timestamp_ms_t)
+      APPEND_POD(kInterval, interval_t)
+#undef APPEND_POD
+    default:
+      break;
+    }
+  }
+  // Non-POD: varchar or nested list
+  if (child_type.id() == DataTypeId::kVarchar) {
+    for (const auto& c : children) {
+      builder.append_blob(StringValue::Get(c));
+    }
+  } else if (child_type.id() == DataTypeId::kList) {
+    for (const auto& c : children) {
+      builder.append_blob(ValueToListBlob(c));
+    }
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported list child type in ValueToListBlob: " +
+        std::to_string(static_cast<int>(child_type.id())));
+  }
+  return builder.finish_varlen();
+}
+
+OwnedProperty value_to_property(const Value& value) {
   switch (value.type().id()) {
   case DataTypeId::kBoolean:
-    return Property::from_bool(value.GetValue<bool>());
+    return OwnedProperty(Property::from_bool(value.GetValue<bool>()));
   case DataTypeId::kInt64:
-    return Property::from_int64(value.GetValue<int64_t>());
+    return OwnedProperty(Property::from_int64(value.GetValue<int64_t>()));
   case DataTypeId::kUInt64:
-    return Property::from_uint64(value.GetValue<uint64_t>());
+    return OwnedProperty(Property::from_uint64(value.GetValue<uint64_t>()));
   case DataTypeId::kInt32:
-    return Property::from_int32(value.GetValue<int32_t>());
+    return OwnedProperty(Property::from_int32(value.GetValue<int32_t>()));
   case DataTypeId::kUInt32:
-    return Property::from_uint32(value.GetValue<uint32_t>());
+    return OwnedProperty(Property::from_uint32(value.GetValue<uint32_t>()));
   case DataTypeId::kFloat:
-    return Property::from_float(value.GetValue<float>());
+    return OwnedProperty(Property::from_float(value.GetValue<float>()));
   case DataTypeId::kDouble:
-    return Property::from_double(value.GetValue<double>());
+    return OwnedProperty(Property::from_double(value.GetValue<double>()));
   case DataTypeId::kVarchar:
-    return Property::from_string_view(StringValue::Get(value));
+    return OwnedProperty(Property::from_string_view(StringValue::Get(value)));
   case DataTypeId::kDate:
-    return Property::from_date(value.GetValue<date_t>());
+    return OwnedProperty(Property::from_date(value.GetValue<date_t>()));
   case DataTypeId::kTimestampMs:
-    return Property::from_datetime(value.GetValue<timestamp_ms_t>());
+    return OwnedProperty(
+        Property::from_datetime(value.GetValue<timestamp_ms_t>()));
   case DataTypeId::kInterval:
-    return Property::from_interval(value.GetValue<interval_t>());
+    return OwnedProperty(Property::from_interval(value.GetValue<interval_t>()));
+  case DataTypeId::kList: {
+    std::string blob = ValueToListBlob(value);
+    Property p;
+    p.set_list_data(blob);
+    return OwnedProperty(std::move(p), std::move(blob));
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected type: " +
@@ -772,7 +828,54 @@ Property value_to_property(const Value& value) {
   }
 }
 
-Value property_to_value(const Property& property) {
+Value listViewToValue(const neug::ListView& lv) {
+  const DataType& child_type = ListType::GetChildType(lv.type_);
+  const size_t n = lv.size();
+  std::vector<Value> children;
+  children.reserve(n);
+
+  switch (child_type.id()) {
+#define APPEND_POD(type_enum, cpp_type)                           \
+  case DataTypeId::type_enum:                                     \
+    for (size_t i = 0; i < n; ++i)                                \
+      children.push_back(                                         \
+          Value::CreateValue<cpp_type>(lv.GetElem<cpp_type>(i))); \
+    break;
+    APPEND_POD(kBoolean, bool)
+    APPEND_POD(kInt32, int32_t)
+    APPEND_POD(kUInt32, uint32_t)
+    APPEND_POD(kInt64, int64_t)
+    APPEND_POD(kUInt64, uint64_t)
+    APPEND_POD(kFloat, float)
+    APPEND_POD(kDouble, double)
+    APPEND_POD(kDate, date_t)
+    APPEND_POD(kTimestampMs, timestamp_ms_t)
+    APPEND_POD(kInterval, interval_t)
+#undef APPEND_POD
+  case DataTypeId::kVarchar:
+    for (size_t i = 0; i < n; ++i) {
+      auto sv = lv.GetChildStringView(i);
+      children.push_back(Value::STRING(std::string(sv)));
+    }
+    break;
+  case DataTypeId::kList:
+    for (size_t i = 0; i < n; ++i)
+      children.push_back(listViewToValue(lv.GetChildListView(i)));
+    break;
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("listViewToValue: unsupported child type " +
+                                  child_type.ToString());
+  }
+
+  return Value::LIST(child_type, std::move(children));
+}
+
+Value property_to_value(const Property& property, const DataType& type) {
+  if (type.id() != property.type()) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Property type " + std::to_string(property.type()) +
+        " does not match expected type " + std::to_string(type.id()));
+  }
   switch (property.type()) {
   case DataTypeId::kBoolean:
     return Value::BOOLEAN(property.as_bool());
@@ -797,6 +900,12 @@ Value property_to_value(const Property& property) {
     return Value::TIMESTAMPMS(property.as_datetime());
   case DataTypeId::kInterval:
     return Value::INTERVAL(property.as_interval());
+  case DataTypeId::kList: {
+    assert(type.RawExtraTypeInfo() &&
+           type.RawExtraTypeInfo()->type == ExtraTypeInfoType::LIST_TYPE_INFO);
+    ListView lv(type, property.as_list_data());
+    return listViewToValue(lv);
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected property type: " + std::to_string(property.type()) +

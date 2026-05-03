@@ -57,14 +57,14 @@ neug::result<Context> CreateVertex::insert_vertex(
                           std::to_string(properties_name.size() + 1));
     }
 
-    Property pk_value;
-    std::vector<Property> property_values(properties.size() - 1);
+    OwnedProperty owned_pk;
+    std::vector<OwnedProperty> owned_props(properties.size() - 1);
     for (size_t i = 0; i < ctx.row_num(); ++i) {
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
         if (prop_name == std::get<1>(pk)) {
-          pk_value = value_to_property(value);
+          owned_pk = value_to_property(value);
         } else {
           auto it = std::find(properties_name.begin(), properties_name.end(),
                               prop_name);
@@ -75,30 +75,36 @@ neug::result<Context> CreateVertex::insert_vertex(
           }
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = v_default_values[index];
+            owned_props[index] = OwnedProperty(v_default_values[index]);
           } else {
-            property_values[index] = value_to_property(value);
+            owned_props[index] = value_to_property(value);
           }
         }
       }
+      // Extract Property views for storage layer (owned_props keeps memory alive)
+      std::vector<Property> property_values(owned_props.size());
+      for (size_t k = 0; k < owned_props.size(); ++k) {
+        property_values[k] = owned_props[k].prop();
+      }
       vid_t existing_vid;
-      if (graph.GetVertexIndex(label, pk_value, existing_vid)) {
+      if (graph.GetVertexIndex(label, owned_pk.prop(), existing_vid)) {
         LOG(ERROR) << "Vertex with label " << (int32_t) label
-                   << " and primary key " << pk_value.to_string()
+                   << " and primary key " << owned_pk.prop().to_string()
                    << " already exists.";
         RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
                             "Vertex with label " + std::to_string(label) +
-                                " and primary key " + pk_value.to_string() +
+                                " and primary key " +
+                                owned_pk.prop().to_string() +
                                 " already exists.");
       }
       vid_t vid;
-      if (!graph.AddVertex(label, pk_value, property_values, vid)) {
+      if (!graph.AddVertex(label, owned_pk.prop(), property_values, vid)) {
         LOG(ERROR) << "Failed to add vertex with label " << (int32_t) label
-                   << " and primary key " << pk_value.to_string();
+                   << " and primary key " << owned_pk.prop().to_string();
         RETURN_STATUS_ERROR(neug::StatusCode::ERR_INTERNAL_ERROR,
                             "Failed to add vertex with label " +
                                 std::to_string(label) + " and primary key " +
-                                pk_value.to_string());
+                                owned_pk.prop().to_string());
       }
       builder.push_back_opt(vid);
     }

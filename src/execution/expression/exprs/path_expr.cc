@@ -107,7 +107,7 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
         int prop_id = std::distance(prop_names.begin(), it);
         Property prop =
             graph_.GetVertexProperty(vertex.label(), vertex.vid(), prop_id);
-        prop_values.emplace_back(property_to_value(prop));
+        prop_values.emplace_back(property_to_value(prop, elem_type_));
       }
     }
     return Value::LIST(elem_type_, std::move(prop_values));
@@ -151,7 +151,8 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
             prop_id);
 
         prop_values.emplace_back(
-            property_to_value(accessor.get_data_from_ptr(edge.prop)));
+            property_to_value(accessor.get_data_from_ptr(edge.prop),
+                              elem_type_));
       }
     }
     return Value::LIST(elem_type_, std::move(prop_values));

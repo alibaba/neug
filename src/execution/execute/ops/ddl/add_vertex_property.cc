@@ -38,10 +38,12 @@ class AddVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    std::vector<OwnedProperty> owned_defaults;
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
+      owned_defaults.emplace_back(value_to_property(prop_value));
       property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
+                                   owned_defaults.back().prop());
     }
     AddVertexPropertiesParamBuilder builder;
     auto config = builder.VertexLabel(vertex_type_)

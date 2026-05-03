@@ -75,12 +75,15 @@ namespace neug {
 namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                                 neug::catalog::Catalog* catalog)
-    : ddlConverter(aliasManager, catalog),
-      aliasManager(aliasManager),
+                                 neug::catalog::Catalog* catalog,
+                                 main::ClientContext* clientContext)
+    : aliasManager(std::move(aliasManager)),
+      exprConvertor(
+          std::make_unique<GExprConverter>(this->aliasManager, clientContext)),
+      typeConverter(std::make_unique<GPhysicalTypeConverter>()),
       catalog(catalog),
-      exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
-      typeConverter(std::make_unique<GPhysicalTypeConverter>()) {}
+      clientContext(clientContext),
+      ddlConverter(this->aliasManager, catalog, this->clientContext) {}
 
 std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
     const planner::LogicalPlan& plan, bool skipSink) {
@@ -1774,7 +1777,7 @@ common::TableType GQueryConvertor::getTableType(
 void GQueryConvertor::convertCrossProduct(
     const planner::LogicalCrossProduct& cross, ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, clientContext);
   // convert left plan
   planner::LogicalPlan leftPlan;
   leftPlan.setLastOperator(cross.getChild(0));
@@ -1829,7 +1832,7 @@ void GQueryConvertor::extractJoinKeys(
 void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
                                       ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, clientContext);
   auto leftOp = join.getChild(0);
   // convert left plan to pre query before the join, and set empty plan as the
   // join left branch

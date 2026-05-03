@@ -171,9 +171,9 @@ GDDLConverter::convertToCreateVertexSchema(
     }
     auto* propertyDef = create_vertex->add_properties();
     propertyDef->set_name(prop.getName());
-    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
+    auto irType = typeConverter.convertLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
+    propertyDef->set_allocated_default_expr(
         exprConverter.convertDefaultValue(prop).release());
   }
 
@@ -265,9 +265,9 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
     }
     auto* propertyDef = create_edge->add_properties();
     propertyDef->set_name(prop.getName());
-    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
+    auto irType = typeConverter.convertLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
+    propertyDef->set_allocated_default_expr(
         exprConverter.convertDefaultValue(prop).release());
   }
 
@@ -310,9 +310,9 @@ GDDLConverter::convertToCreateEdgeSchema(
     }
     auto* propertyDef = create_edge->add_properties();
     propertyDef->set_name(prop.getName());
-    auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
+    auto irType = typeConverter.convertLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
+    propertyDef->set_allocated_default_expr(
         exprConverter.convertDefaultValue(prop).release());
   }
 
@@ -404,9 +404,9 @@ GDDLConverter::convertToAddVertexPropertySchema(
   // Add property definition
   auto* property = add_property->add_properties();
   property->set_name(propertyDef.getName());
-  auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
+  auto irType = typeConverter.convertLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
-  property->set_allocated_default_value(
+  property->set_allocated_default_expr(
       exprConverter.convertDefaultValue(propertyDef).release());
 
   // Set conflict action
@@ -447,9 +447,9 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   // Add property definition
   auto* property = add_property->add_properties();
   property->set_name(propertyDef.getName());
-  auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
+  auto irType = typeConverter.convertLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
-  property->set_allocated_default_value(
+  property->set_allocated_default_expr(
       exprConverter.convertDefaultValue(propertyDef).release());
 
   // Set conflict action

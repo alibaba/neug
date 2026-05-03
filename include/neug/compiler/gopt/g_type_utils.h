@@ -147,6 +147,16 @@ class GTypeUtils {
       return YAML_NODE_TEMPORAL_DATETIME();
     case neug::common::LogicalTypeID::INTERVAL:
       return YAML_NODE_TEMPORAL_INTERVAL();
+    case neug::common::LogicalTypeID::LIST: {
+      auto extraInfo = type.getExtraTypeInfo();
+      if (!extraInfo) {
+        THROW_RUNTIME_ERROR("List type should have extra info");
+      }
+      auto listType = extraInfo->constPtrCast<neug::common::ListTypeInfo>();
+      YAML::Node n;
+      n["array"]["component_type"] = toYAML(listType->getChildType());
+      return n;
+    }
     default:
       LOG(WARNING) << "Unsupported type in YAML: "
                    << static_cast<uint8_t>(type.getLogicalTypeID());

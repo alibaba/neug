@@ -117,10 +117,8 @@ class GScalarType {
     } else if (func.name == function::ListCreationFunction::name) {
       const auto& type = expr.getDataType();
       if (type.getLogicalTypeID() == common::LogicalTypeID::LIST) {
-        LOG(INFO) << "type is list";
         return ScalarType::TO_LIST;
       } else if (type.getLogicalTypeID() == common::LogicalTypeID::STRUCT) {
-        LOG(INFO) << "type is struct";
         return ScalarType::TO_TUPLE;
       }
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.toString() +
