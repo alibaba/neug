@@ -7,7 +7,7 @@ add_library(
         bound_set_clause.cpp
         query_graph.cpp
         query_graph_label_analyzer.cpp)
-add_dependencies(neug_binder_query neug_plan_proto)
+add_dependencies(neug_binder_query neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder_query>
