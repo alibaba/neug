@@ -24,10 +24,10 @@ class DropVertexPropertySchemaOpr : public IOperator {
  public:
   DropVertexPropertySchemaOpr(const std::string& vertex_type,
                               const std::vector<std::string>& property_names,
-                              bool error_on_conflict)
+                              bool ignore_conflict)
       : vertex_type_(vertex_type),
         property_names_(property_names),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "DropVertexPropertySchemaOpr";
@@ -37,9 +37,15 @@ class DropVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteVertexProperties(vertex_type_, property_names_,
-                                              error_on_conflict_);
+    DeleteVertexPropertiesParamBuilder builder;
+    auto config = builder.VertexLabel(vertex_type_)
+                      .DeleteProperties(property_names_)
+                      .Build();
+    auto res = storage.DeleteVertexProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to drop vertex property from type: " << vertex_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -50,7 +56,7 @@ class DropVertexPropertySchemaOpr : public IOperator {
  private:
   std::string vertex_type_;
   std::vector<std::string> property_names_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
@@ -62,11 +68,11 @@ neug::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
   for (const auto& prop : drop_vertex_property.properties()) {
     property_names.push_back(prop);
   }
-  bool conflict_action =
-      conflict_action_to_bool(drop_vertex_property.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(drop_vertex_property.conflict_action());
   return std::make_pair(std::make_unique<DropVertexPropertySchemaOpr>(
                             drop_vertex_property.vertex_type().name(),
-                            property_names, conflict_action),
+                            property_names, ignore_conflict),
                         ctx_meta);
 }
 

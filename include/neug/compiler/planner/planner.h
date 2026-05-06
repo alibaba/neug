@@ -498,6 +498,8 @@ class NEUG_API Planner {
 
   bool tryGetTableEntry(const std::string& labelName);
 
+  void resetExprUniqueNames(const binder::expression_vector& expressions);
+
  private:
   main::ClientContext* clientContext;
   PropertyExprCollection propertyExprCollection;

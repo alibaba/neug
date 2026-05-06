@@ -22,16 +22,19 @@ namespace ops {
 
 class DropVertexTypeOpr : public IOperator {
  public:
-  DropVertexTypeOpr(const std::string& vertex_type, bool error_on_conflict)
-      : vertex_type_(vertex_type), error_on_conflict_(error_on_conflict) {}
+  DropVertexTypeOpr(const std::string& vertex_type, bool ignore_conflict)
+      : vertex_type_(vertex_type), ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteVertexType(vertex_type_, error_on_conflict_);
+    auto res = storage.DeleteVertexType(vertex_type_);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -41,7 +44,7 @@ class DropVertexTypeOpr : public IOperator {
 
  private:
   std::string vertex_type_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
@@ -49,10 +52,10 @@ neug::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& drop_vertex = plan.plan(op_id).opr().drop_vertex_schema();
   auto vertex_type_name = drop_vertex.vertex_type().name();
-  bool error_on_conflict =
-      conflict_action_to_bool(drop_vertex.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(drop_vertex.conflict_action());
   return std::make_pair(
-      std::make_unique<DropVertexTypeOpr>(vertex_type_name, error_on_conflict),
+      std::make_unique<DropVertexTypeOpr>(vertex_type_name, ignore_conflict),
       ctx_meta);
 }
 

@@ -23,20 +23,22 @@ namespace ops {
 class DropEdgeTypeOpr : public IOperator {
  public:
   DropEdgeTypeOpr(const std::string& src_type, const std::string& dst_type,
-                  const std::string& edge_type, bool error_on_conflict)
+                  const std::string& edge_type, bool ignore_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
         edge_type_(edge_type),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override { return "DropEdgeTypeOpr"; }
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteEdgeType(src_type_, dst_type_, edge_type_,
-                                      error_on_conflict_);
+    auto res = storage.DeleteEdgeType(src_type_, dst_type_, edge_type_);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to drop edge type: " << edge_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -46,7 +48,7 @@ class DropEdgeTypeOpr : public IOperator {
 
  private:
   std::string src_type_, dst_type_, edge_type_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
@@ -56,10 +58,10 @@ neug::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
   auto edge_type_name = drop_edge.edge_type().type_name().name();
   auto src_vertex_type_name = drop_edge.edge_type().src_type_name().name();
   auto dst_vertex_type_name = drop_edge.edge_type().dst_type_name().name();
-  bool error_on_conflict = conflict_action_to_bool(drop_edge.conflict_action());
+  bool ignore_conflict = !conflict_action_to_bool(drop_edge.conflict_action());
   return std::make_pair(std::make_unique<DropEdgeTypeOpr>(
                             src_vertex_type_name, dst_vertex_type_name,
-                            edge_type_name, error_on_conflict),
+                            edge_type_name, ignore_conflict),
                         ctx_meta);
 }
 }  // namespace ops

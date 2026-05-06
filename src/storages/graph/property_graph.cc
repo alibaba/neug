@@ -125,10 +125,6 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
         StatusCode::ERR_INVALID_ARGUMENT,
         "Edge table for the given edge label triplet does not exist.");
   }
-  size_t old_cap = edge_tables_.at(index).Capacity();
-  if (capacity <= old_cap) {
-    return neug::Status::OK();
-  }
   edge_tables_.at(index).EnsureCapacity(src_v_cap, dst_v_cap, capacity);
   return neug::Status::OK();
 }
@@ -154,22 +150,16 @@ Status PropertyGraph::BatchAddEdges(
   return neug::Status::OK();
 }
 
-Status PropertyGraph::CreateVertexType(
-    const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
-  if (schema_.contains_vertex_label(vertex_type_name)) {
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex label already exists.");
-    } else {
-      return Status(StatusCode::OK, "Vertex label already exists.");
-    }
+Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
+  if (schema_.contains_vertex_label(config.GetVertexLabel())) {
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Vertex label already exists.");
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
   std::vector<Property> default_property_values;
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
+  const auto& primary_key_names = config.GetPrimaryKeyNames();
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
   if (primary_key_inds.size() > 1) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -178,6 +168,7 @@ Status PropertyGraph::CreateVertexType(
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "At least one primary key is required.");
   }
+  const auto& properties = config.GetProperties();
   for (size_t i = 0; i < properties.size(); i++) {
     auto [type, name, default_value] = properties[i];
     property_names.emplace_back(name);
@@ -220,6 +211,7 @@ Status PropertyGraph::CreateVertexType(
   }
 
   std::string description;
+  const auto& vertex_type_name = config.GetVertexLabel();
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
                          primary_keys, Schema::MAX_VNUM, description,
                          default_property_values);
@@ -258,12 +250,10 @@ Status PropertyGraph::CreateVertexType(
   return neug::Status::OK();
 }
 
-Status PropertyGraph::CreateEdgeType(
-    const std::string& src_vertex_type, const std::string& dst_vertex_type,
-    const std::string& edge_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-    EdgeStrategy ie_edge_strategy) {
+Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
+  const auto& src_vertex_type = config.GetSrcLabel();
+  const auto& dst_vertex_type = config.GetDstLabel();
+  const auto& edge_type_name = config.GetEdgeLabel();
   LOG(INFO) << "CreateEdgeType: src_vertex_type: " << src_vertex_type
             << ", dst_vertex_type: " << dst_vertex_type
             << ", edge_type_name: " << edge_type_name;
@@ -285,17 +275,14 @@ Status PropertyGraph::CreateEdgeType(
                              edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Edge [" + edge_type_name + "] from [" + src_vertex_type +
-                        "] to [" + dst_vertex_type + "] already exists");
-    } else {
-      return Status(StatusCode::OK, "Edge triplet already exists.");
-    }
+    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                  "Edge [" + edge_type_name + "] from [" + src_vertex_type +
+                      "] to [" + dst_vertex_type + "] already exists");
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
   std::vector<Property> default_property_values;
+  const auto& properties = config.GetProperties();
   for (size_t i = 0; i < properties.size(); i++) {
     auto [type, name, default_value] = properties[i];
     property_names.emplace_back(name);
@@ -336,12 +323,10 @@ Status PropertyGraph::CreateEdgeType(
 }
 
 Status PropertyGraph::AddVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
-                            error_on_conflict);
+    const AddVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& add_properties = config.GetProperties();
+  RETURN_IF_NOT_OK(vertex_label_check(vertex_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
   std::vector<Property> add_default_property_values;
@@ -350,16 +335,10 @@ Status PropertyGraph::AddVertexProperties(
     if (schema_.vertex_has_property(vertex_type_name, property_name)) {
       LOG(ERROR) << "Property [" << property_name
                  << "] already exists in vertex [" << vertex_type_name << "].";
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Property [" + property_name +
-                          "] already exists in vertex [" + vertex_type_name +
-                          "].");
-      } else {
-        return Status(StatusCode::OK, "Property [" + property_name +
-                                          "] already exists in vertex [" +
-                                          vertex_type_name + "].");
-      }
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                    "Property [" + property_name +
+                        "] already exists in vertex [" + vertex_type_name +
+                        "].");
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
@@ -373,15 +352,13 @@ Status PropertyGraph::AddVertexProperties(
   return neug::Status::OK();
 }
 
-Status PropertyGraph::AddEdgeProperties(
-    const std::string& src_type_name, const std::string& dst_type_name,
-    const std::string& edge_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(
-      edge_triplet_check(src_type_name, dst_type_name, edge_type_name),
-      error_on_conflict);
+Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
+  const auto& src_type_name = config.GetSrcLabel();
+  const auto& dst_type_name = config.GetDstLabel();
+  const auto& edge_type_name = config.GetEdgeLabel();
+  const auto& add_properties = config.GetProperties();
+  RETURN_IF_NOT_OK(
+      edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
   std::vector<Property> add_default_property_values;
@@ -392,15 +369,11 @@ Status PropertyGraph::AddEdgeProperties(
       LOG(ERROR) << "Property [" << property_name
                  << "] already exists in edge [" << edge_type_name << "] from ["
                  << src_type_name << "] to [" << dst_type_name << "].";
-      std::string msg = "Property [" + property_name +
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                    "Property [" + property_name +
                         "] already exists in edge [" + edge_type_name +
                         "] from [" + src_type_name + "] to [" + dst_type_name +
-                        "].";
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
-      } else {
-        return Status(StatusCode::OK, msg);
-      }
+                        "].");
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
@@ -432,11 +405,10 @@ Status PropertyGraph::AddEdgeProperties(
 }
 
 Status PropertyGraph::RenameVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::pair<std::string, std::string>>& update_properties,
-    bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
-                            error_on_conflict);
+    const RenameVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& update_properties = config.GetRenameProperties();
+  RETURN_IF_NOT_OK(vertex_label_check(vertex_type_name));
   std::vector<std::string> update_property_names;
   std::vector<std::string> update_property_renames;
   for (size_t i = 0; i < update_properties.size(); i++) {
@@ -446,11 +418,7 @@ Status PropertyGraph::RenameVertexProperties(
                         "] does not exist in vertex [" + vertex_type_name +
                         "].";
       LOG(ERROR) << msg;
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
-      } else {
-        return Status(StatusCode::OK, msg);
-      }
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH, msg);
     }
     update_property_names.emplace_back(property_name);
     update_property_renames.emplace_back(property_rename);
@@ -464,13 +432,13 @@ Status PropertyGraph::RenameVertexProperties(
 }
 
 Status PropertyGraph::RenameEdgeProperties(
-    const std::string& src_type_name, const std::string& dst_type_name,
-    const std::string& edge_type_name,
-    const std::vector<std::pair<std::string, std::string>>& update_properties,
-    bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(
-      edge_triplet_check(src_type_name, dst_type_name, edge_type_name),
-      error_on_conflict);
+    const RenameEdgePropertiesParam& config) {
+  const auto& src_type_name = config.GetSrcLabel();
+  const auto& dst_type_name = config.GetDstLabel();
+  const auto& edge_type_name = config.GetEdgeLabel();
+  const auto& update_properties = config.GetRenameProperties();
+  RETURN_IF_NOT_OK(
+      edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> update_property_names;
   std::vector<std::string> update_property_renames;
   for (size_t i = 0; i < update_properties.size(); i++) {
@@ -482,11 +450,7 @@ Status PropertyGraph::RenameEdgeProperties(
                         "] from [" + src_type_name + "] to [" + dst_type_name +
                         "].";
       LOG(ERROR) << msg;
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
-      } else {
-        return Status(StatusCode::OK, msg);
-      }
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH, msg);
     }
     update_property_names.emplace_back(property_name);
     update_property_renames.emplace_back(property_rename);
@@ -511,22 +475,16 @@ Status PropertyGraph::RenameEdgeProperties(
 
 Status PropertyGraph::delete_vertex_properties_check(
     const std::string& vertex_type_name, const std::vector<std::string>& props,
-    bool error_on_conflict, std::vector<std::string>& valid_props) {
-  RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
-                            error_on_conflict);
+    std::vector<std::string>& valid_props) {
+  RETURN_IF_NOT_OK(vertex_label_check(vertex_type_name));
   auto label_id = schema_.get_vertex_label_id(vertex_type_name);
   for (size_t i = 0; i < props.size(); i++) {
     auto property_name = props[i];
     if (!schema_.vertex_has_property_internal(label_id, property_name)) {
-      std::string msg = "Property [" + property_name +
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
+                    "Property [" + property_name +
                         "] does not exist in vertex [" + vertex_type_name +
-                        "].";
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "Property [" + property_name +
-                          "] does not exist in vertex [" + vertex_type_name +
-                          "].");
-      }
+                        "].");
     }
     valid_props.emplace_back(property_name);
   }
@@ -534,12 +492,12 @@ Status PropertyGraph::delete_vertex_properties_check(
 }
 
 Status PropertyGraph::DeleteVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+    const DeleteVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  const auto& delete_properties = config.GetDeleteProperties();
   std::vector<std::string> delete_property_names;
-  auto status =
-      delete_vertex_properties_check(vertex_type_name, delete_properties,
-                                     error_on_conflict, delete_property_names);
+  auto status = delete_vertex_properties_check(
+      vertex_type_name, delete_properties, delete_property_names);
   if (!status.ok()) {
     return status;
   }
@@ -553,10 +511,9 @@ Status PropertyGraph::DeleteVertexProperties(
 Status PropertyGraph::delete_edge_properties_check(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name, const std::vector<std::string>& props,
-    bool error_on_conflict, std::vector<std::string>& valid_props) {
-  RETURN_IF_NOT_OK_CONFLICT(
-      edge_triplet_check(src_type_name, dst_type_name, edge_type_name),
-      error_on_conflict);
+    std::vector<std::string>& valid_props) {
+  RETURN_IF_NOT_OK(
+      edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   label_t src_label = schema_.get_vertex_label_id_internal(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id_internal(dst_type_name);
   label_t e_label = schema_.get_edge_label_id_internal(edge_type_name);
@@ -570,9 +527,7 @@ Status PropertyGraph::delete_edge_properties_check(
                         "] from [" + src_type_name + "] to [" + dst_type_name +
                         "].";
       LOG(ERROR) << msg;
-      if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
-      }
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH, msg);
     }
     valid_props.emplace_back(property_name);
   }
@@ -580,15 +535,15 @@ Status PropertyGraph::delete_edge_properties_check(
 }
 
 Status PropertyGraph::DeleteEdgeProperties(
-    const std::string& src_type_name, const std::string& dst_type_name,
-    const std::string& edge_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+    const DeleteEdgePropertiesParam& config) {
+  const auto& src_type_name = config.GetSrcLabel();
+  const auto& dst_type_name = config.GetDstLabel();
+  const auto& edge_type_name = config.GetEdgeLabel();
+  const auto& delete_properties = config.GetDeleteProperties();
   std::vector<std::string> delete_property_names;
-  RETURN_IF_NOT_OK_CONFLICT(
+  RETURN_IF_NOT_OK(
       delete_edge_properties_check(src_type_name, dst_type_name, edge_type_name,
-                                   delete_properties, error_on_conflict,
-                                   delete_property_names),
-      error_on_conflict);
+                                   delete_properties, delete_property_names));
   label_t src_label = schema_.get_vertex_label_id_internal(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id_internal(dst_type_name);
   label_t e_label = schema_.get_edge_label_id_internal(edge_type_name);
@@ -610,14 +565,12 @@ Status PropertyGraph::DeleteEdgeProperties(
   return neug::Status::OK();
 }
 
-Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
-                                       bool error_on_conflict) {
+Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name) {
   label_t v_label_id = schema_.get_vertex_label_id_internal(vertex_type_name);
-  return DeleteVertexType(v_label_id, error_on_conflict);
+  return DeleteVertexType(v_label_id);
 }
 
-Status PropertyGraph::DeleteVertexType(label_t v_label_id,
-                                       bool error_on_conflict) {
+Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
   schema_.DeleteVertexLabel(v_label_id, false);
   vertex_tables_[v_label_id].Drop();
 
@@ -651,17 +604,14 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id,
 
 Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
                                      const std::string& dst_vertex_type,
-                                     const std::string& edge_type,
-                                     bool error_on_conflict) {
+                                     const std::string& edge_type) {
   label_t src_v_label = schema_.get_vertex_label_id_internal(src_vertex_type);
   label_t dst_v_label = schema_.get_vertex_label_id_internal(dst_vertex_type);
   label_t edge_label = schema_.get_edge_label_id_internal(edge_type);
-  return DeleteEdgeType(src_v_label, dst_v_label, edge_label,
-                        error_on_conflict);
+  return DeleteEdgeType(src_v_label, dst_v_label, edge_label);
 }
 Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
-                                     label_t edge_label,
-                                     bool error_on_conflict) {
+                                     label_t edge_label) {
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label, false);

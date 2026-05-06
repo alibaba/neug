@@ -114,86 +114,54 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
 }
 
 Status StorageAPUpdateInterface::CreateVertexType(
-    const std::string& name,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
-  return graph_.CreateVertexType(name, properties, primary_key_names,
-                                 error_on_conflict);
+    const CreateVertexTypeParam& config) {
+  return graph_.CreateVertexType(config);
 }
 
 Status StorageAPUpdateInterface::CreateEdgeType(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
-    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-    EdgeStrategy ie_edge_strategy) {
-  return graph_.CreateEdgeType(src_type, dst_type, edge_type, properties,
-                               error_on_conflict, oe_edge_strategy,
-                               ie_edge_strategy);
+    const CreateEdgeTypeParam& config) {
+  return graph_.CreateEdgeType(config);
 }
 
 Status StorageAPUpdateInterface::AddVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  return graph_.AddVertexProperties(vertex_type_name, add_properties,
-                                    error_on_conflict);
+    const AddVertexPropertiesParam& config) {
+  return graph_.AddVertexProperties(config);
 }
 
 Status StorageAPUpdateInterface::AddEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::tuple<DataType, std::string, Property>>&
-        add_properties,
-    bool error_on_conflict) {
-  return graph_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,
-                                  error_on_conflict);
+    const AddEdgePropertiesParam& config) {
+  return graph_.AddEdgeProperties(config);
 }
 
 Status StorageAPUpdateInterface::RenameVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
-  return graph_.RenameVertexProperties(vertex_type_name, rename_properties,
-                                       error_on_conflict);
+    const RenameVertexPropertiesParam& config) {
+  return graph_.RenameVertexProperties(config);
 }
 
 Status StorageAPUpdateInterface::RenameEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::pair<std::string, std::string>>& rename_properties,
-    bool error_on_conflict) {
-  return graph_.RenameEdgeProperties(src_type, dst_type, edge_type,
-                                     rename_properties, error_on_conflict);
+    const RenameEdgePropertiesParam& config) {
+  return graph_.RenameEdgeProperties(config);
 }
 
 Status StorageAPUpdateInterface::DeleteVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
-  return graph_.DeleteVertexProperties(vertex_type_name, delete_properties,
-                                       error_on_conflict);
+    const DeleteVertexPropertiesParam& config) {
+  return graph_.DeleteVertexProperties(config);
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeProperties(
-    const std::string& src_type, const std::string& dst_type,
-    const std::string& edge_type,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
-  return graph_.DeleteEdgeProperties(src_type, dst_type, edge_type,
-                                     delete_properties, error_on_conflict);
+    const DeleteEdgePropertiesParam& config) {
+  return graph_.DeleteEdgeProperties(config);
 }
 
 Status StorageAPUpdateInterface::DeleteVertexType(
-    const std::string& vertex_type_name, bool error_on_conflict) {
-  return graph_.DeleteVertexType(vertex_type_name, error_on_conflict);
+    const std::string& vertex_type_name) {
+  return graph_.DeleteVertexType(vertex_type_name);
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
                                                 const std::string& dst_type,
-                                                const std::string& edge_type,
-                                                bool error_on_conflict) {
-  return graph_.DeleteEdgeType(src_type, dst_type, edge_type,
-                               error_on_conflict);
+                                                const std::string& edge_type) {
+  return graph_.DeleteEdgeType(src_type, dst_type, edge_type);
 }
 
 }  // namespace neug

@@ -130,7 +130,7 @@ class VertexTable {
 
   // Return false if the reserved space is not enough.
   bool AddVertex(const Property& id, const std::vector<Property>& props,
-                 vid_t& vid, timestamp_t ts = 0, bool insert_safe = false);
+                 vid_t& vid, timestamp_t ts, bool insert_safe);
 
   bool UpdateProperty(vid_t vid, int32_t prop_id, const Property& value,
                       timestamp_t ts);
@@ -202,8 +202,7 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
 
  private:
-  vid_t insert_vertex_pk(const Property& id, timestamp_t ts,
-                         bool insert_safe = false);
+  vid_t insert_vertex_pk(const Property& id, timestamp_t ts, bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -232,7 +231,7 @@ class VertexTable {
           }
           continue;  // already exists
         }
-        vids[j] = insert_vertex_pk(oid, 0);
+        vids[j] = insert_vertex_pk(oid, 0, false);
       }
     } else {
       if (primary_key_column->type()->Equals(arrow::utf8())) {
@@ -248,7 +247,7 @@ class VertexTable {
             }
             continue;  // already exists
           }
-          vids[j] = insert_vertex_pk(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0, true);
         }
       } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
@@ -263,7 +262,7 @@ class VertexTable {
             }
             continue;  // already exists
           }
-          vids[j] = insert_vertex_pk(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0, true);
         }
       } else {
         LOG(FATAL) << "Not support type: "
