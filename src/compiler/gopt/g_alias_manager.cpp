@@ -33,6 +33,7 @@
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
+#include "neug/compiler/planner/operator/persistent/logical_merge.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
 namespace neug {
@@ -74,6 +75,10 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::INSERT: {
     auto& insertOp = op.constCast<planner::LogicalInsert>();
     return insertOp.getGAliasNames();
+  }
+  case planner::LogicalOperatorType::MERGE: {
+    auto& mergeOp = op.constCast<planner::LogicalMerge>();
+    return mergeOp.getGAliasNames();
   }
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
@@ -142,7 +147,8 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
   case planner::LogicalOperatorType::DELETE:
-  case planner::LogicalOperatorType::INSERT: {
+  case planner::LogicalOperatorType::INSERT:
+  case planner::LogicalOperatorType::MERGE: {
     for (auto& child : op.getChildren()) {
       extractGAliasNames(*child, aliasNames);
     }
@@ -278,6 +284,7 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op,
       // In such cases, node aliases are not
       // explicitly provided, but the edge still requires source and destination
       // aliases for proper binding.
+    case planner::LogicalOperatorType::MERGE:
     default:
       addGAliasName(name);
       break;

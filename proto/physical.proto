@@ -354,6 +354,8 @@ message PhysicalOpr {
       DeleteVertex delete_vertex = 44;
       DeleteEdge delete_edge = 45;
       DataExport data_export = 46;
+      MergeVertex merge_vertex = 47;
+      MergeEdge merge_edge = 48;
 
       // DDL operators
       // A single Cypher query can perform only one DDL operation.
