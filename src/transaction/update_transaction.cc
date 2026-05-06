@@ -629,10 +629,9 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
 }
 
 // TODO(zhanglei): Return NbrIterator when refactoring the GraphInterface.
-bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
-                                label_t dst_label, vid_t dst_lid,
-                                label_t edge_label,
-                                const std::vector<Property>& properties) {
+const void* UpdateTransaction::AddEdge(
+    label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
+    label_t edge_label, const std::vector<Property>& properties) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
@@ -649,16 +648,17 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space before insert edge: "
                  << status.ToString();
-      return false;
+      return nullptr;
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
-  auto oe_offset =
+  auto add_ret =
       graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                      properties, timestamp_, alloc_, true);
+  auto oe_offset = add_ret.first;
   auto ie_offset = search_other_offset_with_cur_offset(
       graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
       graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
@@ -669,7 +669,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   undo_logs_.push(std::make_unique<InsertEdgeUndo>(src_label, dst_label,
                                                    edge_label, src_lid, dst_lid,
                                                    oe_offset, ie_offset));
-  return true;
+  return reinterpret_cast<const void*>(add_ret.second);
 }
 
 bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,

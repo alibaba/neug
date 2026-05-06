@@ -89,14 +89,14 @@ neug::result<Context> CreateEdge::insert_edge(
           }
         }
       }
-      if (!graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_, edge_label,
-                         property_values)) {
+      auto add_ret = graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_,
+                                   edge_label, property_values);
+      if (add_ret == nullptr) {
         THROW_RUNTIME_ERROR("Failed to add edge (" + std::to_string(src_label) +
                             "," + std::to_string(edge_label) + "," +
                             std::to_string(dst_label) + ")");
       }
-      // TODO: store edge properties
-      builder.push_back_opt(v1.vid_, v2.vid_, nullptr);
+      builder.push_back_opt(v1.vid_, v2.vid_, add_ret);
     }
     ctx.set(alias[i], builder.finish());
   }

@@ -409,9 +409,9 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param properties Edge property values
    * @return true if edge added successfully
    */
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) = 0;
+  virtual const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                              vid_t dst, label_t edge_label,
+                              const std::vector<Property>& properties) = 0;
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -521,9 +521,9 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual bool AddVertex(label_t label, const Property& id,
                          const std::vector<Property>& props,
                          vid_t& vid) override = 0;
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) override = 0;
+  virtual const void* AddEdge(
+      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+      label_t edge_label, const std::vector<Property>& properties) override = 0;
 
   /**
    * @brief Delete multiple vertices by their internal IDs.
@@ -602,9 +602,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                           const Property& value) override;
   bool AddVertex(label_t label, const Property& id,
                  const std::vector<Property>& props, vid_t& vid) override;
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label,
-               const std::vector<Property>& properties) override;
+  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label,
+                      const std::vector<Property>& properties) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

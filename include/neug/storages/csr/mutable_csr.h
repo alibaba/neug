@@ -110,8 +110,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator& alloc) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -140,8 +141,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
+    const void* data_ptr = static_cast<const void*>(&nbr.data);
     locks_[src].unlock();
-    return prev_size;
+    return {prev_size, data_ptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -270,8 +272,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator& alloc) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -283,7 +286,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
-    return 0;
+    return {0, static_cast<const void*>(&nbrs[src].data)};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -369,9 +372,10 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator&) override {
-    return 0;
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator&) override {
+    return {0, nullptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(

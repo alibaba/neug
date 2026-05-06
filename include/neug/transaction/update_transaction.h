@@ -191,8 +191,9 @@ class UpdateTransaction {
    */
   bool DeleteVertex(label_t label, vid_t lid);
 
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label,
+                      const std::vector<Property>& properties);
 
   bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                    label_t edge_label);
@@ -373,9 +374,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
+  inline const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                             vid_t dst, label_t edge_label,
+                             const std::vector<Property>& properties) override {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
   void CreateCheckpoint() override;

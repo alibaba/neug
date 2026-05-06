@@ -24,6 +24,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
@@ -351,10 +352,10 @@ class PropertyGraph {
                    const std::vector<Property>& props, vid_t& vid,
                    timestamp_t ts, bool insert_safe = false);
 
-  int32_t AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                  vid_t dst_lid, label_t edge_label,
-                  const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc, bool insert_safe = false);
+  std::pair<int32_t, const void*> AddEdge(
+      label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
+      label_t edge_label, const std::vector<Property>& properties,
+      timestamp_t ts, Allocator& alloc, bool insert_safe = false);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);

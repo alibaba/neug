@@ -194,10 +194,12 @@ class StorageTPInsertInterface : public StorageInsertInterface {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  inline const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                             vid_t dst, label_t edge_label,
+                             const std::vector<Property>& properties) override {
+    bool ok =
+        txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+    return ok ? reinterpret_cast<const void*>(1) : nullptr;
   }
 
   inline const Schema& schema() const override { return txn_.schema(); }
