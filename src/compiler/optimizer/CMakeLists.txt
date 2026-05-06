@@ -23,7 +23,7 @@ add_library(neug_optimizer
         common_pattern_reuse_optimizer.cpp
         project_join_condition_optimizer.cpp
         project_into_data_source_optimizer.cpp)
-add_dependencies(neug_optimizer neug_plan_proto)
+add_dependencies(neug_optimizer neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_optimizer>
