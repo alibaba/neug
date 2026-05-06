@@ -25,10 +25,10 @@ class RenameVertexPropertyOpr : public IOperator {
   RenameVertexPropertyOpr(
       const std::string& vertex_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict)
+      bool ignore_conflict)
       : vertex_type_(vertex_type),
         rename_properties_(rename_properties),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "RenameVertexPropertyOpr";
@@ -42,8 +42,11 @@ class RenameVertexPropertyOpr : public IOperator {
     auto config = builder.VertexLabel(vertex_type_)
                       .RenameProperties(rename_properties_)
                       .Build();
-    auto res = storage.RenameVertexProperties(config, error_on_conflict_);
+    auto res = storage.RenameVertexProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -54,7 +57,7 @@ class RenameVertexPropertyOpr : public IOperator {
  private:
   std::string vertex_type_;
   std::vector<std::pair<std::string, std::string>> rename_properties_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> RenameVertexPropertyOprBuilder::Build(
@@ -72,7 +75,7 @@ neug::result<OpBuildResultT> RenameVertexPropertyOprBuilder::Build(
   return std::make_pair(
       std::make_unique<RenameVertexPropertyOpr>(
           vertex_type, rename_properties,
-          conflict_action_to_bool(rename_vertex_property.conflict_action())),
+          !conflict_action_to_bool(rename_vertex_property.conflict_action())),
       ctx_meta);
 }
 

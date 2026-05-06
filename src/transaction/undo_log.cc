@@ -73,9 +73,8 @@ void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   }
   auto label_name = graph.schema().get_vertex_label_name(label);
   DeleteVertexPropertiesParamBuilder builder;
-  auto config = builder.VertexLabel(label_name)
-                    .DeleteProperties(prop_names)
-                    .Build();
+  auto config =
+      builder.VertexLabel(label_name).DeleteProperties(prop_names).Build();
   auto status = graph.DeleteVertexProperties(config);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR("Failed to undo AddVertexProp for label " + label_name +

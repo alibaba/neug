@@ -26,11 +26,11 @@ class CreateVertexTypeOpr : public IOperator {
   CreateVertexTypeOpr(
       const std::string& type_name,
       const std::vector<std::pair<std::string, Value>>& properties,
-      const std::vector<std::string>& pks, bool error_on_conflict)
+      const std::vector<std::string>& pks, bool ignore_conflict)
       : type_name_(type_name),
         properties_(properties),
         pks_(pks),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "CreateVertexTypeOpr";
@@ -45,10 +45,13 @@ class CreateVertexTypeOpr : public IOperator {
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
       builder.AddProperty(prop_value.type(), prop_name,
-                           value_to_property(prop_value));
+                          value_to_property(prop_value));
     }
-    auto res = storage.CreateVertexType(builder.Build(), error_on_conflict_);
+    auto res = storage.CreateVertexType(builder.Build());
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to create vertex type: " << type_name_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -60,7 +63,7 @@ class CreateVertexTypeOpr : public IOperator {
   std::string type_name_;
   std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
@@ -85,11 +88,11 @@ neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
   for (const auto& pk : create_vertex.primary_key()) {
     pks.push_back(pk);
   }
-  bool error_on_conflict_ =
-      conflict_action_to_bool(create_vertex.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(create_vertex.conflict_action());
   return std::make_pair(
       std::make_unique<CreateVertexTypeOpr>(vertex_type_name, tuple_res.value(),
-                                            pks, error_on_conflict_),
+                                            pks, ignore_conflict),
       meta);
 }
 

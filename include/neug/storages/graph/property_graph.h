@@ -195,15 +195,12 @@ class PropertyGraph {
    *
    * @param config Vertex type creation config, including type name,
    *        properties, and primary keys
-   * @param error_on_conflict If true, returns error if type exists;
-   *        if false, silently skips creation
    *
    * @return Status indicating success or failure
    *
    * @since v0.1.0
    */
-  Status CreateVertexType(const CreateVertexTypeParam& config,
-                          bool error_on_conflict = true);
+  Status CreateVertexType(const CreateVertexTypeParam& config);
 
   /**
    * @brief Create a new edge type in the graph schema.
@@ -226,14 +223,13 @@ class PropertyGraph {
    *
    * @param config Edge type creation config, including source/destination,
    *        edge label, properties, and edge strategies
-   * @param error_on_conflict If true, returns error if type exists
    *
-   * @return Status indicating success or failure
+   * @return Status indicating success or failure. Returns
+   *         ERR_SCHEMA_MISMATCH if the type already exists.
    *
    * @since v0.1.0
    */
-  Status CreateEdgeType(const CreateEdgeTypeParam& config,
-                        bool error_on_conflict = true);
+  Status CreateEdgeType(const CreateEdgeTypeParam& config);
 
   /**
    * @brief Delete a vertex type physically from the graph storage, could not be
@@ -241,36 +237,28 @@ class PropertyGraph {
    * @param vertex_type_name Name of the vertex type to delete
    * @return Status Status indicating success or failure
    */
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true);
+  Status DeleteVertexType(const std::string& vertex_type_name);
 
-  Status DeleteVertexType(label_t label, bool error_on_conflict = true);
+  Status DeleteVertexType(label_t label);
 
   Status DeleteEdgeType(const std::string& src_vertex_type,
                         const std::string& dst_vertex_type,
-                        const std::string& edge_type_name,
-                        bool error_on_conflict = true);
+                        const std::string& edge_type_name);
 
   Status DeleteEdgeType(label_t src_label, label_t dst_label,
-                        label_t edge_label, bool error_on_conflict = true);
+                        label_t edge_label);
 
-  Status AddVertexProperties(const AddVertexPropertiesParam& config,
-                             bool error_on_conflict = true);
+  Status AddVertexProperties(const AddVertexPropertiesParam& config);
 
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config,
-                           bool error_on_conflict = true);
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config);
 
-  Status RenameVertexProperties(const RenameVertexPropertiesParam& config,
-                                bool error_on_conflict = true);
+  Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
 
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config,
-                              bool error_on_conflict = true);
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config);
 
-  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config,
-                                bool error_on_conflict = true);
+  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config);
 
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config,
-                              bool error_on_conflict = true);
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
 
   Status EnsureCapacity(label_t v_label, size_t capacity);
 
@@ -566,13 +554,11 @@ class PropertyGraph {
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,
                                         const std::vector<std::string>& props,
-                                        bool error_on_conflict,
                                         std::vector<std::string>& valid_props);
   Status delete_edge_properties_check(const std::string& src_type_name,
                                       const std::string& dst_type_name,
                                       const std::string& edge_type_name,
                                       const std::vector<std::string>& props,
-                                      bool error_on_conflict,
                                       std::vector<std::string>& valid_props);
 
   Status edge_triplet_check(const std::string& src_type_name,

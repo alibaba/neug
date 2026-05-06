@@ -163,8 +163,7 @@ void AddVertexPropertiesRedo::Serialize(
   config.Serialize(arc);
 }
 
-AddVertexPropertiesParam AddVertexPropertiesRedo::Deserialize(
-    OutArchive& arc) {
+AddVertexPropertiesParam AddVertexPropertiesRedo::Deserialize(OutArchive& arc) {
   return AddVertexPropertiesParam::Deserialize(arc);
 }
 
