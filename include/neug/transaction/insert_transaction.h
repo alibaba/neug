@@ -121,15 +121,16 @@ class InsertTransaction {
    * @param dst Destination vertex ID
    * @param edge_label Edge label/type
    * @param prop Edge property value
-   * @return true if edge added successfully, false if vertices don't exist
+   * @return non-nullptr if edge added successfully, nullptr if validation fails
    *
    * Implementation: Uses graph.get_lid() and added_vertices_ to find vertices,
    * serializes operation to arc_ with op_type=1.
    *
    * @since v0.1.0
    */
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label,
+                      const std::vector<Property>& properties);
 
   /**
    * @brief Commit the transaction.
@@ -197,9 +198,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   inline const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
                              vid_t dst, label_t edge_label,
                              const std::vector<Property>& properties) override {
-    bool ok =
-        txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
-    return ok ? reinterpret_cast<const void*>(1) : nullptr;
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline const Schema& schema() const override { return txn_.schema(); }

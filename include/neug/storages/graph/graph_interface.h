@@ -407,7 +407,11 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param dst Destination vertex internal ID
    * @param edge_label Edge label
    * @param properties Edge property values
-   * @return true if edge added successfully
+   * @return non-nullptr if edge added successfully, nullptr if validation
+   * fails, for insert transaction, the return value is only used to indicate
+   * success or failure, cann't use the return value to get the edge
+   * property since the edge property is not actually inserted into graph until
+   * commit.
    */
   virtual const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
                               vid_t dst, label_t edge_label,

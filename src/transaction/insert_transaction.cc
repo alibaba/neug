@@ -109,10 +109,9 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
   return true;
 }
 
-bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
-                                label_t dst_label, vid_t dst_vid,
-                                label_t edge_label,
-                                const std::vector<Property>& properties) {
+const void* InsertTransaction::AddEdge(
+    label_t src_label, vid_t src_vid, label_t dst_label, vid_t dst_vid,
+    label_t edge_label, const std::vector<Property>& properties) {
   const auto& src = GetVertexId(src_label, src_vid);
   const auto& dst = GetVertexId(dst_label, dst_vid);
   const auto& types =
@@ -122,7 +121,7 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     LOG(ERROR) << "Edge property size not match for edge " << label_name
                << ", expected " << types.size() << ", got "
                << properties.size();
-    return false;
+    return nullptr;
   }
   for (size_t i = 0; i < properties.size(); ++i) {
     if (properties[i].type() != types[i].id()) {
@@ -130,12 +129,12 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i].ToString()
                  << ", got " << std::to_string(properties[i].type());
-      return false;
+      return nullptr;
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
                             properties);
-  return true;
+  return reinterpret_cast<const void*>(1);
 }
 
 bool InsertTransaction::Commit() {
