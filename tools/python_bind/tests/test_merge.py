@@ -332,3 +332,67 @@ def test_merge_on_create_set_does_not_fire_for_existing_adam():
     finally:
         conn.close()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Unsupported MERGE patterns (see specs/005-merge/spec.md §限制)
+# ---------------------------------------------------------------------------
+
+
+def test_merge_multiple_nodes_unsupported():
+    """
+    MERGE (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) is NOT supported.
+
+    Per spec: merging multiple nodes in a single MERGE clause has ambiguous
+    semantics around partial existence (e.g. u1 exists but u2 does not) and
+    must be rejected.
+    """
+    db_dir = _merge_db_dir()
+    db, conn = _open_merge_database(db_dir)
+    try:
+        _seed_users_adam_marko(conn)
+        with pytest.raises(Exception):
+            conn.execute("MERGE (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'});")
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_merge_path_unsupported():
+    """
+    MERGE (:User {name:'A'})-[:follows {date: 2012}]->(:User {name:'B'})
+    is NOT supported.
+
+    Per spec: MERGE on a full path pattern would create all vertices and the
+    edge without checking individual vertex existence, leading to duplicates
+    or correctness issues. Must be rejected.
+    """
+    db_dir = _merge_db_dir()
+    db, conn = _open_merge_database(db_dir)
+    try:
+        _seed_users_adam_marko(conn)
+        with pytest.raises(Exception):
+            conn.execute(
+                "MERGE (:User {name: 'Adam'})-[:follows {date: 2012}]->(:User {name: 'marko'});"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_merge_path_with_new_nodes_unsupported():
+    """
+    MERGE with a path pattern containing nodes not yet in the graph is also
+    unsupported — must be rejected rather than silently creating duplicates.
+    """
+    db_dir = _merge_db_dir()
+    db, conn = _open_merge_database(db_dir)
+    try:
+        _seed_users_adam_marko(conn)
+        with pytest.raises(Exception):
+            conn.execute(
+                "MERGE (:User {name: 'X'})-[:follows {date: 2023}]->(:User {name: 'Y'});"
+            )
+    finally:
+        conn.close()
+        db.close()
