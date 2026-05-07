@@ -55,9 +55,10 @@ src/
 ├── compiler/    # ANTLR4 Cypher parser → logical plan → physical plan (via gopt/)
 ├── execution/   # Physical operators: scan, filter, project, join, aggregation
 ├── storages/    # CSR-based graph storage, schema, property columns
-├── main/        # pybind11 bindings
+├── main/        # Core DB implementation: neug_db, connection, query processor
 └── server/      # HTTP server for Service Mode
 tools/python_bind/
+├── src/         # pybind11 bindings
 ├── neug/        # Python API: Database, Connection, Session
 └── tests/       # Python test suite
 ```
