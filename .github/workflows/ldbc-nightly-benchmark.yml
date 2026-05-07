@@ -14,7 +14,6 @@ concurrency:
 jobs:
   benchmark:
     name: Build, Load, Serve and Benchmark
-    if: github.repository == 'alibaba/neug' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, ldbc-benchmark]
     timeout-minutes: 480
     steps:
@@ -52,7 +51,6 @@ jobs:
       - name: Start NeuG server
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
-          export DEBUG=ON
           nohup python3 benchmark/interactive/serve_ldbc.py > ${{ github.workspace }}/serve.log 2>&1 &
           echo $! > ${{ github.workspace }}/serve.pid
           for i in $(seq 1 2700); do
