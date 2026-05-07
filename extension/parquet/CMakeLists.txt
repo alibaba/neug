@@ -20,8 +20,6 @@ endif()
 # Link only the Arrow components this extension actually needs, instead of
 # the full ${ARROW_LIB} (which includes acero, etc.).
 # This significantly reduces the extension binary size.
-# Extension symbols are hidden by neug_apply_symbol_visibility (in
-# build_extension_lib) to avoid conflicts with pyarrow.
 target_link_libraries(neug_parquet_extension PRIVATE
     neug
     ${ARROW_BASE_LIB}
