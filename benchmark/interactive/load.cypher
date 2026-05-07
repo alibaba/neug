@@ -114,10 +114,10 @@ CREATE REL TABLE ISLOCATEDIN (FROM ORGANISATION TO PLACE);
 CREATE REL TABLE KNOWS (
     FROM PERSON TO PERSON,
     creationDate TIMESTAMP
-) WITH (sort_key_for_nbr = 'creationDate');;
+) WITH (sort_key_for_nbr = 'creationDate');
 
-CREATE REL TABLE LIKES (FROM PERSON TO COMMENT, creationDate TIMESTAMP) WITH (sort_key_for_nbr = 'creationDate');;
-CREATE REL TABLE LIKES (FROM PERSON TO POST, creationDate TIMESTAMP) WITH (sort_key_for_nbr = 'creationDate');;
+CREATE REL TABLE LIKES (FROM PERSON TO COMMENT, creationDate TIMESTAMP) WITH (sort_key_for_nbr = 'creationDate');
+CREATE REL TABLE LIKES (FROM PERSON TO POST, creationDate TIMESTAMP) WITH (sort_key_for_nbr = 'creationDate');
 
 CREATE REL TABLE WORKAT (
     FROM PERSON TO ORGANISATION,
