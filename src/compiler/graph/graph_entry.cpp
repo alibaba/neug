@@ -195,6 +195,17 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
   }
 }
 
+std::shared_ptr<Expression> GDSFunction::bindNodeOutput(
+    const function::TableFuncBindInput& bindInput,
+    const std::vector<TableCatalogEntry*>& nodeEntries, const std::string& name,
+    const std::optional<uint64_t>& yieldVariableIdx) {
+  std::string nodeColumnName = name;
+  StringUtils::toLower(nodeColumnName);
+  auto node = bindInput.binder->createQueryNode(nodeColumnName, nodeEntries);
+  bindInput.binder->addToScope(nodeColumnName, node);
+  return node;
+}
+
 static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
                                   const table_id_set_t& projectedNodeIDSet,
                                   const std::string& relName, Catalog* catalog,
