@@ -3012,6 +3012,6 @@ def test_unsupported_operator_error_message():
     modern_graph_db_dir = "/tmp/modern_graph"
     db = Database(modern_graph_db_dir, "rw")
     conn = db.connect()
-    query = "MERGE (n:Person {id:1, name: 'marko'})"
-    with pytest.raises(Exception, match="Unsupported operator type: MERGE"):
+    query = "CREATE MACRO f(x) AS x + 1"
+    with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
         conn.execute(query)
