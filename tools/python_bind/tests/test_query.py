@@ -49,15 +49,3 @@ def test_run_query():
         logger.info(f"line {cnt}")
         logger.info(record)
         cnt += 1
-
-
-def test_unsupported_operator_error_message():
-    """Test that unsupported operators produce readable error messages."""
-    modern_graph_db_dir = os.environ.get("NEUG_DB_DIR")
-    if not modern_graph_db_dir:
-        raise Exception("NEUG_DB_DIR is not set")
-    db = Database(modern_graph_db_dir, "rw")
-    conn = db.connect()
-    query = "MERGE (n:Person {id:1, name: 'marko'})"
-    with pytest.raises(Exception, match="Unsupported operator type: MERGE"):
-        conn.execute(query)

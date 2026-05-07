@@ -3005,3 +3005,13 @@ def test_duplicate_project_column(tmp_path):
         "ORDER BY node_id LIMIT 100"
     )
     assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
+
+
+def test_unsupported_operator_error_message():
+    """Test that unsupported operators produce readable error messages."""
+    modern_graph_db_dir = "/tmp/modern_graph"
+    db = Database(modern_graph_db_dir, "rw")
+    conn = db.connect()
+    query = "MERGE (n:Person {id:1, name: 'marko'})"
+    with pytest.raises(Exception, match="Unsupported operator type: MERGE"):
+        conn.execute(query)
