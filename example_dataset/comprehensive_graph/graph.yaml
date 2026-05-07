@@ -118,8 +118,6 @@ schema:
         - source_vertex: node_a
           destination_vertex: node_a
           relation: MANY_TO_MANY
-          x_csr_params:
-            sort_on_compaction: TRUE
       properties:
         - property_id: 0
           property_name: double_weight
@@ -144,8 +142,6 @@ schema:
         - source_vertex: node_a
           destination_vertex: node_b
           relation: MANY_TO_MANY
-          x_csr_params:
-            sort_on_compaction: TRUE
       properties:
         - property_id: 0
           property_name: double_weight
@@ -170,8 +166,6 @@ schema:
         - source_vertex: node_b
           destination_vertex: node_a
           relation: MANY_TO_MANY
-          x_csr_params:
-            sort_on_compaction: TRUE
       properties:
         - property_id: 0
           property_name: double_weight
@@ -197,7 +191,7 @@ schema:
           destination_vertex: node_a
           relation: MANY_TO_MANY
           x_csr_params:
-            sort_on_compaction: TRUE
+            sort_key_for_nbr: i32_weight
       properties:
         - property_id: 0
           property_name: i32_weight
@@ -211,7 +205,7 @@ schema:
           destination_vertex: node_a
           relation: MANY_TO_MANY
           x_csr_params:
-            sort_on_compaction: TRUE
+            sort_key_for_nbr: i64_weight
       properties:
         - property_id: 0
           property_name: i64_weight
@@ -225,7 +219,7 @@ schema:
           destination_vertex: node_a
           relation: MANY_TO_MANY
           x_csr_params:
-            sort_on_compaction: TRUE
+            sort_key_for_nbr: datetime_weight
       properties:
         - property_id: 0
           property_name: datetime_weight

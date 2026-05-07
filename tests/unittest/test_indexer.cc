@@ -126,7 +126,7 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   EXPECT_GE(indexer.capacity(), 8U);
 
   std::vector<int64_t> values = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41};
-  EXPECT_EQ(indexer.insert(Property::from_int64(values[0])), 0U);
+  EXPECT_EQ(indexer.insert(Property::from_int64(values[0]), false), 0U);
   for (size_t i = 1; i < values.size(); ++i) {
     EXPECT_EQ(indexer.insert(Property::from_int64(values[i]), true),
               static_cast<uint32_t>(i));
@@ -214,12 +214,13 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
 
   auto string_type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> lhs;
-  lhs.init(DataTypeId::kVarchar, string_type_info);
+  DataType string_type(DataTypeId::kVarchar, string_type_info);
+  lhs.init(string_type);
   lhs.open_in_memory(lhs_base);
   lhs.reserve(4);
 
   LFIndexer<uint32_t> rhs;
-  rhs.init(DataTypeId::kVarchar, string_type_info);
+  rhs.init(string_type);
   rhs.open_in_memory(rhs_base);
   rhs.reserve(4);
 
@@ -266,7 +267,8 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   constexpr size_t N = 8;
@@ -278,7 +280,7 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
   std::vector<std::string> values = {"alpha",   "beta", "gamma", "delta",
                                      "epsilon", "zeta", "eta",   "theta"};
   for (const auto& v : values) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), false);
   }
   ExpectStringValues(indexer, values);
   indexer.close();
@@ -293,7 +295,8 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
   constexpr uint16_t kMaxWidth = 16;
   auto type_info = std::make_shared<StringTypeInfo>(kMaxWidth);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   constexpr size_t N = 6;
@@ -307,7 +310,7 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
     values.push_back(std::string(kMaxWidth - 1, static_cast<char>('a' + i)));
   }
   for (const auto& v : values) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), false);
   }
   ExpectStringValues(indexer, values);
   indexer.close();
@@ -321,14 +324,15 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   // First batch: reserve 4, insert 4 via insert() (non-safe).
   indexer.reserve(4);
   std::vector<std::string> batch1 = {"alice", "bob", "carol", "dave"};
   for (const auto& v : batch1) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), false);
   }
   ExpectStringValues(indexer, batch1);
 
@@ -338,7 +342,7 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   indexer.reserve(8);
   std::vector<std::string> batch2 = {"erin", "frank", "grace", "heidi"};
   for (const auto& v : batch2) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), false);
   }
 
   std::vector<std::string> all = {"alice", "bob",   "carol", "dave",
@@ -355,16 +359,17 @@ TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   indexer.reserve(16);
   EXPECT_GE(indexer.capacity(), 16U);
   size_t size_before = indexer.size();
-  indexer.insert(Property::from_string_view("foo"));
-  indexer.insert(Property::from_string_view("bar"));
-  indexer.insert(Property::from_string_view("baz"));
-  indexer.insert(Property::from_string_view("qux"));
+  indexer.insert(Property::from_string_view("foo"), false);
+  indexer.insert(Property::from_string_view("bar"), false);
+  indexer.insert(Property::from_string_view("baz"), false);
+  indexer.insert(Property::from_string_view("qux"), false);
 
   // Shrinking reserve must not corrupt state.
   indexer.reserve(4);
@@ -379,8 +384,9 @@ TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
   CreateEmptyIndicesFile(base);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
+  DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   std::vector<std::string> values = {"foo",  "bar",   "baz",   "qux",
@@ -406,8 +412,9 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
   CreateEmptyIndicesFile(base);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
+  DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> writable;
-  writable.init(DataTypeId::kVarchar, type_info);
+  writable.init(string_type);
   writable.open_in_memory(base);
 
   constexpr size_t N = 5;
@@ -415,7 +422,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 
   std::vector<std::string> values = {"one", "two", "three", "four", "five"};
   for (const auto& v : values) {
-    writable.insert(Property::from_string_view(v));
+    writable.insert(Property::from_string_view(v), false);
   }
   ExpectStringValues(writable, values);
 
@@ -427,7 +434,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 
   // Reload from snapshot and verify all entries survive the round-trip.
   LFIndexer<uint32_t> reader;
-  reader.init(DataTypeId::kVarchar, type_info);
+  reader.init(string_type);
   reader.open_in_memory(snapshot_dir_ + "/" + name);
   ExpectStringValues(reader, values);
   reader.close();
@@ -451,12 +458,13 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
 
   constexpr uint16_t kWidth = 64;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: populate with short strings (avg 3 chars << kWidth), then dump.
   std::vector<std::string> short_values = {"a", "bb", "ccc"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -466,7 +474,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
 
   // Phase 2: reopen — data_buffer_ is now tight (= sum of short string bytes).
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(snapshot_dir_ + "/" + name);
   ExpectStringValues(indexer, short_values);
 
@@ -482,7 +490,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
     long_values.push_back(std::string(60, static_cast<char>('d' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), true);
   }
 
   std::vector<std::string> all = short_values;
@@ -501,23 +509,24 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
 
   constexpr uint16_t kWidth = 48;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: fill to capacity with 1-char strings, then dump.
   std::vector<std::string> short_values = {"x", "y", "z", "w"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     writer.reserve(short_values.size());
     for (const auto& v : short_values) {
-      writer.insert(Property::from_string_view(v));
+      writer.insert(Property::from_string_view(v), false);
     }
     writer.dump(name, snapshot_dir_);
   }
 
   // Phase 2: reopen — capacity == short_values.size(), data_buffer_ tight.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(snapshot_dir_ + "/" + name);
   EXPECT_EQ(indexer.size(), short_values.size());
 
@@ -547,12 +556,13 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
 
   constexpr uint16_t kWidth = 32;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: insert 2-char strings to keep .data file tiny, then dump.
   std::vector<std::string> short_values = {"hi", "yo", "ok"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -562,7 +572,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
 
   // Phase 2: reopen via SyncToFile — data_buffer_ memory-maps the small file.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open(name, snapshot_dir_, work_dir_);
   ExpectStringValues(indexer, short_values);
 
@@ -577,13 +587,56 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
     long_values.push_back(std::string(30, static_cast<char>('p' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v));
+    indexer.insert(Property::from_string_view(v), true);
   }
 
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
   indexer.drop();
+}
+
+// Test: String overflow handling when inserting strings exceeding max length.
+TEST_F(LFIndexerTest, VarcharStringOverflow) {
+  const std::string base = test_dir_ + "/varchar_string_overflow";
+  CreateEmptyIndicesFile(base);
+
+  // Create indexer with max string length of 32
+  auto type_info = std::make_shared<StringTypeInfo>(32);
+  LFIndexer<uint32_t> indexer;
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
+  indexer.open_in_memory(base);
+  indexer.reserve(4);
+  // Insert valid strings within the limit
+  std::vector<std::string> valid_strings = {
+      "short",                 // 5 chars
+      "medium_length_string",  // 21 chars
+      std::string(32, 'a'),    // exactly 32 chars (max length)
+      "boundary"               // 8 chars, to test boundary condition
+  };
+
+  for (const auto& v : valid_strings) {
+    indexer.insert(Property::from_string_view(v), false);
+  }
+  ExpectStringValues(indexer, valid_strings);
+  indexer.reserve(8);
+
+  // Test: Insert additional strings of 32 characters
+  std::string overflow_string = std::string(31, 'a');  // 31 chars
+  for (size_t i = 0; i < 2; ++i) {
+    std::string test_string =
+        overflow_string + std::to_string(i);  // 31 chars + 1 char = 32 chars
+    indexer.insert(Property::from_string_view(test_string), false);
+    valid_strings.push_back(test_string);
+  }
+  ExpectStringValues(indexer, valid_strings);
+
+  EXPECT_THROW(
+      indexer.insert(Property::from_string_view(overflow_string), false),
+      neug::exception::StorageException);
+
+  indexer.close();
 }
 
 }  // namespace

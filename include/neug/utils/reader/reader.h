@@ -86,7 +86,7 @@ struct ReadLocalState {
  * operations. It includes:
  * - Schema information: external table metadata (column names, types, file
  * info)
- * - Column pruning: list of columns to skip during projection
+ * - Column projection: list of columns to include in output
  * - Filter pushdown: predicate expression for row filtering
  *
  * The columnNum() method calculates the effective number of columns after
@@ -98,27 +98,19 @@ struct ReadLocalState {
  */
 struct ReadSharedState {
   ExternalSchema schema;
-  std::vector<std::string> skipColumns;
+  std::vector<std::string> projectColumns;
   std::shared_ptr<::common::Expression> skipRows;
 
   /**
-   * @brief Get the number of columns after column pruning
-   * @return The number of columns remaining (not skipped) according to
-   * skipColumns
+   * @brief Get the number of columns after column projection
+   * @return The number of projected columns, or all columns if no projection
    */
   int columnNum() {
     if (!schema.entry) {
       return 0;
     }
     const auto& allColumns = schema.entry->columnNames;
-    int total = static_cast<int>(allColumns.size());
-    for (const auto& column : allColumns) {
-      if (std::find(skipColumns.begin(), skipColumns.end(), column) !=
-          skipColumns.end()) {
-        --total;
-      }
-    }
-    return total;
+    return projectColumns.empty() ? allColumns.size() : projectColumns.size();
   }
 };
 

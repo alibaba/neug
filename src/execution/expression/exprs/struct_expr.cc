@@ -15,6 +15,8 @@
 
 #include "neug/execution/expression/exprs/struct_expr.h"
 
+#include "neug/common/types.h"
+
 namespace neug {
 namespace execution {
 class BindedTupleExpr : public VertexExprBase,
@@ -63,6 +65,61 @@ std::unique_ptr<BindedExprBase> TupleExpr::bind(
     bound_exprs.push_back(expr->bind(storage, params));
   }
   return std::make_unique<BindedTupleExpr>(std::move(bound_exprs), type_);
+}
+
+ListExpr::ListExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs,
+                   DataType list_type)
+    : exprs_(std::move(exprs)), type_(std::move(list_type)) {}
+
+class BindedListExpr : public VertexExprBase,
+                       public EdgeExprBase,
+                       public RecordExprBase {
+ public:
+  BindedListExpr(std::vector<std::unique_ptr<BindedExprBase>>&& exprs,
+                 const DataType& type)
+      : exprs_(std::move(exprs)), type_(type) {}
+  const DataType& type() const override { return type_; }
+
+  Value eval_record(const Context& ctx, size_t idx) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(expr->Cast<RecordExprBase>().eval_record(ctx, idx));
+    }
+    const DataType& child = ListType::GetChildType(type_);
+    return Value::LIST(child, std::move(values));
+  }
+
+  Value eval_vertex(label_t v_label, vid_t v_id) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(expr->Cast<VertexExprBase>().eval_vertex(v_label, v_id));
+    }
+    const DataType& child = ListType::GetChildType(type_);
+    return Value::LIST(child, std::move(values));
+  }
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(
+          expr->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr));
+    }
+    const DataType& child = ListType::GetChildType(type_);
+    return Value::LIST(child, std::move(values));
+  }
+
+ private:
+  std::vector<std::unique_ptr<BindedExprBase>> exprs_;
+  DataType type_;
+};
+
+std::unique_ptr<BindedExprBase> ListExpr::bind(const IStorageInterface* storage,
+                                               const ParamsMap& params) const {
+  std::vector<std::unique_ptr<BindedExprBase>> bound_exprs;
+  for (const auto& expr : exprs_) {
+    bound_exprs.push_back(expr->bind(storage, params));
+  }
+  return std::make_unique<BindedListExpr>(std::move(bound_exprs), type_);
 }
 }  // namespace execution
 }  // namespace neug

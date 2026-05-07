@@ -113,6 +113,10 @@ class GExprConverter {
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);
 
+  std::unique_ptr<::common::Expression> convertToListFunc(
+      const binder::Expression& expr,
+      const std::vector<std::string>& schemaAlias);
+
   std::unique_ptr<::common::Expression> convertCaseExpression(
       const binder::CaseExpression& expr,
       const std::vector<std::string>& schemaAlias);

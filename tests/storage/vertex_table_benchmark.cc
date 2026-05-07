@@ -81,7 +81,7 @@ class VertexTableBenchmark : public ::testing::Test {
       vertex_id.set_int64(static_cast<int64_t>(i));
 
       neug::vid_t vid;
-      EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
+      EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
       EXPECT_EQ(vid, i);
       if (i % (count / 100) == 0) {
         LOG(INFO) << "Added " << i << " vertices so far...";
@@ -182,7 +182,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
     neug::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
     neug::vid_t vid;
-    EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
+    EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
   }
 
   auto end = std::chrono::high_resolution_clock::now();

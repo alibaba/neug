@@ -31,7 +31,7 @@ add_library(neug_planner_plan_operator
         plan_single_query.cpp
         plan_subquery.cpp
         plan_update.cpp)
-add_dependencies(neug_planner_plan_operator neug_plan_proto)
+add_dependencies(neug_planner_plan_operator neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_planner_plan_operator>

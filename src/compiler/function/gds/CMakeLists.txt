@@ -3,7 +3,7 @@ add_library(gds_function
         rec_joins.cpp
         project_graph_function.cpp
         gds_algo_function.cpp)
-add_dependencies(gds_function neug_plan_proto)
+add_dependencies(gds_function neug_proto)
 
 target_include_directories(gds_function PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../include)

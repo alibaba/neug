@@ -58,7 +58,7 @@ add_library(neug_extension
         extension_api.cpp
         extension_entries.cpp
         extension_manager.cpp)
-add_dependencies(neug_extension neug_plan_proto)
+add_dependencies(neug_extension neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_extension>

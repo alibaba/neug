@@ -15,6 +15,8 @@
 
 #include "test_reader.h"
 
+#include <arrow/array.h>
+
 namespace neug {
 namespace test {
 
@@ -154,11 +156,11 @@ TEST_F(ReaderTest, TestColumnPruning) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  // Skip "name" column
-  std::vector<std::string> skipColumns = {"name"};
+  // Project only "id" and "score" columns (exclude "name")
+  std::vector<std::string> projectColumns = {"id", "score"};
   auto sharedState = createSharedState(
       "test6.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "false"}}, skipColumns);
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, projectColumns);
 
   auto reader = createArrowReader(sharedState);
 
@@ -213,13 +215,15 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  // Skip "name" column and filter: score > 90.0
-  std::vector<std::string> skipColumns = {"name"};
+  // Project only "id" and "score" columns (exclude "name"), filter: score
+  // > 90.0
+  std::vector<std::string> projectColumns = {"id", "score"};
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState = createSharedState(
-      "test8.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "false"}}, skipColumns, filterExpr);
+  auto sharedState =
+      createSharedState("test8.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}},
+                        projectColumns, filterExpr);
 
   auto reader = createArrowReader(sharedState);
 

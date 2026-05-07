@@ -93,6 +93,10 @@ class NeugShell(cmd.Cmd):
         except (PermissionError, OSError) as e:
             logger.warning(f"Could not save history to {histfile}: {e}")
 
+    def emptyline(self):
+        """Override default emptyline behavior to do nothing instead of repeating the last command."""
+        pass
+
     def do_quit(self, arg):
         """Exit the shell: quit"""
         print("Exiting...")
