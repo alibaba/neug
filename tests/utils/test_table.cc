@@ -285,7 +285,7 @@ TEST(TableTest, TestTableBasic) {
               DataTypeId::kBoolean);
     disk_table.set_name("disk_table");
     std::vector<Property> properties = disk_table.get_row(9);
-    disk_table.insert(9, properties);
+    disk_table.insert(9, properties, false);
   }
 
   disk_table.dump("disk_table", std::string(TEST_DIR) + "/checkpoint");

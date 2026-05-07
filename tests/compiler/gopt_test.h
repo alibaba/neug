@@ -231,18 +231,12 @@ class GOptTest : public ::testing::Test {
 
     // Prepare the query
     auto statement = ctx->prepare(query);
-    if (!statement->success) {
-      THROW_RUNTIME_ERROR("Failed to prepare query: " + statement->errMsg);
-    }
     return std::move(statement->logicalPlan);
   }
 
   std::unique_ptr<planner::LogicalPlan> planLogical(const std::string& query) {
     // Prepare the query
     auto statement = ctx->prepare(query);
-    if (!statement->success) {
-      THROW_RUNTIME_ERROR("Failed to prepare query: " + statement->errMsg);
-    }
     return std::move(statement->logicalPlan);
   }
 

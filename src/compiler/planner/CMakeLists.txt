@@ -10,7 +10,7 @@ add_library(neug_compiler_planner
         subplans_table.cpp
         gopt_planner.cc
         )
-add_dependencies(neug_compiler_planner neug_plan_proto)
+add_dependencies(neug_compiler_planner neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_compiler_planner>

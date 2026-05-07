@@ -7,7 +7,7 @@ add_library(neug_function_arithmetic
         modulo.cpp
         negate.cpp
         abs.cpp)
-add_dependencies(neug_function_arithmetic neug_plan_proto)
+add_dependencies(neug_function_arithmetic neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_function_arithmetic>

@@ -28,7 +28,6 @@ from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
-from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
@@ -171,25 +170,25 @@ def test_auto_transaction_management(tmp_path):
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r3 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r3) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP not_exist;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r4 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r4) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE not_exist;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r5 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r5) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r6 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r6) == 1
 

@@ -109,7 +109,7 @@ static bool requireRelGroup(
 std::unique_ptr<Statement> Transformer::transformCreateRelTable(
     CypherParser::NEUG_CreateRelTableContext& ctx) {
   auto tableName = transformSchemaName(*ctx.oC_SchemaName());
-  std::string relMultiplicity = "MANY_MANY";
+  std::string relMultiplicity = "MANY_TO_MANY";
   if (ctx.oC_SymbolicName()) {
     relMultiplicity = transformSymbolicName(*ctx.oC_SymbolicName());
   }

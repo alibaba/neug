@@ -175,6 +175,12 @@ class NEUG_API GDSFunction {
   static BoundGraphEntryTableInfo bindRelEntry(
       main::ClientContext& clientContext,
       const std::vector<std::string>& triplets, const std::string& predicate);
+
+  static std::shared_ptr<binder::Expression> bindNodeOutput(
+      const function::TableFuncBindInput& bindInput,
+      const std::vector<catalog::TableCatalogEntry*>& nodeEntries,
+      const std::string& name,
+      const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);
 };
 
 }  // namespace graph

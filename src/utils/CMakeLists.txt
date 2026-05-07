@@ -1,12 +1,5 @@
-############################################ Generate Http service Proto ############################################
-set(HTTP_SERVICE_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto)
-set(HTTP_SERVICE_PROTO_FILES
-        ${HTTP_SERVICE_PROTO_DIR}/http_svc.proto)
-set(QUERY_RESPONSE_PROTO_FILES
-        ${HTTP_SERVICE_PROTO_DIR}/response.proto
-)
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service)
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/response)
+############################################ Proto Code Generation ############################################
+set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto)
 
 function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_FILES)
         # Prefer the built protoc target; fall back to found executable
@@ -68,51 +61,53 @@ function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_
         set(${OUT_SRCS} ${SRCS} PARENT_SCOPE)
 endfunction()
 
-# proto gen for http service proto
-# NOTICE: Currently, the auto generation of http service proto files is disabled to avoid introducing dependencies for protobuf-compiler.
-# We generate the proto files in advance and use them as source files.
-message(STATUS "Using system protobuf for http service proto generation")
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service)
-compile_proto(HTTP_SERVICE_PROTO_HDRS HTTP_SERVICE_PROTO_SRCS
-        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service
-        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service
-        ${HTTP_SERVICE_PROTO_DIR}
-        "${HTTP_SERVICE_PROTO_FILES}"
-)
-
-message(STATUS "Using system protobuf for query response proto generation")
+# --- Generate response proto ---
+message(STATUS "Generating query response proto")
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response)
 compile_proto(QUERY_RESPONSE_PROTO_HDRS QUERY_RESPONSE_PROTO_SRCS
         ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response
         ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response
-        ${HTTP_SERVICE_PROTO_DIR}
-        "${QUERY_RESPONSE_PROTO_FILES}"
+        ${PROTO_DIR}
+        "${PROTO_DIR}/response.proto"
 )
 
-############################################ Generate Physical Plan Proto ############################################
-set(GIE_COMPILER_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
-set(GIE_COMPILER_WRITE_PROTO_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
-
-# Remove the comments when you want to generate the proto files automatically.
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
-file(GLOB CODE_GEN_PROTOBUF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/*.proto")
-list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*http_svc\\.proto$")
-list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*response\\.proto$")
-compile_proto(PROTO_HDRS_GIE PROTO_SRCS_GIE
-        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
-        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
-        ${GIE_COMPILER_PROTO_DIR}
-        "${CODE_GEN_PROTOBUF_FILES}"
-)
-
-add_library(neug_plan_proto OBJECT ${PROTO_SRCS_GIE})
-
-# Ensure protoc is built before generating the plan proto sources
-if (TARGET protobuf::protoc)
-        add_dependencies(neug_plan_proto protobuf::protoc)
+# --- Generate http service proto (conditional) ---
+if (BUILD_HTTP_SERVER)
+        message(STATUS "Generating http service proto")
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service)
+        compile_proto(HTTP_SERVICE_PROTO_HDRS HTTP_SERVICE_PROTO_SRCS
+                ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service
+                ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/http_service
+                ${PROTO_DIR}
+                "${PROTO_DIR}/http_svc.proto"
+        )
 endif()
 
-     
+# --- Generate physical plan protos (all remaining *.proto) ---
+message(STATUS "Generating physical plan protos")
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
+file(GLOB PLAN_PROTO_FILES "${PROTO_DIR}/*.proto")
+list(FILTER PLAN_PROTO_FILES EXCLUDE REGEX ".*http_svc\\.proto$")
+list(FILTER PLAN_PROTO_FILES EXCLUDE REGEX ".*response\\.proto$")
+compile_proto(PLAN_PROTO_HDRS PLAN_PROTO_SRCS
+        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
+        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
+        ${PROTO_DIR}
+        "${PLAN_PROTO_FILES}"
+)
+
+# --- Unified proto OBJECT library ---
+set(ALL_PROTO_SRCS ${PLAN_PROTO_SRCS} ${QUERY_RESPONSE_PROTO_SRCS})
+if (BUILD_HTTP_SERVER)
+        list(APPEND ALL_PROTO_SRCS ${HTTP_SERVICE_PROTO_SRCS})
+endif()
+
+add_library(neug_proto OBJECT ${ALL_PROTO_SRCS})
+
+if (TARGET protobuf::protoc)
+        add_dependencies(neug_proto protobuf::protoc)
+endif()
+
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
         DESTINATION include
         FILES_MATCHING
@@ -123,23 +118,9 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
 file(GLOB_RECURSE UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 # exclude files end with .pb.cc
 list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
-# Remove the files in proto directory
 message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
-set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
-set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
-if (BUILD_HTTP_SERVER)
-        list(APPEND ALL_UTILS_SRC_FILES ${HTTP_SERVICE_PROTO_SRCS})
-endif()
-list(APPEND ALL_UTILS_SRC_FILES ${QUERY_RESPONSE_PROTO_SRCS})
+add_library(neug_utils OBJECT ${UTILS_SRC_FILES})
+set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utils> $<TARGET_OBJECTS:neug_proto> PARENT_SCOPE)
 
-
-add_library(neug_utils OBJECT ${ALL_UTILS_SRC_FILES})
-set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utils> $<TARGET_OBJECTS:neug_plan_proto> PARENT_SCOPE)
-
-add_dependencies(neug_utils neug_plan_proto)
-
-target_include_directories(neug_utils PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
-
-# Make all future targets depend on neug_plan_proto
-set_property(GLOBAL APPEND PROPERTY GLOBAL_DEPENDS_DEBUG_MODE neug_plan_proto)
+add_dependencies(neug_utils neug_proto)

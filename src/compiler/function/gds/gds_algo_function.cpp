@@ -98,7 +98,14 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
         if (var.hasAlias()) {
           alias = var.alias;
         }
-        columns.push_back(binder.createVariable(alias, column->second));
+        std::shared_ptr<binder::Expression> columnExpr;
+        if (column->second == common::LogicalTypeID::NODE) {
+          columnExpr = graph::GDSFunction::bindNodeOutput(
+              *input, graphEntry.getNodeEntries(), alias);
+        } else {
+          columnExpr = binder.createVariable(alias, column->second);
+        }
+        columns.push_back(std::move(columnExpr));
       } else {
         THROW_BINDER_EXCEPTION("Output variable " + var.name +
                                " not found in output columns.");
@@ -107,8 +114,15 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
   } else {
     for (auto& outputColumn : outputColumns) {
       // add ouput columns to scope if exists
-      columns.push_back(
-          binder.createVariable(outputColumn.first, outputColumn.second));
+      std::shared_ptr<binder::Expression> columnExpr;
+      if (outputColumn.second == common::LogicalTypeID::NODE) {
+        columnExpr = graph::GDSFunction::bindNodeOutput(
+            *input, graphEntry.getNodeEntries(), outputColumn.first);
+      } else {
+        columnExpr =
+            binder.createVariable(outputColumn.first, outputColumn.second);
+      }
+      columns.push_back(std::move(columnExpr));
     }
   }
   return std::make_unique<GDSFuncBindData>(std::move(columns), 0, input->params,

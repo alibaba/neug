@@ -126,6 +126,16 @@ def test_run_label_propagation(tmp_path):
         )
         conn.execute("LOAD gds;")
 
+        # node labels: person, organisation
         conn.execute(
-            "CALL label_propagation('my_subgraph', {concurrency: 10}) RETURN node, label;"
+            """
+            CALL label_propagation('my_subgraph', {concurrency: 10})
+            RETURN
+                node.id,
+                node.age,
+                node.fName,
+                node.name,
+                node.orgCode,
+                label;
+            """
         )

@@ -781,7 +781,7 @@ TableCatalogEntry* Binder::bindNodeTableEntry(const std::string& name) const {
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   if (!catalog->containsTable(transaction, name, useInternal)) {
-    THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", name));
+    THROW_SCHEMA_MISMATCH(stringFormat("Table {} does not exist.", name));
   }
   return catalog->getTableCatalogEntry(transaction, name, useInternal);
 }

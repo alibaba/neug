@@ -554,63 +554,32 @@ class StorageUpdateInterface : public StorageReadInterface,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) = 0;
 
-  virtual Status CreateVertexType(
-      const std::string& name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      const std::vector<std::string>& primary_key_names,
-      bool error_on_conflict) = 0;
+  virtual Status CreateVertexType(const CreateVertexTypeParam& config) = 0;
 
-  virtual Status CreateEdgeType(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-      EdgeStrategy ie_edge_strategy) = 0;
+  virtual Status CreateEdgeType(const CreateEdgeTypeParam& config) = 0;
 
   virtual Status AddVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) = 0;
+      const AddVertexPropertiesParam& config) = 0;
 
-  virtual Status AddEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) = 0;
+  virtual Status AddEdgeProperties(const AddEdgePropertiesParam& config) = 0;
 
   virtual Status RenameVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) = 0;
+      const RenameVertexPropertiesParam& config) = 0;
 
   virtual Status RenameEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) = 0;
+      const RenameEdgePropertiesParam& config) = 0;
 
   virtual Status DeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict) = 0;
+      const DeleteVertexPropertiesParam& config) = 0;
 
   virtual Status DeleteEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict) = 0;
+      const DeleteEdgePropertiesParam& config) = 0;
 
-  virtual Status DeleteVertexType(const std::string& vertex_type_name,
-                                  bool error_on_conflict = true) = 0;
+  virtual Status DeleteVertexType(const std::string& vertex_type_name) = 0;
 
   virtual Status DeleteEdgeType(const std::string& src_type,
                                 const std::string& dst_type,
-                                const std::string& edge_type,
-                                bool error_on_conflict) = 0;
+                                const std::string& edge_type) = 0;
 
   virtual void CreateCheckpoint() = 0;
 };
@@ -651,54 +620,21 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
-  Status CreateVertexType(
-      const std::string& name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      const std::vector<std::string>& primary_key_names,
-      bool error_on_conflict) override;
-  Status CreateEdgeType(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-      EdgeStrategy ie_edge_strategy) override;
-  Status AddVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) override;
-  Status AddEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) override;
+  Status CreateVertexType(const CreateVertexTypeParam& config) override;
+
+  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
+  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
   Status RenameVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) override;
-  Status RenameEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) override;
+      const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
   Status DeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict) override;
-  Status DeleteEdgeProperties(const std::string& src_type,
-                              const std::string& dst_type,
-                              const std::string& edge_type,
-                              const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict) override;
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true) override;
+      const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexType(const std::string& vertex_type_name) override;
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
-                        const std::string& edge_type,
-                        bool error_on_conflict) override;
+                        const std::string& edge_type) override;
 
  private:
   PropertyGraph& graph_;
