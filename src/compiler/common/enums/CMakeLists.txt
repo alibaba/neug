@@ -11,7 +11,7 @@ add_library(neug_common_enums
         drop_type.cpp
         extend_direction_util.cpp
         conflict_action.cpp)
-add_dependencies(neug_common_enums neug_plan_proto)
+add_dependencies(neug_common_enums neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common_enums>

@@ -102,7 +102,7 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
           static_cast<label_t>(vertex.label()));
       auto it = std::find(prop_names.begin(), prop_names.end(), prop_);
       if (it == prop_names.end()) {
-        prop_values.push_back(Value(type_));  // null value
+        prop_values.push_back(Value(elem_type_));  // null value
       } else {
         int prop_id = std::distance(prop_names.begin(), it);
         Property prop =
@@ -143,7 +143,7 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
           edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
       auto it = std::find(prop_names.begin(), prop_names.end(), prop_);
       if (it == prop_names.end()) {
-        prop_values.push_back(Value(type_));  // null value
+        prop_values.push_back(Value(elem_type_));  // null value
       } else {
         int prop_id = std::distance(prop_names.begin(), it);
         const auto& accessor = graph_.GetEdgeDataAccessor(

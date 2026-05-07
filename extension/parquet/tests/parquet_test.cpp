@@ -534,7 +534,7 @@ TEST_F(ParquetTest, TestIntegration_ColumnPruning) {
   PARQUET_THROW_NOT_OK(
       parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 1));
 
-  // Set up shared state with skipColumns
+  // Set up shared state with projectColumns
   auto sharedState = std::make_shared<reader::ReadSharedState>();
   auto entrySchema = std::make_shared<reader::TableEntrySchema>();
   entrySchema->columnNames = {"id", "name", "score", "grade"};
@@ -551,20 +551,20 @@ TEST_F(ParquetTest, TestIntegration_ColumnPruning) {
   externalSchema.file = fileSchema;
   sharedState->schema = std::move(externalSchema);
   
-  // Neug's column pruning: skip "name" column
-  sharedState->skipColumns = {"name"};
+  // Neug's column projection: id, score, grade (exclude "name")
+  sharedState->projectColumns = {"id", "score", "grade"};
 
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
   reader->read(localState, ctx);
 
-  // Verify extension translates skipColumns to Arrow projection
-  // Should have 3 columns (id, score, grade - "name" is skipped)
+  // Verify extension translates projectColumns to Arrow projection
+  // Should have 3 columns (id, score, grade - "name" is excluded)
   EXPECT_EQ(ctx.col_num(), 3)
-      << "Extension should translate Neug's skipColumns to Arrow column projection";
+      << "Extension should translate Neug's projectColumns to Arrow column projection";
   EXPECT_EQ(sharedState->columnNum(), 3)
-      << "Extension should update columnNum after pruning";
+      << "Extension should update columnNum after projection";
 }
 
 TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
@@ -761,7 +761,7 @@ TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
   externalSchema.entry = entrySchema;
   externalSchema.file = fileSchema;
   sharedState->schema = std::move(externalSchema);
-  sharedState->skipColumns = {"name"};  // Prune "name" column
+  sharedState->projectColumns = {"id", "score", "grade"};  // Exclude "name"
   sharedState->skipRows = filterExpr;   // Filter score > 90.0
 
   auto reader = createParquetReader(sharedState);

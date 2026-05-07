@@ -663,7 +663,7 @@ Value Value::FromJson(const rapidjson::Value& json_value,
           execution::timestamp_ms_t(json_value.GetInt64()));
     } else if (json_value.IsString()) {
       return execution::Value::TIMESTAMPMS(
-          execution::timestamp_ms_t(std::stoll(json_value.GetString())));
+          execution::timestamp_ms_t(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int64/string for TimestampMs type");
