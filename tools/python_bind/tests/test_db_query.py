@@ -3005,3 +3005,66 @@ def test_duplicate_project_column(tmp_path):
         "ORDER BY node_id LIMIT 100"
     )
     assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
+
+
+def test_not_starts_with(tmp_path):
+    db_dir = tmp_path / "test_not_starts_with"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id STRING);")
+    conn.execute("CREATE (:Person {id: 'n4'});")
+    conn.execute("CREATE (:Person {id: 'n8'});")
+    conn.execute(
+        "MATCH (a:Person {id: 'n4'}), (b:Person {id: 'n8'}) CREATE (a)-[:Knows {id: 'e19'}]->(b);"
+    )
+
+    result = conn.execute(
+        """
+        MATCH (a:Person {id: 'n4'})-[r0:Knows {id: 'e19'}]->(b:Person {id: 'n8'})
+        WHERE NOT ('a' STARTS WITH 'a') OR (r0.id IN [a.id])
+        RETURN a.id AS source_id, b.id AS target_id;
+    """
+    )
+
+    records = list(result)
+    assert records == []
+    conn.close()
+    db.close()
+
+
+def test_not_list_contains(tmp_path):
+    db_dir = tmp_path / "test_not_list_contains"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE L1(id STRING, p0 STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (:L1 {id: 'n1', p0: 's3836'});")
+    conn.execute("CREATE (:L1 {id: 'n2', p0: 'x'});")
+    conn.execute("CREATE (:L1 {id: 'n3', p0: 'y'});")
+
+    result = conn.execute("MATCH (n:L1) RETURN count(n) AS pair_count;")
+    records = list(result)
+    assert records == [[3]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[1]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE NOT (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[2]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE ((n.p0 IN ['s3836', 'L1'])) IS NULL RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[0]]
+    conn.close()
+    db.close()
