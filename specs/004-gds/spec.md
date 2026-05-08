@@ -431,6 +431,56 @@ RETURN label, count(*) AS community_size
 ORDER BY community_size DESC
 ```
 
+### 1.6 同质图需求
+
+下面是对同质图和异质图的定义：
+
+| 类型 | 定义 |
+| --- | --- |
+| **同质图** | 单一的顶点类型与单一的边类型（单一关系语义）；例如 `person` 和 `person_knows_person` 组成的子图就是一个同质图。 |
+| **异质图** | 多种顶点类型与/或多种边类型；例如 `person`, `city`, `person_locatedin_city` 组成的子图是异质图，又例如 `person`, `city`, `person_knows_person`, `person_locatedin_city` 也为异质图。 |
+
+下面表格汇总了不同算法对同质图和异质图的需求：
+
+| 算法 | 是否**同质图** | 描述 |
+| --- | --- | --- |
+| BFS | **否** | 广度优先搜索，逐层遍历图中节点，不依赖边/点类型的统一性 |
+| PageRank | **是** | 基于链接结构计算节点重要性；要求边具有同质语义以保证转移概率的可比性 |
+| WCC | **否** | 弱连通分量检测，只关注连通性，不区分边/点类型 |
+| Label Propagation（CDLP） | **是** | 通过邻居标签传播发现社区；要求同质边以确保标签传播语义一致 |
+| LCC | **是** | 局部聚类系数，计算节点邻居间的三角形密度；要求同质边以使三角形计数有意义 |
+| SSSP | **否** | 单源最短路径，只需边权可加即可，不依赖边/点类型的统一性 |
+| K-Core | **否** | 迭代剥离度数小于 k 的节点得到子图；只关注度数，不区分边/点类型 |
+| Leiden | **是** | 社区检测算法（Louvain 改进版），基于模块度优化；要求同质边以保证模块度计算的语义一致性 |
+
+### 1.7 方向性需求
+
+NeuG 底层存储为**有向图**（CSR for outgoing, CSC for incoming）。LDBC Graphalytics 的数据集分为有向和无向两类；对于无向数据集，只需导入一种方向 outging 边 和 incoming 边即可，算法通过双向扩展来恢复无向语义。
+
+#### 有向 vs 无向实现
+
+LDBC Graphalytics 官方标准要求 6 个核心算法（BFS, PageRank, WCC, CDLP, LCC, SSSP）同时支持有向图和无向图。我们通过 `directed` 配置参数（参考 Neo4j GDS）区分两种实现：
+
+| 配置 | 邻居扩展方式 | 适用场景 |
+| --- | --- | --- |
+| `directed: true` | 仅通过 `out_neighbors()` 扩展 | 有向数据集 |
+| `directed: false` | 通过 `out_neighbors() ∪ in_neighbors()` 双向扩展 | 无向数据集（只需导入单方向边） |
+
+**示例**：
+
+```cypher
+CALL pagerank('page_graph', {damping: 0.85, max_iterations: 30, concurrency: 8, directed: true})
+YIELD node, rank
+```
+
+#### 各算法的方向性分类
+
+| 分类 | 算法 | 说明 |
+| --- | --- | --- |
+| 需要区分有向/无向 | BFS, PageRank, SSSP | 算法结构相同，仅邻居扩展方式不同 |
+| 需要区分有向/无向 | CDLP, LCC | 有向与无向的计算语义不同（CDLP 互为邻居计两次；LCC 分子计有向边数） |
+| 仅无向实现 | WCC, K-Core, Leiden | 算法定义本身忽略方向，始终使用 `out_neighbors() ∪ in_neighbors()`，`directed` 参数无效 |
+
 ---
 
 ## 2. 用户接口：Extension 机制
