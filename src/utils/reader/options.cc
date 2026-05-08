@@ -66,8 +66,8 @@ std::shared_ptr<arrow::Schema> createSchema(const EntrySchema& entrySchema) {
   return std::make_shared<arrow::Schema>(fields);
 }
 
-bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
-  if (state->skipColumns.empty()) {
+bool ArrowOptionsBuilder::projectColumns(ArrowOptions& options) {
+  if (state->projectColumns.empty()) {
     return true;
   }
 
@@ -80,26 +80,19 @@ bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
   }
 
   const EntrySchema& entrySchema = *state->schema.entry;
-
-  // Build projection columns excluding skipped ones
-  std::vector<std::string> project_columns;
+  const auto& columns = state->projectColumns;
   const auto& allColumnNames = entrySchema.columnNames;
-  project_columns.reserve(allColumnNames.size());
-  for (const auto& name : allColumnNames) {
-    if (std::find(state->skipColumns.begin(), state->skipColumns.end(), name) ==
-        state->skipColumns.end()) {
-      project_columns.push_back(name);
+  for (const auto& column : columns) {
+    if (std::find(allColumnNames.begin(), allColumnNames.end(), column) ==
+        allColumnNames.end()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Column not found in entry schema: " +
+                                       column);
     }
   }
 
-  if (project_columns.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Empty project columns after column pruning");
-  }
-
   auto dataset_schema = createSchema(entrySchema);
-  auto project_desc = arrow::dataset::ProjectionDescr::FromNames(
-      project_columns, *dataset_schema);
+  auto project_desc =
+      arrow::dataset::ProjectionDescr::FromNames(columns, *dataset_schema);
   if (!project_desc.ok()) {
     LOG(ERROR) << "Failed to build projection: "
                << project_desc.status().message();

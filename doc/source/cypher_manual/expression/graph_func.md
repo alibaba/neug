@@ -7,7 +7,7 @@ In addition to the various relational data-based function operations introduced 
 Function | Description | Example
 ---------|-------------|--------
 ID() | Get the Internal ID of a node/edge | Return (a) Return ID(a)
-LABEL() | Get the label of a node/edge | Match (a) Return LABEL(a)
+LABEL()/LABELS() | Get the label of a node/edge | Match (a) Return LABEL(a)
 
 ## Edge Function
 

@@ -1,6 +1,5 @@
 add_executable(bulk_loader bulk_loader.cc)
-target_link_libraries(bulk_loader PRIVATE neug ${GLOG_LIBRARIES})
-
+target_link_libraries(bulk_loader PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${ARROW_LIB})
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(bulk_loader

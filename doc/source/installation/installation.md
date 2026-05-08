@@ -77,7 +77,7 @@ A sample test.cc looks like:
 #include <iostream>
 
 int main() {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open("test_db");
   auto conn = db.Connect();
   std::cout << "NeuG C++ client installation successful!" << std::endl;

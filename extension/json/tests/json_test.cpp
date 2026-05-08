@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include <arrow/array.h>
 #include <arrow/filesystem/localfs.h>
 #include <arrow/type.h>
 #include "neug/compiler/common/case_insensitive_map.h"
@@ -100,7 +101,7 @@ class JsonTest : public ::testing::Test {
       const std::string& csvFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
       const common::case_insensitive_map_t<std::string>& options = {},
-      const std::vector<std::string>& skipColumns = {},
+      const std::vector<std::string>& projectColumns = {},
       std::shared_ptr<::common::Expression> skipRows = nullptr) {
     auto sharedState = std::make_shared<reader::ReadSharedState>();
 
@@ -120,7 +121,7 @@ class JsonTest : public ::testing::Test {
     externalSchema.file = fileSchema;
 
     sharedState->schema = std::move(externalSchema);
-    sharedState->skipColumns = skipColumns;
+    sharedState->projectColumns = projectColumns;
     sharedState->skipRows = skipRows;
 
     return sharedState;
