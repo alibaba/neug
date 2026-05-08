@@ -50,22 +50,23 @@ class EdgeTableTest : public ::testing::Test {
     schema_.AddVertexLabel(
         "comment", {}, {}, {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
         static_cast<size_t>(1) << 32, "comment vertex label");
-    schema_.AddEdgeLabel("person", "comment", "create0", {}, {},
-                         neug::EdgeStrategy::kMultiple,
-                         neug::EdgeStrategy::kMultiple, true, true, false,
-                         "person creates comment edge without properties");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create0", {}, {}, neug::EdgeStrategy::kMultiple,
+        neug::EdgeStrategy::kMultiple, true, true, std::nullopt,
+        "person creates comment edge without properties");
     schema_.AddEdgeLabel(
         "person", "comment", "create1", {neug::DataTypeId::kInt32}, {"data"},
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
-        true, false, "person creates comment edge");
+        true, std::nullopt, "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create2", {neug::DataTypeId::kVarchar}, {"data"},
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
-        true, false, "person creates comment edge");
+        true, std::nullopt, "person creates comment edge");
     schema_.AddEdgeLabel("person", "comment", "create3",
                          {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
                          {"data0", "data1"}, neug::EdgeStrategy::kMultiple,
-                         neug::EdgeStrategy::kMultiple, true, true, false,
+                         neug::EdgeStrategy::kMultiple, true, true,
+                         std::nullopt,
                          "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
@@ -1066,7 +1067,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     }
   }
   this->ExpectBundledStats(edge_num - delete_count);
-  this->edge_table->Compact(true, false, neug::MAX_TIMESTAMP);
+  this->edge_table->Compact(true, std::nullopt, neug::MAX_TIMESTAMP);
   this->ExpectBundledStats(edge_num - delete_count);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {

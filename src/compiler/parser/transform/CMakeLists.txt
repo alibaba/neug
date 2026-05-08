@@ -16,7 +16,7 @@ add_library(neug_parser_transform
         transform_attach_database.cpp
         transform_detach_database.cpp
         transform_use_database.cpp)
-add_dependencies(neug_parser_transform neug_plan_proto)
+add_dependencies(neug_parser_transform neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_parser_transform>

@@ -663,7 +663,7 @@ Value Value::FromJson(const rapidjson::Value& json_value,
           execution::timestamp_ms_t(json_value.GetInt64()));
     } else if (json_value.IsString()) {
       return execution::Value::TIMESTAMPMS(
-          execution::timestamp_ms_t(std::stoll(json_value.GetString())));
+          execution::timestamp_ms_t(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int64/string for TimestampMs type");
@@ -772,7 +772,7 @@ Property value_to_property(const Value& value) {
   }
 }
 
-Value property_to_value(const Property& property, const DataType& type) {
+Value property_to_value(const Property& property) {
   switch (property.type()) {
   case DataTypeId::kBoolean:
     return Value::BOOLEAN(property.as_bool());
@@ -789,11 +789,7 @@ Value property_to_value(const Property& property, const DataType& type) {
   case DataTypeId::kDouble:
     return Value::DOUBLE(property.as_double());
   case DataTypeId::kVarchar: {
-    auto str_type_info = type.RawExtraTypeInfo();
-    auto max_length = str_type_info
-                          ? str_type_info->Cast<StringTypeInfo>().max_length
-                          : STRING_DEFAULT_MAX_LENGTH;
-    return Value::VARCHAR(std::string(property.as_string_view()), max_length);
+    return Value::STRING(std::string(property.as_string_view()));
   }
   case DataTypeId::kDate:
     return Value::DATE(property.as_date());
