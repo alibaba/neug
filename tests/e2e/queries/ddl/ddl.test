@@ -26,12 +26,12 @@ Binder exception: Table organisation does not exist.
 Binder exception: Table movies does not exist.
 -STATEMENT create node table organisation (ID INT64, name STRING, orgCode INT64, mark DOUBLE, score INT64, history STRING, licenseValidInterval INTERVAL, rating DOUBLE, PRIMARY KEY (ID))
 ---- ok
--STATEMENT create rel table studyAt (FROM person TO organisation, year INT64, places STRING[], MANY_ONE) WITH (storage_direction = 'both');
+-STATEMENT create rel table studyAt (FROM person TO organisation, year INT64, places STRING[], MANY_TO_ONE) WITH (storage_direction = 'both');
 ---- ok
--STATEMENT create rel table workAt (FROM person TO organisation, year INT64, grading DOUBLE[2], rating float, MANY_ONE) WITH (storage_direction = 'invalid');
+-STATEMENT create rel table workAt (FROM person TO organisation, year INT64, grading DOUBLE[2], rating float, MANY_TO_ONE) WITH (storage_direction = 'invalid');
 ---- error
 Runtime exception: Cannot parse invalid as ExtendDirection.
--STATEMENT create rel table workAt (FROM person TO organisation, year INT64, grading DOUBLE[2], rating float, MANY_ONE) WITH (storage_direction = 'fwd');
+-STATEMENT create rel table workAt (FROM person TO organisation, year INT64, grading DOUBLE[2], rating float, MANY_TO_ONE) WITH (storage_direction = 'fwd');
 ---- ok
 -STATEMENT match (o:organisation) return o.name
 ---- ok
@@ -50,7 +50,7 @@ Runtime exception: Cannot parse invalid as ExtendDirection.
 -LOG DDLOutputMessages
 -STATEMENT CREATE NODE TABLE university(ID INT64, PRIMARY KEY(ID))
 ---- ok
--STATEMENT CREATE REL TABLE nearTo(FROM university TO university, MANY_MANY)
+-STATEMENT CREATE REL TABLE nearTo(FROM university TO university, MANY_TO_MANY)
 ---- ok
 -STATEMENT DROP TABLE nearTo;
 ---- ok
@@ -97,7 +97,7 @@ Binder exception: Found duplicate FROM-TO person-person pairs.
 ---- 0
 
 -LOG CreateRelTableCommitNormalExecution
--STATEMENT CREATE REL TABLE likes(FROM person TO organisation, RATING INT64, MANY_ONE)
+-STATEMENT CREATE REL TABLE likes(FROM person TO organisation, RATING INT64, MANY_TO_ONE)
 ---- ok
 -STATEMENT MATCH (:person)-[e:likes]->(:organisation) RETURN count(*)
 ---- 1

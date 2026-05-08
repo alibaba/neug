@@ -92,7 +92,13 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
     auto subquery = getBestPlan(planQuery(*querySource.statement));
     auto lastOp = plan->getLastOperator();
     if (lastOp) {
-      subquery->getLastOperator()->addChild(std::move(lastOp));
+      auto child = subquery->getLastOperator();
+      while (child && child->getNumChildren() > 0) {
+        child = child->getChild(0);
+      }
+      if (child) {
+        child->addChild(std::move(lastOp));
+      }
     }
     plan = std::move(subquery);
     if (plan->getSchema()->getNumGroups() > 1) {
@@ -133,7 +139,13 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
     auto subquery = getBestPlan(planQuery(*querySource.statement));
     auto lastOp = plan->getLastOperator();
     if (lastOp) {
-      subquery->getLastOperator()->addChild(std::move(lastOp));
+      auto child = subquery->getLastOperator();
+      while (child && child->getNumChildren() > 0) {
+        child = child->getChild(0);
+      }
+      if (child) {
+        child->addChild(std::move(lastOp));
+      }
     }
     plan = std::move(subquery);
     if (plan->getSchema()->getNumGroups() == 1 &&

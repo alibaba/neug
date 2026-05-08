@@ -6,7 +6,7 @@ add_library(neug_catalog
         catalog_set.cpp
         property_definition_collection.cpp)
 
-add_dependencies(neug_catalog neug_plan_proto)
+add_dependencies(neug_catalog neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_catalog>

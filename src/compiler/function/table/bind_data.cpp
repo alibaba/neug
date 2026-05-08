@@ -27,18 +27,6 @@
 namespace neug {
 namespace function {
 
-std::vector<bool> TableFuncBindData::getColumnSkips() const {
-  if (columnSkips
-          .empty()) {  // If not specified, all columns should be scanned.
-    std::vector<bool> skips;
-    for (auto i = 0u; i < getNumColumns(); ++i) {
-      skips.push_back(false);
-    }
-    return skips;
-  }
-  return columnSkips;
-}
-
 bool TableFuncBindData::getIgnoreErrorsOption() const {
   return common::CopyConstants::DEFAULT_IGNORE_ERRORS;
 }

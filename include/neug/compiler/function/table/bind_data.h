@@ -56,15 +56,14 @@ struct NEUG_API TableFuncBindData {
       : columns{other.columns},
         numRows{other.numRows},
         params(other.params),
-        columnSkips{other.columnSkips} {}
+        projectColumns{other.projectColumns} {}
   TableFuncBindData& operator=(const TableFuncBindData& other) = delete;
   virtual ~TableFuncBindData() = default;
 
   common::idx_t getNumColumns() const { return columns.size(); }
-  void setColumnSkips(std::vector<bool> skips) {
-    columnSkips = std::move(skips);
+  void setProjectColumns(std::vector<std::string> projectColumns) {
+    this->projectColumns = std::move(projectColumns);
   }
-  std::vector<bool> getColumnSkips() const;
 
   std::shared_ptr<binder::Expression> getRowSkips() const { return rowSkips; }
 
@@ -90,8 +89,12 @@ struct NEUG_API TableFuncBindData {
     return *common::neug_dynamic_cast<TARGET*>(this);
   }
 
+  const std::vector<std::string>& getProjectColumns() const {
+    return projectColumns;
+  }
+
  protected:
-  std::vector<bool> columnSkips;
+  std::vector<std::string> projectColumns;
   std::shared_ptr<binder::Expression> rowSkips;
 };
 
