@@ -69,3 +69,17 @@ TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response
 - **Returns:**
   - **str**
     The result in Bolt response format.
+
+<a id="neug.query_result.QueryResult.to_arrow"></a>
+
+### to\_arrow
+
+```python
+def to_arrow()
+```
+
+Convert the result to an Arrow table.
+
+- **Returns:**
+  - **pyarrow.Table**
+    The result converted to an Arrow table.
