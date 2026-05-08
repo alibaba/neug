@@ -16,6 +16,7 @@
 #include "neug/utils/pb_utils.h"
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
+#include <google/protobuf/util/json_util.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
 #include <rapidjson/prettywriter.h>
@@ -39,6 +40,25 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+std::string proto_to_string(const google::protobuf::Message& proto) {
+  std::string json_str;
+  google::protobuf::util::JsonPrintOptions options;
+  options.add_whitespace = true;
+#if PROTOBUF_VERSION < 4026000
+  options.always_print_primitive_fields = true;
+#else
+  options.always_print_fields_with_no_presence = true;
+#endif
+  options.preserve_proto_field_names = true;
+  auto status =
+      google::protobuf::util::MessageToJsonString(proto, &json_str, options);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to convert proto to string: " +
+                        status.ToString());
+  }
+  return json_str;
+}
 
 std::vector<std::string> parse_result_schema_column_names(
     const std::string& result_schema) {

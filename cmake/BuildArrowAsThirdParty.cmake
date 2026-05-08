@@ -184,24 +184,24 @@ function(build_arrow_as_third_party)
         # Try different possible Arrow target names
         if(TARGET Arrow::arrow_static)
             message(STATUS "Found Arrow::arrow_static target")
-            set(ARROW_LIB Arrow::arrow_static)
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
+            set(ARROW_BASE_LIB Arrow::arrow_static)
+            set(ARROW_LIB ${ARROW_BASE_LIB})
         elseif(TARGET arrow_static)
             message(STATUS "Found arrow_static target")
-            set(ARROW_LIB arrow_static)
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
+            set(ARROW_BASE_LIB arrow_static)
+            set(ARROW_LIB ${ARROW_BASE_LIB})
         elseif(TARGET Arrow::arrow)
             message(STATUS "Found Arrow::arrow target (using as fallback)")
-            set(ARROW_LIB Arrow::arrow)
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
+            set(ARROW_BASE_LIB Arrow::arrow)
+            set(ARROW_LIB ${ARROW_BASE_LIB})
         elseif(TARGET arrow)
             message(STATUS "Found arrow target (using as fallback)")
-            set(ARROW_LIB arrow)
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
+            set(ARROW_BASE_LIB arrow)
+            set(ARROW_LIB ${ARROW_BASE_LIB})
         elseif(TARGET arrow_shared)
             message(WARNING "Only found arrow_shared target, but we prefer static linking")
-            set(ARROW_LIB arrow_shared)
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
+            set(ARROW_BASE_LIB arrow_shared)
+            set(ARROW_LIB ${ARROW_BASE_LIB})
         else()
             # List Arrow-related targets for debugging
             message(STATUS "Searching for Arrow targets...")
@@ -234,7 +234,6 @@ function(build_arrow_as_third_party)
 
         if(ARROW_ACERO_LIB)
             list(APPEND ARROW_LIB ${ARROW_ACERO_LIB})
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
         endif()
 
         # Try different possible Arrow Dataset target names
@@ -255,9 +254,8 @@ function(build_arrow_as_third_party)
             set(ARROW_DATASET_LIB "")
         endif()
 
-        if(ARROW_DATASET_LIB) 
+        if(ARROW_DATASET_LIB)
             list(APPEND ARROW_LIB ${ARROW_DATASET_LIB})
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
         endif()
 
         message(STATUS "Arrow source directory found: ${arrow_SOURCE_DIR}")
@@ -287,9 +285,16 @@ function(build_arrow_as_third_party)
 
         if(ARROW_PARQUET_LIB)
             list(APPEND ARROW_LIB ${ARROW_PARQUET_LIB})
-            set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
-            set(ARROW_PARQUET_LIB ${ARROW_PARQUET_LIB} PARENT_SCOPE)
         endif()
+
+        # Propagate individual component variables so that downstream targets
+        # (e.g. extensions) can link only the Arrow components they need,
+        # instead of the full ARROW_LIB list.
+        set(ARROW_BASE_LIB ${ARROW_BASE_LIB} PARENT_SCOPE)
+        set(ARROW_ACERO_LIB ${ARROW_ACERO_LIB} PARENT_SCOPE)
+        set(ARROW_DATASET_LIB ${ARROW_DATASET_LIB} PARENT_SCOPE)
+        set(ARROW_PARQUET_LIB ${ARROW_PARQUET_LIB} PARENT_SCOPE)
+        set(ARROW_LIB ${ARROW_LIB} PARENT_SCOPE)
 
         # Set additional Arrow variables for compatibility
         set(ARROW_FOUND TRUE PARENT_SCOPE)

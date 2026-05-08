@@ -16,11 +16,17 @@ find_dependency(Threads)
 find_dependency(ZLIB)
 find_dependency(OpenSSL)
 find_package(absl REQUIRED CONFIG)
+find_dependency(Protobuf CONFIG)
 set(_neug_glog_module_dir "${NEUG_HOME}/share/glog/cmake")
 list(APPEND CMAKE_MODULE_PATH "${_neug_glog_module_dir}")
 find_dependency(Unwind)
 
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
+if(TARGET protobuf::libprotobuf)
+    set_property(TARGET neug::neug APPEND PROPERTY
+        INTERFACE_LINK_LIBRARIES "protobuf::libprotobuf")
+endif()
+
 
 set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
