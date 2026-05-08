@@ -5,9 +5,7 @@ message(STATUS "C Compiler: ${CMAKE_C_COMPILER}")
 message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER}")
  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -Ofast")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
-FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(GSL REQUIRED)
-include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${GSL_INCLUDE_DIRS})
 include_directories(src)
 
@@ -24,7 +22,7 @@ if(FASTEST_LIB_SOURCES OR FASTEST_LIB_HEADERS)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
     )
-    target_link_libraries(FaSTestLib PUBLIC Boost::boost ${GSL_LIBRARIES})
+    target_link_libraries(FaSTestLib PUBLIC ${GSL_LIBRARIES})
 
     # 安装和导出FaSTestLib
     install(TARGETS FaSTestLib

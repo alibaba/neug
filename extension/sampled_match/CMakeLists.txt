@@ -1,5 +1,4 @@
 # Find required packages for FaSTest
-find_package(Boost REQUIRED)
 find_package(GSL REQUIRED)
 
 # Collect FaSTest source files (header-only library with some cpp files)
@@ -25,7 +24,6 @@ target_include_directories(neug_sampled_match_extension PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
     ${GSL_INCLUDE_DIRS})
 
 # Include rapidjson for JSON parsing
@@ -42,7 +40,6 @@ target_include_directories(neug_sampled_match_extension PRIVATE SYSTEM
 # happens to expose (or not expose) them.
 target_link_libraries(neug_sampled_match_extension PRIVATE
     ${GSL_LIBRARIES}
-    Boost::boost
     neug
     protobuf::libprotobuf
 )
@@ -72,7 +69,6 @@ if(BUILD_TEST)
         neug
         GSL::gsl
         GSL::gslcblas
-        Boost::boost
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}
         ${OPENSSL_LIBRARIES}

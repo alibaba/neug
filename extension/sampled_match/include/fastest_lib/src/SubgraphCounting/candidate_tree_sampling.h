@@ -21,9 +21,55 @@
  */
 
 #pragma once
-#include <boost/math/distributions.hpp>
+#include <gsl/gsl_cdf.h>
 #include "../SubgraphMatching/candidate_space.h"
 #include "sampled_match_data_graph_meta.h"
+
+namespace neug_sampled_match_stats {
+    // Clopper-Pearson exact confidence-interval bounds, drop-in replacement for
+    // boost::math::binomial_distribution::find_{lower,upper}_bound_on_p.
+    // alpha is the one-sided tail mass (e.g. 0.05/2 for a 95% two-sided CI).
+    //
+    // Implemented as bisection on gsl_cdf_beta_P (the regularized incomplete
+    // beta CDF). gsl_cdf_beta_Pinv exists, but its Newton iteration fails to
+    // converge near a≈b (verified pathology at n=10000,s=5000) and aborts via
+    // GSL's default error handler. The CDF itself is monotone and well-tested,
+    // so bisection trades a handful of evaluations (≈60 iters → ~1e-18) for
+    // unconditional robustness; the surrounding sampling loop calls this at
+    // most once per 100 trials so the overhead is negligible.
+    inline double beta_quantile(double p, double a, double b) {
+        double lo = 0.0, hi = 1.0;
+        for (int i = 0; i < 60; ++i) {
+            double mid = 0.5 * (lo + hi);
+            if (mid == lo || mid == hi) break;
+            if (gsl_cdf_beta_P(mid, a, b) < p) lo = mid;
+            else hi = mid;
+        }
+        return 0.5 * (lo + hi);
+    }
+    inline long double clopper_pearson_lower(long trials, long success, double alpha) {
+        if (success <= 0) return 0.0L;
+        if (success >= trials) {
+            // boost returns alpha^(1/n).
+            return static_cast<long double>(beta_quantile(alpha, static_cast<double>(trials), 1.0));
+        }
+        return static_cast<long double>(beta_quantile(
+            alpha,
+            static_cast<double>(success),
+            static_cast<double>(trials - success + 1)));
+    }
+    inline long double clopper_pearson_upper(long trials, long success, double alpha) {
+        if (success >= trials) return 1.0L;
+        if (success <= 0) {
+            // boost returns 1 - alpha^(1/n).
+            return static_cast<long double>(beta_quantile(1.0 - alpha, 1.0, static_cast<double>(trials)));
+        }
+        return static_cast<long double>(beta_quantile(
+            1.0 - alpha,
+            static_cast<double>(success + 1),
+            static_cast<double>(trials - success)));
+    }
+}
 
 // Use DataGraphMeta from neug namespace
 using neug::function::DataGraphMeta;
@@ -381,8 +427,8 @@ namespace GraphLib {
 
                     if (trials >= 1000 and trials % 100 == 0 && success >= sample_size) {
                         std::cout << "trials: " << trials << ", success: " << success << " " << sample_size <<std::endl;
-                        long double wplus = boost::math::binomial_distribution<>::find_upper_bound_on_p(trials, success, 0.05/2);
-                        long double wminus = boost::math::binomial_distribution<>::find_lower_bound_on_p(trials, success, 0.05/2);
+                        long double wplus = neug_sampled_match_stats::clopper_pearson_upper(trials, success, 0.05/2);
+                        long double wminus = neug_sampled_match_stats::clopper_pearson_lower(trials, success, 0.05/2);
                         if (rhohat * 0.8 < wminus && wplus < rhohat * 1.25) {
                             timer.Stop();
                             break;
