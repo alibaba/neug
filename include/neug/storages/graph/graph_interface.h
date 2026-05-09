@@ -347,6 +347,17 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return graph_.schema(); }
 
+  /**
+   * @brief Underlying property graph (stable for the lifetime of an open DB).
+   *
+   * Per-query execution passes a short-lived `StorageAPUpdateInterface` (or
+   * similar) wrapper on the stack; its address must not be used as a cache
+   * key. Callers that need a stable identity should key off `&property_graph()`
+   * instead.
+   */
+  const PropertyGraph& property_graph() const { return graph_; }
+  timestamp_t read_timestamp() const { return read_ts_; }
+
  private:
   const PropertyGraph& graph_;
   timestamp_t read_ts_;
