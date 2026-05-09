@@ -60,6 +60,30 @@ planner::LogicalOperator* getTailProject(LogicalPlan* plan) {
              : nullptr;
 }
 
+// get parent of the target op by walking down from the plan root.
+// Returns the parent operator if found, otherwise nullptr.
+static LogicalOperator* findParentImpl(
+    const std::shared_ptr<LogicalOperator>& current, LogicalOperator* target) {
+  for (uint32_t i = 0; i < current->getNumChildren(); ++i) {
+    if (current->getChild(i).get() == target) {
+      return current.get();
+    }
+    auto* result = findParentImpl(current->getChild(i), target);
+    if (result) {
+      return result;
+    }
+  }
+  return nullptr;
+}
+
+LogicalOperator* getParent(LogicalPlan* plan, LogicalOperator* target) {
+  auto root = plan->getLastOperator();
+  if (!root || root.get() == target) {
+    return nullptr;
+  }
+  return findParentImpl(root, target);
+}
+
 std::shared_ptr<planner::LogicalOperator>
 ProjectIntoDataSourceOptimizer::visitOperator(
     const std::shared_ptr<planner::LogicalOperator>& op) {
@@ -145,6 +169,13 @@ ProjectIntoDataSourceOptimizer::visitProjectionReplace(
   auto tailProject = getTailProject(plan);
   // keep tail projection if plan need to sink results, otherwise, remove it.
   if (gopt::GResultSchema::inferFromExpr(*plan) && tailProject == op.get()) {
+    return op;
+  }
+  auto parentProject = getParent(plan, op.get());
+  // if parent of the project operator is COPY_TO, then keep the project op,
+  // COPY_TO needs a PROJECTION or AGGREGATE child to sink results.
+  if (parentProject &&
+      parentProject->getOperatorType() == LogicalOperatorType::COPY_TO) {
     return op;
   }
   return funcCall;
