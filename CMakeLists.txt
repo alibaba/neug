@@ -579,15 +579,13 @@ endif()
 
 #find arrow----------------------------------------------------------------------
 
-# Configure Arrow JSON support if json extension is enabled
-if(BUILD_EXTENSIONS AND "json" IN_LIST BUILD_EXTENSIONS)
-    set(ARROW_JSON ON CACHE BOOL "" FORCE)
-    # Use system RapidJSON instead of building it (project already has rapidjson in third_party)
-    set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)
-    # Point Arrow to use the project's RapidJSON
-    set(RapidJSON_ROOT "${CMAKE_SOURCE_DIR}/third_party/rapidjson" CACHE PATH "" FORCE)
-    message(STATUS "Arrow JSON support enabled for json extension")
-endif()
+# Always enable Arrow JSON support (built-in)
+set(ARROW_JSON ON CACHE BOOL "" FORCE)
+# Use system RapidJSON instead of building it (project already has rapidjson in third_party)
+set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)
+# Point Arrow to use the project's RapidJSON
+set(RapidJSON_ROOT "${CMAKE_SOURCE_DIR}/third_party/rapidjson" CACHE PATH "" FORCE)
+message(STATUS "Arrow JSON support enabled (built-in)")
 
 # Configure Arrow Parquet support if parquet extension is enabled
 if(BUILD_EXTENSIONS AND "parquet" IN_LIST BUILD_EXTENSIONS)

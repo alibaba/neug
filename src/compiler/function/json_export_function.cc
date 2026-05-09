@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "json_export_function.h"
+#include "neug/compiler/function/export/json_export_function.h"
 
 #include <arrow/result.h>
 #include <arrow/status.h>

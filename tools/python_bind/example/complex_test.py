@@ -417,14 +417,11 @@ def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
 
 
 def run_json_extension_suite(db_json, conn_json, db_path_json):
-    statements = [
-        ("LOAD JSON succeeded", "LOAD JSON;"),
-    ]
+    statements = []
 
     for desc, stmt in statements:
         run_statement(conn_json, desc, stmt)
 
-    verify_json_extension_loaded(conn_json)
     run_json_array_tests(conn_json, export_dir=db_path_json)
     run_jsonl_tests(conn_json, export_dir=db_path_json)
 

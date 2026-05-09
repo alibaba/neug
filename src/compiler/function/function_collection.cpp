@@ -27,9 +27,11 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/comparison/vector_comparison_functions.h"
-#include "neug/compiler/function/csv_read_function.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/export/json_export_function.h"
+#include "neug/compiler/function/import/csv_read_function.h"
+#include "neug/compiler/function/import/json_read_function.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
@@ -45,37 +47,27 @@ namespace neug {
 namespace function {
 
 #define SCALAR_FUNCTION_BASE(_PARAM, _NAME) \
-  { _PARAM::getFunctionSet, _NAME, CatalogEntryType::SCALAR_FUNCTION_ENTRY }
+  {_PARAM::getFunctionSet, _NAME, CatalogEntryType::SCALAR_FUNCTION_ENTRY}
 #define SCALAR_FUNCTION(_PARAM) SCALAR_FUNCTION_BASE(_PARAM, _PARAM::name)
 #define SCALAR_FUNCTION_ALIAS(_PARAM) \
   SCALAR_FUNCTION_BASE(_PARAM::alias, _PARAM::name)
 #define REWRITE_FUNCTION_BASE(_PARAM, _NAME) \
-  { _PARAM::getFunctionSet, _NAME, CatalogEntryType::REWRITE_FUNCTION_ENTRY }
+  {_PARAM::getFunctionSet, _NAME, CatalogEntryType::REWRITE_FUNCTION_ENTRY}
 #define REWRITE_FUNCTION(_PARAM) REWRITE_FUNCTION_BASE(_PARAM, _PARAM::name)
 #define REWRITE_FUNCTION_ALIAS(_PARAM) \
   REWRITE_FUNCTION_BASE(_PARAM::alias, _PARAM::name)
-#define AGGREGATE_FUNCTION(_PARAM)                 \
-  {                                                \
-    _PARAM::getFunctionSet, _PARAM::name,          \
-        CatalogEntryType::AGGREGATE_FUNCTION_ENTRY \
-  }
-#define EXPORT_FUNCTION(_PARAM)               \
-  {                                           \
-    _PARAM::getFunctionSet, _PARAM::name,     \
-        CatalogEntryType::COPY_FUNCTION_ENTRY \
-  }
-#define TABLE_FUNCTION(_PARAM)                 \
-  {                                            \
-    _PARAM::getFunctionSet, _PARAM::name,      \
-        CatalogEntryType::TABLE_FUNCTION_ENTRY \
-  }
-#define STANDALONE_TABLE_FUNCTION(_PARAM)                 \
-  {                                                       \
-    _PARAM::getFunctionSet, _PARAM::name,                 \
-        CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY \
-  }
+#define AGGREGATE_FUNCTION(_PARAM)       \
+  {_PARAM::getFunctionSet, _PARAM::name, \
+   CatalogEntryType::AGGREGATE_FUNCTION_ENTRY}
+#define EXPORT_FUNCTION(_PARAM) \
+  {_PARAM::getFunctionSet, _PARAM::name, CatalogEntryType::COPY_FUNCTION_ENTRY}
+#define TABLE_FUNCTION(_PARAM) \
+  {_PARAM::getFunctionSet, _PARAM::name, CatalogEntryType::TABLE_FUNCTION_ENTRY}
+#define STANDALONE_TABLE_FUNCTION(_PARAM) \
+  {_PARAM::getFunctionSet, _PARAM::name,  \
+   CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY}
 #define FINAL_FUNCTION \
-  { nullptr, nullptr, CatalogEntryType::SCALAR_FUNCTION_ENTRY }
+  {nullptr, nullptr, CatalogEntryType::SCALAR_FUNCTION_ENTRY}
 
 FunctionCollection* FunctionCollection::getFunctions() {
   static FunctionCollection functions[] = {
@@ -150,7 +142,11 @@ FunctionCollection* FunctionCollection::getFunctions() {
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
       TABLE_FUNCTION(CSVReadFunction),
+      TABLE_FUNCTION(JsonReadFunction),
+      TABLE_FUNCTION(JsonLReadFunction),
       EXPORT_FUNCTION(ExportCSVFunction),
+      EXPORT_FUNCTION(ExportJsonFunction),
+      EXPORT_FUNCTION(ExportJsonLFunction),
 
       FINAL_FUNCTION};
 
