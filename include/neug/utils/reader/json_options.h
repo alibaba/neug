@@ -48,7 +48,7 @@ class ArrowJsonOptionsBuilder : public ArrowOptionsBuilder {
    * @param state The shared read state containing JSON schema and configuration
    */
   explicit ArrowJsonOptionsBuilder(std::shared_ptr<ReadSharedState> state)
-      : ArrowOptionsBuilder(state) {};
+      : ArrowOptionsBuilder(state){};
 
   virtual ArrowOptions build() const override;
 
