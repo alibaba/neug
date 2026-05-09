@@ -171,12 +171,7 @@ The following options control how CSV files are parsed during `COPY FROM`. These
 
 ### JSON/JSONL
 
-JSON/JSONL support is provided via the [JSON Extension](../extensions/load_json). With the JSON extension loaded, you can use `COPY FROM` to import JSON or JSONL files directly into the graph — without creating the table first. NeuG infers the schema automatically from the file content.
-
-```cypher
-INSTALL json;
-LOAD json;
-```
+Since NeuG v0.1.2, JSON/JSONL is a built-in feature. You can use `COPY FROM` to import JSON or JSONL files directly into the graph — without creating the table first. NeuG infers the schema automatically from the file content.
 
 ```cypher
 // JSON array file — schema auto-detected,
@@ -186,6 +181,8 @@ COPY person FROM "person.json";
 // JSONL file — same auto-detection
 COPY person FROM "person.jsonl";
 ```
+
+> **Version Note:** In NeuG < 0.1.2, JSON support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use. Since v0.1.2, this step is no longer needed.
 
 ### Parquet
 

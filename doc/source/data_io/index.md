@@ -31,8 +31,10 @@ External Files (CSV, JSON, Parquet, ...)
 | Format | Supported | Availability |
 |--------|-----------|--------------|
 | CSV | ✅ | Built-in |
-| JSON / JSONL | ✅ | Via [JSON Extension](../extensions/load_json) |
+| JSON / JSONL | ✅ | Built-in (since v0.1.2) |
 | Parquet | ✅  | Via [Parquet Extension](../extensions/load_parquet) |
+
+> **Version Note:** In NeuG < 0.1.2, JSON/JSONL support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use. Since NeuG >= 0.1.2, JSON/JSONL is a built-in feature — no extension installation or loading is needed.
 
 > **Note:** As new format extensions are developed, both `LOAD FROM` and `COPY FROM` gain support automatically. See the [Extensions](../extensions/index) page for details.
 

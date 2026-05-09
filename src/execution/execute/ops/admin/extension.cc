@@ -14,12 +14,59 @@
  */
 
 #include "neug/execution/execute/ops/admin/extension.h"
+
+#include <cstdio>
+
 #include "glog/logging.h"
+#include "neug/compiler/extension/extension.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
 namespace ops {
+
+bool DeprecatedInfo::compareVersion(const std::string& lhs,
+                                    const std::string& rhs) {
+  auto parseVersion = [](const std::string& v, int& major, int& minor,
+                         int& patch) {
+    major = minor = patch = 0;
+    std::sscanf(v.c_str(), "%d.%d.%d", &major, &minor, &patch);
+  };
+  int lMajor, lMinor, lPatch, rMajor, rMinor, rPatch;
+  parseVersion(lhs, lMajor, lMinor, lPatch);
+  parseVersion(rhs, rMajor, rMinor, rPatch);
+  if (lMajor != rMajor)
+    return lMajor > rMajor;
+  if (lMinor != rMinor)
+    return lMinor > rMinor;
+  return lPatch >= rPatch;
+}
+
+const common::case_insensitive_map_t<DeprecatedInfo>&
+getDeprecatedExtensions() {
+  static const common::case_insensitive_map_t<DeprecatedInfo> registry = {
+      {"json",
+       {"0.1.2",
+        "Since NeuG >= 0.1.2, JSON is a built-in feature and no longer "
+        "provided as an extension. You can use JSON import/export functions "
+        "directly without INSTALL or LOAD. Simply remove the 'INSTALL json' / "
+        "'LOAD json' statement from your code."}},
+  };
+  return registry;
+}
+
+void checkDeprecatedExtension(const std::string& extension_name) {
+  const auto& deprecated = getDeprecatedExtensions();
+  auto it = deprecated.find(extension_name);
+  if (it != deprecated.end()) {
+    const auto& info = it->second;
+    if (DeprecatedInfo::compareVersion(neug::extension::getVersion(),
+                                       info.version)) {
+      THROW_EXCEPTION_WITH_FILE_LINE(info.error_message);
+    }
+  }
+}
+
 class ExtensionInstallOpr : public IOperator {
  public:
   explicit ExtensionInstallOpr(std::string extension_name)
@@ -70,6 +117,8 @@ neug::result<Context> ExtensionInstallOpr::Eval(IStorageInterface& graph,
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
             << extension_name_;
 
+  checkDeprecatedExtension(extension_name_);
+
   auto status = neug::extension::install_extension(extension_name_);
   if (!status.ok()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
@@ -83,6 +132,8 @@ neug::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
                                              Context&& ctx, OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
             << extension_name_;
+
+  checkDeprecatedExtension(extension_name_);
 
   auto status = neug::extension::load_extension(extension_name_);
   if (!status.ok()) {
