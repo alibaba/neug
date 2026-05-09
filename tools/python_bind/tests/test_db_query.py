@@ -36,8 +36,6 @@ from neug import Session
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
-from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
-from neug.proto.error_pb2 import ERR_PROPERTY_NOT_FOUND
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
@@ -244,7 +242,7 @@ def test_insert_type_check(tmp_path):
     # DATETIME invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 5, dttm: 'notadatetime'})")
-    assert str(ERR_PROPERTY_NOT_FOUND) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # INTERVAL invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 6, ivl: 'notaninterval'})")
@@ -312,7 +310,7 @@ def test_create_node_table_errors(tmp_path):
     # 1. create duplicate node table
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY (name));")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
@@ -337,7 +335,7 @@ def test_create_rel_table(tmp_path):
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     # create single relationship edge table
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     conn.close()
     db.close()
@@ -381,18 +379,18 @@ def test_create_rel_table_errors(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. create duplicate edge table
     with pytest.raises(Exception) as excinfo:
         conn.execute(
-            "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+            "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
         )
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. create edge table without FROM/TO vertex tables
     with pytest.raises(Exception) as excinfo:
-        conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_MANY);")
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+        conn.execute("CREATE REL TABLE NewFollows(FROM person TO user, MANY_TO_MANY);")
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -405,9 +403,9 @@ def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, MANY_MANY);")
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, MANY_TO_MANY);")
     conn.close()
     db.close()
 
@@ -426,21 +424,21 @@ def test_alter_vertex_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person ADD age INT64;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     conn.execute("ALTER TABLE person RENAME age TO newAge;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person RENAME age1 TO newAge1;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 3. drop property
     # correctly drop a property
     conn.execute("ALTER TABLE person DROP newAge;")
     # incorrectly drop a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person DROP age1;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -459,14 +457,14 @@ def test_session_alter_vertex_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         sess.execute("ALTER TABLE person ADD age INT64;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     sess.execute("ALTER TABLE person RENAME age TO newAge;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         sess.execute("ALTER TABLE person RENAME age1 TO newAge1;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 3. drop property
     # correctly drop a property
     sess.execute("ALTER TABLE person DROP newAge;")
@@ -486,7 +484,7 @@ def test_alter_edge_table(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. add property
     # correctly add a new property
@@ -494,14 +492,14 @@ def test_alter_edge_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows ADD weight DOUBLE;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     conn.execute("ALTER TABLE knows RENAME weight TO newWeight;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows RENAME weight1 TO newWeight1;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -514,14 +512,14 @@ def test_alter_edge_table_drop_property(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # correctly drop a property
     conn.execute("ALTER TABLE knows DROP weight;")
     # incorrectly drop a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows DROP weight1;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -535,7 +533,7 @@ def test_drop_table(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. DROP edge table
     conn.execute("DROP TABLE knows;")
@@ -551,18 +549,18 @@ def test_drop_table_errors(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE, MANY_TO_MANY);"
     )
     # 1. DROP vertex table will also drop all edges connected to it by default
     conn.execute("DROP TABLE person;")
     # the edge table has already been dropped, so this will fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE knows;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     # 2. DROP table that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE person;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -584,7 +582,7 @@ def test_insert_node(tmp_path):
     # case 3: insert without primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{age:36});")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_COMPILATION) in str(excinfo.value)
     # case 4: duplicate primary key value, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26});")
@@ -592,7 +590,7 @@ def test_insert_node(tmp_path):
     # case 5: insert values inconsistent with schema, should fail
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (u:person{name:'Alice', age:26, addr:'aa'});")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -606,7 +604,7 @@ def test_insert_edge(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY);"
     )
     # 插入端点
     conn.execute("CREATE (u:person{name:'Alice'});")
@@ -639,7 +637,7 @@ def test_insert_edge(tmp_path):
         conn.execute(
             "CREATE (u:person {name: 'Alice2'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
         )
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -697,7 +695,7 @@ def test_set_multi_edge_property(tmp_path):
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute("CREATE NODE TABLE software(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE create_software(FROM person TO software, since INT64, weight DOUBLE, MANY_MANY);"
+        "CREATE REL TABLE create_software(FROM person TO software, since INT64, weight DOUBLE, MANY_TO_MANY);"
     )
     conn.execute("CREATE (u:person{name:'Alice'});")
     conn.execute("CREATE (u:person{name:'Bob'});")
@@ -740,7 +738,7 @@ def test_set_edge_property(tmp_path):
     conn = db.connect()
     conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY(name));")
     conn.execute(
-        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_MANY);"
+        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY);"
     )
     conn.execute("CREATE REL TABLE likes(FROM person TO person, since INT64);")
     conn.execute("CREATE (u:person{name:'Alice'});")
@@ -2923,3 +2921,160 @@ def test_drop_and_recreate_table_same_name(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+def test_unwind_t1_l3_l4_read_from_explicit_schema(tmp_path):
+    """Minimal graph for the read query taken from tools/python_bind/batch_log (lines 49, 125, 136, 272).
+
+    Schema and values are hand-written. ``(n2 :L3 :L4)`` is modelled with ``id = 120`` in both
+    ``L3`` and ``L4`` (same property map as line 125). T1(120->44) matches line 136.
+
+    With the fixture data, ``UNWIND`` expands ``a1`` to ``{n2.k20, -986093799, n1.k20}``; with
+    ``n2.k20=512128668`` and ``n1.k20=1400705806`` (n1 id 44) and ``r1.k43`` true, ``DISTINCT a1, a2``
+    yields three rows (order not guaranteed), all with ``a2 == true``.
+    """
+    _cols = (
+        "id INT64, k19 BOOL, k18 BOOL, k20 INT64, k22 BOOL, k21 INT64, k24 STRING, k23 BOOL, "
+        "k30 BOOL, k25 STRING, k26 BOOL, k28 INT64, k27 INT64, k29 INT64, PRIMARY KEY (id)"
+    )
+    ddl = (
+        f"CREATE NODE TABLE L3 ({_cols});",
+        f"CREATE NODE TABLE L4 ({_cols});",
+        "CREATE REL TABLE T1 ("
+        "FROM L3 TO L3, k39 STRING, k38 BOOL, k40 BOOL, k42 INT64, k41 STRING, id INT64, k43 BOOL"
+        ");",
+    )
+    # batch_log: line 49 (L3 id 44), line 125 (L3:L4 id 120) — duplicated into L3 and L4 for 120
+    dml = (
+        "CREATE (n0 :L3 {k19 : false, k18 : true, k20 : 1400705806, k22 : true, id : 44, k21 : 685854768, k23 : false});",
+        'CREATE (n0 :L3 {k20 : 512128668, k30 : true, k22 : true, k21 : -1607710882, k24 : "ct", '
+        'k23 : false, k26 : false, k25 : "0", k28 : -1022812775, k27 : 1963567328, k19 : false, '
+        "k29 : 787123989, k18 : true, id : 120});",
+        'CREATE (n0 :L4 {k20 : 512128668, k30 : true, k22 : true, k21 : -1607710882, k24 : "ct", '
+        'k23 : false, k26 : false, k25 : "0", k28 : -1022812775, k27 : 1963567328, k19 : false, '
+        "k29 : 787123989, k18 : true, id : 120});",
+        "MATCH (n0 :L3 {id : 120}), (n1 :L3 {id : 44}) "
+        'CREATE (n0)-[r :T1{k39 : "Q", k38 : false, k40 : false, k42 : 1062135372, k41 : "g", '
+        "id : 131, k43 : true}]->(n1);",
+    )
+    read_q = (
+        "MATCH (n1 :L3)<-[r1 :T1]-(n2 :L3 :L4) "
+        "WHERE ((r1.id) > -1) "
+        "UNWIND [(n2.k28), -1206557154, (n2.k28)] AS a0 "
+        "UNWIND [(n2.k20), -986093799, (n1.k20)] AS a1 "
+        "RETURN DISTINCT a1, (r1.k43) AS a2;"
+    )
+
+    db_dir = tmp_path / "unwind_t1_l3_l4"
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        for s in ddl:
+            conn.execute(s, access_mode="schema")
+        for s in dml:
+            conn.execute(s, access_mode="update")
+        res = conn.execute(read_q, access_mode="read", parameters=None)
+        rows = list(res)
+        # n2=120: k20=512128668; n1=44: k20=1400705806; r1.k43 from edge = true; literal -986093799
+        expected_a1 = {-986093799, 512128668, 1400705806}
+        assert len(rows) == 3
+        assert {r[0] for r in rows} == expected_a1
+        for r in rows:
+            assert r[1] is True or r[1] == 1
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_duplicate_project_column(tmp_path):
+    """Duplicate `RETURN` of the same property, including ORDER BY output alias cases."""
+
+    # ORDER BY output alias with duplicate project columns and parameters
+    db_dir_l0 = tmp_path / "order_alias_dup_project"
+    shutil.rmtree(db_dir_l0, ignore_errors=True)
+    db_dir_l0.mkdir()
+    db_l0 = Database(db_path=str(db_dir_l0), mode="w")
+    conn_l0 = db_l0.connect()
+    conn_l0.execute("CREATE NODE TABLE L0(id INT64, p0_2 INT64, PRIMARY KEY(id))")
+    conn_l0.execute("CREATE (:L0 {id: 1, p0_2: 643})")
+    parameters = {"v": 643}
+    failing_query = (
+        "MATCH (n:L0) "
+        "WHERE n.p0_2 = $v "
+        "RETURN n.id AS node_id, n.id AS selected_id "
+        "ORDER BY node_id LIMIT 100"
+    )
+    assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
+
+
+def test_not_starts_with(tmp_path):
+    db_dir = tmp_path / "test_not_starts_with"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id STRING);")
+    conn.execute("CREATE (:Person {id: 'n4'});")
+    conn.execute("CREATE (:Person {id: 'n8'});")
+    conn.execute(
+        "MATCH (a:Person {id: 'n4'}), (b:Person {id: 'n8'}) CREATE (a)-[:Knows {id: 'e19'}]->(b);"
+    )
+
+    result = conn.execute(
+        """
+        MATCH (a:Person {id: 'n4'})-[r0:Knows {id: 'e19'}]->(b:Person {id: 'n8'})
+        WHERE NOT ('a' STARTS WITH 'a') OR (r0.id IN [a.id])
+        RETURN a.id AS source_id, b.id AS target_id;
+    """
+    )
+
+    records = list(result)
+    assert records == []
+    conn.close()
+    db.close()
+
+
+def test_not_list_contains(tmp_path):
+    db_dir = tmp_path / "test_not_list_contains"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE L1(id STRING, p0 STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (:L1 {id: 'n1', p0: 's3836'});")
+    conn.execute("CREATE (:L1 {id: 'n2', p0: 'x'});")
+    conn.execute("CREATE (:L1 {id: 'n3', p0: 'y'});")
+
+    result = conn.execute("MATCH (n:L1) RETURN count(n) AS pair_count;")
+    records = list(result)
+    assert records == [[3]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[1]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE NOT (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[2]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE ((n.p0 IN ['s3836', 'L1'])) IS NULL RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[0]]
+    conn.close()
+    db.close()
+
+
+def test_unsupported_operator_error_message():
+    """Test that unsupported operators produce readable error messages."""
+    modern_graph_db_dir = "/tmp/modern_graph"
+    db = Database(modern_graph_db_dir, "rw")
+    conn = db.connect()
+    query = "CREATE MACRO f(x) AS x + 1"
+    with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
+        conn.execute(query)

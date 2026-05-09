@@ -164,6 +164,10 @@ message ToTuple {
   repeated Expression fields = 1;
 }
 
+message ToList {
+  repeated Expression fields = 1;
+}
+
 message VariableKeyValue {
   common.Value key = 1;
   oneof value {
@@ -305,6 +309,7 @@ message ExprOpr {
     ToInterval to_interval = 21;
     ToTuple to_tuple = 22;
     ScalarFunction scalar_func = 23;
+    ToList to_list = 24;
   }
   // The data of type of ExprOpr
   common.IrDataType node_type = 12;

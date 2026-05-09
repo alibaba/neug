@@ -39,7 +39,7 @@
         "DELIM": "|"
        }
       },
-      "skip_columns": []
+      "project_columns": []
      }
     },
     "meta_data": []

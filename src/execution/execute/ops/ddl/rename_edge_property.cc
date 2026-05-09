@@ -27,12 +27,12 @@ class RenameEdgePropertySchemaOpr : public IOperator {
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict)
+      bool ignore_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
         edge_type_(edge_type),
         rename_properties_(rename_properties),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
   std::string get_operator_name() const override {
     return "RenameEdgePropertySchemaOpr";
   }
@@ -40,10 +40,17 @@ class RenameEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res =
-        storage.RenameEdgeProperties(src_type_, dst_type_, edge_type_,
-                                     rename_properties_, error_on_conflict_);
+    RenameEdgePropertiesParamBuilder builder;
+    auto config = builder.SrcLabel(src_type_)
+                      .DstLabel(dst_type_)
+                      .EdgeLabel(edge_type_)
+                      .RenameProperties(rename_properties_)
+                      .Build();
+    auto res = storage.RenameEdgeProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to rename edge property in type: " << edge_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -54,7 +61,7 @@ class RenameEdgePropertySchemaOpr : public IOperator {
  private:
   std::string src_type_, dst_type_, edge_type_;
   std::vector<std::pair<std::string, std::string>> rename_properties_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> RenameEdgePropertyOprBuilder::Build(
@@ -75,7 +82,7 @@ neug::result<OpBuildResultT> RenameEdgePropertyOprBuilder::Build(
   return std::make_pair(
       std::make_unique<RenameEdgePropertySchemaOpr>(
           src_type, dst_type, edge_type, rename_properties,
-          conflict_action_to_bool(rename_edge_property.conflict_action())),
+          !conflict_action_to_bool(rename_edge_property.conflict_action())),
       ctx_meta);
 }
 

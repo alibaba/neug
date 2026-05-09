@@ -26,6 +26,7 @@
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace gopt {
@@ -46,7 +47,8 @@ enum ScalarType {
   LABEL,
   PATTERN_EXTRACT,  // startNode, endNode, nodes, rels
   PROPERTIES,       // properties(nodes(), 'name')
-  TO_ARRAY,
+  TO_LIST,          // unfix length array, all elements have the same type
+  TO_TUPLE,         // tuple, elements have different types
   UPPER,
   LOWER,
   REVERSE,
@@ -113,7 +115,16 @@ class GScalarType {
     } else if (func.name == function::PropertiesFunction::name) {
       return ScalarType::PROPERTIES;
     } else if (func.name == function::ListCreationFunction::name) {
-      return ScalarType::TO_ARRAY;
+      const auto& type = expr.getDataType();
+      if (type.getLogicalTypeID() == common::LogicalTypeID::LIST) {
+        LOG(INFO) << "type is list";
+        return ScalarType::TO_LIST;
+      } else if (type.getLogicalTypeID() == common::LogicalTypeID::STRUCT) {
+        LOG(INFO) << "type is struct";
+        return ScalarType::TO_TUPLE;
+      }
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.toString() +
+                                     " for function: " + func.name);
     } else if (func.name == function::UpperFunction::name) {
       return ScalarType::UPPER;
     } else if (func.name == function::LowerFunction::name) {

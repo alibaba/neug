@@ -287,12 +287,12 @@ schema:
           destination_vertex: PERSON
           relation: MANY_TO_MANY
           x_csr_params:
-              sort_on_compaction: TRUE
+              sort_key_for_nbr: creationDate
         - source_vertex: POST
           destination_vertex: PERSON
           relation: MANY_TO_MANY
           x_csr_params:
-              sort_on_compaction: TRUE
+              sort_key_for_nbr: creationDate
       properties:
         - property_id: 0
           property_name: creationDate
@@ -333,7 +333,7 @@ schema:
           destination_vertex: PERSON
           relation: MANY_TO_MANY
           x_csr_params:
-              sort_on_compaction: TRUE
+              sort_key_for_nbr: joinDate
       properties:
         - property_id: 0
           property_name: joinDate

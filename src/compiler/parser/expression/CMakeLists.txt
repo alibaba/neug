@@ -6,7 +6,7 @@ add_library(neug_parser_expression
         parsed_function_expression.cpp
         parsed_property_expression.cpp
         parsed_variable_expression.cpp)
-add_dependencies(neug_parser_expression neug_plan_proto)
+add_dependencies(neug_parser_expression neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_parser_expression>

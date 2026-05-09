@@ -1,7 +1,7 @@
 add_library(gds_function
         STATIC
         rec_joins.cpp)
-add_dependencies(gds_function neug_plan_proto)
+add_dependencies(gds_function neug_proto)
 
 target_include_directories(gds_function PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../include)
