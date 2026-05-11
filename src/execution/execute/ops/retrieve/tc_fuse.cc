@@ -175,12 +175,12 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   int alias7 = ee_opr2.alias().value();
   // select_opr
   const auto& select_opr = plan.plan(op_idx + 7).opr().select();
-  if (select_opr.predicate().operators_size() != 7) {
+  if (select_opr.predicate().operators_size() != 3) {
     return false;
   }
-  auto& var = select_opr.predicate().operators(1);
-  auto& within = select_opr.predicate().operators(3);
-  auto& v_set = select_opr.predicate().operators(5);
+  auto& var = select_opr.predicate().operators(0);
+  auto& within = select_opr.predicate().operators(1);
+  auto& v_set = select_opr.predicate().operators(2);
   if ((!var.has_var()) || (!var.var().has_tag()) || var.var().has_property()) {
     return false;
   }
