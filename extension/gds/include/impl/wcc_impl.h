@@ -16,16 +16,28 @@
 
 #pragma once
 
-#include <vector>
-
-#include "neug/compiler/function/gds/gds_algo_function.h"
-
-#include "bfs.h"
-#include "kcore.h"
-#include "label_propagation.h"
-#include "page_rank.h"
-#include "wcc.h"
+#include "neug/execution/common/context.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace gds {}  // namespace gds
+namespace gds {
+class WCC {
+ public:
+  WCC(const StorageReadInterface& graph, label_t vertex_label,
+      label_t edge_label, int concurrency);
+
+  void compute();
+  void sink(execution::Context& ctx, int node_alias, int component_alias);
+
+ private:
+  const StorageReadInterface& graph_;
+  label_t vertex_label_;
+  label_t edge_label_;
+
+  std::unique_ptr<vid_t[]> parents_;
+  std::unique_ptr<int64_t[]> comps_;
+  int concurrency_;
+  std::vector<vid_t> vertices_;
+};
+}  // namespace gds
 }  // namespace neug

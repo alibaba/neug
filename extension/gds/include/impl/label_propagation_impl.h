@@ -16,22 +16,26 @@
 
 #pragma once
 
-#include "neug/compiler/function/gds/gds_algo_function.h"
-#include "neug/compiler/function/neug_call_function.h"
+#include "neug/execution/expression/expr.h"
+#include "neug/execution/expression/predicates.h"
 
 namespace neug {
 namespace gds {
-struct NEUG_API PersonalizedPageRankFunction {
-  static constexpr const char* name = "PERSONALIZED_PAGE_RANK";
-  static neug::execution::Context exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& graph,
-                                       const neug::execution::Context& ctx);
 
-  static std::unique_ptr<function::CallFuncInputBase> bind(
-      const Schema& schema, const execution::ContextMeta& ctx_meta,
-      const ::physical::PhysicalPlan& plan, int op_idx);
-
-  static function::function_set getFunctionSet();
+struct LabelPropagationRunArgs {
+  label_t vertex_label;
+  execution::LabelTriplet edge_triplet;
+  int max_iterations;
+  int concurrency;
+  int32_t node_alias;
+  int32_t label_alias;
+  execution::ExprBase* vertex_pred;
+  execution::ExprBase* edge_pred;
 };
+
+execution::Context RunLabelPropagation(const LabelPropagationRunArgs& args,
+                                       const StorageReadInterface& graph,
+                                       execution::Context& ctx);
+
 }  // namespace gds
 }  // namespace neug

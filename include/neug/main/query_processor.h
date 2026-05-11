@@ -16,6 +16,7 @@
 
 #include <glog/logging.h>
 
+#include <bthread/bthread.h>
 #include <map>
 #include <shared_mutex>
 #include <string>
@@ -45,7 +46,9 @@ class QueryProcessor {
         global_query_cache_(global_query_cache),
         allocator_(alloc),
         max_num_threads_(max_num_threads),
-        is_read_only_(is_read_only) {}
+        is_read_only_(is_read_only) {
+    bthread_setconcurrency(max_num_threads_);
+  }
 
   result<QueryResult> execute(const std::string& query_string,
                               const std::string& access_mode,

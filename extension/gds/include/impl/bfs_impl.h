@@ -16,22 +16,30 @@
 
 #pragma once
 
-#include "neug/compiler/function/gds/gds_algo_function.h"
-#include "neug/compiler/function/neug_call_function.h"
+#include <memory>
 
+#include "neug/execution/common/context.h"
+#include "neug/storages/graph/graph_interface.h"
 namespace neug {
 namespace gds {
-struct NEUG_API PersonalizedPageRankFunction {
-  static constexpr const char* name = "PERSONALIZED_PAGE_RANK";
-  static neug::execution::Context exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& graph,
-                                       const neug::execution::Context& ctx);
 
-  static std::unique_ptr<function::CallFuncInputBase> bind(
-      const Schema& schema, const execution::ContextMeta& ctx_meta,
-      const ::physical::PhysicalPlan& plan, int op_idx);
+class BFS {
+ public:
+  BFS(const StorageReadInterface& graph, label_t vertex_label,
+      label_t edge_label, vid_t source, bool directed, int concurrency);
 
-  static function::function_set getFunctionSet();
+  void compute();
+  void sink(execution::Context& ctx, int node_alias, int distance_alias);
+
+ private:
+  const StorageReadInterface& graph_;
+  label_t vertex_label_;
+  label_t edge_label_;
+  vid_t source_;
+  bool directed_;
+  int concurrency_;
+  std::unique_ptr<uint32_t[]> distances_;
 };
+
 }  // namespace gds
 }  // namespace neug

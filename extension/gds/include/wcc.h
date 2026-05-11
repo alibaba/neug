@@ -21,8 +21,8 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API PersonalizedPageRankFunction {
-  static constexpr const char* name = "PERSONALIZED_PAGE_RANK";
+struct NEUG_API WCCFunction {
+  static constexpr const char* name = "WCC";
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
                                        neug::IStorageInterface& graph,
                                        const neug::execution::Context& ctx);

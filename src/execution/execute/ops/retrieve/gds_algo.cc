@@ -39,13 +39,15 @@ neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
     THROW_RUNTIME_ERROR(
         "GDSAlgoOpr: algoExec not registered for GDS algorithm");
   }
+  if (algo_input_ == nullptr) {
+    THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
+  }
   return algo_func_->execFunc(*algo_input_, graph_interface, ctx);
 }
 
 neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  (void) schema;
   auto gCatalog = neug::main::MetadataRegistry::getCatalog();
   const auto& gds_pb = plan.plan(op_idx).opr().gds_algo();
   const std::string& algo_name = gds_pb.algo_name();

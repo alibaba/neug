@@ -217,9 +217,11 @@ function_set ProjectGraphFunction::getFunctionSet() {
     return std::make_unique<ProjectGraphCallInput>();
   };
 
-  func->execFunc =
-      [](const CallFuncInputBase& /*input*/, neug::IStorageInterface& /*graph*/,
-         neug::execution::Context& /*ctx*/) { return execution::Context{}; };
+  func->execFunc = [](const CallFuncInputBase& /*input*/,
+                      neug::IStorageInterface& /*graph*/,
+                      const neug::execution::Context& /*ctx*/) {
+    return execution::Context{};
+  };
 
   function_set functionSet;
   functionSet.push_back(std::move(func));
@@ -240,9 +242,11 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
     return std::make_unique<DropProjectedGraphCallInput>();
   };
 
-  func->execFunc =
-      [](const CallFuncInputBase& /*input*/, neug::IStorageInterface& /*graph*/,
-         neug::execution::Context& /*ctx*/) { return execution::Context{}; };
+  func->execFunc = [](const CallFuncInputBase& /*input*/,
+                      neug::IStorageInterface& /*graph*/,
+                      const neug::execution::Context& /*ctx*/) {
+    return execution::Context{};
+  };
 
   function_set functionSet;
   functionSet.push_back(std::move(func));
@@ -265,7 +269,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
 
   function->execFunc = [](const CallFuncInputBase& /*input*/,
                           neug::IStorageInterface& /*graph*/,
-                          neug::execution::Context& /*ctx*/) {
+                          const neug::execution::Context& /*ctx*/) {
     neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
@@ -317,7 +321,7 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
 
   function->execFunc = [](const CallFuncInputBase& input,
                           neug::IStorageInterface& /*graph*/,
-                          neug::execution::Context& /*ctx*/) {
+                          const neug::execution::Context& /*ctx*/) {
     neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     neug::execution::ValueColumnBuilder<std::string> predicate_builder;
