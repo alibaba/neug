@@ -16,26 +16,51 @@
 
 #pragma once
 
+#include <cstdint>
+#include <vector>
+
+#include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/execution/expression/predicates.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 namespace gds {
 
-struct LabelPropagationRunArgs {
-  label_t vertex_label;
-  execution::LabelTriplet edge_triplet;
-  int max_iterations;
-  int concurrency;
-  int32_t node_alias;
-  int32_t label_alias;
-  execution::ExprBase* vertex_pred;
-  execution::ExprBase* edge_pred;
-};
+class LabelPropagation {
+ public:
+  LabelPropagation(const StorageReadInterface& graph, label_t vertex_label,
+                   const execution::LabelTriplet& edge_triplet,
+                   int max_iterations, int concurrency,
+                   execution::ExprBase* vertex_pred,
+                   execution::ExprBase* edge_pred);
 
-execution::Context RunLabelPropagation(const LabelPropagationRunArgs& args,
-                                       const StorageReadInterface& graph,
-                                       execution::Context& ctx);
+  void compute();
+  void sink(execution::Context& ctx, int32_t node_alias, int32_t label_alias);
+
+ private:
+  template <typename PRED_T>
+  void init_communities(const PRED_T& vertex_pred);
+
+  void collect_neighbor_communities(vid_t dst_vid,
+                                    std::vector<int64_t>& communities) const;
+
+  bool run_single_iteration(int iteration);
+
+  int64_t get_majority_community(std::vector<int64_t>& communities) const;
+
+  const StorageReadInterface& graph_;
+  label_t vertex_label_;
+  execution::LabelTriplet edge_triplet_;
+  int max_iterations_;
+  int concurrency_;
+  execution::ExprBase* vertex_pred_;
+  execution::ExprBase* edge_pred_;
+
+  std::vector<int64_t> community_;
+  std::vector<int64_t> next_community_;
+  std::vector<vid_t> vertices_;
+};
 
 }  // namespace gds
 }  // namespace neug

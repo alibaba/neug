@@ -81,13 +81,15 @@ execution::Context LabelPropagationFunction::exec(
     const neug::execution::Context& ctx) {
   const auto& lp_input = dynamic_cast<const LabelPropagationInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  LabelPropagationRunArgs args{
-      lp_input.vertex_label,      lp_input.edge_triplet,
-      lp_input.max_iterations,    lp_input.concurrency,
-      lp_input.node_alias,        lp_input.label_alias,
-      lp_input.vertex_pred.get(), lp_input.edge_pred.get()};
+
+  LabelPropagation runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
+                          lp_input.max_iterations, lp_input.concurrency,
+                          lp_input.vertex_pred.get(), lp_input.edge_pred.get());
+  runner.compute();
+
   execution::Context ret;
-  return RunLabelPropagation(args, graph, ret);
+  runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
+  return ret;
 }
 
 function::function_set LabelPropagationFunction::getFunctionSet() {

@@ -16,189 +16,205 @@
 
 #include "impl/label_propagation_impl.h"
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
-#include <string>
-#include <unordered_map>
+#include <thread>
 #include <vector>
 
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
 #include "parallel_utils.h"
 
 namespace neug {
 namespace gds {
 
-struct LabelPropagation {
-  LabelPropagation(const StorageReadInterface& graph, label_t vertex_label,
-                   const execution::LabelTriplet& edge_triplet,
-                   int max_iterations, int concurrency)
-      : graph(graph),
-        vertex_label(vertex_label),
-        edge_triplet(edge_triplet),
-        max_iterations(max_iterations),
-        concurrency_(concurrency) {}
+LabelPropagation::LabelPropagation(const StorageReadInterface& graph,
+                                   label_t vertex_label,
+                                   const execution::LabelTriplet& edge_triplet,
+                                   int max_iterations, int concurrency,
+                                   execution::ExprBase* vertex_pred,
+                                   execution::ExprBase* edge_pred)
+    : graph_(graph),
+      vertex_label_(vertex_label),
+      edge_triplet_(edge_triplet),
+      max_iterations_(max_iterations),
+      concurrency_(concurrency),
+      vertex_pred_(vertex_pred),
+      edge_pred_(edge_pred) {
+  if (concurrency_ <= 0) {
+    concurrency_ = static_cast<int>(std::thread::hardware_concurrency());
+    if (concurrency_ <= 0) {
+      concurrency_ = 1;
+    }
+  }
+}
 
-  template <typename PRED_T>
-  void init_communities(const PRED_T& vertex_pred) {
-    auto vertex_set = graph.GetVertexSet(vertex_label);
-    auto begin = std::chrono::high_resolution_clock::now();
-    community.resize(vertex_set.size(), std::numeric_limits<int64_t>::max());
-    next_community.resize(vertex_set.size(),
-                          std::numeric_limits<int64_t>::max());
-    vertices.reserve(vertex_set.size());
-    auto id_column = dynamic_cast<const TypedRefColumn<int64_t>*>(
-        graph.GetVertexPropColumn(vertex_label, "id").get());
-    if (id_column != nullptr) {
-      for (vid_t v : vertex_set) {
-        if (vertex_pred(vertex_label, v)) {
-          community[v] = id_column->get_view(v);
-          next_community[v] = id_column->get_view(v);
-          vertices.push_back(v);
-        }
+template <typename PRED_T>
+void LabelPropagation::init_communities(const PRED_T& vertex_pred) {
+  auto vertex_set = graph_.GetVertexSet(vertex_label_);
+  auto begin = std::chrono::high_resolution_clock::now();
+
+  community_.assign(vertex_set.size(), std::numeric_limits<int64_t>::max());
+  next_community_.assign(vertex_set.size(),
+                         std::numeric_limits<int64_t>::max());
+  vertices_.clear();
+  vertices_.reserve(vertex_set.size());
+
+  auto id_column = dynamic_cast<const TypedRefColumn<int64_t>*>(
+      graph_.GetVertexPropColumn(vertex_label_, "id").get());
+  if (id_column != nullptr) {
+    for (vid_t v : vertex_set) {
+      if (vertex_pred(vertex_label_, v)) {
+        int64_t id = id_column->get_view(v);
+        community_[v] = id;
+        next_community_[v] = id;
+        vertices_.push_back(v);
       }
+    }
+  } else {
+    for (vid_t v : vertex_set) {
+      if (vertex_pred(vertex_label_, v)) {
+        community_[v] = v;
+        next_community_[v] = v;
+        vertices_.push_back(v);
+      }
+    }
+  }
+
+  LOG(INFO) << "Initialized communities for " << vertices_.size()
+            << " vertices in "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::high_resolution_clock::now() - begin)
+                   .count()
+            << " ms.";
+}
+
+void LabelPropagation::collect_neighbor_communities(
+    vid_t dst_vid, std::vector<int64_t>& communities) const {
+  const auto& ie_view = graph_.GetGenericIncomingGraphView(
+      edge_triplet_.dst_label, edge_triplet_.src_label,
+      edge_triplet_.edge_label);
+  const auto& oe_view = graph_.GetGenericOutgoingGraphView(
+      edge_triplet_.src_label, edge_triplet_.dst_label,
+      edge_triplet_.edge_label);
+
+  communities.clear();
+
+  auto ie_edges = ie_view.get_edges(dst_vid);
+  for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+    const vid_t src_vid = *it;
+    if (community_[src_vid] != std::numeric_limits<int64_t>::max()) {
+      communities.push_back(community_[src_vid]);
+    }
+  }
+
+  auto oe_edges = oe_view.get_edges(dst_vid);
+  for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+    const vid_t src_vid = *it;
+    if (community_[src_vid] != std::numeric_limits<int64_t>::max()) {
+      communities.push_back(community_[src_vid]);
+    }
+  }
+}
+
+int64_t LabelPropagation::get_majority_community(
+    std::vector<int64_t>& communities) const {
+  int32_t max_count = 0;
+  std::sort(communities.begin(), communities.end());
+
+  int64_t best = communities[0];
+  int32_t count = 1;
+  for (size_t i = 1; i < communities.size(); ++i) {
+    if (communities[i] == communities[i - 1]) {
+      ++count;
     } else {
-      for (vid_t v : vertex_set) {
-        if (vertex_pred(vertex_label, v)) {
-          community[v] = v;
-          next_community[v] = v;
-          vertices.push_back(v);
+      if (count > max_count) {
+        max_count = count;
+        best = communities[i - 1];
+      }
+      count = 1;
+    }
+  }
+  if (count > max_count) {
+    best = communities.back();
+  }
+  return best;
+}
+
+bool LabelPropagation::run_single_iteration(int iteration) {
+  std::vector<bool> updated_by_thread(concurrency_, false);
+  auto begin = std::chrono::high_resolution_clock::now();
+
+  ParallelUtils::parallel_for(
+      vertices_.data(), vertices_.size(),
+      [&](vid_t idx, int tid) {
+        vid_t dst_vid = vertices_[idx];
+        std::vector<int64_t> neighbor_communities;
+        collect_neighbor_communities(dst_vid, neighbor_communities);
+
+        if (neighbor_communities.empty()) {
+          next_community_[dst_vid] = community_[dst_vid];
+          return;
         }
-      }
-    }
 
-    LOG(INFO) << "Initialized communities for " << vertices.size()
-              << " vertices in "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - begin)
-                     .count()
-              << " ms.";
-  }
-
-  vid_t get_max_community(std::vector<int64_t>& thread_communities) {
-    int32_t max_count = 0;
-    std::sort(thread_communities.begin(), thread_communities.end());
-    vid_t max_community = thread_communities[0];
-    int32_t count = 1;
-    for (size_t j = 1; j < thread_communities.size(); ++j) {
-      if (thread_communities[j] == thread_communities[j - 1]) {
-        count++;
-      } else {
-        if (count > max_count) {
-          max_count = count;
-          max_community = thread_communities[j - 1];
+        int64_t best = get_majority_community(neighbor_communities);
+        next_community_[dst_vid] = best;
+        if (best != community_[dst_vid]) {
+          updated_by_thread[tid] = true;
         }
-        count = 1;
-      }
-    }
-    if (count > max_count) {
-      max_count = count;
-      max_community = thread_communities.back();
-    }
-    return max_community;
+      },
+      concurrency_);
+
+  bool updated = false;
+  for (int i = 0; i < concurrency_; ++i) {
+    updated = updated || updated_by_thread[i];
   }
 
-  void propagate_labels() {
-    const auto& ie_view = graph.GetGenericIncomingGraphView(
-        edge_triplet.dst_label, edge_triplet.src_label,
-        edge_triplet.edge_label);
-    const auto& oe_view = graph.GetGenericOutgoingGraphView(
-        edge_triplet.src_label, edge_triplet.dst_label,
-        edge_triplet.edge_label);
-    for (int iteration = 0; iteration < max_iterations; ++iteration) {
-      std::vector<bool> update(concurrency_, false);
-      auto begin = std::chrono::high_resolution_clock::now();
-      ParallelUtils::parallel_for(
-          vertices.data(), vertices.size(),
-          [&](vid_t i, int tid) {
-            vid_t dst_vid = vertices[i];
-            auto edges = ie_view.get_edges(dst_vid);
-            std::vector<int64_t> thread_communities;
+  LOG(INFO) << "Iteration " << iteration + 1 << " completed in "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::high_resolution_clock::now() - begin)
+                   .count()
+            << " ms.";
+  return updated;
+}
 
-            for (auto it = edges.begin(); it != edges.end(); ++it) {
-              const vid_t src_vid = *it;
-              if (community[src_vid] != std::numeric_limits<int64_t>::max()) {
-                thread_communities.push_back(community[src_vid]);
-              }
-            }
-            auto oe_edges = oe_view.get_edges(dst_vid);
-            for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-              const vid_t src_vid = *it;
-              if (community[src_vid] != std::numeric_limits<int64_t>::max()) {
-                thread_communities.push_back(community[src_vid]);
-              }
-            }
-            if (thread_communities.empty()) {
-              return;
-            }
-            vid_t max_community = get_max_community(thread_communities);
-            next_community[dst_vid] = max_community;
-            if (max_community != community[dst_vid]) {
-              update[tid] = true;
-            }
-          },
-          concurrency_);
-      bool updated = false;
-      for (int i = 0; i < concurrency_; ++i) {
-        updated = updated || update[i];
-        update[i] = false;
-      }
-      if (!updated) {
-        break;
-      }
-      community.swap(next_community);
-      LOG(INFO) << "Iteration " << iteration + 1 << " completed in "
-                << std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::high_resolution_clock::now() - begin)
-                       .count()
-                << " ms.";
-    }
-  }
+void LabelPropagation::compute() {
+  // Keep edge_pred_ for API consistency; edge predicates are not evaluated yet.
+  (void) edge_pred_;
 
-  void sink(execution::Context& ctx, int32_t node_alias, int32_t label_alias) {
-    execution::MSVertexColumnBuilder node_builder(vertex_label);
-    execution::ValueColumnBuilder<int64_t> label_builder;
-    node_builder.reserve(vertices.size());
-    label_builder.reserve(vertices.size());
-    for (vid_t v : vertices) {
-      node_builder.push_back_opt(v);
-      label_builder.push_back_opt(community[v]);
-    }
-
-    ctx.set(node_alias, node_builder.finish());
-    ctx.set(label_alias, label_builder.finish());
-  }
-
-  const StorageReadInterface& graph;
-  label_t vertex_label;
-  execution::LabelTriplet edge_triplet;
-  int max_iterations;
-  std::vector<int64_t> community;
-  std::vector<int64_t> next_community;
-  std::vector<vid_t> vertices;
-  int concurrency_;
-};
-
-execution::Context RunLabelPropagation(const LabelPropagationRunArgs& args,
-                                       const StorageReadInterface& graph,
-                                       execution::Context& ctx) {
-  LabelPropagation label_propagation(graph, args.vertex_label,
-                                     args.edge_triplet, args.max_iterations,
-                                     args.concurrency);
-  if (args.vertex_pred) {
-    auto expr = args.vertex_pred->bind(&graph, {});
+  if (vertex_pred_) {
+    auto expr = vertex_pred_->bind(&graph_, {});
     execution::GeneralPred vertex_pred(std::move(expr));
-    label_propagation.init_communities(vertex_pred);
+    init_communities(vertex_pred);
   } else {
     execution::DummyPred vertex_pred;
-    label_propagation.init_communities(vertex_pred);
+    init_communities(vertex_pred);
   }
 
-  label_propagation.propagate_labels();
+  for (int iteration = 0; iteration < max_iterations_; ++iteration) {
+    bool updated = run_single_iteration(iteration);
+    if (!updated) {
+      break;
+    }
+    community_.swap(next_community_);
+  }
+}
 
-  label_propagation.sink(ctx, args.node_alias, args.label_alias);
-  return ctx;
+void LabelPropagation::sink(execution::Context& ctx, int32_t node_alias,
+                            int32_t label_alias) {
+  execution::MSVertexColumnBuilder node_builder(vertex_label_);
+  execution::ValueColumnBuilder<int64_t> label_builder;
+  node_builder.reserve(vertices_.size());
+  label_builder.reserve(vertices_.size());
+
+  for (vid_t v : vertices_) {
+    node_builder.push_back_opt(v);
+    label_builder.push_back_opt(community_[v]);
+  }
+
+  ctx.set(node_alias, node_builder.finish());
+  ctx.set(label_alias, label_builder.finish());
 }
 
 }  // namespace gds
