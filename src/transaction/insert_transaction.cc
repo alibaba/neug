@@ -17,15 +17,18 @@
 
 #include <glog/logging.h>
 #include <chrono>
-
 #include <limits>
+#include <memory>
 #include <ostream>
+#include <stack>
 #include <thread>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
+#include "neug/transaction/undo_log.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/likely.h"
@@ -179,32 +182,68 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                   char* data, size_t length, Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
-  while (!arc.Empty()) {
-    OpType op_type;
-    arc >> op_type;
-    if (op_type == OpType::kInsertVertex) {
-      InsertVertexRedo redo;
-      arc >> redo;
-      vid_t vid;
-      auto ret =
-          graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
-      if (!ret.ok()) {
-        THROW_STORAGE_EXCEPTION("Failed to add vertex during WAL ingestion: " +
-                                ret.ToString());
+  std::stack<std::unique_ptr<IUndoLog>> undo_logs;
+  try {
+    while (!arc.Empty()) {
+      OpType op_type;
+      arc >> op_type;
+      if (op_type == OpType::kInsertVertex) {
+        InsertVertexRedo redo;
+        arc >> redo;
+        vid_t vid;
+        auto ret =
+            graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+        if (!ret.ok()) {
+          THROW_RUNTIME_ERROR("Failed to add vertex during WAL ingestion: " +
+                              ret.ToString());
+        }
+        undo_logs.push(std::make_unique<InsertVertexUndo>(redo.label, vid));
+      } else if (op_type == OpType::kInsertEdge) {
+        InsertEdgeRedo redo;
+        arc >> redo;
+        vid_t src_lid, dst_lid;
+        if (!get_vertex_with_retries(graph, redo.src_label, redo.src, src_lid,
+                                     timestamp)) {
+          THROW_RUNTIME_ERROR(
+              "Failed to find source vertex during WAL ingestion: " +
+              redo.src.to_string());
+        }
+        if (!get_vertex_with_retries(graph, redo.dst_label, redo.dst, dst_lid,
+                                     timestamp)) {
+          THROW_RUNTIME_ERROR(
+              "Failed to find destination vertex during WAL ingestion: " +
+              redo.dst.to_string());
+        }
+        // TODO(zhanglei): Deal with addEdge failure.
+        auto oe_offset =
+            graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
+                          redo.edge_label, redo.properties, timestamp, alloc);
+        auto ie_offset = search_other_offset_with_cur_offset(
+            graph.GetGenericOutgoingGraphView(redo.src_label, redo.dst_label,
+                                              redo.edge_label),
+            graph.GetGenericIncomingGraphView(redo.dst_label, redo.src_label,
+                                              redo.edge_label),
+            src_lid, dst_lid, oe_offset,
+            graph.schema()
+                .get_edge_schema(redo.src_label, redo.dst_label,
+                                 redo.edge_label)
+                ->properties);
+        undo_logs.push(std::make_unique<InsertEdgeUndo>(
+            redo.src_label, redo.dst_label, redo.edge_label, src_lid, dst_lid,
+            oe_offset, ie_offset));
+      } else {
+        LOG(FATAL) << "Unexpected op-" << static_cast<int>(op_type);
       }
-    } else if (op_type == OpType::kInsertEdge) {
-      InsertEdgeRedo redo;
-      arc >> redo;
-      vid_t src_lid, dst_lid;
-      CHECK(get_vertex_with_retries(graph, redo.src_label, redo.src, src_lid,
-                                    timestamp));
-      CHECK(get_vertex_with_retries(graph, redo.dst_label, redo.dst, dst_lid,
-                                    timestamp));
-      graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
-                    redo.edge_label, redo.properties, timestamp, alloc);
-    } else {
-      LOG(FATAL) << "Unexpected op-" << static_cast<int>(op_type);
     }
+  } catch (...) {
+    LOG(ERROR) << "Error during WAL ingestion, rolling back "
+               << undo_logs.size() << " operations";
+    while (!undo_logs.empty()) {
+      auto& log = undo_logs.top();
+      log->Undo(graph, timestamp);
+      undo_logs.pop();
+    }
+    throw;
   }
 }
 
