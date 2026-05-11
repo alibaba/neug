@@ -48,7 +48,7 @@ JSON support is provided via the [JSON Extension](../extensions/load_json). Afte
 
 ```cypher
 INSTALL json;
-LOAD EXTENSION json;
+LOAD json;
 
 LOAD FROM "person.json"
 RETURN *;
