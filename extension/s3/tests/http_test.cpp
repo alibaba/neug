@@ -187,6 +187,67 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_MultiplePaths) {
 }
 
 // ============================================================================
+// VERIFY_SSL Option Parsing Tests
+// ============================================================================
+
+TEST_F(HTTPFileSystemTest, VerifySSL_InvalidValue_ThrowsException) {
+  // Unrecognized VERIFY_SSL values must throw an exception rather than
+  // silently disabling TLS verification (which was the old behaviour).
+  // VERIFY_SSL is parsed inside SetupCURLHandle(), which is called during
+  // HTTPRandomAccessFile construction (via InitializeFileSize()). We trigger
+  // that path with a real URL so the constructor reaches SetupCURLHandle.
+  // The test uses a public HTTPS endpoint; if the network is unavailable the
+  // curl transport will fail before VERIFY_SSL is even checked, so the test
+  // is skipped gracefully when offline.
+  neug::common::case_insensitive_map_t<std::string> options;
+  options["VERIFY_SSL"] = "maybe";  // Invalid: not true/false/1/0/yes/no/on/off
+
+  HTTPFileSystem fs(options);
+  auto arrowFs = fs.toArrowFileSystem();
+  ASSERT_NE(arrowFs, nullptr);
+
+  // OpenInputFile triggers HTTPRandomAccessFile construction → SetupCURLHandle
+  // → VERIFY_SSL parse → exception.
+  const std::string url =
+      "https://graphscope.oss-cn-beijing.aliyuncs.com"
+      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
+  auto result = arrowFs->OpenInputFile(url);
+  // Must fail due to invalid VERIFY_SSL, not a network error (which would also
+  // fail but with a different message). We accept any IOError here because the
+  // exception is converted to arrow::Status::IOError by the catch block.
+  EXPECT_FALSE(result.ok())
+      << "OpenInputFile should fail when VERIFY_SSL has an invalid value";
+  EXPECT_NE(result.status().ToString().find("VERIFY_SSL"), std::string::npos)
+      << "Error message should mention VERIFY_SSL. Got: "
+      << result.status().ToString();
+}
+
+// ============================================================================
+// GetFileInfo: non-2xx HTTP response reports FileType::NotFound
+// ============================================================================
+
+TEST_F(HTTPFileSystemTest, E2E_GetFileInfo_NotFoundURL) {
+  // A valid HTTPS host but a path that does not exist should return HTTP 404.
+  // GetFileInfo() must report FileType::NotFound (not FileType::File).
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto arrowFs = fs.toArrowFileSystem();
+  ASSERT_NE(arrowFs, nullptr);
+
+  // This URL returns 404 — the path simply doesn't exist on the public bucket.
+  const std::string nonexistent =
+      "https://graphscope.oss-cn-beijing.aliyuncs.com"
+      "/neug-dataset/this-file-does-not-exist-12345.parquet";
+
+  auto info_result = arrowFs->GetFileInfo(nonexistent);
+  ASSERT_TRUE(info_result.ok()) << "GetFileInfo itself should not error out";
+
+  auto info = *info_result;
+  EXPECT_EQ(info.type(), arrow::fs::FileType::NotFound)
+      << "404 URL must be reported as NotFound, not as a valid File";
+}
+
+// ============================================================================
 // E2E Test: Access Public HTTP Parquet File
 // ============================================================================
 

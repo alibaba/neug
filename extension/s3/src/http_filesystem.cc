@@ -217,53 +217,74 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   if (!curl) {
     return arrow::Status::IOError("Failed to initialize CURL for HEAD request");
   }
-  
+
   // Setup for HEAD request
   SetupCURLHandle(curl);
   curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
   curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);  // HEAD request
   curl_easy_setopt(curl, CURLOPT_HEADER, 0L);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HeaderCallback);
-  
+
   CURLcode res = curl_easy_perform(curl);
-  
+
   if (res != CURLE_OK) {
     curl_easy_cleanup(curl);
-    return arrow::Status::IOError("HEAD request failed: " + 
-                                   std::string(curl_easy_strerror(res)));
+    return arrow::Status::IOError("HEAD request failed: " +
+                                  std::string(curl_easy_strerror(res)));
   }
-  
+
+  // Check HTTP status code: non-2xx responses indicate the resource does not
+  // exist or is inaccessible.  Without this check, a 404/403 would look like
+  // a valid file because curl_easy_perform() only fails on transport errors.
+  long http_code = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  if (http_code < 200 || http_code >= 300) {
+    curl_easy_cleanup(curl);
+    return arrow::Status::IOError("HEAD request returned HTTP " +
+                                  std::to_string(http_code) + " for " + url_);
+  }
+
   // Get Content-Length
   double content_length = -1;
   res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &content_length);
-  
+
   if (res == CURLE_OK && content_length >= 0) {
     file_size_ = static_cast<int64_t>(content_length);
-  } else {
-    // Content-Length not available, try a range request
     curl_easy_cleanup(curl);
-    
-    // Try to read last byte to determine size
-    curl = curl_easy_init();
-    SetupCURLHandle(curl);
-    curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
-    curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");  // Just read first byte
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HeaderCallback);
-    
-    res = curl_easy_perform(curl);
-    if (res == CURLE_OK) {
-      // Check Content-Range header for total size
-      // This is a fallback - in practice, most servers provide Content-Length
-      file_size_ = -1;  // Unknown size
-      LOG(WARNING) << "Could not determine file size for " << url_;
-    } else {
-      curl_easy_cleanup(curl);
-      return arrow::Status::IOError("Failed to determine file size: " +
-                                     std::string(curl_easy_strerror(res)));
-    }
+    return arrow::Status::OK();
   }
-  
+
+  // Content-Length not available, try a range request as fallback
   curl_easy_cleanup(curl);
+
+  curl = curl_easy_init();
+  if (!curl) {
+    return arrow::Status::IOError("Failed to initialize CURL for RANGE request");
+  }
+  SetupCURLHandle(curl);
+  curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
+  curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");  // Just read first byte
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HeaderCallback);
+
+  res = curl_easy_perform(curl);
+  if (res != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    return arrow::Status::IOError("Failed to determine file size: " +
+                                  std::string(curl_easy_strerror(res)));
+  }
+
+  // Also check HTTP status for the range request
+  http_code = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  curl_easy_cleanup(curl);
+  if (http_code < 200 || http_code >= 300) {
+    return arrow::Status::IOError("RANGE request returned HTTP " +
+                                  std::to_string(http_code) + " for " + url_);
+  }
+
+  // Size still unknown but URL is accessible
+  file_size_ = -1;
+  LOG(WARNING) << "Could not determine file size for " << url_;
   return arrow::Status::OK();
 }
 
@@ -280,7 +301,17 @@ void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
   auto verify_it = options_.find(HTTPConfigOptionKeys::kVerifySSL);
   bool verify_ssl = HTTPConfigDefaults::kVerifySSLDefault;
   if (verify_it != options_.end()) {
-    verify_ssl = (verify_it->second == "true" || verify_it->second == "1");
+    std::string v = verify_it->second;
+    std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+    if (v == "true" || v == "1" || v == "yes" || v == "on") {
+      verify_ssl = true;
+    } else if (v == "false" || v == "0" || v == "no" || v == "off") {
+      verify_ssl = false;
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Invalid VERIFY_SSL value '" + verify_it->second +
+          "'. Expected 'true'/'false', '1'/'0', 'yes'/'no', or 'on'/'off'.");
+    }
   }
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl ? 1L : 0L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl ? 2L : 0L);
