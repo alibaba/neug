@@ -74,7 +74,7 @@ jobs:
       - name: Run benchmark via SSH
         run: |
           RESULT_DIR="${{ steps.load.outputs.result_dir }}"
-          ssh client-host "mkdir -p '$RESULT_DIR' && /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
+          ssh client-host "mkdir -p '$RESULT_DIR' && /data/benchmark/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/benchmark/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
           echo "::notice::Benchmark results saved to $RESULT_DIR"
 
       - name: Stop NeuG server and save logs
