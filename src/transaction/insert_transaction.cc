@@ -237,7 +237,8 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                  redo.edge_label)
                 ->properties);
       } else {
-        LOG(FATAL) << "Unexpected op-" << static_cast<int>(op_type);
+        THROW_STORAGE_EXCEPTION("Unexpected op-" +
+                                std::to_string(static_cast<int>(op_type)));
       }
     }
   } catch (...) {
