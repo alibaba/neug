@@ -7,6 +7,10 @@ on:
     - cron: "0 19 * * 2,6"
   workflow_dispatch:
 
+env:
+  BENCHMARK_DIR: /data/benchmark
+  RESULT_DIR_BASE: /data/benchmark-result
+
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -38,8 +42,8 @@ jobs:
         id: load
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
-          export DATA_PATH=/data/benchmark/social_network-sf100-CsvComposite-StringDateFormatter
-          RESULT_DIR="/data/benchmark-result/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
+          export DATA_PATH=${{ env.BENCHMARK_DIR }}/social_network-sf100-CsvComposite-StringDateFormatter
+          RESULT_DIR="${{ env.RESULT_DIR_BASE }}/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
           mkdir -p "$RESULT_DIR"
           echo "result_dir=$RESULT_DIR" >> "$GITHUB_OUTPUT"
           start=$(date +%s)
@@ -52,7 +56,6 @@ jobs:
       - name: Start NeuG server
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
-          export DEBUG=ON
           nohup python3 benchmark/interactive/serve_ldbc.py > ${{ github.workspace }}/serve.log 2>&1 &
           echo $! > ${{ github.workspace }}/serve.pid
           for i in $(seq 1 2700); do
@@ -76,7 +79,7 @@ jobs:
       - name: Run benchmark via SSH
         run: |
           RESULT_DIR="${{ steps.load.outputs.result_dir }}"
-          ssh client-host "mkdir -p '$RESULT_DIR' && /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
+          ssh client-host "mkdir -p '$RESULT_DIR' && ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark.sh ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
           echo "::notice::Benchmark results saved to $RESULT_DIR"
 
       - name: Stop NeuG server and save logs
