@@ -105,7 +105,7 @@ The following options control how Parquet files are written:
 
 | Option                 | Type   | Default  | Description                                                                                                      |
 | ---------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `compression`          | string | `snappy` | Compression codec: `snappy`, `gzip`, `zstd`, `lz4`, `brotli`, or `none`                                         |
+| `compression`          | string | `snappy` | Compression codec: `snappy`, `gzip`, `zstd`, or `none`                                                           |
 | `row_group_size`       | int64  | `1048576`| Number of rows per row group (1,048,576 = 1M rows). Larger values improve compression but use more memory.      |
 | `dictionary_encoding`  | bool   | `true`   | Enable dictionary encoding for string columns. Reduces file size for columns with repeated values.              |
 
@@ -159,9 +159,11 @@ Parquet export supports all NeuG data types:
 **Complex Types:**
 - **List<T>**: Variable-length arrays (e.g., `list<string>`, `list<int64>`)
 - **Struct**: Nested structures with named fields
-- **Vertex**: Graph vertices exported as struct with `_ID`, `_LABEL`, and properties
-- **Edge**: Graph edges exported as struct with `_ID`, `_LABEL`, `_SRC_ID`, `_DST_ID`, and properties
-- **Path**: Graph paths exported as struct with `nodes`, `rels`, and `length` fields
+- **Vertex**: Graph vertices exported as JSON string (due to mixed-type schema conflicts)
+- **Edge**: Graph edges exported as JSON string (due to mixed-type schema conflicts)
+- **Path**: Graph paths exported as JSON string (due to mixed-type schema conflicts)
+
+> **Note on Vertex/Edge/Path export:** These graph types are exported as JSON strings rather than Parquet StructArrays. This design choice is necessary because Parquet StructArrays require all rows to have the same schema, but mixed-type vertices/edges (e.g., person vs. organisation) have different properties, which would cause schema conflicts and sparse data.
 
 ### Export Vertex and Edge Data
 
@@ -174,16 +176,10 @@ COPY (
 ) TO 'vertices.parquet';
 ```
 
-This creates a Parquet file with a struct column containing:
+This creates a Parquet file with a JSON string column containing serialized vertex data:
 ```
-p: struct<
-  _ID: int64,
-  _LABEL: string,
-  ID: int64,
-  fName: string,
-  age: int64,
-  ...
->
+p: string (JSON)
+  e.g. {"_ID": 1, "_LABEL": "person", "fName": "Alice", "age": 30, ...}
 ```
 
 Export complete edge objects:
@@ -195,16 +191,10 @@ COPY (
 ) TO 'edges.parquet';
 ```
 
-This creates a Parquet file with a struct column containing:
+This creates a Parquet file with a JSON string column containing serialized edge data:
 ```
-k: struct<
-  _ID: int64,
-  _LABEL: string,
-  _SRC_ID: int64,
-  _DST_ID: int64,
-  since: date,
-  ...
->
+k: string (JSON)
+  e.g. {"_ID": 100, "_LABEL": "knows", "_SRC_ID": 1, "_DST_ID": 2, "since": "2020-01-01", ...}
 ```
 
 ### Performance Tips

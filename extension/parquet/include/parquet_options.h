@@ -55,7 +55,7 @@ struct ParquetParseOptions {
  *
  * These options control Parquet file writing behavior:
  * - COMPRESSION: Compression codec (default: snappy)
- *   Supported values: none, snappy, zlib, zstd
+ *   Supported values: none, snappy, gzip (zlib), zstd
  * - ROW_GROUP_SIZE: Number of rows per row group (default: 1048576)
  * - DICTIONARY_ENCODING: Enable dictionary encoding (default: true)
  *   Valid values: true, false

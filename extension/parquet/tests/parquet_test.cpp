@@ -1202,6 +1202,39 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   EXPECT_EQ(ctx_none.row_num(), 100);
 }
 
+TEST_F(ParquetTest, TestParquetExportWithUnsupportedCompression) {
+  // Test that unsupported compression codecs produce a clear error
+  neug::QueryResponse response;
+  response.set_row_count(3);
+  
+  auto* schema = response.mutable_schema();
+  schema->add_name("id");
+  
+  auto* col0 = response.add_arrays();
+  auto* int64_arr = col0->mutable_int64_array();
+  int64_arr->add_values(1);
+  int64_arr->add_values(2);
+  int64_arr->add_values(3);
+  
+  auto entry_schema = std::make_shared<reader::TableEntrySchema>();
+  entry_schema->columnNames = {"id"};
+  entry_schema->columnTypes = {createInt64Type()};
+  
+  std::string export_path = std::string(PARQUET_TEST_DIR) + "/export_bad_codec.parquet";
+  reader::FileSchema file_schema;
+  file_schema.paths = {export_path};
+  file_schema.format = "parquet";
+  file_schema.options = {{"compression", "lz4"}};
+  
+  auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
+  neug::writer::ArrowParquetExportWriter writer(
+      file_schema, file_system, entry_schema);
+  
+  // Should fail due to unsupported codec
+  auto status = writer.writeTable(&response);
+  EXPECT_FALSE(status.ok()) << "Expected failure for unsupported codec, but got OK";
+}
+
 TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
   // Test export with custom row group size
   neug::QueryResponse response;

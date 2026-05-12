@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <arrow/array.h>
+#include <arrow/buffer.h>
 #include <arrow/builder.h>
 #include <arrow/table.h>
 #include <arrow/type.h>
@@ -57,7 +58,7 @@ static std::shared_ptr<parquet::WriterProperties> buildWriterProperties(
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported compression codec: " + codec + 
-        ". Supported: none, snappy, zlib, zstd");
+        ". Supported: none, snappy, gzip (zlib), zstd");
   }
   
   // Parse row group size
@@ -114,7 +115,7 @@ static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
   } else if (proto_array.has_date_array()) {
     return arrow::date64();
   } else if (proto_array.has_timestamp_array()) {
-    return arrow::timestamp(arrow::TimeUnit::MICRO);
+    return arrow::timestamp(arrow::TimeUnit::MICRO, "UTC");
   } else if (proto_array.has_list_array()) {
     // Recursively infer element type
     const auto& list_arr = proto_array.list_array();
@@ -202,7 +203,7 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
     TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(interval_array, arrow::LargeStringBuilder, values)
   } else if (proto_array.has_timestamp_array()) {
     auto& arr = proto_array.timestamp_array();
-    arrow::TimestampBuilder builder(arrow::timestamp(arrow::TimeUnit::MICRO), pool);
+    arrow::TimestampBuilder builder(arrow::timestamp(arrow::TimeUnit::MICRO, "UTC"), pool);
     for (int i = 0; i < arr.values_size(); ++i) {
       if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) {
         auto status = builder.Append(arr.values(i));
@@ -233,19 +234,25 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
         list_arr.elements(), element_type, 0);
     
     // Build offsets buffer
-    int num_rows = list_arr.offsets_size() - 1;
+    int64_t num_rows = list_arr.offsets_size() - 1;
     
-    // Create offsets buffer directly from protobuf
-    auto offsets_buffer = arrow::Buffer::Wrap(
-        reinterpret_cast<const uint8_t*>(list_arr.offsets().data()),
-        list_arr.offsets_size() * sizeof(int32_t));
+    // Create offsets buffer - copy data to avoid dangling pointer when protobuf is destroyed
+    int64_t offsets_byte_size = list_arr.offsets_size() * sizeof(int32_t);
+    auto offsets_buffer_result = arrow::AllocateBuffer(offsets_byte_size);
+    if (!offsets_buffer_result.ok()) {
+      THROW_RUNTIME_ERROR("Failed to allocate offsets buffer: " + offsets_buffer_result.status().ToString());
+    }
+    std::shared_ptr<arrow::Buffer> offsets_buffer = std::move(offsets_buffer_result.ValueOrDie());
+    memcpy(offsets_buffer->mutable_data(),
+           list_arr.offsets().data(),
+           offsets_byte_size);
     
     // If all values are valid (no nulls), we can safely omit validity buffer
     std::shared_ptr<arrow::Buffer> validity_buffer = nullptr;
     
     // Create ListArray directly
     auto list_array = std::make_shared<arrow::ListArray>(
-        list_type,
+        arrow_type,
         num_rows,
         offsets_buffer,
         elements_array,
@@ -266,17 +273,22 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
       field_arrays.push_back(field_array);
     }
     
-    // Build validity buffer
+    // Build validity buffer - copy data to avoid dangling pointer when protobuf is destroyed
     auto null_bitmap = struct_arr.validity();
     std::shared_ptr<arrow::Buffer> validity_buffer;
     if (!null_bitmap.empty()) {
-      validity_buffer = std::make_shared<arrow::Buffer>(
-          reinterpret_cast<const uint8_t*>(null_bitmap.data()),
-          null_bitmap.size());
+      auto buffer_result = arrow::AllocateBuffer(null_bitmap.size());
+      if (!buffer_result.ok()) {
+        THROW_RUNTIME_ERROR("Failed to allocate validity buffer: " + buffer_result.status().ToString());
+      }
+      validity_buffer = std::move(buffer_result.ValueOrDie());
+      memcpy(validity_buffer->mutable_data(),
+             null_bitmap.data(),
+             null_bitmap.size());
     }
     
     // Create StructArray - num_rows should match the field arrays' length
-    int num_rows = field_arrays.empty() ? 0 : field_arrays[0]->length();
+    int64_t num_rows = field_arrays.empty() ? 0 : field_arrays[0]->length();
     
     auto struct_array = std::make_shared<arrow::StructArray>(
         struct_type,
