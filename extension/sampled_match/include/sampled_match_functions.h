@@ -41,7 +41,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/property_graph.h"
 
 #include "sampled_match_data_graph_meta.h"
 #include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
@@ -268,36 +267,32 @@ class GraphDataCache {
   };
 
   // Returns the cache slot for `graph_ptr`, creating it lazily on first use.
-  // Keyed by the underlying PropertyGraph: each query uses a stack-local
-  // Storage* wrapper whose address is not stable across calls.
+  // Keyed by the StorageReadInterface* directly. Note: each query typically
+  // uses a stack-local Storage* wrapper, so this cache effectively misses
+  // across query boundaries — entries built within one query are reused
+  // within that query but not across them.
   CachedData& GetOrCreate(const StorageReadInterface* graph_ptr) {
-    const PropertyGraph* cache_key =
-        graph_ptr ? &graph_ptr->property_graph() : nullptr;
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = cache_.find(cache_key);
+    auto it = cache_.find(graph_ptr);
     if (it == cache_.end()) {
-      auto& data = cache_[cache_key];
+      auto& data = cache_[graph_ptr];
       data.data_meta = std::make_unique<DataGraphMeta>(*graph_ptr);
       data.schema_graph = std::make_shared<std::unordered_map<label_t, std::unordered_map<label_t, std::vector<label_t>>>>();
       data.preprocessed = false;
     }
-    return cache_[cache_key];
+    return cache_[graph_ptr];
   }
 
   bool HasCache(const StorageReadInterface* graph_ptr) const {
-    const PropertyGraph* cache_key =
-        graph_ptr ? &graph_ptr->property_graph() : nullptr;
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = cache_.find(cache_key);
+    auto it = cache_.find(graph_ptr);
     return it != cache_.end() && it->second.preprocessed;
   }
 
   void ClearCache(const StorageReadInterface* graph_ptr) {
-    const PropertyGraph* cache_key =
-        graph_ptr ? &graph_ptr->property_graph() : nullptr;
     std::lock_guard<std::mutex> lock(mutex_);
-    cache_.erase(cache_key);
+    cache_.erase(graph_ptr);
   }
 
   void ClearAll() {
@@ -312,7 +307,7 @@ class GraphDataCache {
   GraphDataCache& operator=(const GraphDataCache&) = delete;
 
   mutable std::mutex mutex_;
-  std::unordered_map<const PropertyGraph*, CachedData> cache_;
+  std::unordered_map<const StorageReadInterface*, CachedData> cache_;
 };
 
 // ============================================================================

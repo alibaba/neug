@@ -56,9 +56,26 @@ Each entry in a `constraints` array filters embeddings by a vertex/edge property
 | `operator` | string           | no       | Comparison operator. One of `=` / `==`, `>`, `<`, `>=`, `<=`, `in`, `not_in`. Defaults to `=`. |
 | `value`    | int / double / string / bool | yes | Literal value compared against the property.                              |
 
-### Example Pattern File
+### Example Pattern: a directed triangle
 
-A directed triangle over `Person` nodes, requiring an `age >= 18` filter on vertex `0` and asking the engine to return each matched person's `name`:
+The pattern below is a directed 3-cycle over three `Person` vertices connected by `person_knows_person` edges. Vertex `0` carries an `age >= 18` constraint and every vertex asks the engine to return the matched person's `name`.
+
+```text
+            (v0:Person, age >= 18)
+                  /  \
+                 /    \
+                v      \
+        (v1:Person)     \
+                 \      /
+                  \    /
+                   v  /
+            (v2:Person)
+
+Directed edges (all labelled person_knows_person):
+    v0 ──▶ v1 ──▶ v2 ──▶ v0
+```
+
+The same pattern as a JSON file:
 
 ```json
 {
@@ -82,15 +99,90 @@ A directed triangle over `Person` nodes, requiring an `age >= 18` filter on vert
 }
 ```
 
-## Using the Sampled Match Extension
+## Step-by-Step Walkthrough
 
-The typical workflow is: load the extension, build the cache once, run the estimator on each pattern, and (optionally) materialise properties for the sampled embeddings.
+This walkthrough starts from an empty database and runs `SAMPLED_MATCH` against the triangle pattern above. Run the Cypher snippets in order — each step assumes the previous step succeeded.
 
-### 1. Describe the Pattern in JSON
+### Step 1. Install and load the extension
 
-Save the pattern from the [Example Pattern File](#example-pattern-file) section to a short path such as `/tmp/sm/p.json`. The file must contain at least the `vertices` and `edges` arrays; `constraints` and `required_props` are optional per element.
+`INSTALL` only needs to run once per database; `LOAD` makes the extension's procedures (such as `SAMPLED_MATCH` and `INITIALIZE`) available in the current session.
 
-### 2. Run `SAMPLED_MATCH`
+```cypher
+INSTALL SAMPLED_MATCH;
+LOAD SAMPLED_MATCH;
+```
+
+### Step 2. Create the data graph schema
+
+Define the node and relationship tables that the pattern's labels will reference. The labels and property names used here (`Person`, `person_knows_person`, `age`, `name`) must match the ones used in the pattern JSON.
+
+```cypher
+CREATE NODE TABLE Person(id INT32 PRIMARY KEY, name STRING, age INT32);
+CREATE REL TABLE person_knows_person(FROM Person TO Person, weight DOUBLE);
+```
+
+### Step 3. Insert the data graph
+
+Insert a handful of `Person` nodes and the `person_knows_person` edges between them. The example below seeds four people and five edges; the directed cycle `0 → 1 → 2 → 0` produces exactly one triangle embedding.
+
+```cypher
+-- Nodes
+CREATE (n:Person {id: 0, name: 'Alice', age: 20});
+CREATE (n:Person {id: 1, name: 'Bob',   age: 30});
+CREATE (n:Person {id: 2, name: 'Carol', age: 20});
+CREATE (n:Person {id: 3, name: 'Dave',  age: 40});
+
+-- Edges (the first three form the triangle 0 -> 1 -> 2 -> 0)
+MATCH (a:Person), (b:Person) WHERE a.id = 0 AND b.id = 1
+  CREATE (a)-[:person_knows_person {weight: 0.5}]->(b);
+MATCH (a:Person), (b:Person) WHERE a.id = 1 AND b.id = 2
+  CREATE (a)-[:person_knows_person {weight: 1.5}]->(b);
+MATCH (a:Person), (b:Person) WHERE a.id = 2 AND b.id = 0
+  CREATE (a)-[:person_knows_person {weight: 0.5}]->(b);
+
+-- Two extra edges so the graph isn't just the triangle
+MATCH (a:Person), (b:Person) WHERE a.id = 0 AND b.id = 3
+  CREATE (a)-[:person_knows_person {weight: 2.5}]->(b);
+MATCH (a:Person), (b:Person) WHERE a.id = 3 AND b.id = 1
+  CREATE (a)-[:person_knows_person {weight: 0.5}]->(b);
+```
+
+### Step 4. Save the pattern JSON to disk
+
+Write the triangle pattern from the [Example Pattern](#example-pattern-a-directed-triangle) section to a short path on disk, for example `/tmp/sm/p.json`. The path is passed as a string literal inside `CALL`, and the current parser limits string literals to 48 characters — so keep the directory short.
+
+```bash
+mkdir -p /tmp/sm
+cat > /tmp/sm/p.json <<'EOF'
+{
+  "vertices": [
+    {
+      "id": 0, "label": "Person",
+      "constraints": [{"property": "age", "operator": ">=", "value": 18}],
+      "required_props": ["name"]
+    },
+    {"id": 1, "label": "Person", "required_props": ["name"]},
+    {"id": 2, "label": "Person", "required_props": ["name"]}
+  ],
+  "edges": [
+    {"source": 0, "target": 1, "label": "person_knows_person"},
+    {"source": 1, "target": 2, "label": "person_knows_person"},
+    {"source": 2, "target": 0, "label": "person_knows_person"}
+  ]
+}
+EOF
+```
+
+### Step 5. (Optional) Initialize the FaSTest cache
+
+`CALL INITIALIZE()` builds the auxiliary data structures FaSTest uses (degree information, ordering hints, etc.). It is invoked automatically the first time you call `SAMPLED_MATCH`, but you can run it explicitly to inspect the loaded graph or to amortise the setup cost before a batch of pattern queries.
+
+```cypher
+CALL INITIALIZE()
+RETURN status, num_vertices, num_edges, max_degree, degeneracy;
+```
+
+### Step 6. Run `SAMPLED_MATCH`
 
 `SAMPLED_MATCH` runs the FaSTest cardinality estimator against the loaded data graph. It takes two positional arguments:
 
@@ -119,7 +211,9 @@ Example output:
 | --------------- | ------------ | -------------------------------------------- | ------------------------------------------- |
 | 12345.67        | 873          | `/tmp/neug_sample/sampled_match_…csv`        | `/tmp/neug_sample/sampled_match_…json`      |
 
-The `result_file` CSV looks like:
+### Step 7. Read the sample files
+
+The `result_file` CSV has one column per pattern vertex (`v0`, `v1`, …) and one column per pattern edge (`v0-v1`, `v1-v2`, …). Vertex columns hold internal vertex ids; edge columns hold `src:dst:offset` triples that identify each matched edge instance.
 
 ```csv
 v0,v1,v2,v0-v1,v1-v2,v2-v0
@@ -127,4 +221,21 @@ v0,v1,v2,v0-v1,v1-v2,v2-v0
 ...
 ```
 
-If any `required_props` were declared in the pattern JSON, the `props_file` is a JSON document keyed by sample index that lists the requested vertex and edge properties for each embedding.
+If any `required_props` were declared in the pattern JSON, the `props_file` is a JSON document keyed by sample index that lists the requested vertex and edge properties for each embedding. For the triangle pattern above (which asks for `name` on each vertex) a single record looks like:
+
+```json
+{
+  "0": {
+    "v0": {"name": "Alice"},
+    "v1": {"name": "Bob"},
+    "v2": {"name": "Carol"}
+  }
+}
+```
+
+You can join these ids back into the database with a regular Cypher query if you need the full property record for each match:
+
+```cypher
+MATCH (p:Person) WHERE p.id IN [101, 102, 103]
+RETURN p.id, p.name, p.age;
+```
