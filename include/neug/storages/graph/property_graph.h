@@ -528,9 +528,9 @@ class PropertyGraph {
   }
 
   void loadSchema(const std::string& filename);
-  inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
+  inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, int32_t col_id) const {
-    return vertex_tables_[label].get_property_column(col_id);
+    return vertex_tables_[label].GetPropertyColumn(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(

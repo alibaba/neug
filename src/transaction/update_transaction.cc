@@ -764,7 +764,7 @@ Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
   if (col == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Fail to find property column");
   }
-  return col->get_prop(lid);
+  return col->get(lid);
 }
 
 Property UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
