@@ -1091,6 +1091,51 @@ TEST_F(SampledMatchTest, PatternDslMatchesJsonForTriangle) {
   EXPECT_LE(ratio, 2.0);
 }
 
+// File and inline forms of the same DSL pattern must produce the same
+// `estimated_count` (FaSTest is randomized so we compare order of magnitude,
+// matching the JSON-vs-DSL ratio bounds used elsewhere in this file).
+TEST_F(SampledMatchTest, PatternDslFileFormAndInlineFormAgree) {
+  const std::string kDsl =
+      "MATCH (a:Person)-[:person_knows_person]->"
+      "(b:Person)-[:person_knows_person]->"
+      "(c:Person)-[:person_knows_person]->(a)";
+
+  // File form — same path that real users would invoke from the docs.
+  auto dsl_path = WriteDslFile(pattern_dirs_, kDsl, "q.dsl");
+  ASSERT_FALSE(dsl_path.empty());
+  std::ostringstream qFile;
+  qFile << "CALL SAMPLED_MATCH_PATTERN('" << dsl_path
+        << "', 1000) RETURN estimated_count, sample_count, result_file, "
+           "props_file;";
+  auto smFile = conn_->Query(qFile.str());
+  ASSERT_TRUE(smFile.has_value()) << smFile.error().ToString();
+  double estFile =
+      smFile.value().response().arrays(0).double_array().values(0);
+  int64_t samplesFile =
+      smFile.value().response().arrays(1).int64_array().values(0);
+  EXPECT_GT(estFile, 0.0);
+  EXPECT_GE(samplesFile, 1);
+
+  // Inline form — identical DSL embedded straight into the CALL.
+  std::ostringstream qInline;
+  qInline << "CALL SAMPLED_MATCH_PATTERN('" << kDsl
+          << "', 1000) RETURN estimated_count, sample_count, result_file, "
+             "props_file;";
+  auto smInline = conn_->Query(qInline.str());
+  ASSERT_TRUE(smInline.has_value()) << smInline.error().ToString();
+  double estInline =
+      smInline.value().response().arrays(0).double_array().values(0);
+  int64_t samplesInline =
+      smInline.value().response().arrays(1).int64_array().values(0);
+  EXPECT_GT(estInline, 0.0);
+  EXPECT_GE(samplesInline, 1);
+
+  // Both forms should produce comparable estimates (within Monte-Carlo noise).
+  double ratio = estFile / estInline;
+  EXPECT_GE(ratio, 0.5);
+  EXPECT_LE(ratio, 2.0);
+}
+
 TEST_F(SampledMatchTest, PatternDslSupportsWhereAndInlineProps) {
   // Same triangle, but with the age constraint expressed once via WHERE on
   // 'a' and once via inline {age: 30} on 'b'. Both forms should translate
