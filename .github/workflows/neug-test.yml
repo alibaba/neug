@@ -108,6 +108,7 @@ jobs:
         fi
         # Decide whether to build and test extensions
         if [[ "${{ steps.changes.outputs.extension }}" == "true" ]] || \
+           [[ "${{ steps.changes.outputs.non_extension }}" == "true" ]] || \
            [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
           echo "run_extension=true" >> "$GITHUB_OUTPUT"
           echo "Extension tests enabled."
