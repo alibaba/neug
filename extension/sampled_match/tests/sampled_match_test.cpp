@@ -238,9 +238,8 @@ class SampledMatchTest : public ::testing::Test {
     std::string props_file;
   };
 
-  // Persist `pattern_json` into a short-prefix tempdir (≤ 48 chars total) so
-  // the path embeds in a CALL SAMPLED_MATCH literal without overflowing
-  // SHORT_STR_LENGTH. Caller doesn't own the dir — TearDown cleans it up.
+  // Persist `pattern_json` into a tempdir and return the path. Caller doesn't
+  // own the dir — TearDown cleans it up.
   std::string WritePattern(const std::string& pattern_json) {
     std::string tmpl = "/tmp/sm_XXXXXX";
     std::vector<char> buf(tmpl.begin(), tmpl.end());
@@ -253,9 +252,6 @@ class SampledMatchTest : public ::testing::Test {
     if (!ofs.is_open()) return "";
     ofs << pattern_json;
     ofs.close();
-    EXPECT_LE(path.string().size(), 48u)
-        << "pattern path must fit in short-string budget; got: "
-        << path.string();
     return path.string();
   }
 
@@ -1012,6 +1008,216 @@ TEST_F(SampledMatchTest, NotInOperatorIsNoOp) {
   ASSERT_TRUE(baseline.query_ok) << baseline.error;
   EXPECT_DOUBLE_EQ(not_in_op.estimated_count, baseline.estimated_count)
       << "'not_in' is a runtime no-op today; result should equal the baseline";
+}
+
+// Inline DSL longer than 48 chars round-trips through the CALL pipeline.
+// This guards against regressions of the bare-literal fold path that used to
+// crash on string literals exceeding neug_string_t::SHORT_STR_LENGTH.
+TEST_F(SampledMatchTest, LongInlineDslRoundTripsThroughCall) {
+  const std::string kDsl =
+      "MATCH (a:Person)-[:person_knows_person]->"
+      "(b:Person)-[:person_knows_person]->"
+      "(c:Person)-[:person_knows_person]->(a)";
+  ASSERT_GT(kDsl.size(), 48u)
+      << "test premise: DSL must exceed the inline-string boundary";
+  std::ostringstream q;
+  q << "CALL SAMPLED_MATCH_PATTERN('" << kDsl
+    << "', 100) RETURN estimated_count, sample_count, result_file, "
+       "props_file;";
+  auto sm = conn_->Query(q.str());
+  ASSERT_TRUE(sm.has_value()) << sm.error().ToString();
+  EXPECT_GE(sm.value().response().arrays(1).int64_array().values(0), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Pattern-DSL coverage. Patterns are passed inline by default; a `.dsl` file
+// path is also accepted by the procedure (auto-detected) and exercised below.
+// Internally the matcher runs DSL → JSON → PatternGraph entirely in memory.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Helper local to this test file: persist DSL text into a tempdir and append
+// the directory to the fixture's cleanup list.
+std::string WriteDslFile(std::vector<std::filesystem::path>& cleanup_dirs,
+                         const std::string& contents, const char* basename) {
+  std::string tmpl = "/tmp/sm_XXXXXX";
+  std::vector<char> buf(tmpl.begin(), tmpl.end());
+  buf.push_back('\0');
+  if (mkdtemp(buf.data()) == nullptr) return "";
+  std::filesystem::path dir(buf.data());
+  cleanup_dirs.push_back(dir);
+  auto path = dir / basename;
+  std::ofstream ofs(path);
+  if (!ofs.is_open()) return "";
+  ofs << contents;
+  ofs.close();
+  return path.string();
+}
+
+}  // namespace
+
+TEST_F(SampledMatchTest, PatternDslMatchesJsonForTriangle) {
+  // Triangle written in DSL. Variables a/b/c make the pattern self-
+  // documenting; the result should match the JSON kTrianglePattern up to
+  // Monte-Carlo sampling noise.
+  const std::string kDsl =
+      "MATCH (a:Person)-[:person_knows_person]->"
+      "(b:Person)-[:person_knows_person]->"
+      "(c:Person)-[:person_knows_person]->(a)";
+  auto dsl_path = WriteDslFile(pattern_dirs_, kDsl, "q.dsl");
+  ASSERT_FALSE(dsl_path.empty());
+
+  std::ostringstream q;
+  q << "CALL SAMPLED_MATCH_PATTERN('" << dsl_path
+    << "', 1000) RETURN estimated_count, sample_count, result_file, "
+       "props_file;";
+  auto sm = conn_->Query(q.str());
+  ASSERT_TRUE(sm.has_value()) << sm.error().ToString();
+  const auto& resp = sm.value().response();
+  ASSERT_EQ(sm.value().length(), 1u);
+  double estimated = resp.arrays(0).double_array().values(0);
+  int64_t samples = resp.arrays(1).int64_array().values(0);
+  EXPECT_GT(estimated, 0.0);
+  EXPECT_GE(samples, 1);
+
+  // FaSTest is a randomized estimator, so we compare order of magnitude
+  // against the JSON form rather than asserting bit-exact equality.
+  auto json_result = RunSampledMatch(WritePattern(kTrianglePattern));
+  ASSERT_TRUE(json_result.query_ok) << json_result.error;
+  ASSERT_GT(json_result.estimated_count, 0.0);
+  double ratio = estimated / json_result.estimated_count;
+  EXPECT_GE(ratio, 0.5);
+  EXPECT_LE(ratio, 2.0);
+}
+
+TEST_F(SampledMatchTest, PatternDslSupportsWhereAndInlineProps) {
+  // Same triangle, but with the age constraint expressed once via WHERE on
+  // 'a' and once via inline {age: 30} on 'b'. Both forms should translate
+  // into per-vertex constraints; the matcher restricts accordingly.
+  const std::string kDsl =
+      "MATCH (a:Person)-[:person_knows_person]->"
+      "(b:Person {age: 30})-[:person_knows_person]->"
+      "(c:Person)-[:person_knows_person]->(a) "
+      "WHERE a.age >= 18";
+  auto dsl_path = WriteDslFile(pattern_dirs_, kDsl, "q.dsl");
+  ASSERT_FALSE(dsl_path.empty());
+
+  std::ostringstream q;
+  q << "CALL SAMPLED_MATCH_PATTERN('" << dsl_path
+    << "', 1000) RETURN estimated_count, sample_count, result_file, "
+       "props_file;";
+  auto sm = conn_->Query(q.str());
+  ASSERT_TRUE(sm.has_value()) << sm.error().ToString();
+  // The age=30 / age>=18 restriction is satisfied only when 'b' is Bob
+  // (the only Person with age 30); a sample should still come back since
+  // Alice (20)-Bob (30)-Carol (20) closes a triangle.
+  double estimated = sm.value().response().arrays(0).double_array().values(0);
+  int64_t samples = sm.value().response().arrays(1).int64_array().values(0);
+  EXPECT_GT(estimated, 0.0);
+  EXPECT_GE(samples, 1);
+}
+
+// Omnibus negative test: every entry exercises a distinct parser guard.
+// Translation failure surfaces as a glog warning + empty pattern path; the
+// matcher then reports zero samples while the SQL call itself succeeds —
+// same failure shape used by RejectsMalformedPatternJson and friends.
+TEST_F(SampledMatchTest, PatternDslRejectsBadCases) {
+  struct Case {
+    const char* label;
+    std::string dsl;
+  };
+  const std::vector<Case> bad = {
+      {"undirected edge ('--')",
+       "MATCH (a:Person)-[:person_knows_person]-(b:Person)"},
+      {"<> operator",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age <> 18"},
+      {"variable-length path '*1..N'",
+       "MATCH (a:Person)-[:person_knows_person*1..3]->(b:Person)"},
+      {"IN operator",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age in 18"},
+      {"OR in WHERE",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age >= 18 OR b.age >= 18"},
+      {"NOT in WHERE",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE NOT a.age = 18"},
+      {"cross-variable predicate",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age > b.age"},
+      {"multi-label node",
+       "MATCH (a:Person:Employee)-[:person_knows_person]->(b:Person)"},
+      {"function call in WHERE",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE length(a.name) > 5"},
+      {"node without label",
+       "MATCH (a)-[:person_knows_person]->(b:Person)"},
+      {"unterminated string literal",
+       "MATCH (a:Person) WHERE a.name = 'Alice"},
+      {"unclosed paren", "MATCH (a:Person"},
+      {"reused relationship variable",
+       "MATCH (a:Person)-[r:person_knows_person]->(b:Person)"
+       "-[r:person_knows_person]->(c:Person)"},
+      {"WHERE references unknown var",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE c.age > 0"},
+      {"RETURN references unknown var",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) RETURN d.name"},
+      {"garbage at top of query", "FOOBAR (a:Person)"},
+      {"empty input", ""},
+
+      // ---- additional parser/validator guards ----
+      {"MATCH keyword without a pattern body", "MATCH"},
+      {"WHERE before MATCH",
+       "WHERE a.age = 1 MATCH (a:Person)-[:person_knows_person]->(b:Person)"},
+      {"trailing comma in MATCH",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person),"},
+      {"trailing AND in WHERE",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age = 1 AND"},
+      {"trailing comma in RETURN",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) RETURN a,"},
+      {"unclosed inline property map",
+       "MATCH (a:Person {age: 30)-[:person_knows_person]->(b:Person)"},
+      {"inline property using comparison operator",
+       "MATCH (a:Person {age > 30})-[:person_knows_person]->(b:Person)"},
+      {"inline property missing colon",
+       "MATCH (a:Person {age 30})-[:person_knows_person]->(b:Person)"},
+      {"empty node parens",
+       "MATCH ()-[:person_knows_person]->(b:Person)"},
+      {"double-colon label",
+       "MATCH (a::Person)-[:person_knows_person]->(b:Person)"},
+      {"WHERE predicate missing dot",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a name = 'X'"},
+      {"WHERE predicate missing right operand",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age >"},
+      {"same variable bound to two different labels",
+       "MATCH (a:Person)-[:person_knows_person]->(a:Company)"},
+      {"pattern begins with an edge",
+       "MATCH -[:person_knows_person]->(b:Person)"},
+      {"malformed numeric literal",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) "
+       "WHERE a.age = 1.2.3"},
+      {"non-ASCII garbage in the middle of the query",
+       "MATCH (a:Person)-[:person_knows_person]->(b:Person) ☠"},
+  };
+  for (const auto& c : bad) {
+    SCOPED_TRACE(c.label);
+    auto path = WriteDslFile(pattern_dirs_, c.dsl, "q.dsl");
+    ASSERT_FALSE(path.empty());
+    std::ostringstream q;
+    q << "CALL SAMPLED_MATCH_PATTERN('" << path
+      << "', 100) RETURN estimated_count, sample_count, result_file, "
+         "props_file;";
+    auto sm = conn_->Query(q.str());
+    ASSERT_TRUE(sm.has_value()) << sm.error().ToString();
+    EXPECT_EQ(sm.value().response().arrays(1).int64_array().values(0), 0)
+        << "expected zero samples for invalid DSL: " << c.label;
+  }
 }
 
 }  // namespace test
