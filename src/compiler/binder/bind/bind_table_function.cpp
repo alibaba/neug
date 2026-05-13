@@ -78,9 +78,18 @@ BoundTableScanInfo Binder::bindTableFunc(
     auto parameterTypeID = callFunc->parameterTypeIDs[i];
     if (positionalParams[i]->expressionType == ExpressionType::LITERAL &&
         parameterTypeID != LogicalTypeID::ANY) {
-      positionalParams[i] = expressionBinder.foldExpression(
-          expressionBinder.implicitCastIfNecessary(positionalParams[i],
-                                                   inputTypes[i]));
+      positionalParams[i] = expressionBinder.implicitCastIfNecessary(
+          positionalParams[i], inputTypes[i]);
+      // Skip fold on bare LITERAL: fold materializes through a ValueVector
+      // whose overflow allocator (InMemOverflowBuffer::allocateNewBlock) is
+      // an unimplemented stub, so string literals longer than
+      // neug_string_t::SHORT_STR_LENGTH (48) crash. A literal already has
+      // its final value; fold is only needed when the cast wrapped it in a
+      // CAST function expression.
+      if (positionalParams[i]->expressionType != ExpressionType::LITERAL) {
+        positionalParams[i] =
+            expressionBinder.foldExpression(positionalParams[i]);
+      }
     }
   }
   expression_vector outputColumns;

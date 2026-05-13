@@ -596,9 +596,9 @@ void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
   if (neug_string_t::isShortString(length)) {
     dstStr.setShortString(srcStr, length);
   } else {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "StringVector::addString: length is too long, exceeds " +
-        neug_string_t::SHORT_STR_LENGTH);
+    dstStr.overflowPtr =
+        reinterpret_cast<uint64_t>(stringBuffer->allocateOverflow(length));
+    dstStr.setLongString(srcStr, length);
   }
 }
 
