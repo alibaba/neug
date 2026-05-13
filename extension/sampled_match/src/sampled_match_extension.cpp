@@ -37,6 +37,11 @@ void Init() {
         neug::function::SampledMatchFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
+    // Pattern-DSL variant of SAMPLED_MATCH.
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::SampledMatchPatternFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
     // Vertex property lookup for matched vertices.
     neug::extension::ExtensionAPI::registerFunction<
         neug::function::GetVertexPropertyFunction>(
@@ -59,6 +64,7 @@ void Init() {
             "Functions: CALL INITIALIZE([checkpoint_dir]) - initializes graph data cache, "
             "CALL SAVE_SAMPLEDMATCH_CHECKPOINT(checkpoint_dir) - saves graph cache to files, "
             "CALL SAMPLED_MATCH(pattern_file, sample_size), "
+            "CALL SAMPLED_MATCH_PATTERN(dsl_text_or_dsl_file, sample_size), "
             "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, prop_names_json), "
             "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
             "SAMPLED_MATCH returns estimated embedding count and sampled results with edge keys."});

@@ -27,6 +27,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -45,6 +46,17 @@
 #include "sampled_match_data_graph_meta.h"
 #include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
 #include "fastest_lib/src/SubgraphCounting/cardinality_estimation.h"
+
+namespace neug {
+namespace sampled_match {
+// Forward declaration — implementation lives in pattern_dsl.cpp. Keeping the
+// definition out of this header avoids dragging the DSL parser internals
+// into every TU that consumes the extension's CALL functions. Returns the
+// JSON document text on success, or "" if the DSL didn't parse (with the
+// reason already logged via glog).
+std::string TranslatePatternDslToJson(std::string_view dsl);
+}  // namespace sampled_match
+}  // namespace neug
 
 namespace neug {
 namespace function {
@@ -517,10 +529,24 @@ inline bool DoGraphInitialization(const StorageReadInterface& graph, bool verbos
 
 class SampledSubgraphMatcher {
  public:
+  // Tag struct used to construct the matcher with an in-memory JSON pattern
+  // (so callers that already have the JSON in hand can skip the temp-file
+  // round-trip that file-based callers do).
+  struct PatternJsonText {
+    std::string json;
+  };
+
   SampledSubgraphMatcher(const StorageReadInterface& graph,
                             const std::string& pattern_file,
                             long long sample_size)
     : graph_(graph), pattern_file_(pattern_file), sample_size_(sample_size) {
+    }
+
+  SampledSubgraphMatcher(const StorageReadInterface& graph,
+                            PatternJsonText pattern,
+                            long long sample_size)
+    : graph_(graph), pattern_json_(std::move(pattern.json)),
+      sample_size_(sample_size) {
     }
   
   /**
@@ -544,11 +570,21 @@ class SampledSubgraphMatcher {
               << cached_data.data_meta->GetNumEdges() << " edges";
     }
 
-    // Step 2: always reload the pattern — callers can vary it per invocation.
-    VLOG(1) << "[SAMPLED_MATCH] Loading pattern graph from: " << pattern_file_;
-    pattern_graph_ = CreatePatternFromJson(pattern_file_);
+    // Step 2: always reload the pattern — callers can vary it per
+    // invocation. Two flavours: file path (legacy JSON callers) or in-memory
+    // JSON text (DSL caller; spares disk I/O).
+    if (!pattern_json_.empty()) {
+      VLOG(1) << "[SAMPLED_MATCH] Loading pattern graph from in-memory JSON ("
+              << pattern_json_.size() << " bytes)";
+      pattern_graph_ = CreatePatternFromJsonText(pattern_json_, "<inline>");
+    } else {
+      VLOG(1) << "[SAMPLED_MATCH] Loading pattern graph from: " << pattern_file_;
+      pattern_graph_ = CreatePatternFromJsonFile(pattern_file_);
+    }
     if (!pattern_graph_ || pattern_graph_->GetNumVertices() == 0) {
-      LOG(ERROR) << "[SAMPLED_MATCH] Failed to load pattern from: " << pattern_file_;
+      LOG(ERROR) << "[SAMPLED_MATCH] Failed to load pattern from: "
+                 << (pattern_json_.empty() ? pattern_file_
+                                           : std::string("<inline>"));
       return -1;
     }
     VLOG(1) << "[SAMPLED_MATCH] Pattern: " << pattern_graph_->GetNumVertices()
@@ -667,23 +703,30 @@ class SampledSubgraphMatcher {
     // NOTE: BuildLabelMappings logic has been moved to DoGraphInitialization()
     // for better code reuse and explicit initialization via CALL Initialize().
     
-    // Create pattern graph from JSON file using rapidjson
-    std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> CreatePatternFromJson(
-        const std::string& pattern_file) {
-        
-        const auto& schema = graph_.schema();
-
-        // Read file content
+    // Thin wrapper: read the file off disk and delegate to the in-memory
+    // text parser. The legacy SAMPLED_MATCH JSON path uses this.
+    std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph>
+    CreatePatternFromJsonFile(const std::string& pattern_file) {
         std::ifstream fin(pattern_file);
         if (!fin.is_open()) {
-            LOG(WARNING) << "[SAMPLED_MATCH] Cannot open pattern file: " << pattern_file;
+            LOG(WARNING) << "[SAMPLED_MATCH] Cannot open pattern file: "
+                         << pattern_file;
             return nullptr;
         }
-
         std::stringstream buffer;
         buffer << fin.rdbuf();
-        std::string json_content = buffer.str();
-        fin.close();
+        return CreatePatternFromJsonText(buffer.str(), pattern_file);
+    }
+
+    // Core pattern loader. Takes the JSON text directly so DSL callers can
+    // skip the write-tempfile / re-read / re-parse round-trip. The
+    // `origin_label` is purely for log lines (file path or "<inline>").
+    std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph>
+    CreatePatternFromJsonText(const std::string& json_content,
+                              const std::string& origin_label) {
+
+        const auto& schema = graph_.schema();
+        const auto& pattern_file = origin_label;  // retained for log fidelity
 
         // Parse JSON
         rapidjson::Document doc;
@@ -842,7 +885,11 @@ class SampledSubgraphMatcher {
 
     // Member variables
     const StorageReadInterface& graph_;
+    // Exactly one of these is non-empty: pattern_file_ for the legacy JSON
+    // path that reads a file off disk, pattern_json_ for callers that
+    // already have the JSON text in memory (e.g. the DSL translator).
     std::string pattern_file_;
+    std::string pattern_json_;
     std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> pattern_graph_;
     long long sample_size_;
     
@@ -1538,11 +1585,142 @@ struct SaveSampledmatchCheckpointFunction {
 // ============================================================================
 
 struct SampledMatchInput : public CallFuncInputBase {
-  std::string patternFilePath;
+  std::string patternFilePath;  // legacy JSON-file path; empty for the DSL flow
+  std::string patternJsonText;  // in-memory JSON pattern; populated by DSL flow
   long long sampleSize;
-  SampledMatchInput(std::string path, long long sample_size) : patternFilePath(std::move(path)), sampleSize(sample_size) {}
+  SampledMatchInput(std::string path, long long sample_size)
+      : patternFilePath(std::move(path)), sampleSize(sample_size) {}
+  // Tag-dispatched ctor for the in-memory variant — keeps the call site
+  // explicit about which pattern source it is using.
+  struct InlineJsonTag {};
+  SampledMatchInput(InlineJsonTag, std::string json, long long sample_size)
+      : patternJsonText(std::move(json)), sampleSize(sample_size) {}
   ~SampledMatchInput() override = default;
 };
+
+// Shared four-column output schema for SAMPLED_MATCH and its DSL-input
+// sibling. Keeping it in one place keeps the result tuples identical from a
+// downstream Cypher consumer's point of view.
+inline call_output_columns BuildSampledMatchOutputCols() {
+  return call_output_columns{
+      {"estimated_count", common::LogicalTypeID::DOUBLE},
+      {"sample_count", common::LogicalTypeID::INT64},
+      {"result_file", common::LogicalTypeID::STRING},
+      {"props_file", common::LogicalTypeID::STRING}};
+}
+
+// Runs the FaSTest sampler on a fully prepared pattern file. Factored out of
+// SampledMatchFunction so the DSL-input variant can reuse it after
+// translating its input to a temporary JSON pattern file.
+inline execution::Context ExecuteSampledMatchPipeline(
+    const SampledMatchInput& matchInput, IStorageInterface& graph) {
+  LOG(INFO) << "[SAMPLED_MATCH] Executing with graph access";
+  if (!matchInput.patternJsonText.empty()) {
+    LOG(INFO) << "[SAMPLED_MATCH] Pattern: in-memory JSON ("
+              << matchInput.patternJsonText.size() << " bytes)";
+  } else {
+    LOG(INFO) << "[SAMPLED_MATCH] Pattern file: " << matchInput.patternFilePath;
+  }
+
+  auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
+  if (!readInterface) {
+    LOG(ERROR) << "[SAMPLED_MATCH] ERROR: graph is not a StorageReadInterface!";
+    return execution::Context();
+  }
+
+  LOG(INFO) << "[SAMPLED_MATCH] Starting subgraph matching...";
+
+  // Pick the ctor that matches the caller's input flavour; the matcher's
+  // match() routine handles both internally without an extra file write.
+  std::unique_ptr<SampledSubgraphMatcher> matcher_ptr;
+  if (!matchInput.patternJsonText.empty()) {
+    matcher_ptr = std::make_unique<SampledSubgraphMatcher>(
+        *readInterface,
+        SampledSubgraphMatcher::PatternJsonText{matchInput.patternJsonText},
+        matchInput.sampleSize);
+  } else {
+    matcher_ptr = std::make_unique<SampledSubgraphMatcher>(
+        *readInterface, matchInput.patternFilePath, matchInput.sampleSize);
+  }
+  SampledSubgraphMatcher& matcher = *matcher_ptr;
+  double estimatedCount = matcher.match();
+
+  const auto& sampledResults = matcher.GetSampledResults();
+  int patternVertexCount = matcher.GetPatternVertexCount();
+  int patternEdgeCount = matcher.GetPatternEdgeCount();
+  auto patternEdgeList = matcher.GetPatternEdgeList();
+  int sampleCount = patternVertexCount > 0
+                        ? sampledResults.size() / patternVertexCount
+                        : 0;
+
+  LOG(INFO) << "[SAMPLED_MATCH] Estimated count: " << (long long)estimatedCount;
+  LOG(INFO) << "[SAMPLED_MATCH] Sampled embeddings: " << sampleCount;
+  LOG(INFO) << "[SAMPLED_MATCH] Pattern edges: " << patternEdgeCount;
+
+  std::string outputFile = GenerateOutputFilePath("sampled_match");
+
+  std::ofstream ofs(outputFile);
+  if (!ofs.is_open()) {
+    LOG(ERROR) << "[SAMPLED_MATCH] Failed to open output file: " << outputFile;
+    return execution::Context();
+  }
+
+  for (int v = 0; v < patternVertexCount; v++) {
+    if (v > 0) ofs << ",";
+    ofs << "v" << v;
+  }
+  for (int e = 0; e < patternEdgeCount; e++) {
+    auto [src, dst, label] = patternEdgeList[e];
+    ofs << ",v" << src << "-v" << dst;
+  }
+  ofs << "\n";
+
+  for (int s = 0; s < sampleCount; s++) {
+    for (int v = 0; v < patternVertexCount; v++) {
+      if (v > 0) ofs << ",";
+      ofs << sampledResults[s * patternVertexCount + v];
+    }
+    for (int e = 0; e < patternEdgeCount; e++) {
+      ofs << "," << matcher.GetSampledEdgeKey(s, e);
+    }
+    ofs << "\n";
+  }
+
+  ofs.close();
+  LOG(INFO) << "[SAMPLED_MATCH] Results written to: " << outputFile;
+
+  std::string propsFile = matcher.FetchAndWriteProperties();
+  if (!propsFile.empty()) {
+    LOG(INFO) << "[SAMPLED_MATCH] Properties file: " << propsFile;
+  } else {
+    LOG(INFO) << "[SAMPLED_MATCH] No properties requested or no results";
+  }
+
+  execution::Context ctx;
+
+  execution::ValueColumnBuilder<double> estimatedCountBuilder;
+  estimatedCountBuilder.push_back_opt(estimatedCount);
+  ctx.set(0, estimatedCountBuilder.finish());
+
+  execution::ValueColumnBuilder<int64_t> sampleCountBuilder;
+  sampleCountBuilder.push_back_opt(static_cast<int64_t>(sampleCount));
+  ctx.set(1, sampleCountBuilder.finish());
+
+  execution::ValueColumnBuilder<std::string> filePathBuilder;
+  filePathBuilder.push_back_opt(std::string(outputFile));
+  ctx.set(2, filePathBuilder.finish());
+
+  execution::ValueColumnBuilder<std::string> propsFileBuilder;
+  propsFileBuilder.push_back_opt(std::string(propsFile));
+  ctx.set(3, propsFileBuilder.finish());
+
+  ctx.tag_ids = {0, 1, 2, 3};
+
+  LOG(INFO) << "[SAMPLED_MATCH] Returned 1 row with result file: " << outputFile
+            << ", props file: " << propsFile;
+
+  return ctx;
+}
 
 struct SampledMatchFunction {
   static constexpr const char* name = "SAMPLED_MATCH";
@@ -1555,17 +1733,10 @@ struct SampledMatchFunction {
     //   col 1: sample_count    (int64)  — number of sampled embeddings returned
     //   col 2: result_file     (string) — CSV path holding the samples
     //   col 3: props_file      (string) — JSON path of extra properties, or empty
-    call_output_columns outputCols{
-        {"estimated_count", common::LogicalTypeID::DOUBLE},
-        {"sample_count", common::LogicalTypeID::INT64},
-        {"result_file", common::LogicalTypeID::STRING},
-        {"props_file", common::LogicalTypeID::STRING}
-    };
-
     auto func = std::make_unique<NeugCallFunction>(
         name,
         std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING, common::LogicalTypeID::INT64},
-        std::move(outputCols));
+        BuildSampledMatchOutputCols());
 
     func->bindFunc = [](const Schema& schema, const execution::ContextMeta& ctx_meta,
                         const ::physical::PhysicalPlan& plan, int op_idx) 
@@ -1601,104 +1772,102 @@ struct SampledMatchFunction {
       return std::make_unique<SampledMatchInput>(patternPath, sampleSize);
     };
     
-    func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
-        -> execution::Context {
-      auto& matchInput = static_cast<const SampledMatchInput&>(input);
-      
-      LOG(INFO) << "[SAMPLED_MATCH] Executing with graph access";
-      LOG(INFO) << "[SAMPLED_MATCH] Pattern file: " << matchInput.patternFilePath;
-      
-      auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
-      if (!readInterface) {
-        LOG(ERROR) << "[SAMPLED_MATCH] ERROR: graph is not a StorageReadInterface!";
-        return execution::Context();
-      }
-      
-      LOG(INFO) << "[SAMPLED_MATCH] Starting subgraph matching...";
-      
-      SampledSubgraphMatcher matcher(*readInterface, matchInput.patternFilePath, matchInput.sampleSize);
-      double estimatedCount = matcher.match();
-      
-      const auto& sampledResults = matcher.GetSampledResults();
-      int patternVertexCount = matcher.GetPatternVertexCount();
-      int patternEdgeCount = matcher.GetPatternEdgeCount();
-      auto patternEdgeList = matcher.GetPatternEdgeList();
-      int sampleCount = patternVertexCount > 0 ? 
-          sampledResults.size() / patternVertexCount : 0;
-      
-      LOG(INFO) << "[SAMPLED_MATCH] Estimated count: " << (long long)estimatedCount;
-      LOG(INFO) << "[SAMPLED_MATCH] Sampled embeddings: " << sampleCount;
-      LOG(INFO) << "[SAMPLED_MATCH] Pattern edges: " << patternEdgeCount;
-      
-      std::string outputFile = GenerateOutputFilePath("sampled_match");
-
-      std::ofstream ofs(outputFile);
-      if (!ofs.is_open()) {
-        LOG(ERROR) << "[SAMPLED_MATCH] Failed to open output file: " << outputFile;
-        return execution::Context();
-      }
-
-      // CSV header: vertex columns (v0, v1, ...) followed by edge columns
-      // (vSRC-vDST) encoded as src_global:dst_global:edge_label.
-      for (int v = 0; v < patternVertexCount; v++) {
-        if (v > 0) ofs << ",";
-        ofs << "v" << v;
-      }
-      for (int e = 0; e < patternEdgeCount; e++) {
-        auto [src, dst, label] = patternEdgeList[e];
-        ofs << ",v" << src << "-v" << dst;
-      }
-      ofs << "\n";
-
-      for (int s = 0; s < sampleCount; s++) {
-        for (int v = 0; v < patternVertexCount; v++) {
-          if (v > 0) ofs << ",";
-          ofs << sampledResults[s * patternVertexCount + v];
-        }
-        for (int e = 0; e < patternEdgeCount; e++) {
-          ofs << "," << matcher.GetSampledEdgeKey(s, e);
-        }
-        ofs << "\n";
-      }
-      
-      ofs.close();
-      LOG(INFO) << "[SAMPLED_MATCH] Results written to: " << outputFile;
-      
-      // After matching, fetch required properties and write to JSON file
-      std::string propsFile = matcher.FetchAndWriteProperties();
-      if (!propsFile.empty()) {
-          LOG(INFO) << "[SAMPLED_MATCH] Properties file: " << propsFile;
-      } else {
-          LOG(INFO) << "[SAMPLED_MATCH] No properties requested or no results";
-      }
-      
-      // Assemble the 1-row, 4-column result Context.
-      execution::Context ctx;
-
-      execution::ValueColumnBuilder<double> estimatedCountBuilder;
-      estimatedCountBuilder.push_back_opt(estimatedCount);
-      ctx.set(0, estimatedCountBuilder.finish());
-
-      execution::ValueColumnBuilder<int64_t> sampleCountBuilder;
-      sampleCountBuilder.push_back_opt(static_cast<int64_t>(sampleCount));
-      ctx.set(1, sampleCountBuilder.finish());
-
-      execution::ValueColumnBuilder<std::string> filePathBuilder;
-      filePathBuilder.push_back_opt(std::string(outputFile));
-      ctx.set(2, filePathBuilder.finish());
-
-      execution::ValueColumnBuilder<std::string> propsFileBuilder;
-      propsFileBuilder.push_back_opt(std::string(propsFile));
-      ctx.set(3, propsFileBuilder.finish());
-
-      ctx.tag_ids = {0, 1, 2, 3};
-      
-      LOG(INFO) << "[SAMPLED_MATCH] Returned 1 row with result file: " << outputFile 
-                << ", props file: " << propsFile;
-      
-      return ctx;
+    func->execFunc = [](const CallFuncInputBase& input,
+                        IStorageInterface& graph) -> execution::Context {
+      return ExecuteSampledMatchPipeline(
+          static_cast<const SampledMatchInput&>(input), graph);
     };
-    
+
+    functionSet.push_back(std::move(func));
+    return functionSet;
+  }
+};
+
+// ============================================================================
+// SampledMatchPatternFunction: same matcher pipeline as SAMPLED_MATCH but the
+// pattern is expressed in the sampled_match pattern DSL (see pattern_dsl.cpp
+// for the grammar). The first argument is either inline DSL text or a path to
+// a `.dsl` file holding it; bindFunc auto-detects which form was passed.
+// ============================================================================
+
+struct SampledMatchPatternFunction {
+  static constexpr const char* name = "SAMPLED_MATCH_PATTERN";
+
+  static function_set getFunctionSet() {
+    function_set functionSet;
+
+    auto func = std::make_unique<NeugCallFunction>(
+        name,
+        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING,
+                                           common::LogicalTypeID::INT64},
+        BuildSampledMatchOutputCols());
+
+    func->bindFunc = [](const Schema& schema,
+                        const execution::ContextMeta& ctx_meta,
+                        const ::physical::PhysicalPlan& plan, int op_idx)
+        -> std::unique_ptr<CallFuncInputBase> {
+      (void)schema;
+      (void)ctx_meta;
+      auto& procedure = plan.plan(op_idx).opr().procedure_call();
+      std::string dslArg;
+      long long sampleSize = 1000000;
+
+      if (procedure.query().arguments_size() >= 2) {
+        if (procedure.query().arguments(0).has_const_()) {
+          dslArg = procedure.query().arguments(0).const_().str();
+        }
+        if (procedure.query().arguments(1).has_const_()) {
+          try {
+            sampleSize = procedure.query().arguments(1).const_().i64();
+          } catch (...) {
+            sampleSize = 1000000;
+          }
+        }
+      }
+
+      // Accept the argument as either inline DSL text or a path to a .dsl
+      // file. The file form is convenient for long / generated patterns; the
+      // inline form is the recommended default.
+      std::string dslText;
+      std::error_code ec;
+      if (!dslArg.empty() && dslArg.size() <= 256 &&
+          std::filesystem::exists(dslArg, ec) && !ec &&
+          !std::filesystem::is_directory(dslArg, ec)) {
+        std::ifstream ifs(dslArg);
+        if (ifs.is_open()) {
+          std::ostringstream oss;
+          oss << ifs.rdbuf();
+          dslText = oss.str();
+        } else {
+          LOG(ERROR) << "[SAMPLED_MATCH_PATTERN] cannot open DSL file: "
+                     << dslArg;
+        }
+      } else {
+        dslText = dslArg;
+      }
+
+      // DSL → in-memory JSON text. No tempfile. The matcher consumes the
+      // JSON directly via its PatternJsonText ctor.
+      std::string patternJson =
+          ::neug::sampled_match::TranslatePatternDslToJson(dslText);
+      if (patternJson.empty()) {
+        LOG(ERROR) << "[SAMPLED_MATCH_PATTERN] translation failed; the "
+                      "matcher will report zero embeddings";
+      } else {
+        LOG(INFO) << "[SAMPLED_MATCH_PATTERN] translated pattern ("
+                  << patternJson.size() << " bytes JSON)";
+      }
+      return std::make_unique<SampledMatchInput>(
+          SampledMatchInput::InlineJsonTag{}, std::move(patternJson),
+          sampleSize);
+    };
+
+    func->execFunc = [](const CallFuncInputBase& input,
+                        IStorageInterface& graph) -> execution::Context {
+      return ExecuteSampledMatchPipeline(
+          static_cast<const SampledMatchInput&>(input), graph);
+    };
+
     functionSet.push_back(std::move(func));
     return functionSet;
   }
