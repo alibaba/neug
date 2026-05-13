@@ -804,17 +804,6 @@ Value property_to_value(const Property& property) {
   }
 }
 
-Value property_to_value(const Property& property, const DataType& type) {
-  if (type.id() == DataTypeId::kVarchar) {
-    int32_t max_length =
-        type.RawExtraTypeInfo()
-            ? type.RawExtraTypeInfo()->Cast<StringTypeInfo>().max_length
-            : STRING_DEFAULT_MAX_LENGTH;
-    return Value::VARCHAR(std::string(property.as_string_view()), max_length);
-  }
-  return property_to_value(property);
-}
-
 void encode_value(const Value& val, Encoder& encoder) {
   const auto& type = val.type();
   if (val.IsNull()) {

@@ -185,9 +185,9 @@ class PropertyGraph {
    * @code{.cpp}
    * CreateVertexTypeParamBuilder builder;
    * auto config = builder.VertexLabel("Person")
-   *                   .AddProperty(DataType::kInt64, "id", Property())
-   *                   .AddProperty(DataType::kVarchar, "name", Property())
-   *                   .AddProperty(DataType::kInt32, "age", Property())
+   *                   .AddProperty("id", Property())
+   *                   .AddProperty("name", Property())
+   *                   .AddProperty("age", Property())
    *                   .AddPrimaryKeyName("id")
    *                   .Build();
    * graph.CreateVertexType(config, true);
@@ -213,8 +213,8 @@ class PropertyGraph {
    * auto config = builder.SrcLabel("Person")
    *                   .DstLabel("Person")
    *                   .EdgeLabel("KNOWS")
-   *                   .AddProperty(DataType::kInt64, "since", Property())
-   *                   .AddProperty(DataType::kDouble, "weight", Property())
+   *                   .AddProperty("since", Property())
+   *                   .AddProperty("weight", Property())
    *                   .OEEdgeStrategy(EdgeStrategy::kMultiple)
    *                   .IEEdgeStrategy(EdgeStrategy::kMultiple)
    *                   .Build();

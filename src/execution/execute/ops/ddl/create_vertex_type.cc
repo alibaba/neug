@@ -43,7 +43,7 @@ class CreateVertexTypeOpr : public IOperator {
     CreateVertexTypeParamBuilder builder;
     builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
     for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_value.type(), prop_name, prop_value);
+      builder.AddProperty(prop_name, prop_value);
     }
     auto res = storage.CreateVertexType(builder.Build());
     if (!res.ok()) {

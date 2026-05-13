@@ -48,7 +48,7 @@ class CreateEdgeTypeOpr : public IOperator {
       const auto& create_edge_def = create_edge_types_[i];
       CreateEdgeTypeParamBuilder config_builder;
       for (const auto& [prop_name, prop_value] : std::get<3>(create_edge_def)) {
-        config_builder.AddProperty(prop_value.type(), prop_name, prop_value);
+        config_builder.AddProperty(prop_name, prop_value);
       }
       config_builder.SrcLabel(std::get<0>(create_edge_def))
           .DstLabel(std::get<1>(create_edge_def))

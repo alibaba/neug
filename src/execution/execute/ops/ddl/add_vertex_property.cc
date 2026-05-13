@@ -40,7 +40,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
         dynamic_cast<StorageUpdateInterface&>(graph);
     AddVertexPropertiesParamBuilder builder;
     for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_value.type(), prop_name, prop_value);
+      builder.AddProperty(prop_name, prop_value);
     }
     auto config = builder.VertexLabel(vertex_type_).Build();
     auto res = storage.AddVertexProperties(config);

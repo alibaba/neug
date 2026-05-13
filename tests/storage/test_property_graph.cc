@@ -50,15 +50,15 @@ class PropertyGraphTest : public ::testing::Test {
             ->CreateVertexType(
                 person_builder.VertexLabel("person")
                     .AddProperty(
-                        DataTypeId::kInt64, "id",
+                        "id",
                         execution::property_to_value(Property::from_int64(0)))
-                    .AddProperty(DataTypeId::kVarchar, "name",
+                    .AddProperty("name",
                                  execution::property_to_value(
                                      Property::from_string_view("")))
                     .AddProperty(
-                        DataTypeId::kInt32, "age",
+                        "age",
                         execution::property_to_value(Property::from_int32(0)))
-                    .AddProperty(DataTypeId::kDouble, "score",
+                    .AddProperty("score",
                                  execution::property_to_value(
                                      Property::from_double(0.0)))
                     .AddPrimaryKeyName("id")
@@ -68,10 +68,10 @@ class PropertyGraphTest : public ::testing::Test {
     EXPECT_TRUE(graph_
                     ->CreateVertexType(
                         company_builder.VertexLabel("company")
-                            .AddProperty(DataTypeId::kInt64, "id",
+                            .AddProperty("id",
                                          execution::property_to_value(
                                              Property::from_int64(0)))
-                            .AddProperty(DataTypeId::kVarchar, "name",
+                            .AddProperty("name",
                                          execution::property_to_value(
                                              Property::from_string_view("")))
                             .AddPrimaryKeyName("id")
@@ -83,7 +83,7 @@ class PropertyGraphTest : public ::testing::Test {
             ->CreateEdgeType(knows_builder.SrcLabel("person")
                                  .DstLabel("person")
                                  .EdgeLabel("knows")
-                                 .AddProperty(DataTypeId::kDouble, "weight",
+                                 .AddProperty("weight",
                                               execution::property_to_value(
                                                   Property::from_double(0.0)))
                                  .Build())

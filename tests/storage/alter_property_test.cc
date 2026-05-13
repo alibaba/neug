@@ -276,17 +276,17 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
-    std::vector<std::tuple<DataType, std::string, execution::Value>> properties;
+    std::vector<std::pair<std::string, execution::Value>> properties;
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(
-        std::make_tuple(DataType(DataTypeId::kInt32), std::string("id"),
+        std::make_pair(std::string("id"),
                         execution::property_to_value(Property::from_int32(0))));
-    properties.emplace_back(std::make_tuple(
-        DataType(DataTypeId::kVarchar), std::string("name"),
+    properties.emplace_back(std::make_pair(
+        std::string("name"),
         execution::property_to_value(Property::from_string_view(""))));
     properties.emplace_back(
-        std::make_tuple(DataType(DataTypeId::kInt32), std::string("age"),
+        std::make_pair(std::string("age"),
                         execution::property_to_value(Property::from_int32(0))));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     CreateVertexTypeParamBuilder builder;
@@ -305,10 +305,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
-    std::vector<std::tuple<DataType, std::string, execution::Value>>
+    std::vector<std::pair<std::string, execution::Value>>
         edge_properties;
-    edge_properties.emplace_back(std::make_tuple(
-        DataType(DataTypeId::kFloat), std::string("weight"),
+    edge_properties.emplace_back(std::make_pair(
+        std::string("weight"),
         execution::property_to_value(Property::from_float(0.0))));
     CreateEdgeTypeParamBuilder builder;
     auto status = graph.CreateEdgeType(builder.SrcLabel(src_vertex_label)
@@ -367,10 +367,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::vector<std::tuple<DataType, std::string, execution::Value>>
+    std::vector<std::pair<std::string, execution::Value>>
         add_properties;
-    add_properties.emplace_back(std::make_tuple(
-        DataType(DataTypeId::kTimestampMs), std::string("creationDate"),
+    add_properties.emplace_back(std::make_pair(
+        std::string("creationDate"),
         execution::property_to_value(Property::from_datetime(DateTime(0)))));
     AddEdgePropertiesParamBuilder builder;
     graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)

@@ -25,8 +25,9 @@ namespace neug {
 void CreateVertexTypeParam::Serialize(InArchive& arc) const {
   arc << vertex_label_name;
   arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << execution::value_to_property(default_value);
+  for (const auto& [name, default_value] : properties) {
+    arc << default_value.type() << name
+        << execution::value_to_property(default_value);
   }
   arc << static_cast<uint32_t>(primary_key_names.size());
   for (const auto& key : primary_key_names) {
@@ -46,8 +47,8 @@ CreateVertexTypeParam CreateVertexTypeParam::Deserialize(OutArchive& arc) {
     std::string name;
     Property default_value;
     arc >> type >> name >> default_value;
-    builder.AddProperty(type, name,
-                        execution::property_to_value(default_value, type));
+    builder.AddProperty(name,
+                        execution::property_to_value(default_value));
   }
   uint32_t key_size;
   arc >> key_size;
@@ -62,8 +63,9 @@ CreateVertexTypeParam CreateVertexTypeParam::Deserialize(OutArchive& arc) {
 void CreateEdgeTypeParam::Serialize(InArchive& arc) const {
   arc << src_label_name << dst_label_name << edge_label_name;
   arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << execution::value_to_property(default_value);
+  for (const auto& [name, default_value] : properties) {
+    arc << default_value.type() << name
+        << execution::value_to_property(default_value);
   }
   arc << oe_edge_strategy << ie_edge_strategy;
   if (sort_key_for_nbr.has_value()) {
@@ -87,8 +89,8 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
     std::string name;
     Property default_value;
     arc >> type >> name >> default_value;
-    builder.AddProperty(type, name,
-                        execution::property_to_value(default_value, type));
+    builder.AddProperty(name,
+                        execution::property_to_value(default_value));
   }
   EdgeStrategy oe_edge_strategy, ie_edge_strategy;
   arc >> oe_edge_strategy >> ie_edge_strategy;
@@ -106,8 +108,9 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
 void AddVertexPropertiesParam::Serialize(InArchive& arc) const {
   arc << vertex_label_name;
   arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << execution::value_to_property(default_value);
+  for (const auto& [name, default_value] : properties) {
+    arc << default_value.type() << name
+        << execution::value_to_property(default_value);
   }
 }
 
@@ -124,8 +127,8 @@ AddVertexPropertiesParam AddVertexPropertiesParam::Deserialize(
     std::string name;
     Property default_value;
     arc >> type >> name >> default_value;
-    builder.AddProperty(type, name,
-                        execution::property_to_value(default_value, type));
+    builder.AddProperty(name,
+                        execution::property_to_value(default_value));
   }
   return builder.Build();
 }
@@ -133,8 +136,9 @@ AddVertexPropertiesParam AddVertexPropertiesParam::Deserialize(
 void AddEdgePropertiesParam::Serialize(InArchive& arc) const {
   arc << src_label_name << dst_label_name << edge_label_name;
   arc << static_cast<uint32_t>(properties.size());
-  for (const auto& [type, name, default_value] : properties) {
-    arc << type << name << execution::value_to_property(default_value);
+  for (const auto& [name, default_value] : properties) {
+    arc << default_value.type() << name
+        << execution::value_to_property(default_value);
   }
 }
 
@@ -152,8 +156,8 @@ AddEdgePropertiesParam AddEdgePropertiesParam::Deserialize(OutArchive& arc) {
     std::string name;
     Property default_value;
     arc >> type >> name >> default_value;
-    builder.AddProperty(type, name,
-                        execution::property_to_value(default_value, type));
+    builder.AddProperty(name,
+                        execution::property_to_value(default_value));
   }
   return builder.Build();
 }

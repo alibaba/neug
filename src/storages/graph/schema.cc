@@ -2248,8 +2248,7 @@ OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
   v_schema.default_property_values.reserve(deserialized_defaults.size());
   for (size_t i = 0; i < deserialized_defaults.size(); ++i) {
     v_schema.default_property_values.emplace_back(
-        execution::property_to_value(deserialized_defaults[i],
-                                     v_schema.property_types[i]));
+        execution::property_to_value(deserialized_defaults[i]));
   }
   return archive;
 }
@@ -2280,8 +2279,7 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
   e_schema.default_property_values.reserve(deserialized_defaults.size());
   for (size_t i = 0; i < deserialized_defaults.size(); ++i) {
     e_schema.default_property_values.emplace_back(
-        execution::property_to_value(deserialized_defaults[i],
-                                     e_schema.properties[i]));
+        execution::property_to_value(deserialized_defaults[i]));
   }
   uint8_t has_sort_key_for_nbr;
   archive >> has_sort_key_for_nbr;

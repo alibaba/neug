@@ -633,7 +633,6 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
 
 Property value_to_property(const Value& value);
 Value property_to_value(const Property& property);
-Value property_to_value(const Property& property, const DataType& type);
 
 template <typename T>
 Value performCast(const Value& input) {
