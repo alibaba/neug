@@ -591,6 +591,14 @@ void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
 void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
                              const char* srcStr, uint64_t length) {
   NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  // Enforce the system-wide VARCHAR upper bound at the vector layer so a single
+  // overflow allocation can't be driven to arbitrary size by a malformed input.
+  const size_t maxStringLen = LogicalType::getMaxStringMaxLen();
+  if (length > maxStringLen) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "StringVector::addString: length " + std::to_string(length) +
+        " exceeds maximum allowed " + std::to_string(maxStringLen));
+  }
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   if (neug_string_t::isShortString(length)) {
