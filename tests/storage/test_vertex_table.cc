@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
@@ -51,9 +52,11 @@ class VertexTableTest : public ::testing::Test {
     property_values_ = {neug::Property::from_string_view("Alice"),
                         neug::Property::from_int32(30),
                         neug::Property::from_double(88.5)};
-    default_prop_values_ = {neug::Property::from_string_view(""),
-                            neug::Property::from_int32(0),
-                            neug::Property::from_double(0.0)};
+    default_prop_values_ = {
+        neug::execution::property_to_value(
+            neug::Property::from_string_view("")),
+        neug::execution::property_to_value(neug::Property::from_int32(0)),
+        neug::execution::property_to_value(neug::Property::from_double(0.0))};
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
                            {std::make_tuple(pk_type_, "id", 0)}, 4096, "",
@@ -99,7 +102,7 @@ class VertexTableTest : public ::testing::Test {
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
-  std::vector<neug::Property> default_prop_values_;
+  std::vector<neug::execution::Value> default_prop_values_;
   std::mt19937 generator_;
   neug::Schema schema_;
   neug::label_t v_label_id_ = 0;

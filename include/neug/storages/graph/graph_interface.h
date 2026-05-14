@@ -244,9 +244,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    */
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return graph_.get_vertex_table(label)
-        .get_property_column(prop_id)
-        ->get_prop(index);
+    return graph_.get_vertex_table(label).GetPropertyColumn(prop_id)->get(
+        index);
   }
 
   /**
