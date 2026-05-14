@@ -24,7 +24,7 @@ add_library(compiler_common
         type_utils.cpp
         utils.cpp
         windows_utils.cpp)
-add_dependencies(compiler_common neug_plan_proto)
+add_dependencies(compiler_common neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:compiler_common>

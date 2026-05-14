@@ -231,14 +231,6 @@ class NEUG_API TxStateConflictException : public Exception {
                            const std::string& file_line);
 };
 
-class NEUG_API PropertyNotFoundException : public Exception {
- public:
-  explicit PropertyNotFoundException(const std::string& msg);
-
-  PropertyNotFoundException(const std::string& msg,
-                            const std::string& file_line);
-};
-
 }  // namespace exception
 
 }  // namespace neug
@@ -332,9 +324,6 @@ class NEUG_API PropertyNotFoundException : public Exception {
 
 #define THROW_TX_STATE_CONFLICT(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(TxStateConflictException, msg)
-
-#define THROW_PROPERTY_NOT_FOUND(msg) \
-  THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(PropertyNotFoundException, msg)
 
 #define THROW_IF_ARROW_NOT_OK(expr)                             \
   do {                                                          \

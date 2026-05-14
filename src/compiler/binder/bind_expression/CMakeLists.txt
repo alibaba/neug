@@ -13,7 +13,7 @@ add_library(
         bind_variable_expression.cpp
         bind_lambda_expression.cpp)
 
-add_dependencies(neug_binder_bind_expression neug_plan_proto)
+add_dependencies(neug_binder_bind_expression neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_binder_bind_expression>

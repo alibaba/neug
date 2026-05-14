@@ -86,7 +86,6 @@ class Table {
     }
   }
   std::vector<std::shared_ptr<ColumnBase>>& columns();
-  std::vector<ColumnBase*>& column_ptrs();
 
   void insert(size_t index, const std::vector<Property>& values,
               bool insert_safe);
@@ -99,10 +98,6 @@ class Table {
    */
   void resize(size_t row_num, const std::vector<Property>& default_values);
 
-  inline Property at(size_t row_id, size_t col_id) const {
-    return column_ptrs_[col_id]->get_prop(row_id);
-  }
-
   void ingest(uint32_t index, OutArchive& arc);
 
   void close();
@@ -114,7 +109,6 @@ class Table {
   void set_work_dir(const std::string& work_dir);
 
  private:
-  void buildColumnPtrs();
   void initColumns(const std::vector<std::string>& col_name,
                    const std::vector<DataType>& types);
 
@@ -122,7 +116,6 @@ class Table {
   std::vector<std::string> col_names_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
-  std::vector<ColumnBase*> column_ptrs_;
   std::vector<bool> col_deleted_;
 
   std::string name_;

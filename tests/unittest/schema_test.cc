@@ -19,6 +19,8 @@
 #include <tuple>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
+
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
@@ -74,7 +76,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
   std::vector<DataType> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
-  std::vector<neug::Property> add_defaults;  // not used currently
+  std::vector<neug::execution::Value> add_defaults;  // not used currently
   schema.AddVertexProperties("Person", add_names, add_types, add_defaults);
 
   ASSERT_EQ(schema.get_vertex_properties("Person").size(), 3);
@@ -122,8 +124,8 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names,
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
-                      /*oe_mutable*/ true, /*ie_mutable*/ false,
-                      /*sort_on_compaction*/ true, /*desc*/ "employment");
+                      /*oe_mutable*/ true, /*ie_mutable*/ false, e_names[0],
+                      /*desc*/ "employment");
 
   // Check basics
   EXPECT_TRUE(schema.exist("Person", "Company", "WorksAt"));
@@ -146,13 +148,14 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
             EdgeStrategy::kSingle);
   EXPECT_TRUE(schema.outgoing_edge_mutable("Person", "Company", "WorksAt"));
   EXPECT_FALSE(schema.incoming_edge_mutable("Person", "Company", "WorksAt"));
-  EXPECT_TRUE(schema.get_sort_on_compaction("Person", "Company", "WorksAt"));
+  EXPECT_TRUE(
+      schema.get_sort_key_for_nbr("Person", "Company", "WorksAt").has_value());
 
   // 2) Add edge properties
   std::vector<std::string> add_e_names = {"role", "salary"};
   std::vector<DataType> add_e_types = {DataTypeId::kVarchar,
                                        DataTypeId::kInt64};
-  std::vector<neug::Property> dummy_defaults;
+  std::vector<neug::execution::Value> dummy_defaults;
   schema.AddEdgeProperties("Person", "Company", "WorksAt", add_e_names,
                            add_e_types, dummy_defaults);
   auto names_after_add =
@@ -234,7 +237,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
 
   ASSERT_TRUE(schema.exist("A", "B", "Link"));
   auto src = schema.get_vertex_label_id("A");
@@ -247,7 +250,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
   EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
 
   schema.DeleteEdgeLabel(src, dst, el);
@@ -255,7 +258,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
   EXPECT_TRUE(schema.exist(src, dst, el));
 
   schema.DeleteEdgeLabel("Link");
@@ -299,7 +302,7 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   std::vector<std::string> e_names = {"w", "tag"};
   schema.AddEdgeLabel("A", "B", "Link", e_types, e_names,
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
 
   ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "w"));
   ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "tag"));
@@ -339,7 +342,7 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
   ASSERT_TRUE(schema.contains_edge_label("Link"));
   auto e_label = schema.get_edge_label_id("Link");
 
@@ -360,7 +363,7 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
   auto src = schema.get_vertex_label_id("A");
   auto dst = schema.get_vertex_label_id("B");
   auto el = schema.get_edge_label_id("Link");
@@ -401,12 +404,14 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
 
   schema.AddEdgeLabel("person", "person", "knows", edge_property_types_,
                       edge_property_names_, EdgeStrategy::kMultiple,
-                      EdgeStrategy::kMultiple, true, true, false, "knows edge");
+                      EdgeStrategy::kMultiple, true, true, std::nullopt,
+                      "knows edge");
 
   // Add edge label "worksAt"
   schema.AddEdgeLabel("person", "company", "knows", edge_property_types_,
                       edge_property_names_, EdgeStrategy::kMultiple,
-                      EdgeStrategy::kMultiple, true, true, false, "knows edge");
+                      EdgeStrategy::kMultiple, true, true, std::nullopt,
+                      "knows edge");
 
   auto yaml = neug::Schema::DumpToYaml(schema);
   EXPECT_TRUE(yaml);
@@ -447,14 +452,14 @@ class SchemaDeleteTest : public ::testing::Test {
 
     schema_->AddEdgeLabel("person", "person", "knows", edge_property_types_,
                           edge_property_names_, neug::EdgeStrategy::kMultiple,
-                          neug::EdgeStrategy::kMultiple, true, true, false,
-                          "knows edge");
+                          neug::EdgeStrategy::kMultiple, true, true,
+                          std::nullopt, "knows edge");
 
     // Add edge label "worksAt"
     schema_->AddEdgeLabel("person", "company", "worksAt", edge_property_types_,
                           edge_property_names_, neug::EdgeStrategy::kMultiple,
-                          neug::EdgeStrategy::kMultiple, true, true, false,
-                          "worksAt edge");
+                          neug::EdgeStrategy::kMultiple, true, true,
+                          std::nullopt, "worksAt edge");
   }
 
   void TearDown() override { schema_.reset(); }
@@ -850,7 +855,7 @@ TEST(SchemaTest, TestSchemaEqual) {
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
                       /*oe_mutable*/ true, /*ie_mutable*/ false,
-                      /*sort_on_compaction*/ true, /*desc*/ "employment");
+                      /*sort_key_for_nbr*/ e_names[0], /*desc*/ "employment");
 
   // 2) Copy schema and test equal
   neug::Schema other_schema = schema;

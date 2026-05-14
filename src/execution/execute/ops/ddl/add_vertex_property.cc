@@ -26,10 +26,10 @@ class AddVertexPropertySchemaOpr : public IOperator {
   AddVertexPropertySchemaOpr(
       const std::string& vertex_type,
       const std::vector<std::pair<std::string, Value>>& properties,
-      bool error_on_conflict)
+      bool ignore_conflict)
       : vertex_type_(vertex_type),
         properties_(properties),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "AddVertexPropertySchemaOpr";
@@ -38,14 +38,16 @@ class AddVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
+    AddVertexPropertiesParamBuilder builder;
     for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
+      builder.AddProperty(prop_name, prop_value);
     }
-    auto res = storage.AddVertexProperties(vertex_type_, property_tuples,
-                                           error_on_conflict_);
+    auto config = builder.VertexLabel(vertex_type_).Build();
+    auto res = storage.AddVertexProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -56,7 +58,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
  private:
   std::string vertex_type_;
   std::vector<std::pair<std::string, Value>> properties_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
@@ -68,11 +70,11 @@ neug::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
-  bool conflict_action =
-      conflict_action_to_bool(add_vertex_property.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(add_vertex_property.conflict_action());
   return std::make_pair(std::make_unique<AddVertexPropertySchemaOpr>(
                             add_vertex_property.vertex_type().name(),
-                            tuple_res.value(), conflict_action),
+                            tuple_res.value(), ignore_conflict),
                         ctx_meta);
 }
 

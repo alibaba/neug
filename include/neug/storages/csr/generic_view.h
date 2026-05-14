@@ -451,9 +451,9 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
     if (ptr == end) {
       return;
     }
-    ptr = std::upper_bound(
+    ptr = std::lower_bound(
               adjlists[v], ptr + 1, threshold,
-              [](const T& a, const MutableNbr<T>& b) { return a < b.data; }) -
+              [](const MutableNbr<T>& b, const T& a) { return b.data < a; }) -
           1;
     while (ptr != end) {
       func(ptr->neighbor, ptr->data);

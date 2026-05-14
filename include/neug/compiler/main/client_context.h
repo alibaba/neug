@@ -145,9 +145,6 @@ class NEUG_API ClientContext {
   std::unique_ptr<PreparedStatement> prepare(std::string_view query);
 
  private:
-  static std::unique_ptr<PreparedStatement> preparedStatementWithError(
-      std::string_view errMsg);
-
   std::vector<std::shared_ptr<parser::Statement>> parseQuery(
       std::string_view query);
 

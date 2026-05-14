@@ -18,8 +18,20 @@ if(ARROW_INCLUDE_DIRS)
 endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
+# Link Arrow components directly. When Arrow is built from source, prefer
+# object libraries to avoid undefined-symbol errors from demand-driven
+# archive scanning. The extension is loaded with RTLD_LOCAL (see
+# extension.cc) so its Arrow globals stay isolated from libneug.so's copy.
+if(TARGET arrow_dataset_objlib)
+    set(_EXT_JSON_DATASET_LIB arrow_dataset_objlib)
+else()
+    set(_EXT_JSON_DATASET_LIB ${ARROW_DATASET_LIB})
+endif()
 target_link_libraries(neug_json_extension PRIVATE
     neug
+    ${ARROW_BASE_LIB}
+    ${ARROW_ACERO_LIB}
+    ${_EXT_JSON_DATASET_LIB}
 )
 
 # Build test by compiling extension sources directly (no link to neug_json_extension)

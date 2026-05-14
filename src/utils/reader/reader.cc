@@ -96,7 +96,7 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
     THROW_INVALID_ARGUMENT_EXCEPTION("Failed to build arrow options");
   }
 
-  if (!optionsBuilder->skipColumns(arrowOptions)) {
+  if (!optionsBuilder->projectColumns(arrowOptions)) {
     LOG(WARNING) << "Failed to set column projection, using all columns";
   }
 

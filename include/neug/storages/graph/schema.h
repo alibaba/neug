@@ -18,11 +18,13 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/types.h"
@@ -38,18 +40,6 @@ namespace neug {
 
 class PropertyGraph;
 class Schema;
-
-inline void process_default_values(
-    std::vector<Property>& default_property_values,
-    std::vector<std::string>& default_property_strings) {
-  // Keep the ownership of string default property in default_property_strings
-  for (auto& prop : default_property_values) {
-    if (prop.type() == DataTypeId::kVarchar && prop.as_string_view() != "") {
-      default_property_strings.emplace_back(prop.as_string_view());
-      prop.set_string_view(std::string_view(default_property_strings.back()));
-    }
-  }
-}
 
 /**
  * @brief Schema definition for a vertex type (label).
@@ -95,14 +85,15 @@ struct VertexSchema {
    *
    * @since v0.1.0
    */
-  VertexSchema(const std::string& label_name_,
-               const std::vector<DataType>& property_types_,
-               const std::vector<std::string>& property_names_,
-               const std::vector<std::tuple<DataType, std::string, size_t>>&
-                   primary_keys_,
-               const std::vector<Property>& default_property_values_ = {},
-               const std::string& description_ = "",
-               size_t max_num_ = static_cast<size_t>(1) << 32)
+  VertexSchema(
+      const std::string& label_name_,
+      const std::vector<DataType>& property_types_,
+      const std::vector<std::string>& property_names_,
+      const std::vector<std::tuple<DataType, std::string, size_t>>&
+          primary_keys_,
+      const std::vector<execution::Value>& default_property_values_ = {},
+      const std::string& description_ = "",
+      size_t max_num_ = static_cast<size_t>(1) << 32)
       : label_name(label_name_),
         property_types(property_types_),
         property_names(property_names_),
@@ -114,12 +105,11 @@ struct VertexSchema {
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
         default_property_values.emplace_back(
-            get_default_value(property_types_[i].id()));
+            get_default_value(property_types_[i]));
       }
     }
     assert(property_types.size() == property_names.size());
     assert(property_types.size() == default_property_values.size());
-    process_default_values(default_property_values, default_property_strings);
   }
 
   void clear();
@@ -128,10 +118,10 @@ struct VertexSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<Property>& default_values = {});
+                      const std::vector<execution::Value>& default_values = {});
 
   void set_properties(const std::vector<DataType>& types,
-                      const std::vector<Property>& default_values = {});
+                      const std::vector<execution::Value>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -157,8 +147,17 @@ struct VertexSchema {
 
   bool has_property(const std::string& prop) const;
 
-  const std::vector<Property>& get_default_property_values() const {
+  const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
+  }
+
+  std::vector<Property> get_default_properties() const {
+    std::vector<Property> result;
+    result.reserve(default_property_values.size());
+    for (const auto& val : default_property_values) {
+      result.emplace_back(execution::value_to_property(val));
+    }
+    return result;
   }
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
@@ -168,8 +167,7 @@ struct VertexSchema {
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
-  std::vector<Property> default_property_values;
-  std::vector<std::string> default_property_strings;
+  std::vector<execution::Value> default_property_values;
   std::string description;
   size_t max_num;
 
@@ -223,7 +221,8 @@ struct EdgeSchema {
    * @param src_label_name_ Source vertex type name
    * @param dst_label_name_ Destination vertex type name
    * @param edge_label_name_ Edge label name
-   * @param sort_on_compaction_ Sort edges during compaction
+   * @param sort_key_for_nbr_ Optional property name to sort neighbors by in CSR
+   * storage
    * @param description_ Human-readable description
    * @param ie_mutable_ Incoming edges can be modified
    * @param oe_mutable_ Outgoing edges can be modified
@@ -237,17 +236,18 @@ struct EdgeSchema {
    */
   EdgeSchema(const std::string& src_label_name_,
              const std::string& dst_label_name_,
-             const std::string& edge_label_name_, bool sort_on_compaction_,
+             const std::string& edge_label_name_,
+             std::optional<std::string> sort_key_for_nbr_,
              const std::string& description_, bool ie_mutable_,
              bool oe_mutable_, EdgeStrategy oe_strategy_,
              EdgeStrategy ie_strategy_,
              const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
-             const std::vector<Property>& default_property_values_ = {})
+             const std::vector<execution::Value>& default_property_values_ = {})
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
         edge_label_name(edge_label_name_),
-        sort_on_compaction(sort_on_compaction_),
+        sort_key_for_nbr(sort_key_for_nbr_),
         description(description_),
         ie_mutable(ie_mutable_),
         oe_mutable(oe_mutable_),
@@ -260,13 +260,11 @@ struct EdgeSchema {
     assert(properties.size() == property_names.size());
     if (default_property_values.empty()) {
       for (size_t i = 0; i < properties_.size(); ++i) {
-        default_property_values.emplace_back(
-            get_default_value(properties_[i].id()));
+        default_property_values.emplace_back(get_default_value(properties_[i]));
       }
     }
     assert(properties.size() == default_property_values.size());
     CHECK(properties.size() == property_names.size());
-    process_default_values(default_property_values, default_property_strings);
   }
 
   bool is_bundled() const;
@@ -277,7 +275,7 @@ struct EdgeSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<Property>& default_values = {});
+                      const std::vector<execution::Value>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -293,12 +291,21 @@ struct EdgeSchema {
 
   int32_t get_property_index(const std::string& prop) const;
 
-  const std::vector<Property>& get_default_property_values() const {
+  const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
   }
 
+  std::vector<Property> get_default_properties() const {
+    std::vector<Property> result;
+    result.reserve(default_property_values.size());
+    for (const auto& val : default_property_values) {
+      result.emplace_back(execution::value_to_property(val));
+    }
+    return result;
+  }
+
   std::string src_label_name, dst_label_name, edge_label_name;
-  bool sort_on_compaction;
+  std::optional<std::string> sort_key_for_nbr;
   std::string description;
   bool ie_mutable;
   bool oe_mutable;
@@ -306,8 +313,7 @@ struct EdgeSchema {
   EdgeStrategy ie_strategy;
   std::vector<DataType> properties;
   std::vector<std::string> property_names;
-  std::vector<Property> default_property_values;
-  std::vector<std::string> default_property_strings;
+  std::vector<execution::Value> default_property_values;
 
   // Mark whether the edge property is soft deleted
   std::vector<bool> eprop_soft_deleted;
@@ -452,18 +458,18 @@ class Schema {
       const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
-      const std::vector<Property>& default_property_values = {});
+      const std::vector<execution::Value>& default_property_values = {});
 
-  void AddEdgeLabel(const std::string& src_label, const std::string& dst_label,
-                    const std::string& edge_label,
-                    const std::vector<DataType>& properties,
-                    const std::vector<std::string>& prop_names,
-                    EdgeStrategy oe = EdgeStrategy::kMultiple,
-                    EdgeStrategy ie = EdgeStrategy::kMultiple,
-                    bool oe_mutable = true, bool ie_mutable = true,
-                    bool sort_on_compaction = false,
-                    const std::string& description = "",
-                    const std::vector<Property>& default_property_values = {});
+  void AddEdgeLabel(
+      const std::string& src_label, const std::string& dst_label,
+      const std::string& edge_label, const std::vector<DataType>& properties,
+      const std::vector<std::string>& prop_names,
+      EdgeStrategy oe = EdgeStrategy::kMultiple,
+      EdgeStrategy ie = EdgeStrategy::kMultiple, bool oe_mutable = true,
+      bool ie_mutable = true,
+      std::optional<std::string> sort_key_for_nbr = std::nullopt,
+      const std::string& description = "",
+      const std::vector<execution::Value>& default_property_values = {});
 
   void DeleteVertexLabel(const std::string& label, bool is_soft = false);
 
@@ -488,14 +494,14 @@ class Schema {
       const std::string& label,
       const std::vector<std::string>& properties_names,
       const std::vector<DataType>& properties_types,
-      const std::vector<Property>& properties_default_values);
+      const std::vector<execution::Value>& properties_default_values);
 
   void AddEdgeProperties(
       const std::string& src_label, const std::string& dst_label,
       const std::string& edge_label,
       const std::vector<std::string>& properties_names,
       const std::vector<DataType>& properties_types,
-      const std::vector<Property>& properties_default_values);
+      const std::vector<execution::Value>& properties_default_values);
 
   void RenameVertexProperties(
       const std::string& label,
@@ -591,7 +597,7 @@ class Schema {
 
   void set_vertex_properties(
       label_t label_id, const std::vector<DataType>& types,
-      const std::vector<Property>& default_property_values = {});
+      const std::vector<execution::Value>& default_property_values = {});
 
   std::vector<DataType> get_vertex_properties(const std::string& label) const;
   std::vector<DataTypeId> get_vertex_properties_id(
@@ -600,7 +606,7 @@ class Schema {
   std::vector<DataType> get_vertex_properties(label_t label) const;
   std::vector<DataTypeId> get_vertex_properties_id(label_t label) const;
 
-  const std::vector<Property>& get_vertex_default_property_values(
+  const std::vector<execution::Value>& get_vertex_default_property_values(
       label_t label) const;
 
   std::vector<std::string> get_vertex_property_names(
@@ -620,7 +626,7 @@ class Schema {
   bool exist(label_type src_label, label_type dst_label,
              label_type edge_label) const;
 
-  const std::vector<Property>& get_edge_default_property_values(
+  const std::vector<execution::Value>& get_edge_default_property_values(
       label_t src_label_id, label_t dst_label_id, label_t edge_label_id) const;
 
   std::vector<DataType> get_edge_properties(const std::string& src_label,
@@ -711,12 +717,13 @@ class Schema {
                              const std::string& dst_label,
                              const std::string& label) const;
 
-  bool get_sort_on_compaction(const std::string& src_label,
-                              const std::string& dst_label,
-                              const std::string& label) const;
+  std::optional<std::string> get_sort_key_for_nbr(
+      const std::string& src_label, const std::string& dst_label,
+      const std::string& label) const;
 
-  bool get_sort_on_compaction(label_t src_label, label_t dst_label,
-                              label_t label) const;
+  std::optional<std::string> get_sort_key_for_nbr(label_t src_label,
+                                                  label_t dst_label,
+                                                  label_t label) const;
 
   bool contains_edge_label(const std::string& label) const;
 
