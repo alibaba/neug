@@ -83,3 +83,36 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tests/e2e
         # run lsqb benchmark
         python3 -m pytest -m neug_benchmark -sv --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb
+
+  # ============================================================
+  # Notify: Send results to DingTalk
+  # ============================================================
+  notify:
+    needs: [test-py-neug]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send DingTalk notification
+        env:
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+        run: |
+          if [ -z "$DINGTALK_TOKEN" ]; then
+            echo "DINGTALK_TOKEN not set, skipping notification."
+            exit 0
+          fi
+          WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+          STATUS="${{ needs.test-py-neug.result }}"
+          if [[ "$STATUS" == "success" ]]; then
+            TITLE="Benchmark Passed"
+          else
+            TITLE="Benchmark Failed"
+          fi
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"title\": \"$TITLE\",
+                \"text\": \"## $TITLE\n\n- **test-py-neug**: ${STATUS}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              }
+            }"
