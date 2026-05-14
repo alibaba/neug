@@ -28,13 +28,20 @@ namespace ops {
 bool DeprecatedInfo::compareVersion(const std::string& lhs,
                                     const std::string& rhs) {
   auto parseVersion = [](const std::string& v, int& major, int& minor,
-                         int& patch) {
+                         int& patch) -> bool {
     major = minor = patch = 0;
-    std::sscanf(v.c_str(), "%d.%d.%d", &major, &minor, &patch);
+    int parsed = std::sscanf(v.c_str(), "%d.%d.%d", &major, &minor, &patch);
+    if (parsed < 3) {
+      LOG(WARNING) << "Invalid version string: " << v;
+      return false;
+    }
+    return true;
   };
   int lMajor, lMinor, lPatch, rMajor, rMinor, rPatch;
-  parseVersion(lhs, lMajor, lMinor, lPatch);
-  parseVersion(rhs, rMajor, rMinor, rPatch);
+  if (!parseVersion(lhs, lMajor, lMinor, lPatch) ||
+      !parseVersion(rhs, rMajor, rMinor, rPatch)) {
+    return false;
+  }
   if (lMajor != rMajor)
     return lMajor > rMajor;
   if (lMinor != rMinor)

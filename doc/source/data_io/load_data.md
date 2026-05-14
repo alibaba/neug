@@ -51,7 +51,7 @@ LOAD FROM "person.json"
 RETURN *;
 ```
 
-> **Version Note:** In NeuG < 0.1.2, JSON support was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use. Since v0.1.2, this step is no longer needed.
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
 
 See the [JSON Extension](../extensions/load_json) page for format-specific options and examples.
 

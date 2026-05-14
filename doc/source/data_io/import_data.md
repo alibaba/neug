@@ -182,7 +182,7 @@ COPY person FROM "person.json";
 COPY person FROM "person.jsonl";
 ```
 
-> **Version Note:** In NeuG < 0.1.2, JSON support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use. Since v0.1.2, this step is no longer needed.
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use.
 
 ### Parquet
 

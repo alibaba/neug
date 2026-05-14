@@ -416,18 +416,13 @@ def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
     shutil.rmtree(db_path_parquet, ignore_errors=True)
 
 
-def run_json_extension_suite(db_json, conn_json, db_path_json):
-    statements = []
-
-    for desc, stmt in statements:
-        run_statement(conn_json, desc, stmt)
-
+def run_json_builtin_suite(db_json, conn_json, db_path_json):
     run_json_array_tests(conn_json, export_dir=db_path_json)
     run_jsonl_tests(conn_json, export_dir=db_path_json)
 
     conn_json.close()
     db_json.close()
-    ok("Closed JSON extension test database")
+    ok("Closed JSON built-in test database")
     shutil.rmtree(db_path_json, ignore_errors=True)
 
 
@@ -752,28 +747,22 @@ if db_snb is not None:
     run_tinysnb_suite(db_snb, db_path_tinysnb)
 
 # ================================================================
-#  5. Extensions — JSON Extension
+#  5. Built-in — JSON Support
 # ================================================================
-section("5. Extensions — JSON Extension (Install / Load / Query)")
+section("5. Built-in — JSON Support (Import / Export / Query)")
 
-_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
-_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
+conn_json = None
+db_path_json = tempfile.mkdtemp(prefix="neug_json_builtin_")
+try:
+    db_json = neug.Database(db_path_json)
+    conn_json = db_json.connect()
+    ok(f"Created persistent database for JSON built-in test at {db_path_json}")
+except Exception as e:
+    fail("Create database for JSON built-in test", e)
+    db_json = None
 
-if not _run_ext_tests:
-    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
-else:
-    conn_json = None
-    db_path_json = tempfile.mkdtemp(prefix="neug_json_ext_")
-    try:
-        db_json = neug.Database(db_path_json)
-        conn_json = db_json.connect()
-        ok(f"Created persistent database for JSON extension test at {db_path_json}")
-    except Exception as e:
-        fail("Create database for JSON extension", e)
-        db_json = None
-
-    if db_json is not None and conn_json is not None:
-        run_json_extension_suite(db_json, conn_json, db_path_json)
+if db_json is not None and conn_json is not None:
+    run_json_builtin_suite(db_json, conn_json, db_path_json)
 
 # ================================================================
 #  6. Extensions — Parquet Extension

@@ -579,7 +579,8 @@ endif()
 
 #find arrow----------------------------------------------------------------------
 
-# Always enable Arrow JSON support (built-in)
+# Always enable Arrow JSON support (built-in).
+# JSON is now a core feature since v0.1.2, not an optional extension.
 set(ARROW_JSON ON CACHE BOOL "" FORCE)
 # Use system RapidJSON instead of building it (project already has rapidjson in third_party)
 set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)

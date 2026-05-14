@@ -50,7 +50,7 @@ The output format is determined by the file extension:
 - `.json` — JSON array format (all rows in a single array)
 - `.jsonl` — JSON Lines format (one JSON object per line)
 
-> **Version Note:** In NeuG < 0.1.2, JSON export was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use. Since v0.1.2, this step is no longer needed.
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON export was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
 
 ## Additional Export Formats
 
