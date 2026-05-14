@@ -163,7 +163,7 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_x86_64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
+        if: github.event_name != 'workflow_dispatch' || inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -185,10 +185,10 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+          # install NeuG wheel (built locally or from PyPI)
+          if ls wheelhouse/*.whl 1>/dev/null 2>&1; then
             for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+              python3 -m pip install "$i" || echo "Failed to install $i"
             done
           else
             python3 -m pip install neug
@@ -243,7 +243,7 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_aarch64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
+        if: github.event_name != 'workflow_dispatch' || inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -265,10 +265,10 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+          # install NeuG wheel (built locally or from PyPI)
+          if ls wheelhouse/*.whl 1>/dev/null 2>&1; then
             for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+              python3 -m pip install "$i" || echo "Failed to install $i"
             done
           else
             python3 -m pip install neug
