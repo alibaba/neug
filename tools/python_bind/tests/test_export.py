@@ -883,11 +883,13 @@ class TestParquetExport:
 # Requires: NEUG_RUN_EXTENSION_TESTS=1, S3 extension loaded, and writable bucket
 # =============================================================================
 
-S3_WRITE_TESTS_ENABLED = all([
-    EXTENSION_TESTS_ENABLED,
-    os.environ.get("OSS_ACCESS_KEY_ID"),
-    os.environ.get("OSS_ACCESS_KEY_SECRET"),
-])
+S3_WRITE_TESTS_ENABLED = all(
+    [
+        EXTENSION_TESTS_ENABLED,
+        os.environ.get("OSS_ACCESS_KEY_ID"),
+        os.environ.get("OSS_ACCESS_KEY_SECRET"),
+    ]
+)
 s3_write_test = pytest.mark.skipif(
     not S3_WRITE_TESTS_ENABLED,
     reason=(
@@ -943,12 +945,10 @@ class TestExportS3:
             f"'{s3_path}' (HEADER = true, {opts});"
         )
 
-        results = list(
-            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
-        )
-        assert len(results) == expected, (
-            f"Expected {expected} rows read back from S3, got {len(results)}"
-        )
+        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        assert (
+            len(results) == expected
+        ), f"Expected {expected} rows read back from S3, got {len(results)}"
 
     def test_export_with_filter_to_s3(self):
         """Export filtered results to S3, verify data arrives."""
@@ -965,12 +965,10 @@ class TestExportS3:
 
         results = list(
             self.conn.execute(
-                f'LOAD FROM "{s3_path}" (DELIMITER = \',\', {opts}) RETURN *;'
+                f"LOAD FROM \"{s3_path}\" (DELIMITER = ',', {opts}) RETURN *;"
             )
         )
-        assert len(results) == expected, (
-            f"Expected {expected} rows, got {len(results)}"
-        )
+        assert len(results) == expected, f"Expected {expected} rows, got {len(results)}"
 
     def test_export_empty_result_to_s3(self):
         """Export an empty result set to S3 — should succeed without error."""
@@ -982,9 +980,7 @@ class TestExportS3:
             f"'{s3_path}' (HEADER = true, {opts});"
         )
 
-        results = list(
-            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
-        )
+        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
         assert len(results) == 0, f"Expected 0 rows, got {len(results)}"
 
     # --- JSON ---
@@ -1000,12 +996,10 @@ class TestExportS3:
             f"'{s3_path}' ({opts});"
         )
 
-        results = list(
-            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
-        )
-        assert len(results) == expected, (
-            f"Expected {expected} rows from JSON, got {len(results)}"
-        )
+        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        assert (
+            len(results) == expected
+        ), f"Expected {expected} rows from JSON, got {len(results)}"
 
     def test_export_person_jsonl_to_s3(self):
         """Export person nodes to S3 as JSONL, then read back and verify."""
@@ -1018,12 +1012,10 @@ class TestExportS3:
             f"'{s3_path}' ({opts});"
         )
 
-        results = list(
-            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
-        )
-        assert len(results) == expected, (
-            f"Expected {expected} rows from JSONL, got {len(results)}"
-        )
+        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        assert (
+            len(results) == expected
+        ), f"Expected {expected} rows from JSONL, got {len(results)}"
 
     # --- Parquet ---
 
@@ -1034,13 +1026,10 @@ class TestExportS3:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
 
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{s3_path}' ({opts});"
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO " f"'{s3_path}' ({opts});"
         )
 
-        results = list(
-            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
-        )
-        assert len(results) == expected, (
-            f"Expected {expected} rows from Parquet, got {len(results)}"
-        )
+        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        assert (
+            len(results) == expected
+        ), f"Expected {expected} rows from Parquet, got {len(results)}"
