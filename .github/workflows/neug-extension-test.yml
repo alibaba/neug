@@ -164,7 +164,6 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_x86_64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -187,13 +186,9 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
-            for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
-            done
-          else
-            python3 -m pip install neug
-          fi
+          for i in wheelhouse/*.whl; do
+            [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
@@ -245,7 +240,6 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_aarch64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -268,13 +262,9 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
-            for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
-            done
-          else
-            python3 -m pip install neug
-          fi
+          for i in wheelhouse/*.whl; do
+            [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
