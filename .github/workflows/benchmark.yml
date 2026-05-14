@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-py-neug:
+  lsqb-benchmark:
     runs-on: ubuntu-22.04
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
@@ -84,12 +84,9 @@ jobs:
         # run lsqb benchmark
         python3 -m pytest -m neug_benchmark -sv --db_dir=/tmp/lsqb/ --query_dir=./queries/lsqb/ --dataset lsqb --iterations 1 --rounds 1 --read_only --benchmark-save=benchmark-lsqb
 
-  # ============================================================
-  # Notify: Send results to DingTalk
-  # ============================================================
-  notify:
-    needs: [test-py-neug]
-    if: always()
+  notify-benchmark-result:
+    needs: [lsqb-benchmark]
+    if: always() && github.repository == 'alibaba/neug'
     runs-on: ubuntu-latest
     steps:
       - name: Send DingTalk notification
@@ -101,11 +98,11 @@ jobs:
             exit 0
           fi
           WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
-          STATUS="${{ needs.test-py-neug.result }}"
+          STATUS="${{ needs.lsqb-benchmark.result }}"
           if [[ "$STATUS" == "success" ]]; then
-            TITLE="Benchmark Passed"
+            TITLE="[Nightly Report] NeuG Benchmark Passed"
           else
-            TITLE="Benchmark Failed"
+            TITLE="[Nightly Report] NeuG Benchmark Failed"
           fi
           curl -s -X POST "$WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
@@ -113,6 +110,6 @@ jobs:
               \"msgtype\": \"markdown\",
               \"markdown\": {
                 \"title\": \"$TITLE\",
-                \"text\": \"## $TITLE\n\n- **test-py-neug**: ${STATUS}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+                \"text\": \"## $TITLE\n\n- **lsqb-benchmark**: ${STATUS}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
               }
             }"
