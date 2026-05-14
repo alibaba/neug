@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/property_graph.h"
 
 namespace neug {
@@ -46,38 +47,41 @@ class PropertyGraphTest : public ::testing::Test {
     CreateVertexTypeParamBuilder person_builder;
     EXPECT_TRUE(
         graph_
-            ->CreateVertexType(person_builder.VertexLabel("person")
-                                   .AddProperty(DataTypeId::kInt64, "id",
-                                                Property::from_int64(0))
-                                   .AddProperty(DataTypeId::kVarchar, "name",
-                                                Property::from_string_view(""))
-                                   .AddProperty(DataTypeId::kInt32, "age",
-                                                Property::from_int32(0))
-                                   .AddProperty(DataTypeId::kDouble, "score",
-                                                Property::from_double(0.0))
-                                   .AddPrimaryKeyName("id")
-                                   .Build())
+            ->CreateVertexType(
+                person_builder.VertexLabel("person")
+                    .AddProperty("id", execution::property_to_value(
+                                           Property::from_int64(0)))
+                    .AddProperty("name", execution::property_to_value(
+                                             Property::from_string_view("")))
+                    .AddProperty("age", execution::property_to_value(
+                                            Property::from_int32(0)))
+                    .AddProperty("score", execution::property_to_value(
+                                              Property::from_double(0.0)))
+                    .AddPrimaryKeyName("id")
+                    .Build())
             .ok());
     CreateVertexTypeParamBuilder company_builder;
     EXPECT_TRUE(
         graph_
-            ->CreateVertexType(company_builder.VertexLabel("company")
-                                   .AddProperty(DataTypeId::kInt64, "id",
-                                                Property::from_int64(0))
-                                   .AddProperty(DataTypeId::kVarchar, "name",
-                                                Property::from_string_view(""))
-                                   .AddPrimaryKeyName("id")
-                                   .Build())
+            ->CreateVertexType(
+                company_builder.VertexLabel("company")
+                    .AddProperty("id", execution::property_to_value(
+                                           Property::from_int64(0)))
+                    .AddProperty("name", execution::property_to_value(
+                                             Property::from_string_view("")))
+                    .AddPrimaryKeyName("id")
+                    .Build())
             .ok());
     CreateEdgeTypeParamBuilder knows_builder;
     EXPECT_TRUE(
         graph_
-            ->CreateEdgeType(knows_builder.SrcLabel("person")
-                                 .DstLabel("person")
-                                 .EdgeLabel("knows")
-                                 .AddProperty(DataTypeId::kDouble, "weight",
-                                              Property::from_double(0.0))
-                                 .Build())
+            ->CreateEdgeType(
+                knows_builder.SrcLabel("person")
+                    .DstLabel("person")
+                    .EdgeLabel("knows")
+                    .AddProperty("weight", execution::property_to_value(
+                                               Property::from_double(0.0)))
+                    .Build())
             .ok());
   }
 };

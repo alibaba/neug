@@ -75,7 +75,7 @@ neug::result<Context> CreateVertex::insert_vertex(
           }
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = v_default_values[index];
+            property_values[index] = value_to_property(v_default_values[index]);
           } else {
             property_values[index] = value_to_property(value);
           }

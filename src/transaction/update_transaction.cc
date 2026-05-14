@@ -277,15 +277,15 @@ Status UpdateTransaction::AddVertexProperties(
   }
   std::vector<std::string> add_property_names;
   for (const auto& prop : add_properties) {
-    add_property_names.push_back(std::get<1>(prop));
+    add_property_names.push_back(prop.first);
   }
   undo_logs_.push(
       std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
   if (deleted_vertex_properties_.size() > v_label) {
     for (const auto& prop : add_properties) {
-      if (deleted_vertex_properties_[v_label].find(std::get<1>(prop)) !=
+      if (deleted_vertex_properties_[v_label].find(prop.first) !=
           deleted_vertex_properties_[v_label].end()) {
-        deleted_vertex_properties_[v_label].erase(std::get<1>(prop));
+        deleted_vertex_properties_[v_label].erase(prop.first);
       }
     }
   }
@@ -320,7 +320,7 @@ Status UpdateTransaction::AddEdgeProperties(
   }
   std::vector<std::string> add_property_names;
   for (const auto& prop : add_properties) {
-    add_property_names.push_back(std::get<1>(prop));
+    add_property_names.push_back(prop.first);
   }
   undo_logs_.push(std::make_unique<AddEdgePropUndo>(
       src_label_id, dst_label_id, edge_label_id, add_property_names));
@@ -328,9 +328,9 @@ Status UpdateTransaction::AddEdgeProperties(
                                                    edge_label_id);
   if (deleted_edge_properties_.find(index) != deleted_edge_properties_.end()) {
     for (const auto& prop : add_properties) {
-      if (deleted_edge_properties_[index].find(std::get<1>(prop)) !=
+      if (deleted_edge_properties_[index].find(prop.first) !=
           deleted_edge_properties_[index].end()) {
-        deleted_edge_properties_[index].erase(std::get<1>(prop));
+        deleted_edge_properties_[index].erase(prop.first);
       }
     }
   }
