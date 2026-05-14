@@ -197,10 +197,11 @@ jobs:
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages) and install extension there
-          mkdir -p $USER_SITE
-          rm -rf $USER_SITE/extension
-          cp -r extension_packages/extension $USER_SITE
+          # copy extension to the same site-packages where neug is installed
+          NEUG_SITE=$(python3 -c "import neug, os; print(os.path.dirname(os.path.dirname(neug.__file__)))")
+          mkdir -p $NEUG_SITE/extension
+          rm -rf $NEUG_SITE/extension
+          cp -r extension_packages/extension $NEUG_SITE/
 
       - name: Run simple and complex tests
         env:
@@ -277,10 +278,11 @@ jobs:
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages) and install extension there
-          mkdir -p $USER_SITE
-          rm -rf $USER_SITE/extension
-          cp -r extension_packages/extension $USER_SITE
+          # copy extension to the same site-packages where neug is installed
+          NEUG_SITE=$(python3 -c "import neug, os; print(os.path.dirname(os.path.dirname(neug.__file__)))")
+          mkdir -p $NEUG_SITE/extension
+          rm -rf $NEUG_SITE/extension
+          cp -r extension_packages/extension $NEUG_SITE/
 
       - name: Run simple and complex tests
         env:
