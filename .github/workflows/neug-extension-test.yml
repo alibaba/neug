@@ -197,6 +197,7 @@ jobs:
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
           # get neug install directory (site-packages) and install extension there
+          mkdir -p $USER_SITE
           rm -rf $USER_SITE/extension
           cp -r extension_packages/extension $USER_SITE
 
@@ -276,6 +277,7 @@ jobs:
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
           # get neug install directory (site-packages) and install extension there
+          mkdir -p $USER_SITE
           rm -rf $USER_SITE/extension
           cp -r extension_packages/extension $USER_SITE
 
