@@ -1,6 +1,6 @@
 # S3 Extension
 
-The S3 Extension enables `LOAD FROM` to read files stored on S3-compatible object storage services (AWS S3, Alibaba Cloud OSS, MinIO, etc.) and over HTTP/HTTPS URLs. After loading the S3 Extension, NeuG can resolve `s3://`, `oss://`, and `http://`/`https://` paths transparently in all `LOAD FROM` queries.
+The S3 Extension enables NeuG to access files stored on S3-compatible object storage services (AWS S3, Alibaba Cloud OSS, MinIO, etc.) and over HTTP/HTTPS URLs. After loading the S3 Extension, NeuG can resolve `s3://`, `oss://`, and `http://`/`https://` paths transparently in both `LOAD FROM` (read) and `COPY TO` (write) queries.
 
 ## Install Extension
 
@@ -108,6 +108,35 @@ RETURN *;
 LOAD FROM "http://example.com/data/person.parquet"
 RETURN *;
 ```
+
+## Export (COPY TO)
+
+The S3 Extension also supports writing query results to S3/OSS using `COPY TO`. This requires credentials with write permission (Anonymous mode cannot write).
+
+### Export to S3
+
+```cypher
+COPY (MATCH (n:Person) RETURN n.name, n.age)
+TO "s3://my-bucket/output/person.csv" (
+    CREDENTIALS_KIND='Default',
+    OSS_ENDPOINT='oss-cn-beijing.aliyuncs.com'
+);
+```
+
+### Export to OSS with Explicit Credentials
+
+```cypher
+COPY (MATCH (n:Person) RETURN n.name, n.age)
+TO "oss://my-bucket/output/person.csv" (
+    CREDENTIALS_KIND='Explicit',
+    ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com',
+    OSS_ACCESS_KEY_ID='your-access-key-id',
+    OSS_ACCESS_KEY_SECRET='your-access-key-secret'
+);
+```
+
+> **Note:** HTTP/HTTPS endpoints are read-only and do not support `COPY TO`.
+
 ### Glob Pattern
 
 Load multiple files matching a pattern. Supported wildcards: `*` (matches any sequence of characters), `?` (matches a single character), `[abc]` (matches any character in the set). Patterns like `**` and `{a,b}` are **not** supported.

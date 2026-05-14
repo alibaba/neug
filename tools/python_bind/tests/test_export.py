@@ -876,3 +876,171 @@ class TestParquetExport:
         load_result = self.conn.execute(f'LOAD FROM "{out_path}" RETURN *')
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
+
+
+# =============================================================================
+# S3/OSS Export E2E Tests
+# Requires: NEUG_RUN_EXTENSION_TESTS=1, S3 extension loaded, and writable bucket
+# =============================================================================
+
+S3_WRITE_TESTS_ENABLED = all([
+    EXTENSION_TESTS_ENABLED,
+    os.environ.get("OSS_ACCESS_KEY_ID"),
+    os.environ.get("OSS_ACCESS_KEY_SECRET"),
+])
+s3_write_test = pytest.mark.skipif(
+    not S3_WRITE_TESTS_ENABLED,
+    reason=(
+        "S3 write tests disabled; set NEUG_RUN_EXTENSION_TESTS=1, "
+        "OSS_ACCESS_KEY_ID, and OSS_ACCESS_KEY_SECRET to enable."
+    ),
+)
+
+
+@s3_write_test
+class TestExportS3:
+    """COPY TO S3/OSS E2E tests. Requires a writable bucket."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        src_db = "/tmp/tinysnb"
+        if not os.path.exists(src_db):
+            pytest.fail(f"Database not found at {src_db}")
+        self.db_dir = str(tmp_path / "tinysnb")
+        shutil.copytree(src_db, self.db_dir)
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        self.conn.execute("LOAD S3")
+        self.conn.execute("LOAD JSON")
+        self.conn.execute("LOAD PARQUET")
+
+        self.bucket = "graphscope"
+        self.endpoint = "oss-cn-beijing.aliyuncs.com"
+        yield
+        try:
+            self.conn.close()
+        finally:
+            self.db.close()
+
+    def _s3_path(self, filename):
+        """Build a fixed oss:// path. Repeated runs overwrite the same file."""
+        return f"oss://{self.bucket}/neug_e2e_test/{filename}"
+
+    def _export_options(self):
+        """Build common export options string (credentials from env vars)."""
+        return f"OSS_ENDPOINT='{self.endpoint}'"
+
+    # --- CSV ---
+
+    def test_export_person_csv_to_s3(self):
+        """Export person nodes to S3 as CSV, then read back and verify row count."""
+        s3_path = self._s3_path("person.csv")
+        opts = self._export_options()
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
+            f"'{s3_path}' (HEADER = true, {opts});"
+        )
+
+        results = list(
+            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
+        )
+        assert len(results) == expected, (
+            f"Expected {expected} rows read back from S3, got {len(results)}"
+        )
+
+    def test_export_with_filter_to_s3(self):
+        """Export filtered results to S3, verify data arrives."""
+        s3_path = self._s3_path("filtered.csv")
+        opts = self._export_options()
+        expected = _count_query(
+            self.conn, "MATCH (v:person) WHERE v.age > 20 RETURN v.ID, v.fName, v.age"
+        )
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) WHERE v.age > 20 RETURN v.ID, v.fName, v.age) TO "
+            f"'{s3_path}' (HEADER = true, DELIMITER = ',', {opts});"
+        )
+
+        results = list(
+            self.conn.execute(
+                f'LOAD FROM "{s3_path}" (DELIMITER = \',\', {opts}) RETURN *;'
+            )
+        )
+        assert len(results) == expected, (
+            f"Expected {expected} rows, got {len(results)}"
+        )
+
+    def test_export_empty_result_to_s3(self):
+        """Export an empty result set to S3 — should succeed without error."""
+        s3_path = self._s3_path("empty.csv")
+        opts = self._export_options()
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) WHERE v.ID = -999 RETURN v.ID) TO "
+            f"'{s3_path}' (HEADER = true, {opts});"
+        )
+
+        results = list(
+            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
+        )
+        assert len(results) == 0, f"Expected 0 rows, got {len(results)}"
+
+    # --- JSON ---
+
+    def test_export_person_json_to_s3(self):
+        """Export person nodes to S3 as JSON array, then read back and verify."""
+        s3_path = self._s3_path("person.json")
+        opts = self._export_options()
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO "
+            f"'{s3_path}' ({opts});"
+        )
+
+        results = list(
+            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
+        )
+        assert len(results) == expected, (
+            f"Expected {expected} rows from JSON, got {len(results)}"
+        )
+
+    def test_export_person_jsonl_to_s3(self):
+        """Export person nodes to S3 as JSONL, then read back and verify."""
+        s3_path = self._s3_path("person.jsonl")
+        opts = self._export_options()
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO "
+            f"'{s3_path}' ({opts});"
+        )
+
+        results = list(
+            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
+        )
+        assert len(results) == expected, (
+            f"Expected {expected} rows from JSONL, got {len(results)}"
+        )
+
+    # --- Parquet ---
+
+    def test_export_person_parquet_to_s3(self):
+        """Export person nodes to S3 as Parquet, then read back and verify."""
+        s3_path = self._s3_path("person.parquet")
+        opts = self._export_options()
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
+
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
+            f"'{s3_path}' ({opts});"
+        )
+
+        results = list(
+            self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;')
+        )
+        assert len(results) == expected, (
+            f"Expected {expected} rows from Parquet, got {len(results)}"
+        )

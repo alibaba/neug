@@ -23,10 +23,31 @@
 #include "neug/utils/file_sys/file_system.h"
 
 namespace {
+
+// Strip s3:// or oss:// scheme prefix from a path, returning the
+// "bucket/key" format that Arrow S3FileSystem expects.
+// If the path has no recognized scheme, it is returned unchanged.
+static std::string stripS3Scheme(const std::string& path) {
+  if (path.size() > 5 && path.substr(0, 5) == "s3://") return path.substr(5);
+  if (path.size() > 6 && path.substr(0, 6) == "oss://") return path.substr(6);
+  return path;
+}
+
 // Thin wrapper that adapts a shared_ptr<arrow::fs::S3FileSystem> to the
 // unique_ptr<arrow::fs::FileSystem> ownership model required by
 // fsys::FileSystem::toArrowFileSystem().  All calls are delegated to the
 // underlying shared instance.
+//
+// Arrow S3FileSystem requires bare "bucket/key" paths and rejects URIs
+// (S3Path::FromString calls IsLikelyUri check).  For the read path, glob()
+// already returns bare paths.  For the write path, callers may still pass
+// URI-prefixed paths (e.g. "oss://bucket/key"), so this wrapper strips the
+// scheme on every string-path method as a safety net.
+//
+// TODO: once Provide() is migrated to non-const FileSchema& (requires
+// coordinated NeuG release), scheme stripping will move to the VFS factory
+// layer (aligned with Arrow's FileSystemFromUri(&out_path) pattern), and
+// this wrapper can become pure delegation.
 class S3FileSystemWrapper : public arrow::fs::FileSystem {
  public:
   explicit S3FileSystemWrapper(
@@ -52,56 +73,60 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
     return inner_->MakeUri(std::move(path));
   }
 
-  // Pure-virtual overrides
+  // Pure-virtual overrides — strip URI scheme before delegating to Arrow.
   arrow::Result<arrow::fs::FileInfo> GetFileInfo(
       const std::string& path) override {
-    return inner_->GetFileInfo(path);
+    return inner_->GetFileInfo(stripS3Scheme(path));
   }
   arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
       const arrow::fs::FileSelector& selector) override {
     return inner_->GetFileInfo(selector);
   }
-
-  // Non-pure overrides: delegate to inner_ for correct S3 behavior
   arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
       const std::vector<std::string>& paths) override {
-    return inner_->GetFileInfo(paths);
+    std::vector<std::string> stripped;
+    stripped.reserve(paths.size());
+    for (const auto& p : paths) stripped.push_back(stripS3Scheme(p));
+    return inner_->GetFileInfo(stripped);
   }
 
   arrow::Status CreateDir(const std::string& path,
                           bool recursive) override {
-    return inner_->CreateDir(path, recursive);
+    return inner_->CreateDir(stripS3Scheme(path), recursive);
   }
   arrow::Status DeleteDir(const std::string& path) override {
-    return inner_->DeleteDir(path);
+    return inner_->DeleteDir(stripS3Scheme(path));
   }
   arrow::Status DeleteDirContents(const std::string& path,
                                   bool missing_dir_ok) override {
-    return inner_->DeleteDirContents(path, missing_dir_ok);
+    return inner_->DeleteDirContents(stripS3Scheme(path), missing_dir_ok);
   }
   arrow::Status DeleteRootDirContents() override {
     return inner_->DeleteRootDirContents();
   }
   arrow::Status DeleteFile(const std::string& path) override {
-    return inner_->DeleteFile(path);
+    return inner_->DeleteFile(stripS3Scheme(path));
   }
   arrow::Status DeleteFiles(
       const std::vector<std::string>& paths) override {
-    return inner_->DeleteFiles(paths);
+    std::vector<std::string> stripped;
+    stripped.reserve(paths.size());
+    for (const auto& p : paths) stripped.push_back(stripS3Scheme(p));
+    return inner_->DeleteFiles(stripped);
   }
   arrow::Status Move(const std::string& src,
                      const std::string& dest) override {
-    return inner_->Move(src, dest);
+    return inner_->Move(stripS3Scheme(src), stripS3Scheme(dest));
   }
   arrow::Status CopyFile(const std::string& src,
                          const std::string& dest) override {
-    return inner_->CopyFile(src, dest);
+    return inner_->CopyFile(stripS3Scheme(src), stripS3Scheme(dest));
   }
 
   // OpenInputStream: both string-path and FileInfo overloads
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
       const std::string& path) override {
-    return inner_->OpenInputStream(path);
+    return inner_->OpenInputStream(stripS3Scheme(path));
   }
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
       const arrow::fs::FileInfo& info) override {
@@ -111,7 +136,7 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
   // OpenInputFile: both string-path and FileInfo overloads
   arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
       const std::string& path) override {
-    return inner_->OpenInputFile(path);
+    return inner_->OpenInputFile(stripS3Scheme(path));
   }
   arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
       const arrow::fs::FileInfo& info) override {
@@ -121,12 +146,12 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
   arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenOutputStream(
       const std::string& path,
       const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
-    return inner_->OpenOutputStream(path, metadata);
+    return inner_->OpenOutputStream(stripS3Scheme(path), metadata);
   }
   arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenAppendStream(
       const std::string& path,
       const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
-    return inner_->OpenAppendStream(path, metadata);
+    return inner_->OpenAppendStream(stripS3Scheme(path), metadata);
   }
 
  private:
@@ -142,14 +167,15 @@ namespace s3 {
 S3URIComponents S3URIComponents::parse(const std::string& uri) {
   S3URIComponents components;
   
-  // Validate URI starts with "s3://" or "oss://"
-  std::string path;
-  if (uri.substr(0, 5) == "s3://") {
-    path = uri.substr(5);  // Remove "s3://" prefix
-  } else if (uri.substr(0, 6) == "oss://") {
-    path = uri.substr(6);  // Remove "oss://" prefix
-  } else {
-    THROW_IO_EXCEPTION("Invalid S3/OSS URI: must start with 's3://' or 'oss://', got: " + uri);
+  // Strip URI scheme prefix (s3:// or oss://) if present
+  std::string path = stripS3Scheme(uri);
+  
+  // If the URI contains a scheme ("://") but it was NOT s3:// or oss://,
+  // reject it.  Bare paths (no scheme) are accepted for callers that have
+  // already stripped the scheme.
+  if (path == uri && uri.find("://") != std::string::npos) {
+    THROW_IO_EXCEPTION(
+        "Invalid S3 URI: expected s3:// or oss:// scheme, got: " + uri);
   }
   
   // Find first '/' to separate bucket and key
