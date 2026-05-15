@@ -38,27 +38,24 @@
 
 namespace neug {
 
-std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
-filterInvalidEdges(const std::vector<vid_t>& src_lid,
-                   const std::vector<vid_t>& dst_lid) {
+void filterInvalidEdges(std::vector<vid_t>& src_lid,
+                        std::vector<vid_t>& dst_lid,
+                        std::vector<bool>& valid_flags) {
   assert(src_lid.size() == dst_lid.size());
-  std::vector<vid_t> filtered_src, filtered_dst;
-  std::vector<bool> valid_flags;
-  filtered_src.reserve(src_lid.size());
-  filtered_dst.reserve(dst_lid.size());
+
   valid_flags.reserve(src_lid.size());
+  size_t valid_count = 0;
   for (size_t i = 0; i < src_lid.size(); ++i) {
     if (src_lid[i] != std::numeric_limits<vid_t>::max() &&
         dst_lid[i] != std::numeric_limits<vid_t>::max()) {
-      filtered_src.push_back(src_lid[i]);
-      filtered_dst.push_back(dst_lid[i]);
+      src_lid[valid_count] = src_lid[i];
+      dst_lid[valid_count] = dst_lid[i];
+      ++valid_count;
       valid_flags.push_back(true);
     } else {
       valid_flags.push_back(false);
     }
   }
-  return std::make_tuple(std::move(filtered_src), std::move(filtered_dst),
-                         std::move(valid_flags));
 }
 
 template <typename EDATA_T, typename ARROW_COL_T>
@@ -896,8 +893,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
   }
   std::vector<bool> valid_flags;  // true for valid edges
-  std::tie(src_lid, dst_lid, valid_flags) =
-      filterInvalidEdges(src_lid, dst_lid);
+  filterInvalidEdges(src_lid, dst_lid, valid_flags);
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
