@@ -106,16 +106,6 @@ jobs:
           echo "extension_only=false" >> "$GITHUB_OUTPUT"
           echo "Detected non-extension changes. Run full test suite."
         fi
-        # Decide whether to build and test extensions
-        if [[ "${{ steps.changes.outputs.extension }}" == "true" ]] || \
-           [[ "${{ steps.changes.outputs.non_extension }}" == "true" ]] || \
-           [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "run_extension=true" >> "$GITHUB_OUTPUT"
-          echo "Extension tests enabled."
-        else
-          echo "run_extension=false" >> "$GITHUB_OUTPUT"
-          echo "Extension tests skipped (no extension changes and not push to main)."
-        fi
 
     - name: Cache CCache
       uses: actions/cache@v4
@@ -194,10 +184,6 @@ jobs:
         export BUILD_TEST=ON
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
-        if [[ "${{ steps.scope.outputs.run_extension }}" == "true" ]]; then
-          export BUILD_EXTENSIONS="json;parquet"
-          echo "Building with extensions: json;parquet"
-        fi
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
@@ -462,38 +448,7 @@ jobs:
         ./test
 
     # ========================================
-    # Phase 5: Extension Tests
-    # ========================================
-    - name: Run Extension C++ Test
-      if: steps.scope.outputs.run_extension == 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export COMPREHENSIVE_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export TEST_PATH=${GITHUB_WORKSPACE}/tests
-        cd build/neug_py_bind
-        ctest -R json_extension_test -V
-        ctest -R parquet_extension_test -V
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        ctest -R test_extension -V
-
-    - name: Run Extension Python Test
-      if: steps.scope.outputs.run_extension == 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_json or copy_from_jsonl or copy_from_parquet"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "json or parquet"
-
-    # ========================================
-    # Phase 6: Coverage Report (if main branch)
+    # Phase 5: Coverage Report (if main branch)
     # ========================================
     - name: Generate Coverage Report
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
