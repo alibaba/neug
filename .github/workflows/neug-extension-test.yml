@@ -15,11 +15,6 @@ on:
         required: true
         default: 'main'
         type: string
-      rebuild_neug:
-        description: 'Rebuild NeuG wheel package before testing extension'
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -145,12 +140,6 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Setup Python Env
-        run: |
-          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
-          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
-          echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
-
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==3.4.0
 
@@ -221,12 +210,6 @@ jobs:
         with:
           python-version: '3.13'
   
-      - name: Setup Python Env
-        run: |
-          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
-          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
-          echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
-
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==3.4.0
 
