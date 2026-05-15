@@ -58,7 +58,6 @@ void filterInvalidEdges(std::vector<vid_t>& src_lid,
   }
   src_lid.resize(valid_count);
   dst_lid.resize(valid_count);
-  qecvt
 }
 
 template <typename EDATA_T, typename ARROW_COL_T>
