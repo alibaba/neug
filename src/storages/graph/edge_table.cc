@@ -241,7 +241,7 @@ template <typename EDATA_T, typename ARROW_COL_T>
 void insert_edges_bundled_typed_impl(
     TypedCsrBase<EDATA_T>* out_csr, TypedCsrBase<EDATA_T>* in_csr,
     const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
     const std::vector<bool>& valid_flags) {
   std::vector<EDATA_T> edge_data;
   edge_data.reserve(src_lid.size());
@@ -259,6 +259,7 @@ void insert_edges_bundled_typed_impl(
         }
       }
     }
+    rb.reset();
   }
   out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
@@ -408,7 +409,7 @@ void batch_add_bundled_edges_impl(
     CsrBase* out_csr, CsrBase* in_csr, std::shared_ptr<const EdgeSchema> meta,
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
     const std::vector<bool>& valid_flags) {
   const auto& prop_types = meta->properties;
   if (prop_types.empty() || prop_types[0].id() == DataTypeId::kEmpty) {
