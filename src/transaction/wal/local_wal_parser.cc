@@ -15,6 +15,8 @@
 
 #include "neug/transaction/wal/local_wal_parser.h"
 
+#include "neug/utils/exception/exception.h"
+
 #include <fcntl.h>
 #include <glog/logging.h>
 #include <sys/mman.h>
@@ -49,7 +51,7 @@ void LocalWalParser::open(const std::string& wal_uri) {
     int fd = ::open(path.c_str(), O_RDONLY);
     void* mmapped_buffer = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (mmapped_buffer == MAP_FAILED) {
-      LOG(FATAL) << "mmap failed...";
+      THROW_IO_EXCEPTION("mmap failed...");
     }
 
     fds_.push_back(fd);
