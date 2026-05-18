@@ -95,6 +95,7 @@ class GResultSchema {
     auto opType = plan.getLastOperator()->getOperatorType();
     if (opType == planner::LogicalOperatorType::COPY_FROM ||
         opType == planner::LogicalOperatorType::INSERT ||
+        opType == planner::LogicalOperatorType::MERGE ||
         opType == planner::LogicalOperatorType::SET_PROPERTY ||
         opType == planner::LogicalOperatorType::DELETE ||
         opType == planner::LogicalOperatorType::COPY_TO ||

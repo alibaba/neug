@@ -55,6 +55,8 @@
 
 #include "neug/execution/execute/ops/insert/create_edge.h"
 #include "neug/execution/execute/ops/insert/create_vertex.h"
+#include "neug/execution/execute/ops/insert/merge_edge.h"
+#include "neug/execution/execute/ops/insert/merge_vertex.h"
 
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
 #include "neug/execution/execute/ops/ddl/add_vertex_property.h"
@@ -118,6 +120,8 @@ void PlanParser::init() {
 
   register_operator_builder(std::make_unique<ops::CreateVertexOprBuilder>());
   register_operator_builder(std::make_unique<ops::CreateEdgeOprBuilder>());
+  register_operator_builder(std::make_unique<ops::MergeVertexOprBuilder>());
+  register_operator_builder(std::make_unique<ops::MergeEdgeOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
@@ -235,6 +239,12 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kCreateEdge: {
     return "create_edge";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kMergeVertex: {
+    return "merge_vertex";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kMergeEdge: {
+    return "merge_edge";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kSetVertex: {
     return "set_vertex";
@@ -479,6 +489,38 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       const auto& create_vertex_opr = plan.plan(i).opr().create_vertex();
       for (const auto& entry : create_vertex_opr.entries()) {
         for (const auto& prop : entry.property_mappings()) {
+          expression_parse(prop.data(), params_type);
+        }
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kMergeVertex: {
+      const auto& merge_vertex_opr = plan.plan(i).opr().merge_vertex();
+      for (const auto& entry : merge_vertex_opr.entries()) {
+        for (const auto& prop : entry.property_mappings()) {
+          expression_parse(prop.data(), params_type);
+        }
+        for (const auto& prop : entry.on_create()) {
+          expression_parse(prop.data(), params_type);
+        }
+        for (const auto& prop : entry.on_match()) {
+          expression_parse(prop.data(), params_type);
+        }
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kMergeEdge: {
+      const auto& merge_edge_opr = plan.plan(i).opr().merge_edge();
+      for (const auto& entry : merge_edge_opr.entries()) {
+        for (const auto& prop : entry.property_mappings()) {
+          expression_parse(prop.data(), params_type);
+        }
+        for (const auto& prop : entry.on_create()) {
+          expression_parse(prop.data(), params_type);
+        }
+        for (const auto& prop : entry.on_match()) {
           expression_parse(prop.data(), params_type);
         }
       }

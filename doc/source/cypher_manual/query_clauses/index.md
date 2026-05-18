@@ -10,6 +10,7 @@ Clause | Description
 [ORDER](order_clause) | Further sort intermediate or output results
 [SKIP](limit_clause) | Skip the top portion of results, determine the lower bound of output results
 [LIMIT](limit_clause) | Truncate results, determine the upper bound of output results
+[MERGE](merge_clause) | Ensure a pattern exists; match or create
 [UNION](union_clause) | Merge multiple branch results with consistent schema
 <!-- [UNWIND](unwind_clause) | Unnest a List Result -->
 

@@ -1,8 +1,4 @@
-#include <iostream>
-#include <memory>
 #include "neug/compiler/binder/expression/expression_util.h"
-#include "neug/compiler/binder/expression/node_expression.h"
-#include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/subquery_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/expression_type.h"
@@ -31,18 +27,29 @@ expression_vector Planner::getCorrelatedExprs(
     const QueryGraphCollection& collection, const expression_vector& predicates,
     Schema* outerSchema) {
   expression_vector result;
-  // for query `MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE
-  // b.age > a.age`, a.age = a.age will be put into join condition by the
-  // following codes, we skip here.
 
-  // for (auto& predicate : predicates) {
-  //   for (auto& expression : getDependentExprs(predicate, *outerSchema)) {
-  //     result.push_back(expression);
-  //   }
-  // }
   for (auto& node : collection.getQueryNodes()) {
     if (outerSchema->isExpressionInScope(*node->getInternalID())) {
       result.push_back(node->getInternalID());
+    }
+  }
+  // for query `MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE
+  // b.age > a.age`, a.age = a.age will be put into join condition by the
+  // following codes, we skip here.
+  for (auto& predicate : predicates) {
+    for (auto& expression : getDependentExprs(predicate, *outerSchema)) {
+      if (expression->expressionType == ExpressionType::PROPERTY) {
+        if (std::find_if(result.begin(), result.end(), [&](const auto& expr) {
+              return expr->expressionType == ExpressionType::PROPERTY &&
+                     expr->template constPtrCast<PropertyExpression>()
+                             ->getVariableName() ==
+                         expression->constPtrCast<PropertyExpression>()
+                             ->getVariableName();
+            }) != result.end()) {
+          continue;
+        }
+      }
+      result.push_back(expression);
     }
   }
   return ExpressionUtil::removeDuplication(result);
