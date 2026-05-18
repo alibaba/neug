@@ -164,11 +164,13 @@ class UpdateTransactionTest : public ::testing::Test {
     neug::vid_t cmp_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(cmp_label, neug::Property::from_int64(1), cmp_vid));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(interface.AddEdge(
         person_label, p1_vid, software_label, software_vid, dev_label,
-        {neug::Property::from_double(4.5), neug::Property::from_int64(2023)}));
+        {neug::Property::from_double(4.5), neug::Property::from_int64(2023)},
+        edge_prop));
     EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, cmp_label, cmp_vid,
-                                  employ_label, {}));
+                                  employ_label, {}, edge_prop));
   }
 
   template <typename FUNC_T>
@@ -219,9 +221,10 @@ class UpdateTransactionTest : public ::testing::Test {
     for (int i = 0; i < num_edges; i++) {
       std::string full_review = review_text + std::to_string(i);
       reviews.push_back(full_review);
+      const void* edge_prop = nullptr;
       EXPECT_TRUE(graph.AddEdge(
           person_label, p1_vid, software_label, s1_vid, review_label,
-          {neug::Property::from_string_view(full_review)}));
+          {neug::Property::from_string_view(full_review)}, edge_prop));
     }
     return reviews;
   }
@@ -1851,10 +1854,14 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
                                         dst_vid, knows_label, 0,
                                         neug::Property::from_double(0.8)),
                  neug::exception::Exception);
-    EXPECT_THROW(
-        interface.AddEdge(person_label, src_vid, person_label, dst_vid,
-                          knows_label, {neug::Property::from_double(0.7)}),
-        neug::exception::Exception);
+    {
+      const void* edge_prop = nullptr;
+      EXPECT_THROW(
+          interface.AddEdge(person_label, src_vid, person_label, dst_vid,
+                            knows_label, {neug::Property::from_double(0.7)},
+                            edge_prop),
+          neug::exception::Exception);
+    }
     EXPECT_THROW(txn.GetGenericOutgoingGraphView(person_label, person_label,
                                                  knows_label),
                  neug::exception::Exception);
@@ -1943,8 +1950,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
                                    p1_vid));
     EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
                                    p2_vid));
+    const void* edge_prop_p2_p1 = nullptr;
     EXPECT_TRUE(txn.AddEdge(person_label, p2_vid, person_label, p1_vid,
-                            knows_label, {neug::Property::from_double(0.85)}));
+                            knows_label, {neug::Property::from_double(0.85)},
+                            edge_prop_p2_p1));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -2092,8 +2101,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
                                    p1_vid));
     EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
                                    p2_vid));
+    const void* edge_prop_follows = nullptr;
     EXPECT_TRUE(txn.AddEdge(person_label, p1_vid, person_label, p2_vid,
-                            follows_label, {neug::Property::from_int64(2022)}));
+                            follows_label, {neug::Property::from_int64(2022)},
+                            edge_prop_follows));
     EXPECT_TRUE(txn.Commit());
   }
   {

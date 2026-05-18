@@ -98,7 +98,9 @@ class InsertTransaction {
    * @param label Vertex label/type
    * @param id Vertex primary key value
    * @param props Vector of property values matching schema order
-   * @return true if vertex added successfully, false if validation fails
+   * @param vid Output: assigned internal vertex ID on success
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. property count/type mismatch).
    *
    * Implementation: Validates property count against schema, serializes
    * operation to arc_ with op_type=0, adds vertex to added_vertices_ tracking
@@ -120,8 +122,13 @@ class InsertTransaction {
    * @param dst_label Destination vertex label
    * @param dst Destination vertex ID
    * @param edge_label Edge label/type
-   * @param prop Edge property value
-   * @return non-nullptr if edge added successfully, nullptr if validation fails
+   * @param properties Edge property values matching schema order
+   * @param prop Output: pointer to the inserted edge property storage. For an
+   *             insert transaction this is always set to nullptr because the
+   *             edge property is not actually inserted into the graph until
+   *             commit.
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. missing source/destination vertex, property mismatch).
    *
    * Implementation: Uses graph.get_lid() and added_vertices_ to find vertices,
    * serializes operation to arc_ with op_type=1.

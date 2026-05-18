@@ -366,8 +366,9 @@ class StorageReadInterface : virtual public IStorageInterface {
  * inserter.AddVertex(person_label, Property("alice"), props, vid);
  *
  * // Add edge between vertices
+ * const void* edge_prop = nullptr;
  * inserter.AddEdge(person_label, src_vid, person_label, dst_vid, knows_label,
- * {});
+ *                  {}, edge_prop);
  * @endcode
  *
  * @note This interface is write-only; use StorageReadInterface for reads.
@@ -392,8 +393,9 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param label Vertex label
    * @param id Primary key value
    * @param props Property values (excluding primary key)
-   * @param vid Output: assigned internal vertex ID
-   * @return true if vertex added successfully
+   * @param vid Output: assigned internal vertex ID on success
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. property count/type mismatch, capacity failure).
    */
   virtual Status AddVertex(label_t label, const Property& id,
                            const std::vector<Property>& props, vid_t& vid) = 0;
@@ -407,11 +409,11 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param dst Destination vertex internal ID
    * @param edge_label Edge label
    * @param properties Edge property values
-   * @return non-nullptr if edge added successfully, nullptr if validation
-   * fails. For an insert transaction, the return value is only used to
-   * indicate success or failure. You cannot use the return value to get the
-   * edge property, since the edge property is not actually inserted into the
-   * graph until commit.
+   * @param prop Output: pointer to the inserted edge property storage. For an
+   *             insert transaction the edge property is not actually inserted
+   *             into the graph until commit, so this is set to nullptr.
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. missing source/destination vertex, property mismatch).
    */
   virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
                          vid_t dst, label_t edge_label,
