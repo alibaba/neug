@@ -18,6 +18,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
+#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
 #include <string>
@@ -72,8 +73,8 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
     break;
   }
   default:
-    LOG(FATAL) << "BatchInsertVertexOpr: invalid vertex_type: "
-               << vertex_type_.DebugString();
+    THROW_INVALID_ARGUMENT_EXCEPTION("BatchInsertVertexOpr: invalid vertex_type: " +
+                                     vertex_type_.DebugString());
   }
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   for (auto supplier : suppliers) {
@@ -91,7 +92,7 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   const auto& opr = plan.plan(op_idx).opr().load_vertex();
 
   if (!opr.has_vertex_type()) {
-    LOG(FATAL) << "BatchInsertVertexOpr must have vertex type";
+    THROW_INTERNAL_EXCEPTION("BatchInsertVertexOpr must have vertex type");
   }
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);

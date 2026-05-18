@@ -15,6 +15,8 @@
 
 #include "neug/transaction/wal/wal.h"
 
+#include "neug/utils/exception/exception.h"
+
 #include <glog/logging.h>
 #include <memory>
 #include <regex>
@@ -69,8 +71,9 @@ std::unique_ptr<IWalWriter> WalWriterFactory::CreateWalWriter(
     for (const auto& writer : known_writers_) {
       ss << "[" << writer.first << "] ";
     }
-    LOG(FATAL) << "Unknown wal writer: " << scheme << " for uri: " << wal_uri
-               << ", supported writers are: " << ss.str();
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown wal writer: " + scheme +
+                                  " for uri: " + wal_uri +
+                                  ", supported writers are: " + ss.str());
     return nullptr;  // to suppress warning
   }
 }
@@ -113,8 +116,9 @@ std::unique_ptr<IWalParser> WalParserFactory::CreateWalParser(
     for (const auto& parser : know_parsers_) {
       ss << "[" << parser.first << "] ";
     }
-    LOG(FATAL) << "Unknown wal parser: " << scheme << " for uri: " << wal_uri
-               << ", supported parsers are: " << ss.str();
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown wal parser: " + scheme +
+                                  " for uri: " + wal_uri +
+                                  ", supported parsers are: " + ss.str());
     return nullptr;  // to suppress warning
   }
 }

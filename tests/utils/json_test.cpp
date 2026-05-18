@@ -32,8 +32,8 @@
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 
-#include "../include/json_dataset_builder.h"
-#include "../include/json_options.h"
+#include "neug/utils/reader/json_dataset_builder.h"
+#include "neug/utils/reader/json_options.h"
 
 namespace neug {
 namespace test {

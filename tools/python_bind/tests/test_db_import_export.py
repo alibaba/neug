@@ -951,14 +951,12 @@ def _tinysnb_path() -> Path:
     return _neug_repo_root() / "example_dataset" / "tinysnb"
 
 
-@extension_test
 def test_copy_from_json_node_no_schema(tmp_path):
     """COPY FROM JSON into a new label — auto-detect schema."""
     db_dir = tmp_path / "copy_json_no_schema"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     json_path = tmp_path / "employees.json"
     data = [
@@ -983,14 +981,12 @@ def test_copy_from_json_node_no_schema(tmp_path):
     db.close()
 
 
-@extension_test
 def test_copy_from_jsonl_node_no_schema(tmp_path):
     """COPY FROM JSONL into a new label — auto-detect schema."""
     db_dir = tmp_path / "copy_jsonl_no_schema"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     jsonl_path = tmp_path / "items.jsonl"
     records = [
@@ -1015,14 +1011,12 @@ def test_copy_from_jsonl_node_no_schema(tmp_path):
     db.close()
 
 
-@extension_test
 def test_copy_from_json_with_subquery(tmp_path):
     """COPY FROM (LOAD FROM 'file.json' RETURN ...) — column reorder via subquery."""
     db_dir = tmp_path / "copy_json_subquery"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"

@@ -518,13 +518,11 @@ class TestExport:
         finally:
             self.conn.execute("MATCH (v:person {ID: 1006}) DELETE v")
 
-    @extension_test
     def test_export_person_json_array(self):
         """Export scalar columns to a single JSON array; verify row count and keys."""
         out_path = self.tmp_path / "person.json"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
         )
@@ -543,13 +541,11 @@ class TestExport:
                 "age" in first or "v.age" in first
             ), "First row should have age (or v.age) key"
 
-    @extension_test
     def test_export_person_node_json_array(self):
         """Export full node to a single JSON array; verify row count and structure."""
         out_path = self.tmp_path / "person_node.json"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
@@ -560,13 +556,11 @@ class TestExport:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
 
-    @extension_test
     def test_export_person_jsonl(self):
         """Export scalar columns to JSONL (one JSON object per line); verify count and keys."""
         out_path = self.tmp_path / "person.jsonl"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
         )
@@ -585,13 +579,11 @@ class TestExport:
                 "age" in first or "v.age" in first
             ), "First row should have age (or v.age) key"
 
-    @extension_test
     def test_export_person_node_jsonl(self):
         """Export full node to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "person_node.jsonl"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
@@ -601,7 +593,6 @@ class TestExport:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
-    @extension_test
     def test_export_collect_names_jsonl(self):
         """Export collect names to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "collect_names.jsonl"
@@ -609,7 +600,6 @@ class TestExport:
         expected = _count_query(
             self.conn, "MATCH (v:person) RETURN v.ID, collect(v.fName)"
         )
-        self.conn.execute("LOAD JSON")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO '{out_path}';"
         )
@@ -651,13 +641,11 @@ class TestExportComprehensiveGraph:
         assert header is not None and len(header) == 11
         assert len(rows) == expected
 
-    @extension_test
     def test_export_comprehensive_graph_node_to_json_array(self):
         """Export node_a vertices from comprehensive_graph to JSON array; verify row count and structure."""
         out_path = self.tmp_path / "node_a.json"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
@@ -668,13 +656,11 @@ class TestExportComprehensiveGraph:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
 
-    @extension_test
     def test_export_comprehensive_graph_node_to_jsonl(self):
         """Export node_a vertices from comprehensive_graph to JSONL; verify row count and structure."""
         out_path = self.tmp_path / "node_a.jsonl"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
-        self.conn.execute("LOAD JSON")
         self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)

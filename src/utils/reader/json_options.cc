@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "json_options.h"
+#include "neug/utils/reader/json_options.h"
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/file_base.h>
 #include <arrow/dataset/file_json.h>

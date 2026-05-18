@@ -140,5 +140,8 @@ tools/python_bind/neug/extensions/
 # aone copilot
 .aone_copilot/
 
-# claude cod
+# claude code
 .claude/
+
+# qoder ide
+.qoder/
