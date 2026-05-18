@@ -14,6 +14,8 @@
  */
 
 #include "neug/execution/expression/exprs/extract_expr.h"
+
+#include "neug/utils/exception/exception.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
@@ -66,7 +68,8 @@ class BindedExtractExpr : public VertexExprBase,
       case ::common::Extract::DAY:
         return Value::INT64(val.GetValue<date_t>().day());
       default:
-        LOG(FATAL) << "not support: " << extract_type.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support: " +
+                                      extract_type.DebugString());
         return Value(DataType::INT64);
       }
     } else if (val.type().id() == DataTypeId::kInterval) {
@@ -87,11 +90,13 @@ class BindedExtractExpr : public VertexExprBase,
       case ::common::Extract::MILLISECOND:
         return Value::INT64(interval.millisecond());
       default:
-        LOG(FATAL) << "not support: " << extract_type.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support: " +
+                                      extract_type.DebugString());
         return Value(DataType::INT64);
       }
     } else {
-      LOG(FATAL) << "not support: " << val.type().id();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support: " +
+                                    std::to_string(static_cast<int>(val.type().id())));
       return Value(DataType::INT64);
     }
   }
@@ -112,7 +117,7 @@ class BindedExtractExpr : public VertexExprBase,
     case ::common::Extract::SECOND:
       return extract_second(ms);
     default:
-      LOG(FATAL) << "not support";
+      THROW_NOT_SUPPORTED_EXCEPTION("not support");
     }
     return 0;
   }

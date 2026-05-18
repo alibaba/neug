@@ -68,9 +68,9 @@ void VertexTable::insert_vertices(
   } else if (pk_type_id == DataTypeId::kVarchar) {
     insert_vertices_impl<std::string_view>(supplier);
   } else {
-    LOG(FATAL) << "Unsupported primary key type for vertex, type: "
-               << pk_type_.ToString()
-               << ", label: " << vertex_schema_->label_name;
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported primary key type for vertex, type: " +
+        pk_type_.ToString() + ", label: " + vertex_schema_->label_name);
   }
 }
 

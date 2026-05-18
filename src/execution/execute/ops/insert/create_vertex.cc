@@ -18,6 +18,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 #include "neug/execution/expression/expr.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -88,8 +89,8 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
       break;
     }
     default:
-      LOG(FATAL) << "Unknown vertex type: "
-                 << entry.vertex_type().DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION("Unknown vertex type: " +
+                                    entry.vertex_type().DebugString());
     }
     labels.push_back(label);
     alias.push_back(entry.alias().id());
@@ -98,10 +99,10 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : entry.property_mappings()) {
       if (!prop.has_property()) {
-        LOG(FATAL) << "PropertyMapping has no property: " << prop.DebugString();
+        THROW_INTERNAL_EXCEPTION("PropertyMapping has no property: " + prop.DebugString());
       }
       if (!prop.has_data()) {
-        LOG(FATAL) << "PropertyMapping has no data: " << prop.DebugString();
+        THROW_INTERNAL_EXCEPTION("PropertyMapping has no data: " + prop.DebugString());
       }
       auto expr = parse_expression(prop.data(), ctx_meta, VarType::kRecord);
       props.emplace_back(prop.property().key().name(), std::move(expr));

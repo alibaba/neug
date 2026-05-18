@@ -18,6 +18,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
+#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
 #include <string>
@@ -159,7 +160,7 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
   const auto& opr = plan.plan(op_idx).opr().load_edge();
 
   if (!opr.has_edge_type()) {
-    LOG(FATAL) << "BatchInsertEdgeOprBuilder::Build: edge type is not set";
+    THROW_INTERNAL_EXCEPTION("BatchInsertEdgeOprBuilder::Build: edge type is not set");
   }
 
   std::vector<std::pair<int32_t, std::string>> prop_mappings,

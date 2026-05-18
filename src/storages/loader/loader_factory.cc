@@ -23,6 +23,8 @@
 #include <utility>         // for pair
 #include <vector>          // for vector
 
+#include "neug/utils/exception/exception.h"
+
 #include <glog/logging.h>
 
 #include "neug/utils/string_utils.h"
@@ -73,8 +75,9 @@ std::shared_ptr<IFragmentLoader> LoaderFactory::CreateFragmentLoader(
     for (const auto& loader : known_loaders_) {
       ss << "[" << loader.first << "] ";
     }
-    LOG(FATAL) << "Unsupported format: " << format << " with scheme: " << scheme
-               << ", supported loaders are: " << ss.str();
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported format: " + format +
+                                  " with scheme: " + scheme +
+                                  ", supported loaders are: " + ss.str());
   }
   return std::shared_ptr<IFragmentLoader>();
 }

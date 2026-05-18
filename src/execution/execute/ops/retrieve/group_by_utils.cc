@@ -18,6 +18,7 @@
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -596,7 +597,7 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<SumReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      LOG(FATAL) << "unsupport" << static_cast<int>(kind);
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
@@ -609,21 +610,21 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
   }
   case AggrKind::kMin: {
     if constexpr (std::is_same<typename EXPR::V, VertexRecord>::value) {
-      LOG(FATAL) << "Min not support VertexRecord";
+      THROW_NOT_SUPPORTED_EXCEPTION("Min not support VertexRecord");
     } else {
       return std::make_unique<MinReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     }
   }
   case AggrKind::kMax: {
     if constexpr (std::is_same<typename EXPR::V, VertexRecord>::value) {
-      LOG(FATAL) << "Max not support VertexRecord";
+      THROW_NOT_SUPPORTED_EXCEPTION("Max not support VertexRecord");
     } else {
       return std::make_unique<MaxReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     }
   }
   case AggrKind::kFirst: {
     if constexpr (std::is_same<typename EXPR::V, VertexRecord>::value) {
-      LOG(FATAL) << "First not support VertexRecord";
+      THROW_NOT_SUPPORTED_EXCEPTION("First not support VertexRecord");
     } else {
       return std::make_unique<FirstReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     }
@@ -640,12 +641,12 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<AvgReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      LOG(FATAL) << "unsupport" << static_cast<int>(kind);
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
   default:
-    LOG(FATAL) << "unsupport" << static_cast<int>(kind);
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
     return nullptr;
   }
 }
@@ -678,9 +679,11 @@ static std::unique_ptr<ReducerBase> create_general_reducer(
           std::move(var_wrap), var->elem_type());
     }
   } else {
-    LOG(FATAL) << "not support var reduce " << static_cast<int>(kind)
-               << var->elem_type().ToString() << " " << var->is_optional()
-               << " " << var->column_info();
+    THROW_NOT_SUPPORTED_EXCEPTION("not support var reduce " +
+                                  std::to_string(static_cast<int>(kind)) +
+                                  var->elem_type().ToString() + " " +
+                                  std::to_string(var->is_optional()) + " " +
+                                  var->column_info());
   }
   return nullptr;  // This line is unreachable but avoids compiler warning.
 }
@@ -695,7 +698,7 @@ static std::unique_ptr<ReducerBase> create_pair_reducer(
           std::move(var_wrap));
       return reducer;
     } else {
-      LOG(FATAL) << "not support optional count\n";
+      THROW_NOT_SUPPORTED_EXCEPTION("not support optional count\n");
     }
   } else if (kind == AggrKind::kCountDistinct) {
     VarPairWrapper var_wrap(std::move(fst), std::move(snd));
@@ -705,10 +708,10 @@ static std::unique_ptr<ReducerBase> create_pair_reducer(
               std::move(var_wrap));
       return reducer;
     } else {
-      LOG(FATAL) << "not support optional count\n";
+      THROW_NOT_SUPPORTED_EXCEPTION("not support optional count\n");
     }
   } else {
-    LOG(FATAL) << "not support var reduce\n";
+    THROW_NOT_SUPPORTED_EXCEPTION("not support var reduce\n");
   }
   return nullptr;
 }

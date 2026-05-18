@@ -18,6 +18,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
@@ -73,7 +74,7 @@ neug::result<OpBuildResultT> GroupByOprBuilder::Build(
                parse_from_ir_data_type(plan.plan(op_idx).meta_data(i).type()));
     }
   } else {
-    LOG(FATAL) << "GroupBy metadata number mismatch.";
+    THROW_INTERNAL_EXCEPTION("GroupBy metadata number mismatch.");
   }
   auto opr = plan.plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
