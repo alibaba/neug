@@ -18,6 +18,7 @@
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/struct_columns.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 
@@ -52,8 +53,8 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return std::make_shared<ValueColumnBuilder<std::string>>();
   }
   default:
-    LOG(FATAL) << "Unsupported data type for column builder: "
-               << static_cast<int>(type.id());
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type for column builder: " +
+                                  std::to_string(static_cast<int>(type.id())));
     return nullptr;
   }
 }

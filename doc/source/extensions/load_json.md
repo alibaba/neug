@@ -1,5 +1,7 @@
 # JSON Extension
 
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via extension and required `INSTALL json; LOAD json;` before use. See the [LOAD FROM reference](../data_io/load_data) for details.
+
 JSON (JavaScript Object Notation) is a widely used data format for web APIs and data exchange. NeuG supports JSON file import functionality through the Extension framework. After loading the JSON Extension, users can directly load external JSON files using the `LOAD FROM` syntax, or export query results to JSON files using the `COPY TO` syntax.
 
 ## Install Extension

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "json_dataset_builder.h"
+#include "neug/utils/reader/json_dataset_builder.h"
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/discovery.h>
 #include <arrow/io/api.h>
@@ -29,8 +29,8 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "json_options.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/reader/json_options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/service_utils.h"
 

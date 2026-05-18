@@ -287,7 +287,8 @@ static void parse_endpoint_column(const IndexerType& indexer,
       lids.push_back(vid);
     }
   } else {
-    LOG(FATAL) << "not support type " << array->type()->ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                  array->type()->ToString());
   }
 }
 
@@ -376,7 +377,8 @@ static std::vector<Property> get_row_from_recordbatch(
         auto str = casted->GetView(row_idx);
         row.push_back(Property::from_string_view(str));
       } else {
-        LOG(FATAL) << "not support type " << array->type()->ToString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                      array->type()->ToString());
       }
       break;
     }
@@ -408,7 +410,8 @@ static std::vector<Property> get_row_from_recordbatch(
       break;
     }
     default:
-      LOG(FATAL) << "not support type " << array->type()->ToString();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                    array->type()->ToString());
     }
   }
   return row;
