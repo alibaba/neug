@@ -15,6 +15,8 @@
 
 #include "neug/transaction/insert_transaction.h"
 
+#include "neug/utils/exception/exception.h"
+
 #include <glog/logging.h>
 #include <chrono>
 
@@ -203,7 +205,8 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
                     redo.edge_label, redo.properties, timestamp, alloc);
     } else {
-      LOG(FATAL) << "Unexpected op-" << static_cast<int>(op_type);
+      THROW_INTERNAL_EXCEPTION("Unexpected op-" +
+                               std::to_string(static_cast<int>(op_type)));
     }
   }
 }

@@ -23,6 +23,8 @@
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+
+#include "neug/utils/exception/exception.h"
 #include <stddef.h>
 #include <cstdint>
 #include <ostream>
@@ -332,12 +334,14 @@ create_record_batch_supplier_from_arrow_array_column(
     auto prop_name = mapping.second;
     auto column = ctx.get(tag_id);
     if (column == nullptr) {
-      LOG(FATAL) << "Column not found for tag id: " << tag_id;
+      THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                               std::to_string(tag_id));
     }
     auto arrow_column =
         std::dynamic_pointer_cast<ArrowArrayContextColumn>(column);
     if (!arrow_column) {
-      LOG(FATAL) << "Invalid column type for tag id: " << tag_id;
+      THROW_INTERNAL_EXCEPTION("Invalid column type for tag id: " +
+                               std::to_string(tag_id));
     }
 
     auto& column_arrays = arrow_column->GetColumns();
@@ -353,8 +357,8 @@ create_record_batch_supplier_from_arrow_array_column(
     for (size_t i = 1; i < arrays.size(); ++i) {
       auto& array = arrays[i];
       if (array.size() != batch_size) {
-        LOG(FATAL) << "Array size mismatch for tag id: "
-                   << prop_mappings[i].first;
+        THROW_INTERNAL_EXCEPTION("Array size mismatch for tag id: " +
+                                 std::to_string(prop_mappings[i].first));
       }
     }
   }
@@ -610,7 +614,7 @@ void parse_property_mappings(
       auto prop_name = mapping.property().key().name();
       if (mapping.data().operators_size() != 1 ||
           !mapping.data().operators(0).has_var()) {
-        LOG(FATAL) << "Invalid property mapping: " << prop_name;
+        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property mapping: " + prop_name);
       }
       auto tag_id = mapping.data().operators(0).var().tag().id();
       prop_mappings.emplace_back(tag_id, prop_name);

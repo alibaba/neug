@@ -18,6 +18,8 @@
 #include <google/protobuf/wrappers.pb.h>
 #include <cstdint>
 
+#include "neug/utils/exception/exception.h"
+
 #include <ostream>
 #include <set>
 #include <string_view>
@@ -46,7 +48,7 @@ VOpt parse_opt(const physical::GetV_VOpt& opt) {
   } else if (opt == physical::GetV_VOpt::GetV_VOpt_ITSELF) {
     return VOpt::kItself;
   } else {
-    LOG(FATAL) << "unexpected GetV::Opt";
+    THROW_NOT_SUPPORTED_EXCEPTION("unexpected GetV::Opt");
     return VOpt::kItself;
   }
 }
@@ -59,7 +61,7 @@ Direction parse_direction(const physical::EdgeExpand_Direction& dir) {
   } else if (dir == physical::EdgeExpand_Direction_BOTH) {
     return Direction::kBoth;
   }
-  LOG(FATAL) << "not support..." << dir;
+  THROW_NOT_SUPPORTED_EXCEPTION("not support..." + std::to_string(static_cast<int>(dir)));
   return Direction::kOut;
 }
 
@@ -136,7 +138,7 @@ PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb) {
                                 PathExpand_PathOpt_ANY_WEIGHTED_SHORTEST) {
     return PathOpt::kAnyWeightedShortest;
   } else {
-    LOG(FATAL) << "unexpected PathOpt";
+    THROW_NOT_SUPPORTED_EXCEPTION("unexpected PathOpt");
     return PathOpt::kArbitrary;
   }
 }
@@ -161,7 +163,7 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
   } else if (v == physical::GroupBy_AggFunc::AVG) {
     return AggrKind::kAvg;
   } else {
-    LOG(FATAL) << "unsupport" << static_cast<int>(v);
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(v)));
     return AggrKind::kSum;
   }
 }
