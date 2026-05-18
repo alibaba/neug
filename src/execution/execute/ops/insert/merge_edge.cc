@@ -123,25 +123,6 @@ void apply_on_match_edge_impl(
   }
 }
 
-// get edge property pointer from CSR view
-const void* get_edge_prop(const StorageUpdateInterface& graph,
-                          label_t src_label, label_t dst_label,
-                          label_t edge_label, vid_t src_vid, vid_t dst_vid) {
-  auto oe_view =
-      graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label);
-  auto nl = oe_view.get_edges(src_vid);
-  std::vector<const void*> candidate_ptrs;
-  for (auto it = nl.begin(); it != nl.end(); ++it) {
-    if (it.get_vertex() == dst_vid) {
-      return it.get_data_ptr();
-    }
-  }
-
-  THROW_RUNTIME_ERROR(
-      "Could not find inserted edge in outgoing CSR view for bundled data "
-      "pointer");
-}
-
 // insert and return the new edge record
 EdgeRecord insert_and_return_edge_row(
     StorageUpdateInterface& graph, Context& ctx, size_t row, label_t src_label,
@@ -191,15 +172,15 @@ EdgeRecord insert_and_return_edge_row(
       property_values[index] = value_to_property(value);
     }
   }
-  if (!graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_, edge_label,
-                     property_values)) {
+  auto add_ret = graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_,
+                               edge_label, property_values);
+  if (!add_ret.has_value()) {
     THROW_RUNTIME_ERROR("Failed to add edge (" + std::to_string(src_label) +
                         "," + std::to_string(edge_label) + "," +
                         std::to_string(dst_label) + ")");
   }
-  return EdgeRecord{
-      LabelTriplet{src_label, dst_label, edge_label}, v1.vid_, v2.vid_,
-      get_edge_prop(graph, src_label, dst_label, edge_label, v1.vid_, v2.vid_)};
+  return EdgeRecord{LabelTriplet{src_label, dst_label, edge_label}, v1.vid_,
+                    v2.vid_, add_ret.value()};
 }
 
 struct EdgeEntryPlan {
