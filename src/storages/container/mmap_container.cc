@@ -158,10 +158,6 @@ bool MMapContainer::IsDirty() {
     // but still hold live data that Fork must copy.
     return true;
   }
-  // Path-backed: need a FileHeader to compare against.
-  if (mmap_size_ < sizeof(FileHeader)) {
-    return false;
-  }
   if (size_ == 0) {
     // Header-only file: no payload to compare, so not dirty.
     return false;
