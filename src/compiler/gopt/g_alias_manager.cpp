@@ -151,8 +151,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
   case planner::LogicalOperatorType::DELETE:
-  case planner::LogicalOperatorType::INSERT:
-  case planner::LogicalOperatorType::MERGE: {
+  case planner::LogicalOperatorType::INSERT: {
     for (auto& child : op.getChildren()) {
       extractGAliasNames(*child, aliasNames);
     }
@@ -160,7 +159,13 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE:
-  case planner::LogicalOperatorType::DISTINCT: {
+  case planner::LogicalOperatorType::DISTINCT:
+  // for MERGE, we only extract alias name from the merge operator itself, skip
+  // its children, for case `UNWIND ['a', 'b', 'c'] as x MERGE (u:User {name:
+  // x}) Return u.name`, the project (u.name) after merge will fetch properties
+  // from the merge alias (u), instead of reusing the projected value before the
+  // merge.
+  case planner::LogicalOperatorType::MERGE: {
     auto singleOpGAliasNames = extractSingleOpGAliasNames(op);
     aliasNames.insert(aliasNames.end(), singleOpGAliasNames.begin(),
                       singleOpGAliasNames.end());

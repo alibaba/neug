@@ -263,10 +263,10 @@ def test_merge_edge_on_create_ignored_when_edge_exists():
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
                 "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
                 "ON CREATE SET e.date = 11111 "
-                "RETURN e.date;"
+                "RETURN u1.name, u2.name, e.date;"
             )
         )
-        assert rows == [[2012]]
+        assert rows == [["Adam", "marko", 2012]]
         stored = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'})-[e:follows]->"
@@ -334,6 +334,38 @@ def test_merge_on_create_set_does_not_fire_for_existing_adam():
         db.close()
 
 
+def test_optional_match_follows_where_age_correlated_count():
+    """
+    OPTIONAL MATCH with a predicate on inner and outer rows (b.age > a.age).
+
+    Same shape as compiler join_test A_OPTIONAL_AB_11
+    (MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE b.age > a.age
+    RETURN COUNT(*)), but on the MERGE test schema (User / follows).
+
+    Regression for merge-related planner changes that touch optional joins and
+    correlated WHERE handling.
+
+    Data: Adam (29), marko (32); single edge Adam -[follows]-> marko.
+    The WHERE is applied inside the optional branch; each outer `a` still
+    contributes a row to COUNT(*), so the count is 2.
+    """
+    db_dir = _merge_db_dir()
+    db, conn = _open_merge_database(db_dir)
+    try:
+        _seed_users_adam_marko(conn)
+        _seed_follows_adam_marko_2012(conn)
+        cnt = list(
+            conn.execute(
+                "MATCH (a:User) OPTIONAL MATCH (a)-[:follows]->(b:User) "
+                "WHERE b.age > a.age RETURN COUNT(*);"
+            )
+        )[0][0]
+        assert cnt == 2
+    finally:
+        conn.close()
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Unsupported MERGE patterns (see specs/005-merge/spec.md §限制)
 # ---------------------------------------------------------------------------
@@ -396,3 +428,12 @@ def test_merge_path_with_new_nodes_unsupported():
     finally:
         conn.close()
         db.close()
+
+
+def test_unwind_merge():
+    db_dir = _merge_db_dir()
+    db, conn = _open_merge_database(db_dir)
+    res = conn.execute(
+        "UNWIND ['a', 'b', 'c'] as x MERGE (u:User {name: x}) Return u.name"
+    )
+    assert list(res) == [["a"], ["b"], ["c"]]
