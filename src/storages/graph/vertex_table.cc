@@ -181,7 +181,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     indexer_.reserve(capacity);
   }
   if (table_ && table_->size() < capacity) {
-    table_->resize(capacity, vertex_schema_->default_property_values);
+    table_->resize(capacity, vertex_schema_->get_default_properties());
   }
   v_ts_.Reserve(capacity);
   return indexer_.capacity();

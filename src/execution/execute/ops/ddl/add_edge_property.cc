@@ -40,16 +40,13 @@ class AddEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
-    for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
-    }
     AddEdgePropertiesParamBuilder builder;
+    for (const auto& [prop_name, prop_value] : properties_) {
+      builder.AddProperty(prop_name, prop_value);
+    }
     auto config = builder.SrcLabel(src_type_)
                       .DstLabel(dst_type_)
                       .EdgeLabel(edge_type_)
-                      .Properties(property_tuples)
                       .Build();
     auto res = storage.AddEdgeProperties(config);
     if (!res.ok()) {
