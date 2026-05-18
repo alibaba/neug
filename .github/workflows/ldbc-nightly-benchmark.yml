@@ -51,6 +51,7 @@ jobs:
           end=$(date +%s)
           LOAD_DURATION=$((end - start))
           echo "Load LDBC dataset took ${LOAD_DURATION} seconds" | tee "$RESULT_DIR/load.log"
+          echo "load_duration=$LOAD_DURATION" >> "$GITHUB_OUTPUT"
           echo "::notice::Load LDBC dataset took ${LOAD_DURATION} seconds"
 
       - name: Start NeuG server
@@ -79,7 +80,9 @@ jobs:
       - name: Run benchmark via SSH
         run: |
           RESULT_DIR="${{ steps.load.outputs.result_dir }}"
-          ssh client-host "mkdir -p '$RESULT_DIR' && ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark.sh ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee $RESULT_DIR/benchmark.log"
+          LOAD_DURATION="${{ steps.load.outputs.load_duration }}"
+          COMMIT="${{ github.sha }}"
+          ssh client-host "mkdir -p '$RESULT_DIR' && printf '# Commit: %s\n# Load graph duration: %s seconds\n# Benchmark start: %s\n\n' '$COMMIT' '$LOAD_DURATION' \"\$(date '+%Y-%m-%d %H:%M:%S')\" > $RESULT_DIR/benchmark.log && ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark.sh ${{ env.BENCHMARK_DIR }}/flex_ldbc_snb/driver/neug/driver/benchmark-sf100.properties 2>&1 | tee -a $RESULT_DIR/benchmark.log"
           echo "::notice::Benchmark results saved to $RESULT_DIR"
 
       - name: Stop NeuG server and save logs
