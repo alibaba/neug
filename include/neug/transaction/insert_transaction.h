@@ -208,10 +208,6 @@ class InsertTransaction {
 
   void clear();
 
-  static bool get_vertex_with_retries(GraphView& graph, label_t label,
-                                      const execution::Value& oid, vid_t& lid,
-                                      timestamp_t timestamp);
-
   InArchive arc_;
 
   std::vector<std::unique_ptr<neug::IdIndexerBase<vid_t>>> added_vertices_;
