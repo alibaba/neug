@@ -68,9 +68,9 @@ void VertexTable::insert_vertices(
   } else if (pk_type_id == DataTypeId::kVarchar) {
     insert_vertices_impl<std::string_view>(supplier);
   } else {
-    LOG(FATAL) << "Unsupported primary key type for vertex, type: "
-               << pk_type_.ToString()
-               << ", label: " << vertex_schema_->label_name;
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported primary key type for vertex, type: " +
+        pk_type_.ToString() + ", label: " + vertex_schema_->label_name);
   }
 }
 
@@ -181,7 +181,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     indexer_.reserve(capacity);
   }
   if (table_ && table_->size() < capacity) {
-    table_->resize(capacity, vertex_schema_->default_property_values);
+    table_->resize(capacity, vertex_schema_->get_default_properties());
   }
   v_ts_.Reserve(capacity);
   return indexer_.capacity();

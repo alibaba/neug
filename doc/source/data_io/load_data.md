@@ -44,15 +44,14 @@ RETURN name, age;
 
 ### JSON / JSONL
 
-JSON support is provided via the [JSON Extension](../extensions/load_json). After installing and loading the extension, `LOAD FROM` can read `.json` and `.jsonl` files:
+Since NeuG v0.1.2, JSON/JSONL is a built-in format — no extension installation is needed. You can use `LOAD FROM` to read `.json` and `.jsonl` files directly:
 
 ```cypher
-INSTALL json;
-LOAD EXTENSION json;
-
 LOAD FROM "person.json"
 RETURN *;
 ```
+
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
 
 See the [JSON Extension](../extensions/load_json) page for format-specific options and examples.
 

@@ -134,7 +134,6 @@ void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
       src_lid, dst_lid, default_datas);
 }
 
-// TODO(zhanglei): Support default value for non-empty edge data type
 void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
                                         const std::vector<vid_t>& dst_lid,
                                         DataTypeId property_type,
@@ -288,7 +287,8 @@ static void parse_endpoint_column(const IndexerType& indexer,
       lids.push_back(vid);
     }
   } else {
-    LOG(FATAL) << "not support type " << array->type()->ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                  array->type()->ToString());
   }
 }
 
@@ -377,7 +377,8 @@ static std::vector<Property> get_row_from_recordbatch(
         auto str = casted->GetView(row_idx);
         row.push_back(Property::from_string_view(str));
       } else {
-        LOG(FATAL) << "not support type " << array->type()->ToString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                      array->type()->ToString());
       }
       break;
     }
@@ -409,7 +410,8 @@ static std::vector<Property> get_row_from_recordbatch(
       break;
     }
     default:
-      LOG(FATAL) << "not support type " << array->type()->ToString();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                    array->type()->ToString());
     }
   }
   return row;
@@ -724,7 +726,7 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
       return;
     }
     capacity = std::max(capacity, 4096UL);
-    table_->resize(capacity, meta_->default_property_values);
+    table_->resize(capacity, meta_->get_default_properties());
     capacity_.store(capacity);
   }
 }
@@ -1037,12 +1039,13 @@ void EdgeTable::dropAndCreateNewBundledCSR(
 
   if (remaining_col == nullptr) {
     auto edges = out_csr_->batch_export(nullptr);
-    batch_put_edges_with_default_edata(
-        std::get<0>(edges), std::get<1>(edges), property_type,
-        meta_->default_property_values[0], new_out_csr.get());
-    batch_put_edges_with_default_edata(
-        std::get<1>(edges), std::get<0>(edges), property_type,
-        meta_->default_property_values[0], new_in_csr.get());
+    auto default_props = meta_->get_default_properties();
+    batch_put_edges_with_default_edata(std::get<0>(edges), std::get<1>(edges),
+                                       property_type, default_props[0],
+                                       new_out_csr.get());
+    batch_put_edges_with_default_edata(std::get<1>(edges), std::get<0>(edges),
+                                       property_type, default_props[0],
+                                       new_in_csr.get());
   } else {
     auto row_id_col = std::make_shared<ULongColumn>();
     row_id_col->open_in_memory("");
@@ -1112,12 +1115,13 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   }
 
   auto edges = out_csr_->batch_export(prev_data_col);
+  auto prop_defaults = meta_->get_default_properties();
   if (prev_data_col && prev_data_col->size() > 0) {
-    table_->resize(prev_data_col->size(), meta_->default_property_values);
+    table_->resize(prev_data_col->size(), prop_defaults);
     table_idx_.store(prev_data_col->size());
     EnsureCapacity(prev_data_col->size());
   } else if (!delete_property) {
-    table_->resize(std::get<0>(edges).size(), meta_->default_property_values);
+    table_->resize(std::get<0>(edges).size(), prop_defaults);
     table_idx_.store(std::get<0>(edges).size());
     EnsureCapacity(std::get<0>(edges).size());
   }

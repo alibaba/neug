@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -160,7 +161,7 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
-  std::vector<neug::Property> default_prop_values_;
+  std::vector<neug::execution::Value> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
   std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;
   std::vector<std::shared_ptr<neug::ExtraTypeInfo>> property_extra_infos_;

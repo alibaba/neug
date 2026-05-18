@@ -14,6 +14,8 @@
  */
 
 #include "neug/utils/pb_utils.h"
+
+#include "neug/utils/exception/exception.h"
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
 #include <google/protobuf/util/json_util.h>
@@ -329,17 +331,7 @@ property_defs_to_value(
                  << property.default_value().DebugString();
       }
     } else {
-      if (type.id() == DataTypeId::kVarchar) {
-        int32_t width =
-            type.RawExtraTypeInfo()
-                ? type.RawExtraTypeInfo()->Cast<StringTypeInfo>().max_length
-                : STRING_DEFAULT_MAX_LENGTH;
-        default_value = execution::Value::VARCHAR(
-            std::string(get_default_value(type.id()).as_string_view()), width);
-      } else {
-        default_value =
-            execution::property_to_value(get_default_value(type.id()));
-      }
+      default_value = get_default_value(type);
 
       VLOG(1) << "No default value, use type default:"
               << default_value.to_string()
@@ -357,7 +349,8 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
     return false;
   } else {
-    LOG(FATAL) << "invalid action: " << action;
+    THROW_INVALID_ARGUMENT_EXCEPTION("invalid action: " +
+                                     std::to_string(static_cast<int>(action)));
     return false;  // to suppress warning
   }
 }

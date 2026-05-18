@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/expression/accessors/edge_accessor.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -146,8 +147,8 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
     return std::make_unique<BindedEdgeIdentityAccessor>();
   }
   default:
-    LOG(FATAL) << "Unknown GraphAccessorType: "
-               << static_cast<int>(access_type_);
+    THROW_NOT_SUPPORTED_EXCEPTION("Unknown GraphAccessorType: " +
+                                  std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;

@@ -361,6 +361,104 @@ def test_export_vertex_edge(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# COPY (LOAD FROM ...) TO — read external file and export to another file
+# ---------------------------------------------------------------------------
+
+
+def test_copy_load_from_to_csv(tmp_path):
+    """COPY (LOAD FROM 'input.csv' RETURN ...) TO 'output.csv' — read and re-export."""
+    db_dir = tmp_path / "copy_load_from_to"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    # Prepare input CSV
+    input_csv = tmp_path / "input.csv"
+    with open(input_csv, "w") as f:
+        f.write("id|name|age\n1|Alice|30\n2|Bob|25\n3|Charlie|28\n")
+
+    # Use COPY (LOAD FROM ...) TO to export data to another CSV
+    output_csv = tmp_path / "output.csv"
+    conn.execute(
+        f'COPY (LOAD FROM "{input_csv}" RETURN id, name, age) '
+        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER=",");'
+    )
+
+    # Verify output file exists and contains expected data
+    assert output_csv.exists()
+    lines = output_csv.read_text().strip().splitlines()
+    assert len(lines) == 4  # 1 header + 3 data rows
+    assert "id" in lines[0] and "name" in lines[0] and "age" in lines[0]
+    # Verify data rows are present
+    assert "Alice" in lines[1] or "Alice" in lines[2] or "Alice" in lines[3]
+    assert "Bob" in lines[1] or "Bob" in lines[2] or "Bob" in lines[3]
+
+    conn.close()
+    db.close()
+
+
+def test_copy_load_from_to_with_filter(tmp_path):
+    """COPY (LOAD FROM ... WHERE ... RETURN ...) TO — filter rows during export."""
+    db_dir = tmp_path / "copy_load_from_to_filter"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    input_csv = tmp_path / "people.csv"
+    with open(input_csv, "w") as f:
+        f.write("id|name|age\n1|Alice|30\n2|Bob|17\n3|Charlie|28\n4|Dave|15\n")
+
+    output_csv = tmp_path / "adults.csv"
+    conn.execute(
+        f'COPY (LOAD FROM "{input_csv}" WHERE age >= 18 RETURN id, name, age) '
+        f'TO "{output_csv}" (HEADER=TRUE);'
+    )
+
+    assert output_csv.exists()
+    lines = output_csv.read_text().strip().splitlines()
+    # Header + 2 adult rows (Alice age 30, Charlie age 28)
+    assert len(lines) == 3
+    content = output_csv.read_text()
+    assert "Alice" in content
+    assert "Charlie" in content
+    assert "Bob" not in content
+    assert "Dave" not in content
+
+    conn.close()
+    db.close()
+
+
+def test_copy_load_from_to_with_column_reorder(tmp_path):
+    """COPY (LOAD FROM ... RETURN col_b, col_a) TO — reorder columns in export."""
+    db_dir = tmp_path / "copy_load_from_to_reorder"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    input_csv = tmp_path / "source.csv"
+    with open(input_csv, "w") as f:
+        f.write("name|id|score\nAlice|1|95.5\nBob|2|88.0\n")
+
+    output_csv = tmp_path / "reordered.csv"
+    conn.execute(
+        f'COPY (LOAD FROM "{input_csv}" RETURN id, name, score) '
+        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER="|");'
+    )
+
+    assert output_csv.exists()
+    lines = output_csv.read_text().strip().splitlines()
+    assert len(lines) == 3  # header + 2 rows
+    # First column in header should be id after reordering
+    header_cols = lines[0].split("|")
+    assert header_cols[0].strip() == "id"
+    assert header_cols[1].strip() == "name"
+    assert header_cols[2].strip() == "score"
+
+    conn.close()
+    db.close()
+
+
+# ---------------------------------------------------------------------------
 # Module 5: Copy From With No Schema (auto-detect / schema-less COPY FROM)
 # ---------------------------------------------------------------------------
 
@@ -853,14 +951,12 @@ def _tinysnb_path() -> Path:
     return _neug_repo_root() / "example_dataset" / "tinysnb"
 
 
-@extension_test
 def test_copy_from_json_node_no_schema(tmp_path):
     """COPY FROM JSON into a new label — auto-detect schema."""
     db_dir = tmp_path / "copy_json_no_schema"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     json_path = tmp_path / "employees.json"
     data = [
@@ -885,14 +981,12 @@ def test_copy_from_json_node_no_schema(tmp_path):
     db.close()
 
 
-@extension_test
 def test_copy_from_jsonl_node_no_schema(tmp_path):
     """COPY FROM JSONL into a new label — auto-detect schema."""
     db_dir = tmp_path / "copy_jsonl_no_schema"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     jsonl_path = tmp_path / "items.jsonl"
     records = [
@@ -917,14 +1011,12 @@ def test_copy_from_jsonl_node_no_schema(tmp_path):
     db.close()
 
 
-@extension_test
 def test_copy_from_json_with_subquery(tmp_path):
     """COPY FROM (LOAD FROM 'file.json' RETURN ...) — column reorder via subquery."""
     db_dir = tmp_path / "copy_json_subquery"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("LOAD JSON")
 
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"

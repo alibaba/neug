@@ -788,15 +788,11 @@ class TestLoadFrom:
             assert isinstance(record[1], float), "age_double should be float"
             assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
 
-    @extension_test
     def test_load_from_json_basic_return_all(self):
         """Test basic LOAD FROM JSON with RETURN *."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        # json should be loaded as extension first
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -813,14 +809,11 @@ class TestLoadFrom:
         first_record = records[0]
         assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
 
-    @extension_test
     def test_load_from_json_return_specific_columns(self):
         """Test LOAD FROM JSON Array with column projection."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -836,7 +829,6 @@ class TestLoadFrom:
         assert isinstance(first_record[0], str), "fName should be string"
         assert isinstance(first_record[1], int), "age should be integer"
 
-    @extension_test
     def test_load_from_json_with_column_alias(self):
         """Test LOAD FROM JSON Array with column aliases in RETURN.
 
@@ -847,8 +839,6 @@ class TestLoadFrom:
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -867,14 +857,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_with_column_alias(self):
         """Test LOAD FROM JSONL with column aliases in RETURN."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -892,14 +879,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_return_specific_columns(self):
         """Test LOAD FROM JSONL with column projection."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -917,14 +901,11 @@ class TestLoadFrom:
         assert isinstance(first_record[1], int), "age should be integer"
         print(first_record)
 
-    @extension_test
     def test_load_from_jsonl_with_multiple_where_conditions(self):
         """Test LOAD FROM JSONL with multiple WHERE conditions."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
@@ -945,14 +926,11 @@ class TestLoadFrom:
             assert isinstance(fname, str), "fName should be string"
             assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
 
-    @extension_test
     def test_load_from_jsonl_with_complex_where_conditions(self):
         """Test LOAD FROM JSONL with complex WHERE conditions (age, eyeSight, height)."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
@@ -1388,7 +1366,6 @@ class TestCopyFrom:
         assert records[0][2] == "Alice", "First person name should be Alice"
         assert records[0][3] == 1, "Alice's gender should be 1"
 
-    @extension_test
     def test_copy_from_node_jsonl_with_column_remapping(self):
         """Test COPY FROM for node table with column remapping using JSONL file."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
@@ -1410,8 +1387,6 @@ class TestCopyFrom:
         )
         """
         self.conn.execute(create_schema)
-
-        self.conn.execute("LOAD JSON")
 
         # Copy data with column remapping using LOAD FROM subquery
         # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...

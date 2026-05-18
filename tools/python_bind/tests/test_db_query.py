@@ -3095,3 +3095,13 @@ def test_not_list_contains(tmp_path):
     assert records == [[0]]
     conn.close()
     db.close()
+
+
+def test_unsupported_operator_error_message():
+    """Test that unsupported operators produce readable error messages."""
+    modern_graph_db_dir = "/tmp/modern_graph"
+    db = Database(modern_graph_db_dir, "rw")
+    conn = db.connect()
+    query = "CREATE MACRO f(x) AS x + 1"
+    with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
+        conn.execute(query)

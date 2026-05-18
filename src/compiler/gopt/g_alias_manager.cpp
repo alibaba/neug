@@ -38,6 +38,12 @@
 namespace neug {
 namespace gopt {
 
+#define THROW_UNSUPPORTED_OPERATOR_TYPE(op)                       \
+  THROW_EXCEPTION_WITH_FILE_LINE(                                 \
+      "Unsupported operator type: " +                             \
+      planner::LogicalOperatorUtils::logicalOperatorTypeToString( \
+          (op).getOperatorType()))
+
 GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
   auto lastOp = plan.getLastOperator();
   std::unordered_set<std::string> vTags;
@@ -118,9 +124,7 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::TRANSACTION:
     return {};
   default: {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Unsupported operator type for alias management: " +
-        std::to_string(static_cast<int>(op.getOperatorType())));
+    THROW_UNSUPPORTED_OPERATOR_TYPE(op);
   }
   }
 }
@@ -175,9 +179,7 @@ void GAliasManager::extractGAliasNames(
     // do nothing
     break;
   default: {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Unsupported operator type for alias management: " +
-        std::to_string(static_cast<int>(op.getOperatorType())));
+    THROW_UNSUPPORTED_OPERATOR_TYPE(op);
   }
   }
 }

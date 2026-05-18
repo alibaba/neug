@@ -5,4 +5,5 @@ add_neug_test(
 	test_reader.cc
 	test_utils.cc
 	test_exception.cc
-	test_sniffer.cc)
+	test_sniffer.cc
+	json_test.cpp)

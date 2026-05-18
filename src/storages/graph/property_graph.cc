@@ -157,7 +157,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
-  std::vector<Property> default_property_values;
+  std::vector<execution::Value> default_property_values;
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
   const auto& primary_key_names = config.GetPrimaryKeyNames();
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
@@ -170,9 +170,9 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   }
   const auto& properties = config.GetProperties();
   for (size_t i = 0; i < properties.size(); i++) {
-    auto [type, name, default_value] = properties[i];
+    const auto& [name, default_value] = properties[i];
     property_names.emplace_back(name);
-    property_types.emplace_back(type);
+    property_types.emplace_back(default_value.type());
     default_property_values.emplace_back(default_value);
   }
   for (size_t i = 0; i < primary_key_names.size(); i++) {
@@ -281,12 +281,12 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
-  std::vector<Property> default_property_values;
+  std::vector<execution::Value> default_property_values;
   const auto& properties = config.GetProperties();
   for (size_t i = 0; i < properties.size(); i++) {
-    auto [type, name, default_value] = properties[i];
+    const auto& [name, default_value] = properties[i];
     property_names.emplace_back(name);
-    property_types.emplace_back(type);
+    property_types.emplace_back(default_value.type());
     default_property_values.emplace_back(default_value);
   }
   const auto& oe_strategy = config.GetOEEdgeStrategy();
@@ -329,9 +329,9 @@ Status PropertyGraph::AddVertexProperties(
   RETURN_IF_NOT_OK(vertex_label_check(vertex_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<Property> add_default_property_values;
+  std::vector<execution::Value> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
-    auto [property_type, property_name, default_value] = add_properties[i];
+    const auto& [property_name, default_value] = add_properties[i];
     if (schema_.vertex_has_property(vertex_type_name, property_name)) {
       LOG(ERROR) << "Property [" << property_name
                  << "] already exists in vertex [" << vertex_type_name << "].";
@@ -341,14 +341,20 @@ Status PropertyGraph::AddVertexProperties(
                         "].");
     }
     add_property_names.emplace_back(property_name);
-    add_property_types.emplace_back(property_type);
+    add_property_types.emplace_back(default_value.type());
     add_default_property_values.emplace_back(default_value);
   }
   schema_.AddVertexProperties(vertex_type_name, add_property_names,
                               add_property_types, add_default_property_values);
+  // Convert Value to Property for the storage layer
+  std::vector<Property> add_default_props;
+  add_default_props.reserve(add_default_property_values.size());
+  for (const auto& val : add_default_property_values) {
+    add_default_props.emplace_back(execution::value_to_property(val));
+  }
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
-                                        add_default_property_values);
+                                        add_default_props);
   return neug::Status::OK();
 }
 
@@ -361,9 +367,9 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<Property> add_default_property_values;
+  std::vector<execution::Value> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
-    auto [property_type, property_name, default_value] = add_properties[i];
+    const auto& [property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
                                   property_name)) {
       LOG(ERROR) << "Property [" << property_name
@@ -376,7 +382,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
                         "].");
     }
     add_property_names.emplace_back(property_name);
-    add_property_types.emplace_back(property_type);
+    add_property_types.emplace_back(default_value.type());
     add_default_property_values.emplace_back(default_value);
   }
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
@@ -397,9 +403,15 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
                       "] does not exist, cannot add properties.");
   }
 
+  // Convert Value to Property for the storage layer
+  std::vector<Property> add_default_props;
+  add_default_props.reserve(add_default_property_values.size());
+  for (const auto& val : add_default_property_values) {
+    add_default_props.emplace_back(execution::value_to_property(val));
+  }
   auto& edge_table = edge_tables_.at(index);
   edge_table.AddProperties(add_property_names, add_property_types,
-                           add_default_property_values);
+                           add_default_props);
 
   return neug::Status::OK();
 }
