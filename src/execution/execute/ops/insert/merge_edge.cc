@@ -25,6 +25,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/storages/csr/generic_view_utils.h"
@@ -82,25 +83,6 @@ merge_pattern_and_on_create(
   return merged;
 }
 
-static Property value_to_edge_property(const Value& value) {
-  Property prop;
-  auto val_type = value.type();
-  if (val_type.id() == DataTypeId::kEmpty) {
-  } else if (val_type.id() == DataTypeId::kInt32) {
-    prop.set_int32(value.GetValue<int32_t>());
-  } else if (val_type.id() == DataTypeId::kInt64) {
-    prop.set_int64(value.GetValue<int64_t>());
-  } else if (val_type.id() == DataTypeId::kVarchar) {
-    prop.set_string_view(StringValue::Get(value));
-  } else if (val_type.id() == DataTypeId::kDouble) {
-    prop.set_double(value.GetValue<double>());
-  } else {
-    THROW_RUNTIME_ERROR("Unsupported property type: " +
-                        std::to_string(static_cast<int>(val_type.id())));
-  }
-  return prop;
-}
-
 void apply_on_match_edge_impl(
     StorageUpdateInterface& graph, Context& ctx, size_t row,
     const IEdgeColumn& edge_col,
@@ -108,7 +90,7 @@ void apply_on_match_edge_impl(
         on_match) {
   for (const auto& [prop_name, expression] : on_match) {
     auto value = expression->Cast<RecordExprBase>().eval_record(ctx, row);
-    auto prop = value_to_edge_property(value);
+    auto prop = value_to_property(value);
     auto er = edge_col.get_edge(row);
     auto label_id = er.label.edge_label;
     auto src_label = er.label.src_label;
