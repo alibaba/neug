@@ -57,7 +57,7 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
   return status.ok();
 }
 
-const void* StorageAPUpdateInterface::AddEdge(
+std::optional<const void*> StorageAPUpdateInterface::AddEdge(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Property>& properties) {
   const auto& edge_table =
@@ -71,7 +71,7 @@ const void* StorageAPUpdateInterface::AddEdge(
       LOG(ERROR) << "Failed to ensure space for edge of label "
                  << graph_.schema().get_edge_label_name(edge_label) << ": "
                  << status.ToString();
-      return nullptr;
+      return std::nullopt;
     }
   }
   auto add_ret = graph_.AddEdge(src_label, src, dst_label, dst, edge_label,

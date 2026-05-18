@@ -128,9 +128,10 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties);
+  std::optional<const void*> AddEdge(label_t src_label, vid_t src,
+                                     label_t dst_label, vid_t dst,
+                                     label_t edge_label,
+                                     const std::vector<Property>& properties);
 
   /**
    * @brief Commit the transaction.
@@ -189,15 +190,14 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
   ~StorageTPInsertInterface() {}
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  bool AddVertex(label_t label, const Property& id,
+                 const std::vector<Property>& props, vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                             vid_t dst, label_t edge_label,
-                             const std::vector<Property>& properties) override {
+  std::optional<const void*> AddEdge(
+      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+      label_t edge_label, const std::vector<Property>& properties) override {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 

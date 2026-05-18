@@ -294,7 +294,8 @@ Status UpdateTransaction::AddVertexProperties(
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& add_properties = config.GetProperties();
   label_t v_label;
-  RETURN_IF_NOT_OK(resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
+  RETURN_IF_NOT_OK(
+      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
   AddVertexPropertiesRedo::Serialize(arc_, config);
   op_num_ += 1;
   auto status = graph_.AddVertexProperties(config);
@@ -365,7 +366,8 @@ Status UpdateTransaction::RenameVertexProperties(
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& rename_properties = config.GetRenameProperties();
   label_t v_label;
-  RETURN_IF_NOT_OK(resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
+  RETURN_IF_NOT_OK(
+      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
   ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
   for (const auto& [old_name, _] : rename_properties) {
     ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, old_name);
@@ -422,7 +424,8 @@ Status UpdateTransaction::DeleteVertexProperties(
   const auto& vertex_type_name = config.GetVertexLabel();
   const auto& delete_properties = config.GetDeleteProperties();
   label_t v_label;
-  RETURN_IF_NOT_OK(resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
+  RETURN_IF_NOT_OK(
+      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
   for (auto& prop_name : delete_properties) {
     ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, prop_name);
     if (!graph_.schema().vertex_has_property(vertex_type_name, prop_name)) {
@@ -490,7 +493,8 @@ Status UpdateTransaction::DeleteEdgeProperties(
 Status UpdateTransaction::DeleteVertexType(
     const std::string& vertex_type_name) {
   label_t v_label;
-  RETURN_IF_NOT_OK(resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
+  RETURN_IF_NOT_OK(
+      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
   if (graph_.schema().IsVertexLabelSoftDeleted(v_label)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name
                << " is already deleted (soft delete).";
@@ -620,8 +624,7 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   return true;
 }
 
-// TODO(zhanglei): Return NbrIterator when refactoring the GraphInterface.
-const void* UpdateTransaction::AddEdge(
+std::optional<const void*> UpdateTransaction::AddEdge(
     label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
     label_t edge_label, const std::vector<Property>& properties) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
@@ -640,7 +643,7 @@ const void* UpdateTransaction::AddEdge(
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space before insert edge: "
                  << status.ToString();
-      return nullptr;
+      return std::nullopt;
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),

@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <optional>
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -412,9 +413,9 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * edge property, since the edge property is not actually inserted into the
    * graph until commit.
    */
-  virtual const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                              vid_t dst, label_t edge_label,
-                              const std::vector<Property>& properties) = 0;
+  virtual std::optional<const void*> AddEdge(
+      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+      label_t edge_label, const std::vector<Property>& properties) = 0;
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -524,7 +525,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual bool AddVertex(label_t label, const Property& id,
                          const std::vector<Property>& props,
                          vid_t& vid) override = 0;
-  virtual const void* AddEdge(
+  virtual std::optional<const void*> AddEdge(
       label_t src_label, vid_t src, label_t dst_label, vid_t dst,
       label_t edge_label, const std::vector<Property>& properties) override = 0;
 
@@ -605,9 +606,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                           const Property& value) override;
   bool AddVertex(label_t label, const Property& id,
                  const std::vector<Property>& props, vid_t& vid) override;
-  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override;
+  std::optional<const void*> AddEdge(
+      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+      label_t edge_label, const std::vector<Property>& properties) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

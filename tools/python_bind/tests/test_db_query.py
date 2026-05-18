@@ -651,7 +651,7 @@ def test_create_edge_return_edge_property(tmp_path):
 
     conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
     conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, since INT64, MANY_MANY);"
+        "CREATE REL TABLE knows(FROM person TO person, since INT64, MANY_TO_MANY);"
     )
     conn.execute("CREATE (a:person {id: 1});")
     conn.execute("CREATE (b:person {id: 2});")

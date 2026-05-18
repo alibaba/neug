@@ -191,9 +191,10 @@ class UpdateTransaction {
    */
   bool DeleteVertex(label_t label, vid_t lid);
 
-  const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties);
+  std::optional<const void*> AddEdge(label_t src_label, vid_t src,
+                                     label_t dst_label, vid_t dst,
+                                     label_t edge_label,
+                                     const std::vector<Property>& properties);
 
   bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                    label_t edge_label);
@@ -354,33 +355,31 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       : StorageUpdateInterface(txn.graph(), txn.timestamp()), txn_(txn) {}
   ~StorageTPUpdateInterface() {}
 
-  inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                   const Property& value) override {
+  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                            const Property& value) override {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
-  inline void UpdateEdgeProperty(label_t src_label, vid_t src,
-                                 label_t dst_label, vid_t dst,
-                                 label_t edge_label, int32_t oe_offset,
-                                 int32_t ie_offset, int32_t col_id,
-                                 const Property& value) override {
+  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const Property& value) override {
     txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                             oe_offset, ie_offset, col_id, value);
   }
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  bool AddVertex(label_t label, const Property& id,
+                 const std::vector<Property>& props, vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline const void* AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                             vid_t dst, label_t edge_label,
-                             const std::vector<Property>& properties) override {
+  std::optional<const void*> AddEdge(
+      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+      label_t edge_label, const std::vector<Property>& properties) override {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
   void CreateCheckpoint() override;
-  inline UpdateTransaction& GetTransaction() { return txn_; }
+
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;
