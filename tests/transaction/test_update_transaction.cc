@@ -428,9 +428,11 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     neug::vid_t vid2;
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
                                    neug::Property::from_int64(2), vid2));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid, software_label, vid2, created_label,
-        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)}));
+        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)},
+        edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -480,20 +482,23 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
                               {neug::Property::from_string_view("NeugDB"),
                                neug::Property::from_string_view("C++")},
                               vid3));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid4, software_label, vid3, created_label,
-        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)}));
+        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)},
+        edge_prop));
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid2, software_label, vid3, created_label,
-        {neug::Property::from_double(0.75), neug::Property::from_int64(2021)}));
+        {neug::Property::from_double(0.75), neug::Property::from_int64(2021)},
+        edge_prop));
     neug::vid_t vid1;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
     EXPECT_TRUE(txn.AddEdge(person_label, vid4, person_label, vid1,
                             txn.schema().get_edge_label_id("knows"),
-                            {neug::Property::from_double(0.95)}));
+                            {neug::Property::from_double(0.95)}, edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -547,9 +552,11 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
                               {neug::Property::from_string_view("UltraGraph"),
                                neug::Property::from_string_view("Go")},
                               vid4));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid5, software_label, vid4, created_label,
-        {neug::Property::from_double(0.65), neug::Property::from_int64(2022)}));
+        {neug::Property::from_double(0.65), neug::Property::from_int64(2022)},
+        edge_prop));
     txn.Abort();
   }
   {
@@ -713,9 +720,11 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
         txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
                                    neug::Property::from_int64(1), vid1));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid2, software_label, vid1, created_label,
-        {neug::Property::from_double(0.8), neug::Property::from_int64(2021)}));
+        {neug::Property::from_double(0.8), neug::Property::from_int64(2021)},
+        edge_prop));
     txn.Abort();
   }
   {
@@ -943,9 +952,11 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
         txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
                                    neug::Property::from_int64(2), vid2));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid1, software_label, vid2, created_label,
-        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)}));
+        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)},
+        edge_prop));
     neug::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
                              vertex_id));

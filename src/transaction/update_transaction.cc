@@ -557,18 +557,23 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   return Status::OK();
 }
 
-bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
-                                  const std::vector<Property>& props,
-                                  vid_t& vid) {
+Status UpdateTransaction::AddVertex(label_t label, const Property& oid,
+                                    const std::vector<Property>& props,
+                                    vid_t& vid) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
-    return false;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Property count mismatch for vertex of label " +
+                      graph_.schema().get_vertex_label_name(label));
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     if (props[col_i].type() != types[col_i].id()) {
-      return false;
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Property type mismatch at column " +
+                        std::to_string(col_i) + " for vertex of label " +
+                        graph_.schema().get_vertex_label_name(label));
     }
   }
 
@@ -581,7 +586,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
       LOG(ERROR) << "Failed to ensure space for vertex of label "
                  << graph_.schema().get_vertex_label_name(label) << ": "
                  << status.ToString();
-      return false;
+      return status;
     }
   }
 
@@ -592,10 +597,10 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
     LOG(ERROR) << "Failed to add vertex of label "
                << graph_.schema().get_vertex_label_name(label) << ": "
                << status.ToString();
-    return false;
+    return status;
   }
   undo_logs_.push(std::make_unique<InsertVertexUndo>(label, vid));
-  return true;
+  return Status::OK();
 }
 
 bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
@@ -624,9 +629,11 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   return true;
 }
 
-std::optional<const void*> UpdateTransaction::AddEdge(
-    label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
-    label_t edge_label, const std::vector<Property>& properties) {
+Status UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
+                                  label_t dst_label, vid_t dst_lid,
+                                  label_t edge_label,
+                                  const std::vector<Property>& properties,
+                                  const void*& prop) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
@@ -643,17 +650,22 @@ std::optional<const void*> UpdateTransaction::AddEdge(
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space before insert edge: "
                  << status.ToString();
-      return std::nullopt;
+      return status;
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
-  auto add_ret =
-      graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                     properties, timestamp_, alloc_, true);
-  auto oe_offset = add_ret.first;
+  int32_t oe_offset = 0;
+  const void* edge_prop = nullptr;
+  auto add_status = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
+                                   edge_label, properties, timestamp_, alloc_,
+                                   oe_offset, edge_prop, true);
+  if (!add_status.ok()) {
+    LOG(ERROR) << "Failed to add edge: " << add_status.ToString();
+    return add_status;
+  }
   auto ie_offset = search_other_offset_with_cur_offset(
       graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
       graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
@@ -664,7 +676,8 @@ std::optional<const void*> UpdateTransaction::AddEdge(
   undo_logs_.push(std::make_unique<InsertEdgeUndo>(src_label, dst_label,
                                                    edge_label, src_lid, dst_lid,
                                                    oe_offset, ie_offset));
-  return reinterpret_cast<const void*>(add_ret.second);
+  prop = edge_prop;
+  return Status::OK();
 }
 
 bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
@@ -959,8 +972,11 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
+      int32_t oe_offset_unused = 0;
+      const void* prop_unused = nullptr;
       graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                    redo.edge_label, redo.properties, timestamp, alloc, true);
+                    redo.edge_label, redo.properties, timestamp, alloc,
+                    oe_offset_unused, prop_unused, true);
     } else if (op_type == OpType::kUpdateVertexProp) {
       UpdateVertexPropRedo redo;
       arc >> redo;

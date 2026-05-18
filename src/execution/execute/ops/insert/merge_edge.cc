@@ -172,15 +172,17 @@ EdgeRecord insert_and_return_edge_row(
       property_values[index] = value_to_property(value);
     }
   }
-  auto add_ret = graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_,
-                               edge_label, property_values);
-  if (!add_ret.has_value()) {
+  const void* edge_prop = nullptr;
+  auto add_status = graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_,
+                                  edge_label, property_values, edge_prop);
+  if (!add_status.ok()) {
     THROW_RUNTIME_ERROR("Failed to add edge (" + std::to_string(src_label) +
                         "," + std::to_string(edge_label) + "," +
-                        std::to_string(dst_label) + ")");
+                        std::to_string(dst_label) +
+                        "): " + add_status.ToString());
   }
   return EdgeRecord{LabelTriplet{src_label, dst_label, edge_label}, v1.vid_,
-                    v2.vid_, add_ret.value()};
+                    v2.vid_, edge_prop};
 }
 
 struct EdgeEntryPlan {

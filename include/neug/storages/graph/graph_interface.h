@@ -395,8 +395,8 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param vid Output: assigned internal vertex ID
    * @return true if vertex added successfully
    */
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props, vid_t& vid) = 0;
+  virtual Status AddVertex(label_t label, const Property& id,
+                           const std::vector<Property>& props, vid_t& vid) = 0;
 
   /**
    * @brief Add a single edge to the graph.
@@ -413,9 +413,10 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * edge property, since the edge property is not actually inserted into the
    * graph until commit.
    */
-  virtual std::optional<const void*> AddEdge(
-      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-      label_t edge_label, const std::vector<Property>& properties) = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<Property>& properties,
+                         const void*& prop) = 0;
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -522,12 +523,13 @@ class StorageUpdateInterface : public StorageReadInterface,
                                   int32_t ie_offset, int32_t col_id,
                                   const Property& value) = 0;
 
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props,
-                         vid_t& vid) override = 0;
-  virtual std::optional<const void*> AddEdge(
-      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-      label_t edge_label, const std::vector<Property>& properties) override = 0;
+  virtual Status AddVertex(label_t label, const Property& id,
+                           const std::vector<Property>& props,
+                           vid_t& vid) override = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<Property>& properties,
+                         const void*& prop) override = 0;
 
   /**
    * @brief Delete multiple vertices by their internal IDs.
@@ -604,11 +606,11 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                           vid_t dst, label_t edge_label, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
                           const Property& value) override;
-  bool AddVertex(label_t label, const Property& id,
-                 const std::vector<Property>& props, vid_t& vid) override;
-  std::optional<const void*> AddEdge(
-      label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-      label_t edge_label, const std::vector<Property>& properties) override;
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid) override;
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

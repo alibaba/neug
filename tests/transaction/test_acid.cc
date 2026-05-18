@@ -838,8 +838,9 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
     }
   }
   CHECK(found);
+  const void* edge_prop = nullptr;
   if (!txn.AddEdge(person_label_id, person_vid, post_label_id, post_vid,
-                   likes_label_id, {})) {
+                   likes_label_id, {}, edge_prop)) {
     txn.Abort();
     return false;
   }
