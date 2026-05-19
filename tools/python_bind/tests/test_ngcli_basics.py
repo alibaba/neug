@@ -110,7 +110,7 @@ def test_shell_do_help(capsys, tmp_path):
             - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
             - Command history is supported; use the up/down arrow keys to navigate previous commands.
-            - Inline autosuggestions are supported; use Tab to cycle candidates and right arrow to accept the current suggestion.
+            - Use Tab to cycle candidates and right arrow to accept the current suggestion.
         """
     assert expected_output.strip() in captured.out.strip()
     connection.close()

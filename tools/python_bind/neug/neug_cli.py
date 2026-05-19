@@ -40,7 +40,8 @@ import click
 
 try:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
+    from prompt_toolkit.auto_suggest import AutoSuggest
+    from prompt_toolkit.auto_suggest import Suggestion
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.lexers import Lexer
@@ -503,7 +504,8 @@ class NeugShell(cmd.Cmd):
 
     def do_help(self, arg):
         """Provide usage hints."""
-        print("""
+        print(
+            """
             Usage hints:
             - Enter Cypher queries directly to execute them on the connected database.
             - Use :help to display this help message.
@@ -512,8 +514,9 @@ class NeugShell(cmd.Cmd):
             - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
             - Command history is supported; use the up/down arrow keys to navigate previous commands.
-            - Inline autosuggestions are supported; use Tab to cycle candidates and right arrow to accept the current suggestion.
-            """)
+            - Use Tab to cycle candidates and right arrow to accept the current suggestion.
+            """
+        )
 
 
 @click.group(
