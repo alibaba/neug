@@ -514,6 +514,10 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     added_edge_num++;
   }
   edge_num_.fetch_add(added_edge_num, std::memory_order_relaxed);
+  // invalidate sort flag
+  if (ts < unsorted_since_) {
+    unsorted_since_ = 0;
+  }
 }
 
 template <typename EDATA_T>

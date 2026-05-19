@@ -970,16 +970,16 @@ void EdgeTable::Compact(bool compact_csr,
     out_csr_->compact();
     in_csr_->compact();
   }
+  out_csr_->reset_timestamp();
+  in_csr_->reset_timestamp();
   if (sort_key_for_nbr.has_value()) {
     if (!meta_->is_bundled()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "sort key is not supported for unbundled edge table currently");
     }
-    out_csr_->batch_sort_by_edge_data(ts);
-    in_csr_->batch_sort_by_edge_data(ts);
+    out_csr_->batch_sort_by_edge_data(1);
+    in_csr_->batch_sort_by_edge_data(1);
   }
-  out_csr_->reset_timestamp();
-  in_csr_->reset_timestamp();
 }
 
 size_t EdgeTable::PropTableSize() const {

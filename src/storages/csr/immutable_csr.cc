@@ -386,6 +386,10 @@ void ImmutableCsr<EDATA_T>::batch_put_edges(
     nbr.data = data_list[i];
     edge_num_.fetch_add(1, std::memory_order_relaxed);
   }
+  // invalidate sort flag
+  if (ts < unsorted_since_) {
+    unsorted_since_ = 0;
+  }
 }
 
 template <typename EDATA_T>

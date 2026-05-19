@@ -140,6 +140,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
+    // invalidate sort flag
+    if (ts < unsorted_since_) {
+      unsorted_since_ = 0;
+    }
     locks_[src].unlock();
     return prev_size;
   }
