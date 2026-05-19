@@ -1085,10 +1085,15 @@ Status PropertyGraph::AddEdge(
                       std::to_string(dst_label) + ", " +
                       std::to_string(edge_label) + ">");
   }
-  auto ret = edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts,
-                                            alloc, insert_safe);
-  oe_offset = ret.first;
-  prop = ret.second;
+  try {
+    auto ret = edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts,
+                                              alloc, insert_safe);
+    oe_offset = ret.first;
+    prop = ret.second;
+  } catch (const std::exception& e) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  std::string("Failed to add edge: ") + e.what());
+  }
   return Status::OK();
 }
 
