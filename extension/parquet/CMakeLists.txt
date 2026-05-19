@@ -46,6 +46,7 @@ target_link_libraries(neug_parquet_extension PRIVATE
     ${ARROW_BASE_LIB}
     ${_EXT_ARROW_DATASET_LIB}
     ${_EXT_ARROW_PARQUET_LIB}
+    ${ARROW_BUNDLED_DEPS_LIB}
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

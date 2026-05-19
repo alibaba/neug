@@ -31,6 +31,7 @@ endif()
 target_link_libraries(neug_s3_extension PRIVATE
     neug
     ${ARROW_BASE_LIB}
+    ${ARROW_BUNDLED_DEPS_LIB}
     ${CURL_LIBRARIES}
 )
 
