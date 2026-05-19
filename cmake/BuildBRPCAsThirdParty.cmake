@@ -66,10 +66,7 @@ function(build_brpc_as_third_party)
         message(STATUS "Applying warning suppression flags to PROTO_LIB")
         target_compile_options(PROTO_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
     endif()
-    if (TARGET protoc-gen-mcpack AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(protoc-gen-mcpack PRIVATE -Wno-error=deprecated-builtins)
-    endif()
-
+    
     set(BRPC_LIB brpc-static PARENT_SCOPE)
     set(BRPC_ALL_LIBS brpc-static BUTIL_LIB PROTO_LIB)
     foreach(lib ${BRPC_ALL_LIBS})
