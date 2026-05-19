@@ -18,6 +18,7 @@
 #include <arrow/array/array_binary.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
+#include "neug/utils/exception/exception.h"
 #include <arrow/array/builder_time.h>
 #include <arrow/type.h>
 #include <glog/logging.h>
@@ -42,7 +43,7 @@ std::pair<size_t, size_t> locate_array_and_offset(
     }
     accumulated_size += array_length;
   }
-  LOG(FATAL) << "Should not reach here";
+  THROW_INTERNAL_EXCEPTION("Should not reach here");
   return {0, 0};
 }
 
@@ -249,9 +250,9 @@ void ArrowArrayContextColumnBuilder::push_back(
       columns_.push_back(column);
       return;
     } else {
-      LOG(FATAL) << "Expect the same type of columns, but got "
-                 << columns_[0]->type()->ToString() << " and "
-                 << column->type()->ToString();
+      THROW_INTERNAL_EXCEPTION("Expect the same type of columns, but got " +
+                               columns_[0]->type()->ToString() + " and " +
+                               column->type()->ToString());
     }
   }
   columns_.push_back(column);

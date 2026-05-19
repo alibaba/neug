@@ -320,6 +320,83 @@ def test_delete_edges():
     db.close()
 
 
+def test_merge_vertex():
+    db_dir = "/tmp/test_merge_vertex"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10013, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "CREATE NODE TABLE User(name STRING, age INT64, PRIMARY KEY(name));"
+    )
+    session.execute("CREATE (:User {name: 'Adam', age: 29});")
+
+    existing = list(session.execute("MERGE (u:User {name: 'Adam'}) RETURN u.age;"))
+    assert existing == [[29]]
+
+    created = list(
+        session.execute("MERGE (u:User {name: 'Bob', age: 45}) RETURN u.name, u.age;")
+    )
+    assert created == [["Bob", 45]]
+
+    names = sorted(r[0] for r in session.execute("MATCH (u:User) RETURN u.name;"))
+    assert names == ["Adam", "Bob"]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_merge_edge():
+    db_dir = "/tmp/test_merge_edge"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10014, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "CREATE NODE TABLE User(name STRING, age INT64, PRIMARY KEY(name));"
+    )
+    session.execute("CREATE REL TABLE follows(FROM User TO User, date INT64);")
+    session.execute("CREATE (:User {name: 'Adam', age: 29});")
+    session.execute("CREATE (:User {name: 'marko', age: 32});")
+    session.execute("CREATE (:User {name: 'Bob', age: 40});")
+    session.execute(
+        "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
+        "CREATE (u1)-[:follows {date: 2012}]->(u2);"
+    )
+
+    matched = list(
+        session.execute(
+            "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
+            "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+            "RETURN u1.name, e.date, u2.name;"
+        )
+    )
+    assert matched == [["Adam", 2012, "marko"]]
+
+    created = list(
+        session.execute(
+            "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) "
+            "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+            "RETURN u1.name, e.date, u2.name;"
+        )
+    )
+    assert created == [["Adam", 2012, "Bob"]]
+
+    edge_count = list(session.execute("MATCH ()-[e:follows]->() RETURN count(e);"))
+    assert edge_count == [[2]]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
 def test_query_cache():
     db_dir = "/tmp/test_query_cache"
     shutil.rmtree(db_dir, ignore_errors=True)

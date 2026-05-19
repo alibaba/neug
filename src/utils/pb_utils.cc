@@ -14,6 +14,8 @@
  */
 
 #include "neug/utils/pb_utils.h"
+
+#include "neug/utils/exception/exception.h"
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
 #include <google/protobuf/util/json_util.h>
@@ -347,7 +349,8 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
     return false;
   } else {
-    LOG(FATAL) << "invalid action: " << action;
+    THROW_INVALID_ARGUMENT_EXCEPTION("invalid action: " +
+                                     std::to_string(static_cast<int>(action)));
     return false;  // to suppress warning
   }
 }
