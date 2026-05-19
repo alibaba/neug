@@ -161,6 +161,20 @@ function(build_arrow_as_third_party)
                 message(STATUS "Patched Arrow ThirdpartyToolchain.cmake for CMake 4.x compatibility")
             endif()
         endif()
+        if(APPLE)
+            set(_build_utils "${arrow_SOURCE_DIR}/cpp/cmake_modules/BuildUtils.cmake")
+            file(READ "${_build_utils}" _build_utils_content)
+            string(FIND "${_build_utils_content}" "cctools(_ld)?-" _libtool_already_patched)
+            if(_libtool_already_patched EQUAL -1)
+                string(REPLACE
+                    "cctools-([0-9.]+)"
+                    "cctools(_ld)?-([0-9.]+)"
+                    _build_utils_content "${_build_utils_content}")
+                file(WRITE "${_build_utils}" "${_build_utils_content}")
+                message(STATUS "Patched Arrow BuildUtils.cmake for Xcode cctools_ld libtool output")
+            endif()
+        endif()
+
         # Propagate CMAKE_OSX_ARCHITECTURES into Arrow's bundled ExternalProject
         # sub-builds (snappy, zlib, zstd, etc.) so they are compiled for the
         # correct target architecture (e.g. arm64 on macos-15 / Apple Silicon).

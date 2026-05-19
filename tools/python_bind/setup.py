@@ -406,6 +406,7 @@ setup(
         "protobuf==5.29.6",
         "requests",
         "click>=8.0.0",
+        "prompt_toolkit>=3.0.0",
         "tabulate>=0.9.0",
         "PyYAML>=6.0.2",
         "tqdm",
