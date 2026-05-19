@@ -1,7 +1,9 @@
 #include "neug/compiler/planner/operator/persistent/logical_merge.h"
 
 #include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/common/cast.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
 using namespace neug::binder;
@@ -35,6 +37,26 @@ f_group_pos_set LogicalMerge::getGroupsPosToFlatten() {
   auto childSchema = children[0]->getSchema();
   return FlattenAll::getGroupsPosToFlatten(childSchema->getGroupsPosInScope(),
                                            *childSchema);
+}
+
+std::vector<gopt::GAliasName> LogicalMerge::getGAliasNames() const {
+  std::vector<gopt::GAliasName> aliasNames;
+  auto appendFromInsertInfos =
+      [&aliasNames](const std::vector<LogicalInsertInfo>& infos) {
+        for (const auto& info : infos) {
+          auto pattern = info.pattern;
+          if (pattern->expressionType == ExpressionType::PATTERN) {
+            auto patternExpr = pattern->ptrCast<binder::NodeOrRelExpression>();
+            std::string varName = patternExpr->getVariableName();
+            aliasNames.emplace_back(
+                patternExpr->getUniqueName(),
+                varName.empty() ? std::nullopt : std::make_optional(varName));
+          }
+        }
+      };
+  appendFromInsertInfos(insertNodeInfos);
+  appendFromInsertInfos(insertRelInfos);
+  return aliasNames;
 }
 
 std::unique_ptr<LogicalOperator> LogicalMerge::copy() {

@@ -148,12 +148,14 @@ void MMapContainer::Dump(const std::string& path) {
 }
 
 bool MMapContainer::IsDirty() {
-  // Guard: no mapping or mapping too small to hold a header → never dirty.
-  if (mmap_data_ == nullptr || mmap_size_ < sizeof(FileHeader)) {
+  if (mmap_data_ == nullptr) {
     return false;
   }
   if (path_.empty()) {
     // Anonymous mmap with no backing file – always considered dirty.
+    // Must precede the FileHeader-size guard: small anonymous mmaps (e.g. a
+    // freshly-resized column with only a few entries) won't fit a FileHeader
+    // but still hold live data that Fork must copy.
     return true;
   }
   if (size_ == 0) {
