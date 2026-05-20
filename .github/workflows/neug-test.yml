@@ -231,6 +231,7 @@ jobs:
         ctest -R gopt_test -V
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
+        ctest -R test_mmap_container -V
         ctest -R logical_delete_test -V
         ctest -R test_connection -V
         ctest -R test_request -V
