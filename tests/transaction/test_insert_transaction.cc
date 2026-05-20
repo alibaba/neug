@@ -149,9 +149,11 @@ TEST_F(InsertTransactionTest, AddEdge) {
     neug::vid_t vid2;
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
                                    neug::Property::from_int64(2), vid2));
+    const void* edge_prop = nullptr;
     EXPECT_TRUE(interface.AddEdge(
         person_label, vid, software_label, vid2, created_label,
-        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)}));
+        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)},
+        edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {
