@@ -42,7 +42,7 @@ def test_cli_inline_autosuggestion_casing():
     assert auto_suggest.get_suggestion(None, Document("Ma")).text == "tch"
     assert auto_suggest.get_suggestion(None, Document("m")).text == "atch"
     assert auto_suggest.get_suggestion(None, Document("M")).text == "ATCH"
-    assert auto_suggest.get_suggestion(None, Document("RETURN co")).text == "unt"
+    assert auto_suggest.get_suggestion(None, Document("RETURN col")).text == "lect"
     assert auto_suggest.get_suggestion(None, Document("ORDER B")).text == "Y"
     assert auto_suggest.get_suggestion(None, Document("IS N")).text == "ULL"
 
@@ -90,7 +90,16 @@ def test_cli_lexer_highlights_commands_and_cypher_keywords():
     assert "class:cypher-keyword" in _token_classes("MATCH")
     assert "class:cypher-keyword" in _token_classes("match")
     assert "class:cypher-keyword" in _token_classes("ma")
+    assert "class:cypher-keyword" in _token_classes("SKIP")
+    assert "class:cypher-keyword" in _token_classes("EXPLAIN")
     assert _token_classes("MATCH (n) RETURN n").count("class:cypher-keyword") == 2
+
+
+def test_cli_cypher_keywords_align_with_parser_keywords():
+    assert "REMOVE" not in neug_cli.CYPHER_CANDIDATES
+    assert "SKIP" in neug_cli.CYPHER_CANDIDATES
+    for keyword in ["MATCH", "EXPLAIN", "PROFILE", "UNION", "YIELD"]:
+        assert keyword in neug_cli.CYPHER_CANDIDATES
 
 
 def test_shell_do_help(capsys, tmp_path):
