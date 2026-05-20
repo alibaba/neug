@@ -238,21 +238,11 @@ def test_call_no_arg_function_baseline(conn):
     assert rows is not None
 
 
-@pytest.mark.skip(
-    reason=(
-        "Repro shape from issue #345's bug report. Still blocked by a "
-        "SEPARATE pre-existing bug: any CALL <table_func>(<string literal>) "
-        "trips NEUG_UNREACHABLE in LogicalType::getPhysicalType "
-        "(types.cpp:990) during bind, regardless of string length, and the "
-        "JSON-extension variant aborts the process uncatchably. The issue "
-        "#345 overflow/cap fix is covered by the CREATE/MATCH tests above; "
-        "this stays as documented, CI-safe pending coverage. Un-skip once "
-        "the types.cpp:990 bind bug is fixed."
-    )
-)
 def test_call_table_func_long_string_literal_repro(conn, tmp_path):
     long_path = tmp_path / ("p" * 100 + ".csv")
     long_path.write_text("a,b\n1,2\n")
     assert len(str(long_path)) > SHORT_STR_LENGTH
-    rows = list(conn.execute(f"CALL CSV_SCAN('{long_path}');"))
+    conn.execute("CREATE NODE TABLE long_path_node(a INT64 PRIMARY KEY, b INT64);")
+    conn.execute(f"COPY long_path_node FROM '{long_path}' (delimiter=',');")
+    rows = list(conn.execute("MATCH (n:long_path_node) RETURN n.a, n.b;"))
     assert len(rows) >= 1
