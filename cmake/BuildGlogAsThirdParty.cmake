@@ -17,8 +17,15 @@
 function (build_glog_as_third_party)
     set(CMAKE_DEBUG_POSTFIX "" FORCE)
     set(WITH_GFLAGS OFF CACHE BOOL "Build glog without gflags" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static library" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
+
+    # Build glog as a SHARED library. This ensures its PRIVATE dependency on
+    # libunwind.so stays internal to libglog.so (in its own DT_NEEDED) rather
+    # than leaking into libneug.so's DT_NEEDED. Since the dynamic linker uses
+    # BFS loading order for symbol resolution, libgcc_s.so.1 (direct dep of
+    # libneug.so) is found before libunwind.so.8 (indirect, via libglog.so),
+    # so libgcc_s's _Unwind_* symbols win and C++ exceptions work correctly.
+    set(BUILD_SHARED_LIBS ON)
     add_subdirectory(third_party/glog)
     include_directories(third_party/glog/src)
     include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
