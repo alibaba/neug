@@ -950,30 +950,6 @@ else:
         run_s3_extension_suite(db_s3, conn_s3, db_path_s3)
 
 # ================================================================
-#  7. Extensions — S3 Extension
-# ================================================================
-section("7. Extensions — S3 Extension (OSS / HTTP)")
-
-_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
-_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
-
-if not _run_ext_tests:
-    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
-else:
-    conn_s3 = None
-    db_path_s3 = tempfile.mkdtemp(prefix="neug_s3_ext_")
-    try:
-        db_s3 = neug.Database(db_path_s3)
-        conn_s3 = db_s3.connect()
-        ok(f"Created persistent database for S3 extension test at {db_path_s3}")
-    except Exception as e:
-        fail("Create database for S3 extension", e)
-        db_s3 = None
-
-    if db_s3 is not None and conn_s3 is not None:
-        run_s3_extension_suite(db_s3, conn_s3, db_path_s3)
-
-# ================================================================
 #  Summary
 # ================================================================
 section("Summary")
