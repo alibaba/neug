@@ -231,6 +231,7 @@ jobs:
         ctest -R gopt_test -V
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
+        ctest -R test_mmap_container -V
         ctest -R logical_delete_test -V
         ctest -R test_connection -V
         ctest -R test_request -V
@@ -306,6 +307,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_query.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_merge.py
 
     - name: Run TinySNB Tutorial Test
       if: steps.scope.outputs.extension_only != 'true'

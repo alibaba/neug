@@ -175,7 +175,8 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
 
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
   static common::case_insensitve_set_t updateOps = {
-      "set", "copy", "checkpoint", "load", "install", "uninstall", "call"};
+      "set",     "copy",      "checkpoint", "load",
+      "install", "uninstall", "call",       "merge"};
   return updateOps;
 }
 

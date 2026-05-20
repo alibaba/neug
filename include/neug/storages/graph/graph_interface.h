@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <optional>
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -365,8 +366,9 @@ class StorageReadInterface : virtual public IStorageInterface {
  * inserter.AddVertex(person_label, Property("alice"), props, vid);
  *
  * // Add edge between vertices
+ * const void* edge_prop = nullptr;
  * inserter.AddEdge(person_label, src_vid, person_label, dst_vid, knows_label,
- * {});
+ *                  {}, edge_prop);
  * @endcode
  *
  * @note This interface is write-only; use StorageReadInterface for reads.
@@ -391,11 +393,12 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param label Vertex label
    * @param id Primary key value
    * @param props Property values (excluding primary key)
-   * @param vid Output: assigned internal vertex ID
-   * @return true if vertex added successfully
+   * @param vid Output: assigned internal vertex ID on success
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. property count/type mismatch, capacity failure).
    */
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props, vid_t& vid) = 0;
+  virtual Status AddVertex(label_t label, const Property& id,
+                           const std::vector<Property>& props, vid_t& vid) = 0;
 
   /**
    * @brief Add a single edge to the graph.
@@ -406,11 +409,16 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param dst Destination vertex internal ID
    * @param edge_label Edge label
    * @param properties Edge property values
-   * @return true if edge added successfully
+   * @param prop Output: pointer to the inserted edge property storage. For an
+   *             insert transaction the edge property is not actually inserted
+   *             into the graph until commit, so this is set to nullptr.
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. missing source/destination vertex, property mismatch).
    */
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<Property>& properties,
+                         const void*& prop) = 0;
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -517,12 +525,13 @@ class StorageUpdateInterface : public StorageReadInterface,
                                   int32_t ie_offset, int32_t col_id,
                                   const Property& value) = 0;
 
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props,
-                         vid_t& vid) override = 0;
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) override = 0;
+  virtual Status AddVertex(label_t label, const Property& id,
+                           const std::vector<Property>& props,
+                           vid_t& vid) override = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<Property>& properties,
+                         const void*& prop) override = 0;
 
   /**
    * @brief Delete multiple vertices by their internal IDs.
@@ -599,11 +608,11 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                           vid_t dst, label_t edge_label, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
                           const Property& value) override;
-  bool AddVertex(label_t label, const Property& id,
-                 const std::vector<Property>& props, vid_t& vid) override;
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label,
-               const std::vector<Property>& properties) override;
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid) override;
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

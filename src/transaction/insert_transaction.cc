@@ -78,16 +78,20 @@ Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
   }
 }
 
-bool InsertTransaction::AddVertex(label_t label, const Property& id,
-                                  const std::vector<Property>& props,
-                                  vid_t& vid) {
+Status InsertTransaction::AddVertex(label_t label, const Property& id,
+                                    const std::vector<Property>& props,
+                                    vid_t& vid) {
   std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     std::string label_name = graph_.schema().get_vertex_label_name(label);
     LOG(ERROR) << "Vertex [" << label_name
                << "] properties size not match, expected " << types.size()
                << ", but got " << props.size();
-    return false;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex [" + label_name +
+                      "] properties size not match, expected " +
+                      std::to_string(types.size()) + ", but got " +
+                      std::to_string(props.size()));
   }
   int col_num = props.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
@@ -98,7 +102,11 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
                  << "] property type not match, expected "
                  << types[col_i].ToString() << ", but got "
                  << std::to_string(prop.type());
-      return false;
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Vertex [" + label_name + "][" + std::to_string(col_i) +
+                        "] property type not match, expected " +
+                        types[col_i].ToString() + ", but got " +
+                        std::to_string(prop.type()));
     }
   }
   create_id_indexer_if_not_exists(label);
@@ -108,13 +116,14 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
     vertex_nums_[label]++;
     InsertVertexRedo::Serialize(arc_, label, id, props);
   }
-  return true;
+  return Status::OK();
 }
 
-bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
-                                label_t dst_label, vid_t dst_vid,
-                                label_t edge_label,
-                                const std::vector<Property>& properties) {
+Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
+                                  label_t dst_label, vid_t dst_vid,
+                                  label_t edge_label,
+                                  const std::vector<Property>& properties,
+                                  const void*& prop) {
   const auto& src = GetVertexId(src_label, src_vid);
   const auto& dst = GetVertexId(dst_label, dst_vid);
   const auto& types =
@@ -124,7 +133,10 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     LOG(ERROR) << "Edge property size not match for edge " << label_name
                << ", expected " << types.size() << ", got "
                << properties.size();
-    return false;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge property size not match for edge " + label_name +
+                      ", expected " + std::to_string(types.size()) + ", got " +
+                      std::to_string(properties.size()));
   }
   for (size_t i = 0; i < properties.size(); ++i) {
     if (properties[i].type() != types[i].id()) {
@@ -132,12 +144,16 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i].ToString()
                  << ", got " << std::to_string(properties[i].type());
-      return false;
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Edge property " + label_name +
+                        " type not match, expected " + types[i].ToString() +
+                        ", got " + std::to_string(properties[i].type()));
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
                             properties);
-  return true;
+  prop = nullptr;
+  return Status::OK();
 }
 
 bool InsertTransaction::Commit() {
@@ -202,8 +218,11 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                     timestamp));
       CHECK(get_vertex_with_retries(graph, redo.dst_label, redo.dst, dst_lid,
                                     timestamp));
+      int32_t oe_offset_unused = 0;
+      const void* prop_unused = nullptr;
       graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
-                    redo.edge_label, redo.properties, timestamp, alloc);
+                    redo.edge_label, redo.properties, timestamp, alloc,
+                    oe_offset_unused, prop_unused);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));
