@@ -406,8 +406,10 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_gt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const MutableNbr<T>* ptr = adjlists[v] + degrees[v] - 1;
-    const MutableNbr<T>* end = adjlists[v] - 1;
+    int32_t deg = degrees[v];
+    const MutableNbr<T>* begin = adjlists[v];
+    const MutableNbr<T>* ptr = begin + deg - 1;
+    const MutableNbr<T>* end = begin - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -433,8 +435,10 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_lt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const MutableNbr<T>* ptr = adjlists[v] + degrees[v] - 1;
-    const MutableNbr<T>* end = adjlists[v] - 1;
+    int32_t deg = degrees[v];
+    const MutableNbr<T>* begin = adjlists[v];
+    const MutableNbr<T>* ptr = begin + deg - 1;
+    const MutableNbr<T>* end = begin - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -452,7 +456,7 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
       return;
     }
     ptr = std::lower_bound(
-              adjlists[v], ptr + 1, threshold,
+              begin, ptr + 1, threshold,
               [](const MutableNbr<T>& b, const T& a) { return b.data < a; }) -
           1;
     while (ptr != end) {
@@ -602,10 +606,11 @@ struct GenericView {
       ret.end_ptr = start_ptr + cfg_.stride;
     } else {
       // multiple
+      int32_t deg = degrees_[v];
       const char* start_ptr = reinterpret_cast<const char*>(
           reinterpret_cast<const int64_t*>(adjlists_)[v]);
       ret.start_ptr = start_ptr;
-      ret.end_ptr = start_ptr + degrees_[v] * cfg_.stride;
+      ret.end_ptr = start_ptr + deg * cfg_.stride;
     }
     ret.cfg = cfg_;
     ret.timestamp = timestamp_;
