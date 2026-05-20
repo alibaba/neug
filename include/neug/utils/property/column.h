@@ -355,7 +355,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
     size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
     size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
-    size_t truncated_size = avg_size * count;
+    size_t truncated_size = avg_size * count + sizeof(FileHeader);
     int rt = truncate(data_file.c_str(), truncated_size);
     if (rt != 0) {
       std::stringstream ss;
