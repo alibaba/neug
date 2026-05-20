@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "neug/execution/common/types/value.h"
+#include "neug/utils/mi_allocator.h"
 
 #include "glog/logging.h"
 #include "neug/utils/property/types.h"
@@ -27,6 +28,8 @@
 namespace neug {
 
 namespace execution {
+
+using neug::sel_vec_t;
 
 enum class ContextColumnType {
   kVertex,
@@ -53,13 +56,13 @@ class IContextColumn {
   virtual const DataType& elem_type() const = 0;
 
   virtual std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const {
+      const sel_vec_t& offsets) const {
     LOG(FATAL) << "shuffle not implemented for " << this->column_info();
     return nullptr;
   }
 
   virtual std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const {
+      const sel_vec_t& offsets) const {
     LOG(FATAL) << "optional_shuffle not implemented for "
                << this->column_info();
     return nullptr;
@@ -76,23 +79,22 @@ class IContextColumn {
 
   virtual bool is_optional() const = 0;
 
-  virtual bool generate_dedup_offset(std::vector<size_t>& offsets) const {
+  virtual bool generate_dedup_offset(sel_vec_t& offsets) const {
     LOG(ERROR) << "generate_dedup_offset not implemented for "
                << this->column_info() << ", return false by default";
     return false;
   }
 
-  virtual std::pair<std::shared_ptr<IContextColumn>,
-                    std::vector<std::vector<size_t>>>
+  virtual std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
   generate_aggregate_offset() const {
     LOG(INFO) << "generate_aggregate_offset not implemented for "
               << this->column_info() << ", return empty by default";
     std::shared_ptr<IContextColumn> col(nullptr);
-    return std::make_pair(col, std::vector<std::vector<size_t>>());
+    return std::make_pair(col, std::vector<sel_vec_t>());
   }
 
   virtual bool order_by_limit(bool asc, size_t limit,
-                              std::vector<size_t>& offsets) const {
+                              sel_vec_t& offsets) const {
     LOG(ERROR) << "order by limit not implemented for " << this->column_info()
                << ", return false by default";
     return false;

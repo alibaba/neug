@@ -17,6 +17,7 @@
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -78,8 +79,8 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline Direction dir() const override { return dir_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -91,10 +92,10 @@ class SDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
@@ -124,8 +125,8 @@ class SDSLEdgeColumn : public IEdgeColumn {
   Direction dir_;
   LabelTriplet label_;
   bool is_optional_;
-
-  std::vector<std::tuple<vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
 };
 
 class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
@@ -156,7 +157,8 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   Direction dir_;
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -185,7 +187,7 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return total_size_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     LOG(ERROR) << "not implemented for " << this->column_info();
     return false;
   }
@@ -198,10 +200,10 @@ class MSEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kMS;
@@ -234,7 +236,8 @@ class MSEdgeColumn : public IEdgeColumn {
     return labels_[std::get<0>(edges_[idx])];
   }
   Direction seg_dir(size_t idx) const { return std::get<1>(edges_[idx]); }
-  const std::vector<std::tuple<vid_t, vid_t, const void*>>& seg_edges(
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  const std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>& seg_edges(
       size_t idx) const {
     return std::get<2>(edges_[idx]);
   }
@@ -244,8 +247,9 @@ class MSEdgeColumn : public IEdgeColumn {
 
   bool is_optional_;
   std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, Direction,
-                         std::vector<std::tuple<vid_t, vid_t, const void*>>>>
+
+  std::vector<std::tuple<
+      int, Direction, std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>>>
       edges_;
   size_t total_size_;
 };
@@ -321,8 +325,9 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
   }
 
  private:
-  std::vector<std::tuple<int, Direction,
-                         std::vector<std::tuple<vid_t, vid_t, const void*>>>>
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  std::vector<std::tuple<
+      int, Direction, std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>>>
       edges_;
   std::vector<LabelTriplet> labels_;
   bool is_optional_;
@@ -330,7 +335,7 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
 
   int cur_label_idx_ = -1;
   Direction cur_dir_;
-  std::vector<std::tuple<vid_t, vid_t, const void*>> cur_edges_;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> cur_edges_;
 };
 
 class BDSLEdgeColumnBuilder;
@@ -353,8 +358,8 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -365,10 +370,10 @@ class BDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDSL;
@@ -397,7 +402,8 @@ class BDSLEdgeColumn : public IEdgeColumn {
  private:
   friend class BDSLEdgeColumnBuilder;
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -437,7 +443,8 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
 
  private:
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -461,8 +468,8 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -474,10 +481,10 @@ class SDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDML;
@@ -508,7 +515,8 @@ class SDMLEdgeColumn : public IEdgeColumn {
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
   std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -561,7 +569,8 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
   std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -585,8 +594,8 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -598,10 +607,10 @@ class BDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDML;
@@ -629,7 +638,8 @@ class BDMLEdgeColumn : public IEdgeColumn {
   friend class BDMLEdgeColumnBuilder;
   std::map<LabelTriplet, int> index_;
   std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 
@@ -699,7 +709,8 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   std::map<LabelTriplet, int> index_;
   std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
+  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
   bool is_optional_;
 };
 

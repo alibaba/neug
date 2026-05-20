@@ -23,7 +23,7 @@ namespace neug {
 namespace execution {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -44,7 +44,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -59,7 +59,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool SLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
 
   std::vector<bool> bitset;
@@ -95,9 +95,9 @@ bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   return true;
 }
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
+std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
 SLVertexColumn::generate_aggregate_offset() const {
-  std::vector<std::vector<size_t>> offsets;
+  std::vector<sel_vec_t> offsets;
   MSVertexColumnBuilder builder(label_);
   phmap::flat_hash_map<vid_t, size_t> vertex_to_offset;
   size_t idx = 0;
@@ -106,7 +106,7 @@ SLVertexColumn::generate_aggregate_offset() const {
     if (iter == vertex_to_offset.end()) {
       builder.push_back_opt(v);
       vertex_to_offset.emplace(v, offsets.size());
-      std::vector<size_t> tmp;
+      sel_vec_t tmp;
       tmp.push_back(idx);
       offsets.emplace_back(std::move(tmp));
     } else {
@@ -168,7 +168,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
 }
 
 std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -183,7 +183,7 @@ std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -226,7 +226,7 @@ std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
   }
 }
 
-bool MSVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool MSVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
   std::set<VertexRecord> vset;
   bool null_seen = false;
@@ -246,7 +246,7 @@ bool MSVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   return true;
 }
 std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -261,7 +261,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -279,7 +279,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool MLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
   std::set<VertexRecord> vset;
   size_t n = vertices_.size();

@@ -51,8 +51,13 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
       auto sl_vertex_column =
           std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
-          sl_vertex_column->label(), sl_vertex_column->vertices()));
+      std::vector<vid_t> vids;
+      const auto& vertices = sl_vertex_column->vertices();
+      for (vid_t vid : vertices) {
+        vids.emplace_back(vid);
+      }
+      RETURN_STATUS_ERROR_IF_NOT_OK(
+          graph.BatchDeleteVertices(sl_vertex_column->label(), vids));
     } else if (vertex_column->vertex_column_type() ==
                    VertexColumnType::kMultiple ||
                vertex_column->vertex_column_type() ==
@@ -75,7 +80,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
       THROW_RUNTIME_ERROR(
           "Unsupported vertex column type for batch delete vertex operation.");
     }
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
                              // remove all data.
   }

@@ -44,7 +44,7 @@ class OrderByOpr : public IOperator {
     for (int i = 0; i < keys_num; ++i) {
       cmp.add_keys(ctx.get(keys_[i].first), keys_[i].second);
     }
-    std::vector<size_t> indices;
+    sel_vec_t indices;
     int32_t tag = keys_[0].first;
     bool order = keys_[0].second;
     if (ctx.get(tag)->order_by_limit(order, upper_, indices)) {

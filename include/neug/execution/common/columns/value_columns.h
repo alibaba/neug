@@ -14,7 +14,10 @@
  */
 #pragma once
 
+#include <type_traits>
+
 #include "neug/execution/common/columns/columns_utils.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 
@@ -42,10 +45,10 @@ class ValueColumn : public IContextColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline const DataType& elem_type() const override { return type_; }
   inline Value get_elem(size_t idx) const override {
@@ -57,12 +60,25 @@ class ValueColumn : public IContextColumn {
 
   inline T get_value(size_t idx) const { return data_[idx]; }
 
-  const std::vector<T>& data() const { return data_; }
-  const std::vector<bool>& validity_bitmap() const { return valid_; }
+  const std::vector<T, neug::NeuGAllocator<T>>& data() const { return data_; }
+  const std::vector<bool, neug::NeuGAllocator<bool>>& validity_bitmap() const {
+    return valid_;
+  }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     if (!is_optional_) {
-      ColumnsUtils::generate_dedup_offset(data_, offsets);
+      if constexpr (std::is_same_v<T, bool>) {
+        std::set<T> st;
+        for (size_t i = 0; i < data_.size(); ++i) {
+          bool val = data_[i];
+          if (st.find(val) == st.end()) {
+            st.insert(val);
+            offsets.push_back(i);
+          }
+        }
+      } else {
+        ColumnsUtils::generate_dedup_offset(data_.data(), data_.size(), offsets);
+      }
       return true;
     }
     std::set<T> st;
@@ -87,7 +103,7 @@ class ValueColumn : public IContextColumn {
       std::shared_ptr<IContextColumn> other) const override;
 
   bool order_by_limit(bool asc, size_t limit,
-                      std::vector<size_t>& offsets) const override;
+                      sel_vec_t& offsets) const override;
 
   bool has_value(size_t idx) const override {
     if (!is_optional_) {
@@ -101,8 +117,8 @@ class ValueColumn : public IContextColumn {
  private:
   template <typename _T>
   friend class ValueColumnBuilder;
-  std::vector<T> data_;
-  std::vector<bool> valid_;
+  std::vector<T, neug::NeuGAllocator<T>> data_;
+  std::vector<bool, neug::NeuGAllocator<bool>> valid_;
   bool is_optional_;
   DataType type_;
 };
@@ -153,13 +169,13 @@ class ValueColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_;
-  std::vector<bool> valid_;
-  std::vector<T> data_;
+  std::vector<bool, neug::NeuGAllocator<bool>> valid_;
+  std::vector<T, neug::NeuGAllocator<T>> data_;
 };
 
 template <typename T>
 std::shared_ptr<IContextColumn> ValueColumn<T>::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   ValueColumnBuilder<T> builder;
   builder.reserve(offsets.size());
   if (!is_optional_) {
@@ -180,7 +196,7 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::shuffle(
 
 template <typename T>
 std::shared_ptr<IContextColumn> ValueColumn<T>::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   ValueColumnBuilder<T> builder(true);
   builder.reserve(offsets.size());
   if (!is_optional_) {
@@ -239,7 +255,7 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::union_col(
 
 template <typename T>
 bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
-                                    std::vector<size_t>& offsets) const {
+                                    sel_vec_t& offsets) const {
   if (is_optional_) {
     return false;
   }

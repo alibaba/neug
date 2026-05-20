@@ -47,7 +47,7 @@ void Context::set(int alias, std::shared_ptr<IContextColumn> col) {
 }
 
 void Context::set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                                 const std::vector<size_t>& offsets) {
+                                 const sel_vec_t& offsets) {
   head.reset();
   head = nullptr;
 
@@ -63,7 +63,7 @@ void Context::set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
   set(alias, col);
 }
 
-void Context::reshuffle(const std::vector<size_t>& offsets) {
+void Context::reshuffle(const sel_vec_t& offsets) {
   bool head_shuffled = false;
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
 
@@ -87,7 +87,7 @@ void Context::reshuffle(const std::vector<size_t>& offsets) {
   std::swap(new_cols, columns);
 }
 
-void Context::optional_reshuffle(const std::vector<size_t>& offsets) {
+void Context::optional_reshuffle(const sel_vec_t& offsets) {
   bool head_shuffled = false;
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
 

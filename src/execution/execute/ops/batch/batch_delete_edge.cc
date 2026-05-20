@@ -114,7 +114,7 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
             src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
       }
     }
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
                              // remove all data.
   }

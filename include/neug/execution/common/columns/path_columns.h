@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -34,10 +35,10 @@ class PathColumn : public IContextColumn {
     return ContextColumnType::kPath;
   }
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
   inline const DataType& elem_type() const override { return type_; }
   inline Value get_elem(size_t idx) const override {
     if (is_optional_ && data_[idx].is_null()) {
@@ -47,8 +48,8 @@ class PathColumn : public IContextColumn {
   }
   inline const Path& get_path(size_t idx) const { return data_[idx]; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(data_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(data_.data(), data_.size(), offsets);
     return true;
   }
 
@@ -71,7 +72,7 @@ class PathColumn : public IContextColumn {
 
  private:
   friend class PathColumnBuilder;
-  std::vector<Path> data_;
+  std::vector<Path, neug::NeuGAllocator<Path>> data_;
   DataType type_;
   bool is_optional_ = false;
 };
@@ -101,7 +102,7 @@ class PathColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_ = false;
-  std::vector<Path> data_;
+  std::vector<Path, neug::NeuGAllocator<Path>> data_;
 };
 
 }  // namespace execution

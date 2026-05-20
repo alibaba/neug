@@ -238,7 +238,7 @@ class EdgeExpand {
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
 
     static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
     static thread_local std::vector<vid_t> d0_vec;

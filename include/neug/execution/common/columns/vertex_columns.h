@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 
@@ -93,10 +94,10 @@ class SLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offset) const override;
+      const sel_vec_t& offset) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -114,9 +115,9 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> union_col(
       std::shared_ptr<IContextColumn> other) const override;
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
+  std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
   generate_aggregate_offset() const override;
 
   template <typename FUNC_T>
@@ -135,13 +136,15 @@ class SLVertexColumn : public IVertexColumn {
 
   __attribute__((always_inline)) label_t label() const { return label_; }
 
-  __attribute__((always_inline)) const std::vector<vid_t>& vertices() const {
+  __attribute__((always_inline)) const std::vector<vid_t,
+                                                    neug::NeuGAllocator<vid_t>>&
+  vertices() const {
     return vertices_;
   }
 
  private:
   friend class MSVertexColumnBuilder;
-  std::vector<vid_t> vertices_;
+  std::vector<vid_t, neug::NeuGAllocator<vid_t>> vertices_;
   label_t label_;
   bool is_optional_ = false;
 };
@@ -178,10 +181,10 @@ class MSVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -226,16 +229,18 @@ class MSVertexColumn : public IVertexColumn {
     return vertices_[seg_id].first;
   }
 
-  __attribute__((always_inline)) const std::vector<vid_t>& seg_vertices(
-      size_t seg_id) const {
+  __attribute__((always_inline)) const std::vector<vid_t,
+                                                    neug::NeuGAllocator<vid_t>>&
+  seg_vertices(size_t seg_id) const {
     return vertices_[seg_id].second;
   }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MSVertexColumnBuilder;
-  std::vector<std::pair<label_t, std::vector<vid_t>>> vertices_;
+  using VertexVec = std::vector<vid_t, neug::NeuGAllocator<vid_t>>;
+  std::vector<std::pair<label_t, VertexVec>> vertices_;
   std::set<label_t> labels_;
 
   bool is_optional_ = false;
@@ -286,9 +291,10 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
 
  private:
   label_t cur_label_;
-  std::vector<vid_t> cur_list_;
+  using VertexVec = std::vector<vid_t, neug::NeuGAllocator<vid_t>>;
+  VertexVec cur_list_;
 
-  std::vector<std::pair<label_t, std::vector<vid_t>>> vertices_;
+  std::vector<std::pair<label_t, VertexVec>> vertices_;
 
   bool is_optional_ = false;
 };
@@ -324,9 +330,9 @@ class MLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -351,12 +357,12 @@ class MLVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;
   friend class MLVertexColumnBuilderOpt;
-  std::vector<VertexRecord> vertices_;
+  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -388,7 +394,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   std::shared_ptr<IContextColumn> finish() override;
 
  private:
-  std::vector<VertexRecord> vertices_;
+  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -440,7 +446,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   __attribute__((always_inline)) size_t cur_size() { return vertices_.size(); }
 
  private:
-  std::vector<VertexRecord> vertices_;
+  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
   std::vector<bool> labels_bitmap_;
   bool is_optional_ = false;
 };

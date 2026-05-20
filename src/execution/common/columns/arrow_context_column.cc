@@ -85,7 +85,7 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
 template <typename ArrowArrayType, typename ArrowBuilderType>
 static std::shared_ptr<arrow::Array> shuffle_impl(
     const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   // Create builder
   auto builder_result = arrow::MakeBuilder(arrow_type);
@@ -140,7 +140,7 @@ template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::StringArray, arrow::StringBuilder>(
     const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
   if (!builder_result.ok()) {
@@ -192,7 +192,7 @@ template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::LargeStringArray, arrow::LargeStringBuilder>(
     const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
   if (!builder_result.ok()) {
@@ -259,7 +259,7 @@ void ArrowArrayContextColumnBuilder::push_back(
 }
 
 std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   if (columns_.empty()) {
     return std::make_shared<ArrowArrayContextColumn>(
         std::vector<std::shared_ptr<arrow::Array>>());

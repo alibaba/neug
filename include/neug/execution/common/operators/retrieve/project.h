@@ -28,7 +28,7 @@ struct ProjectExprBase {
   virtual ~ProjectExprBase() = default;
   virtual std::shared_ptr<IContextColumn> evaluate(const Context& ctx) = 0;
   virtual bool order_by_limit(const Context& ctx, bool asc, size_t limit,
-                              std::vector<size_t>& offsets) const {
+                              sel_vec_t& offsets) const {
     return false;
   }
 };
@@ -55,7 +55,7 @@ struct ProjectOp {
   }
 
   bool order_by_limit(const Context& ctx, bool asc, size_t limit,
-                      std::vector<size_t>& offsets) const {
+                      sel_vec_t& offsets) const {
     if (expr_) {
       return expr_->order_by_limit(ctx, asc, limit, offsets);
     }
@@ -95,7 +95,7 @@ class Project {
 
     std::vector<int> alias;
 
-    std::vector<size_t> indices;
+    sel_vec_t indices;
 
     if (upper * 2 < ctx.row_num() && exprs[fst_idx.first].order_by_limit(
                                          ctx, fst_idx.second, upper, indices)) {
@@ -107,7 +107,7 @@ class Project {
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(tmp);
-      std::vector<size_t> offsets;
+      sel_vec_t offsets;
 
       OrderBy::order_by_limit_impl(graph, tmp, cmp_, lower, upper, offsets);
       ctx.reshuffle(offsets);
@@ -130,7 +130,7 @@ class Project {
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(ret);
-      std::vector<size_t> offsets;
+      sel_vec_t offsets;
       OrderBy::order_by_limit_impl(graph, ret, cmp_, lower, upper, offsets);
 
       ret.reshuffle(offsets);

@@ -22,8 +22,8 @@
 namespace neug {
 namespace execution {
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-ListColumn::unfold() const {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
+    const {
   switch (elem_type_.id()) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
@@ -32,7 +32,7 @@ ListColumn::unfold() const {
 #undef TYPE_DISPATCHER
   case DataTypeId::kStruct: {
     StructColumnBuilder builder(elem_type_);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     size_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
@@ -46,7 +46,7 @@ ListColumn::unfold() const {
   }
   case DataTypeId::kList: {
     ListColumnBuilder builder(elem_type_);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     size_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
@@ -59,7 +59,7 @@ ListColumn::unfold() const {
     return {builder.finish(), offsets};
   }
   case DataTypeId::kVertex: {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     MLVertexColumnBuilder builder;
     size_t i = 0;
     for (const auto& list : items_) {
@@ -73,7 +73,7 @@ ListColumn::unfold() const {
     return {builder.finish(), offsets};
   }
   case DataTypeId::kEdge: {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     BDMLEdgeColumnBuilder builder({});
     size_t i = 0;
     for (const auto& list : items_) {
@@ -90,15 +90,17 @@ ListColumn::unfold() const {
     return {builder.finish(), offsets};
   }
   default:
-    THROW_NOT_IMPLEMENTED_EXCEPTION("not implemented for " + this->column_info() + " " +
-                                    std::to_string(static_cast<int>(elem_type_.id())));
-    return {nullptr, std::vector<size_t>()};
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "not implemented for " + this->column_info() + " " +
+        std::to_string(static_cast<int>(elem_type_.id())));
+    return {nullptr, sel_vec_t()};
   }
 }
 std::shared_ptr<IContextColumn> ListColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   auto ptr = std::make_shared<ListColumn>(elem_type_);
-  std::vector<list_item> new_items(offsets.size());
+  std::vector<list_item, neug::NeuGAllocator<list_item>> new_items(
+      offsets.size());
   for (size_t i = 0; i < offsets.size(); ++i) {
     new_items[i] = items_[offsets[i]];
   }

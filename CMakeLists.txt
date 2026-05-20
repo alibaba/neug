@@ -332,6 +332,7 @@ if (WITH_MIMALLOC)
     add_subdirectory(third_party/mimalloc)
     set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
     include_directories(SYSTEM third_party/mimalloc/include)
+    add_compile_definitions(WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 

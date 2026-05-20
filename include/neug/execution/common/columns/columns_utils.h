@@ -25,14 +25,14 @@ namespace execution {
 class ColumnsUtils {
  public:
   template <typename T>
-  static void generate_dedup_offset(const std::vector<T>& vec,
-                                    std::vector<size_t>& offsets) {
-    std::vector<size_t> row_indices(vec.size());
-    if (vec.empty()) {
+  static void generate_dedup_offset(const T* vec, size_t size,
+                                    sel_vec_t& offsets) {
+    sel_vec_t row_indices(size);
+    if (size == 0) {
       offsets.clear();
       return;
     }
-    row_indices.resize(vec.size());
+    row_indices.resize(size);
     std::iota(row_indices.begin(), row_indices.end(), 0);
     std::sort(row_indices.begin(), row_indices.end(),
               [&vec](size_t a, size_t b) {

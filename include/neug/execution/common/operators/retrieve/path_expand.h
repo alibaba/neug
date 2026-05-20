@@ -46,7 +46,7 @@ class PathExpand {
   static neug::result<Context> single_source_shortest_path_with_order_by_length_limit(
       const StorageReadInterface& graph, Context&& ctx, const ShortestPathParams& params,
       const PRED_T& pred, int limit_upper) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col = std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 && params.labels[0].src_label == params.labels[0].dst_label &&
         params.dir == Direction::kBoth && input_vertex_col->get_labels_set().size() == 1) {
@@ -67,7 +67,7 @@ class PathExpand {
                                                            Context&& ctx,
                                                            const ShortestPathParams& params,
                                                            const PRED_T& pred) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col = std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 && params.labels[0].src_label == params.labels[0].dst_label &&
         params.dir == Direction::kBoth && input_vertex_col->get_labels_set().size() == 1) {
@@ -99,7 +99,7 @@ class PathExpand {
       LOG(ERROR) << "only support arbitrary path expand with predicate";
       RETURN_UNSUPPORTED_ERROR("only support arbitrary path expand with predicate");
     }
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     auto label_sets = input_vertex_list.get_labels_set();
     auto labels = params.labels;
@@ -271,7 +271,7 @@ class PathExpand {
     auto col = ctx.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
     PathColumnBuilder path_builder;
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
       std::unordered_map<VertexRecord, double> dist;
       std::unordered_set<VertexRecord> visited;
