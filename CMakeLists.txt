@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEUG_VERSION NEUG_VERSION)
 # Strip trailing newline
@@ -279,8 +279,14 @@ macro(install_neug_target target)
         set(_neug_install_target ${target})
     endif()
 
-    get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
-    get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    get_target_property(_neug_target_type ${_neug_install_target} TYPE)
+    if(_neug_target_type STREQUAL "INTERFACE_LIBRARY")
+        set(_neug_public_headers "_neug_public_headers-NOTFOUND")
+        set(_neug_target_source_dir "")
+    else()
+        get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
+        get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    endif()
     if(_neug_public_headers AND NOT _neug_public_headers STREQUAL "_neug_public_headers-NOTFOUND" AND NOT _neug_public_headers STREQUAL "NOTFOUND")
         set(_neug_public_header_abs)
         foreach(_hdr IN LISTS _neug_public_headers)
