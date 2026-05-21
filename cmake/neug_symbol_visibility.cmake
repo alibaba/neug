@@ -37,8 +37,6 @@ macro(neug_apply_symbol_visibility target)
             "LINKER:--exclude-libs,libprotoc.a"
             "LINKER:--exclude-libs,libutf8_range.a"
             "LINKER:--exclude-libs,libutf8_validity.a"
-            "LINKER:--exclude-libs,libunwind.a"
-            "LINKER:--exclude-libs,liblzma.a"
         )
         set_target_properties(${target} PROPERTIES LINK_DEPENDS
             "${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
