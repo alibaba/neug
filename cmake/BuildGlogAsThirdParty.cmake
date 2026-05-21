@@ -20,26 +20,16 @@ function (build_glog_as_third_party)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static library" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
 
-    # Force glog to find the STATIC libunwind.a instead of libunwind.so.
-    # This keeps libunwind.so out of DT_NEEDED entirely. Combined with
-    # --exclude-libs,libunwind.a in neug_symbol_visibility.cmake, the
-    # _Unwind_* symbols from libunwind are hidden from the dynamic symbol
-    # table, so libgcc_s's C++ exception unwinder wins symbol resolution.
-    # libunwind.a depends on liblzma for .gnu_debugdata decompression.
-    find_library(_UNWIND_STATIC_LIB NAMES libunwind.a)
-    find_library(_LZMA_STATIC_LIB NAMES liblzma.a)
-    if (_UNWIND_STATIC_LIB)
-        set(Unwind_LIBRARY ${_UNWIND_STATIC_LIB} CACHE FILEPATH "Path to libunwind" FORCE)
-    endif()
+    # Disable libunwind in glog to prevent _Unwind_* symbol conflict with
+    # libgcc_s.so.1. When both libunwind.so.8 and libgcc_s.so.1 are loaded,
+    # the dynamic linker may resolve _Unwind_RaiseException to libunwind's
+    # version which cannot dispatch C++ exceptions, causing abort() instead
+    # of reaching catch blocks. With WITH_UNWIND=OFF, glog falls back to
+    # _Unwind_Backtrace from <unwind.h> (provided by libgcc_s) for stack
+    # traces in LOG(FATAL) / signal handlers — same quality, no conflict.
+    set(WITH_UNWIND OFF CACHE BOOL "Disable libunwind to avoid symbol conflict with libgcc_s" FORCE)
 
     add_subdirectory(third_party/glog)
-
-    # Append liblzma to satisfy libunwind.a's lzma_* references.
-    # CMP0079: allow target_link_libraries on targets defined in other directories.
-    cmake_policy(SET CMP0079 NEW)
-    if (_UNWIND_STATIC_LIB AND _LZMA_STATIC_LIB)
-        target_link_libraries(glog PRIVATE ${_LZMA_STATIC_LIB})
-    endif()
     include_directories(third_party/glog/src)
     include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
     set_target_properties(glog PROPERTIES DEBUG_POSTFIX "")
