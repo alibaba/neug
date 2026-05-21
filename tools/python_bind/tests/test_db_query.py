@@ -642,6 +642,33 @@ def test_insert_edge(tmp_path):
     db.close()
 
 
+def test_create_edge_return_edge_property(tmp_path):
+    db_dir = tmp_path / "create_edge_return_edge_property"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, since INT64, MANY_TO_MANY);"
+    )
+    conn.execute("CREATE (a:person {id: 1});")
+    conn.execute("CREATE (b:person {id: 2});")
+
+    result = conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) "
+        "CREATE (a)-[e:knows {since: 2024}]->(b) "
+        "RETURN e.since;"
+    )
+
+    records = list(result)
+    assert records == [[2024]], f"Expected [[2024]], got {records}"
+
+    conn.close()
+    db.close()
+
+
 # DB-003-10 DML-SET node property
 def test_set_node_property(tmp_path):
     db_dir = tmp_path / "set_node_prop"
