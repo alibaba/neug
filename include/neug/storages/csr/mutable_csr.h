@@ -114,10 +114,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
           " >= " + std::to_string(vertex_capacity()));
     }
     auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    auto* sizes = reinterpret_cast<int*>(degree_list_->GetData());
+    auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
     locks_[src].lock();
-    int sz = sizes[src];
+    int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
     if (sz == cap) {
       cap += (cap >> 1);
@@ -130,7 +130,11 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       buffers[src] = new_buffer;
       caps[src] = cap;
     }
-    int32_t prev_size = sizes[src]++;
+    // Release fetch_add: acts as synchronization anchor for readers.
+    // The degree increment is sequenced after any buffer pointer update
+    // above, so an acquire load of degree on the reader side guarantees
+    // visibility of the new buffer pointer.
+    int32_t prev_size = sizes[src].fetch_add(1, std::memory_order_release);
     auto& nbr = buffers[src][prev_size];
     nbr.neighbor = dst;
     nbr.data = data;
@@ -151,9 +155,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     std::vector<EDATA_T> data_list;
     const nbr_t* const* adjlists =
         reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-    const int* degrees = reinterpret_cast<const int*>(degree_list_->GetData());
+    const auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
     for (vid_t src = 0; src < static_cast<vid_t>(vertex_capacity()); ++src) {
-      auto deg = degrees[src];
+      auto deg = degrees[src].load(std::memory_order_acquire);
       for (int i = 0; i < deg; ++i) {
         const auto& nbr = adjlists[src][i];
         if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
@@ -197,7 +202,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     if (!degree_list_) {
       return 0;
     }
-    return degree_list_->GetDataSize() / sizeof(int);
+    return degree_list_->GetDataSize() / sizeof(std::atomic<int>);
   }
 };
 
