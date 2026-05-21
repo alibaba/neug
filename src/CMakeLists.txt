@@ -41,11 +41,13 @@ else()
     target_link_libraries(neug PRIVATE ${ARROW_LIB})
 endif()
 target_link_libraries(neug PUBLIC ${GLOG_LIBRARIES})
-# Protobuf is PRIVATE to avoid double-initialization of global statics when
-# downstream shared libraries (e.g. neug_py_bind.so) also load libneug.dylib.
-# Executables that use protobuf-generated headers (e.g. examples) must link
-# ${Protobuf_LIBRARIES} themselves.
-target_link_libraries(neug PRIVATE ${Protobuf_LIBRARIES})
+# Protobuf must be PUBLIC so that downstream targets (benchmark, rt_server,
+# neug_py_bind) link against the SAME protobuf instance embedded inside
+# libneug.so, instead of pulling in a second static copy of libprotobuf.a.
+# Having two protobuf instances in one process leads to descriptor pool
+# desynchronization (e.g. "Check failed: file != nullptr" or
+# "File already exists in database").
+target_link_libraries(neug PUBLIC ${Protobuf_LIBRARIES})
 if (BUILD_HTTP_SERVER)
     target_link_libraries(neug PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
     target_link_libraries(neug PUBLIC ${CRYPTO_LIB}) #${PROTOC_LIB}
@@ -64,7 +66,7 @@ target_include_directories(neug PUBLIC
     # Expose the top-level include/ tree so consumers can find them after installation.
     $<INSTALL_INTERFACE:include>)
 
-neug_apply_symbol_visibility(neug)
+neug_apply_lib_visibility(neug)
 
 install_neug_target(neug)
 if (ENABLE_BACKTRACES)
