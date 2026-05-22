@@ -938,10 +938,10 @@ bool Schema::Equals(const Schema& other) const {
         std::string src_label_name = get_vertex_label_name(src_label);
         std::string dst_label_name = get_vertex_label_name(dst_label);
         std::string edge_label_name = get_edge_label_name(edge_label);
-        auto lhs_exists =
-            is_edge_triplet_valid(src_label_name, dst_label_name, edge_label_name);
-        auto rhs_exists =
-            other.is_edge_triplet_valid(src_label_name, dst_label_name, edge_label_name);
+        auto lhs_exists = is_edge_triplet_valid(src_label_name, dst_label_name,
+                                                edge_label_name);
+        auto rhs_exists = other.is_edge_triplet_valid(
+            src_label_name, dst_label_name, edge_label_name);
         if (lhs_exists != rhs_exists) {
           return false;
         }
@@ -1317,7 +1317,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
     }
     // check whether edge triplet exists in current schema
     if (schema.has_edge_triplet(src_label_name, dst_label_name,
-                              edge_label_name)) {
+                                edge_label_name)) {
       LOG(ERROR) << "Edge [" << edge_label_name << "] from [" << src_label_name
                  << "] to [" << dst_label_name << "] already exists";
       return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -1692,8 +1692,8 @@ bool Schema::edge_has_property(label_t src_label, label_t dst_label,
 }
 
 bool Schema::has_edge_triplet(const std::string& src_label,
-                            const std::string& dst_label,
-                            const std::string& label) const {
+                              const std::string& dst_label,
+                              const std::string& label) const {
   label_t edge_label_id;
   if (!is_vertex_label_valid(src_label) || !is_vertex_label_valid(dst_label)) {
     LOG(ERROR) << "src_label or dst_label not found:" << src_label << ", "
@@ -1709,7 +1709,7 @@ bool Schema::has_edge_triplet(const std::string& src_label,
 }
 
 bool Schema::has_edge_triplet(label_t src_label, label_t dst_label,
-                            label_t edge_label) const {
+                              label_t edge_label) const {
   uint32_t e_label_id = generate_edge_label(src_label, dst_label, edge_label);
   return e_schemas_.find(e_label_id) != e_schemas_.end();
 }

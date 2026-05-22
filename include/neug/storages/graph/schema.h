@@ -679,12 +679,12 @@ class Schema {
 
   // Even when triplet is soft deleted, it return true
   bool has_edge_triplet(const std::string& src_label,
-                      const std::string& dst_label,
-                      const std::string& edge_label) const;
+                        const std::string& dst_label,
+                        const std::string& edge_label) const;
 
   // Even when triplet is soft deleted, it return true
   bool has_edge_triplet(label_t src_label, label_t dst_label,
-                      label_t edge_label) const;
+                        label_t edge_label) const;
 
   EdgeStrategy get_outgoing_edge_strategy(const std::string& src_label,
                                           const std::string& dst_label,

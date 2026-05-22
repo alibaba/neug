@@ -272,7 +272,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
                       "] does not exist in the graph.");
   }
   if (schema_.has_edge_triplet(src_vertex_type, dst_vertex_type,
-                             edge_type_name)) {
+                               edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -861,7 +861,8 @@ void PropertyGraph::compact_schema() {
       for (size_t old_e_label = 0; old_e_label != edge_label_total_count_;
            ++old_e_label) {
         if (!schema_.is_edge_label_valid(old_e_label) ||
-            !schema_.is_edge_triplet_valid(old_src_label, old_dst_label, old_e_label)) {
+            !schema_.is_edge_triplet_valid(old_src_label, old_dst_label,
+                                           old_e_label)) {
           continue;
         }
         auto e_name = schema_.get_edge_label_name(old_e_label);
@@ -919,7 +920,8 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
         if (schema_.is_edge_label_valid(e_label_i) &&
-            schema_.is_edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+            schema_.is_edge_triplet_valid(src_label_i, dst_label_i,
+                                          e_label_i)) {
           size_t index =
               schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
           const auto& sort_key_for_nbr =
@@ -978,7 +980,8 @@ void PropertyGraph::Dump(bool reopen) {
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
         if (!schema_.is_edge_label_valid(e_label_i) ||
-            !schema_.is_edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+            !schema_.is_edge_triplet_valid(src_label_i, dst_label_i,
+                                           e_label_i)) {
           continue;
         }
         size_t index =
@@ -1234,7 +1237,8 @@ std::string PropertyGraph::get_statistics_json() const {
 Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
                                          const std::string& dst_type_name,
                                          const std::string& edge_type_name) {
-  if (!schema_.is_edge_triplet_valid(src_type_name, dst_type_name, edge_type_name)) {
+  if (!schema_.is_edge_triplet_valid(src_type_name, dst_type_name,
+                                     edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name << "] does not exist";
     return Status(StatusCode::ERR_INVALID_ARGUMENT,

@@ -18,9 +18,9 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
-#include "neug/utils/exception/exception.h"
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {

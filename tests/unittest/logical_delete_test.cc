@@ -205,7 +205,8 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteEdgeTypePhysical_RemovesEdgeType) {
   ASSERT_TRUE(status.ok());
 
   // Verify edge type is removed
-  EXPECT_FALSE(graph_.schema().has_edge_triplet("Person", "Company", "WorksAt"));
+  EXPECT_FALSE(
+      graph_.schema().has_edge_triplet("Person", "Company", "WorksAt"));
 }
 
 // Test DeleteVertexProperties

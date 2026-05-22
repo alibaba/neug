@@ -31,7 +31,8 @@ void InsertVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void InsertEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                    oe_offset, ie_offset, ts);
 };
@@ -42,7 +43,8 @@ void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.UpdateEdgeProperty(src_label, src_lid, dst_label, dst_lid, edge_label,
                            oe_offset, ie_offset, col_id, value, ts);
 };
@@ -61,7 +63,8 @@ void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.get_edge_table(src_label, dst_label, edge_label)
       .RevertDeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, ts);
 };
@@ -195,7 +198,7 @@ void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
                         edge_label + " since it exists.");
   }
   if (!graph.schema().is_edge_label_soft_deleted(src_label, dst_label,
-                                             edge_label)) {
+                                                 edge_label)) {
     THROW_RUNTIME_ERROR("Cannot undo DeleteEdgeType for edge label " +
                         edge_label + " since it is not soft deleted.");
   }

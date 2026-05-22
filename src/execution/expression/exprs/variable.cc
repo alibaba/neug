@@ -318,7 +318,8 @@ std::unique_ptr<ExprBase> parse_variable(const common::Variable& var,
                                          const ContextMeta& ctx_meta,
                                          VarType var_type) {
   if (!var.has_node_type()) {
-    THROW_INTERNAL_EXCEPTION("variable missing node_type: " + var.DebugString());
+    THROW_INTERNAL_EXCEPTION("variable missing node_type: " +
+                             var.DebugString());
   }
   DataType type = parse_from_ir_data_type(var.node_type());
   int tag = var.has_tag() ? var.tag().id() : -1;

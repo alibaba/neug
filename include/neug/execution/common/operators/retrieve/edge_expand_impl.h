@@ -74,7 +74,7 @@ get_label_dirs(label_t input_label, const Schema& schema,
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
     if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
-                      triplet.edge_label)) {
+                                      triplet.edge_label)) {
       continue;
     }
     if (triplet.src_label == input_label &&
@@ -104,7 +104,7 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
       label_num);
   for (auto& triplet : labels) {
     if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
-                      triplet.edge_label)) {
+                                      triplet.edge_label)) {
       continue;
     }
     if ((input_labels.find(triplet.src_label) != input_labels.end()) &&

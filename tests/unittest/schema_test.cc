@@ -593,26 +593,29 @@ TEST_F(SchemaDeleteTest, EdgeLabelLogicalDelete) {
   auto knows_label = schema_->get_edge_label_id("knows");
 
   // Initially, edge labels should not be deleted
-  EXPECT_FALSE(schema_->is_edge_label_soft_deleted("person", "person", "knows"));
   EXPECT_FALSE(
-      schema_->is_edge_label_soft_deleted(person_label, person_label, knows_label));
+      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
+  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                   knows_label));
 
   // Logically delete "knows" edge label
   schema_->DeleteEdgeLabel("person", "person", "knows", true);
 
   // Check that "knows" is now logically deleted
   EXPECT_TRUE(schema_->is_edge_label_soft_deleted("person", "person", "knows"));
-  EXPECT_TRUE(
-      schema_->is_edge_label_soft_deleted(person_label, person_label, knows_label));
-  EXPECT_FALSE(schema_->is_edge_label_soft_deleted("person", "company", "worksAt"));
+  EXPECT_TRUE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                  knows_label));
+  EXPECT_FALSE(
+      schema_->is_edge_label_soft_deleted("person", "company", "worksAt"));
 
   // Revert the deletion
   schema_->RevertDeleteEdgeLabel("person", "person", "knows");
 
   // Check that "knows" is no longer logically deleted
-  EXPECT_FALSE(schema_->is_edge_label_soft_deleted("person", "person", "knows"));
   EXPECT_FALSE(
-      schema_->is_edge_label_soft_deleted(person_label, person_label, knows_label));
+      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
+  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                   knows_label));
 }
 
 // Test Schema::is_vertex_property_soft_deleted
@@ -648,10 +651,10 @@ TEST_F(SchemaDeleteTest, EdgePropertyLogicalDelete) {
   auto knows_label = schema_->get_edge_label_id("knows");
 
   // Initially, no properties should be logically deleted
-  EXPECT_FALSE(
-      schema_->is_edge_property_soft_deleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 
   // Soft delete "since" property
   std::vector<std::string> props_to_delete = {"since"};
@@ -659,20 +662,20 @@ TEST_F(SchemaDeleteTest, EdgePropertyLogicalDelete) {
                                 true);
 
   // Check that "since" is now logically deleted
-  EXPECT_TRUE(
-      schema_->is_edge_property_soft_deleted("person", "person", "knows", "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                     "knows", "since"));
   EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                 knows_label, "since"));
+                                                     knows_label, "since"));
 
   // Revert the deletion
   schema_->RevertDeleteEdgeProperties("person", "person", "knows",
                                       props_to_delete);
 
   // Check that "since" is no longer soft deleted
-  EXPECT_FALSE(
-      schema_->is_edge_property_soft_deleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 }
 
 // Test multiple vertex properties deletion and revert
@@ -714,20 +717,20 @@ TEST_F(SchemaDeleteTest, EdgePropertyOperationsWithLabelId) {
                                 true);
 
   // Verify using both string and label_t overloads
-  EXPECT_TRUE(
-      schema_->is_edge_property_soft_deleted("person", "person", "knows", "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                     "knows", "since"));
   EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                 knows_label, "since"));
+                                                     knows_label, "since"));
 
   // Revert using label_t overload
   schema_->RevertDeleteEdgeProperties(person_label, person_label, knows_label,
                                       props_to_delete);
 
   // Verify property is reverted
-  EXPECT_FALSE(
-      schema_->is_edge_property_soft_deleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 }
 
 // Test has_property behavior with soft-deleted properties

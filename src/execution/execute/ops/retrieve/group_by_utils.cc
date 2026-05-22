@@ -597,7 +597,8 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<SumReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                    std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
@@ -641,12 +642,14 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<AvgReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                    std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                  std::to_string(static_cast<int>(kind)));
     return nullptr;
   }
 }
@@ -679,11 +682,10 @@ static std::unique_ptr<ReducerBase> create_general_reducer(
           std::move(var_wrap), var->elem_type());
     }
   } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("not support var reduce " +
-                                  std::to_string(static_cast<int>(kind)) +
-                                  var->elem_type().ToString() + " " +
-                                  std::to_string(var->is_optional()) + " " +
-                                  var->column_info());
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "not support var reduce " + std::to_string(static_cast<int>(kind)) +
+        var->elem_type().ToString() + " " + std::to_string(var->is_optional()) +
+        " " + var->column_info());
   }
   return nullptr;  // This line is unreachable but avoids compiler warning.
 }

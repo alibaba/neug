@@ -427,8 +427,8 @@ default_single_source_shortest_path_impl(
   const auto& input_labels_set = input.get_labels_set();
   std::set<label_t> dest_labels;
   for (auto& triplet : labels) {
-    if (!graph.schema().is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
-                              triplet.edge_label)) {
+    if (!graph.schema().is_edge_triplet_valid(
+            triplet.src_label, triplet.dst_label, triplet.edge_label)) {
       continue;
     }
     if (dir == Direction::kOut || dir == Direction::kBoth) {

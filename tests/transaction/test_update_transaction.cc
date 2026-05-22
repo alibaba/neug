@@ -1295,8 +1295,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(txn.DeleteEdgeType("person", "software", "created"));
-    EXPECT_FALSE(txn.schema().is_edge_triplet_valid(person_label, software_label,
-                                                 created_label));
+    EXPECT_FALSE(txn.schema().is_edge_triplet_valid(
+        person_label, software_label, created_label));
     txn.Abort();
   }
   {
@@ -1306,9 +1306,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
-    EXPECT_TRUE(gi.schema().is_edge_triplet_valid("person", "software", "created"));
+    EXPECT_TRUE(
+        gi.schema().is_edge_triplet_valid("person", "software", "created"));
     EXPECT_TRUE(gi.schema().is_edge_triplet_valid(person_label, software_label,
-                                               created_label));
+                                                  created_label));
   }
   db.Close();
 }
