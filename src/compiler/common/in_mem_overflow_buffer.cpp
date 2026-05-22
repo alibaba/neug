@@ -22,6 +22,7 @@
 
 #include "neug/compiler/common/in_mem_overflow_buffer.h"
 
+#include <algorithm>
 #include <bit>
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
@@ -31,14 +32,18 @@ using namespace neug::storage;
 namespace neug {
 namespace common {
 
-BufferBlock::BufferBlock(std::unique_ptr<storage::MemoryBuffer> block)
-    : currentOffset{0}, block{std::move(block)} {}
+// Default block size used when growing the overflow buffer. Individual
+// requests larger than this still get a dedicated, exactly-sized block via
+// std::max in allocateNewBlock; this just lets typical small overflow strings
+// share one allocation.
+static constexpr uint64_t OVERFLOW_BLOCK_DEFAULT_SIZE = 4096;
+
+BufferBlock::BufferBlock(uint64_t size)
+    : currentOffset{0},
+      bufferSize{size},
+      buffer{std::make_unique<uint8_t[]>(size)} {}
 
 BufferBlock::~BufferBlock() = default;
-
-uint64_t BufferBlock::size() const { return block->getBuffer().size(); }
-
-uint8_t* BufferBlock::data() const { return block->getBuffer().data(); }
 
 uint8_t* InMemOverflowBuffer::allocateSpace(uint64_t size) {
   if (requireNewBlock(size)) {
@@ -61,7 +66,10 @@ void InMemOverflowBuffer::resetBuffer() {
   }
 }
 
-void InMemOverflowBuffer::allocateNewBlock(uint64_t size) {}
+void InMemOverflowBuffer::allocateNewBlock(uint64_t size) {
+  uint64_t blockSize = std::max(size, OVERFLOW_BLOCK_DEFAULT_SIZE);
+  blocks.push_back(std::make_unique<BufferBlock>(blockSize));
+}
 
 }  // namespace common
 }  // namespace neug

@@ -24,6 +24,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
@@ -180,21 +181,23 @@ class PropertyGraph {
    * @brief Create a new vertex type in the graph schema.
    *
    * Defines a new vertex label with its properties and primary key.
+   * Properties are specified as (name, default_value) pairs; the DataType
+   * is derived from each Value's type().
    *
    * **Usage Example:**
    * @code{.cpp}
    * CreateVertexTypeParamBuilder builder;
    * auto config = builder.VertexLabel("Person")
-   *                   .AddProperty(DataType::kInt64, "id", Property())
-   *                   .AddProperty(DataType::kVarchar, "name", Property())
-   *                   .AddProperty(DataType::kInt32, "age", Property())
+   *                   .AddProperty("id", Value::INT64(0))
+   *                   .AddProperty("name", Value::STRING(""))
+   *                   .AddProperty("age", Value::INT32(0))
    *                   .AddPrimaryKeyName("id")
    *                   .Build();
-   * graph.CreateVertexType(config, true);
+   * graph.CreateVertexType(config);
    * @endcode
    *
    * @param config Vertex type creation config, including type name,
-   *        properties, and primary keys
+   *        properties (name + default value), and primary keys
    *
    * @return Status indicating success or failure
    *
@@ -206,6 +209,8 @@ class PropertyGraph {
    * @brief Create a new edge type in the graph schema.
    *
    * Defines a new edge label connecting source and destination vertex types.
+   * Properties are specified as (name, default_value) pairs; the DataType
+   * is derived from each Value's type().
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -213,16 +218,16 @@ class PropertyGraph {
    * auto config = builder.SrcLabel("Person")
    *                   .DstLabel("Person")
    *                   .EdgeLabel("KNOWS")
-   *                   .AddProperty(DataType::kInt64, "since", Property())
-   *                   .AddProperty(DataType::kDouble, "weight", Property())
+   *                   .AddProperty("since", Value::INT64(0))
+   *                   .AddProperty("weight", Value::DOUBLE(0.0))
    *                   .OEEdgeStrategy(EdgeStrategy::kMultiple)
    *                   .IEEdgeStrategy(EdgeStrategy::kMultiple)
    *                   .Build();
-   * graph.CreateEdgeType(config, true);
+   * graph.CreateEdgeType(config);
    * @endcode
    *
    * @param config Edge type creation config, including source/destination,
-   *        edge label, properties, and edge strategies
+   *        edge label, properties (name + default value), and edge strategies
    *
    * @return Status indicating success or failure. Returns
    *         ERR_SCHEMA_MISMATCH if the type already exists.
@@ -248,8 +253,28 @@ class PropertyGraph {
   Status DeleteEdgeType(label_t src_label, label_t dst_label,
                         label_t edge_label);
 
+  /**
+   * @brief Add properties to an existing vertex type.
+   *
+   * Each property is a (name, default_value) pair; the DataType is derived
+   * from each Value's type().
+   *
+   * @param config Config specifying the vertex label and new properties
+   * @return Status indicating success or failure. Returns
+   *         ERR_SCHEMA_MISMATCH if a property already exists.
+   */
   Status AddVertexProperties(const AddVertexPropertiesParam& config);
 
+  /**
+   * @brief Add properties to an existing edge type.
+   *
+   * Each property is a (name, default_value) pair; the DataType is derived
+   * from each Value's type().
+   *
+   * @param config Config specifying the edge triplet and new properties
+   * @return Status indicating success or failure. Returns
+   *         ERR_SCHEMA_MISMATCH if a property already exists.
+   */
   Status AddEdgeProperties(const AddEdgePropertiesParam& config);
 
   Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
@@ -351,10 +376,11 @@ class PropertyGraph {
                    const std::vector<Property>& props, vid_t& vid,
                    timestamp_t ts, bool insert_safe = false);
 
-  int32_t AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                  vid_t dst_lid, label_t edge_label,
-                  const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc, bool insert_safe = false);
+  Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
+                 vid_t dst_lid, label_t edge_label,
+                 const std::vector<Property>& properties, timestamp_t ts,
+                 Allocator& alloc, int32_t& oe_offset, const void*& prop,
+                 bool insert_safe = false);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);
@@ -528,9 +554,9 @@ class PropertyGraph {
   }
 
   void loadSchema(const std::string& filename);
-  inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
+  inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, int32_t col_id) const {
-    return vertex_tables_[label].get_property_column(col_id);
+    return vertex_tables_[label].GetPropertyColumn(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(

@@ -164,9 +164,13 @@ class VertexTable {
     return CreateRefColumn(*ptr);
   }
 
-  inline std::shared_ptr<ColumnBase> get_property_column(int32_t col_id) const {
-    assert(col_id >= 0 && col_id < static_cast<int32_t>(table_->col_num()));
-    return table_->get_column_by_id(col_id);
+  inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
+      int32_t col_id) const {
+    auto ptr = table_->get_column_by_id(col_id);
+    if (ptr == nullptr) {
+      return nullptr;
+    }
+    return CreateRefColumn(*ptr);
   }
 
   inline VertexSet GetVertexSet(timestamp_t ts) const {

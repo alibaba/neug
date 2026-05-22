@@ -642,6 +642,33 @@ def test_insert_edge(tmp_path):
     db.close()
 
 
+def test_create_edge_return_edge_property(tmp_path):
+    db_dir = tmp_path / "create_edge_return_edge_property"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, since INT64, MANY_TO_MANY);"
+    )
+    conn.execute("CREATE (a:person {id: 1});")
+    conn.execute("CREATE (b:person {id: 2});")
+
+    result = conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) "
+        "CREATE (a)-[e:knows {since: 2024}]->(b) "
+        "RETURN e.since;"
+    )
+
+    records = list(result)
+    assert records == [[2024]], f"Expected [[2024]], got {records}"
+
+    conn.close()
+    db.close()
+
+
 # DB-003-10 DML-SET node property
 def test_set_node_property(tmp_path):
     db_dir = tmp_path / "set_node_prop"
@@ -3005,3 +3032,76 @@ def test_duplicate_project_column(tmp_path):
         "ORDER BY node_id LIMIT 100"
     )
     assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
+
+
+def test_not_starts_with(tmp_path):
+    db_dir = tmp_path / "test_not_starts_with"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id STRING);")
+    conn.execute("CREATE (:Person {id: 'n4'});")
+    conn.execute("CREATE (:Person {id: 'n8'});")
+    conn.execute(
+        "MATCH (a:Person {id: 'n4'}), (b:Person {id: 'n8'}) CREATE (a)-[:Knows {id: 'e19'}]->(b);"
+    )
+
+    result = conn.execute(
+        """
+        MATCH (a:Person {id: 'n4'})-[r0:Knows {id: 'e19'}]->(b:Person {id: 'n8'})
+        WHERE NOT ('a' STARTS WITH 'a') OR (r0.id IN [a.id])
+        RETURN a.id AS source_id, b.id AS target_id;
+    """
+    )
+
+    records = list(result)
+    assert records == []
+    conn.close()
+    db.close()
+
+
+def test_not_list_contains(tmp_path):
+    db_dir = tmp_path / "test_not_list_contains"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE L1(id STRING, p0 STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (:L1 {id: 'n1', p0: 's3836'});")
+    conn.execute("CREATE (:L1 {id: 'n2', p0: 'x'});")
+    conn.execute("CREATE (:L1 {id: 'n3', p0: 'y'});")
+
+    result = conn.execute("MATCH (n:L1) RETURN count(n) AS pair_count;")
+    records = list(result)
+    assert records == [[3]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[1]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE NOT (n.p0 IN ['s3836', 'L1']) RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[2]]
+    result = conn.execute(
+        "MATCH (n:L1) WHERE ((n.p0 IN ['s3836', 'L1'])) IS NULL RETURN count(n) AS pair_count;"
+    )
+    records = list(result)
+    assert records == [[0]]
+    conn.close()
+    db.close()
+
+
+def test_unsupported_operator_error_message():
+    """Test that unsupported operators produce readable error messages."""
+    modern_graph_db_dir = "/tmp/modern_graph"
+    db = Database(modern_graph_db_dir, "rw")
+    conn = db.connect()
+    query = "CREATE MACRO f(x) AS x + 1"
+    with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
+        conn.execute(query)

@@ -25,6 +25,8 @@ class LogicalMerge final : public LogicalOperator {
 
   f_group_pos_set getGroupsPosToFlatten();
 
+  std::vector<gopt::GAliasName> getGAliasNames() const;
+
   std::shared_ptr<binder::Expression> getExistenceMark() const {
     return existenceMark;
   }

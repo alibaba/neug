@@ -114,7 +114,7 @@ void append_property_to_json(const std::string& key, const Property& prop,
 
 std::string convert_vertex_to_json(const StorageReadInterface& graph,
                                    const VertexRecord& record) {
-  if (record.label_ == std::numeric_limits<vid_t>::max() ||
+  if (record.label_ == std::numeric_limits<label_t>::max() ||
       record.vid_ == std::numeric_limits<vid_t>::max()) {
     return "";
   }

@@ -17,6 +17,8 @@
 
 #include <regex>
 
+#include "neug/utils/exception/exception.h"
+
 namespace neug {
 namespace execution {
 class BindedUnaryLogicalExpr : public VertexExprBase,
@@ -61,8 +63,8 @@ class BindedUnaryLogicalExpr : public VertexExprBase,
       return Value::BOOLEAN(val.IsNull());
     }
     default:
-      LOG(FATAL) << "Unsupported unary logical operation: "
-                 << static_cast<int>(logical);
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported unary logical operation: " +
+                                    std::to_string(static_cast<int>(logical)));
       return Value(type_);
     }
   }
@@ -112,8 +114,9 @@ class BindedBinaryLogicalExpr : public VertexExprBase,
       return Value::BOOLEAN(std::regex_match(lhs_str, std::regex(rhs_str)));
     }
     default:
-      LOG(FATAL) << "Unsupported binary logical operation: "
-                 << static_cast<int>(logical_);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Unsupported binary logical operation: " +
+          std::to_string(static_cast<int>(logical_)));
       return Value(type_);
     }
   }

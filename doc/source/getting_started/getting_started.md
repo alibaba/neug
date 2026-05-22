@@ -191,6 +191,38 @@ for record in result:
     # Bob Smith knows Alice Johnson who works at TechCorp
 ```
 
+### Converting Results to Apache Arrow
+
+NeuG supports converting query results directly to [Apache Arrow](https://arrow.apache.org/) tables via the `to_arrow()` method. This enables zero-copy interoperability with the PyData ecosystem — pandas, Polars, DuckDB, and any other library that understands Arrow.
+
+```python
+import neug
+
+db = neug.Database("/path/to/database")
+conn = db.connect()
+
+# Run a query and convert to Arrow table
+result = conn.execute("""
+    MATCH (p:Person)-[w:WORKS_FOR]->(c:Company)
+    RETURN p.name AS name, p.age AS age, w.salary AS salary, c.name AS company
+""")
+arrow_table = result.to_arrow()
+print(arrow_table)
+# pyarrow.Table
+# name: string
+# age: int64
+# salary: double
+# company: string
+
+# Convert to a pandas DataFrame
+df = arrow_table.to_pandas()
+print(df)
+#             name  age   salary   company
+# 0  Alice Johnson   30  75000.0  TechCorp
+```
+
+> **Note:** `to_arrow()` requires [PyArrow](https://pypi.org/project/pyarrow/) to be installed (`pip install pyarrow`). The returned `pyarrow.Table` preserves column names from the `RETURN` clause of your Cypher query.
+
 ### Close the connection and database
 
 ```python

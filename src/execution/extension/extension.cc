@@ -471,7 +471,13 @@ Status load_extension(const std::string& extension_name) {
   std::string userLibPath = userExtDir + "/" + fileName;
   if (std::filesystem::exists(userLibPath)) {
     LOG(INFO) << "[Admin] Loading extension from user install: " << userLibPath;
-    void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    // Use RTLD_LOCAL so that Arrow symbols statically linked into the
+    // extension stay in its own scope.  This prevents duplicate Arrow
+    // global objects (e.g., FunctionRegistry) from interfering with
+    // libneug.so's copy, which would cause heap corruption on exit.
+    // neug symbols are still resolvable because ensureNeugSymbolsGlobal()
+    // has already promoted libneug.so to RTLD_GLOBAL.
+    void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
       return Status(StatusCode::ERR_IO_ERROR,
                     "Failed to load extension library: " + userLibPath +

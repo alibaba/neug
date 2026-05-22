@@ -18,6 +18,7 @@
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/utils/pb_parse_utils.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -123,7 +124,8 @@ std::vector<Property> ScanUtils::parse_ids_with_type(
     return parse_ids_from_idx_predicate(triplet, params);
   }
   default:
-    LOG(FATAL) << "unsupported type" << static_cast<int>(type);
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupported type" +
+                                  std::to_string(static_cast<int>(type)));
     break;
   }
   return {};

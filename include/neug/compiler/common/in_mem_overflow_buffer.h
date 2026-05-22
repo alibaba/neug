@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <vector>
@@ -39,15 +40,16 @@ namespace common {
 
 struct NEUG_API BufferBlock {
  public:
-  explicit BufferBlock(std::unique_ptr<storage::MemoryBuffer> block);
+  explicit BufferBlock(uint64_t size);
   ~BufferBlock();
 
-  uint64_t size() const;
-  uint8_t* data() const;
+  uint64_t size() const { return bufferSize; }
+  uint8_t* data() const { return buffer.get(); }
 
  public:
   uint64_t currentOffset;
-  std::unique_ptr<storage::MemoryBuffer> block;
+  uint64_t bufferSize;
+  std::unique_ptr<uint8_t[]> buffer;
 
   void resetCurrentOffset() { currentOffset = 0; }
 };
