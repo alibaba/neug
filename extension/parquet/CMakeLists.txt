@@ -41,11 +41,19 @@ elseif(TARGET arrow_parquet_objlib)
 else()
     set(_EXT_ARROW_PARQUET_LIB ${ARROW_PARQUET_LIB})
 endif()
+# IMPORTANT: neug (shared library) MUST come AFTER all Arrow static archives.
+# GNU ld resolves undefined symbols from shared libraries eagerly; if libneug.so
+# appears first and exports the same symbol (e.g. AWS SDK typeinfo), the linker
+# binds against it instead of pulling the definition from the static archive.
+# At runtime a DIFFERENT libneug.so (without ARROW_S3) may be loaded, causing
+# "undefined symbol" errors.  Placing neug last ensures static archives provide
+# their own definitions and the extension is self-contained.
 target_link_libraries(neug_parquet_extension PRIVATE
-    neug
     ${ARROW_BASE_LIB}
     ${_EXT_ARROW_DATASET_LIB}
     ${_EXT_ARROW_PARQUET_LIB}
+    ${ARROW_BUNDLED_DEPS_LIB}
+    neug
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

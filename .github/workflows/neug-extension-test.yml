@@ -54,9 +54,9 @@ jobs:
           ${{ runner.os }}-ccache-ext-
           ${{ runner.os }}-ccache-
 
-    - name: Setup CCache
+    - name: Setup CCache and build dependencies
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev
         ccache --max-size=2G
         ccache --zero-stats
 
@@ -86,7 +86,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet"
+        export BUILD_EXTENSIONS="parquet;httpfs"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -106,6 +106,7 @@ jobs:
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
         ctest -R parquet_extension_test -V
+        ctest -R httpfs_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -122,6 +123,8 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "httpfs"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "httpfs"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, daily, linux, x64]
@@ -161,7 +164,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -183,6 +186,15 @@ jobs:
           mkdir -p $NEUG_SITE/extension
           rm -rf $NEUG_SITE/extension
           cp -r extension_packages/extension $NEUG_SITE/
+          # Copy auditwheel-bundled shared libraries (e.g. libcurl, libarrow_s3)
+          # from the extension wheel.  auditwheel renames .so files with a
+          # content hash (e.g. libcurl-34c6b10f.so.4.3.0) and places them in
+          # <package>.libs/.  Without this step the extension .so files fail to
+          # load at runtime because the hash-renamed libraries are missing.
+          if [ -d extension_packages/neug.libs ]; then
+            mkdir -p $NEUG_SITE/neug.libs
+            cp -rf extension_packages/neug.libs/* $NEUG_SITE/neug.libs/
+          fi
 
       - name: Run simple and complex tests
         env:
@@ -231,7 +243,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -253,6 +265,10 @@ jobs:
           mkdir -p $NEUG_SITE/extension
           rm -rf $NEUG_SITE/extension
           cp -r extension_packages/extension $NEUG_SITE/
+          if [ -d extension_packages/neug.libs ]; then
+            mkdir -p $NEUG_SITE/neug.libs
+            cp -rf extension_packages/neug.libs/* $NEUG_SITE/neug.libs/
+          fi
 
       - name: Run simple and complex tests
         env:
