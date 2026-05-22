@@ -73,9 +73,9 @@ def test_cli_tab_cycles_inline_suggestions():
     assert neug_cli._handle_tab(buffer)
     assert buffer.suggestion.text == "erge"
     assert neug_cli._handle_tab(buffer)
-    assert buffer.suggestion.text == "in"
+    assert buffer.suggestion.text == "acro"
     assert neug_cli._handle_tab(buffer)
-    assert buffer.suggestion.text == "ax"
+    assert buffer.suggestion.text == "axvalue"
 
 
 def test_cli_tab_accepts_single_inline_suggestion():
