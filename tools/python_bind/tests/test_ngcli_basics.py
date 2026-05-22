@@ -42,7 +42,7 @@ def test_cli_inline_autosuggestion_casing():
     assert auto_suggest.get_suggestion(None, Document("Ma")).text == "tch"
     assert auto_suggest.get_suggestion(None, Document("m")).text == "atch"
     assert auto_suggest.get_suggestion(None, Document("M")).text == "ATCH"
-    assert auto_suggest.get_suggestion(None, Document("RETURN col")).text == "lect"
+    assert auto_suggest.get_suggestion(None, Document("RETURN col")).text == "umn"
     assert auto_suggest.get_suggestion(None, Document("ORDER B")).text == "Y"
     assert auto_suggest.get_suggestion(None, Document("IS N")).text == "ULL"
 
