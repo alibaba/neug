@@ -339,14 +339,14 @@ struct EdgeSchema {
  * const neug::Schema& schema = graph.schema();
  *
  * // Get vertex type information
- * if (schema.contains_vertex_label("Person")) {
+ * if (schema.is_vertex_label_valid("Person")) {
  *     label_t person_id = schema.get_vertex_label_id("Person");
  *     auto props = schema.get_vertex_properties(person_id);
  *     auto names = schema.get_vertex_property_names(person_id);
  * }
  *
  * // Check edge type existence
- * if (schema.exist("Person", "Person", "KNOWS")) {
+ * if (schema.is_edge_triplet_valid("Person", "Person", "KNOWS")) {
  *     auto edge_props = schema.get_edge_properties("Person", "Person",
  * "KNOWS");
  * }
@@ -514,31 +514,31 @@ class Schema {
                             const std::vector<std::string>& properties_names,
                             const std::vector<std::string>& properties_renames);
 
-  bool IsVertexLabelSoftDeleted(const std::string& label) const;
+  bool is_vertex_label_soft_deleted(const std::string& label) const;
 
-  bool IsVertexLabelSoftDeleted(label_t v_label) const;
+  bool is_vertex_label_soft_deleted(label_t v_label) const;
 
-  bool IsEdgeLabelSoftDeleted(label_t src_label, label_t dst_label,
-                              label_t edge_label) const;
+  bool is_edge_label_soft_deleted(label_t src_label, label_t dst_label,
+                                  label_t edge_label) const;
 
-  bool IsEdgeLabelSoftDeleted(const std::string& src_label,
-                              const std::string& dst_label,
-                              const std::string& edge_label) const;
+  bool is_edge_label_soft_deleted(const std::string& src_label,
+                                  const std::string& dst_label,
+                                  const std::string& edge_label) const;
 
-  bool IsVertexPropertySoftDeleted(const std::string& label,
-                                   const std::string& property) const;
+  bool is_vertex_property_soft_deleted(const std::string& label,
+                                       const std::string& property) const;
 
-  bool IsVertexPropertySoftDeleted(label_t label,
-                                   const std::string& property) const;
+  bool is_vertex_property_soft_deleted(label_t label,
+                                       const std::string& property) const;
 
-  bool IsEdgePropertySoftDeleted(const std::string& src_label,
-                                 const std::string& dst_label,
-                                 const std::string& edge_label,
-                                 const std::string& property) const;
+  bool is_edge_property_soft_deleted(const std::string& src_label,
+                                     const std::string& dst_label,
+                                     const std::string& edge_label,
+                                     const std::string& property) const;
 
-  bool IsEdgePropertySoftDeleted(label_t src_label, label_t dst_label,
-                                 label_t edge_label,
-                                 const std::string& property) const;
+  bool is_edge_property_soft_deleted(label_t src_label, label_t dst_label,
+                                     label_t edge_label,
+                                     const std::string& property) const;
 
   void DeleteVertexProperties(const std::string& label,
                               const std::vector<std::string>& properties_names,
@@ -587,9 +587,9 @@ class Schema {
    */
   label_t edge_label_frontier() const;
 
-  bool contains_vertex_label(const std::string& label) const;
+  bool is_vertex_label_valid(const std::string& label) const;
 
-  bool vertex_label_valid(label_t label_id) const;
+  bool is_vertex_label_valid(label_t label_id) const;
 
   label_t get_vertex_label_id(const std::string& label) const;
 
@@ -620,11 +620,12 @@ class Schema {
 
   size_t get_max_vnum(const std::string& label) const;
 
-  bool exist(const std::string& src_label, const std::string& dst_label,
-             const std::string& edge_label) const;
+  bool is_edge_triplet_valid(const std::string& src_label,
+                             const std::string& dst_label,
+                             const std::string& edge_label) const;
 
-  bool exist(label_type src_label, label_type dst_label,
-             label_type edge_label) const;
+  bool is_edge_triplet_valid(label_type src_label, label_type dst_label,
+                             label_type edge_label) const;
 
   const std::vector<execution::Value>& get_edge_default_property_values(
       label_t src_label_id, label_t dst_label_id, label_t edge_label_id) const;
@@ -677,13 +678,13 @@ class Schema {
                          label_t edge_label, const std::string& prop) const;
 
   // Even when triplet is soft deleted, it return true
-  bool has_edge_label(const std::string& src_label,
-                      const std::string& dst_label,
-                      const std::string& edge_label) const;
+  bool has_edge_triplet(const std::string& src_label,
+                        const std::string& dst_label,
+                        const std::string& edge_label) const;
 
   // Even when triplet is soft deleted, it return true
-  bool has_edge_label(label_t src_label, label_t dst_label,
-                      label_t edge_label) const;
+  bool has_edge_triplet(label_t src_label, label_t dst_label,
+                        label_t edge_label) const;
 
   EdgeStrategy get_outgoing_edge_strategy(const std::string& src_label,
                                           const std::string& dst_label,
@@ -725,11 +726,9 @@ class Schema {
                                                   label_t dst_label,
                                                   label_t label) const;
 
-  bool contains_edge_label(const std::string& label) const;
+  bool is_edge_label_valid(const std::string& label) const;
 
-  bool edge_label_valid(label_t label_id) const;
-
-  bool edge_triplet_valid(label_t src, label_t dst, label_t edge) const;
+  bool is_edge_label_valid(label_t label_id) const;
 
   label_t get_edge_label_id(const std::string& label) const;
 

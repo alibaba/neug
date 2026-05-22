@@ -30,7 +30,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
       property_columns;
   label_t label_num = graph.schema().vertex_label_frontier();
   for (label_t i = 0; i < label_num; ++i) {
-    if (!graph.schema().vertex_label_valid(i)) {
+    if (!graph.schema().is_vertex_label_valid(i)) {
       continue;
     }
     property_columns.emplace_back(

@@ -52,7 +52,7 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
     property_columns_.reserve(storage.schema().vertex_label_frontier());
     for (label_t label = 0; label < storage.schema().vertex_label_frontier();
          ++label) {
-      if (!storage.schema().vertex_label_valid(label)) {
+      if (!storage.schema().is_vertex_label_valid(label)) {
         continue;
       }
       property_columns_.emplace_back(
@@ -158,16 +158,17 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
     label_t edge_label_num = graph.schema().edge_label_frontier();
     label_t vertex_label_num = graph.schema().vertex_label_frontier();
     for (label_t src_label = 0; src_label < vertex_label_num; ++src_label) {
-      if (!graph.schema().vertex_label_valid(src_label)) {
+      if (!graph.schema().is_vertex_label_valid(src_label)) {
         continue;
       }
       for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-        if (!graph.schema().vertex_label_valid(dst_label)) {
+        if (!graph.schema().is_vertex_label_valid(dst_label)) {
           continue;
         }
         for (label_t edge_label = 0; edge_label < edge_label_num;
              ++edge_label) {
-          if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+          if (!graph.schema().is_edge_triplet_valid(src_label, dst_label,
+                                                    edge_label)) {
             continue;
           }
           const std::vector<std::string>& names =

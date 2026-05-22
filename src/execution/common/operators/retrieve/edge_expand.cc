@@ -355,8 +355,8 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     label_t input_label = casted_input_vertex_list->label();
     std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
     for (auto& triplet : params.labels) {
-      if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
-                                triplet.edge_label)) {
+      if (!graph.schema().is_edge_triplet_valid(
+              triplet.src_label, triplet.dst_label, triplet.edge_label)) {
         continue;
       }
       if (triplet.src_label == input_label &&

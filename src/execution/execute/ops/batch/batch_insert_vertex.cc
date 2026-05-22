@@ -64,7 +64,7 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
     break;
   case common::NameOrId::kName: {
     const auto& name = vertex_type_.name();
-    if (!graph.schema().contains_vertex_label(name)) {
+    if (!graph.schema().is_vertex_label_valid(name)) {
       LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Unknown vertex type: " + name);
