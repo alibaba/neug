@@ -233,7 +233,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   }
 
   auto& vtable = vertex_tables_[vertex_label_id];
-  vtable.Open(work_dir_, memory_level_);
+  vtable.Initialize(work_dir_, memory_level_);
   vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
@@ -316,7 +316,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Open(work_dir_, memory_level_);
+  edge_tables_.at(index).Initialize(work_dir_, memory_level_);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
@@ -597,15 +597,19 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
       if (schema_.is_edge_triplet_valid(v_label_id, i, j)) {
         schema_.DeleteEdgeLabel(v_label_id, i, j);
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.erase(index);
+        auto it = edge_tables_.find(index);
+        if (it != edge_tables_.end()) {
+          it->second.Drop();
+          edge_tables_.erase(it);
         }
       }
       if (schema_.is_edge_triplet_valid(i, v_label_id, j)) {
         schema_.DeleteEdgeLabel(i, v_label_id, j);
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.erase(index);
+        auto it = edge_tables_.find(index);
+        if (it != edge_tables_.end()) {
+          it->second.Drop();
+          edge_tables_.erase(it);
         }
       }
     }
@@ -627,8 +631,10 @@ Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label, false);
-  if (edge_tables_.count(index) > 0) {
-    edge_tables_.erase(index);
+  auto it = edge_tables_.find(index);
+  if (it != edge_tables_.end()) {
+    it->second.Drop();
+    edge_tables_.erase(it);
   }
   return neug::Status::OK();
 }
@@ -749,8 +755,11 @@ void PropertyGraph::Open(const std::string& work_dir,
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
   for (size_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.is_vertex_label_valid(i)) {
-      THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " + std::to_string(i));
+    if (!schema_.vertex_label_valid(i)) {
+      // Tombstoned vertex label: keep the slot to preserve label_t -> index
+      // mapping, but leave the VertexTable in a dropped state.
+      vertex_tables_.emplace_back();
+      continue;
     }
     vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
   }

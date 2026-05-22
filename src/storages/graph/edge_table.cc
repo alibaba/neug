@@ -38,6 +38,49 @@
 
 namespace neug {
 
+namespace {
+
+// Remove any tmp_dir files belonging to a previously dropped edge label of
+// the given (src, edge, dst) triple. tmp filenames key on label strings
+// (not numeric label_t), and Schema reuses the same numeric ids when a same-
+// triple edge is re-created, so without this sweep an in-process DROP+CREATE
+// would re-mmap the prior edge label's leftover data.
+void cleanup_edge_label_tmp_files(const std::string& work_dir,
+                                  const std::string& src_label_name,
+                                  const std::string& dst_label_name,
+                                  const std::string& edge_label_name) {
+  std::string tmp_dir_path = tmp_dir(work_dir);
+  if (!std::filesystem::exists(tmp_dir_path)) {
+    return;
+  }
+  const std::string prefixes[] = {
+      ie_prefix(src_label_name, dst_label_name, edge_label_name),
+      oe_prefix(src_label_name, dst_label_name, edge_label_name),
+      edata_prefix(src_label_name, dst_label_name, edge_label_name),
+      statistics_file_prefix(src_label_name, dst_label_name, edge_label_name),
+  };
+  for (const auto& entry :
+       std::filesystem::directory_iterator(tmp_dir_path)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    const std::string fname = entry.path().filename().string();
+    for (const auto& p : prefixes) {
+      if (!p.empty() && fname.rfind(p, 0) == 0) {
+        std::error_code ec;
+        std::filesystem::remove(entry.path(), ec);
+        if (ec) {
+          LOG(WARNING) << "Failed to remove stale tmp file " << entry.path()
+                       << ": " << ec.message();
+        }
+        break;
+      }
+    }
+  }
+}
+
+}  // namespace
+
 std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
 filterInvalidEdges(const std::vector<vid_t>& src_lid,
                    const std::vector<vid_t>& dst_lid) {
@@ -551,9 +594,26 @@ void load_statistic_file(const std::string& work_dir,
 }
 
 void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
+}
+
+// Initialize releases nothing on the filesystem itself: it only sweeps stale
+// tmp files left behind by a prior in-process DROP of the same edge triple and
+// then opens fresh containers. Persistent checkpoint state is never touched
+// here — only the next CHECKPOINT (PropertyGraph::Dump) advances it.
+void EdgeTable::Initialize(const std::string& work_dir,
+                           MemoryLevel memory_level) {
+  if (meta_) {
+    cleanup_edge_label_tmp_files(work_dir, meta_->src_label_name,
+                                 meta_->dst_label_name, meta_->edge_label_name);
+  }
+  openImpl(work_dir, memory_level, "");
+}
+
+void EdgeTable::openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                         const std::string& checkpoint_dir_path) {
   work_dir_ = work_dir;
   memory_level_ = memory_level;
-  auto ckp_dir_path = checkpoint_dir(work_dir);
   auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                                   meta_->edge_label_name);
   auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -561,14 +621,22 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   auto edata_prefix_path = edata_prefix(
       meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
   if (memory_level == MemoryLevel::kSyncToFile) {
-    in_csr_->open(ie_prefix_path, ckp_dir_path, work_dir);
-    out_csr_->open(oe_prefix_path, ckp_dir_path, work_dir);
+    in_csr_->open(ie_prefix_path, checkpoint_dir_path, work_dir);
+    out_csr_->open(oe_prefix_path, checkpoint_dir_path, work_dir);
   } else if (memory_level == MemoryLevel::kInMemory) {
-    in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
+    in_csr_->open_in_memory(checkpoint_dir_path.empty()
+                                ? ""
+                                : checkpoint_dir_path + "/" + ie_prefix_path);
+    out_csr_->open_in_memory(checkpoint_dir_path.empty()
+                                 ? ""
+                                 : checkpoint_dir_path + "/" + oe_prefix_path);
   } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-    in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
+    in_csr_->open_with_hugepages(
+        checkpoint_dir_path.empty() ? ""
+                                    : checkpoint_dir_path + "/" + ie_prefix_path);
+    out_csr_->open_with_hugepages(
+        checkpoint_dir_path.empty() ? ""
+                                    : checkpoint_dir_path + "/" + oe_prefix_path);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "unsupported memory level: " +
@@ -592,14 +660,48 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
     }
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
-          "the graph is not dumped properly");
+    if (!checkpoint_dir_path.empty()) {
+      load_statistic_file(work_dir, meta_->src_label_name,
+                          meta_->dst_label_name, meta_->edge_label_name,
+                          capacity_, table_idx_);
+      if (table_cap != capacity_.load()) {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "capacity in statistic file not match actual table capacity, maybe "
+            "the graph is not dumped properly");
+      }
     }
   }
+}
+
+void EdgeTable::Close() {
+  if (out_csr_) {
+    out_csr_->close();
+  }
+  if (in_csr_) {
+    in_csr_->close();
+  }
+  if (table_) {
+    table_->close();
+  }
+}
+
+// Drop releases the table's in-memory state only. It does NOT touch the
+// filesystem.
+//
+// Physical tmp_dir cleanup happens at three explicit gates:
+//   - process startup: PropertyGraph::Open wipes tmp_dir
+//   - next CREATE for the same triple: Initialize sweeps stale tmp files
+//   - next CHECKPOINT: PropertyGraph::Dump rewrites checkpoint_dir from scratch
+//
+// checkpoint_dir is never modified outside of CHECKPOINT — this is what gives
+// DROP its implicit crash-rollback semantics (a crash between DROP and the
+// next CHECKPOINT re-reads the prior checkpoint, effectively undoing the
+// DROP). Do not make this function delete files; doing so requires writing
+// DROP to the WAL first or that rollback invariant will break.
+void EdgeTable::Drop() {
+  out_csr_.reset();
+  in_csr_.reset();
+  table_.reset();
 }
 
 void EdgeTable::Dump(const std::string& checkpoint_dir_path) {

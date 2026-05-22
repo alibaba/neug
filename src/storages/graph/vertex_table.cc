@@ -14,20 +14,80 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
+#include <filesystem>
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
+namespace {
+
+// Remove any tmp_dir files belonging to a previously dropped vertex label of
+// the given name. tmp filenames key on the label string (not the numeric
+// label_t), and Schema reuses the same numeric id when a same-name label is
+// re-created, so without this sweep an in-process DROP+CREATE would re-mmap
+// the prior label's leftover data.
+void cleanup_vertex_label_tmp_files(const std::string& work_dir,
+                                    const std::string& label_name) {
+  std::string tmp_dir_path = tmp_dir(work_dir);
+  if (!std::filesystem::exists(tmp_dir_path)) {
+    return;
+  }
+  const std::string prefixes[] = {
+      vertex_table_prefix(label_name),
+      vertex_map_prefix(label_name),
+      IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
+      vertex_tracker_file(label_name),
+  };
+  for (const auto& entry :
+       std::filesystem::directory_iterator(tmp_dir_path)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    const std::string fname = entry.path().filename().string();
+    for (const auto& p : prefixes) {
+      if (!p.empty() && fname.rfind(p, 0) == 0) {
+        std::error_code ec;
+        std::filesystem::remove(entry.path(), ec);
+        if (ec) {
+          LOG(WARNING) << "Failed to remove stale tmp file " << entry.path()
+                       << ": " << ec.message();
+        }
+        break;
+      }
+    }
+  }
+}
+
+}  // namespace
+
 void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
+}
+
+// Initialize releases nothing on the filesystem itself: it only sweeps stale
+// tmp files left behind by a prior in-process DROP of the same label and then
+// opens fresh containers. Persistent checkpoint state is never touched here —
+// only the next CHECKPOINT (PropertyGraph::Dump) advances it.
+void VertexTable::Initialize(const std::string& work_dir,
+                             MemoryLevel memory_level) {
+  if (vertex_schema_) {
+    cleanup_vertex_label_tmp_files(work_dir, vertex_schema_->label_name);
+  }
+  openImpl(work_dir, memory_level, "");
+}
+
+void VertexTable::openImpl(const std::string& work_dir,
+                           MemoryLevel memory_level,
+                           const std::string& checkpoint_dir_path) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
 
   const auto& label_name = vertex_schema_->label_name;
   std::string vertex_tracker_filename =
-      checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
+      checkpoint_dir_path.empty()
+          ? ""
+          : checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
   if (memory_level_ == MemoryLevel::kSyncToFile) {
@@ -37,13 +97,17 @@ void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
                  vertex_schema_->property_types);
 
   } else if (memory_level_ == MemoryLevel::kInMemory) {
-    indexer_->open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
+    indexer_->open_in_memory(checkpoint_dir_path.empty()
+                                 ? ""
+                                 : checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types);
 
   } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
-    indexer_->open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
+    indexer_->open_with_hugepages(
+        checkpoint_dir_path.empty() ? ""
+                                    : checkpoint_dir_path + "/" + indexer_filename);
     table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
                                 vertex_schema_->property_names,
                                 vertex_schema_->property_types);
@@ -241,6 +305,19 @@ void VertexTable::AddProperties(const std::vector<std::string>& properties,
                       memory_level_);
 }
 
+// Drop releases the table's in-memory state only. It does NOT touch the
+// filesystem.
+//
+// Physical tmp_dir cleanup happens at three explicit gates:
+//   - process startup: PropertyGraph::Open wipes tmp_dir
+//   - next CREATE for the same label: Initialize sweeps stale tmp files
+//   - next CHECKPOINT: PropertyGraph::Dump rewrites checkpoint_dir from scratch
+//
+// checkpoint_dir is never modified outside of CHECKPOINT — this is what gives
+// DROP its implicit crash-rollback semantics (a crash between DROP and the
+// next CHECKPOINT re-reads the prior checkpoint, effectively undoing the
+// DROP). Do not make this function delete files; doing so requires writing
+// DROP to the WAL first or that rollback invariant will break.
 void VertexTable::Drop() {
   indexer_->drop();
   table_->drop();
@@ -248,8 +325,6 @@ void VertexTable::Drop() {
   indexer_.reset();
   table_.reset();
   v_ts_.reset();
-  // TODO(zhanglei): reset the indexer.
-  // indexer_ = IndexerType();
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,

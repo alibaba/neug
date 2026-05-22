@@ -50,7 +50,17 @@ class EdgeTable {
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
+  // Restore an existing edge table from its checkpoint snapshot.
   void Open(const std::string& work_dir, MemoryLevel memory_level);
+
+  // Bring up a freshly-created edge table with no checkpoint to read.
+  // Also clears any stale tmp_dir files left behind by a prior DROP of the
+  // same (src, dst, edge) triple within this process.
+  void Initialize(const std::string& work_dir, MemoryLevel memory_level);
+
+  void Close();
+
+  void Drop();
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -132,6 +142,12 @@ class EdgeTable {
   size_t Capacity() const;
 
  private:
+  // Shared implementation for Open and Initialize. An empty
+  // checkpoint_dir_path skips loading any pre-existing snapshot, producing
+  // fresh empty backing storage.
+  void openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                const std::string& checkpoint_dir_path);
+
   void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
