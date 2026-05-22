@@ -140,8 +140,8 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
 }
 
 template <typename PRED_T>
-void sssp_both_dir(const CsrView& view0, const CsrView& view1,
-                   label_t v_label, vid_t v, label_t e_label,
+void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
+                   vid_t v, label_t e_label,
                    const StorageReadInterface::vertex_set_t& vertices,
                    size_t idx, int lower, int upper,
                    MSVertexColumnBuilder& dest_col_builder,
@@ -275,9 +275,9 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1,
 
 template <typename PRED_T>
 void sssp_both_dir_with_order_by_length_limit(
-    const CsrView& view0, const CsrView& view1, label_t v_label,
-    vid_t v, const StorageReadInterface::vertex_set_t& vertices, size_t idx,
-    int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
+    const CsrView& view0, const CsrView& view1, label_t v_label, vid_t v,
+    const StorageReadInterface::vertex_set_t& vertices, size_t idx, int lower,
+    int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, std::vector<size_t>& offsets,
     const PRED_T& pred, int limit_upper) {
   std::vector<vid_t> cur;

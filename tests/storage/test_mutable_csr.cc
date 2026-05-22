@@ -451,8 +451,7 @@ TYPED_TEST(MutableCsrTest, TestSortByEdgeData) {
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
   single_mutable_csr.batch_sort_by_edge_data(sort_ts);
-  CsrView single_mutable_view =
-      single_mutable_csr.get_generic_view(sort_ts);
+  CsrView single_mutable_view = single_mutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(single_mutable_view.type(), CsrViewType::kSingleMutable);
   single_mutable_csr.close();
 

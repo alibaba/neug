@@ -147,8 +147,9 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
     return std::make_unique<BindedEdgeIdentityAccessor>();
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown GraphAccessorType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessorType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;

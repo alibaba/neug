@@ -79,9 +79,9 @@ static Status resolveEdgeTriplet(const Schema& schema,
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
-                                        const CsrView& oe,
-                                        const CsrView& ie, vid_t lid,
-                                        bool is_src, timestamp_t ts) {
+                                        const CsrView& oe, const CsrView& ie,
+                                        vid_t lid, bool is_src,
+                                        timestamp_t ts) {
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
   if (is_src) {
     NbrList nbr_list = oe.get_edges(lid);

@@ -57,10 +57,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return CsrView(
-        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
-        reinterpret_cast<const int*>(degree_list_->GetData()), cfg, ts,
-        unsorted_since_);
+    return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+                   reinterpret_cast<const int*>(degree_list_->GetData()), cfg,
+                   ts, unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -219,8 +218,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return CsrView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
-                       ts, std::numeric_limits<timestamp_t>::max());
+    return CsrView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg, ts,
+                   std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {

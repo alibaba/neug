@@ -273,9 +273,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * @since v0.1.0
    */
-  CsrView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }
@@ -290,9 +289,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * @since v0.1.0
    */
-  CsrView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }

@@ -99,10 +99,12 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : entry.property_mappings()) {
       if (!prop.has_property()) {
-        THROW_INTERNAL_EXCEPTION("PropertyMapping has no property: " + prop.DebugString());
+        THROW_INTERNAL_EXCEPTION("PropertyMapping has no property: " +
+                                 prop.DebugString());
       }
       if (!prop.has_data()) {
-        THROW_INTERNAL_EXCEPTION("PropertyMapping has no data: " + prop.DebugString());
+        THROW_INTERNAL_EXCEPTION("PropertyMapping has no data: " +
+                                 prop.DebugString());
       }
       auto expr = parse_expression(prop.data(), ctx_meta, VarType::kRecord);
       props.emplace_back(prop.property().key().name(), std::move(expr));

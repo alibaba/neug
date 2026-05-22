@@ -14,8 +14,8 @@
  */
 
 #include "neug/execution/expression/accessors/record_accessor.h"
-#include "neug/utils/exception/exception.h"
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -140,8 +140,9 @@ std::unique_ptr<BindedExprBase> RecordVertexAccessor::bind(
   case GraphAccessType::kGid:
     return std::make_unique<BindedRecordVertexGIdExpr>(tag_);
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordVertexAccessor GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown RecordVertexAccessor GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
@@ -263,8 +264,9 @@ std::unique_ptr<BindedExprBase> RecordEdgeAccessor::bind(
   case GraphAccessType::kGid:
     return std::make_unique<BindedEdgeRecordGIdExpr>(tag_);
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordEdgeAccessor GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown RecordEdgeAccessor GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
@@ -315,7 +317,8 @@ std::unique_ptr<BindedExprBase> RecordPathAccessor::bind(
   } else if (property_ == "cost") {
     return std::make_unique<BindedPathWeightExpr>(tag_);
   }
-  THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordPathAccessor property: " + property_);
+  THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordPathAccessor property: " +
+                                property_);
   return nullptr;
 }
 

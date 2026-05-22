@@ -546,7 +546,7 @@ struct CsrView {
    * @param unsorted_since Timestamp since edges may be unsorted
    */
   CsrView(const char* adjlists, const int* degrees, NbrIterConfig cfg,
-              timestamp_t timestamp, timestamp_t unsorted_since)
+          timestamp_t timestamp, timestamp_t unsorted_since)
       : adjlists_(adjlists),
         degrees_(degrees),
         cfg_(cfg),
@@ -562,7 +562,7 @@ struct CsrView {
    * @param unsorted_since Timestamp since edges may be unsorted
    */
   CsrView(const char* adjlists, NbrIterConfig cfg, timestamp_t timestamp,
-              timestamp_t unsorted_since)
+          timestamp_t unsorted_since)
       : adjlists_(adjlists),
         degrees_(nullptr),
         cfg_(cfg),

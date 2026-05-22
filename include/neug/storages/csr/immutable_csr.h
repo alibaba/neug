@@ -45,10 +45,10 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return CsrView(
-        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
-        reinterpret_cast<const int*>(degree_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
+    return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+                   reinterpret_cast<const int*>(degree_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -139,10 +139,9 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return CsrView(
-        reinterpret_cast<const char*>(nbr_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1,
-        std::numeric_limits<timestamp_t>::max());
+    return CsrView(reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {

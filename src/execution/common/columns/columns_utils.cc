@@ -18,9 +18,9 @@
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/struct_columns.h"
-#include "neug/utils/exception/exception.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {

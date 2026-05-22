@@ -17,8 +17,8 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/result.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/result.h"
 
 #include <glog/logging.h>
 #include <string>
@@ -73,8 +73,9 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
     break;
   }
   default:
-    THROW_INVALID_ARGUMENT_EXCEPTION("BatchInsertVertexOpr: invalid vertex_type: " +
-                                     vertex_type_.DebugString());
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "BatchInsertVertexOpr: invalid vertex_type: " +
+        vertex_type_.DebugString());
   }
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   for (auto supplier : suppliers) {

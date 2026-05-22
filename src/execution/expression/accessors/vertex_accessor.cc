@@ -117,8 +117,9 @@ std::unique_ptr<BindedExprBase> VertexAccessor::bind(
     return std::make_unique<BindedVertexIdentityAccessor>();
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
