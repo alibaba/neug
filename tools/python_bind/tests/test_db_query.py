@@ -3070,6 +3070,52 @@ def test_not_list_contains(tmp_path):
     db.close()
 
 
+def test_sort_csr_compact(tmp_path):
+    db_dir = tmp_path / "test_sort_csr_compact"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = neug.Database(db_path=str(db_dir), mode="rw")
+    conn = db.connect()
+    conn.execute("""CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id))""")
+    conn.execute(
+        """CREATE REL TABLE Knows(FROM Person TO Person, since INT64) WITH (sort_key_for_nbr='since')"""
+    )
+
+    for i in range(100):
+        conn.execute(f"CREATE (:Person {{id: {i}}});")
+    for i in range(100):
+        if i % 2 == 0:
+            conn.execute(
+                f"MATCH (a:Person {{id: 1}}), (b:Person {{id: {i}}}) CREATE (a)-[:Knows {{since: {i}}}]->(b:Person);"
+            )
+        else:
+            conn.execute(
+                f"MATCH (a:Person {{id: 0}}), (b:Person {{id: {i}}}) CREATE (a)-[:Knows {{since: {i}}}]->(b);"
+            )
+    conn.close()
+    db.close()
+
+    db = neug.Database(db_path=str(db_dir), mode="rw")
+    endpoint = db.serve(host="127.0.0.1", port=10010, blocking=False)
+    sess = neug.Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+    sess.execute(
+        f"MATCH (a:Person {{id: 1}}), (b:Person {{id: 98}}) CREATE (a)-[:Knows {{since: 1}}]->(b);"
+    )
+    sess.execute(
+        f"MATCH (a:Person {{id: 0}}), (b:Person {{id: 1}}) CREATE (a)-[:Knows {{since: 100}}]->(b);"
+    )
+    res = sess.execute(
+        f"MATCH (a: Person {{id: 1}})-[r:Knows]-> (b: Person) WHERE r.since < 2 RETURN b.id, r.since"
+    )
+    assert list(res) == [[0, 0], [98, 1]]
+    res = sess.execute(
+        f"MATCH (a: Person {{id: 0}})-[r:Knows]-> (b: Person) WHERE r.since > 99 RETURN b.id, r.since"
+    )
+    assert list(res) == [[1, 100]]
+    sess.close()
+    db.close()
+
+
 def test_unsupported_operator_error_message():
     """Test that unsupported operators produce readable error messages."""
     modern_graph_db_dir = "/tmp/modern_graph"

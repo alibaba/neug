@@ -331,6 +331,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
 
     sz_arr[src] -= removed;
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -362,6 +363,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
       ++write_ptr;
     }
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -392,6 +394,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
           std::numeric_limits<timestamp_t>::max());
     }
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -410,6 +413,7 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   if (old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    unsorted_since_ = 0;
   } else if (old_ts == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Attempting to delete already deleted edge.";
   } else {
@@ -514,6 +518,10 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     added_edge_num++;
   }
   edge_num_.fetch_add(added_edge_num, std::memory_order_relaxed);
+  // invalidate sort flag
+  if (ts < unsorted_since_) {
+    unsorted_since_ = 0;
+  }
 }
 
 template <typename EDATA_T>

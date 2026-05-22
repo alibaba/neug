@@ -35,7 +35,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
 
-  ImmutableCsr() {}
+  ImmutableCsr() : unsorted_since_(0) {}
   ~ImmutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kImmutable; }

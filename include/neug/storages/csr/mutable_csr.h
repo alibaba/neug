@@ -47,7 +47,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
 
-  MutableCsr() : locks_(nullptr) {}
+  MutableCsr() : locks_(nullptr), unsorted_since_(0) {}
   ~MutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kMutable; }
@@ -140,6 +140,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
+    // invalidate sort flag
+    if (ts < unsorted_since_) {
+      unsorted_since_ = 0;
+    }
     locks_[src].unlock();
     return prev_size;
   }
