@@ -495,7 +495,7 @@ Status UpdateTransaction::DeleteVertexType(
   label_t v_label;
   RETURN_IF_NOT_OK(
       resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  if (graph_.schema().IsVertexLabelSoftDeleted(v_label)) {
+  if (graph_.schema().is_vertex_label_soft_deleted(v_label)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name
                << " is already deleted (soft delete).";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -538,8 +538,8 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  if (graph_.schema().IsEdgeLabelSoftDeleted(src_label_id, dst_label_id,
-                                             edge_label_id)) {
+  if (graph_.schema().is_edge_label_soft_deleted(src_label_id, dst_label_id,
+                                                 edge_label_id)) {
     LOG(ERROR) << "Edge type " << edge_type << " between " << src_type
                << " and " << dst_type << " is already deleted (soft delete).";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
