@@ -1,17 +1,17 @@
-# S3 Extension
+# HTTPFS Extension
 
-The S3 Extension enables NeuG to access files stored on S3-compatible object storage services (AWS S3, Alibaba Cloud OSS, MinIO, etc.) and over HTTP/HTTPS URLs. After loading the S3 Extension, NeuG can resolve `s3://`, `oss://`, and `http://`/`https://` paths transparently in both `LOAD FROM` (read) and `COPY TO` (write) queries.
+The HTTPFS Extension enables NeuG to access files stored on S3-compatible object storage services (AWS S3, Alibaba Cloud OSS, MinIO, etc.) and over HTTP/HTTPS URLs. After loading the HTTPFS Extension, NeuG can resolve `s3://`, `oss://`, and `http://`/`https://` paths transparently in both `LOAD FROM` (read) and `COPY TO` (write) queries.
 
 ## Install Extension
 
 ```cypher
-INSTALL S3;
+INSTALL HTTPFS;
 ```
 
 ## Load Extension
 
 ```cypher
-LOAD S3;
+LOAD HTTPFS;
 ```
 
 ## Supported URI Schemes
@@ -111,7 +111,7 @@ RETURN *;
 
 ## Export (COPY TO)
 
-The S3 Extension also supports writing query results to S3/OSS using `COPY TO`. This requires credentials with write permission (Anonymous mode cannot write).
+The HTTPFS Extension also supports writing query results to S3/OSS using `COPY TO`. This requires credentials with write permission (Anonymous mode cannot write).
 
 ### Export to S3
 
@@ -148,10 +148,10 @@ RETURN *;
 
 ## Combining with Other Extensions
 
-The S3 Extension provides the virtual filesystem (VFS) layer only. To load Parquet files from S3/OSS/HTTP, both extensions must be loaded:
+The HTTPFS Extension provides the virtual filesystem (VFS) layer only. To load Parquet files from S3/OSS/HTTP, both extensions must be loaded:
 
 ```cypher
-LOAD S3;
+LOAD HTTPFS;
 LOAD PARQUET;
 
 LOAD FROM "oss://my-bucket/data/person.parquet" (

@@ -129,7 +129,7 @@ endfunction()
 
 # Add parquet extension
 add_extension_if_enabled("parquet")
-# Add s3 extension
-add_extension_if_enabled("s3")
+# Add httpfs extension (S3/OSS + HTTP/HTTPS)
+add_extension_if_enabled("httpfs")
 
 message(STATUS "=== Extension configuration complete ===")

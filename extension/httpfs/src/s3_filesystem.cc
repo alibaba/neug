@@ -210,6 +210,7 @@ S3URIComponents S3URIComponents::parse(const std::string& uri) {
 }
 
 // S3 FileSystem Implementation
+
 S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
   if (schema.paths.empty()) {
     THROW_IO_EXCEPTION("S3FileSystem: no paths provided");
@@ -235,6 +236,7 @@ S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
                        fs_result.status().ToString());
   }
   arrow_fs_ = *fs_result;
+
   LOG(INFO) << "S3FileSystem initialized successfully";
 }
 

@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+#include <cstdio>
 #include <cstdlib>
 #include <glog/logging.h>
+#include <arrow/filesystem/filesystem.h>
 #include <arrow/filesystem/s3fs.h>
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
@@ -25,7 +27,7 @@
 
 namespace neug {
 namespace extension {
-namespace s3 {
+namespace httpfs {
 
 // Register S3/OSS filesystem factories in the global VFS registry
 static void RegisterS3Provider() {
@@ -35,7 +37,7 @@ static void RegisterS3Provider() {
   vfs->Register("s3", neug::extension::s3::CreateS3FileSystem);
   vfs->Register("oss", neug::extension::s3::CreateS3FileSystem);
 
-  LOG(INFO) << "[s3 extension] S3FileSystem registered for schemes: s3, oss";
+  LOG(INFO) << "[httpfs extension] S3FileSystem registered for schemes: s3, oss";
 }
 
 // Register HTTP/HTTPS filesystem factories in the global VFS registry
@@ -47,7 +49,7 @@ static void RegisterHTTPProvider() {
   vfs->Register("https", neug::extension::http::CreateHTTPFileSystem);
 
   LOG(INFO)
-      << "[s3 extension] HTTPFileSystem registered for schemes: http, https";
+      << "[httpfs extension] HTTPFileSystem registered for schemes: http, https";
 }
 
 // Finalize Arrow S3 to prevent exit crash (called at process exit)
@@ -63,7 +65,7 @@ static void FinalizeS3OnExit() {
   }
 }
 
-}  // namespace s3
+}  // namespace httpfs
 }  // namespace extension
 }  // namespace neug
 
@@ -72,26 +74,26 @@ extern "C" {
 
 /**
  * Init function - called when extension is loaded
- * This is the main entry point for the S3 extension
+ * This is the main entry point for the HTTPFS extension
  */
 void Init() {
   try {
     // Register S3 filesystem provider in the global registry
-    neug::extension::s3::RegisterS3Provider();
+    neug::extension::httpfs::RegisterS3Provider();
 
     // Register HTTP/HTTPS filesystem provider
-    neug::extension::s3::RegisterHTTPProvider();
+    neug::extension::httpfs::RegisterHTTPProvider();
 
     // Register atexit handler to finalize S3 on process exit
-    std::atexit(neug::extension::s3::FinalizeS3OnExit);
+    std::atexit(neug::extension::httpfs::FinalizeS3OnExit);
 
-    LOG(INFO) << "[s3 extension] initialized (s3, oss, http, https)";
+    LOG(INFO) << "[httpfs extension] initialized (s3, oss, http, https)";
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "[s3 extension] initialization failed: " + std::string(e.what()));
+        "[httpfs extension] initialization failed: " + std::string(e.what()));
   } catch (...) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "[s3 extension] initialization failed: unknown exception");
+        "[httpfs extension] initialization failed: unknown exception");
   }
 }
 
@@ -99,7 +101,7 @@ void Init() {
  * Name function - returns the extension name
  */
 const char* Name() {
-  return "S3";
+  return "HTTPFS";
 }
 
 }  // extern "C"

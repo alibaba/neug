@@ -1261,16 +1261,16 @@ class TestLoadFrom:
         )  # datetime_weight: TIMESTAMP
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_on_s3_oss(self):
+    def test_load_vertices_and_edges_from_parquet_on_httpfs_oss(self):
         """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
         # Load required extensions
-        self.conn.execute("load s3")
+        self.conn.execute("load httpfs")
         self.conn.execute("load parquet")
 
         # OSS file path - use inline options to specify anonymous access
         vertex_oss_path = "oss://graphscope/neug/vPerson.parquet"
 
-        # Execute LOAD FROM query with inline S3 options
+        # Execute LOAD FROM query with inline httpfs options
         # This is the CORRECT way: pass options inline, not via environment variables
         vertex_query = f"""
         LOAD FROM "{vertex_oss_path}" (
@@ -1309,7 +1309,7 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_via_s3_http(self):
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_http(self):
         """Test LOAD FROM Parquet file via HTTP."""
         vertex_http_path = (
             "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
@@ -1317,7 +1317,7 @@ class TestLoadFrom:
         edge_http_path = (
             "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
         )
-        self.conn.execute("load s3")
+        self.conn.execute("load httpfs")
         self.conn.execute("load parquet")
         vertex_query = f"""
         LOAD FROM "{vertex_http_path}"
@@ -1348,7 +1348,7 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_via_s3_https(self):
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_https(self):
         """Test LOAD FROM Parquet file via HTTPS."""
         vertex_https_path = (
             "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
@@ -1356,7 +1356,7 @@ class TestLoadFrom:
         edge_https_path = (
             "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
         )
-        self.conn.execute("load s3")
+        self.conn.execute("load httpfs")
         self.conn.execute("load parquet")
         vertex_query = f"""
         LOAD FROM "{vertex_https_path}"
@@ -1387,14 +1387,14 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_from_parquet_on_public_s3_aws(self):
+    def test_load_from_parquet_on_public_httpfs_aws(self):
         """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
 
         Dataset: s3://ookla-open-data (Speedtest by Ookla, fixed tiles, Q1 2019)
         Schema (2019 Q1): avg_d_kbps, avg_u_kbps, avg_lat_ms, tests, devices, quadkey, tile
         Access: anonymous (--no-sign-request equivalent)
         """
-        self.conn.execute("load s3")
+        self.conn.execute("load httpfs")
         self.conn.execute("load parquet")
 
         s3_path = (

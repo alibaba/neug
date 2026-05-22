@@ -436,9 +436,11 @@ HTTP_EDGE_PATH = os.environ.get(
 )
 
 
-def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
-    run_statement(conn_s3, "LOAD S3 succeeded", "LOAD S3;")
-    run_statement(conn_s3, "LOAD PARQUET succeeded (for S3 tests)", "LOAD PARQUET;")
+def run_httpfs_extension_suite(db_httpfs, conn_httpfs, db_path_httpfs):
+    run_statement(conn_httpfs, "LOAD HTTPFS succeeded", "LOAD HTTPFS;")
+    run_statement(
+        conn_httpfs, "LOAD PARQUET succeeded (for HTTPFS tests)", "LOAD PARQUET;"
+    )
 
     # HTTP: load vPerson.parquet via HTTP URL
     def _http_vertex(rows):
@@ -450,7 +452,7 @@ def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
         return f"LOAD FROM HTTP vPerson.parquet returned {len(rows)} rows"
 
     run_query_with_handler(
-        conn_s3,
+        conn_httpfs,
         "LOAD FROM HTTP vPerson.parquet",
         f'LOAD FROM "{HTTP_VERTEX_PATH}" RETURN *;',
         _http_vertex,
@@ -467,17 +469,17 @@ def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
         return f"LOAD FROM HTTP eMeets.parquet returned {len(rows)} rows"
 
     run_query_with_handler(
-        conn_s3,
+        conn_httpfs,
         "LOAD FROM HTTP eMeets.parquet",
         f'LOAD FROM "{HTTP_EDGE_PATH}" RETURN *;',
         _http_edge,
         print_traceback=True,
     )
 
-    conn_s3.close()
-    db_s3.close()
-    ok("Closed S3 extension test database")
-    shutil.rmtree(db_path_s3, ignore_errors=True)
+    conn_httpfs.close()
+    db_httpfs.close()
+    ok("Closed HTTPFS extension test database")
+    shutil.rmtree(db_path_httpfs, ignore_errors=True)
 
 
 def run_tinysnb_suite(db_snb, db_path_tinysnb):
@@ -845,9 +847,9 @@ else:
         run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet)
 
 # ================================================================
-#  7. Extensions — S3 Extension
+#  7. Extensions — HTTPFS Extension
 # ================================================================
-section("7. Extensions — S3 Extension (OSS / HTTP)")
+section("7. Extensions — HTTPFS Extension (OSS / HTTP)")
 
 _run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
 _run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
@@ -855,18 +857,18 @@ _run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
 if not _run_ext_tests:
     print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
 else:
-    conn_s3 = None
-    db_path_s3 = tempfile.mkdtemp(prefix="neug_s3_ext_")
+    conn_httpfs = None
+    db_path_httpfs = tempfile.mkdtemp(prefix="neug_httpfs_ext_")
     try:
-        db_s3 = neug.Database(db_path_s3)
-        conn_s3 = db_s3.connect()
-        ok(f"Created persistent database for S3 extension test at {db_path_s3}")
+        db_httpfs = neug.Database(db_path_httpfs)
+        conn_httpfs = db_httpfs.connect()
+        ok(f"Created persistent database for HTTPFS extension test at {db_path_httpfs}")
     except Exception as e:
-        fail("Create database for S3 extension", e)
-        db_s3 = None
+        fail("Create database for HTTPFS extension", e)
+        db_httpfs = None
 
-    if db_s3 is not None and conn_s3 is not None:
-        run_s3_extension_suite(db_s3, conn_s3, db_path_s3)
+    if db_httpfs is not None and conn_httpfs is not None:
+        run_httpfs_extension_suite(db_httpfs, conn_httpfs, db_path_httpfs)
 
 # ================================================================
 #  Summary

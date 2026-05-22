@@ -865,29 +865,29 @@ class TestParquetExport:
 
 
 # =============================================================================
-# S3/OSS Export E2E Tests
-# Requires: NEUG_RUN_EXTENSION_TESTS=1, S3 extension loaded, and writable bucket
+# HTTPFS Export E2E Tests (OSS / HTTP)
+# Requires: NEUG_RUN_EXTENSION_TESTS=1, HTTPFS extension loaded, and writable bucket
 # =============================================================================
 
-S3_WRITE_TESTS_ENABLED = all(
+HTTPFS_WRITE_TESTS_ENABLED = all(
     [
         EXTENSION_TESTS_ENABLED,
         os.environ.get("OSS_ACCESS_KEY_ID"),
         os.environ.get("OSS_ACCESS_KEY_SECRET"),
     ]
 )
-s3_write_test = pytest.mark.skipif(
-    not S3_WRITE_TESTS_ENABLED,
+httpfs_write_test = pytest.mark.skipif(
+    not HTTPFS_WRITE_TESTS_ENABLED,
     reason=(
-        "S3 write tests disabled; set NEUG_RUN_EXTENSION_TESTS=1, "
+        "HTTPFS write tests disabled; set NEUG_RUN_EXTENSION_TESTS=1, "
         "OSS_ACCESS_KEY_ID, and OSS_ACCESS_KEY_SECRET to enable."
     ),
 )
 
 
-@s3_write_test
-class TestExportS3:
-    """COPY TO S3/OSS E2E tests. Requires a writable bucket."""
+@httpfs_write_test
+class TestExportHTTPFS:
+    """COPY TO HTTPFS (OSS/S3) E2E tests. Requires a writable bucket."""
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
@@ -898,7 +898,7 @@ class TestExportS3:
         shutil.copytree(src_db, self.db_dir)
         self.db = Database(db_path=self.db_dir, mode="w")
         self.conn = self.db.connect()
-        self.conn.execute("LOAD S3")
+        self.conn.execute("LOAD HTTPFS")
         self.conn.execute("LOAD PARQUET")
 
         self.bucket = "graphscope"
@@ -909,7 +909,7 @@ class TestExportS3:
         finally:
             self.db.close()
 
-    def _s3_path(self, filename):
+    def _httpfs_path(self, filename):
         """Build a fixed oss:// path. Repeated runs overwrite the same file."""
         return f"oss://{self.bucket}/neug_e2e_test/{filename}"
 
@@ -919,25 +919,27 @@ class TestExportS3:
 
     # --- CSV ---
 
-    def test_export_person_csv_to_s3(self):
-        """Export person nodes to S3 as CSV, then read back and verify row count."""
-        s3_path = self._s3_path("person.csv")
+    def test_export_person_csv_to_httpfs(self):
+        """Export person nodes to HTTPFS as CSV, then read back and verify row count."""
+        httpfs_path = self._httpfs_path("person.csv")
         opts = self._export_options()
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
 
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{s3_path}' (HEADER = true, {opts});"
+            f"'{httpfs_path}' (HEADER = true, {opts});"
         )
 
-        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        results = list(
+            self.conn.execute(f'LOAD FROM "{httpfs_path}" ({opts}) RETURN *;')
+        )
         assert (
             len(results) == expected
-        ), f"Expected {expected} rows read back from S3, got {len(results)}"
+        ), f"Expected {expected} rows read back from HTTPFS, got {len(results)}"
 
-    def test_export_with_filter_to_s3(self):
-        """Export filtered results to S3, verify data arrives."""
-        s3_path = self._s3_path("filtered.csv")
+    def test_export_with_filter_to_httpfs(self):
+        """Export filtered results to HTTPFS, verify data arrives."""
+        httpfs_path = self._httpfs_path("filtered.csv")
         opts = self._export_options()
         expected = _count_query(
             self.conn, "MATCH (v:person) WHERE v.age > 20 RETURN v.ID, v.fName, v.age"
@@ -945,76 +947,85 @@ class TestExportS3:
 
         self.conn.execute(
             f"COPY (MATCH (v:person) WHERE v.age > 20 RETURN v.ID, v.fName, v.age) TO "
-            f"'{s3_path}' (HEADER = true, DELIMITER = ',', {opts});"
+            f"'{httpfs_path}' (HEADER = true, DELIMITER = ',', {opts});"
         )
 
         results = list(
             self.conn.execute(
-                f"LOAD FROM \"{s3_path}\" (DELIMITER = ',', {opts}) RETURN *;"
+                f"LOAD FROM \"{httpfs_path}\" (DELIMITER = ',', {opts}) RETURN *;"
             )
         )
         assert len(results) == expected, f"Expected {expected} rows, got {len(results)}"
 
-    def test_export_empty_result_to_s3(self):
-        """Export an empty result set to S3 — should succeed without error."""
-        s3_path = self._s3_path("empty.csv")
+    def test_export_empty_result_to_httpfs(self):
+        """Export an empty result set to HTTPFS — should succeed without error."""
+        httpfs_path = self._httpfs_path("empty.csv")
         opts = self._export_options()
 
         self.conn.execute(
             f"COPY (MATCH (v:person) WHERE v.ID = -999 RETURN v.ID) TO "
-            f"'{s3_path}' (HEADER = true, {opts});"
+            f"'{httpfs_path}' (HEADER = true, {opts});"
         )
 
-        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        results = list(
+            self.conn.execute(f'LOAD FROM "{httpfs_path}" ({opts}) RETURN *;')
+        )
         assert len(results) == 0, f"Expected 0 rows, got {len(results)}"
 
     # --- JSON ---
 
-    def test_export_person_json_to_s3(self):
-        """Export person nodes to S3 as JSON array, then read back and verify."""
-        s3_path = self._s3_path("person.json")
+    def test_export_person_json_to_httpfs(self):
+        """Export person nodes to HTTPFS as JSON array, then read back and verify."""
+        httpfs_path = self._httpfs_path("person.json")
         opts = self._export_options()
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
 
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO "
-            f"'{s3_path}' ({opts});"
+            f"'{httpfs_path}' ({opts});"
         )
 
-        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        results = list(
+            self.conn.execute(f'LOAD FROM "{httpfs_path}" ({opts}) RETURN *;')
+        )
         assert (
             len(results) == expected
         ), f"Expected {expected} rows from JSON, got {len(results)}"
 
-    def test_export_person_jsonl_to_s3(self):
-        """Export person nodes to S3 as JSONL, then read back and verify."""
-        s3_path = self._s3_path("person.jsonl")
+    def test_export_person_jsonl_to_httpfs(self):
+        """Export person nodes to HTTPFS as JSONL, then read back and verify."""
+        httpfs_path = self._httpfs_path("person.jsonl")
         opts = self._export_options()
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
 
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO "
-            f"'{s3_path}' ({opts});"
+            f"'{httpfs_path}' ({opts});"
         )
 
-        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        results = list(
+            self.conn.execute(f'LOAD FROM "{httpfs_path}" ({opts}) RETURN *;')
+        )
         assert (
             len(results) == expected
         ), f"Expected {expected} rows from JSONL, got {len(results)}"
 
     # --- Parquet ---
 
-    def test_export_person_parquet_to_s3(self):
-        """Export person nodes to S3 as Parquet, then read back and verify."""
-        s3_path = self._s3_path("person.parquet")
+    def test_export_person_parquet_to_httpfs(self):
+        """Export person nodes to HTTPFS as Parquet, then read back and verify."""
+        httpfs_path = self._httpfs_path("person.parquet")
         opts = self._export_options()
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
 
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO " f"'{s3_path}' ({opts});"
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
+            f"'{httpfs_path}' ({opts});"
         )
 
-        results = list(self.conn.execute(f'LOAD FROM "{s3_path}" ({opts}) RETURN *;'))
+        results = list(
+            self.conn.execute(f'LOAD FROM "{httpfs_path}" ({opts}) RETURN *;')
+        )
         assert (
             len(results) == expected
         ), f"Expected {expected} rows from Parquet, got {len(results)}"
