@@ -19,7 +19,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "unittest/utils.h"

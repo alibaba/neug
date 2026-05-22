@@ -19,19 +19,14 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
-enum class CsrType {
-  kImmutable,
-  kMutable,
-  kSingleMutable,
-  kSingleImmutable,
-  kEmpty,
-};
+// CsrType is defined in csr_view.h to avoid a csr_base <-> csr_view
+// include cycle (CsrView may need to know about CsrType in future).
 
 class CsrBase {
  public:
@@ -42,7 +37,7 @@ class CsrBase {
 
   virtual CsrType csr_type() const = 0;
 
-  virtual GenericView get_generic_view(timestamp_t ts) const = 0;
+  virtual CsrView get_generic_view(timestamp_t ts) const = 0;
 
   virtual timestamp_t unsorted_since() const { return 0; }
 

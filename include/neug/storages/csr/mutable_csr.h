@@ -33,7 +33,7 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
@@ -52,12 +52,12 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
+    return CsrView(
         reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
         reinterpret_cast<const int*>(degree_list_->GetData()), cfg, ts,
         unsorted_since_);
@@ -214,12 +214,12 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
+    return CsrView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
                        ts, std::numeric_limits<timestamp_t>::max());
   }
 
@@ -340,9 +340,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   CsrType csr_type() const override { return CsrType::kEmpty; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     LOG(FATAL) << "Not implemented";
-    return GenericView();
+    return CsrView();
   }
 
   timestamp_t unsorted_since() const override {

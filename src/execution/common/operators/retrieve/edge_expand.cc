@@ -45,7 +45,7 @@ neug::result<Context> EdgeExpand::expand_degree(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<GenericView>> mps;
+  std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -97,7 +97,7 @@ neug::result<Context> EdgeExpand::expand_count(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<GenericView>> mps;
+  std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {

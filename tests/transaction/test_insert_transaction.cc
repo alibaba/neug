@@ -16,7 +16,7 @@
 
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/insert_transaction.h"
 

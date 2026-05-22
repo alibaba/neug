@@ -27,7 +27,7 @@
 #include <string_view>
 #include <utility>
 
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
@@ -754,11 +754,11 @@ size_t EdgeTable::EdgeNum() const {
 
 size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
 
-GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
+CsrView EdgeTable::get_outgoing_view(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
 }
 
-GenericView EdgeTable::get_incoming_view(timestamp_t ts) const {
+CsrView EdgeTable::get_incoming_view(timestamp_t ts) const {
   return in_csr_->get_generic_view(ts);
 }
 

@@ -1457,7 +1457,7 @@ The C++ API offers powerful capabilities for:
                     content += "Low-level graph storage engine\n"
                 elif simple_name == "Schema":
                     content += "Graph schema management (vertex/edge types)\n"
-                elif simple_name == "GenericView":
+                elif simple_name == "CsrView":
                     content += "Efficient edge traversal in CSR format\n"
                 else:
                     content += f"{simple_name} class\n"
@@ -1538,7 +1538,7 @@ For performance-critical graph algorithms, use direct graph access:
 
 ```cpp
 #include <neug/storages/graph/property_graph.h>
-#include <neug/storages/csr/generic_view.h>
+#include <neug/storages/csr/csr_view.h>
 
 // Access the underlying property graph
 const neug::PropertyGraph& graph = db.graph();
@@ -1549,7 +1549,7 @@ label_t person = schema.get_vertex_label_id("Person");
 label_t knows = schema.get_edge_label_id("KNOWS");
 
 // Create edge traversal view
-neug::GenericView view = graph.GetGenericOutgoingGraphView(
+neug::CsrView view = graph.GetGenericOutgoingGraphView(
     person, person, knows, neug::MAX_TIMESTAMP);
 
 // Traverse neighbors of vertex v
@@ -1641,7 +1641,7 @@ if (!result.has_value()) {
 - `NeugDB`: Thread-safe for all operations
 - `Connection`: NOT thread-safe; use one connection per thread
 - `PropertyGraph`: Thread-safe for reads; writes require synchronization
-- `GenericView`, `NbrList`, `NbrIterator`: Thread-safe (read-only)
+- `CsrView`, `NbrList`, `NbrIterator`: Thread-safe (read-only)
 
 """
         

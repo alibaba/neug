@@ -14,7 +14,7 @@
  */
 
 #include "neug/transaction/undo_log.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 
 namespace neug {
 void CreateVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {

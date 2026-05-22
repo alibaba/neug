@@ -28,7 +28,7 @@
 #include "neug/common/extra_type_info.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -79,8 +79,8 @@ static Status resolveEdgeTriplet(const Schema& schema,
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
-                                        const GenericView& oe,
-                                        const GenericView& ie, vid_t lid,
+                                        const CsrView& oe,
+                                        const CsrView& ie, vid_t lid,
                                         bool is_src, timestamp_t ts) {
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
   if (is_src) {

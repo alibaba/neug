@@ -21,6 +21,16 @@
 
 namespace neug {
 
+// CsrType lives in the view header so CsrView can hold it without pulling
+// in csr_base.h (avoiding a csr_base <-> csr_view include cycle).
+enum class CsrType {
+  kImmutable,
+  kMutable,
+  kSingleMutable,
+  kSingleImmutable,
+  kEmpty,
+};
+
 /**
  * @brief Configuration for neighbor iteration in CSR storage.
  *
@@ -48,8 +58,8 @@ struct NbrIterConfig {
  *
  * **Usage Example:**
  * @code{.cpp}
- * // Get edges from a GenericView
- * GenericView view = graph.GetGenericOutgoingGraphView(src_label, dst_label,
+ * // Get edges from a CsrView
+ * CsrView view = graph.GetGenericOutgoingGraphView(src_label, dst_label,
  * edge_label, ts); NbrList edges = view.get_edges(vertex_id);
  *
  * // Iterate over neighbors
@@ -70,7 +80,7 @@ struct NbrIterConfig {
  *       through Connection::Query() which handles iteration internally.
  *
  * @see NbrList For the container that provides begin()/end() iterators
- * @see GenericView For obtaining edge lists
+ * @see CsrView For obtaining edge lists
  *
  * @since v0.1.0
  */
@@ -165,12 +175,12 @@ static_assert(std::is_pod<NbrIterator>::value, "NbrIterator should be POD");
  * @brief Container representing a list of neighbor edges for a vertex.
  *
  * NbrList provides an STL-compatible interface for iterating over edges
- * connected to a specific vertex. It is returned by GenericView::get_edges().
+ * connected to a specific vertex. It is returned by CsrView::get_edges().
  *
  * **Usage Example:**
  * @code{.cpp}
  * // Get outgoing edges for vertex v
- * GenericView view = graph.GetGenericOutgoingGraphView(
+ * CsrView view = graph.GetGenericOutgoingGraphView(
  *     src_label, dst_label, edge_label, timestamp);
  * NbrList neighbors = view.get_edges(v);
  *
@@ -188,7 +198,7 @@ static_assert(std::is_pod<NbrIterator>::value, "NbrIterator should be POD");
  * @endcode
  *
  * @see NbrIterator For iterator operations
- * @see GenericView::get_edges For obtaining NbrList
+ * @see CsrView::get_edges For obtaining NbrList
  *
  * @since v0.1.0
  */
@@ -236,7 +246,7 @@ static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
  *     src_label, dst_label, edge_label, "weight");
  *
  * // Get edges and access their properties
- * GenericView view = graph.GetGenericOutgoingGraphView(...);
+ * CsrView view = graph.GetGenericOutgoingGraphView(...);
  * NbrList edges = view.get_edges(v);
  *
  * for (auto it = edges.begin(); it != edges.end(); ++it) {
@@ -389,20 +399,20 @@ enum class CsrViewType {
 };
 
 template <typename T, CsrViewType TYPE>
-struct TypedView {
-  TypedView() = default;
-  ~TypedView() = default;
+struct TypedCsrView {
+  TypedCsrView() = default;
+  ~TypedCsrView() = default;
 };
 
 template <typename T>
-struct TypedView<T, CsrViewType::kMultipleMutable> {
-  TypedView(const MutableNbr<T>** adjlists, const int* degrees,
-            timestamp_t timestamp, timestamp_t unsorted_since)
+struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
+  TypedCsrView(const MutableNbr<T>** adjlists, const int* degrees,
+               timestamp_t timestamp, timestamp_t unsorted_since)
       : adjlists(adjlists),
         degrees(degrees),
         timestamp(timestamp),
         unsorted_since(unsorted_since) {}
-  ~TypedView() = default;
+  ~TypedCsrView() = default;
 
   template <typename FUNC_T>
   void foreach_nbr_gt(vid_t v, const T& threshold, const FUNC_T& func) const {
@@ -470,14 +480,14 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
 /**
  * @brief Generic view for graph traversal in CSR format.
  *
- * GenericView provides efficient access to edges stored in CSR (Compressed
+ * CsrView provides efficient access to edges stored in CSR (Compressed
  * Sparse Row) format. It supports both outgoing and incoming edge traversal
  * with MVCC (Multi-Version Concurrency Control) for transactional consistency.
  *
  * **Usage Example:**
  * @code{.cpp}
  * // Get outgoing edges view
- * GenericView out_view = graph.GetGenericOutgoingGraphView(
+ * CsrView out_view = graph.GetGenericOutgoingGraphView(
  *     person_label,    // source vertex label
  *     person_label,    // neighbor vertex label
  *     knows_label,     // edge label
@@ -485,7 +495,7 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
  * );
  *
  * // Get incoming edges view
- * GenericView in_view = graph.GetGenericIncomingGraphView(
+ * CsrView in_view = graph.GetGenericIncomingGraphView(
  *     person_label, person_label, knows_label, read_timestamp);
  *
  * // Traverse outgoing edges from vertex v
@@ -503,11 +513,11 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
  * - `kMultipleImmutable`: Multiple edges per vertex pair, no timestamps
  *
  * **Performance Notes:**
- * - GenericView is a lightweight wrapper (no memory allocation)
+ * - CsrView is a lightweight wrapper (no memory allocation)
  * - get_edges() returns a NbrList for efficient iteration
  * - Use typed views (get_typed_view) for additional optimizations
  *
- * @note Obtain GenericView from PropertyGraph or StorageReadInterface.
+ * @note Obtain CsrView from PropertyGraph or StorageReadInterface.
  * @note Views are read-only and snapshot-based (MVCC).
  *
  * @see PropertyGraph::GetGenericOutgoingGraphView
@@ -517,9 +527,9 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
  *
  * @since v0.1.0
  */
-struct GenericView {
+struct CsrView {
   /** @brief Default constructor creating an empty view. */
-  GenericView()
+  CsrView()
       : adjlists_(nullptr),
         degrees_(nullptr),
         cfg_({0, 0, 0}),
@@ -527,7 +537,7 @@ struct GenericView {
         unsorted_since_(0) {}
 
   /**
-   * @brief Construct a GenericView for multiple-edge CSR.
+   * @brief Construct a CsrView for multiple-edge CSR.
    *
    * @param adjlists Pointer to adjacency list data
    * @param degrees Pointer to degree array (edges per vertex)
@@ -535,7 +545,7 @@ struct GenericView {
    * @param timestamp Read timestamp for MVCC visibility
    * @param unsorted_since Timestamp since edges may be unsorted
    */
-  GenericView(const char* adjlists, const int* degrees, NbrIterConfig cfg,
+  CsrView(const char* adjlists, const int* degrees, NbrIterConfig cfg,
               timestamp_t timestamp, timestamp_t unsorted_since)
       : adjlists_(adjlists),
         degrees_(degrees),
@@ -544,14 +554,14 @@ struct GenericView {
         unsorted_since_(unsorted_since) {}
 
   /**
-   * @brief Construct a GenericView for single-edge CSR.
+   * @brief Construct a CsrView for single-edge CSR.
    *
    * @param adjlists Pointer to adjacency list data
    * @param cfg Memory layout configuration
    * @param timestamp Read timestamp for MVCC visibility
    * @param unsorted_since Timestamp since edges may be unsorted
    */
-  GenericView(const char* adjlists, NbrIterConfig cfg, timestamp_t timestamp,
+  CsrView(const char* adjlists, NbrIterConfig cfg, timestamp_t timestamp,
               timestamp_t unsorted_since)
       : adjlists_(adjlists),
         degrees_(nullptr),
@@ -614,17 +624,18 @@ struct GenericView {
   }
 
   template <typename T, CsrViewType TYPE>
-  TypedView<T, TYPE> get_typed_view() const {
+  TypedCsrView<T, TYPE> get_typed_view() const {
     if constexpr (TYPE == CsrViewType::kMultipleMutable) {
       assert(cfg_.ts_offset != 0);
       assert(cfg_.stride == sizeof(MutableNbr<T>));
       int64_t val = reinterpret_cast<int64_t>(adjlists_);
       const MutableNbr<T>** lists =
           reinterpret_cast<const MutableNbr<T>**>(val);
-      return TypedView<T, TYPE>(lists, degrees_, timestamp_, unsorted_since_);
+      return TypedCsrView<T, TYPE>(lists, degrees_, timestamp_,
+                                   unsorted_since_);
     } else {
       LOG(FATAL) << "not implemented";
-      return TypedView<T, TYPE>();
+      return TypedCsrView<T, TYPE>();
     }
   }
 
