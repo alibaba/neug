@@ -14,7 +14,7 @@ The following extensions are currently supported or planned to be supported in N
 | --------------- | ----------------------------- | ------------------------------------------------------------------------ | ------------- |
 | Data Source     | [JSON](load_json.md)          | Import & export  data from JSON file format                              | v0.1          |
 | Data Source     | [PARQUET](load_parquet.md)                      | Import & Export data from PARQUET format files                           | v0.1.1  |
-| VFS             | HTTP/HTTPS/S3/OSS             | Provide data source based on HTTP/HTTPS/S3/OSS protocol                  | planned v0.2  |
+| File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md)         | Provide data source based on HTTP/HTTPS/S3/OSS protocol                  | v0.2  |
 | Graph Algorithm | K-Core                        | Find all subgraphs with core number ≥ k. Returns`(node, core_number)`   | planned v0.2  |
 | Graph Algorithm | PageRank                      | Calculate node importance scores. Returns`(node, rank)`                  | planned v0.2  |
 | Graph Algorithm | Shortest Path (Dijkstra)      | Single-source shortest path algorithm                                    | planned v0.2  |

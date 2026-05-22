@@ -257,8 +257,9 @@ bool neug_AtomicityC(neug::NeugDBSession& db, int64_t person2_id,
     txn.Abort();
     return false;
   }
+  const void* edge_prop = nullptr;
   if (!gui.AddEdge(person_label_id, vit, person_label_id, vid, knows_label_id,
-                   {Property::from_int64(since)})) {
+                   {Property::from_int64(since)}, edge_prop)) {
     txn.Abort();
     return false;
   }
@@ -366,8 +367,10 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
                         {Property::from_int64(p2_id_property),
                          Property::from_string_view(value)},
                         vid1));
+    const void* edge_prop = nullptr;
     CHECK(gii.AddEdge(person_label_id, vid0, person_label_id, vid1,
-                      knows_label_id, {Property::from_string_view(value)}));
+                      knows_label_id, {Property::from_string_view(value)},
+                      edge_prop));
   }
   txn.Commit();
   return svc;
@@ -838,8 +841,9 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
     }
   }
   CHECK(found);
+  const void* edge_prop = nullptr;
   if (!txn.AddEdge(person_label_id, person_vid, post_label_id, post_vid,
-                   likes_label_id, {})) {
+                   likes_label_id, {}, edge_prop)) {
     txn.Abort();
     return false;
   }
@@ -935,8 +939,9 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
       vids.push_back(vid);
     }
     for (int i = 0; i < 4; i++) {
+      const void* edge_prop = nullptr;
       CHECK(gii.AddEdge(person_label_id, vids[i], person_label_id,
-                        vids[(i + 1) % 4], knows_label_id, {}));
+                        vids[(i + 1) % 4], knows_label_id, {}, edge_prop));
     }
   }
   txn.Commit();

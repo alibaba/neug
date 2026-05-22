@@ -82,6 +82,27 @@ function(build_arrow_as_third_party)
     else()
         set(ARROW_PARQUET OFF CACHE BOOL "" FORCE)
     endif()
+    if(ARROW_ENABLE_S3)
+        set(ARROW_S3 ON CACHE BOOL "" FORCE)
+        # On Debian/Ubuntu multiarch, headers and libraries live under
+        # /usr/include/<triplet>/ and /usr/lib/<triplet>/ which CMake's
+        # FindCURL may not search by default.  Use CMAKE_LIBRARY_ARCHITECTURE
+        # (auto-detected triplet, e.g. x86_64-linux-gnu or aarch64-linux-gnu).
+        if(CMAKE_LIBRARY_ARCHITECTURE)
+            set(_curl_multiarch_inc "/usr/include/${CMAKE_LIBRARY_ARCHITECTURE}")
+            set(_curl_multiarch_lib "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}")
+            if(NOT CURL_INCLUDE_DIR AND EXISTS "${_curl_multiarch_inc}/curl/curl.h")
+                set(CURL_INCLUDE_DIR "${_curl_multiarch_inc}" CACHE PATH "" FORCE)
+            endif()
+            if(NOT CURL_LIBRARY AND EXISTS "${_curl_multiarch_lib}/libcurl.so")
+                set(CURL_LIBRARY "${_curl_multiarch_lib}/libcurl.so" CACHE FILEPATH "" FORCE)
+            endif()
+            unset(_curl_multiarch_inc)
+            unset(_curl_multiarch_lib)
+        endif()
+    else()
+        set(ARROW_S3 OFF CACHE BOOL "" FORCE)
+    endif()
     # Enable Snappy and Zlib
     set(ARROW_WITH_SNAPPY ON CACHE BOOL "" FORCE)
     set(ARROW_WITH_ZLIB ON CACHE BOOL "" FORCE)
@@ -91,7 +112,6 @@ function(build_arrow_as_third_party)
     set(ARROW_WITH_BROTLI OFF CACHE BOOL "" FORCE)
     set(ARROW_PLASMA OFF CACHE BOOL "" FORCE)
     set(ARROW_PYTHON OFF CACHE BOOL "" FORCE)
-    set(ARROW_S3 OFF CACHE BOOL "" FORCE)
     set(ARROW_IPC ON CACHE BOOL "" FORCE)
     set(ARROW_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
     set(ARROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -303,23 +323,42 @@ function(build_arrow_as_third_party)
         set(ARROW_SOURCE_DIR ${arrow_SOURCE_DIR} PARENT_SCOPE)
         set(ARROW_BINARY_DIR ${arrow_BINARY_DIR} PARENT_SCOPE)
 
-        # Handle bundled dependencies if they exist
+        # Handle bundled dependencies.
+        # arrow_bundled_dependencies is an IMPORTED target (intentionally not
+        # GLOBAL) created inside Arrow's subdirectory scope.  It may or may
+        # not be visible here depending on CMake version / scope rules.
+        # We export the .a file path as ARROW_BUNDLED_DEPS_LIB so that each
+        # extension can PRIVATELY link it without changing target visibility.
+        set(_ARROW_BUNDLED_DEPS_LIB "")
         if(TARGET arrow_bundled_dependencies)
-            message(STATUS "arrow_bundled_dependencies found")
-            # Check if we have a static target to add dependencies to
+            message(STATUS "arrow_bundled_dependencies target found")
             if(TARGET arrow_static)
                 add_dependencies(arrow_static arrow_bundled_dependencies)
-            elseif(TARGET Arrow::arrow_static)
-                # Note: Cannot add dependencies to imported targets
-                message(STATUS "Arrow::arrow_static is imported, cannot add dependencies")
             endif()
-            
-            # Try to get the location and install if it's a real file
-            get_target_property(arrow_bundled_dependencies_location arrow_bundled_dependencies IMPORTED_LOCATION)
-            if(arrow_bundled_dependencies_location AND EXISTS ${arrow_bundled_dependencies_location})
-                install(FILES ${arrow_bundled_dependencies_location} DESTINATION lib)
+            get_target_property(_bundled_loc arrow_bundled_dependencies IMPORTED_LOCATION)
+            if(_bundled_loc)
+                set(_ARROW_BUNDLED_DEPS_LIB "${_bundled_loc}")
+                install(FILES "${_bundled_loc}" DESTINATION lib)
             endif()
         endif()
+        # Fallback: construct the expected path when the IMPORTED target is
+        # not visible in this scope.  The .a is generated at build time by
+        # Arrow's custom merge command (arrow_bundled_dependencies_merge,
+        # which IS a globally visible target), so we wire the build
+        # dependency through arrow_static to guarantee correct ordering.
+        if(NOT _ARROW_BUNDLED_DEPS_LIB)
+            string(TOLOWER "${CMAKE_BUILD_TYPE}" _arrow_bt_lower)
+            set(_bundled_candidate "${arrow_BINARY_DIR}/${_arrow_bt_lower}/libarrow_bundled_dependencies.a")
+            set(_ARROW_BUNDLED_DEPS_LIB "${_bundled_candidate}")
+            message(STATUS "arrow_bundled_dependencies path (constructed): ${_bundled_candidate}")
+            if(TARGET arrow_bundled_dependencies_merge AND TARGET arrow_static)
+                add_dependencies(arrow_static arrow_bundled_dependencies_merge)
+            endif()
+        endif()
+        if(_ARROW_BUNDLED_DEPS_LIB)
+            message(STATUS "Arrow bundled deps lib: ${_ARROW_BUNDLED_DEPS_LIB}")
+        endif()
+        set(ARROW_BUNDLED_DEPS_LIB "${_ARROW_BUNDLED_DEPS_LIB}" PARENT_SCOPE)
 
         # install the headers of arrow to system
         install(DIRECTORY ${arrow_SOURCE_DIR}/cpp/src/arrow

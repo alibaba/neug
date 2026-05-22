@@ -89,7 +89,6 @@ function(add_extension_test)
         message(FATAL_ERROR "add_extension_test: ${_sources_var} is not set. Set it in the extension CMakeLists before calling add_extension_test.")
     endif()
     set(_test_name ${ARG_NAME}_extension_test)
-    find_package(OpenSSL REQUIRED)
     add_executable(${_test_name}
         ${ARG_TEST_SRCS}
         ${${_sources_var}})
@@ -130,5 +129,7 @@ endfunction()
 
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add httpfs extension (S3/OSS + HTTP/HTTPS)
+add_extension_if_enabled("httpfs")
 
 message(STATUS "=== Extension configuration complete ===")

@@ -98,7 +98,9 @@ class InsertTransaction {
    * @param label Vertex label/type
    * @param id Vertex primary key value
    * @param props Vector of property values matching schema order
-   * @return true if vertex added successfully, false if validation fails
+   * @param vid Output: assigned internal vertex ID on success
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. property count/type mismatch).
    *
    * Implementation: Validates property count against schema, serializes
    * operation to arc_ with op_type=0, adds vertex to added_vertices_ tracking
@@ -106,8 +108,8 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  bool AddVertex(label_t label, const Property& id,
-                 const std::vector<Property>& props, vid_t& vid);
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid);
 
   /**
    * @brief Add a new edge to the transaction.
@@ -120,16 +122,22 @@ class InsertTransaction {
    * @param dst_label Destination vertex label
    * @param dst Destination vertex ID
    * @param edge_label Edge label/type
-   * @param prop Edge property value
-   * @return true if edge added successfully, false if vertices don't exist
+   * @param properties Edge property values matching schema order
+   * @param prop Output: pointer to the inserted edge property storage. For an
+   *             insert transaction this is always set to nullptr because the
+   *             edge property is not actually inserted into the graph until
+   *             commit.
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. missing source/destination vertex, property mismatch).
    *
    * Implementation: Uses graph.get_lid() and added_vertices_ to find vertices,
    * serializes operation to arc_ with op_type=1.
    *
    * @since v0.1.0
    */
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop);
 
   /**
    * @brief Commit the transaction.
@@ -188,16 +196,16 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
   ~StorageTPInsertInterface() {}
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop) override {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                        prop);
   }
 
   inline const Schema& schema() const override { return txn_.schema(); }
