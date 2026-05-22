@@ -43,7 +43,7 @@ bool resolve_vertex_label_id(const Schema& schema, const common::NameOrId& ni,
     return true;
   }
   case common::NameOrId::kName: {
-    if (!schema.contains_vertex_label(ni.name())) {
+    if (!schema.is_vertex_label_valid(ni.name())) {
       LOG(ERROR) << "Unknown vertex type: " << ni.DebugString();
       return false;
     }
@@ -67,7 +67,7 @@ bool resolve_edge_triplet(const Schema& schema,
     break;
   case common::NameOrId::kName: {
     const auto& name = edge_type.type_name().name();
-    if (!schema.contains_edge_label(name)) {
+    if (!schema.is_edge_label_valid(name)) {
       LOG(ERROR) << "Unknown edge type: "
                  << edge_type.type_name().DebugString();
       return false;

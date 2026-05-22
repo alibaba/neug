@@ -591,11 +591,6 @@ class PropertyGraph {
                             const std::string& dst_type_name,
                             const std::string& edge_type_name);
 
-  // Check whether the edge triplet exists, maybe marked as deleted
-  Status edge_triplet_exist(const std::string& src_type_name,
-                            const std::string& dst_type_name,
-                            const std::string& edge_type_name);
-
   Status vertex_label_check(const std::string& vertex_type_name);
 
   void compact_schema();

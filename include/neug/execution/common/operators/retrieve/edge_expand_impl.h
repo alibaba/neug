@@ -73,7 +73,7 @@ get_label_dirs(label_t input_label, const Schema& schema,
                const std::vector<LabelTriplet>& labels, Direction dir) {
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
-    if (!schema.exist(triplet.src_label, triplet.dst_label,
+    if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
                       triplet.edge_label)) {
       continue;
     }
@@ -103,7 +103,7 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs(
       label_num);
   for (auto& triplet : labels) {
-    if (!schema.exist(triplet.src_label, triplet.dst_label,
+    if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
                       triplet.edge_label)) {
       continue;
     }
@@ -229,7 +229,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
   std::set<label_t> nbr_labels;
   bool single_view_per_label = true;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {
@@ -636,7 +636,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::set<label_t> nbr_labels;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {
@@ -1017,7 +1017,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
   std::vector<std::vector<GenericView>> views(label_num);
   std::vector<LabelTriplet> all_triplets;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {
