@@ -1,0 +1,48 @@
+# Build artifacts (CMakeCache.txt records absolute host paths and breaks
+# in-container builds, so we MUST exclude every local build directory)
+build/
+**/build/
+dist/
+**/dist/
+wheelhouse/
+**/wheelhouse/
+**/*.egg-info/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+
+# Test / coverage outputs
+coverage_html/
+coverage_html.tar.gz
+**/coverage*.info
+**/*.gcda
+**/*.gcno
+
+# IDE / editor / VCS metadata
+.git/
+.idea/
+.vscode/
+.qoder/
+.cursor/
+.devcontainer/
+**/.DS_Store
+
+# Python virtualenvs
+.venv/
+venv/
+env/
+
+# Pre-built wheels we never want to ship in builder context
+tools/python_bind/dist/
+tools/python_bind/build/
+tools/python_bind/neug.egg-info/
+tools/python_bind/neug/*.so
+
+# Top-level cmake build outputs (out-of-source builds)
+cmake-build-*/
+
+# Logs / scratch files
+*.log
+serve.log
+batch.log
+benchmark.log
