@@ -16,7 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/mutable_csr.h"
 
 static const size_t src_v_num = 5;
@@ -170,7 +170,7 @@ class MutableCsrTest : public ::testing::Test {
     }
   }
 
-  bool check_edge_data_ordered(GenericView& generic_view) {
+  bool check_edge_data_ordered(CsrView& generic_view) {
     for (vid_t v = 0; v < src_v_num; v++) {
       if constexpr (std::is_same_v<EDATA_T, int32_t>) {
         NbrList nbr_list = generic_view.get_edges(0);
@@ -443,7 +443,7 @@ TYPED_TEST(MutableCsrTest, TestSortByEdgeData) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
   mutable_csr.batch_sort_by_edge_data(sort_ts);
-  GenericView mutable_view = mutable_csr.get_generic_view(sort_ts);
+  CsrView mutable_view = mutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(mutable_view.type(), CsrViewType::kMultipleMutable);
   EXPECT_TRUE(this->check_edge_data_ordered(mutable_view));
   mutable_csr.close();
@@ -451,8 +451,7 @@ TYPED_TEST(MutableCsrTest, TestSortByEdgeData) {
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
   single_mutable_csr.batch_sort_by_edge_data(sort_ts);
-  GenericView single_mutable_view =
-      single_mutable_csr.get_generic_view(sort_ts);
+  CsrView single_mutable_view = single_mutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(single_mutable_view.type(), CsrViewType::kSingleMutable);
   single_mutable_csr.close();
 

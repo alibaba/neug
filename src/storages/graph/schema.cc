@@ -458,21 +458,21 @@ label_t Schema::edge_label_frontier() const {
   return static_cast<label_t>(elabel_indexer_.size());
 }
 
-bool Schema::contains_vertex_label(const std::string& label) const {
+bool Schema::is_vertex_label_valid(const std::string& label) const {
   label_t ret;
   return vlabel_indexer_.get_index(label, ret) && !vlabel_tomb_.get(ret);
 }
 
-bool Schema::contains_edge_label(const std::string& label) const {
+bool Schema::is_edge_label_valid(const std::string& label) const {
   label_t ret;
   return elabel_indexer_.get_index(label, ret) && !elabel_tomb_.get(ret);
 }
 
-bool Schema::vertex_label_valid(label_t label_id) const {
+bool Schema::is_vertex_label_valid(label_t label_id) const {
   return label_id < vlabel_indexer_.size() && !vlabel_tomb_.get(label_id);
 }
 
-bool Schema::edge_label_valid(label_t label_id) const {
+bool Schema::is_edge_label_valid(label_t label_id) const {
   return label_id < elabel_indexer_.size() && !elabel_tomb_.get(label_id);
 }
 
@@ -588,23 +588,24 @@ size_t Schema::get_max_vnum(const std::string& label) const {
   return v_schemas_[index]->max_num;
 }
 
-bool Schema::exist(const std::string& src_label, const std::string& dst_label,
-                   const std::string& edge_label) const {
-  if (!contains_vertex_label(src_label) || !contains_vertex_label(dst_label) ||
-      !contains_edge_label(edge_label)) {
+bool Schema::is_edge_triplet_valid(const std::string& src_label,
+                                   const std::string& dst_label,
+                                   const std::string& edge_label) const {
+  if (!is_vertex_label_valid(src_label) || !is_vertex_label_valid(dst_label) ||
+      !is_edge_label_valid(edge_label)) {
     return false;
   }
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);
-  return exist(src, dst, edge);
+  return is_edge_triplet_valid(src, dst, edge);
 }
 
-bool Schema::exist(label_t src_label, label_t dst_label,
-                   label_t edge_label) const {
-  return edge_triplet_valid(src_label, dst_label, edge_label) &&
-         e_schemas_.count(
-             generate_edge_label(src_label, dst_label, edge_label)) > 0;
+bool Schema::is_edge_triplet_valid(label_t src_label, label_t dst_label,
+                                   label_t edge_label) const {
+  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
+  return (elabel_triplet_tomb_.size() > index) &&
+         !elabel_triplet_tomb_.get(index) && e_schemas_.count(index) > 0;
 }
 
 std::vector<DataType> Schema::get_edge_properties(
@@ -775,12 +776,6 @@ std::optional<std::string> Schema::get_sort_key_for_nbr(label_t src_label,
   return e_schemas_.at(index)->sort_key_for_nbr;
 }
 
-bool Schema::edge_triplet_valid(label_t src, label_t dst, label_t edge) const {
-  uint32_t index = generate_edge_label(src, dst, edge);
-  return (elabel_triplet_tomb_.size() > index) &&
-         !elabel_triplet_tomb_.get(index);
-}
-
 const std::string& Schema::get_vertex_label_name(label_t index) const {
   std::string ret;
   if (vlabel_tomb_.get(index)) {
@@ -910,10 +905,10 @@ bool Schema::Equals(const Schema& other) const {
     return false;
   }
   for (label_t i = 0; i < vertex_label_frontier(); ++i) {
-    if (vertex_label_valid(i) ^ other.vertex_label_valid(i)) {
+    if (is_vertex_label_valid(i) ^ other.is_vertex_label_valid(i)) {
       return false;
     }
-    if (!vertex_label_valid(i)) {
+    if (!is_vertex_label_valid(i)) {
       continue;
     }
     std::string label_name = get_vertex_label_name(i);
@@ -930,12 +925,12 @@ bool Schema::Equals(const Schema& other) const {
   }
   for (label_t src_label = 0; src_label < vertex_label_frontier();
        ++src_label) {
-    if (!vertex_label_valid(src_label)) {
+    if (!is_vertex_label_valid(src_label)) {
       continue;
     }
     for (label_t dst_label = 0; dst_label < vertex_label_frontier();
          ++dst_label) {
-      if (!vertex_label_valid(dst_label)) {
+      if (!is_vertex_label_valid(dst_label)) {
         continue;
       }
       for (label_t edge_label = 0; edge_label < edge_label_frontier();
@@ -943,10 +938,10 @@ bool Schema::Equals(const Schema& other) const {
         std::string src_label_name = get_vertex_label_name(src_label);
         std::string dst_label_name = get_vertex_label_name(dst_label);
         std::string edge_label_name = get_edge_label_name(edge_label);
-        auto lhs_exists =
-            exist(src_label_name, dst_label_name, edge_label_name);
-        auto rhs_exists =
-            other.exist(src_label_name, dst_label_name, edge_label_name);
+        auto lhs_exists = is_edge_triplet_valid(src_label_name, dst_label_name,
+                                                edge_label_name);
+        auto rhs_exists = other.is_edge_triplet_valid(
+            src_label_name, dst_label_name, edge_label_name);
         if (lhs_exists != rhs_exists) {
           return false;
         }
@@ -1139,7 +1134,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
                   "vertex type_name is not set");
   }
   // Cannot add two vertex label with same name
-  if (schema.contains_vertex_label(label_name)) {
+  if (schema.is_vertex_label_valid(label_name)) {
     LOG(ERROR) << "Vertex label " << label_name << " already exists";
     return Status(StatusCode::ERR_INVALID_SCHEMA,
                   "Vertex label " + label_name + " already exists");
@@ -1321,8 +1316,8 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
                         edge_label_name + "] in vertex_type_pair_relations");
     }
     // check whether edge triplet exists in current schema
-    if (schema.has_edge_label(src_label_name, dst_label_name,
-                              edge_label_name)) {
+    if (schema.has_edge_triplet(src_label_name, dst_label_name,
+                                edge_label_name)) {
       LOG(ERROR) << "Edge [" << edge_label_name << "] from [" << src_label_name
                  << "] to [" << dst_label_name << "] already exists";
       return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -1595,7 +1590,7 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
-        if (schema.exist(src_v, dst_v, e_label)) {
+        if (schema.is_edge_triplet_valid(src_v, dst_v, e_label)) {
           if (!properties_set) {
             auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
             auto property_names =
@@ -1658,7 +1653,7 @@ bool Schema::vertex_has_property(const std::string& label,
 
 bool Schema::vertex_has_property(label_t v_label,
                                  const std::string& prop) const {
-  assert(vertex_label_valid(v_label));
+  assert(is_vertex_label_valid(v_label));
   return v_schemas_.at(v_label)->has_property(prop);
 }
 
@@ -1696,11 +1691,11 @@ bool Schema::edge_has_property(label_t src_label, label_t dst_label,
   return e_schemas_.at(label_id)->has_property(prop);
 }
 
-bool Schema::has_edge_label(const std::string& src_label,
-                            const std::string& dst_label,
-                            const std::string& label) const {
+bool Schema::has_edge_triplet(const std::string& src_label,
+                              const std::string& dst_label,
+                              const std::string& label) const {
   label_t edge_label_id;
-  if (!contains_vertex_label(src_label) || !contains_vertex_label(dst_label)) {
+  if (!is_vertex_label_valid(src_label) || !is_vertex_label_valid(dst_label)) {
     LOG(ERROR) << "src_label or dst_label not found:" << src_label << ", "
                << dst_label;
     return false;
@@ -1710,11 +1705,11 @@ bool Schema::has_edge_label(const std::string& src_label,
   if (!elabel_indexer_.get_index(label, edge_label_id)) {
     return false;
   }
-  return has_edge_label(src_label_id, dst_label_id, edge_label_id);
+  return has_edge_triplet(src_label_id, dst_label_id, edge_label_id);
 }
 
-bool Schema::has_edge_label(label_t src_label, label_t dst_label,
-                            label_t edge_label) const {
+bool Schema::has_edge_triplet(label_t src_label, label_t dst_label,
+                              label_t edge_label) const {
   uint32_t e_label_id = generate_edge_label(src_label, dst_label, edge_label);
   return e_schemas_.find(e_label_id) != e_schemas_.end();
 }
@@ -1773,59 +1768,60 @@ void Schema::AddVertexProperties(
                                          properties_default_values);
 }
 
-bool Schema::IsVertexLabelSoftDeleted(const std::string& label) const {
+bool Schema::is_vertex_label_soft_deleted(const std::string& label) const {
   auto v_label_id = get_vertex_label_id_internal(label);
   return vlabel_tomb_.get(v_label_id) && !v_schemas_[v_label_id]->empty();
 }
 
-bool Schema::IsVertexLabelSoftDeleted(label_t v_label) const {
+bool Schema::is_vertex_label_soft_deleted(label_t v_label) const {
   return vlabel_tomb_.get(v_label) && !v_schemas_[v_label]->empty();
 }
 
-bool Schema::IsEdgeLabelSoftDeleted(const std::string& src_label,
-                                    const std::string& dst_label,
-                                    const std::string& edge_label) const {
+bool Schema::is_edge_label_soft_deleted(const std::string& src_label,
+                                        const std::string& dst_label,
+                                        const std::string& edge_label) const {
   label_t src = get_vertex_label_id_internal(src_label);
   label_t dst = get_vertex_label_id_internal(dst_label);
   label_t edge = get_edge_label_id_internal(edge_label);
-  return IsEdgeLabelSoftDeleted(src, dst, edge);
+  return is_edge_label_soft_deleted(src, dst, edge);
 }
 
-bool Schema::IsEdgeLabelSoftDeleted(label_t src_label, label_t dst_label,
-                                    label_t edge_label) const {
-  assert(vertex_label_valid(src_label) || IsVertexLabelSoftDeleted(src_label));
-  assert(vertex_label_valid(dst_label) || IsVertexLabelSoftDeleted(dst_label));
-  assert(edge_label_valid(edge_label));
+bool Schema::is_edge_label_soft_deleted(label_t src_label, label_t dst_label,
+                                        label_t edge_label) const {
+  assert(is_vertex_label_valid(src_label) ||
+         is_vertex_label_soft_deleted(src_label));
+  assert(is_vertex_label_valid(dst_label) ||
+         is_vertex_label_soft_deleted(dst_label));
+  assert(is_edge_label_valid(edge_label));
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
   return elabel_triplet_tomb_.get(index) && e_schemas_.count(index) > 0;
 }
 
-bool Schema::IsVertexPropertySoftDeleted(
+bool Schema::is_vertex_property_soft_deleted(
     const std::string& label, const std::string& property_name) const {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   return v_schemas_[v_label_id]->is_property_soft_deleted(property_name);
 }
 
-bool Schema::IsVertexPropertySoftDeleted(
+bool Schema::is_vertex_property_soft_deleted(
     label_t v_label, const std::string& property_name) const {
   assert(v_label < v_schemas_.size());
   return v_schemas_[v_label]->is_property_soft_deleted(property_name);
 }
 
-bool Schema::IsEdgePropertySoftDeleted(const std::string& src_label,
-                                       const std::string& dst_label,
-                                       const std::string& edge_label,
-                                       const std::string& property_name) const {
+bool Schema::is_edge_property_soft_deleted(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label, const std::string& property_name) const {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);
-  return IsEdgePropertySoftDeleted(src, dst, edge, property_name);
+  return is_edge_property_soft_deleted(src, dst, edge, property_name);
 }
 
-bool Schema::IsEdgePropertySoftDeleted(label_t src_label, label_t dst_label,
-                                       label_t edge_label,
-                                       const std::string& property_name) const {
+bool Schema::is_edge_property_soft_deleted(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    const std::string& property_name) const {
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
   assert(e_schemas_.count(index) > 0);
   return e_schemas_.at(index)->is_property_soft_deleted(property_name);
@@ -1881,7 +1877,7 @@ void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
       if (vlabel_tomb_.get(dst_v_label)) {
         continue;
       }
-      if (exist(src_v_label, dst_v_label, e_label_id)) {
+      if (is_edge_triplet_valid(src_v_label, dst_v_label, e_label_id)) {
         uint32_t index =
             generate_edge_label(src_v_label, dst_v_label, e_label_id);
         if (!is_soft) {
@@ -1991,12 +1987,12 @@ void Schema::RevertDeleteEdgeProperties(
 std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
                                       label_t edge_label) const {
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
-  if (!edge_triplet_valid(src_label, dst_label, edge_label)) {
+  if (!is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_RUNTIME_ERROR(
         "Edge label triplet not found: " + std::to_string(src_label) + "-" +
         std::to_string(edge_label) + "->" + std::to_string(dst_label));
   }
-  assert(edge_triplet_valid(src_label, dst_label, edge_label));
+  assert(is_edge_triplet_valid(src_label, dst_label, edge_label));
   assert(e_schemas_.count(index) > 0);
   auto oe_strategy = e_schemas_.at(index)->oe_strategy;
   auto ie_strategy = e_schemas_.at(index)->ie_strategy;
@@ -2050,14 +2046,14 @@ void Schema::RevertDeleteEdgeLabel(const std::string& src_label,
 }
 
 void Schema::ensure_vertex_label_valid(label_t v_label_id) const {
-  if (!vertex_label_valid(v_label_id)) {
+  if (!is_vertex_label_valid(v_label_id)) {
     THROW_RUNTIME_ERROR("Vertex label id " + std::to_string(v_label_id) +
                         " is not valid");
   }
 }
 
 void Schema::ensure_edge_label_valid(label_t e_label_id) const {
-  if (!edge_label_valid(e_label_id)) {
+  if (!is_edge_label_valid(e_label_id)) {
     THROW_RUNTIME_ERROR("Edge label id " + std::to_string(e_label_id) +
                         " is not valid");
   }
@@ -2065,7 +2061,7 @@ void Schema::ensure_edge_label_valid(label_t e_label_id) const {
 
 void Schema::ensure_edge_triplet_valid(label_t src_label, label_t dst_label,
                                        label_t edge_label) const {
-  if (!edge_triplet_valid(src_label, dst_label, edge_label)) {
+  if (!is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_RUNTIME_ERROR(
         "Edge label triplet not found: " + std::to_string(src_label) + "-" +
         std::to_string(edge_label) + "->" + std::to_string(dst_label));
@@ -2090,7 +2086,7 @@ label_t Schema::get_edge_label_id_internal(const std::string& label) const {
 
 bool Schema::vertex_has_property_internal(label_t label,
                                           const std::string& prop) const {
-  assert(vertex_label_valid(label));
+  assert(is_vertex_label_valid(label));
   return v_schemas_.at(label)->has_property_internal(prop);
 }
 
@@ -2139,7 +2135,7 @@ Schema Schema::Compact() const {
     std::tie(src_v, dst_v, e_label) = parse_edge_label(pair.first);
     if (vlabel_tomb_.get(src_v) || vlabel_tomb_.get(dst_v) ||
         elabel_tomb_.get(e_label) ||
-        !edge_triplet_valid(src_v, dst_v, e_label)) {
+        !is_edge_triplet_valid(src_v, dst_v, e_label)) {
       continue;
     }
     auto src_label_name = vlabel_indexer_.get_key(src_v);

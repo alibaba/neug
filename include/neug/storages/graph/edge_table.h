@@ -20,11 +20,12 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
@@ -73,8 +74,8 @@ class EdgeTable {
 
   size_t PropertyNum() const;
 
-  GenericView get_outgoing_view(timestamp_t ts) const;
-  GenericView get_incoming_view(timestamp_t ts) const;
+  CsrView get_outgoing_view(timestamp_t ts) const;
+  CsrView get_incoming_view(timestamp_t ts) const;
 
   EdgeDataAccessor get_edge_data_accessor(int col_id) const;
 
@@ -91,9 +92,9 @@ class EdgeTable {
 
   // Add a single edge to the edge table. Note this method requires an Allocator
   // to allocate memory for the edge data. Should be called in tp mode.
-  int32_t AddEdge(vid_t src_lid, vid_t dst_lid,
-                  const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc, bool insert_safe);
+  std::pair<int32_t, const void*> AddEdge(
+      vid_t src_lid, vid_t dst_lid, const std::vector<Property>& properties,
+      timestamp_t ts, Allocator& alloc, bool insert_safe);
 
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);

@@ -132,13 +132,21 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
 
   Allocator allocator(MemoryLevel::kInMemory, "");
   for (vid_t i = 0; i < 4094; ++i) {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
     graph_->AddEdge(person_label, i, person_label, i + 1, knows_label,
-                    {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator);
+                    {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator,
+                    oe_offset, prop);
   }
-  EXPECT_THROW(
-      graph_->AddEdge(person_label, 4095, person_label, 4096, knows_label,
-                      {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator),
-      exception::Exception);
+  {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
+    EXPECT_FALSE(graph_
+                     ->AddEdge(person_label, 4095, person_label, 4096,
+                               knows_label, {Property::from_double(1.0)},
+                               MAX_TIMESTAMP, allocator, oe_offset, prop)
+                     .ok());
+  }
 }
 
 }  // namespace neug

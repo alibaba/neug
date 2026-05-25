@@ -17,8 +17,8 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/result.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/result.h"
 
 #include <glog/logging.h>
 #include <string>
@@ -64,7 +64,7 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
     break;
   case common::NameOrId::kName: {
     const auto& name = vertex_type_.name();
-    if (!graph.schema().contains_vertex_label(name)) {
+    if (!graph.schema().is_vertex_label_valid(name)) {
       LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Unknown vertex type: " + name);
@@ -73,8 +73,9 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
     break;
   }
   default:
-    THROW_INVALID_ARGUMENT_EXCEPTION("BatchInsertVertexOpr: invalid vertex_type: " +
-                                     vertex_type_.DebugString());
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "BatchInsertVertexOpr: invalid vertex_type: " +
+        vertex_type_.DebugString());
   }
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   for (auto supplier : suppliers) {

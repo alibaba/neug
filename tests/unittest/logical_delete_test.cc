@@ -110,7 +110,7 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteVertexType_RemovesTypeAndData) {
   ASSERT_TRUE(status.ok());
 
   // Verify vertex type exists
-  EXPECT_TRUE(graph_.schema().contains_vertex_label("Person"));
+  EXPECT_TRUE(graph_.schema().is_vertex_label_valid("Person"));
   label_t v_label = graph_.schema().get_vertex_label_id("Person");
   EXPECT_EQ(graph_.schema().get_vertex_label_name(v_label), "Person");
 
@@ -119,7 +119,7 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteVertexType_RemovesTypeAndData) {
   ASSERT_TRUE(status.ok());
 
   // Verify type is physically deleted (not visible in schema)
-  EXPECT_FALSE(graph_.schema().contains_vertex_label("Person"));
+  EXPECT_FALSE(graph_.schema().is_vertex_label_valid("Person"));
 }
 
 // Test corner case: Create -> Delete Physical -> Create again
@@ -139,17 +139,17 @@ TEST_F(PropertyGraphLogicalDeleteTest, CreateDeletePhysicalRecreate_Succeeds) {
   // Physical delete
   status = graph_.DeleteVertexType("Person");
   ASSERT_TRUE(status.ok());
-  EXPECT_FALSE(graph_.schema().contains_vertex_label("Person"));
+  EXPECT_FALSE(graph_.schema().is_vertex_label_valid("Person"));
 
   // Recreate should succeed
   status = graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", properties, pk_names));
   ASSERT_TRUE(status.ok());
   label_t second_label = graph_.schema().get_vertex_label_id("Person");
-  EXPECT_TRUE(graph_.schema().vertex_label_valid(second_label));
+  EXPECT_TRUE(graph_.schema().is_vertex_label_valid(second_label));
 
   // May get same or different label ID depending on implementation
-  EXPECT_TRUE(graph_.schema().contains_vertex_label("Person"));
+  EXPECT_TRUE(graph_.schema().is_vertex_label_valid("Person"));
 }
 
 TEST_F(PropertyGraphLogicalDeleteTest,
@@ -198,14 +198,15 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteEdgeTypePhysical_RemovesEdgeType) {
   ASSERT_TRUE(status.ok());
 
   // Verify edge exists
-  EXPECT_TRUE(graph_.schema().has_edge_label("Person", "Company", "WorksAt"));
+  EXPECT_TRUE(graph_.schema().has_edge_triplet("Person", "Company", "WorksAt"));
 
   // Delete physically
   status = graph_.DeleteEdgeType("Person", "Company", "WorksAt");
   ASSERT_TRUE(status.ok());
 
   // Verify edge type is removed
-  EXPECT_FALSE(graph_.schema().has_edge_label("Person", "Company", "WorksAt"));
+  EXPECT_FALSE(
+      graph_.schema().has_edge_triplet("Person", "Company", "WorksAt"));
 }
 
 // Test DeleteVertexProperties

@@ -15,7 +15,6 @@
 
 #include "neug/utils/pb_utils.h"
 
-#include "neug/utils/exception/exception.h"
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
 #include <google/protobuf/util/json_util.h>
@@ -25,6 +24,7 @@
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/stringbuffer.h>
 #include <stddef.h>
+#include "neug/utils/exception/exception.h"
 
 #include <cstdint>
 #include <limits>

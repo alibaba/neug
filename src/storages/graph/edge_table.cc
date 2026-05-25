@@ -27,7 +27,7 @@
 #include <string_view>
 #include <utility>
 
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
@@ -730,11 +730,11 @@ size_t EdgeTable::EdgeNum() const {
 
 size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
 
-GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
+CsrView EdgeTable::get_outgoing_view(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
 }
 
-GenericView EdgeTable::get_incoming_view(timestamp_t ts) const {
+CsrView EdgeTable::get_incoming_view(timestamp_t ts) const {
   return in_csr_->get_generic_view(ts);
 }
 
@@ -825,10 +825,11 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
   }
 }
 
-int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
-                           const std::vector<Property>& edge_data,
-                           timestamp_t ts, Allocator& alloc, bool insert_safe) {
+std::pair<int32_t, const void*> EdgeTable::AddEdge(
+    vid_t src_lid, vid_t dst_lid, const std::vector<Property>& edge_data,
+    timestamp_t ts, Allocator& alloc, bool insert_safe) {
   int32_t oe_offset;
+  const void* data_ptr = nullptr;
   if (meta_->is_bundled()) {
     assert(edge_data.size() == 1 ||
            (edge_data.size() == 0 &&
@@ -836,8 +837,10 @@ int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
              meta_->properties[0] == DataTypeId::kEmpty)));
     Property bundled_data = edge_data.empty() ? Property() : edge_data[0];
     in_csr_->put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
-    oe_offset =
+    auto out_ret =
         out_csr_->put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
   } else {
     if (meta_->properties.size() != edge_data.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -847,10 +850,13 @@ int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
     Property prop;
     prop.set_uint64(row_id);
     in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    oe_offset = out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    auto out_ret =
+        out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
     table_->insert(row_id, edge_data, insert_safe);
   }
-  return oe_offset;
+  return {oe_offset, data_ptr};
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
