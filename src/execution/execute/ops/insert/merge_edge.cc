@@ -28,7 +28,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"

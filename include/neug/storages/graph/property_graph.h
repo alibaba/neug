@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
@@ -393,7 +393,7 @@ class PropertyGraph {
   /**
    * @brief Get a view for traversing outgoing edges.
    *
-   * Returns a GenericView for efficiently iterating over outgoing edges
+   * Returns a CsrView for efficiently iterating over outgoing edges
    * from vertices of type v_label to vertices of type neighbor_label.
    *
    * **Usage Example:**
@@ -402,7 +402,7 @@ class PropertyGraph {
    * label_t person = schema.get_vertex_label_id("Person");
    * label_t knows = schema.get_edge_label_id("KNOWS");
    *
-   * GenericView view = graph.GetGenericOutgoingGraphView(
+   * CsrView view = graph.GetGenericOutgoingGraphView(
    *     person, person, knows, read_ts);
    *
    * // Traverse from vertex v
@@ -418,16 +418,16 @@ class PropertyGraph {
    * @param edge_label Edge label connecting them
    * @param ts Read timestamp for MVCC (default: latest)
    *
-   * @return GenericView for outgoing edge traversal
+   * @return CsrView for outgoing edge traversal
    *
    * @throws std::invalid_argument if edge triplet doesn't exist
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    * @see GetGenericIncomingGraphView For reverse traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericOutgoingGraphView(
+  CsrView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
@@ -442,13 +442,13 @@ class PropertyGraph {
   /**
    * @brief Get a view for traversing incoming edges.
    *
-   * Returns a GenericView for efficiently iterating over incoming edges
+   * Returns a CsrView for efficiently iterating over incoming edges
    * to vertices of type v_label from vertices of type neighbor_label.
    *
    * **Usage Example:**
    * @code{.cpp}
    * // Get view for Person <-[KNOWS]- Person edges (reverse direction)
-   * GenericView view = graph.GetGenericIncomingGraphView(
+   * CsrView view = graph.GetGenericIncomingGraphView(
    *     person, person, knows, read_ts);
    *
    * // Find who follows vertex v (incoming edges)
@@ -463,16 +463,16 @@ class PropertyGraph {
    * @param edge_label Edge label connecting them
    * @param ts Read timestamp for MVCC (default: latest)
    *
-   * @return GenericView for incoming edge traversal
+   * @return CsrView for incoming edge traversal
    *
    * @throws std::invalid_argument if edge triplet doesn't exist
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    * @see GetGenericOutgoingGraphView For forward traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericIncomingGraphView(
+  CsrView GetGenericIncomingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
@@ -523,7 +523,7 @@ class PropertyGraph {
    *     person, person, knows, "weight");
    *
    * // Use with edge iteration
-   * GenericView view = graph.GetGenericOutgoingGraphView(...);
+   * CsrView view = graph.GetGenericOutgoingGraphView(...);
    * for (auto it = view.get_edges(v).begin(); ...; ++it) {
    *     double weight = weight_accessor.get_typed_data<double>(it);
    * }
@@ -588,11 +588,6 @@ class PropertyGraph {
                                       std::vector<std::string>& valid_props);
 
   Status edge_triplet_check(const std::string& src_type_name,
-                            const std::string& dst_type_name,
-                            const std::string& edge_type_name);
-
-  // Check whether the edge triplet exists, maybe marked as deleted
-  Status edge_triplet_exist(const std::string& src_type_name,
                             const std::string& dst_type_name,
                             const std::string& edge_type_name);
 

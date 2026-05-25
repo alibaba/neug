@@ -61,7 +61,8 @@ Direction parse_direction(const physical::EdgeExpand_Direction& dir) {
   } else if (dir == physical::EdgeExpand_Direction_BOTH) {
     return Direction::kBoth;
   }
-  THROW_NOT_SUPPORTED_EXCEPTION("not support..." + std::to_string(static_cast<int>(dir)));
+  THROW_NOT_SUPPORTED_EXCEPTION("not support..." +
+                                std::to_string(static_cast<int>(dir)));
   return Direction::kOut;
 }
 
@@ -163,7 +164,8 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
   } else if (v == physical::GroupBy_AggFunc::AVG) {
     return AggrKind::kAvg;
   } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(v)));
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                  std::to_string(static_cast<int>(v)));
     return AggrKind::kSum;
   }
 }

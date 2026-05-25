@@ -25,7 +25,7 @@
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
@@ -74,8 +74,8 @@ class EdgeTable {
 
   size_t PropertyNum() const;
 
-  GenericView get_outgoing_view(timestamp_t ts) const;
-  GenericView get_incoming_view(timestamp_t ts) const;
+  CsrView get_outgoing_view(timestamp_t ts) const;
+  CsrView get_incoming_view(timestamp_t ts) const;
 
   EdgeDataAccessor get_edge_data_accessor(int col_id) const;
 

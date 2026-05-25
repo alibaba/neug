@@ -24,12 +24,12 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
-#include "neug/utils/exception/exception.h"
 #include <stddef.h>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
 #include <tuple>
+#include "neug/utils/exception/exception.h"
 
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/i_context_column.h"
@@ -614,7 +614,8 @@ void parse_property_mappings(
       auto prop_name = mapping.property().key().name();
       if (mapping.data().operators_size() != 1 ||
           !mapping.data().operators(0).has_var()) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property mapping: " + prop_name);
+        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property mapping: " +
+                                         prop_name);
       }
       auto tag_id = mapping.data().operators(0).var().tag().id();
       prop_mappings.emplace_back(tag_id, prop_name);

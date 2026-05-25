@@ -426,6 +426,62 @@ def run_json_builtin_suite(db_json, conn_json, db_path_json):
     shutil.rmtree(db_path_json, ignore_errors=True)
 
 
+HTTP_VERTEX_PATH = os.environ.get(
+    "NEUG_TEST_HTTP_VERTEX",
+    "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet",
+)
+HTTP_EDGE_PATH = os.environ.get(
+    "NEUG_TEST_HTTP_EDGE",
+    "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet",
+)
+
+
+def run_httpfs_extension_suite(db_httpfs, conn_httpfs, db_path_httpfs):
+    run_statement(conn_httpfs, "LOAD HTTPFS succeeded", "LOAD HTTPFS;")
+    run_statement(
+        conn_httpfs, "LOAD PARQUET succeeded (for HTTPFS tests)", "LOAD PARQUET;"
+    )
+
+    # HTTP: load vPerson.parquet via HTTP URL
+    def _http_vertex(rows):
+        print(f"       HTTP vPerson.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 8, f"Expected 8 rows, got {len(rows)}"
+        assert len(rows[0]) == 16, f"Expected 16 columns, got {len(rows[0])}"
+        return f"LOAD FROM HTTP vPerson.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_httpfs,
+        "LOAD FROM HTTP vPerson.parquet",
+        f'LOAD FROM "{HTTP_VERTEX_PATH}" RETURN *;',
+        _http_vertex,
+        print_traceback=True,
+    )
+
+    # HTTP: load eMeets.parquet via HTTP URL
+    def _http_edge(rows):
+        print(f"       HTTP eMeets.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 7, f"Expected 7 rows, got {len(rows)}"
+        assert len(rows[0]) == 5, f"Expected 5 columns, got {len(rows[0])}"
+        return f"LOAD FROM HTTP eMeets.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_httpfs,
+        "LOAD FROM HTTP eMeets.parquet",
+        f'LOAD FROM "{HTTP_EDGE_PATH}" RETURN *;',
+        _http_edge,
+        print_traceback=True,
+    )
+
+    conn_httpfs.close()
+    db_httpfs.close()
+    ok("Closed HTTPFS extension test database")
+    shutil.rmtree(db_path_httpfs, ignore_errors=True)
+
+
 def run_tinysnb_suite(db_snb, db_path_tinysnb):
     try:
         conn_snb = db_snb.connect()
@@ -789,6 +845,30 @@ else:
 
     if db_parquet is not None and conn_parquet is not None:
         run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet)
+
+# ================================================================
+#  7. Extensions — HTTPFS Extension
+# ================================================================
+section("7. Extensions — HTTPFS Extension (OSS / HTTP)")
+
+_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
+_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
+
+if not _run_ext_tests:
+    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
+else:
+    conn_httpfs = None
+    db_path_httpfs = tempfile.mkdtemp(prefix="neug_httpfs_ext_")
+    try:
+        db_httpfs = neug.Database(db_path_httpfs)
+        conn_httpfs = db_httpfs.connect()
+        ok(f"Created persistent database for HTTPFS extension test at {db_path_httpfs}")
+    except Exception as e:
+        fail("Create database for HTTPFS extension", e)
+        db_httpfs = None
+
+    if db_httpfs is not None and conn_httpfs is not None:
+        run_httpfs_extension_suite(db_httpfs, conn_httpfs, db_path_httpfs)
 
 # ================================================================
 #  Summary

@@ -25,13 +25,13 @@ namespace neug {
 namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_graph_view(const GenericView& view,
+iterative_expand_vertex_on_graph_view(const CsrView& view,
                                       const SLVertexColumn& input, int lower,
                                       int upper);
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
-                                           const GenericView& oview,
+iterative_expand_vertex_on_dual_graph_view(const CsrView& iview,
+                                           const CsrView& oview,
                                            const SLVertexColumn& input,
                                            int lower, int upper);
 
@@ -42,7 +42,7 @@ path_expand_vertex_without_predicate_impl(
     int upper);
 
 template <typename PRED_T>
-void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
+void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
               label_t e_label,
               const StorageReadInterface::vertex_set_t& vertices, size_t idx,
               int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
@@ -140,8 +140,8 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
 }
 
 template <typename PRED_T>
-void sssp_both_dir(const GenericView& view0, const GenericView& view1,
-                   label_t v_label, vid_t v, label_t e_label,
+void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
+                   vid_t v, label_t e_label,
                    const StorageReadInterface::vertex_set_t& vertices,
                    size_t idx, int lower, int upper,
                    MSVertexColumnBuilder& dest_col_builder,
@@ -275,9 +275,9 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
 
 template <typename PRED_T>
 void sssp_both_dir_with_order_by_length_limit(
-    const GenericView& view0, const GenericView& view1, label_t v_label,
-    vid_t v, const StorageReadInterface::vertex_set_t& vertices, size_t idx,
-    int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
+    const CsrView& view0, const CsrView& view1, label_t v_label, vid_t v,
+    const StorageReadInterface::vertex_set_t& vertices, size_t idx, int lower,
+    int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, std::vector<size_t>& offsets,
     const PRED_T& pred, int limit_upper) {
   std::vector<vid_t> cur;
@@ -427,8 +427,8 @@ default_single_source_shortest_path_impl(
   const auto& input_labels_set = input.get_labels_set();
   std::set<label_t> dest_labels;
   for (auto& triplet : labels) {
-    if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
-                              triplet.edge_label)) {
+    if (!graph.schema().is_edge_triplet_valid(
+            triplet.src_label, triplet.dst_label, triplet.edge_label)) {
       continue;
     }
     if (dir == Direction::kOut || dir == Direction::kBoth) {
