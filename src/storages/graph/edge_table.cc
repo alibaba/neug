@@ -59,8 +59,7 @@ void cleanup_edge_label_tmp_files(const std::string& work_dir,
       edata_prefix(src_label_name, dst_label_name, edge_label_name),
       statistics_file_prefix(src_label_name, dst_label_name, edge_label_name),
   };
-  for (const auto& entry :
-       std::filesystem::directory_iterator(tmp_dir_path)) {
+  for (const auto& entry : std::filesystem::directory_iterator(tmp_dir_path)) {
     if (!entry.is_regular_file()) {
       continue;
     }
@@ -631,12 +630,14 @@ void EdgeTable::openImpl(const std::string& work_dir, MemoryLevel memory_level,
                                  ? ""
                                  : checkpoint_dir_path + "/" + oe_prefix_path);
   } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-    in_csr_->open_with_hugepages(
-        checkpoint_dir_path.empty() ? ""
-                                    : checkpoint_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_with_hugepages(
-        checkpoint_dir_path.empty() ? ""
-                                    : checkpoint_dir_path + "/" + oe_prefix_path);
+    in_csr_->open_with_hugepages(checkpoint_dir_path.empty()
+                                     ? ""
+                                     : checkpoint_dir_path + "/" +
+                                           ie_prefix_path);
+    out_csr_->open_with_hugepages(checkpoint_dir_path.empty()
+                                      ? ""
+                                      : checkpoint_dir_path + "/" +
+                                            oe_prefix_path);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "unsupported memory level: " +
