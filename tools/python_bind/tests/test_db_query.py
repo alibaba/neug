@@ -3063,6 +3063,32 @@ def test_not_starts_with(tmp_path):
     db.close()
 
 
+def test_drop_and_recreate_node_table_no_stale_data(tmp_path):
+    """After DROP + re-CREATE of a node table, old rows must not reappear."""
+    db_dir = tmp_path / "drop_recreate_stale"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CHECKPOINT")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["alice"]]
+
+    # Drop and re-create with the same schema
+    conn.execute("DROP TABLE IF EXISTS Person;")
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+
+    # Old data must be gone
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Only newly inserted data should be visible
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["bob"]]
+
+    conn.close()
+    db.close()
+
+
 def test_not_list_contains(tmp_path):
     db_dir = tmp_path / "test_not_list_contains"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -3105,3 +3131,30 @@ def test_unsupported_operator_error_message():
     query = "CREATE MACRO f(x) AS x + 1"
     with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
         conn.execute(query)
+
+
+def test_delete_all_rows_then_reinsert_visible(tmp_path):
+    """After deleting all rows, newly inserted rows must be visible."""
+    db_dir = tmp_path / "delete_reinsert"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    conn.execute("CHECKPOINT")
+    assert sorted(list(conn.execute("MATCH (p:Person) RETURN p.id;"))) == [
+        ["alice"],
+        ["bob"],
+    ]
+
+    # Delete all rows
+    conn.execute("MATCH (a:Person) DELETE a;")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Re-insert — new data must be visible
+    conn.execute("CREATE (p:Person {id: 'charlie'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["charlie"]]
+
+    conn.close()
+    db.close()

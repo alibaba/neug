@@ -102,8 +102,6 @@ class Table {
 
   void close();
 
-  void drop();
-
   void set_name(const std::string& name);
 
   void set_work_dir(const std::string& work_dir);

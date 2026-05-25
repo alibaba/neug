@@ -558,8 +558,12 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
   close();
-  load_meta(snapshot_dir + "/" + name);
-  nbr_list_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
+  std::string snap_prefix =
+      (!snapshot_dir.empty() && std::filesystem::exists(snapshot_dir))
+          ? snapshot_dir + "/" + name
+          : "";
+  load_meta(snap_prefix);
+  nbr_list_ = OpenContainer(snap_prefix.empty() ? "" : snap_prefix + ".snbr",
                             tmp_dir(work_dir) + "/" + name + ".snbr",
                             MemoryLevel::kSyncToFile);
 }

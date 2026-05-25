@@ -79,6 +79,13 @@ class VertexSet {
 class PropertyGraph;
 class VertexTable {
  public:
+  VertexTable()
+      : table_(nullptr),
+        vertex_schema_(nullptr),
+        v_ts_(),
+        memory_level_(MemoryLevel::kInMemory),
+        work_dir_("") {}
+
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
       : indexer_(std::make_shared<IndexerType>()),
         table_(std::make_unique<Table>()),
@@ -112,7 +119,11 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
+  // Restore an existing vertex table from its checkpoint snapshot.
   void Open(const std::string& work_dir, MemoryLevel memory_level);
+
+  // Bring up a freshly-created vertex table with no checkpoint to read.
+  void Initialize(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -121,8 +132,6 @@ class VertexTable {
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
   size_t EnsureCapacity(size_t capacity);
-
-  bool is_dropped() const { return table_ == nullptr; }
 
   bool get_index(const Property& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
@@ -191,8 +200,6 @@ class VertexTable {
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
-  void Drop();
-
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
@@ -207,6 +214,9 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
  private:
+  void openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                const std::string& checkpoint_dir_path);
+
   vid_t insert_vertex_pk(const Property& id, timestamp_t ts, bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(

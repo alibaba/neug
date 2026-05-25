@@ -20,14 +20,25 @@
 namespace neug {
 
 void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
+}
+
+void VertexTable::Initialize(const std::string& work_dir,
+                             MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, "");
+}
+
+void VertexTable::openImpl(const std::string& work_dir,
+                           MemoryLevel memory_level,
+                           const std::string& checkpoint_dir_path) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
 
   const auto& label_name = vertex_schema_->label_name;
   std::string vertex_tracker_filename =
-      checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
+      checkpoint_dir_path.empty()
+          ? ""
+          : checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
   if (memory_level_ == MemoryLevel::kSyncToFile) {
@@ -37,13 +48,19 @@ void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
                  vertex_schema_->property_types);
 
   } else if (memory_level_ == MemoryLevel::kInMemory) {
-    indexer_->open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
+    indexer_->open_in_memory(checkpoint_dir_path.empty()
+                                 ? ""
+                                 : checkpoint_dir_path + "/" +
+                                       indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types);
 
   } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
-    indexer_->open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
+    indexer_->open_with_hugepages(checkpoint_dir_path.empty()
+                                      ? ""
+                                      : checkpoint_dir_path + "/" +
+                                            indexer_filename);
     table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
                                 vertex_schema_->property_names,
                                 vertex_schema_->property_types);
@@ -239,17 +256,6 @@ void VertexTable::AddProperties(const std::vector<std::string>& properties,
                                 const std::vector<Property>& default_values) {
   table_->add_columns(properties, types, default_values, indexer_->capacity(),
                       memory_level_);
-}
-
-void VertexTable::Drop() {
-  indexer_->drop();
-  table_->drop();
-  v_ts_->Clear();
-  indexer_.reset();
-  table_.reset();
-  v_ts_.reset();
-  // TODO(zhanglei): reset the indexer.
-  // indexer_ = IndexerType();
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
