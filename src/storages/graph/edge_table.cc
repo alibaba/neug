@@ -66,7 +66,7 @@ void cleanup_edge_label_tmp_files(const std::string& work_dir,
     }
     const std::string fname = entry.path().filename().string();
     for (const auto& p : prefixes) {
-      if (!p.empty() && fname.rfind(p, 0) == 0) {
+      if (filename_matches_label_prefix(fname, p)) {
         std::error_code ec;
         std::filesystem::remove(entry.path(), ec);
         if (ec) {

@@ -754,5 +754,36 @@ TYPED_TEST(DropTableCheckpointTest,
   }
 }
 
+// Regression: tmp-file cleanup on DROP must key on the full label name, not a
+// bare prefix. Dropping "User" must not wipe files for "UserAccount".
+TYPED_TEST(DropTableCheckpointTest,
+           drop_label_does_not_sweep_sibling_with_shared_prefix) {
+  neug::NeugDB db;
+  this->OpenDB(db, this->db_dir_);
+  auto conn = db.Connect();
+
+  this->ExpectQuery(*conn,
+                    "CREATE NODE TABLE IF NOT EXISTS User"
+                    "(id STRING, PRIMARY KEY(id));");
+  this->ExpectQuery(*conn,
+                    "CREATE NODE TABLE IF NOT EXISTS UserAccount"
+                    "(id STRING, PRIMARY KEY(id));");
+  this->ExpectQuery(*conn, "CREATE (u:User {id: 'u1'});");
+  this->ExpectQuery(*conn, "CREATE (a:UserAccount {id: 'a1'});");
+  this->ExpectQuery(*conn, "CHECKPOINT;");
+
+  // Drop only the shorter-named label. UserAccount data must survive.
+  this->ExpectQuery(*conn, "DROP TABLE IF EXISTS User;");
+
+  auto account_table =
+      this->RunQuery(*conn, "MATCH (a:UserAccount) RETURN a.id;");
+  EXPECT_EQ(account_table.row_count(), 1)
+      << "DROP TABLE User wiped sibling label UserAccount (prefix collision)";
+  neug::test::AssertStringColumn(account_table, 0, {"a1"});
+
+  conn->Close();
+  db.Close();
+}
+
 }  // namespace test
 }  // namespace neug

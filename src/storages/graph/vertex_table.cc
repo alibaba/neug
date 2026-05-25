@@ -39,14 +39,13 @@ void cleanup_vertex_label_tmp_files(const std::string& work_dir,
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
       vertex_tracker_file(label_name),
   };
-  for (const auto& entry :
-       std::filesystem::directory_iterator(tmp_dir_path)) {
+  for (const auto& entry : std::filesystem::directory_iterator(tmp_dir_path)) {
     if (!entry.is_regular_file()) {
       continue;
     }
     const std::string fname = entry.path().filename().string();
     for (const auto& p : prefixes) {
-      if (!p.empty() && fname.rfind(p, 0) == 0) {
+      if (filename_matches_label_prefix(fname, p)) {
         std::error_code ec;
         std::filesystem::remove(entry.path(), ec);
         if (ec) {
@@ -99,15 +98,17 @@ void VertexTable::openImpl(const std::string& work_dir,
   } else if (memory_level_ == MemoryLevel::kInMemory) {
     indexer_->open_in_memory(checkpoint_dir_path.empty()
                                  ? ""
-                                 : checkpoint_dir_path + "/" + indexer_filename);
+                                 : checkpoint_dir_path + "/" +
+                                       indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types);
 
   } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
-    indexer_->open_with_hugepages(
-        checkpoint_dir_path.empty() ? ""
-                                    : checkpoint_dir_path + "/" + indexer_filename);
+    indexer_->open_with_hugepages(checkpoint_dir_path.empty()
+                                      ? ""
+                                      : checkpoint_dir_path + "/" +
+                                            indexer_filename);
     table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
                                 vertex_schema_->property_names,
                                 vertex_schema_->property_types);
@@ -305,19 +306,6 @@ void VertexTable::AddProperties(const std::vector<std::string>& properties,
                       memory_level_);
 }
 
-// Drop releases the table's in-memory state only. It does NOT touch the
-// filesystem.
-//
-// Physical tmp_dir cleanup happens at three explicit gates:
-//   - process startup: PropertyGraph::Open wipes tmp_dir
-//   - next CREATE for the same label: Initialize sweeps stale tmp files
-//   - next CHECKPOINT: PropertyGraph::Dump rewrites checkpoint_dir from scratch
-//
-// checkpoint_dir is never modified outside of CHECKPOINT — this is what gives
-// DROP its implicit crash-rollback semantics (a crash between DROP and the
-// next CHECKPOINT re-reads the prior checkpoint, effectively undoing the
-// DROP). Do not make this function delete files; doing so requires writing
-// DROP to the WAL first or that rollback invariant will break.
 void VertexTable::Drop() {
   indexer_->drop();
   table_->drop();
