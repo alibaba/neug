@@ -14,51 +14,10 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
-#include <filesystem>
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
-
-namespace {
-
-// Remove any tmp_dir files belonging to a previously dropped vertex label of
-// the given name. tmp filenames key on the label string (not the numeric
-// label_t), and Schema reuses the same numeric id when a same-name label is
-// re-created, so without this sweep an in-process DROP+CREATE would re-mmap
-// the prior label's leftover data.
-void cleanup_vertex_label_tmp_files(const std::string& work_dir,
-                                    const std::string& label_name) {
-  std::string tmp_dir_path = tmp_dir(work_dir);
-  if (!std::filesystem::exists(tmp_dir_path)) {
-    return;
-  }
-  const std::string prefixes[] = {
-      vertex_table_prefix(label_name),
-      vertex_map_prefix(label_name),
-      IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
-      vertex_tracker_file(label_name),
-  };
-  for (const auto& entry : std::filesystem::directory_iterator(tmp_dir_path)) {
-    if (!entry.is_regular_file()) {
-      continue;
-    }
-    const std::string fname = entry.path().filename().string();
-    for (const auto& p : prefixes) {
-      if (filename_matches_label_prefix(fname, p)) {
-        std::error_code ec;
-        std::filesystem::remove(entry.path(), ec);
-        if (ec) {
-          LOG(WARNING) << "Failed to remove stale tmp file " << entry.path()
-                       << ": " << ec.message();
-        }
-        break;
-      }
-    }
-  }
-}
-
-}  // namespace
 
 void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
@@ -70,9 +29,6 @@ void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
 // only the next CHECKPOINT (PropertyGraph::Dump) advances it.
 void VertexTable::Initialize(const std::string& work_dir,
                              MemoryLevel memory_level) {
-  if (vertex_schema_) {
-    cleanup_vertex_label_tmp_files(work_dir, vertex_schema_->label_name);
-  }
   openImpl(work_dir, memory_level, "");
 }
 

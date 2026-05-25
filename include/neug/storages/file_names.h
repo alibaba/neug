@@ -187,22 +187,4 @@ inline std::string statistics_file_prefix(const std::string& src_label,
   return "statistics_" + src_label + "_" + edge_label + "_" + dst_label;
 }
 
-// True iff fname is exactly p, or fname starts with p followed by '.' or '_'.
-// Plain starts_with is unsafe for label-keyed cleanup: a prefix of "User"
-// would also match "UserAccount.col_0" and wipe a different label's data.
-inline bool filename_matches_label_prefix(const std::string& fname,
-                                          const std::string& p) {
-  if (p.empty() || fname.size() < p.size()) {
-    return false;
-  }
-  if (fname.compare(0, p.size(), p) != 0) {
-    return false;
-  }
-  if (fname.size() == p.size()) {
-    return true;
-  }
-  char next = fname[p.size()];
-  return next == '.' || next == '_';
-}
-
 }  // namespace neug
