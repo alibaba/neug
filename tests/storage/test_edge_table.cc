@@ -95,7 +95,7 @@ class EdgeTableTest : public ::testing::Test {
   void build_indexer(neug::LFIndexer<neug::vid_t>& indexer, neug::vid_t num,
                      const std::string& name, const std::string& snapshot_dir,
                      const std::string& work_dir) {
-    indexer.drop();
+    indexer.close();
     indexer.init(DataTypeId::kInt64);
     indexer.open(name, snapshot_dir, work_dir);
     indexer.reserve(num);

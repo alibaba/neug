@@ -152,7 +152,7 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   EXPECT_FALSE(table.get_index(oid1, tmp_vid, 0));
   EXPECT_TRUE(table.get_index(oid1, tmp_vid, 1));
 
-  table.Drop();
+  table.Close();
 }
 
 TEST_F(VertexTableTest, VertexTableDumpAndReload) {

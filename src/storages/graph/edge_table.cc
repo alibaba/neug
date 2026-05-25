@@ -554,10 +554,6 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
 }
 
-// Initialize releases nothing on the filesystem itself: it only sweeps stale
-// tmp files left behind by a prior in-process DROP of the same edge triple and
-// then opens fresh containers. Persistent checkpoint state is never touched
-// here — only the next CHECKPOINT (PropertyGraph::Dump) advances it.
 void EdgeTable::Initialize(const std::string& work_dir,
                            MemoryLevel memory_level) {
   openImpl(work_dir, memory_level, "");
@@ -639,8 +635,6 @@ void EdgeTable::Close() {
     table_->close();
   }
 }
-
-void EdgeTable::Drop() { Close(); }
 
 void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
   in_csr_->dump(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -1105,7 +1099,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                    new_in_csr.get());
   }
 
-  table_->drop();
+  table_->close();
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);

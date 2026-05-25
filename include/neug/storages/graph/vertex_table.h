@@ -123,8 +123,6 @@ class VertexTable {
   void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   // Bring up a freshly-created vertex table with no checkpoint to read.
-  // Also clears any stale tmp_dir files left behind by a prior DROP of the
-  // same label within this process.
   void Initialize(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& target_dir);
@@ -134,8 +132,6 @@ class VertexTable {
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
   size_t EnsureCapacity(size_t capacity);
-
-  bool is_dropped() const { return table_ == nullptr; }
 
   bool get_index(const Property& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
@@ -204,8 +200,6 @@ class VertexTable {
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
-  void Drop();
-
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
@@ -220,9 +214,6 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
  private:
-  // Shared implementation for Open and Initialize. An empty
-  // checkpoint_dir_path skips loading any pre-existing snapshot, producing
-  // fresh empty backing storage.
   void openImpl(const std::string& work_dir, MemoryLevel memory_level,
                 const std::string& checkpoint_dir_path);
 

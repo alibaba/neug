@@ -179,7 +179,7 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
       std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".keys"));
   EXPECT_TRUE(
       std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".indices"));
-  copied_to_workdir.drop();
+  copied_to_workdir.close();
 
   LFIndexer<uint32_t> in_memory;
   in_memory.init(DataTypeId::kInt64);
@@ -242,7 +242,7 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   ExpectStringValues(lhs, rhs_values);
   ExpectStringValues(rhs, lhs_values);
 
-  rhs.drop();
+  rhs.close();
   lhs.close();
 }
 
@@ -593,7 +593,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
-  indexer.drop();
+  indexer.close();
 }
 
 // Test: String overflow handling when inserting strings exceeding max length.

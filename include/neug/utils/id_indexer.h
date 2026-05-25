@@ -472,11 +472,6 @@ class LFIndexer {
     indices_size_ = 0;
   }
 
-  void drop() {
-    close();
-    // TODO(zhanglei): delete files in work_dir
-  }
-
   void dump_meta(const std::string& filename) const {
     InArchive arc;
     arc << get_type() << num_elements_.load() << num_slots_minus_one_

@@ -23,10 +23,6 @@ void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
 }
 
-// Initialize releases nothing on the filesystem itself: it only sweeps stale
-// tmp files left behind by a prior in-process DROP of the same label and then
-// opens fresh containers. Persistent checkpoint state is never touched here —
-// only the next CHECKPOINT (PropertyGraph::Dump) advances it.
 void VertexTable::Initialize(const std::string& work_dir,
                              MemoryLevel memory_level) {
   openImpl(work_dir, memory_level, "");
@@ -260,15 +256,6 @@ void VertexTable::AddProperties(const std::vector<std::string>& properties,
                                 const std::vector<Property>& default_values) {
   table_->add_columns(properties, types, default_values, indexer_->capacity(),
                       memory_level_);
-}
-
-void VertexTable::Drop() {
-  indexer_->drop();
-  table_->drop();
-  v_ts_->Clear();
-  indexer_.reset();
-  table_.reset();
-  v_ts_.reset();
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
