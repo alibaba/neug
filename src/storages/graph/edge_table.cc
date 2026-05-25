@@ -38,89 +38,26 @@
 
 namespace neug {
 
-std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
-filterInvalidEdges(const std::vector<vid_t>& src_lid,
-                   const std::vector<vid_t>& dst_lid) {
+void filterInvalidEdges(std::vector<vid_t>& src_lid,
+                        std::vector<vid_t>& dst_lid,
+                        std::vector<bool>& valid_flags) {
   assert(src_lid.size() == dst_lid.size());
-  std::vector<vid_t> filtered_src, filtered_dst;
-  std::vector<bool> valid_flags;
-  filtered_src.reserve(src_lid.size());
-  filtered_dst.reserve(dst_lid.size());
+
   valid_flags.reserve(src_lid.size());
+  size_t valid_count = 0;
   for (size_t i = 0; i < src_lid.size(); ++i) {
     if (src_lid[i] != std::numeric_limits<vid_t>::max() &&
         dst_lid[i] != std::numeric_limits<vid_t>::max()) {
-      filtered_src.push_back(src_lid[i]);
-      filtered_dst.push_back(dst_lid[i]);
+      src_lid[valid_count] = src_lid[i];
+      dst_lid[valid_count] = dst_lid[i];
+      ++valid_count;
       valid_flags.push_back(true);
     } else {
       valid_flags.push_back(false);
     }
   }
-  return std::make_tuple(std::move(filtered_src), std::move(filtered_dst),
-                         std::move(valid_flags));
-}
-
-template <typename EDATA_T, typename ARROW_COL_T>
-std::vector<Property> extract_edge_data(
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
-    const std::vector<bool>& valid_flags) {
-  std::vector<Property> edge_data;
-  assert([&]() {
-    int64_t total = 0;
-    for (auto rb : data_batches) {
-      total += rb->num_rows();
-    }
-    return total == static_cast<int64_t>(valid_flags.size());
-  }());
-  edge_data.reserve(std::count(valid_flags.begin(), valid_flags.end(), true));
-  size_t cur_index = 0;
-  for (auto rb : data_batches) {
-    auto array = rb->column(0);
-    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      if (valid_flags[cur_index++]) {
-        edge_data.emplace_back(
-            neug::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
-      }
-    }
-  }
-  return edge_data;
-}
-
-// Helper alias to resolve the Arrow array type for a property type.
-template <typename T>
-using ExtractEdgeArrowArray = typename TypeConverter<T>::ArrowArrayType;
-
-std::vector<Property> extract_bundled_edge_data_from_batches(
-    std::shared_ptr<const EdgeSchema> meta,
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
-    const std::vector<bool>& valid_flags) {
-  assert(meta->is_bundled());
-  if (meta->properties.empty() ||
-      meta->properties[0].id() == DataTypeId::kEmpty) {
-    return std::vector<Property>();
-  }
-  switch (meta->properties[0].id()) {
-#define EXTRACT_EDGE_DATA_CASE(enum_val, type)                                \
-  case DataTypeId::enum_val:                                                  \
-    return extract_edge_data<type, ExtractEdgeArrowArray<type>>(data_batches, \
-                                                                valid_flags);
-    FOR_EACH_DATA_TYPE_PRIMITIVE(EXTRACT_EDGE_DATA_CASE)
-  case DataTypeId::kDate:
-    return extract_edge_data<Date, arrow::Date64Array>(data_batches,
-                                                       valid_flags);
-  case DataTypeId::kTimestampMs:
-    return extract_edge_data<DateTime, arrow::TimestampArray>(data_batches,
-                                                              valid_flags);
-  case DataTypeId::kInterval:
-    return extract_edge_data<Interval, arrow::LargeStringArray>(data_batches,
-                                                                valid_flags);
-#undef EXTRACT_EDGE_DATA_CASE
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
-                                  meta->properties[0].ToString());
-  }
+  src_lid.resize(valid_count);
+  dst_lid.resize(valid_count);
 }
 
 template <typename EDATA_T>
@@ -301,15 +238,29 @@ void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
 }
 
-template <typename EDATA_T>
+template <typename EDATA_T, typename ARROW_COL_T>
 void insert_edges_bundled_typed_impl(
     TypedCsrBase<EDATA_T>* out_csr, TypedCsrBase<EDATA_T>* in_csr,
     const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
-    const std::vector<Property>& property_vec) {
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
   std::vector<EDATA_T> edge_data;
-  edge_data.reserve(edge_data.size());
-  for (const auto& prop : property_vec) {
-    edge_data.push_back(PropUtils<EDATA_T>::to_typed(prop));
+  edge_data.reserve(src_lid.size());
+  size_t cur_index = 0;
+  for (auto& rb : data_batches) {
+    auto array = rb->column(0);
+    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      if (valid_flags[cur_index++]) {
+        if constexpr (std::is_same_v<EDATA_T, Interval>) {
+          auto str = casted->GetView(i);
+          edge_data.push_back(Interval(std::string(str.data(), str.size())));
+        } else {
+          edge_data.push_back(EDATA_T(casted->Value(i)));
+        }
+      }
+    }
+    rb.reset();
   }
   out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
@@ -327,6 +278,10 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
+
+// Helper alias to resolve the Arrow array type for a property type.
+template <typename T>
+using ExtractEdgeArrowArray = typename TypeConverter<T>::ArrowArrayType;
 
 static std::vector<Property> get_row_from_recordbatch(
     const std::vector<DataType>& prop_types,
@@ -453,11 +408,13 @@ void batch_add_unbundled_edges_impl(
   }
 }
 
-void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
-                                  const std::vector<DataType>& prop_types,
-                                  const std::vector<vid_t>& src_lid_list,
-                                  const std::vector<vid_t>& dst_lid_list,
-                                  const std::vector<Property>& edge_data) {
+void batch_add_bundled_edges_impl(
+    CsrBase* out_csr, CsrBase* in_csr, std::shared_ptr<const EdgeSchema> meta,
+    const std::vector<vid_t>& src_lid_list,
+    const std::vector<vid_t>& dst_lid_list,
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  const auto& prop_types = meta->properties;
   if (prop_types.empty() || prop_types[0].id() == DataTypeId::kEmpty) {
     insert_edges_empty_impl(dynamic_cast<TypedCsrBase<EmptyType>*>(out_csr),
                             dynamic_cast<TypedCsrBase<EmptyType>*>(in_csr),
@@ -467,13 +424,32 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
   switch (prop_types[0].id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                        \
   case DataTypeId::enum_val:                                                   \
-    insert_edges_bundled_typed_impl(                                           \
+    insert_edges_bundled_typed_impl<type, ExtractEdgeArrowArray<type>>(        \
         dynamic_cast<TypedCsrBase<type>*>(out_csr),                            \
         dynamic_cast<TypedCsrBase<type>*>(in_csr), src_lid_list, dst_lid_list, \
-        edge_data);                                                            \
+        data_batches, valid_flags);                                            \
     break;
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_PRIMITIVE(TYPE_DISPATCHER)
+
 #undef TYPE_DISPATCHER
+  case DataTypeId::kDate:
+    insert_edges_bundled_typed_impl<Date, arrow::Date64Array>(
+        dynamic_cast<TypedCsrBase<Date>*>(out_csr),
+        dynamic_cast<TypedCsrBase<Date>*>(in_csr), src_lid_list, dst_lid_list,
+        data_batches, valid_flags);
+    break;
+  case DataTypeId::kTimestampMs:
+    insert_edges_bundled_typed_impl<DateTime, arrow::TimestampArray>(
+        dynamic_cast<TypedCsrBase<DateTime>*>(out_csr),
+        dynamic_cast<TypedCsrBase<DateTime>*>(in_csr), src_lid_list,
+        dst_lid_list, data_batches, valid_flags);
+    break;
+  case DataTypeId::kInterval:
+    insert_edges_bundled_typed_impl<Interval, arrow::LargeStringArray>(
+        dynamic_cast<TypedCsrBase<Interval>*>(out_csr),
+        dynamic_cast<TypedCsrBase<Interval>*>(in_csr), src_lid_list,
+        dst_lid_list, data_batches, valid_flags);
+    break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
                                   std::to_string(prop_types[0].id()));
@@ -939,8 +915,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
   }
   std::vector<bool> valid_flags;  // true for valid edges
-  std::tie(src_lid, dst_lid, valid_flags) =
-      filterInvalidEdges(src_lid, dst_lid);
+  filterInvalidEdges(src_lid, dst_lid, valid_flags);
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
@@ -950,10 +925,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
-    auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
-                                                        valid_flags);
-    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
-                                 meta_->properties, src_lid, dst_lid, edges);
+    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(), meta_, src_lid,
+                                 dst_lid, data_batches, valid_flags);
   } else {
     auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
     auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
@@ -987,9 +960,11 @@ void EdgeTable::BatchAddEdges(
         flat_edge_data.push_back(edata[0]);
       }
     }
-    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
-                                 meta_->properties, src_lid_list, dst_lid_list,
-                                 flat_edge_data);
+    auto prop_type = meta_->properties[0].id();
+    batch_put_edges_to_bundled_csr(src_lid_list, dst_lid_list, prop_type,
+                                   flat_edge_data, out_csr_.get());
+    batch_put_edges_to_bundled_csr(dst_lid_list, src_lid_list, prop_type,
+                                   flat_edge_data, in_csr_.get());
   } else {
     auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
     auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
