@@ -755,7 +755,7 @@ void PropertyGraph::Open(const std::string& work_dir,
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
   for (size_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
+    if (!schema_.is_vertex_label_valid(i)) {
       // Tombstoned vertex label: keep the slot to preserve label_t -> index
       // mapping, but leave the VertexTable in a dropped state.
       vertex_tables_.emplace_back();
