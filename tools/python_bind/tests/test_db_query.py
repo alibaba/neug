@@ -3061,6 +3061,8 @@ def test_not_starts_with(tmp_path):
     assert records == []
     conn.close()
     db.close()
+
+
 def test_drop_and_recreate_node_table_no_stale_data(tmp_path):
     """After DROP + re-CREATE of a node table, old rows must not reappear."""
     db_dir = tmp_path / "drop_recreate_stale"
@@ -3129,6 +3131,8 @@ def test_unsupported_operator_error_message():
     query = "CREATE MACRO f(x) AS x + 1"
     with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
         conn.execute(query)
+
+
 def test_delete_all_rows_then_reinsert_visible(tmp_path):
     """After deleting all rows, newly inserted rows must be visible."""
     db_dir = tmp_path / "delete_reinsert"
