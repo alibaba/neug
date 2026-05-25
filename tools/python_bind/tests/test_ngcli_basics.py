@@ -21,11 +21,85 @@ import shutil
 import sys
 
 import pytest
+from prompt_toolkit.document import Document
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug import neug_cli
 from neug.database import Database
+
+
+def _token_classes(line):
+    lexer = neug_cli.NeugLexer()
+    return [style for style, _ in lexer.lex_document(Document(line))(0)]
+
+
+def test_cli_inline_autosuggestion_casing():
+    auto_suggest = neug_cli.NeugAutoSuggest()
+    assert auto_suggest.get_suggestion(None, Document(":q")).text == "uit"
+    assert auto_suggest.get_suggestion(None, Document("ma")).text == "tch"
+    assert auto_suggest.get_suggestion(None, Document("MA")).text == "TCH"
+    assert auto_suggest.get_suggestion(None, Document("Ma")).text == "tch"
+    assert auto_suggest.get_suggestion(None, Document("m")).text == "atch"
+    assert auto_suggest.get_suggestion(None, Document("M")).text == "ATCH"
+    assert auto_suggest.get_suggestion(None, Document("RETURN col")).text == "umn"
+    assert auto_suggest.get_suggestion(None, Document("ORDER B")).text == "Y"
+    assert auto_suggest.get_suggestion(None, Document("IS N")).text == "ULL"
+
+
+class FakeBuffer:
+    def __init__(self, text):
+        self.text = text
+        self.document = Document(text)
+        self.auto_suggest = neug_cli.NeugAutoSuggest()
+        self.suggestion = None
+        self._neug_completion_state = None
+        self.inserted_text = ""
+
+        class SuggestionEvent:
+            def fire(self):
+                pass
+
+        self.on_suggestion_set = SuggestionEvent()
+
+    def insert_text(self, text):
+        self.inserted_text += text
+        self.text += text
+        self.document = Document(self.text)
+
+
+def test_cli_tab_cycles_inline_suggestions():
+    buffer = FakeBuffer("m")
+    assert neug_cli._handle_tab(buffer)
+    assert buffer.suggestion.text == "erge"
+    assert neug_cli._handle_tab(buffer)
+    assert buffer.suggestion.text == "acro"
+    assert neug_cli._handle_tab(buffer)
+    assert buffer.suggestion.text == "axvalue"
+
+
+def test_cli_tab_accepts_single_inline_suggestion():
+    buffer = FakeBuffer(":q")
+    assert neug_cli._handle_tab(buffer)
+    assert buffer.inserted_text == "uit"
+    assert buffer.text == ":quit"
+
+
+def test_cli_lexer_highlights_commands_and_cypher_keywords():
+    assert "class:command" in _token_classes(":q")
+    assert "class:cypher-keyword" in _token_classes("MATCH")
+    assert "class:cypher-keyword" in _token_classes("match")
+    assert "class:cypher-keyword" in _token_classes("ma")
+    assert "class:cypher-keyword" in _token_classes("SKIP")
+    assert "class:cypher-keyword" in _token_classes("EXPLAIN")
+    assert _token_classes("MATCH (n) RETURN n").count("class:cypher-keyword") == 2
+
+
+def test_cli_cypher_keywords_align_with_parser_keywords():
+    assert "REMOVE" not in neug_cli.CYPHER_CANDIDATES
+    assert "SKIP" in neug_cli.CYPHER_CANDIDATES
+    for keyword in ["MATCH", "EXPLAIN", "PROFILE", "UNION", "YIELD"]:
+        assert keyword in neug_cli.CYPHER_CANDIDATES
 
 
 def test_shell_do_help(capsys, tmp_path):
@@ -44,6 +118,8 @@ def test_shell_do_help(capsys, tmp_path):
             - Use :max_rows <number> to set the maximum number of rows to display for query results.
             - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
+            - Command history is supported; use the up/down arrow keys to navigate previous commands.
+            - Use Tab to cycle candidates and right arrow to accept the current suggestion.
         """
     assert expected_output.strip() in captured.out.strip()
     connection.close()
