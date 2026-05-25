@@ -19,7 +19,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "unittest/utils.h"
@@ -95,7 +95,7 @@ class EdgeTableTest : public ::testing::Test {
   void build_indexer(neug::LFIndexer<neug::vid_t>& indexer, neug::vid_t num,
                      const std::string& name, const std::string& snapshot_dir,
                      const std::string& work_dir) {
-    indexer.drop();
+    indexer.close();
     indexer.init(DataTypeId::kInt64);
     indexer.open(name, snapshot_dir, work_dir);
     indexer.reserve(num);

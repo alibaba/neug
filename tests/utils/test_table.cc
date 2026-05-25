@@ -288,8 +288,8 @@ TEST(TableTest, TestTableBasic) {
   }
 
   disk_table.dump("disk_table", std::string(TEST_DIR) + "/checkpoint");
-  disk_table.drop();
-  mem_table.drop();
+  disk_table.close();
+  mem_table.close();
 
   disk_table.open("disk_table", std::string(TEST_DIR), col_name,
                   property_types);
@@ -301,7 +301,7 @@ TEST(TableTest, TestTableBasic) {
   disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(disk_table.col_num(), 10);
   disk_table.set_work_dir(std::string(TEST_DIR));
-  disk_table.drop();
+  disk_table.close();
 
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
                            property_types);

@@ -18,7 +18,6 @@
 #include <arrow/array/array_binary.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
-#include "neug/utils/exception/exception.h"
 #include <arrow/array/builder_time.h>
 #include <arrow/type.h>
 #include <glog/logging.h>

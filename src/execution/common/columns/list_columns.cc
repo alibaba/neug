@@ -90,8 +90,9 @@ ListColumn::unfold() const {
     return {builder.finish(), offsets};
   }
   default:
-    THROW_NOT_IMPLEMENTED_EXCEPTION("not implemented for " + this->column_info() + " " +
-                                    std::to_string(static_cast<int>(elem_type_.id())));
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "not implemented for " + this->column_info() + " " +
+        std::to_string(static_cast<int>(elem_type_.id())));
     return {nullptr, std::vector<size_t>()};
   }
 }

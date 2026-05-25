@@ -80,7 +80,6 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
-
     def initialize_options(self):
         super().initialize_options()
         # We set the build_temp to the local build/ directory
@@ -406,6 +405,7 @@ setup(
         "protobuf==5.29.6",
         "requests",
         "click>=8.0.0",
+        "prompt_toolkit>=3.0.0",
         "tabulate>=0.9.0",
         "PyYAML>=6.0.2",
         "tqdm",

@@ -222,9 +222,8 @@ class UpdateTransaction {
                           int32_t ie_offset, int32_t col_id,
                           const Property& value);
 
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
@@ -232,9 +231,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);

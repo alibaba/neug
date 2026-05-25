@@ -28,7 +28,7 @@
 #include "neug/common/extra_type_info.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -49,7 +49,7 @@ namespace neug {
 static Status resolveVertexLabel(const Schema& schema,
                                  const std::string& vertex_type_name,
                                  label_t& label_id) {
-  if (!schema.contains_vertex_label(vertex_type_name)) {
+  if (!schema.is_vertex_label_valid(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Vertex type " + vertex_type_name + " does not exist.");
@@ -64,7 +64,7 @@ static Status resolveEdgeTriplet(const Schema& schema,
                                  const std::string& edge_type,
                                  label_t& src_label_id, label_t& dst_label_id,
                                  label_t& edge_label_id) {
-  if (!schema.exist(src_type, dst_type, edge_type)) {
+  if (!schema.is_edge_triplet_valid(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " does not exist between "
                << src_type << " and " << dst_type << ".";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -79,9 +79,9 @@ static Status resolveEdgeTriplet(const Schema& schema,
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
-                                        const GenericView& oe,
-                                        const GenericView& ie, vid_t lid,
-                                        bool is_src, timestamp_t ts) {
+                                        const CsrView& oe, const CsrView& ie,
+                                        vid_t lid, bool is_src,
+                                        timestamp_t ts) {
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
   if (is_src) {
     NbrList nbr_list = oe.get_edges(lid);
@@ -129,14 +129,14 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
   auto& schema = txn.schema();
   for (auto other_label_id = 0; other_label_id < v_label_num;
        ++other_label_id) {
-    if (!schema.vertex_label_valid(other_label_id)) {
+    if (!schema.is_vertex_label_valid(other_label_id)) {
       continue;
     }
     for (auto e_label_id = 0; e_label_id < e_label_num; ++e_label_id) {
-      if (!schema.edge_label_valid(e_label_id)) {
+      if (!schema.is_edge_label_valid(e_label_id)) {
         continue;
       }
-      if (schema.exist(v_label, other_label_id, e_label_id)) {
+      if (schema.is_edge_triplet_valid(v_label, other_label_id, e_label_id)) {
         auto props =
             schema.get_edge_properties(v_label, other_label_id, e_label_id);
         auto edge_triplet_id =
@@ -151,7 +151,7 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
                                                     lid, true, ts);
       }
       if (other_label_id != v_label &&
-          schema.exist(other_label_id, v_label, e_label_id)) {
+          schema.is_edge_triplet_valid(other_label_id, v_label, e_label_id)) {
         auto props =
             schema.get_edge_properties(other_label_id, v_label, e_label_id);
         auto edge_triplet_id =
@@ -233,7 +233,7 @@ void UpdateTransaction::revert_changes() {
 Status UpdateTransaction::CreateVertexType(
     const CreateVertexTypeParam& config) {
   auto name = config.GetVertexLabel();
-  if (graph_.schema().contains_vertex_label(name)) {
+  if (graph_.schema().is_vertex_label_valid(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Vertex type " + name + " already exists.");
@@ -259,7 +259,7 @@ Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
-  if (graph_.schema().exist(src_type, dst_type, edge_type)) {
+  if (graph_.schema().is_edge_triplet_valid(src_type, dst_type, edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " already exists between "
                << src_type << " and " << dst_type << ".";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -495,7 +495,7 @@ Status UpdateTransaction::DeleteVertexType(
   label_t v_label;
   RETURN_IF_NOT_OK(
       resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  if (graph_.schema().IsVertexLabelSoftDeleted(v_label)) {
+  if (graph_.schema().is_vertex_label_soft_deleted(v_label)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name
                << " is already deleted (soft delete).";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -511,15 +511,17 @@ Status UpdateTransaction::DeleteVertexType(
   auto vertex_label_num = graph_.schema().vertex_label_frontier();
   auto edge_label_num = graph_.schema().edge_label_frontier();
   for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-    if (!graph_.schema().vertex_label_valid(dst_label)) {
+    if (!graph_.schema().is_vertex_label_valid(dst_label)) {
       continue;
     }
     for (label_t edge_label = 0; edge_label < edge_label_num; ++edge_label) {
-      if (graph_.schema().exist(v_label, dst_label, edge_label)) {
+      if (graph_.schema().is_edge_triplet_valid(v_label, dst_label,
+                                                edge_label)) {
         deleted_edge_labels_.emplace(
             std::make_tuple(v_label, dst_label, edge_label));
       }
-      if (graph_.schema().exist(dst_label, v_label, edge_label)) {
+      if (graph_.schema().is_edge_triplet_valid(dst_label, v_label,
+                                                edge_label)) {
         deleted_edge_labels_.emplace(
             std::make_tuple(dst_label, v_label, edge_label));
       }
@@ -536,8 +538,8 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  if (graph_.schema().IsEdgeLabelSoftDeleted(src_label_id, dst_label_id,
-                                             edge_label_id)) {
+  if (graph_.schema().is_edge_label_soft_deleted(src_label_id, dst_label_id,
+                                                 edge_label_id)) {
     LOG(ERROR) << "Edge type " << edge_type << " between " << src_type
                << " and " << dst_type << " is already deleted (soft delete).";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -1100,7 +1102,7 @@ void UpdateTransaction::applyEdgeTypeDeletions() {
 void UpdateTransaction::applyVertexPropDeletion() {
   for (label_t v_label = 0; v_label < deleted_vertex_properties_.size();
        ++v_label) {
-    if (!graph_.schema().vertex_label_valid(v_label)) {
+    if (!graph_.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     auto v_label_name = graph_.schema().get_vertex_label_name(v_label);
@@ -1126,7 +1128,8 @@ void UpdateTransaction::applyEdgePropDeletion() {
     label_t src_label, dst_label, edge_label;
     std::tie(src_label, dst_label, edge_label) =
         graph_.schema().parse_edge_label(index);
-    if (!graph_.schema().edge_triplet_valid(src_label, dst_label, edge_label)) {
+    if (!graph_.schema().is_edge_triplet_valid(src_label, dst_label,
+                                               edge_label)) {
       continue;
     }
 

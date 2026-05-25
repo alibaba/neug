@@ -14,7 +14,7 @@
  */
 
 #include "neug/transaction/undo_log.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 
 namespace neug {
 void CreateVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
@@ -26,29 +26,31 @@ void CreateEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void InsertVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().vertex_label_valid(v_label));
+  assert(graph.schema().is_vertex_label_valid(v_label));
   graph.DeleteVertex(v_label, vid, ts);
 };
 
 void InsertEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                    oe_offset, ie_offset, ts);
 };
 
 void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().vertex_label_valid(v_label));
+  assert(graph.schema().is_vertex_label_valid(v_label));
   graph.UpdateVertexProperty(v_label, vid, col_id, value, ts);
 };
 
 void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.UpdateEdgeProperty(src_label, src_lid, dst_label, dst_lid, edge_label,
                            oe_offset, ie_offset, col_id, value, ts);
 };
 
 void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().vertex_label_valid(v_label));
+  assert(graph.schema().is_vertex_label_valid(v_label));
   graph.get_vertex_table(v_label).RevertDeleteVertex(lid, ts);
   for (const auto& [edge_triplet_id, edge_vec] : related_edges) {
     auto [src_label, dst_label, edge_label] =
@@ -61,13 +63,14 @@ void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  assert(
+      graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label));
   graph.get_edge_table(src_label, dst_label, edge_label)
       .RevertDeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, ts);
 };
 
 void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().vertex_label_valid(label)) {
+  if (!graph.schema().is_vertex_label_valid(label)) {
     THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
                              std::to_string(label));
   }
@@ -83,7 +86,7 @@ void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+  if (!graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_INTERNAL_EXCEPTION(
         "Edge label not found in schema: " + std::to_string(src_label) + "->" +
         std::to_string(dst_label) + ":" + std::to_string(edge_label));
@@ -106,7 +109,7 @@ void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().vertex_label_valid(label)) {
+  if (!graph.schema().is_vertex_label_valid(label)) {
     THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
                              std::to_string(label));
   }
@@ -127,7 +130,7 @@ void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+  if (!graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_INTERNAL_EXCEPTION(
         "Edge label not found in schema: " + std::to_string(src_label) + "->" +
         std::to_string(dst_label) + ":" + std::to_string(edge_label));
@@ -154,7 +157,7 @@ void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void DeleteVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().vertex_label_valid(label)) {
+  if (!graph.schema().is_vertex_label_valid(label)) {
     THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
                              std::to_string(label));
   }
@@ -163,7 +166,7 @@ void DeleteVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void DeleteEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+  if (!graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_INTERNAL_EXCEPTION(
         "Edge label not found in schema: " + std::to_string(src_label) + "->" +
         std::to_string(dst_label) + ":" + std::to_string(edge_label));
@@ -176,11 +179,11 @@ void DeleteEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void DeleteVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (graph.schema().contains_vertex_label(v_label)) {
+  if (graph.schema().is_vertex_label_valid(v_label)) {
     THROW_RUNTIME_ERROR("Cannot undo DeleteVertexType for vertex label " +
                         v_label + " since it does  exist.");
   }
-  if (!graph.schema().IsVertexLabelSoftDeleted(v_label)) {
+  if (!graph.schema().is_vertex_label_soft_deleted(v_label)) {
     THROW_RUNTIME_ERROR("Cannot undo DeleteVertexType for vertex label " +
                         v_label + " since it is not soft deleted.");
   }
@@ -190,12 +193,12 @@ void DeleteVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  if (graph.schema().exist(src_label, dst_label, edge_label)) {
+  if (graph.schema().is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     THROW_RUNTIME_ERROR("Cannot undo DeleteEdgeType for edge label " +
                         edge_label + " since it exists.");
   }
-  if (!graph.schema().IsEdgeLabelSoftDeleted(src_label, dst_label,
-                                             edge_label)) {
+  if (!graph.schema().is_edge_label_soft_deleted(src_label, dst_label,
+                                                 edge_label)) {
     THROW_RUNTIME_ERROR("Cannot undo DeleteEdgeType for edge label " +
                         edge_label + " since it is not soft deleted.");
   }

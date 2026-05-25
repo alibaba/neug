@@ -255,7 +255,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    * **Usage Example:**
    * @code{.cpp}
    * // Get outgoing KNOWS edges from Person to Person
-   * GenericView view = reader.GetGenericOutgoingGraphView(
+   * CsrView view = reader.GetGenericOutgoingGraphView(
    *     person_label, person_label, knows_label);
    *
    * // Traverse neighbors of vertex v
@@ -267,15 +267,14 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @param v_label Source vertex label
    * @param neighbor_label Destination vertex label
    * @param edge_label Edge label
-   * @return GenericView for edge traversal
+   * @return CsrView for edge traversal
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    *
    * @since v0.1.0
    */
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }
@@ -286,13 +285,12 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @param v_label Destination vertex label (receives edges)
    * @param neighbor_label Source vertex label (edges come from)
    * @param edge_label Edge label
-   * @return GenericView for reverse edge traversal
+   * @return CsrView for reverse edge traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }
@@ -324,7 +322,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    *     person_label, person_label, knows_label, "weight");
    *
    * // Access property during traversal
-   * GenericView view = reader.GetGenericOutgoingGraphView(...);
+   * CsrView view = reader.GetGenericOutgoingGraphView(...);
    * for (auto it = view.get_edges(v).begin(); ...; ++it) {
    *     double w = weight.get_typed_data<double>(it);
    * }

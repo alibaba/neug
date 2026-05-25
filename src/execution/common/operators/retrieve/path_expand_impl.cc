@@ -22,7 +22,7 @@ namespace neug {
 namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_graph_view(const GenericView& view,
+iterative_expand_vertex_on_graph_view(const CsrView& view,
                                       const SLVertexColumn& input, int lower,
                                       int upper) {
   int input_label = input.label();
@@ -86,8 +86,8 @@ iterative_expand_vertex_on_graph_view(const GenericView& view,
 }
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
-                                           const GenericView& oview,
+iterative_expand_vertex_on_dual_graph_view(const CsrView& iview,
+                                           const CsrView& oview,
                                            const SLVertexColumn& input,
                                            int lower, int upper) {
   int input_label = input.label();

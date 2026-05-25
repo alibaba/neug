@@ -27,7 +27,7 @@
 #include <string_view>
 #include <utility>
 
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
@@ -551,9 +551,18 @@ void load_statistic_file(const std::string& work_dir,
 }
 
 void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
+}
+
+void EdgeTable::Initialize(const std::string& work_dir,
+                           MemoryLevel memory_level) {
+  openImpl(work_dir, memory_level, "");
+}
+
+void EdgeTable::openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                         const std::string& checkpoint_dir_path) {
   work_dir_ = work_dir;
   memory_level_ = memory_level;
-  auto ckp_dir_path = checkpoint_dir(work_dir);
   auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                                   meta_->edge_label_name);
   auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -561,14 +570,24 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   auto edata_prefix_path = edata_prefix(
       meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
   if (memory_level == MemoryLevel::kSyncToFile) {
-    in_csr_->open(ie_prefix_path, ckp_dir_path, work_dir);
-    out_csr_->open(oe_prefix_path, ckp_dir_path, work_dir);
+    in_csr_->open(ie_prefix_path, checkpoint_dir_path, work_dir);
+    out_csr_->open(oe_prefix_path, checkpoint_dir_path, work_dir);
   } else if (memory_level == MemoryLevel::kInMemory) {
-    in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
+    in_csr_->open_in_memory(checkpoint_dir_path.empty()
+                                ? ""
+                                : checkpoint_dir_path + "/" + ie_prefix_path);
+    out_csr_->open_in_memory(checkpoint_dir_path.empty()
+                                 ? ""
+                                 : checkpoint_dir_path + "/" + oe_prefix_path);
   } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-    in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
+    in_csr_->open_with_hugepages(checkpoint_dir_path.empty()
+                                     ? ""
+                                     : checkpoint_dir_path + "/" +
+                                           ie_prefix_path);
+    out_csr_->open_with_hugepages(checkpoint_dir_path.empty()
+                                      ? ""
+                                      : checkpoint_dir_path + "/" +
+                                            oe_prefix_path);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "unsupported memory level: " +
@@ -592,13 +611,28 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
     }
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
-          "the graph is not dumped properly");
+    if (!checkpoint_dir_path.empty()) {
+      load_statistic_file(work_dir, meta_->src_label_name,
+                          meta_->dst_label_name, meta_->edge_label_name,
+                          capacity_, table_idx_);
+      if (table_cap != capacity_.load()) {
+        THROW_INTERNAL_EXCEPTION(
+            "capacity in statistic file not match actual table capacity, maybe "
+            "the graph is not dumped properly");
+      }
     }
+  }
+}
+
+void EdgeTable::Close() {
+  if (out_csr_) {
+    out_csr_->close();
+  }
+  if (in_csr_) {
+    in_csr_->close();
+  }
+  if (table_) {
+    table_->close();
   }
 }
 
@@ -754,11 +788,11 @@ size_t EdgeTable::EdgeNum() const {
 
 size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
 
-GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
+CsrView EdgeTable::get_outgoing_view(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
 }
 
-GenericView EdgeTable::get_incoming_view(timestamp_t ts) const {
+CsrView EdgeTable::get_incoming_view(timestamp_t ts) const {
   return in_csr_->get_generic_view(ts);
 }
 
@@ -1065,7 +1099,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                    new_in_csr.get());
   }
 
-  table_->drop();
+  table_->close();
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
