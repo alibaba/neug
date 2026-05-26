@@ -10,18 +10,18 @@ The Extension framework in database systems is a mechanism that allows dynamical
 
 The following extensions are currently supported or planned to be supported in NeuG:
 
-| Category        | Extension                     | Description                                                              | Since Version |
-| --------------- | ----------------------------- | ------------------------------------------------------------------------ | ------------- |
-| Data Source     | [JSON](load_json.md)          | Import & export  data from JSON file format                              | v0.1          |
-| Data Source     | [PARQUET](load_parquet.md)                      | Import & Export data from PARQUET format files                           | v0.1.1  |
-| File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md)         | Provide data source based on HTTP/HTTPS/S3/OSS protocol                  | v0.2  |
-| Graph Algorithm | K-Core                        | Find all subgraphs with core number ≥ k. Returns`(node, core_number)`   | planned v0.2  |
-| Graph Algorithm | PageRank                      | Calculate node importance scores. Returns`(node, rank)`                  | planned v0.2  |
-| Graph Algorithm | Shortest Path (Dijkstra)      | Single-source shortest path algorithm                                    | planned v0.2  |
-| Graph Algorithm | Connected Components          | Weakly connected components detection                                    | planned v0.2  |
-| Graph Algorithm | Leiden                        | Community detection algorithm for finding communities in networks        | planned v0.2  |
-| Graph Algorithm | Label Propagation             | Community detection algorithm that propagates labels through the network | planned v0.2  |
-| Graph Algorithm | Subgraph Matching (Estimator) | Unbiased estimation of subgraph matching                                 | planned v0.2  |
+| Category        | Extension                        | Description                                                               | Since Version |
+| --------------- | -------------------------------- | ------------------------------------------------------------------------- | ------------- |
+| Data Source     | [JSON](load_json.md)                | Import & export data from JSON file format (built-in since v0.1.2)        | v0.1          |
+| Data Source     | [PARQUET](load_parquet.md)          | Import & Export data from PARQUET format files                            | v0.1.1        |
+| File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md) | Provide data source based on HTTP/HTTPS/S3/OSS protocol                   | v0.1.2        |
+| Graph Algorithm | K-Core                           | Find all subgraphs with core number ≥ k. Returns `(node, core_number)` | planned v0.2  |
+| Graph Algorithm | PageRank                         | Calculate node importance scores. Returns `(node, rank)`                | planned v0.2  |
+| Graph Algorithm | Shortest Path (Dijkstra)         | Single-source shortest path algorithm                                     | planned v0.2  |
+| Graph Algorithm | Connected Components             | Weakly connected components detection                                     | planned v0.2  |
+| Graph Algorithm | Leiden                           | Community detection algorithm for finding communities in networks         | planned v0.2  |
+| Graph Algorithm | Label Propagation                | Community detection algorithm that propagates labels through the network  | planned v0.2  |
+| Graph Algorithm | Subgraph Matching (Estimator)    | Unbiased estimation of subgraph matching                                  | planned v0.2  |
 
 ## Using Extensions
 
@@ -42,10 +42,10 @@ NeuG automatically performs checksum verification on downloaded content to detec
 INSTALL <extension_name>;
 ```
 
-Example: Download JSON Extension
+Example: Download PARQUET Extension
 
 ```cypher
-INSTALL JSON;
+INSTALL PARQUET;
 ```
 
 ### Load Extension
@@ -56,10 +56,10 @@ The `LOAD` command loads the dynamic library from `$EXTENSION_HOME/extension/<ex
 LOAD <extension_name>;
 ```
 
-Example: Load JSON Extension
+Example: Load PARQUET Extension
 
 ```cypher
-LOAD JSON;
+LOAD PARQUET;
 ```
 
 ### List Extensions
@@ -72,9 +72,9 @@ CALL SHOW_LOADED_EXTENSIONS() RETURN *;
 
 Example output:
 
-| Extension Name | Description                                      |
-| -------------- | ------------------------------------------------ |
-| JSON           | Provides functions to read and write JSON files. |
+| Extension Name | Description                                            |
+| -------------- | ------------------------------------------------------ |
+| PARQUET        | Provides functions to read and write PARQUET files.    |
 
 ### Uninstall Extensions
 
@@ -84,10 +84,10 @@ The `UNINSTALL` command removes the downloaded dynamic library from the local in
 UNINSTALL <extension_name>;
 ```
 
-Example: Uninstall JSON Extension
+Example: Uninstall PARQUET Extension
 
 ```cypher
-UNINSTALL JSON;
+UNINSTALL PARQUET;
 ```
 
 ## Extension Lifecycle
@@ -99,4 +99,3 @@ The typical lifecycle of an extension follows these steps:
 3. **Use**: Execute queries that utilize the extension's functionality
 4. **Unload**: Extensions are automatically unloaded when the database closes
 5. **Uninstall**: Remove the extension files from your local system when no longer needed
-
