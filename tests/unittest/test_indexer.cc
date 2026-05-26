@@ -194,19 +194,7 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   hugepage_indexer.close();
 }
 
-TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
-  const std::string empty_name = "empty_index";
-  const std::string empty_dir = test_dir_ + "/empty_dir";
-  std::filesystem::create_directories(empty_dir);
-  CreateEmptyIndicesFile(empty_dir + "/" + empty_name);
-
-  LFIndexer<uint32_t> empty_indexer;
-  empty_indexer.init(DataTypeId::kInt64);
-  empty_indexer.build_empty_LFIndexer(empty_name, "", empty_dir);
-  EXPECT_TRUE(std::filesystem::exists(empty_dir + "/" + empty_name + ".meta"));
-  EXPECT_TRUE(
-      std::filesystem::exists(empty_dir + "/" + empty_name + ".indices"));
-
+TEST_F(LFIndexerTest, SupportsSwapAndVarcharKeys) {
   const std::string lhs_base = test_dir_ + "/lhs_varchar";
   const std::string rhs_base = test_dir_ + "/rhs_varchar";
   CreateEmptyIndicesFile(lhs_base);

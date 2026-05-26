@@ -35,7 +35,6 @@ limitations under the License.
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/utils/bitset.h"
-#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/property/column.h"
@@ -269,19 +268,6 @@ class LFIndexer {
           type.ToString());
     }
     }
-  }
-
-  void build_empty_LFIndexer(const std::string& filename,
-                             const std::string& snapshot_dir,
-                             const std::string& work_dir) {
-    keys_->open(filename + ".keys", "", work_dir);
-    auto full_path = work_dir + "/" + filename + ".indices";
-    file_utils::create_file(full_path, sizeof(FileHeader));
-
-    num_elements_.store(0);
-    indices_size_ = 0;
-    dump_meta(work_dir + "/" + filename + ".meta");
-    keys_->close();
   }
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
