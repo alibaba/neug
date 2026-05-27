@@ -14,6 +14,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include <string>
 #include <tuple>
@@ -863,4 +866,107 @@ TEST(SchemaTest, TestSchemaEqual) {
   // 2) Copy schema and test equal
   neug::Schema other_schema = schema;
   EXPECT_TRUE(schema.Equals(other_schema));
+}
+
+namespace {
+
+constexpr size_t kMaxVNum = static_cast<size_t>(1) << 32;
+
+neug::Schema BuildComplexSchema() {
+  neug::Schema schema;
+  schema.SetGraphName("complex_graph");
+  schema.SetGraphId("g-42");
+  schema.SetDescription("complex schema");
+
+  schema.AddVertexLabel(
+      "Person",
+      {DataType::Varchar(256), DataTypeId::kInt32, DataTypeId::kInt64,
+       DataTypeId::kDouble, DataTypeId::kBoolean, DataTypeId::kUInt32},
+      {"name", "age", "salary", "height", "active", "badge"},
+      VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "person");
+
+  schema.AddVertexLabel("Company",
+                        {DataTypeId::kVarchar, DataTypeId::kDouble,
+                         DataTypeId::kUInt64, DataTypeId::kBoolean},
+                        {"company_name", "revenue", "employees", "listed"},
+                        VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "company");
+
+  schema.AddVertexLabel(
+      "Movie", {DataTypeId::kInt32, DataTypeId::kFloat}, {"year", "rating"},
+      VPk(DataType::Varchar(128), "title", 0), kMaxVNum, "movie");
+
+  schema.AddEdgeLabel("Person", "Person", "KNOWS",
+                      {DataTypeId::kInt64, DataTypeId::kFloat},
+                      {"since", "weight"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kSingle, true, true, std::nullopt, "knows");
+
+  schema.AddEdgeLabel("Person", "Company", "WORKS_AT", {}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, std::nullopt, "employment");
+
+  schema.AddEdgeLabel("Person", "Movie", "ACTED_IN", {DataTypeId::kInt32},
+                      {"role_count"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kMultiple, true, true, std::nullopt, "");
+  schema.AddEdgeLabel("Movie", "Movie", "ACTED_IN", {DataTypeId::kInt32},
+                      {"role_count"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kMultiple, true, true, std::nullopt, "");
+
+  return schema;
+}
+
+std::string DocToString(const rapidjson::Document& doc) {
+  rapidjson::StringBuffer buf;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
+  doc.Accept(writer);
+  return std::string(buf.GetString(), buf.GetSize());
+}
+
+}  // namespace
+
+TEST(SchemaJsonRoundTrip, ComplexSchemaRoundTripIsStable) {
+  auto original = BuildComplexSchema();
+
+  auto json_result = original.ToJson();
+  ASSERT_TRUE(json_result);
+  const std::string json_str = DocToString(json_result.value());
+
+  rapidjson::Document parsed;
+  parsed.Parse(json_str.c_str(), json_str.size());
+  ASSERT_FALSE(parsed.HasParseError());
+
+  neug::Schema reconstituted;
+  reconstituted.FromJson(parsed);
+
+  EXPECT_TRUE(original.Equals(reconstituted));
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Person", "Movie", "ACTED_IN"));
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Movie", "Movie", "ACTED_IN"));
+  EXPECT_EQ(
+      reconstituted.get_edge_properties("Person", "Company", "WORKS_AT").size(),
+      0u);
+
+  auto json_result2 = reconstituted.ToJson();
+  ASSERT_TRUE(json_result2);
+  EXPECT_EQ(DocToString(json_result2.value()), json_str);
+}
+
+TEST(SchemaCloneTest, CloneIsDeepCopyAndIndependent) {
+  auto original = BuildComplexSchema();
+  auto cloned = original.Clone();
+
+  EXPECT_TRUE(original.Equals(cloned));
+  EXPECT_EQ(cloned.GetGraphName(), original.GetGraphName());
+  EXPECT_EQ(cloned.GetGraphId(), original.GetGraphId());
+  EXPECT_EQ(cloned.GetDescription(), original.GetDescription());
+
+  cloned.AddVertexLabel("City", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "");
+  EXPECT_TRUE(cloned.is_vertex_label_valid("City"));
+  EXPECT_FALSE(original.is_vertex_label_valid("City"));
+
+  auto snapshot = original.Clone();
+  original.DeleteEdgeLabel("KNOWS");
+  EXPECT_FALSE(original.is_edge_label_valid("KNOWS"));
+  EXPECT_TRUE(snapshot.is_edge_label_valid("KNOWS"));
 }

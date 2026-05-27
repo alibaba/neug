@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <rapidjson/document.h>
 #include <stddef.h>
 #include <cstdint>
 #include <map>
@@ -757,6 +758,10 @@ class Schema {
 
   neug::result<YAML::Node> to_yaml() const;
 
+  neug::result<rapidjson::Document> ToJson() const;
+
+  void FromJson(const rapidjson::Value& j);
+
   inline void SetGraphName(const std::string& name) { name_ = name; }
 
   inline void SetGraphId(const std::string& id) { id_ = id; }
@@ -791,6 +796,8 @@ class Schema {
    * @return A new Schema object with the compacted schema.
    */
   Schema Compact() const;
+
+  Schema Clone() const;
 
  private:
   // Internal methods that do not check tombstone
