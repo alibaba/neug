@@ -797,7 +797,6 @@ class Schema {
    */
   Schema Compact() const;
 
-  /// COW Clone: 全量深拷贝，用于 UpdateTransaction Fork
   Schema Clone() const;
 
  private:

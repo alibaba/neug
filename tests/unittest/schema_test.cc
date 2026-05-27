@@ -14,6 +14,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include <string>
 #include <tuple>
@@ -863,4 +866,238 @@ TEST(SchemaTest, TestSchemaEqual) {
   // 2) Copy schema and test equal
   neug::Schema other_schema = schema;
   EXPECT_TRUE(schema.Equals(other_schema));
+}
+
+namespace {
+
+// Builds a schema exercising several primitive types, varchar with a custom
+// max_length, multiple vertex labels with different primary keys, and several
+// edge labels — including one edge label reused across multiple vertex
+// triplets and one with sort_key_for_nbr / asymmetric mutability.
+neug::Schema BuildComplexSchema() {
+  neug::Schema schema;
+  schema.SetGraphName("complex_graph");
+  schema.SetGraphId("g-42");
+  schema.SetDescription("complex schema for round-trip tests");
+
+  // Person(id PK INT64, name VARCHAR(custom 256), age INT32, salary INT64,
+  //        height DOUBLE, active BOOLEAN, badge UINT32)
+  {
+    std::vector<DataType> types = {
+        DataType::Varchar(256),  // name
+        DataTypeId::kInt32,      // age
+        DataTypeId::kInt64,      // salary
+        DataTypeId::kDouble,     // height
+        DataTypeId::kBoolean,    // active
+        DataTypeId::kUInt32,     // badge
+    };
+    auto names = VNames({"name", "age", "salary", "height", "active", "badge"});
+    auto pk = VPk(DataTypeId::kInt64, "id", 0);
+    schema.AddVertexLabel("Person", types, {names.begin(), names.end()}, pk,
+                          /*max_vnum*/ static_cast<size_t>(1) << 32,
+                          "person vertex");
+  }
+
+  // Company(id PK INT64, company_name VARCHAR(default), revenue DOUBLE,
+  //         employees UINT64, listed BOOLEAN)
+  {
+    std::vector<DataType> types = {
+        DataTypeId::kVarchar,  // company_name (default max_length)
+        DataTypeId::kDouble,   // revenue
+        DataTypeId::kUInt64,   // employees
+        DataTypeId::kBoolean,  // listed
+    };
+    auto names = VNames({"company_name", "revenue", "employees", "listed"});
+    auto pk = VPk(DataTypeId::kInt64, "id", 0);
+    schema.AddVertexLabel("Company", types, {names.begin(), names.end()}, pk,
+                          /*max_vnum*/ static_cast<size_t>(1) << 32,
+                          "company vertex");
+  }
+
+  // Movie(title PK VARCHAR(custom 128), year INT32, rating FLOAT)
+  {
+    std::vector<DataType> types = {
+        DataTypeId::kInt32,  // year
+        DataTypeId::kFloat,  // rating
+    };
+    auto names = VNames({"year", "rating"});
+    auto pk = VPk(DataType::Varchar(128), "title", 0);
+    schema.AddVertexLabel("Movie", types, {names.begin(), names.end()}, pk,
+                          /*max_vnum*/ static_cast<size_t>(1) << 32,
+                          "movie vertex with varchar PK");
+  }
+
+  // Edge: Person -[KNOWS]-> Person with sort_key_for_nbr and asymmetric
+  // mutability.
+  {
+    std::vector<DataType> e_types = {DataTypeId::kInt64,   // since
+                                     DataTypeId::kFloat};  // weight
+    std::vector<std::string> e_names = {"since", "weight"};
+    schema.AddEdgeLabel("Person", "Person", "KNOWS", e_types, e_names,
+                        /*oe*/ EdgeStrategy::kMultiple,
+                        /*ie*/ EdgeStrategy::kSingle,
+                        /*oe_mutable*/ true, /*ie_mutable*/ false,
+                        /*sort_key_for_nbr*/ std::string("since"),
+                        "knows edge");
+  }
+
+  // Edge: Person -[WORKS_AT]-> Company (no properties, no sort key).
+  {
+    schema.AddEdgeLabel("Person", "Company", "WORKS_AT", {}, {},
+                        /*oe*/ EdgeStrategy::kMultiple,
+                        /*ie*/ EdgeStrategy::kMultiple,
+                        /*oe_mutable*/ true, /*ie_mutable*/ true,
+                        /*sort_key_for_nbr*/ std::nullopt, "employment");
+  }
+
+  // Edge: Person -[ACTED_IN]-> Movie. Reuse this edge label between two
+  // distinct vertex pairs to cover the multi-triplet path.
+  {
+    std::vector<DataType> e_types = {DataTypeId::kInt32};
+    std::vector<std::string> e_names = {"role_count"};
+    schema.AddEdgeLabel("Person", "Movie", "ACTED_IN", e_types, e_names,
+                        /*oe*/ EdgeStrategy::kMultiple,
+                        /*ie*/ EdgeStrategy::kMultiple,
+                        /*oe_mutable*/ true, /*ie_mutable*/ true,
+                        /*sort_key_for_nbr*/ std::nullopt,
+                        "person -> movie acted_in");
+    schema.AddEdgeLabel("Movie", "Movie", "ACTED_IN", e_types, e_names,
+                        /*oe*/ EdgeStrategy::kMultiple,
+                        /*ie*/ EdgeStrategy::kMultiple,
+                        /*oe_mutable*/ true, /*ie_mutable*/ true,
+                        /*sort_key_for_nbr*/ std::nullopt,
+                        "movie -> movie acted_in (cameo)");
+  }
+
+  return schema;
+}
+
+std::string DocToString(const rapidjson::Document& doc) {
+  rapidjson::StringBuffer buf;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
+  doc.Accept(writer);
+  return std::string(buf.GetString(), buf.GetSize());
+}
+
+}  // namespace
+
+TEST(SchemaJsonRoundTrip, ComplexSchemaToJsonFromJsonPreservesEqualness) {
+  auto original = BuildComplexSchema();
+
+  // 1) Serialize.
+  auto json_result = original.ToJson();
+  ASSERT_TRUE(json_result) << "ToJson failed: "
+                           << json_result.error().ToString();
+  rapidjson::Document& doc = json_result.value();
+  ASSERT_TRUE(doc.IsObject());
+
+  // Stringify and reparse — exercises the JSON pipeline as a real consumer
+  // would (e.g. an HTTP endpoint).
+  const std::string json_str = DocToString(doc);
+  ASSERT_FALSE(json_str.empty());
+
+  rapidjson::Document parsed;
+  parsed.Parse(json_str.c_str(), json_str.size());
+  ASSERT_FALSE(parsed.HasParseError())
+      << "Re-parse failed at offset " << parsed.GetErrorOffset();
+
+  // 2) Deserialize.
+  neug::Schema reconstituted;
+  reconstituted.FromJson(parsed);
+
+  // 3) Verify structural equality (labels, properties, strategies, triplets).
+  EXPECT_TRUE(original.Equals(reconstituted))
+      << "Round-tripped schema does not equal the original";
+
+  // Spot-check details that Equals does not look at but should still survive.
+  EXPECT_EQ(original.get_vertex_description("Person"),
+            reconstituted.get_vertex_description("Person"));
+  EXPECT_EQ(original.get_vertex_description("Movie"),
+            reconstituted.get_vertex_description("Movie"));
+
+  // Multi-triplet edge label is preserved on both pairs.
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Person", "Movie", "ACTED_IN"));
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Movie", "Movie", "ACTED_IN"));
+
+  // Edge strategies survive (encoded via the YAML "relation" field).
+  EXPECT_EQ(
+      reconstituted.get_outgoing_edge_strategy("Person", "Person", "KNOWS"),
+      EdgeStrategy::kMultiple);
+  EXPECT_EQ(
+      reconstituted.get_incoming_edge_strategy("Person", "Person", "KNOWS"),
+      EdgeStrategy::kSingle);
+  // Note: the underlying YAML dumper does not currently emit x_csr_params, so
+  // ie_mutable/oe_mutable and sort_key_for_nbr are not preserved through the
+  // round-trip. Once the YAML side learns to dump those, JSON inherits it for
+  // free.
+
+  // Varchar with custom max_length: type id alone matches via Equals; verify
+  // the underlying property is still kVarchar.
+  auto person_props = reconstituted.get_vertex_properties("Person");
+  ASSERT_FALSE(person_props.empty());
+  EXPECT_EQ(person_props[0].id(), DataTypeId::kVarchar);
+
+  // Edge with no properties round-trips with zero properties.
+  EXPECT_EQ(
+      reconstituted.get_edge_properties("Person", "Company", "WORKS_AT").size(),
+      0u);
+
+  // 4) Re-serialize the reconstituted schema and check the JSON is stable.
+  auto json_result2 = reconstituted.ToJson();
+  ASSERT_TRUE(json_result2);
+  EXPECT_EQ(DocToString(json_result2.value()), json_str)
+      << "Second round-trip produced a different JSON";
+}
+
+TEST(SchemaCloneTest, ComplexSchemaCloneIsDeepCopyAndEqual) {
+  auto original = BuildComplexSchema();
+  auto cloned = original.Clone();
+
+  // Clone must be structurally equal to the source.
+  EXPECT_TRUE(original.Equals(cloned));
+  EXPECT_TRUE(cloned.Equals(original));
+
+  // Names/ids/description are copied.
+  EXPECT_EQ(cloned.GetGraphName(), original.GetGraphName());
+  EXPECT_EQ(cloned.GetGraphId(), original.GetGraphId());
+  EXPECT_EQ(cloned.GetDescription(), original.GetDescription());
+
+  // Modifying the clone must not leak into the original.
+  cloned.AddVertexLabel("City", VProps({DataTypeId::kVarchar}),
+                        VNames({"name"}), VPk(DataTypeId::kInt64, "id", 0),
+                        /*max_vnum*/ static_cast<size_t>(1) << 32,
+                        "city added on clone");
+  EXPECT_TRUE(cloned.is_vertex_label_valid("City"));
+  EXPECT_FALSE(original.is_vertex_label_valid("City"));
+
+  cloned.DeleteVertexLabel("Movie", /*is_soft*/ true);
+  EXPECT_FALSE(cloned.is_vertex_label_valid("Movie"));
+  EXPECT_TRUE(original.is_vertex_label_valid("Movie"));
+
+  // And the reverse direction: changes to the original do not bleed into the
+  // clone we already took.
+  auto cloned_before = original.Clone();
+  original.DeleteEdgeLabel("KNOWS");
+  EXPECT_FALSE(original.is_edge_label_valid("KNOWS"));
+  EXPECT_TRUE(cloned_before.is_edge_label_valid("KNOWS"));
+}
+
+TEST(SchemaJsonRoundTrip, CloneThenJsonRoundTripStillEqual) {
+  auto original = BuildComplexSchema();
+  auto cloned = original.Clone();
+
+  auto json_result = cloned.ToJson();
+  ASSERT_TRUE(json_result);
+  const std::string json_str = DocToString(json_result.value());
+
+  rapidjson::Document parsed;
+  parsed.Parse(json_str.c_str(), json_str.size());
+  ASSERT_FALSE(parsed.HasParseError());
+
+  neug::Schema reconstituted;
+  reconstituted.FromJson(parsed);
+
+  EXPECT_TRUE(original.Equals(reconstituted));
 }
