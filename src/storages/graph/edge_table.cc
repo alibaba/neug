@@ -773,15 +773,23 @@ CsrView EdgeTable::get_incoming_view(timestamp_t ts) const {
 }
 
 EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
+  if (col_id < 0 || static_cast<size_t>(col_id) >= meta_->properties.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge property column id out of range: " + std::to_string(col_id) +
+        " (edge has " + std::to_string(meta_->properties.size()) +
+        " properties)");
+  }
   if (!meta_->is_bundled()) {
     return EdgeDataAccessor(meta_->properties[col_id].id(),
                             table_->get_column_by_id(col_id).get());
   } else {
-    if (meta_->properties.empty()) {
-      return EdgeDataAccessor(DataTypeId::kEmpty, nullptr);
-    } else {
-      return EdgeDataAccessor(meta_->properties[0].id(), nullptr);
+    if (col_id != 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Bundled edges store a single inline property; expected col_id 0 "
+          "but got " +
+          std::to_string(col_id));
     }
+    return EdgeDataAccessor(meta_->properties[0].id(), nullptr);
   }
 }
 

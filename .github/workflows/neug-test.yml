@@ -225,6 +225,7 @@ jobs:
         ctest -R transaction_test -V
         ctest -R csr_test -V
         ctest -R edge_table_test -V
+        ctest -R graph_view_test -V
         ctest -R utils_test -V
         ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
