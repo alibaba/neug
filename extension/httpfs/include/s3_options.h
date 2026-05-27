@@ -32,11 +32,7 @@ namespace s3 {
  *        options so that Arrow's S3FileSystem propagates it into the AWS SDK
  *        ClientConfiguration::caFile (and caPath).
  *
- * Background: We statically link curl into the httpfs extension to avoid the
- * aws-lc/OpenSSL TLS symbol conflict. That static curl is built on the
- * manylinux image (CentOS layout), so its compiled-in default CA path may not
- * exist on Ubuntu/Debian runtime hosts, leading to curlCode 77
- * (CURLE_SSL_CACERT_BADFILE). To make the extension portable across distros,
+ * To make the extension portable across distros,
  * we explicitly resolve a CA bundle path at runtime and feed it into AWS SDK's
  * client config via Arrow's FileSystemGlobalOptions.
  *
