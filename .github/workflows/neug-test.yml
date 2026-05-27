@@ -62,7 +62,7 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
     runs-on: ${{ matrix.runner }}
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
     - name: checkout
       id: checkout
