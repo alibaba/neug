@@ -216,6 +216,14 @@ S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
     THROW_IO_EXCEPTION("S3FileSystem: no paths provided");
   }
 
+  // Resolve a TLS CA bundle path and push it into Arrow's global filesystem
+  // options BEFORE EnsureS3Initialized() so that subsequent S3FileSystem::Make
+  // calls pick it up via client_config_.caFile / .caPath. This is required
+  // because the statically-linked curl in this extension is compiled on a
+  // CentOS-based manylinux image and its default CA path may not exist on
+  // Ubuntu/Debian runtime hosts (would otherwise trigger curlCode 77).
+  InitializeArrowTlsOptions();
+
   // Initialize Arrow S3 subsystem (idempotent, safe to call multiple times)
   auto init_result = arrow::fs::EnsureS3Initialized();
   if (!init_result.ok()) {
