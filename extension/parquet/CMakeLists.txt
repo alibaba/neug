@@ -4,6 +4,17 @@ file(GLOB PARQUET_EXTENSION_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(PARQUET_EXTENSION_OBJECT_FILES ${PARQUET_EXTENSION_SOURCES})
 
+# Resolve OpenSSL for the link step.
+#
+# Even though the parquet extension does NOT make any S3/HTTP calls itself,
+# enabling ARROW_S3=ON in the project-wide Arrow build pulls AWS SDK code
+# (which references OpenSSL OCSP / BIO / EC / RSA / X509 APIs) into
+# arrow_bundled_dependencies.a. The linker's demand-driven scan drags those
+# .o files into the parquet extension, leaving symbols like OCSP_basic_verify
+# undefined and breaking dlopen at LOAD time. Linking OpenSSL here satisfies
+# those references; the AWS code paths are never actually executed in parquet.
+find_package(OpenSSL REQUIRED)
+
 # Use the extension build system (should be called before add_subdirectory(test))
 build_extension_lib("parquet")
 
@@ -48,11 +59,25 @@ endif()
 # At runtime a DIFFERENT libneug.so (without ARROW_S3) may be loaded, causing
 # "undefined symbol" errors.  Placing neug last ensures static archives provide
 # their own definitions and the extension is self-contained.
+#
+# IMPORTANT (group): Arrow's bundled AWS C++ SDK static archives appear in
+# arrow_static's INTERFACE_LINK_LIBRARIES *after* OpenSSL, but their .o files
+# reference OpenSSL OCSP/EC/BIO symbols.  GNU ld does a single-pass scan and
+# would skip libcrypto.a before those refs become undefined.  Even though
+# Arrow's interface re-lists libcrypto.a at the very end, ld's --as-needed
+# default elides .o files (e.g. ocsp_vfy.o) whose symbols only appear in
+# already-processed archives.  --whole-archive forces every .o from libssl /
+# libcrypto into the final extension, guaranteeing OCSP_basic_verify et al.
+# are resolved.  Cost: ~3 MB binary size growth.
 target_link_libraries(neug_parquet_extension PRIVATE
     ${ARROW_BASE_LIB}
     ${_EXT_ARROW_DATASET_LIB}
     ${_EXT_ARROW_PARQUET_LIB}
     ${ARROW_BUNDLED_DEPS_LIB}
+    -Wl,--whole-archive
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    -Wl,--no-whole-archive
     neug
 )
 
