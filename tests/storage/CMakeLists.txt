@@ -21,3 +21,5 @@ add_neug_test(vertex_table_benchmark vertex_table_benchmark.cc)
 add_neug_test(test_vertex_table test_vertex_table.cc)
 
 add_neug_test(edge_table_test test_edge_table.cc)
+
+add_neug_test(graph_view_test test_graph_view.cc)

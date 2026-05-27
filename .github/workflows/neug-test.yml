@@ -62,7 +62,7 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
     runs-on: ${{ matrix.runner }}
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
     - name: checkout
       id: checkout
@@ -225,6 +225,7 @@ jobs:
         ctest -R transaction_test -V
         ctest -R csr_test -V
         ctest -R edge_table_test -V
+        ctest -R graph_view_test -V
         ctest -R utils_test -V
         ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
