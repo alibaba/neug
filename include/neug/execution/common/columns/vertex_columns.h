@@ -99,8 +99,8 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -117,13 +117,13 @@ class SLVertexColumn : public IVertexColumn {
 
   bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
+  std::pair<std::shared_ptr<IContextColumn>, vector_t<sel_vec_t>>
   generate_aggregate_offset() const override;
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t num = vertices_.size();
-    for (size_t k = 0; k < num; ++k) {
+    sel_t num = static_cast<sel_t>(vertices_.size());
+    for (sel_t k = 0; k < num; ++k) {
       func(k, label_, vertices_[k]);
     }
   }
@@ -136,15 +136,13 @@ class SLVertexColumn : public IVertexColumn {
 
   __attribute__((always_inline)) label_t label() const { return label_; }
 
-  __attribute__((always_inline)) const std::vector<vid_t,
-                                                    neug::NeuGAllocator<vid_t>>&
-  vertices() const {
+  __attribute__((always_inline)) const vector_t<vid_t>& vertices() const {
     return vertices_;
   }
 
  private:
   friend class MSVertexColumnBuilder;
-  std::vector<vid_t, neug::NeuGAllocator<vid_t>> vertices_;
+  vector_t<vid_t> vertices_;
   label_t label_;
   bool is_optional_ = false;
 };
@@ -186,8 +184,8 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -210,7 +208,7 @@ class MSVertexColumn : public IVertexColumn {
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t index = 0;
+    sel_t index = 0;
     for (auto& pair : vertices_) {
       label_t label = pair.first;
       for (auto v : pair.second) {
@@ -229,9 +227,8 @@ class MSVertexColumn : public IVertexColumn {
     return vertices_[seg_id].first;
   }
 
-  __attribute__((always_inline)) const std::vector<vid_t,
-                                                    neug::NeuGAllocator<vid_t>>&
-  seg_vertices(size_t seg_id) const {
+  __attribute__((always_inline)) const vector_t<vid_t>& seg_vertices(
+      size_t seg_id) const {
     return vertices_[seg_id].second;
   }
 
@@ -239,8 +236,8 @@ class MSVertexColumn : public IVertexColumn {
 
  private:
   friend class MSVertexColumnBuilder;
-  using VertexVec = std::vector<vid_t, neug::NeuGAllocator<vid_t>>;
-  std::vector<std::pair<label_t, VertexVec>> vertices_;
+  using VertexVec = vector_t<vid_t>;
+  vector_t<std::pair<label_t, VertexVec>> vertices_;
   std::set<label_t> labels_;
 
   bool is_optional_ = false;
@@ -291,10 +288,10 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
 
  private:
   label_t cur_label_;
-  using VertexVec = std::vector<vid_t, neug::NeuGAllocator<vid_t>>;
+  using VertexVec = vector_t<vid_t>;
   VertexVec cur_list_;
 
-  std::vector<std::pair<label_t, VertexVec>> vertices_;
+  vector_t<std::pair<label_t, VertexVec>> vertices_;
 
   bool is_optional_ = false;
 };
@@ -334,8 +331,8 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return vertices_[idx];
   }
 
@@ -349,7 +346,7 @@ class MLVertexColumn : public IVertexColumn {
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t index = 0;
+    sel_t index = 0;
     for (auto& pair : vertices_) {
       func(index++, pair.label_, pair.vid_);
     }
@@ -362,7 +359,7 @@ class MLVertexColumn : public IVertexColumn {
  private:
   friend class MLVertexColumnBuilder;
   friend class MLVertexColumnBuilderOpt;
-  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
+  vector_t<VertexRecord> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -394,7 +391,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   std::shared_ptr<IContextColumn> finish() override;
 
  private:
-  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
+  vector_t<VertexRecord> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -403,7 +400,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
  public:
   explicit MLVertexColumnBuilderOpt(const std::set<label_t>& labels) {
     size_t max_label = labels.empty() ? 0 : *labels.rbegin();
-    labels_bitmap_.resize(max_label + 1, false);
+    labels_bitmap_.resize(max_label + 1, 0);
   }
   ~MLVertexColumnBuilderOpt() = default;
 
@@ -411,7 +408,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
 
   // v should not be null
   __attribute__((always_inline)) void push_back_opt(VertexRecord v) {
-    labels_bitmap_[v.label_] = true;
+    labels_bitmap_[v.label_] = 1;
     assert(v.vid_ != std::numeric_limits<vid_t>::max());
     vertices_.push_back(v);
   }
@@ -446,8 +443,8 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   __attribute__((always_inline)) size_t cur_size() { return vertices_.size(); }
 
  private:
-  std::vector<VertexRecord, neug::NeuGAllocator<VertexRecord>> vertices_;
-  std::vector<bool> labels_bitmap_;
+  vector_t<VertexRecord> vertices_;
+  vector_t<uint8_t> labels_bitmap_;
   bool is_optional_ = false;
 };
 

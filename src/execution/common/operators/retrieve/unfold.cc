@@ -41,9 +41,9 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
 template <typename T>
 Context unfold_impl(Context&& ctx, int alias, const RecordExprBase& key) {
   ValueColumnBuilder<T> builder;
-  size_t row_num = ctx.row_num();
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
   sel_vec_t offsets;
-  for (size_t i = 0; i < row_num; ++i) {
+  for (sel_t i = 0; i < row_num; ++i) {
     Value val = key.eval_record(ctx, i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {
@@ -59,9 +59,9 @@ Context unfold_list(Context&& ctx, int alias, const RecordExprBase& key) {
   const auto& elem_type = ListType::GetChildType(key.type());
 
   ListColumnBuilder builder(ListType::GetChildType(elem_type));
-  size_t row_num = ctx.row_num();
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
   sel_vec_t offsets;
-  for (size_t i = 0; i < row_num; ++i) {
+  for (sel_t i = 0; i < row_num; ++i) {
     Value val = key.eval_record(ctx, i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {

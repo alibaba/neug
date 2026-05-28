@@ -28,7 +28,7 @@ namespace ops {
 
 class SinkOpr : public IOperator {
  public:
-  explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
+  explicit SinkOpr(const vector_t<int>& tag_ids) : tag_ids_(tag_ids) {}
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override {
@@ -39,7 +39,7 @@ class SinkOpr : public IOperator {
   std::string get_operator_name() const override { return "SinkOpr"; }
 
  private:
-  std::vector<int> tag_ids_;
+  vector_t<int> tag_ids_;
 };
 
 // These operators do not require a sink for their results.
@@ -51,7 +51,7 @@ neug::result<OpBuildResultT> SinkOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.plan(op_idx).opr().sink();
-  std::vector<int> tag_ids;
+  vector_t<int> tag_ids;
   for (auto& tag : opr.tags()) {
     tag_ids.push_back(tag.tag().value());
   }

@@ -20,6 +20,7 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -241,11 +242,10 @@ class EdgeExpand {
     sel_vec_t offsets;
 
     static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
-    static thread_local std::vector<vid_t> d0_vec;
-
+    static thread_local vector_t<vid_t> d0_vec;
     d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);
 
-    size_t idx = 0;
+    sel_t idx = 0;
     if (csr0.type() == CsrViewType::kMultipleMutable &&
         ed_accessor0.is_bundled()) {
       auto typed_csr0 =

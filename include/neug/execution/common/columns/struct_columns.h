@@ -59,20 +59,18 @@ class StructColumn : public IContextColumn {
     return valids_[idx];
   }
 
-  const std::vector<std::shared_ptr<IContextColumn>>& children() const {
+  const vector_t<std::shared_ptr<IContextColumn>>& children() const {
     return children_;
   }
 
-  const std::vector<bool, neug::NeuGAllocator<bool>>& validity_bitmap() const {
-    return valids_;
-  }
+  const vector_t<uint8_t>& validity_bitmap() const { return valids_; }
   friend class StructColumnBuilder;
 
  private:
   DataType type_;
   bool is_optional_;
-  std::vector<bool, neug::NeuGAllocator<bool>> valids_;
-  std::vector<std::shared_ptr<IContextColumn>> children_;
+  vector_t<uint8_t> valids_;
+  vector_t<std::shared_ptr<IContextColumn>> children_;
 };
 
 class StructColumnBuilder : public IContextColumnBuilder {
@@ -95,8 +93,8 @@ class StructColumnBuilder : public IContextColumnBuilder {
   size_t current_size_ = 0;
   DataType type_;
   bool is_optional_;
-  std::vector<bool, neug::NeuGAllocator<bool>> valids_;
-  std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
+  vector_t<uint8_t> valids_;
+  vector_t<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 
 }  // namespace execution

@@ -14,8 +14,8 @@
  */
 
 #include "neug/execution/expression/accessors/record_accessor.h"
-#include "neug/utils/exception/exception.h"
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -83,7 +83,7 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
   int tag_;
   std::string property_name_;
   DataType type_;
-  std::vector<std::shared_ptr<RefColumnBase>> property_columns_;
+  vector_t<std::shared_ptr<RefColumnBase>> property_columns_;
 };
 
 class BindedRecordVertexLabelExpr : public RecordExprBase {
@@ -140,8 +140,9 @@ std::unique_ptr<BindedExprBase> RecordVertexAccessor::bind(
   case GraphAccessType::kGid:
     return std::make_unique<BindedRecordVertexGIdExpr>(tag_);
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordVertexAccessor GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown RecordVertexAccessor GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
@@ -169,9 +170,8 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
           if (!graph.schema().exist(src_label, dst_label, edge_label)) {
             continue;
           }
-          const std::vector<std::string>& names =
-              graph.schema().get_edge_property_names(src_label, dst_label,
-                                                     edge_label);
+          const auto& names = graph.schema().get_edge_property_names(
+              src_label, dst_label, edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
             if (names[i] == prop_name) {
               LabelTriplet label{src_label, dst_label, edge_label};
@@ -205,7 +205,7 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
  private:
   int tag_;
   DataType type_;
-  std::map<LabelTriplet, EdgeDataAccessor> edge_accessors_;
+  flat_hash_map_t<LabelTriplet, EdgeDataAccessor> edge_accessors_;
 };
 
 class BindedEdgeRecordLabelExpr : public RecordExprBase {
@@ -263,8 +263,9 @@ std::unique_ptr<BindedExprBase> RecordEdgeAccessor::bind(
   case GraphAccessType::kGid:
     return std::make_unique<BindedEdgeRecordGIdExpr>(tag_);
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordEdgeAccessor GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown RecordEdgeAccessor GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
@@ -315,7 +316,8 @@ std::unique_ptr<BindedExprBase> RecordPathAccessor::bind(
   } else if (property_ == "cost") {
     return std::make_unique<BindedPathWeightExpr>(tag_);
   }
-  THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordPathAccessor property: " + property_);
+  THROW_NOT_SUPPORTED_EXCEPTION("Unknown RecordPathAccessor property: " +
+                                property_);
   return nullptr;
 }
 

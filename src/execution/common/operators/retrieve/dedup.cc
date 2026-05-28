@@ -21,15 +21,13 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/encoder.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 
 namespace execution {
 
-neug::result<Context> Dedup::dedup(Context&& ctx,
-                                   const sel_vec_t& cols) {
-  size_t row_num = ctx.row_num();
+neug::result<Context> Dedup::dedup(Context&& ctx, const sel_vec_t& cols) {
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
   sel_vec_t offsets;
   if (cols.size() == 0) {
     return ctx;
@@ -37,16 +35,16 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
   if (cols.size() == 1 && ctx.get(cols[0])->generate_dedup_offset(offsets)) {
   } else {
     offsets.clear();
-    phmap::flat_hash_set<std::string> set;
-    for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      std::vector<char> bytes;
+    flat_hash_set_t<string_t> set;
+    for (sel_t r_i = 0; r_i < row_num; ++r_i) {
+      vector_t<char> bytes;
       Encoder encoder(bytes);
       for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
         auto val = ctx.get(cols[c_i])->get_elem(r_i);
         encode_value(val, encoder);
         encoder.put_byte('#');
       }
-      std::string cur(bytes.begin(), bytes.end());
+      string_t cur(bytes.begin(), bytes.end());
       if (set.find(cur) == set.end()) {
         offsets.push_back(r_i);
         set.insert(cur);

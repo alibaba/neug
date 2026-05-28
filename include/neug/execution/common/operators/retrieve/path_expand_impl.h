@@ -36,20 +36,20 @@ iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
                                            int lower, int upper);
 
 std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-path_expand_vertex_without_predicate_impl(
-    const StorageReadInterface& graph, const SLVertexColumn& input,
-    const std::vector<LabelTriplet>& labels, Direction dir, int lower,
-    int upper);
+path_expand_vertex_without_predicate_impl(const StorageReadInterface& graph,
+                                          const SLVertexColumn& input,
+                                          const vector_t<LabelTriplet>& labels,
+                                          Direction dir, int lower, int upper);
 
 template <typename PRED_T>
 void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
               label_t e_label,
-              const StorageReadInterface::vertex_set_t& vertices, size_t idx,
+              const StorageReadInterface::vertex_set_t& vertices, sel_t idx,
               int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
               PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
               const PRED_T& pred) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -60,13 +60,13 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            vector_t<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            vector_t<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -87,14 +87,14 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            vector_t<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            vector_t<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -143,12 +143,12 @@ template <typename PRED_T>
 void sssp_both_dir(const GenericView& view0, const GenericView& view1,
                    label_t v_label, vid_t v, label_t e_label,
                    const StorageReadInterface::vertex_set_t& vertices,
-                   size_t idx, int lower, int upper,
+                   sel_t idx, int lower, int upper,
                    MSVertexColumnBuilder& dest_col_builder,
-                   PathColumnBuilder& path_col_builder,
-                   sel_vec_t& offsets, const PRED_T& pred) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+                   PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
+                   const PRED_T& pred) {
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -159,13 +159,13 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            vector_t<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            vector_t<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -196,14 +196,14 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            vector_t<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            vector_t<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -276,12 +276,12 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
 template <typename PRED_T>
 void sssp_both_dir_with_order_by_length_limit(
     const GenericView& view0, const GenericView& view1, label_t v_label,
-    vid_t v, const StorageReadInterface::vertex_set_t& vertices, size_t idx,
+    vid_t v, const StorageReadInterface::vertex_set_t& vertices, sel_t idx,
     int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, sel_vec_t& offsets,
     const PRED_T& pred, int limit_upper) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<bool> vis(vertices, false);
@@ -369,7 +369,7 @@ single_source_shortest_path_with_order_by_length_limit_impl(
     CHECK(dir == Direction::kBoth);
     auto oe_view = graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
     auto ie_view = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
-    foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
+    foreach_vertex(input, [&](sel_t idx, label_t label, vid_t v) {
       sssp_both_dir_with_order_by_length_limit(
           oe_view, ie_view, v_label, v, vertices, idx, lower, upper,
           dest_col_builder, path_len_builder, offsets, pred, limit_upper);
@@ -397,7 +397,7 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
         (dir == Direction::kIn)
             ? graph.GetGenericIncomingGraphView(v_label, v_label, e_label)
             : graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
-    foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
+    foreach_vertex(input, [&](sel_t idx, label_t label, vid_t v) {
       sssp_dir(view, dir, label, v, e_label, vertices, idx, lower, upper,
                dest_col_builder, path_col_builder, offsets, pred);
     });
@@ -405,7 +405,7 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
     CHECK(dir == Direction::kBoth);
     auto oe_view = graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
     auto ie_view = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
-    foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
+    foreach_vertex(input, [&](sel_t idx, label_t label, vid_t v) {
       sssp_both_dir(oe_view, ie_view, v_label, v, e_label, vertices, idx, lower,
                     upper, dest_col_builder, path_col_builder, offsets, pred);
     });
@@ -417,12 +417,13 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
 template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            sel_vec_t>
-default_single_source_shortest_path_impl(
-    const StorageReadInterface& graph, const IVertexColumn& input,
-    const std::vector<LabelTriplet>& labels, Direction dir, int lower,
-    int upper, const PRED_T& pred) {
+default_single_source_shortest_path_impl(const StorageReadInterface& graph,
+                                         const IVertexColumn& input,
+                                         const vector_t<LabelTriplet>& labels,
+                                         Direction dir, int lower, int upper,
+                                         const PRED_T& pred) {
   label_t label_num = graph.schema().vertex_label_frontier();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> labels_map(
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> labels_map(
       label_num);
   const auto& input_labels_set = input.get_labels_set();
   std::set<label_t> dest_labels;
@@ -453,9 +454,9 @@ default_single_source_shortest_path_impl(
   if (dest_labels.size() == 1) {
     MSVertexColumnBuilder dest_col_builder(*dest_labels.begin());
 
-    foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::pair<label_t, vid_t>> cur;
-      std::vector<std::pair<label_t, vid_t>> next;
+    foreach_vertex(input, [&](sel_t idx, label_t label, vid_t v) {
+      vector_t<std::pair<label_t, vid_t>> cur;
+      vector_t<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       std::map<std::pair<label_t, vid_t>,
                std::tuple<label_t, vid_t, label_t, Direction, const void*>>
@@ -466,9 +467,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            std::vector<VertexRecord> path;
-            std::vector<std::tuple<label_t, Direction, const void*>>
-                edge_labels;
+            vector_t<VertexRecord> path;
+            vector_t<std::tuple<label_t, Direction, const void*>> edge_labels;
             auto x = std::make_pair(label, vid);
             while (!(v_label == label && vid == v)) {
               path.push_back(VertexRecord{x.first, x.second});
@@ -522,9 +522,9 @@ default_single_source_shortest_path_impl(
     // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
     MLVertexColumnBuilder dest_col_builder;
 
-    foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::pair<label_t, vid_t>> cur;
-      std::vector<std::pair<label_t, vid_t>> next;
+    foreach_vertex(input, [&](sel_t idx, label_t label, vid_t v) {
+      vector_t<std::pair<label_t, vid_t>> cur;
+      vector_t<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       std::map<std::pair<label_t, vid_t>,
                std::tuple<label_t, vid_t, label_t, Direction, const void*>>
@@ -535,9 +535,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            std::vector<VertexRecord> path;
-            std::vector<std::tuple<label_t, Direction, const void*>>
-                edge_labels;
+            vector_t<VertexRecord> path;
+            vector_t<std::tuple<label_t, Direction, const void*>> edge_labels;
             auto x = std::make_pair(v_label, vid);
             while (!(v_label == label && vid == v)) {
               path.emplace_back(x.first, x.second);

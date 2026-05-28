@@ -24,12 +24,12 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
-#include "neug/utils/exception/exception.h"
 #include <stddef.h>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
 #include <tuple>
+#include "neug/utils/exception/exception.h"
 
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/i_context_column.h"
@@ -392,7 +392,9 @@ create_record_batch_supplier_from_arrow_stream_column(
       THROW_RUNTIME_ERROR("Failed to cast column for tag id: " +
                           std::to_string(tag_id));
     }
-    return casted_column->GetSuppliers();
+    auto suppliers_v = casted_column->GetSuppliers();
+    return std::vector<std::shared_ptr<IRecordBatchSupplier>>(
+        suppliers_v.begin(), suppliers_v.end());
   }
   LOG(ERROR) << "No valid column mappings found.";
   THROW_RUNTIME_ERROR("No valid column mappings found.");
@@ -614,7 +616,8 @@ void parse_property_mappings(
       auto prop_name = mapping.property().key().name();
       if (mapping.data().operators_size() != 1 ||
           !mapping.data().operators(0).has_var()) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property mapping: " + prop_name);
+        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property mapping: " +
+                                         prop_name);
       }
       auto tag_id = mapping.data().operators(0).var().tag().id();
       prop_mappings.emplace_back(tag_id, prop_name);

@@ -55,7 +55,7 @@ struct VertexPropertyExpr : public ProjectExprBase {
       return nullptr;
     }
     const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
-    std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
+    vector_t<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
         property_columns;
     const auto& labels = vertex_col.get_labels_set();
     for (auto label : labels) {
@@ -72,7 +72,7 @@ struct VertexPropertyExpr : public ProjectExprBase {
     }
     ValueColumnBuilder<V> builder;
     builder.reserve(ctx.row_num());
-    foreach_vertex(vertex_col, [&](size_t idx, label_t label, vid_t vid) {
+    foreach_vertex(vertex_col, [&](sel_t idx, label_t label, vid_t vid) {
       auto prop_col = property_columns[label];
       if constexpr (std::is_same_v<T, std::string_view>) {
         auto sv = prop_col->get_view(vid);
@@ -115,7 +115,7 @@ struct CaseWhenExpr : public ProjectExprBase {
   using V = std::conditional_t<std::is_same<RESULT_T, std::string_view>::value,
                                std::string, RESULT_T>;
   CaseWhenExpr(const IStorageInterface& igraph, int tag,
-               const std::string& property_name, std::vector<Value>&& targets,
+               const std::string& property_name, vector_t<Value>&& targets,
                RESULT_T then_value, RESULT_T else_value)
       : graph(dynamic_cast<const StorageReadInterface&>(igraph)),
         tag_(tag),
@@ -145,7 +145,7 @@ struct CaseWhenExpr : public ProjectExprBase {
     }
     const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
     using T = typename CMP_T::data_t;
-    std::vector<T> values;
+    vector_t<T> values;
     for (auto& val : targets) {
       if constexpr (std::is_same_v<T, std::string_view>) {
         std::string_view sw = StringValue::Get(val);
@@ -201,7 +201,7 @@ struct CaseWhenExpr : public ProjectExprBase {
   const StorageReadInterface& graph;
   int tag_;
   std::string property_name_;
-  std::vector<Value> targets;
+  vector_t<Value> targets;
   RESULT_T then_value;
   RESULT_T else_value;
 };
@@ -268,7 +268,7 @@ struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
 
 template <typename CMP_T, typename THEN_T>
 struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
-  CaseWhenExprBuilder(const std::vector<std::string>& param_names,
+  CaseWhenExprBuilder(const vector_t<std::string>& param_names,
                       const THEN_T& then_value, const THEN_T& else_value,
                       int tag, const std::string& property_name, int alias)
       : param_names_(param_names),
@@ -282,7 +282,7 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
                                          const ParamsMap& params) override {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
 
-    std::vector<Value> values;
+    vector_t<Value> values;
     for (auto& param_name : param_names_) {
       values.push_back(params.at(param_name));
     }
@@ -293,7 +293,7 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
 
   int alias() const override { return alias_; }
 
-  std::vector<std::string> param_names_;
+  vector_t<std::string> param_names_;
   THEN_T then_value_;
   THEN_T else_value_;
   int tag_;
@@ -613,7 +613,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
 
 template <typename CMP_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
-    DataType then_type, const std::vector<std::string>& param_names,
+    DataType then_type, const vector_t<std::string>& param_names,
     const common::Value& then_value, const common::Value& else_value, int tag,
     const std::string& property_name, int alias) {
   if (then_type.id() == DataTypeId::kInt64) {
@@ -629,9 +629,9 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
 template <typename WHEN_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl0(
     SPPredicateType ptype, DataType then_type,
-    const std::vector<std::string>& param_names,
-    const common::Value& then_value, const common::Value& else_value, int tag,
-    const std::string& property_name, int alias) {
+    const vector_t<std::string>& param_names, const common::Value& then_value,
+    const common::Value& else_value, int tag, const std::string& property_name,
+    int alias) {
   if (ptype == SPPredicateType::kPropertyBetween) {
     using CMP_T = BetweenCmp<WHEN_T>;
     return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
@@ -681,7 +681,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 
   SPPredicateType ptype = SPPredicateType::kUnknown;
   DataType when_type, then_type;
-  std::vector<std::string> param_names;
+  vector_t<std::string> param_names;
 
   if (is_check_property_in_range(expr, tag, name, lower, upper, then_value,
                                  else_value)) {
@@ -749,11 +749,10 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 }
 
 void create_project_expr_builders(
-    std::vector<std::tuple<common::Expression, int,
-                           std::unique_ptr<ExprBase>>>&& exprs_infos,
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>>&
-        fallback_expr_builders) {
+    vector_t<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>&&
+        exprs_infos,
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>>& fallback_expr_builders) {
   for (auto& expr_info : exprs_infos) {
     auto& expr = std::get<0>(expr_info);
     int alias = std::get<1>(expr_info);

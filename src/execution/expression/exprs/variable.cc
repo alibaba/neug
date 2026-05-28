@@ -162,7 +162,7 @@ static Value from_const(const ::common::Value& const_val) {
   case common::Value::kU64:
     return Value::UINT64(const_val.u64());
   case common::Value::kI32Array: {
-    std::vector<Value> values;
+    vector_t<Value> values;
     size_t size = const_val.i32_array().item_size();
     for (size_t i = 0; i < size; ++i) {
       values.emplace_back(Value::INT32(const_val.i32_array().item(i)));
@@ -170,7 +170,7 @@ static Value from_const(const ::common::Value& const_val) {
     return Value::LIST(DataType::INT32, std::move(values));
   }
   case common::Value::kI64Array: {
-    std::vector<Value> values;
+    vector_t<Value> values;
     size_t size = const_val.i64_array().item_size();
     for (size_t i = 0; i < size; ++i) {
       values.emplace_back(Value::INT64(const_val.i64_array().item(i)));
@@ -178,7 +178,7 @@ static Value from_const(const ::common::Value& const_val) {
     return Value::LIST(DataType::INT64, std::move(values));
   }
   case common::Value::kF64Array: {
-    std::vector<Value> values;
+    vector_t<Value> values;
     size_t size = const_val.f64_array().item_size();
     for (size_t i = 0; i < size; ++i) {
       values.emplace_back(Value::DOUBLE(const_val.f64_array().item(i)));
@@ -186,7 +186,7 @@ static Value from_const(const ::common::Value& const_val) {
     return Value::LIST(DataType::DOUBLE, std::move(values));
   }
   case common::Value::kStrArray: {
-    std::vector<Value> values;
+    vector_t<Value> values;
     size_t size = const_val.str_array().item_size();
     for (size_t i = 0; i < size; ++i) {
       values.emplace_back(Value::STRING(const_val.str_array().item(i)));
@@ -318,7 +318,8 @@ std::unique_ptr<ExprBase> parse_variable(const common::Variable& var,
                                          const ContextMeta& ctx_meta,
                                          VarType var_type) {
   if (!var.has_node_type()) {
-    THROW_INTERNAL_EXCEPTION("variable missing node_type: " + var.DebugString());
+    THROW_INTERNAL_EXCEPTION("variable missing node_type: " +
+                             var.DebugString());
   }
   DataType type = parse_from_ir_data_type(var.node_type());
   int tag = var.has_tag() ? var.tag().id() : -1;

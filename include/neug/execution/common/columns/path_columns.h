@@ -55,7 +55,8 @@ class PathColumn : public IContextColumn {
 
   template <typename FUNC>
   void foreach_path(FUNC func) const {
-    for (size_t i = 0; i < data_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(data_.size());
+    for (sel_t i = 0; i < n; ++i) {
       const auto& path = data_[i];
       func(i, path);
     }
@@ -72,7 +73,7 @@ class PathColumn : public IContextColumn {
 
  private:
   friend class PathColumnBuilder;
-  std::vector<Path, neug::NeuGAllocator<Path>> data_;
+  vector_t<Path> data_;
   DataType type_;
   bool is_optional_ = false;
 };
@@ -102,7 +103,7 @@ class PathColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_ = false;
-  std::vector<Path, neug::NeuGAllocator<Path>> data_;
+  vector_t<Path> data_;
 };
 
 }  // namespace execution

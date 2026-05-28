@@ -713,7 +713,7 @@ class AppUtilsTest : public ::testing::Test {
 // =============== Encoder Tests ===============
 
 TEST_F(AppUtilsTest, EncodeDecode_Long) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   int64_t original = 123456789012345LL;
@@ -726,7 +726,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Long) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_Int) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   int original = -123456789;
@@ -739,7 +739,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Int) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_UInt) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   uint32_t original = 4294967295U;
@@ -752,7 +752,7 @@ TEST_F(AppUtilsTest, EncodeDecode_UInt) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_Byte) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   uint8_t original = 255;
@@ -765,7 +765,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Byte) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_Float) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   float original = 3.14159f;
@@ -778,7 +778,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Float) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_Double) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   double original = 2.718281828459045;
@@ -793,7 +793,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Double) {
 // =============== String Encoding Tests ===============
 
 TEST_F(AppUtilsTest, EncodeDecode_String) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string original = "Hello, World! This is a test string with unicode: 🚀";
@@ -807,7 +807,7 @@ TEST_F(AppUtilsTest, EncodeDecode_String) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_StringView) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string_view original = "StringView test";
@@ -820,7 +820,7 @@ TEST_F(AppUtilsTest, EncodeDecode_StringView) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_SmallString) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string original = "small";
@@ -833,7 +833,7 @@ TEST_F(AppUtilsTest, EncodeDecode_SmallString) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_SmallStringView) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string_view original = "small view";
@@ -846,7 +846,7 @@ TEST_F(AppUtilsTest, EncodeDecode_SmallStringView) {
 }
 
 TEST_F(AppUtilsTest, EncodeDecode_EmptyString) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string empty = "";
@@ -864,7 +864,7 @@ TEST_F(AppUtilsTest, EncodeDecode_EmptyString) {
 // =============== Bytes Tests ===============
 
 TEST_F(AppUtilsTest, EncodeDecode_Bytes) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   const char* data = "binary\0data\1with\2nulls";
@@ -882,7 +882,7 @@ TEST_F(AppUtilsTest, EncodeDecode_Bytes) {
 // =============== Skip and PutAt Tests ===============
 
 TEST_F(AppUtilsTest, SkipAndPutAt_Long) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   size_t pos = encoder.skip_long();
@@ -900,7 +900,7 @@ TEST_F(AppUtilsTest, SkipAndPutAt_Long) {
 }
 
 TEST_F(AppUtilsTest, SkipAndPutAt_Int) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   size_t pos = encoder.skip_int();
@@ -916,7 +916,7 @@ TEST_F(AppUtilsTest, SkipAndPutAt_Int) {
 }
 
 TEST_F(AppUtilsTest, SkipAndPutAt_Byte) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   size_t pos = encoder.skip_byte();
@@ -934,7 +934,7 @@ TEST_F(AppUtilsTest, SkipAndPutAt_Byte) {
 // =============== Clear Test ===============
 
 TEST_F(AppUtilsTest, EncoderClear) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   encoder.put_int(42);
@@ -950,7 +950,7 @@ TEST_F(AppUtilsTest, EncoderClear) {
 // =============== Decoder State Tests ===============
 
 TEST_F(AppUtilsTest, DecoderStateQueries) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   encoder.put_int(1);
@@ -989,7 +989,7 @@ TEST_F(AppUtilsTest, DecoderReset) {
 // =============== Mixed Data Types ===============
 
 TEST_F(AppUtilsTest, MixedDataTypes) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   encoder.put_byte(255);
@@ -1014,7 +1014,7 @@ TEST_F(AppUtilsTest, MixedDataTypes) {
 // =============== Boundary Conditions ===============
 
 TEST_F(AppUtilsTest, LargeSmallString) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   std::string large_small(255, 'x');
@@ -1028,7 +1028,7 @@ TEST_F(AppUtilsTest, LargeSmallString) {
 }
 
 TEST_F(AppUtilsTest, ZeroValues) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   encoder.put_byte(0);
@@ -1055,7 +1055,7 @@ TEST_F(AppUtilsTest, ZeroValues) {
 // =============== Endianness Consistency ===============
 
 TEST_F(AppUtilsTest, EndiannessConsistency) {
-  std::vector<char> buffer;
+  vector_t<char> buffer;
   Encoder encoder(buffer);
 
   uint32_t test_value = 0x12345678;

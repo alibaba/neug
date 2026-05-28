@@ -33,7 +33,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
   case DataTypeId::kStruct: {
     StructColumnBuilder builder(elem_type_);
     sel_vec_t offsets;
-    size_t i = 0;
+    sel_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
@@ -47,7 +47,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
   case DataTypeId::kList: {
     ListColumnBuilder builder(elem_type_);
     sel_vec_t offsets;
-    size_t i = 0;
+    sel_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
@@ -61,7 +61,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
   case DataTypeId::kVertex: {
     sel_vec_t offsets;
     MLVertexColumnBuilder builder;
-    size_t i = 0;
+    sel_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
@@ -75,7 +75,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
   case DataTypeId::kEdge: {
     sel_vec_t offsets;
     BDMLEdgeColumnBuilder builder({});
-    size_t i = 0;
+    sel_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
@@ -99,8 +99,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
 std::shared_ptr<IContextColumn> ListColumn::shuffle(
     const sel_vec_t& offsets) const {
   auto ptr = std::make_shared<ListColumn>(elem_type_);
-  std::vector<list_item, neug::NeuGAllocator<list_item>> new_items(
-      offsets.size());
+  vector_t<list_item> new_items(offsets.size());
   for (size_t i = 0; i < offsets.size(); ++i) {
     new_items[i] = items_[offsets[i]];
   }

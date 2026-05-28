@@ -22,6 +22,7 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/encoder.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace algebra {
 class QueryParams;
@@ -39,9 +40,9 @@ JoinKind parse_join_kind(const physical::Join_JoinKind& kind);
 
 PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb);
 
-std::vector<label_t> parse_tables(const algebra::QueryParams& query_params);
+vector_t<label_t> parse_tables(const algebra::QueryParams& query_params);
 
-std::vector<LabelTriplet> parse_label_triplets(
+vector_t<LabelTriplet> parse_label_triplets(
     const physical::PhysicalOpr_MetaData& meta);
 
 AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v);

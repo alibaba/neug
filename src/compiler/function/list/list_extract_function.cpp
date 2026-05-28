@@ -50,7 +50,7 @@ static int checkAndGetIndex(const execution::Value& value) {
   }
 }
 
-static execution::Value execFunc(const std::vector<execution::Value>& args) {
+static execution::Value execFunc(const vector_t<execution::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): expect exactly 2 argument, got " +

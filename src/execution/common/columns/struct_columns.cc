@@ -20,7 +20,7 @@ namespace neug {
 namespace execution {
 std::shared_ptr<IContextColumn> StructColumn::shuffle(
     const sel_vec_t& offsets) const {
-  std::vector<std::shared_ptr<IContextColumn>> shuffled_children;
+  vector_t<std::shared_ptr<IContextColumn>> shuffled_children;
   for (const auto& child : children_) {
     shuffled_children.emplace_back(child->shuffle(offsets));
   }
@@ -39,7 +39,7 @@ std::shared_ptr<IContextColumn> StructColumn::shuffle(
 
 std::shared_ptr<IContextColumn> StructColumn::optional_shuffle(
     const sel_vec_t& offsets) const {
-  std::vector<std::shared_ptr<IContextColumn>> shuffled_children;
+  vector_t<std::shared_ptr<IContextColumn>> shuffled_children;
   for (const auto& child : children_) {
     shuffled_children.emplace_back(child->optional_shuffle(offsets));
   }
@@ -50,8 +50,8 @@ std::shared_ptr<IContextColumn> StructColumn::optional_shuffle(
 
   shuffled_col->valids_.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
-      shuffled_col->valids_.push_back(false);
+    if (offset == std::numeric_limits<sel_t>::max()) {
+      shuffled_col->valids_.push_back(0);
     } else {
       shuffled_col->valids_.push_back(valids_[offset]);
     }
@@ -64,7 +64,7 @@ Value StructColumn::get_elem(size_t idx) const {
   if (is_optional_ && (!valids_[idx])) {
     return Value(type_);
   }
-  std::vector<Value> struct_values;
+  vector_t<Value> struct_values;
   for (const auto& child : children_) {
     struct_values.emplace_back(child->get_elem(idx));
   }
@@ -94,8 +94,8 @@ void StructColumnBuilder::push_back_elem(const Value& val) {
 
 void StructColumnBuilder::push_back_null() {
   is_optional_ = true;
-  valids_.resize(current_size_ + 1, true);
-  valids_[current_size_] = false;
+  valids_.resize(current_size_ + 1, 1);
+  valids_[current_size_] = 0;
   for (auto& child_builder : child_builders_) {
     child_builder->push_back_null();
   }

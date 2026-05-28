@@ -29,9 +29,9 @@ namespace ops {
 
 class IntersectOprMultip : public IOperator {
  public:
-  IntersectOprMultip(const std::vector<EdgeExpandParams>& eeps,
-                     std::vector<std::unique_ptr<ExprBase>>&& vertex_preds,
-                     std::vector<std::unique_ptr<ExprBase>>&& edge_preds,
+  IntersectOprMultip(const vector_t<EdgeExpandParams>& eeps,
+                     vector_t<std::unique_ptr<ExprBase>>&& vertex_preds,
+                     vector_t<std::unique_ptr<ExprBase>>&& edge_preds,
                      int alias)
       : eeps_(eeps),
         vertex_preds_(std::move(vertex_preds)),
@@ -47,7 +47,7 @@ class IntersectOprMultip : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::vector<EdgeAndNbrPredicate> preds;
+    vector_t<EdgeAndNbrPredicate> preds;
     for (size_t i = 0; i < edge_preds_.size(); ++i) {
       std::unique_ptr<BindedExprBase> v_pred =
           vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
@@ -65,9 +65,9 @@ class IntersectOprMultip : public IOperator {
                                          std::move(preds), eeps_, alias_);
   }
 
-  std::vector<EdgeExpandParams> eeps_;
-  std::vector<std::unique_ptr<ExprBase>> vertex_preds_;
-  std::vector<std::unique_ptr<ExprBase>> edge_preds_;
+  vector_t<EdgeExpandParams> eeps_;
+  vector_t<std::unique_ptr<ExprBase>> vertex_preds_;
+  vector_t<std::unique_ptr<ExprBase>> edge_preds_;
   int alias_;
 };
 
@@ -79,7 +79,7 @@ class IntersectWithEdgeOpr : public IOperator {
                        std::unique_ptr<ExprBase>&& right_v_pred,
                        std::unique_ptr<ExprBase>&& left_e_pred,
                        std::unique_ptr<ExprBase>&& right_e_pred,
-                       const std::vector<int>& edge_alias)
+                       const vector_t<int>& edge_alias)
       : eep0_(eep0),
         eep1_(eep1),
         v_alias_(v_alias),
@@ -124,7 +124,7 @@ class IntersectWithEdgeOpr : public IOperator {
   std::unique_ptr<ExprBase> right_v_pred_;
   std::unique_ptr<ExprBase> left_e_pred_;
   std::unique_ptr<ExprBase> right_e_pred_;
-  std::vector<int> edge_alias_;
+  vector_t<int> edge_alias_;
 };
 
 EdgeExpandParams parse_edge_params(
@@ -187,10 +187,10 @@ neug::result<OpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& intersect_opr = plan.plan(op_idx).opr().intersect();
-  std::vector<EdgeExpandParams> eeps_(intersect_opr.sub_plans_size());
-  std::vector<std::unique_ptr<ExprBase>> vertex_preds_(
+  vector_t<EdgeExpandParams> eeps_(intersect_opr.sub_plans_size());
+  vector_t<std::unique_ptr<ExprBase>> vertex_preds_(
       intersect_opr.sub_plans_size());
-  std::vector<std::unique_ptr<ExprBase>> edge_preds_(
+  vector_t<std::unique_ptr<ExprBase>> edge_preds_(
       intersect_opr.sub_plans_size());
   for (int i = 0; i < intersect_opr.sub_plans_size(); ++i) {
     parse(intersect_opr.sub_plans(i), eeps_[i], vertex_preds_[i],
@@ -220,7 +220,7 @@ neug::result<OpBuildResultT> IntersectOprBuilder::Build(
           "If there are two plans, the second plan must be a GetV.");
     }
   }
-  std::vector<int> edge_aliases;
+  vector_t<int> edge_aliases;
   bool keep_edge_alias = false;
   for (int i = 0; i < intersect_opr.sub_plans_size(); ++i) {
     const auto& sub_plan = intersect_opr.sub_plans(i);

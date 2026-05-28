@@ -47,7 +47,7 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
   SDSLEdgeColumnBuilder builder(dir_, label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -159,7 +159,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
     builder.reserve(offsets.size());
 
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max()) {
+      if (offset == std::numeric_limits<sel_t>::max()) {
         builder.push_back_null();
         continue;
       }
@@ -186,7 +186,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
     BDMLEdgeColumnBuilder builder(labels_);
     builder.reserve(offsets.size());
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max()) {
+      if (offset == std::numeric_limits<sel_t>::max()) {
         builder.push_back_null();
         continue;
       }
@@ -243,7 +243,7 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
   BDSLEdgeColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -289,7 +289,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
   SDMLEdgeColumnBuilder builder(dir_, labels_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -335,7 +335,7 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
   BDMLEdgeColumnBuilder builder(labels_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];

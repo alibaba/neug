@@ -87,7 +87,7 @@ neug::result<OpBuildResultT> JoinOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
-  std::vector<int> right_columns;
+  vector_t<int> right_columns;
   auto& opr = plan.plan(op_idx).opr().join();
   JoinParams p;
   if (opr.left_keys().size() != opr.right_keys().size()) {
@@ -166,7 +166,7 @@ neug::result<OpBuildResultT> JoinOprBuilder::Build(
 class PrimaryKeyJoinOpr : public IOperator {
  public:
   PrimaryKeyJoinOpr(neug::execution::Pipeline&& right_pipeline,
-                    const std::vector<label_t>& labels, int tag, int alias)
+                    const vector_t<label_t>& labels, int tag, int alias)
       : right_pipeline_(std::move(right_pipeline)),
         labels_(labels),
         tag_(tag),
@@ -196,7 +196,7 @@ class PrimaryKeyJoinOpr : public IOperator {
 
  private:
   neug::execution::Pipeline right_pipeline_;
-  std::vector<label_t> labels_;
+  vector_t<label_t> labels_;
   int tag_, alias_;
 };
 

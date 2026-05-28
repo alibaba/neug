@@ -25,21 +25,20 @@ namespace execution {
 namespace ops {
 
 struct GKey : public KeyBase {
-  GKey(const std::vector<std::pair<int, int>>& tag_alias)
+  GKey(const vector_t<std::pair<int, int>>& tag_alias)
       : tag_alias_(tag_alias) {}
-  std::pair<sel_vec_t, std::vector<sel_vec_t>> group(
-      const Context& ctx) override {
-    std::vector<std::shared_ptr<IContextColumn>> exprs;
+  std::pair<sel_vec_t, vector_t<sel_vec_t>> group(const Context& ctx) override {
+    vector_t<std::shared_ptr<IContextColumn>> exprs;
     for (size_t i = 0; i < tag_alias_.size(); ++i) {
       exprs.push_back(ctx.get(tag_alias_[i].first));
     }
-    size_t row_num = ctx.row_num();
-    std::vector<sel_vec_t> groups;
+    sel_t row_num = static_cast<sel_t>(ctx.row_num());
+    vector_t<sel_vec_t> groups;
     sel_vec_t offsets;
-    phmap::flat_hash_map<std::string_view, size_t> sig_to_root;
-    std::vector<std::vector<char>> root_list;
-    for (size_t i = 0; i < row_num; ++i) {
-      std::vector<char> buf;
+    flat_hash_map_t<std::string_view, sel_t> sig_to_root;
+    vector_t<vector_t<char>> root_list;
+    for (sel_t i = 0; i < row_num; ++i) {
+      vector_t<char> buf;
       ::neug::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i]->get_elem(i);
@@ -50,7 +49,7 @@ struct GKey : public KeyBase {
       if (iter != sig_to_root.end()) {
         groups[iter->second].push_back(i);
       } else {
-        sig_to_root.emplace(sv, groups.size());
+        sig_to_root.emplace(sv, static_cast<sel_t>(groups.size()));
         root_list.emplace_back(std::move(buf));
         offsets.push_back(i);
         sel_vec_t ret_elem;
@@ -60,11 +59,11 @@ struct GKey : public KeyBase {
     }
     return std::make_pair(std::move(offsets), std::move(groups));
   }
-  const std::vector<std::pair<int, int>>& tag_alias() const override {
+  const vector_t<std::pair<int, int>>& tag_alias() const override {
     return tag_alias_;
   }
 
-  std::vector<std::pair<int, int>> tag_alias_;
+  vector_t<std::pair<int, int>> tag_alias_;
 };
 
 /**
@@ -123,7 +122,7 @@ struct VarPairWrapper {
 };
 
 static std::unique_ptr<KeyBase> create_sp_key(
-    const Context& ctx, const std::vector<std::pair<int, int>>& tag_alias) {
+    const Context& ctx, const vector_t<std::pair<int, int>>& tag_alias) {
   auto col = ctx.get(tag_alias[0].first);
   if (col->column_type() == ContextColumnType::kVertex) {
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
@@ -170,7 +169,7 @@ struct SumReducer<EXPR, IS_OPTIONAL,
   explicit SumReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -219,7 +218,7 @@ struct CountDistinctReducer : public ReducerBase {
   explicit CountDistinctReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -229,7 +228,7 @@ struct CountDistinctReducer : public ReducerBase {
     if constexpr (is_hashable<T>::value) {
       if constexpr (!IS_OPTIONAL) {
         for (auto& group : groups) {
-          phmap::flat_hash_set<T> set;
+          flat_hash_set_t<T> set;
           for (auto idx : group) {
             set.insert(expr(idx));
           }
@@ -237,7 +236,7 @@ struct CountDistinctReducer : public ReducerBase {
         }
       } else {
         for (auto& group : groups) {
-          phmap::flat_hash_set<T> set;
+          flat_hash_set_t<T> set;
           for (auto idx : group) {
             if (expr.has_value(idx)) {
               auto v = expr(idx);
@@ -282,7 +281,7 @@ struct CountReducer : public ReducerBase {
   explicit CountReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -314,7 +313,7 @@ struct CountStarReducer : public ReducerBase {
   using V = int64_t;
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -336,7 +335,7 @@ struct MinReducer : public ReducerBase {
   explicit MinReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -381,7 +380,7 @@ struct MaxReducer : public ReducerBase {
   explicit MaxReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -425,7 +424,7 @@ struct FirstReducer : public ReducerBase {
   explicit FirstReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -464,7 +463,7 @@ struct ToSetReducer : public ReducerBase {
       : expr(std::move(expr)), type(type) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
@@ -474,7 +473,7 @@ struct ToSetReducer : public ReducerBase {
         for (auto idx : group) {
           temp_set.insert(expr(idx));
         }
-        std::vector<Value> vals;
+        vector_t<Value> vals;
         vals.reserve(temp_set.size());
         for (auto& v : temp_set) {
           vals.emplace_back(Value::CreateValue<typename EXPR::V>(v));
@@ -491,7 +490,7 @@ struct ToSetReducer : public ReducerBase {
             temp_set.insert(v);
           }
         }
-        std::vector<Value> vals;
+        vector_t<Value> vals;
         vals.reserve(temp_set.size());
         for (auto& v : temp_set) {
           vals.emplace_back(Value::CreateValue<typename EXPR::V>(v));
@@ -513,13 +512,13 @@ struct ToListReducer : public ReducerBase {
       : expr(std::move(expr)), type(type) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
-        std::vector<Value> vals;
+        vector_t<Value> vals;
         vals.reserve(group.size());
         for (auto idx : group) {
           vals.emplace_back(Value::CreateValue<typename EXPR::V>(expr(idx)));
@@ -529,7 +528,7 @@ struct ToListReducer : public ReducerBase {
       }
     } else {
       for (auto& group : groups) {
-        std::vector<Value> vals;
+        vector_t<Value> vals;
         for (auto idx : group) {
           auto v = expr(idx);
           if (expr.has_value(idx)) {
@@ -556,7 +555,7 @@ struct AvgReducer<EXPR, IS_OPTIONAL,
   explicit AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const std::vector<sel_vec_t>& groups) override {
+      const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<double> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -597,7 +596,8 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<SumReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                    std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
@@ -641,12 +641,14 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
     if constexpr (std::is_arithmetic<typename EXPR::V>::value) {
       return std::make_unique<AvgReducer<EXPR, IS_OPTIONAL>>(std::move(expr));
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                    std::to_string(static_cast<int>(kind)));
       return nullptr;
     }
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(kind)));
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                  std::to_string(static_cast<int>(kind)));
     return nullptr;
   }
 }
@@ -679,11 +681,10 @@ static std::unique_ptr<ReducerBase> create_general_reducer(
           std::move(var_wrap), var->elem_type());
     }
   } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("not support var reduce " +
-                                  std::to_string(static_cast<int>(kind)) +
-                                  var->elem_type().ToString() + " " +
-                                  std::to_string(var->is_optional()) + " " +
-                                  var->column_info());
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "not support var reduce " + std::to_string(static_cast<int>(kind)) +
+        var->elem_type().ToString() + " " + std::to_string(var->is_optional()) +
+        " " + var->column_info());
   }
   return nullptr;  // This line is unreachable but avoids compiler warning.
 }
@@ -817,7 +818,7 @@ static std::unique_ptr<ReducerBase> create_reducer(
 }
 
 std::unique_ptr<KeyBase> create_key_func(
-    const std::vector<std::pair<int, int>>& mappings,
+    const vector_t<std::pair<int, int>>& mappings,
     const IStorageInterface& graph, const Context& ctx) {
   if (mappings.size() == 1) {
     auto key = create_sp_key(ctx, mappings);
@@ -861,8 +862,8 @@ ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,
 }
 
 bool BuildGroupByUtils(const physical::GroupBy& group_by,
-                       std::vector<std::pair<int, int>>& mappings,
-                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs) {
+                       vector_t<std::pair<int, int>>& mappings,
+                       vector_t<physical::GroupBy_AggFunc>& reduce_funcs) {
   int mappings_num = group_by.mappings_size();
   int func_num = group_by.functions_size();
   for (int i = 0; i < mappings_num; ++i) {

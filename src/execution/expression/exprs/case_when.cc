@@ -24,8 +24,8 @@ class BindedCaseWhenExpr : public VertexExprBase,
  public:
   BindedCaseWhenExpr(
       const DataType& type,
-      std::vector<std::pair<std::unique_ptr<BindedExprBase>,
-                            std::unique_ptr<BindedExprBase>>>&& when_then_exprs,
+      vector_t<std::pair<std::unique_ptr<BindedExprBase>,
+                         std::unique_ptr<BindedExprBase>>>&& when_then_exprs,
       std::unique_ptr<BindedExprBase>&& else_expr)
       : type_(type),
         when_then_exprs_(std::move(when_then_exprs)),
@@ -73,16 +73,16 @@ class BindedCaseWhenExpr : public VertexExprBase,
 
  private:
   DataType type_;
-  std::vector<std::pair<std::unique_ptr<BindedExprBase>,
-                        std::unique_ptr<BindedExprBase>>>
+  vector_t<std::pair<std::unique_ptr<BindedExprBase>,
+                     std::unique_ptr<BindedExprBase>>>
       when_then_exprs_;
   std::unique_ptr<BindedExprBase> else_expr_;
 };
 
 std::unique_ptr<BindedExprBase> CaseWhenExpr::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
-  std::vector<std::pair<std::unique_ptr<BindedExprBase>,
-                        std::unique_ptr<BindedExprBase>>>
+  vector_t<std::pair<std::unique_ptr<BindedExprBase>,
+                     std::unique_ptr<BindedExprBase>>>
       bound_when_then_exprs;
   for (const auto& when_then : when_then_exprs_) {
     bound_when_then_exprs.emplace_back(when_then.first->bind(storage, params),

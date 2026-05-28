@@ -33,7 +33,7 @@ iterative_expand_vertex_on_graph_view(const GenericView& view,
   }
   if (upper == 1) {
     CHECK_EQ(lower, 0);
-    size_t idx = 0;
+    sel_t idx = 0;
     for (auto v : input.vertices()) {
       builder.push_back_opt(v);
       offsets.push_back(idx++);
@@ -41,8 +41,8 @@ iterative_expand_vertex_on_graph_view(const GenericView& view,
     return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
-  std::vector<std::pair<vid_t, vid_t>> input_list;
-  std::vector<std::pair<vid_t, vid_t>> output_list;
+  vector_t<std::pair<vid_t, vid_t>> input_list;
+  vector_t<std::pair<vid_t, vid_t>> output_list;
 
   {
     vid_t idx = 0;
@@ -98,7 +98,7 @@ iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
   }
   if (upper == 1) {
     CHECK_EQ(lower, 0);
-    size_t idx = 0;
+    sel_t idx = 0;
     for (auto v : input.vertices()) {
       builder.push_back_opt(v);
       offsets.push_back(idx++);
@@ -106,8 +106,8 @@ iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
     return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
-  std::vector<std::pair<vid_t, vid_t>> input_list;
-  std::vector<std::pair<vid_t, vid_t>> output_list;
+  vector_t<std::pair<vid_t, vid_t>> input_list;
+  vector_t<std::pair<vid_t, vid_t>> output_list;
 
   {
     vid_t idx = 0;
@@ -159,10 +159,10 @@ iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
 }
 
 std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-path_expand_vertex_without_predicate_impl(
-    const StorageReadInterface& graph, const SLVertexColumn& input,
-    const std::vector<LabelTriplet>& labels, Direction dir, int lower,
-    int upper) {
+path_expand_vertex_without_predicate_impl(const StorageReadInterface& graph,
+                                          const SLVertexColumn& input,
+                                          const vector_t<LabelTriplet>& labels,
+                                          Direction dir, int lower, int upper) {
   assert(labels.size() == 1);
 
   assert(labels[0].src_label == labels[0].dst_label &&

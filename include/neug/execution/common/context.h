@@ -58,10 +58,10 @@ class Context {
 
   Context union_ctx(const Context& ctx) const;
 
-  std::vector<std::shared_ptr<IContextColumn>> columns;
+  vector_t<std::shared_ptr<IContextColumn>> columns;
   std::shared_ptr<IContextColumn> head;
 
-  std::vector<int> tag_ids;
+  vector_t<int> tag_ids;
 };
 
 class ContextMeta {

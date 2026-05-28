@@ -35,12 +35,12 @@ class OrderBy {
       offsets.resize(ctx.row_num());
       std::iota(offsets.begin(), offsets.end(), 0);
       std::sort(offsets.begin(), offsets.end(),
-                [&](size_t lhs, size_t rhs) { return cmp(lhs, rhs); });
+                [&](sel_t lhs, sel_t rhs) { return cmp(lhs, rhs); });
       return;
     }
-    size_t row_num = ctx.row_num();
-    std::priority_queue<size_t, sel_vec_t, Comparer> queue(cmp);
-    for (size_t i = 0; i < row_num; ++i) {
+    sel_t row_num = static_cast<sel_t>(ctx.row_num());
+    std::priority_queue<sel_t, sel_vec_t, Comparer> queue(cmp);
+    for (sel_t i = 0; i < row_num; ++i) {
       queue.push(i);
       if (queue.size() > high) {
         queue.pop();
@@ -72,7 +72,7 @@ class OrderBy {
   static neug::result<Context> staged_order_by_with_limit(
       const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high, const sel_vec_t& indices) {
-    std::priority_queue<size_t, sel_vec_t, Comparer> queue(cmp);
+    std::priority_queue<sel_t, sel_vec_t, Comparer> queue(cmp);
     for (auto i : indices) {
       queue.push(i);
       if (queue.size() > high) {

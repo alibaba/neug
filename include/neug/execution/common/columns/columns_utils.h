@@ -35,7 +35,7 @@ class ColumnsUtils {
     row_indices.resize(size);
     std::iota(row_indices.begin(), row_indices.end(), 0);
     std::sort(row_indices.begin(), row_indices.end(),
-              [&vec](size_t a, size_t b) {
+              [&vec](sel_t a, sel_t b) {
                 auto a_val = vec[a];
                 auto b_val = vec[b];
                 if (a_val == b_val) {

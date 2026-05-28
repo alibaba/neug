@@ -45,7 +45,7 @@ class FilterOidsGPredOpr : public IOperator {
         std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
             .id();
 
-    std::vector<Property> oids =
+    vector_t<Property> oids =
         ScanUtils::parse_ids_with_type(type, oids_, params);
 
     if (pred_ == nullptr) {

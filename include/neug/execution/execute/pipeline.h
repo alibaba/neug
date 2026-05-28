@@ -16,6 +16,7 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 
@@ -27,7 +28,7 @@ class Pipeline {
  public:
   Pipeline() {}
   Pipeline(Pipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit Pipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
+  explicit Pipeline(vector_t<std::unique_ptr<IOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~Pipeline() = default;
 
@@ -35,7 +36,7 @@ class Pipeline {
                                 const ParamsMap& params, OprTimer* timer);
 
  private:
-  std::vector<std::unique_ptr<IOperator>> operators_;
+  vector_t<std::unique_ptr<IOperator>> operators_;
 };
 
 }  // namespace execution

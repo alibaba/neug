@@ -20,7 +20,7 @@ namespace neug {
 namespace execution {
 class TupleExpr : public ExprBase {
  public:
-  TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs)
+  TupleExpr(vector_t<std::unique_ptr<ExprBase>>&& exprs)
       : exprs_(std::move(exprs)) {
     std::vector<DataType> child_types;
     for (const auto& expr : exprs_) {
@@ -34,20 +34,20 @@ class TupleExpr : public ExprBase {
                                        const ParamsMap& params) const override;
 
  private:
-  std::vector<std::unique_ptr<ExprBase>> exprs_;
+  vector_t<std::unique_ptr<ExprBase>> exprs_;
   DataType type_;
 };
 
 class ListExpr : public ExprBase {
  public:
-  ListExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs, DataType list_type);
+  ListExpr(vector_t<std::unique_ptr<ExprBase>>&& exprs, DataType list_type);
   ~ListExpr() override = default;
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
                                        const ParamsMap& params) const override;
 
  private:
-  std::vector<std::unique_ptr<ExprBase>> exprs_;
+  vector_t<std::unique_ptr<ExprBase>> exprs_;
   DataType type_;
 };
 }  // namespace execution

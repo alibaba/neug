@@ -18,7 +18,6 @@
 #include <arrow/array/array_binary.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
-#include "neug/utils/exception/exception.h"
 #include <arrow/array/builder_time.h>
 #include <arrow/type.h>
 #include <glog/logging.h>
@@ -30,7 +29,7 @@ namespace neug {
 namespace execution {
 
 std::pair<size_t, size_t> locate_array_and_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     size_t idx) {
   CHECK(idx < size) << "Index out of range: " << idx << " >= " << size;
 
@@ -84,7 +83,7 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
 // Template function to shuffle Arrow arrays based on type
 template <typename ArrowArrayType, typename ArrowBuilderType>
 static std::shared_ptr<arrow::Array> shuffle_impl(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   // Create builder
@@ -139,7 +138,7 @@ static std::shared_ptr<arrow::Array> shuffle_impl(
 template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::StringArray, arrow::StringBuilder>(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
@@ -191,7 +190,7 @@ shuffle_impl<arrow::StringArray, arrow::StringBuilder>(
 template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::LargeStringArray, arrow::LargeStringBuilder>(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
@@ -262,7 +261,7 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
     const sel_vec_t& offsets) const {
   if (columns_.empty()) {
     return std::make_shared<ArrowArrayContextColumn>(
-        std::vector<std::shared_ptr<arrow::Array>>());
+        vector_t<std::shared_ptr<arrow::Array>>());
   }
 
   auto arrow_type = columns_[0]->type();

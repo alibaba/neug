@@ -57,7 +57,7 @@ class Scan {
                                            const IStorageInterface& graph,
                                            const ScanParams& params,
                                            const PRED_T& predicate,
-                                           const std::vector<Property>& oids) {
+                                           const vector_t<Property>& oids) {
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
       MSVertexColumnBuilder builder(label);
@@ -72,7 +72,7 @@ class Scan {
       ctx.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
       // TODO(luoxiaojian): use MSVertexColumnBuilder
-      std::vector<std::pair<label_t, vid_t>> vids;
+      vector_t<std::pair<label_t, vid_t>> vids;
 
       for (auto label : params.tables) {
         for (auto oid : oids) {

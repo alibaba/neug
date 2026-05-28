@@ -37,7 +37,7 @@ class IRecordBatchSupplier;
 namespace execution {
 
 std::pair<size_t, size_t> locate_array_and_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     size_t idx);
 
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
@@ -51,7 +51,7 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 class ArrowArrayContextColumn : public IContextColumn {
  public:
   ArrowArrayContextColumn(
-      const std::vector<std::shared_ptr<arrow::Array>>& columns)
+      const vector_t<std::shared_ptr<arrow::Array>>& columns)
       : columns_(columns), size_(0) {
     for (const auto& column : columns_) {
       size_ += column->length();
@@ -76,7 +76,7 @@ class ArrowArrayContextColumn : public IContextColumn {
 
   bool is_optional() const override { return false; }
 
-  const std::vector<std::shared_ptr<arrow::Array>>& GetColumns() const {
+  const vector_t<std::shared_ptr<arrow::Array>>& GetColumns() const {
     return columns_;
   }
 
@@ -96,7 +96,7 @@ class ArrowArrayContextColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> cast_to_value_column() const;
 
  private:
-  std::vector<std::shared_ptr<arrow::Array>> columns_;
+  vector_t<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
   DataType type_;
 };
@@ -118,7 +118,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
   void push_back(const std::shared_ptr<arrow::Array>& column);
 
  private:
-  std::vector<std::shared_ptr<arrow::Array>> columns_;
+  vector_t<std::shared_ptr<arrow::Array>> columns_;
 };
 
 /**
@@ -129,7 +129,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
 class ArrowStreamContextColumn : public IContextColumn {
  public:
   ArrowStreamContextColumn(
-      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
+      const vector_t<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
       : suppliers_(suppliers) {}
 
   ~ArrowStreamContextColumn() = default;
@@ -146,7 +146,7 @@ class ArrowStreamContextColumn : public IContextColumn {
     return ContextColumnType::kArrowStream;
   }
 
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> GetSuppliers() const {
+  vector_t<std::shared_ptr<IRecordBatchSupplier>> GetSuppliers() const {
     return suppliers_;
   }
 
@@ -162,7 +162,7 @@ class ArrowStreamContextColumn : public IContextColumn {
 
  private:
   std::shared_ptr<arrow::RecordBatch> first_batch_;
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  vector_t<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
   DataType type_;
 };
 
@@ -174,7 +174,7 @@ class ArrowStreamContextColumn : public IContextColumn {
 class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
  public:
   ArrowStreamContextColumnBuilder(
-      const std::vector<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
+      const vector_t<std::shared_ptr<IRecordBatchSupplier>>& suppliers)
       : suppliers_(suppliers) {}
   ~ArrowStreamContextColumnBuilder() = default;
 
@@ -190,7 +190,7 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   }
 
  private:
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
+  vector_t<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
 };
 
 }  // namespace execution

@@ -52,7 +52,7 @@ template <typename T>
 class SLEdgePropertyGetter {
  public:
   SLEdgePropertyGetter(const StorageReadInterface& graph,
-                       const std::vector<LabelTriplet>& labels,
+                       const vector_t<LabelTriplet>& labels,
                        const std::string& property_name) {
     CHECK_EQ(labels.size(), 1);
     int prop_id = 0;
@@ -82,7 +82,7 @@ template <typename T>
 class MLEdgePropertyGetter {
  public:
   MLEdgePropertyGetter(const IStorageInterface& gi,
-                       const std::vector<LabelTriplet>& labels,
+                       const vector_t<LabelTriplet>& labels,
                        const std::string& property_name) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     // property_name -> prop_id
@@ -168,7 +168,7 @@ class GTCmp {
   explicit GTCmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return target_ < v; }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -183,7 +183,7 @@ class LTCmp {
   explicit LTCmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return v < target_; }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -198,7 +198,7 @@ class EQCmp {
   explicit EQCmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return target_ == v; }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -213,7 +213,7 @@ class GECmp {
   explicit GECmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return !(v < target_); }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -228,7 +228,7 @@ class LECmp {
   explicit LECmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return !(target_ < v); }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -243,7 +243,7 @@ class NECmp {
   explicit NECmp(const T& target) : target_(target) {}
   bool operator()(const T& v) const { return !(target_ == v); }
 
-  void reset(const std::vector<T>& targets) { target_ = targets[0]; }
+  void reset(const vector_t<T>& targets) { target_ = targets[0]; }
 
  private:
   T target_;
@@ -259,7 +259,7 @@ class BetweenCmp {
 
   bool operator()(const T& v) const { return (v < to_) && !(v < from_); }
 
-  void reset(const std::vector<T>& targets) {
+  void reset(const vector_t<T>& targets) {
     from_ = targets[0];
     to_ = targets[1];
   }
@@ -317,12 +317,12 @@ struct SpecialPredicateConfig {
 };
 
 bool is_special_edge_predicate(const Schema& schema,
-                               const std::vector<LabelTriplet>& labels,
+                               const vector_t<LabelTriplet>& labels,
                                const common::Expression& expr,
                                SpecialPredicateConfig& config);
 
 bool is_special_vertex_predicate(const Schema& schema,
-                                 const std::vector<label_t>& labels,
+                                 const vector_t<label_t>& labels,
                                  const common::Expression& expr,
                                  SpecialPredicateConfig& config);
 

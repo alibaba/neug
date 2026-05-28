@@ -61,7 +61,8 @@ Direction parse_direction(const physical::EdgeExpand_Direction& dir) {
   } else if (dir == physical::EdgeExpand_Direction_BOTH) {
     return Direction::kBoth;
   }
-  THROW_NOT_SUPPORTED_EXCEPTION("not support..." + std::to_string(static_cast<int>(dir)));
+  THROW_NOT_SUPPORTED_EXCEPTION("not support..." +
+                                std::to_string(static_cast<int>(dir)));
   return Direction::kOut;
 }
 
@@ -83,8 +84,8 @@ JoinKind parse_join_kind(const physical::Join_JoinKind& kind) {
   }
 }
 
-std::vector<label_t> parse_tables(const algebra::QueryParams& query_params) {
-  std::vector<label_t> tables;
+vector_t<label_t> parse_tables(const algebra::QueryParams& query_params) {
+  vector_t<label_t> tables;
   int tn = query_params.tables_size();
   for (int i = 0; i < tn; ++i) {
     const common::NameOrId& table = query_params.tables(i);
@@ -93,9 +94,9 @@ std::vector<label_t> parse_tables(const algebra::QueryParams& query_params) {
   return tables;
 }
 
-std::vector<LabelTriplet> parse_label_triplets(
+vector_t<LabelTriplet> parse_label_triplets(
     const physical::PhysicalOpr_MetaData& meta) {
-  std::vector<LabelTriplet> labels;
+  vector_t<LabelTriplet> labels;
   if (meta.has_type()) {
     const common::IrDataType& t = meta.type();
     if (t.has_graph_type()) {
@@ -163,7 +164,8 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
   } else if (v == physical::GroupBy_AggFunc::AVG) {
     return AggrKind::kAvg;
   } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" + std::to_string(static_cast<int>(v)));
+    THROW_NOT_SUPPORTED_EXCEPTION("unsupport" +
+                                  std::to_string(static_cast<int>(v)));
     return AggrKind::kSum;
   }
 }

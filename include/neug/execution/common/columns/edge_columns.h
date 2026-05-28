@@ -50,7 +50,7 @@ class IEdgeColumn : public IContextColumn {
   virtual Direction dir() const { return Direction::kBoth; }
 
   inline const DataType& elem_type() const override { return type_; }
-  virtual std::vector<LabelTriplet> get_labels() const = 0;
+  virtual vector_t<LabelTriplet> get_labels() const = 0;
   virtual EdgeColumnType edge_column_type() const = 0;
 
  private:
@@ -99,13 +99,14 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, std::get<0>(tup), std::get<1>(tup), std::get<2>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return {label_}; }
+  vector_t<LabelTriplet> get_labels() const override { return {label_}; }
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDSL;
@@ -126,7 +127,7 @@ class SDSLEdgeColumn : public IEdgeColumn {
   LabelTriplet label_;
   bool is_optional_;
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
 };
 
 class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
@@ -158,7 +159,7 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
   Direction dir_;
   LabelTriplet label_;
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -211,11 +212,11 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline bool is_optional() const override { return is_optional_; }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    size_t idx = 0;
+    sel_t idx = 0;
     for (auto& seg_tuple : edges_) {
       auto& seg = std::get<2>(seg_tuple);
       for (auto& e : seg) {
@@ -237,8 +238,7 @@ class MSEdgeColumn : public IEdgeColumn {
   }
   Direction seg_dir(size_t idx) const { return std::get<1>(edges_[idx]); }
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
-  const std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>& seg_edges(
-      size_t idx) const {
+  const vector_t<EdgeTuple>& seg_edges(size_t idx) const {
     return std::get<2>(edges_[idx]);
   }
 
@@ -246,11 +246,9 @@ class MSEdgeColumn : public IEdgeColumn {
   friend class MSEdgeColumnBuilder;
 
   bool is_optional_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<LabelTriplet> labels_;
 
-  std::vector<std::tuple<
-      int, Direction, std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>>>
-      edges_;
+  vector_t<std::tuple<int, Direction, vector_t<EdgeTuple>>> edges_;
   size_t total_size_;
 };
 
@@ -326,16 +324,14 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
 
  private:
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
-  std::vector<std::tuple<
-      int, Direction, std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>>>>
-      edges_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<std::tuple<int, Direction, vector_t<EdgeTuple>>> edges_;
+  vector_t<LabelTriplet> labels_;
   bool is_optional_;
   std::map<LabelTriplet, int> label_idx_map_;
 
   int cur_label_idx_ = -1;
   Direction cur_dir_;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> cur_edges_;
+  vector_t<EdgeTuple> cur_edges_;
 };
 
 class BDSLEdgeColumnBuilder;
@@ -381,13 +377,14 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline bool is_optional() const override { return is_optional_; }
 
-  std::vector<LabelTriplet> get_labels() const override {
-    return std::vector<LabelTriplet>{label_};
+  vector_t<LabelTriplet> get_labels() const override {
+    return vector_t<LabelTriplet>{label_};
   }
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, std::get<0>(tup), std::get<1>(tup), std::get<2>(tup),
            std::get<3>(tup));
@@ -403,7 +400,7 @@ class BDSLEdgeColumn : public IEdgeColumn {
   friend class BDSLEdgeColumnBuilder;
   LabelTriplet label_;
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -444,7 +441,7 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   LabelTriplet label_;
   using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -492,14 +489,15 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, labels_[std::get<0>(tup)], std::get<1>(tup), std::get<2>(tup),
            std::get<3>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
   Direction dir() const override { return dir_; }
 
@@ -514,15 +512,15 @@ class SDMLEdgeColumn : public IEdgeColumn {
   friend class SDMLEdgeColumnBuilder;
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<LabelTriplet> labels_;
   using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
  public:
-  SDMLEdgeColumnBuilder(Direction dir, const std::vector<LabelTriplet>& labels)
+  SDMLEdgeColumnBuilder(Direction dir, const vector_t<LabelTriplet>& labels)
       : dir_(dir), labels_(labels), is_optional_(false) {
     for (size_t i = 0; i < labels.size(); ++i) {
       index_.emplace(labels[i], i);
@@ -568,9 +566,9 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<LabelTriplet> labels_;
   using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -618,14 +616,15 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, labels_[std::get<0>(tup)], std::get<4>(tup), std::get<1>(tup),
            std::get<2>(tup), std::get<3>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
   bool has_value(size_t idx) const override {
     const auto& tup = edges_[idx];
@@ -637,15 +636,15 @@ class BDMLEdgeColumn : public IEdgeColumn {
  private:
   friend class BDMLEdgeColumnBuilder;
   std::map<LabelTriplet, int> index_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<LabelTriplet> labels_;
   using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
  public:
-  explicit BDMLEdgeColumnBuilder(const std::vector<LabelTriplet>& labels)
+  explicit BDMLEdgeColumnBuilder(const vector_t<LabelTriplet>& labels)
       : labels_(labels), edges_(), is_optional_(false) {
     for (size_t i = 0; i < labels.size(); ++i) {
       index_.emplace(labels[i], i);
@@ -708,16 +707,16 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
  private:
   std::map<LabelTriplet, int> index_;
-  std::vector<LabelTriplet> labels_;
+  vector_t<LabelTriplet> labels_;
   using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
-  std::vector<EdgeTuple, neug::NeuGAllocator<EdgeTuple>> edges_;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 template <typename FUNC_T>
 void foreach_edge(
     const IEdgeColumn& col, const FUNC_T& func,
-    const std::vector<std::pair<LabelTriplet, Direction>>& to_filter = {}) {
+    const vector_t<std::pair<LabelTriplet, Direction>>& to_filter = {}) {
   auto col_type = col.edge_column_type();
   if (to_filter.empty()) {
     if (col_type == EdgeColumnType::kSDSL) {
@@ -725,14 +724,14 @@ void foreach_edge(
       LabelTriplet label = c.get_labels()[0];
       Direction dir = c.dir();
       c.foreach_edge_opt(
-          [&](size_t idx, vid_t src, vid_t dst, const void* prop) {
+          [&](sel_t idx, vid_t src, vid_t dst, const void* prop) {
             func(idx, label, dir, src, dst, prop);
           });
     } else if (col_type == EdgeColumnType::kBDSL) {
       auto& c = dynamic_cast<const BDSLEdgeColumn&>(col);
       LabelTriplet label = c.get_labels()[0];
       c.foreach_edge_opt(
-          [&](size_t idx, vid_t src, vid_t dst, const void* prop,
+          [&](sel_t idx, vid_t src, vid_t dst, const void* prop,
               Direction dir) { func(idx, label, dir, src, dst, prop); });
     } else if (col_type == EdgeColumnType::kMS) {
       auto& c = dynamic_cast<const MSEdgeColumn&>(col);
@@ -741,7 +740,7 @@ void foreach_edge(
       auto& c = dynamic_cast<const SDMLEdgeColumn&>(col);
       Direction dir = c.dir();
       c.foreach_edge_opt(
-          [&](size_t idx, const LabelTriplet& label, vid_t src, vid_t dst,
+          [&](sel_t idx, const LabelTriplet& label, vid_t src, vid_t dst,
               const void* prop) { func(idx, label, dir, src, dst, prop); });
     } else if (col_type == EdgeColumnType::kBDML) {
       auto& c = dynamic_cast<const BDMLEdgeColumn&>(col);
@@ -781,14 +780,14 @@ void foreach_edge(
       if (hit_oe && hit_ie) {
         // do nothing
       } else if (hit_oe && !hit_ie) {
-        c.foreach_edge_opt([&](size_t idx, vid_t src, vid_t dst,
+        c.foreach_edge_opt([&](sel_t idx, vid_t src, vid_t dst,
                                const void* prop, Direction dir) {
           if (dir != Direction::kIn) {
             func(idx, self_label, dir, src, dst, prop);
           }
         });
       } else if (!hit_oe && hit_ie) {
-        c.foreach_edge_opt([&](size_t idx, vid_t src, vid_t dst,
+        c.foreach_edge_opt([&](sel_t idx, vid_t src, vid_t dst,
                                const void* prop, Direction dir) {
           if (dir != Direction::kOut) {
             func(idx, self_label, dir, src, dst, prop);
@@ -815,7 +814,7 @@ void foreach_edge(
         foreach_edge(col, func);
       } else {
         auto seg_num = c.seg_num();
-        size_t idx = 0;
+        sel_t idx = 0;
         for (size_t i = 0; i < seg_num; ++i) {
           auto seg_label = c.seg_label(i);
           auto seg_dir = c.seg_dir(i);
@@ -832,7 +831,7 @@ void foreach_edge(
               ++idx;
             }
           } else {
-            idx += c.seg_edges(i).size();
+            idx += static_cast<sel_t>(c.seg_edges(i).size());
           }
         }
       }
@@ -850,7 +849,7 @@ void foreach_edge(
       if (filter_label_set.empty()) {
         foreach_edge(col, func);
       } else {
-        c.foreach_edge_opt([&](size_t idx, const LabelTriplet& label, vid_t src,
+        c.foreach_edge_opt([&](sel_t idx, const LabelTriplet& label, vid_t src,
                                vid_t dst, const void* prop) {
           if (filter_label_set.find(label) == filter_label_set.end()) {
             func(idx, label, dir, src, dst, prop);
@@ -874,7 +873,7 @@ void foreach_edge(
       if (oe_filter_label_set.empty() && ie_filter_label_set.empty()) {
         foreach_edge(col, func);
       } else {
-        c.foreach_edge_opt([&](size_t idx, const LabelTriplet& label,
+        c.foreach_edge_opt([&](sel_t idx, const LabelTriplet& label,
                                Direction dir, vid_t src, vid_t dst,
                                const void* prop) {
           if ((dir == Direction::kOut &&

@@ -35,7 +35,7 @@ class GeneralComparer {
     ++keys_num_;
   }
 
-  bool operator()(size_t lhs, size_t rhs) const {
+  bool operator()(sel_t lhs, sel_t rhs) const {
     for (size_t k = 0; k < keys_num_; ++k) {
       auto& v = keys_[k];
       auto asc = order_[k];

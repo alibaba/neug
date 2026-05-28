@@ -22,6 +22,7 @@
 #include <tuple>
 #include <utility>
 
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -162,22 +163,21 @@ struct Path {
 
   explicit Path(label_t v_label, vid_t vid);
 
-  explicit Path(
-      label_t label, label_t e_label, const std::vector<vid_t>& vids,
-      const std::vector<std::pair<Direction, const void*>>& edge_datas);
+  explicit Path(label_t label, label_t e_label, const vector_t<vid_t>& vids,
+                const vector_t<std::pair<Direction, const void*>>& edge_datas);
 
-  explicit Path(const std::vector<std::tuple<label_t, Direction, const void*>>&
-                    edge_datas,
-                const std::vector<VertexRecord>& path);
+  explicit Path(
+      const vector_t<std::tuple<label_t, Direction, const void*>>& edge_datas,
+      const vector_t<VertexRecord>& path);
 
   Path expand(label_t edge_label, label_t label, vid_t v, Direction dir,
               const void* payload) const;
 
   int32_t length() const;
 
-  std::vector<VertexRecord> nodes() const;
+  vector_t<VertexRecord> nodes() const;
 
-  std::vector<EdgeRecord> relationships() const;
+  vector_t<EdgeRecord> relationships() const;
 
   bool operator<(const Path& p) const;
 

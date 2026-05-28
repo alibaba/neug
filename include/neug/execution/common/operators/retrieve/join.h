@@ -29,8 +29,8 @@ class Join {
                                     const JoinParams& params);
 
   static neug::result<Context> pk_join(IStorageInterface&, Context&& ctx,
-                                       const std::vector<label_t>& labels,
-                                       int tag, int alias);
+                                       const vector_t<label_t>& labels, int tag,
+                                       int alias);
 };
 }  // namespace execution
 }  // namespace neug

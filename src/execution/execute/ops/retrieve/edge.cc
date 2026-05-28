@@ -402,7 +402,7 @@ neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     EdgeExpandParams eep;
     eep.v_tag = v_tag;
     eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
-    std::vector<LabelTriplet> filtered_labels;
+    vector_t<LabelTriplet> filtered_labels;
     for (auto label : eep.labels) {
       if (dir == Direction::kOut &&
           std::find(vtables.begin(), vtables.end(), label.dst_label) !=

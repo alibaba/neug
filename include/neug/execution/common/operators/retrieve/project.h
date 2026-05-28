@@ -68,7 +68,7 @@ struct ProjectOp {
 class Project {
  public:
   static neug::result<Context> project(Context&& ctx,
-                                       const std::vector<ProjectOp>& exprs,
+                                       const vector_t<ProjectOp>& exprs,
                                        bool is_append = false) {
     Context ret;
     if (is_append) {
@@ -83,7 +83,7 @@ class Project {
   template <typename Comparer>
   static neug::result<Context> project_order_by_fuse(
       const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
-      std::vector<ProjectOp>&& exprs,
+      vector_t<ProjectOp>&& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,
       size_t upper, const std::set<int>& order_index,
       std::pair<int32_t, bool> fst_idx) {
@@ -93,7 +93,7 @@ class Project {
     Context ret;
     Context tmp;
 
-    std::vector<int> alias;
+    vector_t<int> alias;
 
     sel_vec_t indices;
 

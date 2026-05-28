@@ -23,7 +23,7 @@ namespace neug {
 
 namespace execution {
 
-neug::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
+neug::result<Context> Union::union_op(vector_t<Context>&& ctxs) {
   if (ctxs.size() != 2) {
     LOG(ERROR) << "Union: only support two context";
     RETURN_UNSUPPORTED_ERROR("Union: only support two context");

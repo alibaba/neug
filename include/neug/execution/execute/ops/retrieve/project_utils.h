@@ -37,11 +37,10 @@ struct ProjectExprBuilderBase {
 };
 
 void create_project_expr_builders(
-    std::vector<std::tuple<common::Expression, int,
-                           std::unique_ptr<ExprBase>>>&& exprs_infos,
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>>&
-        fallback_expr_builders);
+    vector_t<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>&&
+        exprs_infos,
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>>& fallback_expr_builders);
 
 }  // namespace ops
 }  // namespace execution

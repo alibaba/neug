@@ -21,6 +21,7 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 class Schema;
@@ -31,7 +32,7 @@ class OprTimer;
 namespace ops {
 class UnionOpr : public IOperator {
  public:
-  explicit UnionOpr(std::vector<Pipeline>&& sub_plans)
+  explicit UnionOpr(vector_t<Pipeline>&& sub_plans)
       : sub_plans_(std::move(sub_plans)) {}
 
   std::string get_operator_name() const override { return "UnionOpr"; }
@@ -40,7 +41,7 @@ class UnionOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    std::vector<neug::execution::Context> ctxs;
+    vector_t<neug::execution::Context> ctxs;
     for (auto& plan : sub_plans_) {
       neug::execution::Context n_ctx = ctx;
       std::unique_ptr<neug::execution::OprTimer> sub_timer =
@@ -59,13 +60,13 @@ class UnionOpr : public IOperator {
   }
 
  private:
-  std::vector<Pipeline> sub_plans_;
+  vector_t<Pipeline> sub_plans_;
 };
 neug::result<OpBuildResultT> UnionOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<Pipeline> sub_plans;
-  std::vector<ContextMeta> sub_metas;
+  vector_t<Pipeline> sub_plans;
+  vector_t<ContextMeta> sub_metas;
   ContextMeta ret_meta = ctx_meta;
   for (int i = 0; i < plan.plan(op_idx).opr().union_().sub_plans_size(); ++i) {
     auto& sub_plan = plan.plan(op_idx).opr().union_().sub_plans(i);

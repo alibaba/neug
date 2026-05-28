@@ -47,7 +47,7 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
 
  private:
   DataType type_;
-  std::vector<std::shared_ptr<RefColumnBase>> property_columns_;
+  vector_t<std::shared_ptr<RefColumnBase>> property_columns_;
 };
 
 class BindedVertexLabelAccessor : public VertexExprBase {
@@ -117,8 +117,9 @@ std::unique_ptr<BindedExprBase> VertexAccessor::bind(
     return std::make_unique<BindedVertexIdentityAccessor>();
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown GraphAccessType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;

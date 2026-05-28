@@ -26,6 +26,7 @@
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/numeric_cast.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 class Property;
@@ -75,11 +76,11 @@ class Value {
 
   static Value DOUBLE(double value);
 
-  static Value STRUCT(std::vector<Value>&& values);
-  static Value STRUCT(const DataType& type, std::vector<Value>&& struct_values);
+  static Value STRUCT(vector_t<Value>&& values);
+  static Value STRUCT(const DataType& type, vector_t<Value>&& struct_values);
 
-  static Value LIST(const DataType& child_type, std::vector<Value>&& values);
-  static Value LIST(std::vector<Value>&& values);
+  static Value LIST(const DataType& child_type, vector_t<Value>&& values);
+  static Value LIST(vector_t<Value>&& values);
 
   static Value STRING(const std::string& str);
 
@@ -165,11 +166,11 @@ struct StringValue {
 };
 
 struct ListValue {
-  static const std::vector<Value>& GetChildren(const Value& value);
+  static const vector_t<Value>& GetChildren(const Value& value);
 };
 
 struct StructValue {
-  static const std::vector<Value>& GetChildren(const Value& value);
+  static const vector_t<Value>& GetChildren(const Value& value);
 };
 
 struct PathValue {

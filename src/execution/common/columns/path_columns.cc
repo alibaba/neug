@@ -49,7 +49,7 @@ std::shared_ptr<IContextColumn> PathColumn::optional_shuffle(
   PathColumnBuilder builder(true);
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max() ||
+    if (offset == std::numeric_limits<sel_t>::max() ||
         data_[offset].is_null()) {
       builder.push_back_null();
     } else {

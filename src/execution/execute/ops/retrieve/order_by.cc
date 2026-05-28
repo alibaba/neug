@@ -28,7 +28,7 @@ namespace ops {
 
 class OrderByOpr : public IOperator {
  public:
-  OrderByOpr(std::vector<std::pair<int32_t, bool>> keys, int lower, int upper)
+  OrderByOpr(vector_t<std::pair<int32_t, bool>> keys, int lower, int upper)
       : keys_(std::move(keys)), lower_(lower), upper_(upper) {}
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
@@ -57,7 +57,7 @@ class OrderByOpr : public IOperator {
   }
 
  private:
-  std::vector<std::pair<int32_t, bool>> keys_;
+  vector_t<std::pair<int32_t, bool>> keys_;
 
   int lower_;
   int upper_;
@@ -79,7 +79,7 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
     LOG(ERROR) << "keys_num should be greater than 0";
     return std::make_pair(nullptr, ret_meta);
   }
-  std::vector<std::pair<int32_t, bool>> keys;
+  vector_t<std::pair<int32_t, bool>> keys;
 
   for (int i = 0; i < keys_num; ++i) {
     const auto& pair = opr.pairs(i);

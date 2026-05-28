@@ -116,7 +116,7 @@ class TopNGenerator {
 
  private:
   size_t n_;
-  std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq_;
+  std::priority_queue<unit_t, vector_t<unit_t>, CMP_T> pq_;
   sel_vec_t replicated_indices_;
 };
 
@@ -129,7 +129,7 @@ class InplaceTopNGenerator {
 
   void generate_indices(const std::vector<T>& input, sel_vec_t& indices) {
     size_t size = input.size();
-    std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq(CMP_T{});
+    std::priority_queue<unit_t, vector_t<unit_t>, CMP_T> pq(CMP_T{});
     for (size_t i = 0; i < size; ++i) {
       if (pq.size() < n_) {
         pq.emplace(input[i], i);

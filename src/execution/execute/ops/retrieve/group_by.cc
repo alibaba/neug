@@ -18,9 +18,9 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
-#include "neug/utils/exception/exception.h"
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -32,8 +32,8 @@ namespace ops {
 
 class GroupByOpr : public IOperator {
  public:
-  GroupByOpr(std::vector<std::pair<int, int>>&& mappings,
-             std::vector<physical::GroupBy_AggFunc>&& aggrs)
+  GroupByOpr(vector_t<std::pair<int, int>>&& mappings,
+             vector_t<physical::GroupBy_AggFunc>&& aggrs)
       : mappings_(std::move(mappings)), aggrs_(std::move(aggrs)) {}
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
@@ -43,7 +43,7 @@ class GroupByOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     auto key = create_key_func(mappings_, graph, ctx);
-    std::vector<ReduceOp> reducers;
+    vector_t<ReduceOp> reducers;
     for (auto& aggr : aggrs_) {
       reducers.push_back(create_reduce_op(aggr, graph, ctx));
     }
@@ -57,8 +57,8 @@ class GroupByOpr : public IOperator {
   }
 
  private:
-  std::vector<std::pair<int, int>> mappings_;
-  std::vector<physical::GroupBy_AggFunc> aggrs_;
+  vector_t<std::pair<int, int>> mappings_;
+  vector_t<physical::GroupBy_AggFunc> aggrs_;
 };
 
 neug::result<OpBuildResultT> GroupByOprBuilder::Build(
@@ -77,8 +77,8 @@ neug::result<OpBuildResultT> GroupByOprBuilder::Build(
     THROW_INTERNAL_EXCEPTION("GroupBy metadata number mismatch.");
   }
   auto opr = plan.plan(op_idx).opr().group_by();
-  std::vector<std::pair<int, int>> mappings;
-  std::vector<physical::GroupBy_AggFunc> reduce_funcs;
+  vector_t<std::pair<int, int>> mappings;
+  vector_t<physical::GroupBy_AggFunc> reduce_funcs;
 
   if (!BuildGroupByUtils(opr, mappings, reduce_funcs)) {
     return std::make_pair(nullptr, ContextMeta());
