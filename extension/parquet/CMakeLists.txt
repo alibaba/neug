@@ -69,15 +69,20 @@ endif()
 # already-processed archives.  --whole-archive forces every .o from libssl /
 # libcrypto into the final extension, guaranteeing OCSP_basic_verify et al.
 # are resolved.  Cost: ~3 MB binary size growth.
+#
+# On macOS, Apple ld64 does not recognise --whole-archive; it uses
+# -force_load per archive instead.  However macOS ld performs two-pass
+# symbol resolution, so the OCSP symbols get resolved without forcing.
+# We therefore only apply the --whole-archive wrapper on non-Apple platforms.
 target_link_libraries(neug_parquet_extension PRIVATE
     ${ARROW_BASE_LIB}
     ${_EXT_ARROW_DATASET_LIB}
     ${_EXT_ARROW_PARQUET_LIB}
     ${ARROW_BUNDLED_DEPS_LIB}
-    -Wl,--whole-archive
+    $<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--whole-archive>
     OpenSSL::SSL
     OpenSSL::Crypto
-    -Wl,--no-whole-archive
+    $<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-whole-archive>
     neug
 )
 

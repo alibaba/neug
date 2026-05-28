@@ -99,13 +99,19 @@ void InitializeArrowTlsOptions() {
     opts.tls_ca_file_path = resolveTlsCaFilePath();
     opts.tls_ca_dir_path = resolveTlsCaDirPath();
     if (opts.tls_ca_file_path.empty() && opts.tls_ca_dir_path.empty()) {
-      LOG(WARNING) << "InitializeArrowTlsOptions: no TLS CA bundle found; "
-                   << "AWS SDK may fail with curlCode 77 on HTTPS requests.";
+      LOG(ERROR) << "InitializeArrowTlsOptions: no TLS CA bundle found. "
+                 << "HTTPS requests (OSS / S3) will fail with curlCode 77 "
+                 << "(\"unable to get local issuer certificate\"). "
+                 << "Fix: install a CA certificate bundle, e.g. "
+                 << "'apt-get install ca-certificates' (Debian/Ubuntu) or "
+                 << "'yum install ca-certificates' (CentOS/RHEL), or set "
+                 << "SSL_CERT_FILE=/path/to/ca-bundle.crt in your environment.";
       return;
     }
     auto status = arrow::fs::Initialize(opts);
     if (!status.ok()) {
-      LOG(WARNING) << "arrow::fs::Initialize failed: " << status.ToString();
+      LOG(ERROR) << "arrow::fs::Initialize failed: " << status.ToString()
+                 << ". TLS certificate verification may not work correctly.";
       return;
     }
     LOG(INFO) << "Arrow FileSystemGlobalOptions initialized: caFile='"
