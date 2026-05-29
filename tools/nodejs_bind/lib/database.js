@@ -124,7 +124,8 @@ class Database {
     // Validate mode
     if (!VALID_MODES.includes(mode)) {
       throw new Error(
-        `Invalid mode: ${mode}. Must be one of: ${VALID_MODES.join(', ')}.`
+        `Invalid mode: ${mode}. Must be one of: ${VALID_MODES.join(', ')}. ` +
+        `Error code: ${ERR_INVALID_ARGUMENT}.`
       );
     }
 
@@ -153,7 +154,8 @@ class Database {
       ['r', 'read', 'read-only', 'read_only'].includes(mode)
     ) {
       throw new Error(
-        `Invalid mode: ${mode}. In-memory database cannot be opened in read-only mode.`
+        `Invalid mode: ${mode}. In-memory database cannot be opened in read-only mode. ` +
+        `Error code: ${ERR_INVALID_ARGUMENT}.`
       );
     }
 

@@ -103,8 +103,18 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
   config.mode = mode_;
   config.planner_kind = planner;
   config.checkpoint_on_close = checkpoint_on_close;
-  config.memory_level = ParseBufferStrategy(buffer_strategy);
-  database->Open(config);
+  try {
+    config.memory_level = ParseBufferStrategy(buffer_strategy);
+    database->Open(config);
+  } catch (const neug::exception::Exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+    database.reset();
+    return;
+  } catch (const std::exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+    database.reset();
+    return;
+  }
 }
 
 NodeDatabase::~NodeDatabase() {
@@ -128,8 +138,16 @@ Napi::Value NodeDatabase::Connect(const Napi::CallbackInfo& info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  auto conn = database->Connect();
-  return NodeConnection::NewInstance(env, *database, conn);
+  try {
+    auto conn = database->Connect();
+    return NodeConnection::NewInstance(env, *database, conn);
+  } catch (const neug::exception::Exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+    return env.Null();
+  } catch (const std::exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+    return env.Null();
+  }
 }
 
 Napi::Value NodeDatabase::Close(const Napi::CallbackInfo& info) {
