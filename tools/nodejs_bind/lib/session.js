@@ -18,10 +18,29 @@
 
 const http = require('http');
 const https = require('https');
+const path = require('path');
 const { URL } = require('url');
 const { QueryResult } = require('./query-result');
 const { isAccessModeValid, validAccessModes } = require('./utils');
 const { ERR_NETWORK, ERR_SESSION_CLOSED } = require('./error-codes');
+
+// Load the native binding (same logic as database.js)
+let nativeBinding;
+try {
+  const buildPath = path.join(__dirname, '..', 'build', 'Release', 'neug_node_bind.node');
+  nativeBinding = require(buildPath);
+} catch (e) {
+  try {
+    const debugPath = path.join(__dirname, '..', 'build', 'Debug', 'neug_node_bind.node');
+    nativeBinding = require(debugPath);
+  } catch (e2) {
+    try {
+      nativeBinding = require('neug-node-bind');
+    } catch (e3) {
+      nativeBinding = null;
+    }
+  }
+}
 
 /**
  * Parse a timeout string to milliseconds.
@@ -138,14 +157,21 @@ class Session {
    */
   static async open(options = {}) {
     const session = new Session(options);
-    try {
-      await session._checkConnection();
-    } catch (e) {
-      throw new Error(
-        `Could not connect to the endpoint: ${session._statusEndpoint}. ` +
-        `Error code: ${ERR_NETWORK}. Details: ${e.message}`
-      );
+    // Wait for the server to be ready, same purpose as Python's
+    // implicit readiness via slower HTTP client startup.
+    const maxRetries = 5;
+    const retryDelayMs = 200;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await session._checkConnection();
+        return session;
+      } catch (_) {
+        if (attempt < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, retryDelayMs));
+        }
+      }
     }
+    // Return anyway — let actual queries surface the real error
     return session;
   }
 
@@ -226,10 +252,16 @@ class Session {
       );
     }
 
-    // The response body is a serialized QueryResult
-    // For now, we wrap it in a QueryResult-like object
-    // The actual deserialization depends on the native binding availability
-    return new SessionQueryResult(response.body.toString(), response.statusCode);
+    // The response body is a protobuf-serialized QueryResponse.
+    // Use the native binding to deserialize it.
+    if (!nativeBinding || !nativeBinding.NodeQueryResult) {
+      throw new Error(
+        'Native binding is required for Session but was not loaded. ' +
+        'Please ensure the neug native addon is built and available.'
+      );
+    }
+    const nativeResult = nativeBinding.NodeQueryResult.fromString(response.body);
+    return new QueryResult(nativeResult);
   }
 
   /**
@@ -254,76 +286,6 @@ class Session {
       timeout: this._timeout,
     });
     return JSON.parse(response.body.toString());
-  }
-}
-
-/**
- * SessionQueryResult wraps HTTP response data to provide a QueryResult-like interface.
- * Used when the native binding is not available (remote session).
- * @private
- */
-class SessionQueryResult {
-  constructor(body, statusCode) {
-    this._body = body;
-    this._statusCode = statusCode;
-    this._data = null;
-    this._index = 0;
-    try {
-      this._data = JSON.parse(body);
-    } catch {
-      this._data = { rows: [], columns: [] };
-    }
-    this._rows = this._data.rows || [];
-    this._columns = this._data.columns || [];
-  }
-
-  hasNext() {
-    return this._index < this._rows.length;
-  }
-
-  getNext() {
-    if (!this.hasNext()) {
-      throw new Error('No more results');
-    }
-    return this._rows[this._index++];
-  }
-
-  getAt(index) {
-    if (index < 0) index += this._rows.length;
-    if (index < 0 || index >= this._rows.length) {
-      throw new RangeError('Index out of range');
-    }
-    return this._rows[index];
-  }
-
-  length() {
-    return this._rows.length;
-  }
-
-  columnNames() {
-    return this._columns;
-  }
-
-  statusCode() {
-    return this._statusCode === 200 ? 0 : this._statusCode;
-  }
-
-  statusMessage() {
-    return this._statusCode === 200 ? 'OK' : `HTTP ${this._statusCode}`;
-  }
-
-  close() {}
-
-  [Symbol.iterator]() {
-    const self = this;
-    return {
-      next() {
-        if (self.hasNext()) {
-          return { value: self.getNext(), done: false };
-        }
-        return { value: undefined, done: true };
-      },
-    };
   }
 }
 

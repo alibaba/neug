@@ -41,6 +41,7 @@ Napi::Object NodeQueryResult::Init(Napi::Env env, Napi::Object exports) {
           InstanceMethod("statusMessage", &NodeQueryResult::StatusMessage),
           InstanceMethod("getBoltResponse", &NodeQueryResult::GetBoltResponse),
           InstanceMethod("close", &NodeQueryResult::Close),
+          StaticMethod("fromString", &NodeQueryResult::FromString),
       });
   constructor = Napi::Persistent(func);
   constructor.SuppressDestruct();
@@ -180,11 +181,8 @@ Napi::Value FetchValueFromColumn(Napi::Env env, const neug::Array& column,
     if (is_valid(col.validity(), index)) {
       Date day;
       day.from_timestamp(col.values(index));
-      // Return ISO date string
-      std::string date_str = std::to_string(day.year()) + "-" +
-                             std::to_string(day.month()) + "-" +
-                             std::to_string(day.day());
-      return Napi::String::New(env, date_str);
+      // Return ISO date string (YYYY-MM-DD with leading zeros)
+      return Napi::String::New(env, day.to_string());
     } else {
       return env.Null();
     }
@@ -337,6 +335,27 @@ Napi::Value NodeQueryResult::GetBoltResponse(const Napi::CallbackInfo& info) {
 Napi::Value NodeQueryResult::Close(const Napi::CallbackInfo& info) {
   // No-op, provided for compatibility
   return info.Env().Undefined();
+}
+
+Napi::Value NodeQueryResult::FromString(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1) {
+    Napi::TypeError::New(env, "String or Buffer argument required")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string result_str;
+  if (info[0].IsBuffer()) {
+    auto buf = info[0].As<Napi::Buffer<char>>();
+    result_str.assign(buf.Data(), buf.Length());
+  } else if (info[0].IsString()) {
+    result_str = info[0].As<Napi::String>().Utf8Value();
+  } else {
+    Napi::TypeError::New(env, "String or Buffer argument required")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return NewInstanceFromString(env, std::move(result_str));
 }
 
 }  // namespace neug

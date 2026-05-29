@@ -60,6 +60,7 @@ class NodeQueryResult : public Napi::ObjectWrap<NodeQueryResult> {
   Napi::Value StatusMessage(const Napi::CallbackInfo& info);
   Napi::Value GetBoltResponse(const Napi::CallbackInfo& info);
   Napi::Value Close(const Napi::CallbackInfo& info);
+  static Napi::Value FromString(const Napi::CallbackInfo& info);
 
   size_t index_{0};
   Status status_;
