@@ -4,6 +4,7 @@ build/
 *.o
 *.so
 *.dylib
+*.tgz
 
 # Override root .gitignore: lib/ contains JS source files
 !lib/

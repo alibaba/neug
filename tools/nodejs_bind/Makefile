@@ -3,7 +3,7 @@ SHELL=/bin/bash
 # Path to the project root (2 levels up from tools/nodejs_bind/)
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 
-.PHONY: all build dev clean install requirements help
+.PHONY: all build dev clean install requirements pack help
 
 all: dev
 
@@ -29,10 +29,17 @@ dev: requirements  ## Compile neug and nodejs bindings via the main CMake projec
 .PHONY: build
 build: dev  ## Build the neug nodejs package, alias for dev
 
+.PHONY: pack
+pack: dev  ## Create npm package tarball
+	@echo "Packing npm package..."
+	npm pack
+	@echo "Package created: neug-nodejs-*.tgz"
+
 .PHONY: clean
 clean:  ## Clean up build artifacts
 	@echo "Cleaning up..."
 	rm -rf build/ node_modules/
+	@echo "Clean complete."
 
 .PHONY: help
 help:  ## Display this help information

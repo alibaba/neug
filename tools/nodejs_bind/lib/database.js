@@ -16,7 +16,6 @@
 
 'use strict';
 
-const path = require('path');
 const os = require('os');
 const { Connection } = require('./connection');
 const { AsyncConnection } = require('./async-connection');
@@ -28,30 +27,8 @@ const {
   ERR_INVALID_PATH,
 } = require('./error-codes');
 
-// Load the native binding
-let nativeBinding;
-try {
-  // Try to load the native addon from the build directory
-  const buildPath = path.join(__dirname, '..', 'build', 'Release', 'neug_node_bind.node');
-  nativeBinding = require(buildPath);
-} catch (e) {
-  try {
-    // Fallback: try Debug build
-    const debugPath = path.join(__dirname, '..', 'build', 'Debug', 'neug_node_bind.node');
-    nativeBinding = require(debugPath);
-  } catch (e2) {
-    try {
-      // Fallback: try loading from node_modules (installed package)
-      nativeBinding = require('neug-node-bind');
-    } catch (e3) {
-      throw new Error(
-        `NeuG native binding not found. Build the project first. ` +
-        `Tried: build/Release, build/Debug, neug-node-bind. ` +
-        `Last error: ${e.message}`
-      );
-    }
-  }
-}
+// Load the native binding (unified loader handles prebuilds/ and build/)
+const nativeBinding = require('./binding');
 
 const ILLEGAL_CHARS = ['?', '*', '"', '<', '>', '|', ':', '\\'];
 const PURE_MEMORY_PATHS = [':memory', ':memory:'];

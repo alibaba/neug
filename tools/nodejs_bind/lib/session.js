@@ -18,29 +18,13 @@
 
 const http = require('http');
 const https = require('https');
-const path = require('path');
 const { URL } = require('url');
 const { QueryResult } = require('./query-result');
 const { isAccessModeValid, validAccessModes } = require('./utils');
 const { ERR_NETWORK, ERR_SESSION_CLOSED } = require('./error-codes');
 
-// Load the native binding (same logic as database.js)
-let nativeBinding;
-try {
-  const buildPath = path.join(__dirname, '..', 'build', 'Release', 'neug_node_bind.node');
-  nativeBinding = require(buildPath);
-} catch (e) {
-  try {
-    const debugPath = path.join(__dirname, '..', 'build', 'Debug', 'neug_node_bind.node');
-    nativeBinding = require(debugPath);
-  } catch (e2) {
-    try {
-      nativeBinding = require('neug-node-bind');
-    } catch (e3) {
-      nativeBinding = null;
-    }
-  }
-}
+// Load the native binding (unified loader handles prebuilds/ and build/)
+const nativeBinding = require('./binding');
 
 /**
  * Parse a timeout string to milliseconds.

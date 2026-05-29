@@ -31,9 +31,7 @@
   "files": [
     "lib/",
     "src/",
+    "build/",
     "CMakeLists.txt"
-  ],
-  "binary": {
-    "napi_versions": [8]
-  }
+  ]
 }
