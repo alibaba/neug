@@ -146,8 +146,10 @@ class Database {
     }
 
     // In-memory database cannot be opened in read-only mode
+    // NOTE: only null (i.e. databasePath not provided) is blocked;
+    // empty string '' is allowed, matching the Python binding behaviour.
     if (
-      (dbPath === '' || dbPath === null) &&
+      databasePath === null &&
       ['r', 'read', 'read-only', 'read_only'].includes(mode)
     ) {
       throw new Error(
