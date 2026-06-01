@@ -30,8 +30,9 @@
   },
   "files": [
     "lib/",
-    "src/",
+    "prebuilds/",
     "build/",
+    "src/",
     "CMakeLists.txt"
   ]
 }

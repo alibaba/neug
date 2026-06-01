@@ -3,6 +3,7 @@ build/
 *.node
 *.o
 *.so
+*.so.2
 *.dylib
 *.tgz
 

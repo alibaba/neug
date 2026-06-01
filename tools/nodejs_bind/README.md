@@ -14,12 +14,13 @@ NeuG Node.js bindings require **Node.js >= 18.0.0** (N-API v8). Install via nvm:
 # Install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 
-# Reload shell
+# Reload shell in Linux
 source ~/.bashrc
+# Or MacOS
+source ~/.zshrc
 
 # Install Node.js LTS (v22)
 nvm install --lts && nvm use --lts
-
 # Or install a specific version (>= 18)
 nvm install 18 && nvm use 18
 
@@ -30,7 +31,7 @@ npm -v
 
 ## Building
 
-### Development
+### Build
 
 ```bash
 cd tools/nodejs_bind
@@ -42,17 +43,35 @@ This will:
 2. Build the native addon via the main NeuG CMake project (`-DBUILD_NODEJS=ON`)
 3. Copy the resulting `neug_node_bind.node` to `build/Release/`
 
-To build in debug mode, set the environment variable:
+
+### Pack
 
 ```bash
-BUILD_TYPE=DEBUG make build
+make pack
 ```
 
+Create a self-contained, distributable npm package tarball (`.tgz`). This will:
+
+1. Build the native addon (same as `make build`)
+2. Copy prebuilt binaries into `prebuilds/<platform>/`:
+   - `neug_node_bind.node` — the native addon
+   - `libneug.so` — core shared library
+   - `libmimalloc.so.2` — memory allocator
+3. Run `npm pack` to produce `neug-nodejs-<version>.tgz`
+
+The resulting tarball can be installed without a C++ build environment:
+
+```bash
+npm install ./neug-nodejs-0.1.2.tgz
+```
+
+ 
 ### Clean
 
 ```bash
 make clean
 ```
+
 
 ## API Example
 

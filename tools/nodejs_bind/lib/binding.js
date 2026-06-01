@@ -20,8 +20,13 @@
  * Native addon loader for NeuG Node.js bindings.
  *
  * Looks for the compiled .node file in:
- *   1. build/Release/neug_node_bind.node  (standard build)
- *   2. build/Debug/neug_node_bind.node    (debug build)
+ *   1. build/Release/neug_node_bind.node           (standard build)
+ *   2. build/Debug/neug_node_bind.node              (debug build)
+ *   3. prebuilds/<platform>/neug_node_bind.node     (npm distributed package)
+ *
+ * When installed from npm, libneug.so and libmimalloc.so.2 are bundled
+ * alongside the .node file in the prebuilds directory. The .node binary
+ * is built with RPATH=$ORIGIN so the dynamic linker resolves them automatically.
  */
 
 const path = require('path');
@@ -30,10 +35,27 @@ const fs = require('fs');
 const MODULE_NAME = 'neug_node_bind.node';
 const ROOT = path.join(__dirname, '..');
 
+/**
+ * Map Node.js process.platform + process.arch to the prebuilds directory name.
+ */
+function getPrebuildPlatform() {
+  const { platform, arch } = process;
+  if (platform === 'linux' && arch === 'x64') return 'linux-x64';
+  if (platform === 'linux' && arch === 'arm64') return 'linux-arm64';
+  if (platform === 'darwin' && arch === 'x64') return 'darwin-x64';
+  if (platform === 'darwin' && arch === 'arm64') return 'darwin-arm64';
+  return null;
+}
+
 const candidates = [
   path.join(ROOT, 'build', 'Release', MODULE_NAME),
   path.join(ROOT, 'build', 'Debug', MODULE_NAME),
 ];
+
+const prebuildPlatform = getPrebuildPlatform();
+if (prebuildPlatform) {
+  candidates.push(path.join(ROOT, 'prebuilds', prebuildPlatform, MODULE_NAME));
+}
 
 let nativeBinding;
 for (const candidate of candidates) {
