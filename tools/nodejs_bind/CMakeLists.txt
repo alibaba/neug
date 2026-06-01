@@ -8,18 +8,30 @@
 #   cmake .. -DBUILD_NODEJS=ON -DCMAKE_BUILD_TYPE=Release
 #   make -j$(nproc) neug_node_bind
 
-# Find Node.js include headers
+# Find Node.js headers by querying the node executable for its install prefix
+find_program(NODE_EXECUTABLE NAMES node nodejs)
+if (NOT NODE_EXECUTABLE)
+  message(FATAL_ERROR "Cannot find Node.js executable. Please install Node.js or set PATH.")
+endif()
+
+execute_process(
+  COMMAND ${NODE_EXECUTABLE} -p "require('path').resolve(process.execPath, '..', '..', 'include', 'node')"
+  OUTPUT_VARIABLE NODE_INCLUDE_HINT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+)
+
 find_path(NODE_INCLUDE_DIR node_api.h
-  HINTS /usr/include/node /usr/local/include/node
+  HINTS ${NODE_INCLUDE_HINT} /usr/include/node /usr/local/include/node
   PATH_SUFFIXES node
 )
 if (NOT NODE_INCLUDE_DIR)
-  message(FATAL_ERROR "Cannot find Node.js headers (node_api.h)")
+  message(FATAL_ERROR "Cannot find Node.js headers (node_api.h). Hint path: ${NODE_INCLUDE_HINT}")
 endif()
 
 # Find node-addon-api include path (if installed via npm)
 execute_process(
-  COMMAND node -p "require('node-addon-api').include"
+  COMMAND ${NODE_EXECUTABLE} -p "require('node-addon-api').include"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   OUTPUT_VARIABLE NODE_ADDON_API_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE
