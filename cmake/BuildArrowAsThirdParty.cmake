@@ -84,6 +84,24 @@ function(build_arrow_as_third_party)
     endif()
     if(ARROW_ENABLE_S3)
         set(ARROW_S3 ON CACHE BOOL "" FORCE)
+        # Prefer the static libcurl built by scripts/install_deps.sh under the
+        # install prefix (e.g. /opt/neug).  Linking Arrow against this static
+        # libcurl, which is itself linked against the bundled static OpenSSL
+        # 1.1.1k, lets the resulting extension be free of the system libcurl /
+        # system OpenSSL 3.0 dependency at runtime and avoid TLS symbol
+        # conflicts with Arrow's bundled aws-lc/BoringSSL.
+        foreach(_curl_prefix IN LISTS CMAKE_PREFIX_PATH)
+            if(NOT CURL_LIBRARY AND EXISTS "${_curl_prefix}/lib/libcurl.a")
+                set(CURL_LIBRARY "${_curl_prefix}/lib/libcurl.a" CACHE FILEPATH "" FORCE)
+            endif()
+            if(NOT CURL_LIBRARY AND EXISTS "${_curl_prefix}/lib64/libcurl.a")
+                set(CURL_LIBRARY "${_curl_prefix}/lib64/libcurl.a" CACHE FILEPATH "" FORCE)
+            endif()
+            if(NOT CURL_INCLUDE_DIR AND EXISTS "${_curl_prefix}/include/curl/curl.h")
+                set(CURL_INCLUDE_DIR "${_curl_prefix}/include" CACHE PATH "" FORCE)
+            endif()
+        endforeach()
+        unset(_curl_prefix)
         # On Debian/Ubuntu multiarch, headers and libraries live under
         # /usr/include/<triplet>/ and /usr/lib/<triplet>/ which CMake's
         # FindCURL may not search by default.  Use CMAKE_LIBRARY_ARCHITECTURE
