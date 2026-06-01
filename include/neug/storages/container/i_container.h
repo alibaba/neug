@@ -28,6 +28,7 @@ enum class ContainerType {
   kAnonHugeMMap = 1,
   kFilePrivateMMap = 2,
   kFileSharedMMap = 3,
+  kFileReadOnlyMMap = 4,
 };
 
 /**

@@ -71,7 +71,8 @@ void ImmutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open(const std::string& name,
                                  const std::string& snapshot_dir,
-                                 const std::string& work_dir) {
+                                 const std::string& work_dir,
+                                 MemoryLevel mem_level) {
   // Changes made to the CSR will not be synchronized to the file
   // TODO(luoxiaojian): Implement the insert operation on ImmutableCsr.
   // Allow an empty or missing snapshot_dir: the underlying helpers already
@@ -82,7 +83,7 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
           ? snapshot_dir + "/" + name
           : "";
   auto tmp_prefix = tmp_dir(work_dir) + "/" + name;
-  open_internal(snap_prefix, tmp_prefix, MemoryLevel::kSyncToFile);
+  open_internal(snap_prefix, tmp_prefix, mem_level);
 }
 
 template <typename EDATA_T>
@@ -429,11 +430,12 @@ void ImmutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
                                        const std::string& snapshot_dir,
-                                       const std::string& work_dir) {
+                                       const std::string& work_dir,
+                                       MemoryLevel mem_level) {
   load_meta(snapshot_dir + "/" + name);
-  nbr_list_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
-                                   tmp_dir(work_dir) + "/" + name + ".snbr",
-                                   MemoryLevel::kSyncToFile);
+  nbr_list_buffer_ =
+      OpenContainer(snapshot_dir + "/" + name + ".snbr",
+                    tmp_dir(work_dir) + "/" + name + ".snbr", mem_level);
 }
 
 template <typename EDATA_T>

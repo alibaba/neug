@@ -545,9 +545,10 @@ void EdgeTable::openImpl(const std::string& work_dir, MemoryLevel memory_level,
                                   meta_->edge_label_name);
   auto edata_prefix_path = edata_prefix(
       meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
-  if (memory_level == MemoryLevel::kSyncToFile) {
-    in_csr_->open(ie_prefix_path, checkpoint_dir_path, work_dir);
-    out_csr_->open(oe_prefix_path, checkpoint_dir_path, work_dir);
+  if (memory_level == MemoryLevel::kSyncToFile ||
+      memory_level == MemoryLevel::kSyncToFileReadOnly) {
+    in_csr_->open(ie_prefix_path, checkpoint_dir_path, work_dir, memory_level);
+    out_csr_->open(oe_prefix_path, checkpoint_dir_path, work_dir, memory_level);
   } else if (memory_level == MemoryLevel::kInMemory) {
     in_csr_->open_in_memory(checkpoint_dir_path.empty()
                                 ? ""
@@ -571,9 +572,10 @@ void EdgeTable::openImpl(const std::string& work_dir, MemoryLevel memory_level,
   }
 
   if (!meta_->is_bundled()) {
-    if (memory_level == MemoryLevel::kSyncToFile) {
+    if (memory_level == MemoryLevel::kSyncToFile ||
+        memory_level == MemoryLevel::kSyncToFileReadOnly) {
       table_->open(edata_prefix_path, work_dir_, meta_->property_names,
-                   meta_->properties);
+                   meta_->properties, memory_level);
     } else if (memory_level == MemoryLevel::kInMemory) {
       table_->open_in_memory(edata_prefix_path, work_dir_,
                              meta_->property_names, meta_->properties);

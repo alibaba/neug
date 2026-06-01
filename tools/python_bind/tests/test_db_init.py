@@ -418,3 +418,54 @@ def test_memory_level_invalid(tmp_path):
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w", buffer_strategy="invalid_level")
         assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+
+
+# DB-001-23
+def test_read_only_lazy_skips_snapshot_copy(tmp_path):
+    """RO + M_LAZY (kSyncToFile) should map snapshot files in place rather than
+    copying them into runtime/tmp. Verifies the fast path added in
+    NeugDB::Open: checkpoint files are unchanged after the read-only open and
+    no runtime/tmp directory is created."""
+    db_dir = tmp_path / "ro_lazy_db"
+    db_dir.mkdir()
+
+    # Populate a fresh DB and checkpoint on close so we have a snapshot.
+    db_rw = Database(db_path=str(db_dir), mode="w", buffer_strategy="M_LAZY")
+    conn = db_rw.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (n:person {id: 1, name: 'Alice'});")
+    conn.execute("CREATE (n:person {id: 2, name: 'Bob'});")
+    conn.close()
+    db_rw.close()
+
+    checkpoint = db_dir / "checkpoint"
+    runtime_tmp = db_dir / "runtime" / "tmp"
+    assert checkpoint.exists(), "expected snapshot to be written on close"
+
+    # Snapshot fingerprint: (path -> (mtime_ns, size))
+    before = {
+        p.relative_to(checkpoint).as_posix(): (p.stat().st_mtime_ns, p.stat().st_size)
+        for p in checkpoint.rglob("*")
+        if p.is_file()
+    }
+    assert before, "checkpoint dir should contain files"
+
+    # Open read-only with M_LAZY: should take the fast path.
+    db_ro = Database(db_path=str(db_dir), mode="r", buffer_strategy="M_LAZY")
+    conn_ro = db_ro.connect()
+    result = conn_ro.execute("MATCH (v:person) RETURN v.id ORDER BY v.id;")
+    rows = [tuple(record) for record in result]
+    assert rows == [(1,), (2,)]
+    conn_ro.close()
+    db_ro.close()
+
+    # Fast path must not create runtime/tmp.
+    assert not runtime_tmp.exists(), "RO+M_LAZY must not create runtime/tmp"
+
+    # Snapshot files must be byte-identical (no mtime / size drift).
+    after = {
+        p.relative_to(checkpoint).as_posix(): (p.stat().st_mtime_ns, p.stat().st_size)
+        for p in checkpoint.rglob("*")
+        if p.is_file()
+    }
+    assert before == after, "snapshot files were modified by a read-only open"

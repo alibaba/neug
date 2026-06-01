@@ -49,7 +49,13 @@ enum class MemoryLevel : uint8_t {
   kUnSet = 0,
   kInMemory = 1,
   kSyncToFile = 2,
-  kHugePagePreferred = 3
+  kHugePagePreferred = 3,
+  // Internal-only: file-backed snapshot opened read-only with PROT_READ +
+  // MAP_SHARED. Selected by NeugDB::Open when DBMode == READ_ONLY and the
+  // configured memory_level is kSyncToFile and the wal dir is empty. Users
+  // pass kSyncToFile via NeugDBConfig; the engine substitutes this internally
+  // to skip the snapshot-to-tmp copy and map the snapshot in place.
+  kSyncToFileReadOnly = 4
 };
 
 /**

@@ -62,6 +62,35 @@ void FilePrivateMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
   munmap(mmap_data, mmap_size);
 }
 
+FileReadOnlyMMap::FileReadOnlyMMap() : MMapContainer() {}
+
+FileReadOnlyMMap::~FileReadOnlyMMap() { Close(); }
+
+void* FileReadOnlyMMap::mmapImpl(const std::string& path, size_t mmap_size) {
+  int fd = open(path.c_str(), O_RDONLY);
+  if (fd == -1) {
+    THROW_RUNTIME_ERROR("Failed to open file for read-only mmap: " + path);
+  }
+  void* mmap_data = mmap(nullptr, mmap_size, PROT_READ, MAP_SHARED, fd, 0);
+  close(fd);
+  return mmap_data;
+}
+
+void FileReadOnlyMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
+  munmap(mmap_data, mmap_size);
+}
+
+void FileReadOnlyMMap::Resize(size_t /*size*/) {
+  THROW_NOT_SUPPORTED_EXCEPTION(
+      "FileReadOnlyMMap is immutable; Resize is not supported. The caller "
+      "should have gated this on DBMode/memory_level.");
+}
+
+void FileReadOnlyMMap::Dump(const std::string& /*path*/) {
+  THROW_NOT_SUPPORTED_EXCEPTION(
+      "FileReadOnlyMMap is immutable; Dump is not supported.");
+}
+
 FileSharedMMap::FileSharedMMap() : MMapContainer() {}
 
 FileSharedMMap::~FileSharedMMap() { Close(); }

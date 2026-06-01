@@ -1,10 +1,11 @@
-set(storage_test_src test_ddl.cc 
-                     test_export.cc 
-                     test_open_graph.cc 
-                     alter_property_test.cc 
-                     test_set_property.cc 
+set(storage_test_src test_ddl.cc
+                     test_export.cc
+                     test_open_graph.cc
+                     alter_property_test.cc
+                     test_set_property.cc
                      test_memory_level.cc
-                     test_property_graph.cc)
+                     test_property_graph.cc
+                     test_ro_lazy_fastpath.cc)
 if (BUILD_HTTP_SERVER)
     list(APPEND storage_test_src test_recovery.cc test_checkpoint.cc)
 endif()

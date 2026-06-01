@@ -123,6 +123,17 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!file_lock_->lock(error_msg, config_.mode)) {
     THROW_DATABASE_LOCKED_EXCEPTION(error_msg);
   }
+  // Read-only M_LAZY fast path: map snapshot files directly with PROT_READ +
+  // MAP_SHARED instead of copying them into runtime/tmp first. Only safe when
+  // the wal dir is empty (no pending writes to apply via WAL ingest); we fall
+  // back to the legacy copy-based path otherwise.
+  if (config_.mode == DBMode::READ_ONLY &&
+      config_.memory_level == MemoryLevel::kSyncToFile &&
+      wal_dir_is_empty(work_dir_)) {
+    LOG(INFO) << "Opening NeuGDB read-only with M_LAZY fast path: "
+              << "snapshot mapped in place from " << checkpoint_dir(work_dir_);
+    config_.memory_level = MemoryLevel::kSyncToFileReadOnly;
+  }
   neug::execution::PlanParser::get().init();
   initAllocators();
   openGraphAndIngestWals();
@@ -212,15 +223,23 @@ void NeugDB::preprocessConfig() {
 }
 
 void NeugDB::initAllocators() {
-  // Initialize the default allocator for ingesting wals
-  remove_directory(allocator_dir(work_dir_));
-  std::filesystem::create_directories(allocator_dir(work_dir_));
+  // Initialize the default allocator for ingesting wals.
+  // The read-only fast path never ingests WAL, but allocators_[0] is still
+  // referenced by initPlannerAndQueryProcessor — keep the vector populated
+  // with anonymous in-memory allocators that touch no disk state.
+  const bool ro_lazy = config_.memory_level == MemoryLevel::kSyncToFileReadOnly;
+  if (!ro_lazy) {
+    remove_directory(allocator_dir(work_dir_));
+    std::filesystem::create_directories(allocator_dir(work_dir_));
+  }
   assert(config_.thread_num > 0);
   for (int i = 0; i < config_.thread_num; ++i) {
-    allocators_.emplace_back(std::make_shared<Allocator>(
-        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
-                                  ? ""
-                                  : wal_ingest_allocator_prefix(work_dir_, i)));
+    auto alloc_level = ro_lazy ? MemoryLevel::kInMemory : config_.memory_level;
+    std::string backing =
+        (ro_lazy || config_.memory_level != MemoryLevel::kSyncToFile)
+            ? ""
+            : wal_ingest_allocator_prefix(work_dir_, i);
+    allocators_.emplace_back(std::make_shared<Allocator>(alloc_level, backing));
   }
 }
 
@@ -232,6 +251,12 @@ void NeugDB::openGraphAndIngestWals() {
   thread_num_ = config_.thread_num;
   try {
     graph_.Open(work_dir_, config_.memory_level);
+    if (config_.memory_level == MemoryLevel::kSyncToFileReadOnly) {
+      // Fast path precondition: wal_dir_is_empty was true at Open time.
+      // Snapshot is mapped read-only — there is nothing to ingest and any
+      // attempted mutation through the WAL parser would fault the mapping.
+      return;
+    }
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(wal_dir(work_dir_));
     ingestWals(*wal_parser);

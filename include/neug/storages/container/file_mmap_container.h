@@ -46,6 +46,35 @@ class FilePrivateMMap : public MMapContainer {
 };
 
 /**
+ * @brief File-backed read-only memory-mapped container.
+ *
+ * FileReadOnlyMMap opens the snapshot file with O_RDONLY and maps it with
+ * PROT_READ + MAP_SHARED, so pages are lazily faulted in from disk via the
+ * kernel page cache and shared across processes that open the same snapshot.
+ * Any write into the mapping segfaults — the snapshot file is never modified.
+ *
+ * Used by the engine for `mode == READ_ONLY && memory_level == kSyncToFile`
+ * fast path, where we want M_LAZY's lazy paging without the copy-to-tmp step.
+ */
+class FileReadOnlyMMap : public MMapContainer {
+ public:
+  FileReadOnlyMMap();
+  ~FileReadOnlyMMap() override;
+  ContainerType GetContainerType() const override {
+    return ContainerType::kFileReadOnlyMMap;
+  }
+
+  void Resize(size_t size) override;
+  void Sync() override {}
+  void Dump(const std::string& path) override;
+  bool IsDirty() override { return false; }
+
+ protected:
+  void* mmapImpl(const std::string& path, size_t mmap_size) override;
+  void munmapImpl(void* mmap_data, size_t mmap_size) override;
+};
+
+/**
  * @brief File-backed shared memory-mapped container.
  *
  * FileSharedMMap uses MAP_SHARED for file mappings, providing

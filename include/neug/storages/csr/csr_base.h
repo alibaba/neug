@@ -48,7 +48,8 @@ class CsrBase {
   virtual size_t edge_num() const = 0;
 
   virtual void open(const std::string& name, const std::string& snapshot_dir,
-                    const std::string& work_dir) = 0;
+                    const std::string& work_dir,
+                    MemoryLevel mem_level = MemoryLevel::kSyncToFile) = 0;
 
   virtual void open_in_memory(const std::string& prefix) = 0;
 

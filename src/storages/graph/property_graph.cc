@@ -759,13 +759,19 @@ void PropertyGraph::Open(const std::string& work_dir,
     vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
   }
 
+  // Read-only fast path: snapshot files are mmapped in place with PROT_READ;
+  // we cannot grow any container, and we must not touch the tmp dir (the
+  // working tree may be on a read-only filesystem or shared concurrently with
+  // another read-only opener).
+  const bool ro_lazy = (memory_level == MemoryLevel::kSyncToFileReadOnly);
+
   std::string tmp_dir_path = tmp_dir(work_dir_);
-
-  if (std::filesystem::exists(tmp_dir_path)) {
-    remove_directory(tmp_dir_path);
+  if (!ro_lazy) {
+    if (std::filesystem::exists(tmp_dir_path)) {
+      remove_directory(tmp_dir_path);
+    }
+    std::filesystem::create_directories(tmp_dir_path);
   }
-
-  std::filesystem::create_directories(tmp_dir_path);
 
   std::vector<size_t> vertex_capacities(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
@@ -779,9 +785,11 @@ void PropertyGraph::Open(const std::string& work_dir,
     // satisfied.
     // Case 2: Open from empty, Capacity should be the default minimum
     // capacity(4096)
-    auto v_size = vertex_tables_[i].Size();
-    vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
-                                                   : v_size + v_size / 4);
+    if (!ro_lazy) {
+      auto v_size = vertex_tables_[i].Size();
+      vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
+                                                     : v_size + v_size / 4);
+    }
     vertex_capacities[i] = vertex_tables_[i].Capacity();
   }
 
@@ -815,10 +823,12 @@ void PropertyGraph::Open(const std::string& work_dir,
         EdgeTable edge_table(
             schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
         edge_table.Open(work_dir_, memory_level_);
-        auto e_size = edge_table.PropTableSize();
-        size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
-        edge_table.EnsureCapacity(vertex_capacities[src_label_i],
-                                  vertex_capacities[dst_label_i], e_capacity);
+        if (!ro_lazy) {
+          auto e_size = edge_table.PropTableSize();
+          size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+          edge_table.EnsureCapacity(vertex_capacities[src_label_i],
+                                    vertex_capacities[dst_label_i], e_capacity);
+        }
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }

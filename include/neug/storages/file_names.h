@@ -93,6 +93,35 @@ inline std::string wal_dir(const std::string& work_dir) {
   return work_dir + "/wal/";
 }
 
+/**
+ * Return true when the wal directory under `work_dir` does not exist, or
+ * exists but contains no `*.wal` files. Pure filesystem read — safe in
+ * read-only mode.
+ *
+ * Used by `NeugDB::Open` to gate the read-only M_LAZY fast path: when WAL
+ * files exist the engine must still copy the snapshot into the tmp tree so
+ * that WAL ingest can apply mutations.
+ */
+inline bool wal_dir_is_empty(const std::string& work_dir) {
+  auto dir = wal_dir(work_dir);
+  if (!std::filesystem::exists(dir)) {
+    return true;
+  }
+  if (!std::filesystem::is_directory(dir)) {
+    return true;
+  }
+  std::error_code ec;
+  for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+    if (ec) {
+      break;
+    }
+    if (entry.path().extension() == ".wal") {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline std::string vertex_tracker_file(const std::string& label) {
   return "vertex_tracker_" + label;
 }

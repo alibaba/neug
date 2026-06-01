@@ -69,7 +69,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override;
 
   void open_in_memory(const std::string& prefix) override;
 
@@ -235,7 +236,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override;
 
   void open_in_memory(const std::string& prefix) override;
 
@@ -357,7 +359,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   size_t edge_num() const override { return 0; }
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override {}
 
   void open_in_memory(const std::string& prefix) override {}
 

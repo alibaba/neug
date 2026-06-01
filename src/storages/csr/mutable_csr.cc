@@ -89,7 +89,8 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open(const std::string& name,
                                const std::string& snapshot_dir,
-                               const std::string& work_dir) {
+                               const std::string& work_dir,
+                               MemoryLevel mem_level) {
   // Allow an empty or missing snapshot_dir: the underlying helpers already
   // handle absent files by falling back to empty containers.  A subsequent
   // resize() / insert call will allocate storage as needed.
@@ -98,7 +99,7 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
           ? snapshot_dir + "/" + name
           : "";
   auto tmp_prefix = tmp_dir(work_dir) + "/" + name;
-  open_internal(snap_prefix, tmp_prefix, MemoryLevel::kSyncToFile);
+  open_internal(snap_prefix, tmp_prefix, mem_level);
 }
 
 template <typename EDATA_T>
@@ -564,16 +565,17 @@ void MutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
-                                     const std::string& work_dir) {
+                                     const std::string& work_dir,
+                                     MemoryLevel mem_level) {
   close();
   std::string snap_prefix =
       (!snapshot_dir.empty() && std::filesystem::exists(snapshot_dir))
           ? snapshot_dir + "/" + name
           : "";
   load_meta(snap_prefix);
-  nbr_list_ = OpenContainer(snap_prefix.empty() ? "" : snap_prefix + ".snbr",
-                            tmp_dir(work_dir) + "/" + name + ".snbr",
-                            MemoryLevel::kSyncToFile);
+  nbr_list_ =
+      OpenContainer(snap_prefix.empty() ? "" : snap_prefix + ".snbr",
+                    tmp_dir(work_dir) + "/" + name + ".snbr", mem_level);
 }
 
 template <typename EDATA_T>

@@ -47,7 +47,8 @@ void prepare_container_file(const std::string& snapshot_file,
 
 std::unique_ptr<IDataContainer> OpenDataContainer(
     MemoryLevel strategy, const std::string& file_name) {
-  if (strategy == MemoryLevel::kSyncToFile) {
+  if (strategy == MemoryLevel::kSyncToFile ||
+      strategy == MemoryLevel::kSyncToFileReadOnly) {
     if (file_name.empty()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "File name must be provided for file-backed mmap strategy");
@@ -80,6 +81,18 @@ std::unique_ptr<IDataContainer> OpenDataContainer(
     ret->Open(file_name);
     return ret;
   }
+  case MemoryLevel::kSyncToFileReadOnly: {
+    // Caller is responsible for ensuring the snapshot exists; if it does not,
+    // OpenContainer falls back to anon kInMemory instead of routing here.
+    if (!std::filesystem::exists(file_name)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "kSyncToFileReadOnly requires an existing snapshot file: " +
+          file_name);
+    }
+    auto ret = std::make_unique<FileReadOnlyMMap>();
+    ret->Open(file_name);
+    return ret;
+  }
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported storage strategy: " +
@@ -98,6 +111,14 @@ std::unique_ptr<IDataContainer> OpenContainer(const std::string& snapshot_file,
     // For disk-backed containers, prepare the file first
     prepare_container_file(snapshot_file, tmp_file);
     return OpenDataContainer(memory_level, tmp_file);
+  } else if (memory_level == MemoryLevel::kSyncToFileReadOnly) {
+    // Map the snapshot directly read-only. Runtime-only scratch buffers
+    // (.buf/.adj from CSR open, or any caller passing an empty snapshot)
+    // have no snapshot to map -- fall back to anonymous in-memory.
+    if (snapshot_file.empty() || !std::filesystem::exists(snapshot_file)) {
+      return OpenDataContainer(MemoryLevel::kInMemory, "");
+    }
+    return OpenDataContainer(memory_level, snapshot_file);
   } else {
     // For in-memory or hugepage containers, use snapshot file directly
     return OpenDataContainer(memory_level, snapshot_file);

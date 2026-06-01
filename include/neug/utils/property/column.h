@@ -53,7 +53,8 @@ class ColumnBase {
   virtual ~ColumnBase() {}
 
   virtual void open(const std::string& name, const std::string& snapshot_dir,
-                    const std::string& work_dir) = 0;
+                    const std::string& work_dir,
+                    MemoryLevel mem_level = MemoryLevel::kSyncToFile) = 0;
 
   virtual void open_in_memory(const std::string& name) = 0;
 
@@ -93,9 +94,10 @@ class TypedColumn : public ColumnBase {
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override {
     buffer_ = OpenContainer(snapshot_dir + "/" + name, work_dir + "/" + name,
-                            MemoryLevel::kSyncToFile);
+                            mem_level);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -197,7 +199,8 @@ class TypedColumn<EmptyType> : public ColumnBase {
   ~TypedColumn() {}
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override {}
   void open_in_memory(const std::string& name) override {}
   void open_with_hugepages(const std::string& name) override {}
   void dump(const std::string& filename) override {}
@@ -249,13 +252,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) override {
     items_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".items",
-                                  work_dir + "/" + name + ".items",
-                                  MemoryLevel::kSyncToFile);
+                                  work_dir + "/" + name + ".items", mem_level);
     data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
-                                 work_dir + "/" + name + ".data",
-                                 MemoryLevel::kSyncToFile);
+                                 work_dir + "/" + name + ".data", mem_level);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }

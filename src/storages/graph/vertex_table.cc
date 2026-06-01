@@ -41,11 +41,13 @@ void VertexTable::openImpl(const std::string& work_dir,
           : checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
-  if (memory_level_ == MemoryLevel::kSyncToFile) {
-    indexer_->open(indexer_filename, checkpoint_dir_path, work_dir_);
+  if (memory_level_ == MemoryLevel::kSyncToFile ||
+      memory_level_ == MemoryLevel::kSyncToFileReadOnly) {
+    indexer_->open(indexer_filename, checkpoint_dir_path, work_dir_,
+                   memory_level_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
-                 vertex_schema_->property_names,
-                 vertex_schema_->property_types);
+                 vertex_schema_->property_names, vertex_schema_->property_types,
+                 memory_level_);
 
   } else if (memory_level_ == MemoryLevel::kInMemory) {
     indexer_->open_in_memory(checkpoint_dir_path.empty()

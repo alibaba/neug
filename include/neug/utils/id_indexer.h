@@ -416,13 +416,17 @@ class LFIndexer {
   }
 
   void open(const std::string& name, const std::string& checkpoint_dir,
-            const std::string& work_dir) {
-    std::filesystem::create_directories(tmp_dir(work_dir));
+            const std::string& work_dir,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile) {
+    if (mem_level != MemoryLevel::kSyncToFileReadOnly) {
+      // Read-only fast path uses the snapshot in place; no tmp scratch needed.
+      std::filesystem::create_directories(tmp_dir(work_dir));
+    }
     load_meta(checkpoint_dir + "/" + name + ".meta");
-    keys_->open(name + ".keys", checkpoint_dir, tmp_dir(work_dir));
-    indices_ = OpenContainer(checkpoint_dir + "/" + name + ".indices",
-                             tmp_dir(work_dir) + "/" + name + ".indices",
-                             MemoryLevel::kSyncToFile);
+    keys_->open(name + ".keys", checkpoint_dir, tmp_dir(work_dir), mem_level);
+    indices_ =
+        OpenContainer(checkpoint_dir + "/" + name + ".indices",
+                      tmp_dir(work_dir) + "/" + name + ".indices", mem_level);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 

@@ -51,14 +51,15 @@ void Table::initColumns(const std::vector<std::string>& col_name,
 
 void Table::open(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
-                 const std::vector<DataType>& property_types) {
+                 const std::vector<DataType>& property_types,
+                 MemoryLevel mem_level) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir_);
   initColumns(col_name, property_types);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
-                      tmp_dir(work_dir));
+                      tmp_dir(work_dir), mem_level);
   }
 }
 

@@ -35,7 +35,8 @@ class Table {
 
   void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
-            const std::vector<DataType>& property_types);
+            const std::vector<DataType>& property_types,
+            MemoryLevel mem_level = MemoryLevel::kSyncToFile);
 
   void open_in_memory(const std::string& name, const std::string& work_dir,
                       const std::vector<std::string>& col_name,
