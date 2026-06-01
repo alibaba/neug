@@ -57,7 +57,17 @@ See the [JSON Extension](../extensions/load_json) page for format-specific optio
 
 ### Parquet
 
-Parquet support is planned for v0.2.
+Parquet is supported via the PARQUET extension (available since v0.1.1). After a one-time install and load, you can use `LOAD FROM` to read `.parquet` files directly:
+
+```cypher
+INSTALL PARQUET;
+LOAD PARQUET;
+
+LOAD FROM "person.parquet"
+RETURN *;
+```
+
+See the [Parquet Extension](../extensions/load_parquet) page for format-specific options (`buffered_stream`, `pre_buffer`, `enable_io_coalescing`, `parquet_batch_rows`) and examples, including how to export query results to Parquet via `COPY TO`.
 
 ## Relational Operations
 
