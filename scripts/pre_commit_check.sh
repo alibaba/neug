@@ -182,7 +182,7 @@ check_prerequisites() {
     
     if ! check_command "clang-format"; then
         print_warning "clang-format not found. C++ format check will be skipped."
-        print_info "Install with: sudo curl -L https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 --output /usr/local/bin/clang-format && sudo chmod +x /usr/local/bin/clang-format"
+        print_info "Install with: $PIP_CMD install 'clang-format==10.0.1'"
     fi
     
     if [ ${#missing_tools[@]} -ne 0 ]; then

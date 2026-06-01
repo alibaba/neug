@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <arrow/filesystem/filesystem.h>
 #include <arrow/filesystem/s3fs.h>
 #include <string>
 #include "neug/utils/exception/exception.h"
@@ -25,6 +26,29 @@
 namespace neug {
 namespace extension {
 namespace s3 {
+
+/**
+ * @brief Resolve and apply a TLS CA bundle path to Arrow's global FileSystem
+ *        options so that Arrow's S3FileSystem propagates it into the AWS SDK
+ *        ClientConfiguration::caFile (and caPath).
+ *
+ * To make the extension portable across distros,
+ * we explicitly resolve a CA bundle path at runtime and feed it into AWS SDK's
+ * client config via Arrow's FileSystemGlobalOptions.
+ *
+ * Resolution priority (first existing readable file wins):
+ *   1. Env var SSL_CERT_FILE
+ *   2. Env var CURL_CA_BUNDLE
+ *   3. Env var AWS_CA_BUNDLE
+ *   4. Common distro paths:
+ *      - /etc/ssl/certs/ca-certificates.crt   (Debian/Ubuntu)
+ *      - /etc/pki/tls/certs/ca-bundle.crt     (CentOS/RHEL/Fedora)
+ *      - /etc/ssl/cert.pem                    (Alpine/macOS)
+ *      - /etc/ssl/ca-bundle.pem               (OpenSUSE)
+ *
+ * Idempotent and safe to call multiple times.
+ */
+void InitializeArrowTlsOptions();
 
 // Centralized definition of all S3-related configuration keys.
 struct S3ConfigOptionKeys {

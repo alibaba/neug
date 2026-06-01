@@ -216,6 +216,11 @@ S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
     THROW_IO_EXCEPTION("S3FileSystem: no paths provided");
   }
 
+  // NOTE: TLS CA bundle is configured in InitializeArrowTlsOptions(), which is
+  // called eagerly at extension load time (s3_extension.cpp Init()).  No need
+  // to call it here — by the time a S3FileSystem is constructed, Arrow's global
+  // filesystem options are already set.
+
   // Initialize Arrow S3 subsystem (idempotent, safe to call multiple times)
   auto init_result = arrow::fs::EnsureS3Initialized();
   if (!init_result.ok()) {
