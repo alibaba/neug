@@ -20,11 +20,10 @@ import os
 import random
 import shutil
 import sys
+import threading
 import time
 
 import pytest
-
-import threading
 
 from neug.database import Database
 from neug.session import Session

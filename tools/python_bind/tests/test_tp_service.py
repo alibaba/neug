@@ -24,7 +24,6 @@ import sys
 import time
 
 import pytest
-
 from conftest import wait_for_server_ready
 
 from neug.database import Database
