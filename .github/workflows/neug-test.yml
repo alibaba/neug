@@ -223,6 +223,17 @@ jobs:
         python3 -m pip install -r requirements_dev.txt
         python3 -m pip install pytest-cov coverage
 
+    - name: Build Node.js binding
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        # neug_node_bind.node was already compiled in the main Build NeuG step (via CMAKE_ARGS).
+        # Copy it along with libneug.so to build/Release/ so the RPATH=$ORIGIN
+        # can resolve the shared library at runtime.
+        mkdir -p build/Release
+        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "neug_node_bind.node" -exec cp {} build/Release/ \;
+        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "libneug.so" -exec cp {} build/Release/ \;
+
     # ========================================
     # Phase 1: C++ Tests
     # ========================================
@@ -411,9 +422,11 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
         # neug_node_bind.node was already compiled in the main Build NeuG step (via CMAKE_ARGS).
-        # Just copy it to the expected location.
+        # Copy it along with libneug.so to build/Release/ so the RPATH=$ORIGIN
+        # can resolve the shared library at runtime.
         mkdir -p build/Release
         find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "neug_node_bind.node" -exec cp {} build/Release/ \;
+        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "libneug.so" -exec cp {} build/Release/ \;
 
     - name: Run Node.js DB Init Test
       if: steps.scope.outputs.extension_only != 'true'

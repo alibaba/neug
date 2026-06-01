@@ -43,6 +43,8 @@ dev: requirements  ## Compile neug and nodejs bindings via the main CMake projec
 		$(MAKE) -j$(or $(CMAKE_BUILD_PARALLEL_LEVEL),8) neug_node_bind
 	@mkdir -p build/Release
 	@find $(PROJECT_ROOT)/build -name "neug_node_bind.node" -exec cp {} build/Release/ \; 2>/dev/null || true
+	@# Copy libneug.so alongside the .node file so RPATH=$ORIGIN can find it
+	@cp $(PROJECT_ROOT)/build/src/libneug.so build/Release/
 	@echo "Build complete."
 
 .PHONY: build
