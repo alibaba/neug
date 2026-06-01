@@ -953,7 +953,7 @@ list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}
-    COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
+    COMMENT "Running clang-format (pin: clang-format==10.0.1; install via 'python3 -m pip install clang-format==10.0.1')"
     VERBATIM)
 
 file(GLOB_RECURSE FILES_NEED_FORMAT

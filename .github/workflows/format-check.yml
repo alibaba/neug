@@ -107,9 +107,8 @@ jobs:
 
     - name: Cpp Format and Lint Check
       run: |
-        # install clang-format
-        sudo curl -L https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 --output /usr/local/bin/clang-format
-        sudo chmod +x /usr/local/bin/clang-format
+        # Install pinned clang-format from PyPI (cross-platform: Linux, macOS, Windows)
+        python3 -m pip install 'clang-format==10.0.1'
 
         # validate format
         function prepend() { while read line; do echo "${1}${line}"; done; }
@@ -130,9 +129,8 @@ jobs:
             echo "|"
             echo "| to fix this error."
             echo "|"
-            echo "| Ensure you are working with clang-format-8, which can be obtained from"
-            echo "| sudo curl -L https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 --output /usr/local/bin/clang-format"
-            echo "| sudo chmod +x /usr/local/bin/clang-format"
+            echo "| Ensure you are working with clang-format 10.0.1, install with:"
+            echo "|     python3 -m pip install 'clang-format==10.0.1'"
             echo "|"
             echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             exit 1

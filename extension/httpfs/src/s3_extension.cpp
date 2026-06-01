@@ -24,6 +24,7 @@
 #include "neug/utils/file_sys/file_system.h"
 #include "s3_filesystem.h"
 #include "http_filesystem.h"
+#include "s3_options.h"
 
 namespace neug {
 namespace extension {
@@ -78,6 +79,14 @@ extern "C" {
  */
 void Init() {
   try {
+    // Initialize Arrow TLS/CA-bundle options eagerly at extension load time.
+    // This MUST happen before any Arrow filesystem object is created (even
+    // LocalFileSystem), because arrow::fs::Initialize(opts) is a one-shot
+    // global configuration call.  If deferred to the first S3FileSystem ctor,
+    // a prior Arrow init (e.g. triggered by parquet reading a local file)
+    // could race and leave TLS unconfigured, resulting in curlCode 77.
+    neug::extension::s3::InitializeArrowTlsOptions();
+
     // Register S3 filesystem provider in the global registry
     neug::extension::httpfs::RegisterS3Provider();
 

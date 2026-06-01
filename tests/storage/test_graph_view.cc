@@ -197,8 +197,10 @@ TEST_F(GraphViewTest, GetVertexPropertyColumnByIdSkipsPk) {
   ASSERT_NE(col0, nullptr);
 
   // Negative / out-of-range ids return null rather than throw.
-  EXPECT_EQ(view.GetVertexPropertyColumn(person_label, -1), nullptr);
-  EXPECT_EQ(view.GetVertexPropertyColumn(person_label, 100), nullptr);
+  EXPECT_THROW(view.GetVertexPropertyColumn(person_label, -1),
+               exception::InvalidArgumentException);
+  EXPECT_THROW(view.GetVertexPropertyColumn(person_label, 100),
+               exception::InvalidArgumentException);
 }
 
 TEST_F(GraphViewTest, EdgeBasicTraversal) {

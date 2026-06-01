@@ -329,10 +329,12 @@ class PropertyGraph {
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
 
   inline VertexTable& get_vertex_table(label_t vertex_label) {
+    schema_.ensure_vertex_label_valid(vertex_label);
     return vertex_tables_[vertex_label];
   }
 
   inline const VertexTable& get_vertex_table(label_t vertex_label) const {
+    schema_.ensure_vertex_label_valid(vertex_label);
     return vertex_tables_[vertex_label];
   }
 
@@ -556,16 +558,25 @@ class PropertyGraph {
   void loadSchema(const std::string& filename);
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, int32_t col_id) const {
+    schema_.ensure_vertex_label_valid(label);
+    auto props = schema_.get_vertex_properties(label);
+    if (col_id < 0 || static_cast<size_t>(col_id) >= props.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Vertex property column id out of range: " + std::to_string(col_id) +
+          " (label has " + std::to_string(props.size()) + " properties)");
+    }
     return vertex_tables_[label].GetPropertyColumn(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
+    schema_.ensure_vertex_label_valid(label);
     return vertex_tables_[label].GetPropertyColumn(prop);
   }
 
   inline VertexSet GetVertexSet(label_t label,
                                 timestamp_t ts = MAX_TIMESTAMP) const {
+    schema_.ensure_vertex_label_valid(label);
     return vertex_tables_[label].GetVertexSet(ts);
   }
 
@@ -587,11 +598,14 @@ class PropertyGraph {
                                       const std::vector<std::string>& props,
                                       std::vector<std::string>& valid_props);
 
+  Status vertex_label_check(const std::string& vertex_type_name) const;
+  Status vertex_label_check(label_t label) const;
+
   Status edge_triplet_check(const std::string& src_type_name,
                             const std::string& dst_type_name,
-                            const std::string& edge_type_name);
-
-  Status vertex_label_check(const std::string& vertex_type_name);
+                            const std::string& edge_type_name) const;
+  Status edge_triplet_check(label_t src_label, label_t dst_label,
+                            label_t edge_label) const;
 
   void compact_schema();
 
