@@ -13,6 +13,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/nodejs_bind/**'
       - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
@@ -27,6 +28,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/nodejs_bind/**'
       - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
@@ -86,6 +88,7 @@ jobs:
             - 'proto/**'
             - 'third_party/**'
             - 'tools/python_bind/**'
+            - 'tools/nodejs_bind/**'
             - 'tools/java_driver/**'
             - 'tests/**'
             - '!tests/extension/**'
@@ -155,6 +158,11 @@ jobs:
         java-version: '17'
         maven-version: '3.9.6'
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
     - name: Set ENABLE_GCOV for main branch
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
       run: |
@@ -189,6 +197,7 @@ jobs:
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
         export CXX="ccache g++"
+        export CMAKE_ARGS="-DBUILD_NODEJS=ON"
         cd tools/python_bind
         make clean
         make requirements
@@ -388,6 +397,49 @@ jobs:
         mvn test
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest -sv tests/test_java_driver.py
+
+    # ========================================
+    # Phase 3b: Node.js Tests
+    # ========================================
+    - name: Build Node.js binding
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        npm install
+        # neug_node_bind.node was already compiled in the main Build NeuG step (via CMAKE_ARGS).
+        # Just copy it to the expected location.
+        mkdir -p build/Release
+        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "neug_node_bind.node" -exec cp {} build/Release/ \;
+
+    - name: Run Node.js DB Init Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        node --test tests/test_db_init.js
+
+    - name: Run Node.js DB Connection Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        node --test tests/test_db_connection.js
+
+    - name: Run Node.js DB Query Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        node --test tests/test_db_query.js
+
+    - name: Run Node.js DB Transaction Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        node --test tests/test_db_transaction.js
+
+    - name: Run Node.js DB Import/Export Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        node --test tests/test_db_import_export.js
 
     # ========================================
     # Phase 4: E2E Tests
