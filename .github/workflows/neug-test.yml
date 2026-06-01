@@ -171,6 +171,11 @@ jobs:
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
+    - name: Install Node.js dependencies
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        npm install
+
     - name: Build NeuG
       run: |
         . /home/neug/.neug_env
@@ -405,7 +410,6 @@ jobs:
       if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        npm install
         # neug_node_bind.node was already compiled in the main Build NeuG step (via CMAKE_ARGS).
         # Just copy it to the expected location.
         mkdir -p build/Release
