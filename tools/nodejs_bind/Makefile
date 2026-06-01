@@ -21,7 +21,7 @@ dev: requirements  ## Compile neug and nodejs bindings via the main CMake projec
 	@mkdir -p $(PROJECT_ROOT)/build
 	cd $(PROJECT_ROOT)/build && \
 		cmake .. -DBUILD_NODEJS=ON -DBUILD_HTTP_SERVER=ON -DCMAKE_BUILD_TYPE=$(or $(BUILD_TYPE),Release) && \
-		$(MAKE) -j$$(nproc) neug_node_bind
+		$(MAKE) -j$(or $(CMAKE_BUILD_PARALLEL_LEVEL),8) neug_node_bind
 	@mkdir -p build/Release
 	@find $(PROJECT_ROOT)/build -name "neug_node_bind.node" -exec cp {} build/Release/ \; 2>/dev/null || true
 	@echo "Build complete."

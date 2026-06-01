@@ -52,10 +52,13 @@ if (BUILD_HTTP_SERVER)
     set(NEUG_LIBRARIES ${NEUG_LIBRARIES})
 endif()
 
+find_package(OpenSSL REQUIRED)
 target_link_libraries(neug_node_bind PRIVATE
   ${NEUG_LIBRARIES}
   ${GLOG_LIBRARIES}
   ${Protobuf_LIBRARIES}
+  OpenSSL::SSL
+  OpenSSL::Crypto
 )
 
 target_compile_definitions(neug_node_bind PRIVATE
