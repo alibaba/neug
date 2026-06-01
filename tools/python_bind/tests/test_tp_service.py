@@ -25,8 +25,6 @@ import time
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from conftest import wait_for_server_ready
 
 from neug.database import Database

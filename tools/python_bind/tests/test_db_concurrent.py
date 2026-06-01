@@ -24,7 +24,6 @@ import time
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 import threading
 
 from neug.database import Database

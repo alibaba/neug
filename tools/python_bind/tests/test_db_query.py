@@ -24,8 +24,6 @@ from unittest import result
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from ctypes import sizeof
 
 from conftest import ensure_result_cnt_eq
