@@ -19,7 +19,6 @@ coverage_html.tar.gz
 **/*.gcno
 
 # IDE / editor / VCS metadata
-.git/
 .idea/
 .vscode/
 .qoder/
