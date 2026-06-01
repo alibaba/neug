@@ -287,22 +287,47 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
       ed_accessor.is_bundled()) {
     auto typed_view =
         view.template get_typed_view<T, CsrViewType::kMultipleMutable>();
+    vector_t<std::pair<vid_t, sel_t>> temp_vec;
+    constexpr uint32_t TEMP_VEC_RESERVE_SIZE = 256;
+    temp_vec.reserve(TEMP_VEC_RESERVE_SIZE);
     if (tp == SPPredicateType::kPropertyGT) {
-      for (sel_t idx = 0; idx < vertex_num; ++idx) {
-        vid_t v = vertices[idx];
-        typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
-          builder.push_back_opt(nbr);
-          offsets.push_back(idx);
-        });
+      for (sel_t idx = 0; idx < vertex_num;) {
+        temp_vec.clear();
+        for (int d = 0; d < TEMP_VEC_RESERVE_SIZE && idx < vertex_num;
+             ++d, ++idx) {
+          temp_vec.emplace_back(vertices[idx], idx);
+        }
+        std::sort(temp_vec.begin(), temp_vec.end());
+        for (sel_t i = 0; i < static_cast<sel_t>(temp_vec.size()); ++i) {
+          if (i + 8 < temp_vec.size()) {
+            view.prefetch(temp_vec[i + 8].first);
+          }
+          const auto& [v, id] = temp_vec[i];
+          typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(id);
+          });
+        }
       }
     } else {
       CHECK(tp == SPPredicateType::kPropertyLT);
-      for (sel_t idx = 0; idx < vertex_num; ++idx) {
-        vid_t v = vertices[idx];
-        typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
-          builder.push_back_opt(nbr);
-          offsets.push_back(idx);
-        });
+      for (sel_t idx = 0; idx < vertex_num;) {
+        temp_vec.clear();
+        for (int d = 0; d < TEMP_VEC_RESERVE_SIZE && idx < vertex_num;
+             ++d, ++idx) {
+          temp_vec.emplace_back(vertices[idx], idx);
+        }
+        std::sort(temp_vec.begin(), temp_vec.end());
+        for (sel_t i = 0; i < static_cast<sel_t>(temp_vec.size()); ++i) {
+          if (i + 8 < temp_vec.size()) {
+            view.prefetch(temp_vec[i + 8].first);
+          }
+          const auto& [v, id] = temp_vec[i];
+          typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(id);
+          });
+        }
       }
     }
   } else {

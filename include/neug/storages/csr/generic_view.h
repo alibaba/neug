@@ -584,6 +584,18 @@ struct GenericView {
     }
   }
 
+  __attribute__((always_inline)) void prefetch(vid_t v) const {
+    if (degrees_ == nullptr) {
+      // single
+      const char* start_ptr = adjlists_ + v * cfg_.stride;
+      __builtin_prefetch(start_ptr, 0, 1);
+    } else {
+      const char* start_ptr = reinterpret_cast<const char*>(
+          reinterpret_cast<const int64_t*>(adjlists_)[v]);
+      __builtin_prefetch(start_ptr, 0, 1);
+    }
+  }
+
   /**
    * @brief Get edges (neighbors) for a specific vertex.
    *

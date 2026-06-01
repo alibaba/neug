@@ -102,8 +102,8 @@ std::string PyDatabase::serve(int port, const std::string& host,
 
   std::lock_guard<std::recursive_mutex> lock(mtx_);
 
-  database->Close();
-  database->Open(database->config());
+  // database->Close();
+  // database->Open(database->config());
   neug::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;

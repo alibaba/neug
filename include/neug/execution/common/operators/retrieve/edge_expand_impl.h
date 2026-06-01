@@ -21,7 +21,7 @@
 
 namespace neug {
 namespace execution {
-
+constexpr int32_t prefetch_dist = 16;
 #define expand_sv_np_ms(v, v_idx, view, builder, offsets) \
   {                                                       \
     auto es = view.get_edges(v);                          \
@@ -176,6 +176,9 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             }
           }
         } else {
+          if (idx + prefetch_dist < vertex_num) {
+            view.prefetch(vertices[idx + prefetch_dist]);
+          }
           expand_sv_np_ms(v, idx, view, builder, offsets);
         }
       }
@@ -198,6 +201,9 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             }
           }
         } else {
+          if (idx + prefetch_dist < vertex_num) {
+            view.prefetch(vertices[idx + prefetch_dist]);
+          }
           expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir, view,
                          gpred, builder, offsets);
         }
@@ -262,7 +268,9 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
                             input_label, nbr_label, edge_label));
       builder.start_label(nbr_label);
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t v) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          vid_t v = vertex.vid_;
           if constexpr (is_optional) {
             if (v != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -278,11 +286,16 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
               }
             }
           } else {
+            if (idx + prefetch_dist < input.size()) {
+              view.prefetch(input.get_vertex(idx + prefetch_dist).vid_);
+            }
             expand_sv_np_ms(v, idx, view, builder, offsets);
           }
-        });
+        };
       } else {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t v) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          vid_t v = vertex.vid_;
           if constexpr (is_optional) {
             if (v != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -299,10 +312,13 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
               }
             }
           } else {
+            if (idx + prefetch_dist < input.size()) {
+              view.prefetch(input.get_vertex(idx + prefetch_dist).vid_);
+            }
             expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                            view, gpred, builder, offsets);
           }
-        });
+        };
       }
     }
     if constexpr (is_optional) {
@@ -341,7 +357,10 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          label_t l = vertex.label_;
+          vid_t vid = vertex.vid_;
           auto& view = single_views[l];
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
@@ -358,9 +377,12 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           } else {
             expand_sv_np_ms(vid, idx, view, builder, offsets);
           }
-        });
+        };
       } else {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          label_t l = vertex.label_;
+          vid_t vid = vertex.vid_;
           auto& view = single_views[l];
           label_t edge_label = single_edge_labels[l];
           Direction dir = single_dirs[l];
@@ -381,7 +403,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             expand_sv_p_ms(l, vid, idx, nbr_label, edge_label, dir, view, gpred,
                            builder, offsets);
           }
-        });
+        };
       }
     } else {
       vector_t<vector_t<GenericView>> views(label_num);
@@ -493,7 +515,10 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          label_t l = vertex.label_;
+          vid_t vid = vertex.vid_;
           auto& view = single_views[l];
           label_t nbr_label = single_nbr_labels[l];
           if constexpr (is_optional) {
@@ -515,9 +540,12 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
           } else {
             expand_sv_np_ml(vid, idx, view, nbr_label, builder, offsets);
           }
-        });
+        };
       } else {
-        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
+        for (size_t idx = 0; idx < input.size(); ++idx) {
+          auto vertex = input.get_vertex(idx);
+          label_t l = vertex.label_;
+          vid_t vid = vertex.vid_;
           auto& view = single_views[l];
           label_t nbr_label = single_nbr_labels[l];
           label_t edge_label = single_edge_labels[l];
@@ -539,7 +567,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             expand_sv_p_ml(l, vid, idx, nbr_label, edge_label, dir, view, gpred,
                            builder, offsets);
           }
-        });
+        };
       }
     } else {
       vector_t<vector_t<GenericView>> views(label_num);
@@ -678,7 +706,8 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
       builder.start_label(nbr_label);
       sel_t vertex_idx = seg_start_idx;
       if constexpr (GPRED_T::is_dummy) {
-        for (auto vid : vertices) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          vid_t vid = vertices[idx];
           size_t old_size = builder.cur_size();
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
@@ -688,6 +717,9 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
               edges_found[vertex_idx] = true;
             }
           } else {
+            if (idx + prefetch_dist < vertices.size()) {
+              view.prefetch(vertices[idx + prefetch_dist]);
+            }
             expand_sv_np_ms(vid, vertex_idx, view, builder, offsets);
           }
           ++vertex_idx;
@@ -696,7 +728,8 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
         label_t edge_label = std::get<1>(label_dirs[input_label][csr_idx]);
         Direction dir = std::get<2>(label_dirs[input_label][csr_idx]);
 
-        for (auto vid : vertices) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          vid_t vid = vertices[idx];
           size_t old_size = builder.cur_size();
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
@@ -707,6 +740,9 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
               edges_found[vertex_idx] = true;
             }
           } else {
+            if (idx + prefetch_dist < vertices.size()) {
+              view.prefetch(vertices[idx + prefetch_dist]);
+            }
             expand_sv_p_ms(input_label, vid, vertex_idx, nbr_label, edge_label,
                            dir, view, gpred, builder, offsets);
           }
