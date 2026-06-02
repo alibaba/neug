@@ -196,147 +196,95 @@ static bool is_block_zero(const char* buf, size_t n) {
   return true;
 }
 
-static void write_all(int fd, const char* buf, size_t n,
-                      const std::string& dst_path) {
-  size_t written = 0;
-  while (written < n) {
-    ssize_t x = ::write(fd, buf + written, n - written);
-    if (x < 0) {
-      throw std::runtime_error("Failed to write to destination file: " +
-                               dst_path);
+// pwrite exact n bytes at off; throws on short write / error.
+static void pwrite_all(int fd, const char* buf, size_t n, off_t off,
+                       const std::string& path) {
+  while (n > 0) {
+    ssize_t w = ::pwrite(fd, buf, n, off);
+    if (w <= 0) {
+      throw std::runtime_error("pwrite failed on " + path + ": " +
+                               std::strerror(errno));
     }
-    written += static_cast<size_t>(x);
+    buf += w;
+    off += w;
+    n -= static_cast<size_t>(w);
   }
 }
 
-/**
- * @brief Sparse-aware copy using SEEK_DATA / SEEK_HOLE.
- *
- * Walks the source's data extents and copies only those, leaving holes
- * unallocated in the destination. Returns false if the filesystem does
- * not support SEEK_HOLE (caller should fall back).
- */
-static bool sparse_copy_seek_hole(int src_fd, int dst_fd, off_t file_size,
-                                  const std::string& src_path,
-                                  const std::string& dst_path) {
+// Walk source's data extents via SEEK_DATA/SEEK_HOLE; pwrite each extent
+// at the same offset in dst (dst has already been ftruncate'd to the
+// final size, so holes are pre-allocated). Returns false iff the FS
+// doesn't implement SEEK_HOLE — caller should fall back.
+static bool sparse_copy_seek_hole(int src_fd, int dst_fd, off_t size,
+                                  const std::string& src,
+                                  const std::string& dst) {
 #ifdef SEEK_HOLE
-  // Empty file: nothing to seek over. Just anchor dst size and return.
-  if (file_size == 0) {
-    if (::ftruncate(dst_fd, 0) < 0) {
-      throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
-    }
-    return true;
-  }
-  // Probe support: on filesystems without SEEK_HOLE, lseek fails with EINVAL.
-  // ENXIO at offset 0 means "no data/hole past offset"; valid response on
-  // some platforms (e.g. macOS) for files that are entirely past EOF.
-  if (::lseek(src_fd, 0, SEEK_HOLE) == -1) {
-    if (errno == EINVAL || errno == ENOTSUP) {
-      return false;
-    }
-    if (errno == ENXIO) {
-      if (::ftruncate(dst_fd, file_size) < 0) {
-        throw std::runtime_error("Failed to ftruncate destination: " +
-                                 dst_path);
-      }
-      return true;
-    }
-    throw std::runtime_error("lseek(SEEK_HOLE) failed on " + src_path + ": " +
-                             std::strerror(errno));
-  }
-
-  std::unique_ptr<char[]> buffer(new char[COPY_BUFFER_SIZE]);
+  auto buf = std::make_unique<char[]>(COPY_BUFFER_SIZE);
   off_t off = 0;
-  while (off < file_size) {
-    off_t data_start = ::lseek(src_fd, off, SEEK_DATA);
-    if (data_start == -1) {
-      if (errno == ENXIO) {
-        break;  // no more data; remainder is hole.
-      }
-      throw std::runtime_error("lseek(SEEK_DATA) failed on " + src_path + ": " +
+  while (off < size) {
+    off_t data = ::lseek(src_fd, off, SEEK_DATA);
+    if (data == -1) {
+      if (errno == ENXIO) break;  // remainder is hole
+      if (errno == EINVAL || errno == ENOTSUP) return false;
+      throw std::runtime_error("SEEK_DATA failed on " + src + ": " +
                                std::strerror(errno));
     }
-    off_t hole_start = ::lseek(src_fd, data_start, SEEK_HOLE);
-    if (hole_start == -1) {
-      hole_start = file_size;
-    }
+    off_t hole = ::lseek(src_fd, data, SEEK_HOLE);
+    if (hole == -1) hole = size;
 
-    if (::lseek(src_fd, data_start, SEEK_SET) == -1 ||
-        ::lseek(dst_fd, data_start, SEEK_SET) == -1) {
-      throw std::runtime_error("lseek failed during sparse copy of " +
-                               src_path + ": " + std::strerror(errno));
-    }
-
-    size_t remaining = static_cast<size_t>(hole_start - data_start);
-    while (remaining > 0) {
-      size_t to_read = std::min(remaining, COPY_BUFFER_SIZE);
-      ssize_t r = ::read(src_fd, buffer.get(), to_read);
+    for (off_t cur = data; cur < hole;) {
+      size_t to_read =
+          std::min(static_cast<size_t>(hole - cur), COPY_BUFFER_SIZE);
+      ssize_t r = ::pread(src_fd, buf.get(), to_read, cur);
       if (r <= 0) {
-        throw std::runtime_error("Failed to read from source file: " +
-                                 src_path);
+        throw std::runtime_error("pread failed on " + src + ": " +
+                                 std::strerror(errno));
       }
-      write_all(dst_fd, buffer.get(), static_cast<size_t>(r), dst_path);
-      remaining -= static_cast<size_t>(r);
+      pwrite_all(dst_fd, buf.get(), static_cast<size_t>(r), cur, dst);
+      cur += r;
     }
-    off = hole_start;
-  }
-
-  if (::ftruncate(dst_fd, file_size) < 0) {
-    throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
+    off = hole;
   }
   return true;
 #else
   (void) src_fd;
   (void) dst_fd;
-  (void) file_size;
-  (void) src_path;
-  (void) dst_path;
+  (void) size;
+  (void) src;
+  (void) dst;
   return false;
 #endif
 }
 
-/**
- * @brief Sparse-aware fallback: read everything, but skip all-zero blocks
- *        with lseek so the destination ends up sparse too.
- *
- * Used when SEEK_HOLE is unavailable. Still reads the whole source (pages
- * back from cache fast for sparse holes), but avoids writing zero bytes.
- */
-static void sparse_copy_zero_detect(int src_fd, int dst_fd, off_t file_size,
-                                    const std::string& src_path,
-                                    const std::string& dst_path) {
-  if (::lseek(src_fd, 0, SEEK_SET) == -1 ||
-      ::lseek(dst_fd, 0, SEEK_SET) == -1) {
-    throw std::runtime_error("lseek to start failed during copy of " +
-                             src_path);
-  }
-
-  std::unique_ptr<char[]> buffer(new char[COPY_BUFFER_SIZE]);
-  ssize_t r;
-  while ((r = ::read(src_fd, buffer.get(), COPY_BUFFER_SIZE)) > 0) {
-    if (is_block_zero(buffer.get(), static_cast<size_t>(r))) {
-      if (::lseek(dst_fd, r, SEEK_CUR) == -1) {
-        throw std::runtime_error("lseek over hole failed on " + dst_path);
-      }
-    } else {
-      write_all(dst_fd, buffer.get(), static_cast<size_t>(r), dst_path);
+// Fallback for FS without SEEK_HOLE: read every block linearly and pwrite
+// only the non-zero ones; zero blocks stay as the dst's pre-allocated hole.
+static void sparse_copy_zero_detect(int src_fd, int dst_fd, off_t size,
+                                    const std::string& src,
+                                    const std::string& dst) {
+  auto buf = std::make_unique<char[]>(COPY_BUFFER_SIZE);
+  for (off_t off = 0; off < size;) {
+    size_t to_read =
+        std::min(static_cast<size_t>(size - off), COPY_BUFFER_SIZE);
+    ssize_t r = ::pread(src_fd, buf.get(), to_read, off);
+    if (r <= 0) {
+      throw std::runtime_error("pread failed on " + src + ": " +
+                               std::strerror(errno));
     }
-  }
-  if (r < 0) {
-    throw std::runtime_error("Failed to read from source file: " + src_path);
-  }
-
-  if (::ftruncate(dst_fd, file_size) < 0) {
-    throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
+    if (!is_block_zero(buf.get(), static_cast<size_t>(r))) {
+      pwrite_all(dst_fd, buf.get(), static_cast<size_t>(r), off, dst);
+    }
+    off += r;
   }
 }
 
 /**
  * @brief Fallback file copy that preserves sparseness.
  *
- * Tries SEEK_DATA/SEEK_HOLE first to copy only allocated extents; if the
- * filesystem doesn't support it, falls back to a read loop that skips
- * all-zero blocks via lseek. Final size is anchored with ftruncate.
+ * Anchors dst at the final size with ftruncate, then pwrites only the
+ * source's allocated extents into the corresponding offsets — holes in
+ * the source stay as holes in the destination. Tries SEEK_DATA/SEEK_HOLE
+ * first; on filesystems that don't implement them, falls back to reading
+ * every block and pwriting only the non-zero ones.
  *
  * Non-static so tests can call it directly (clonefile/FICLONE fast paths
  * normally shadow this helper on supported filesystems).
@@ -347,7 +295,6 @@ void fallback_copy(const std::string& src_path, const std::string& dst_path,
   if (src_fd < 0) {
     throw std::runtime_error("Failed to open source file: " + src_path);
   }
-
   int dst_fd =
       ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
   if (dst_fd < 0) {
@@ -360,6 +307,11 @@ void fallback_copy(const std::string& src_path, const std::string& dst_path,
 #endif
 
   try {
+    // Anchor dst size up front. Empty / all-hole / trailing-hole cases all
+    // fall out naturally: the inner loops simply don't run for hole regions.
+    if (::ftruncate(dst_fd, src_stat.st_size) < 0) {
+      throw std::runtime_error("ftruncate failed on " + dst_path);
+    }
     if (!sparse_copy_seek_hole(src_fd, dst_fd, src_stat.st_size, src_path,
                                dst_path)) {
       sparse_copy_zero_detect(src_fd, dst_fd, src_stat.st_size, src_path,
@@ -374,7 +326,6 @@ void fallback_copy(const std::string& src_path, const std::string& dst_path,
 
   ::close(src_fd);
   ::close(dst_fd);
-
   copy_metadata(src_stat, dst_path);
 }
 
