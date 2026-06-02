@@ -33,6 +33,32 @@ conn = db.connect()
 print("✅ NeuG is ready!")
 ```
 
+## NodeJS Setup Details
+
+**Requirements**: Node.js 18.0.0 or later
+
+### Option 1: Install from npm
+```bash
+npm install neug
+```
+
+### Option 2: Install from Tarball
+```bash
+npm install /path/to/neug-0.1.2.tgz
+```
+
+### Verify Installation
+```javascript
+const { Database } = require('neug');
+
+// Test with in-memory database
+const db = new Database({ databasePath: '', mode: 'w' });
+const conn = db.connect();
+console.log("✅ NeuG is ready!");
+conn.close();
+db.close();
+```
+
 
 ## C++ Installation
 

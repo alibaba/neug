@@ -10,6 +10,7 @@ This section contains the complete API reference for NeuG.
    Python API <python_api/index>
    Java API <java_api/index>
    C++ API <cpp_api/index>
+   NodeJS API <nodejs_api/index>
 
 Python API
 ----------
@@ -25,4 +26,9 @@ C++ API
 -------
 
 The C++ API provides low-level access to NeuG's core functionality.
+
+NodeJS API
+----------
+
+The NodeJS API provides a native JavaScript interface with N-API for building high-performance Node.js applications with NeuG.
 
