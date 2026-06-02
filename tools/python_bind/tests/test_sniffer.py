@@ -417,3 +417,125 @@ class TestLoadSniffer:
         assert len(rows) == 1
         assert isinstance(rows[0][0], dict)
         assert rows[0][0] == {"a": "abc", "b": "bcd"}
+
+    @extension_test
+    def test_copy_edge_from_parquet_non_standard_columns(self):
+        """Issue #409: COPY edge FROM parquet should work when columns are
+        named src_id/dst_id instead of from/to."""
+        self.conn.execute("LOAD PARQUET")
+        node_path = self._get_comprehensive_parquet_path("node_a.parquet")
+        rel_path = self._get_comprehensive_parquet_path("rel_a.parquet")
+
+        self.conn.execute(
+            """
+            CREATE NODE TABLE node_a(
+                id INT64, i32_property INT32, i64_property INT64,
+                u32_property UINT32, u64_property UINT64,
+                f32_property FLOAT, f64_property DOUBLE,
+                str_property STRING, date_property DATE,
+                datetime_property TIMESTAMP, interval_property STRING,
+                PRIMARY KEY(id)
+            );
+            """
+        )
+        self.conn.execute(
+            """
+            CREATE REL TABLE rel_a(
+                FROM node_a TO node_a,
+                double_weight DOUBLE, i32_weight INT32,
+                i64_weight INT64, datetime_weight TIMESTAMP
+            );
+            """
+        )
+        self.conn.execute(f'COPY node_a FROM "{node_path}";')
+        self.conn.execute(
+            f'COPY rel_a FROM "{rel_path}" (from="node_a", to="node_a");'
+        )
+
+        result = self.conn.execute(
+            "MATCH ()-[r:rel_a]->() RETURN count(r);"
+        )
+        count = next(result)[0]
+        assert count == 10, f"Expected 10 edges, got {count}"
+
+    @extension_test
+    def test_copy_edge_from_parquet_custom_src_dst(self):
+        """Issue #409: COPY edge FROM parquet with custom src/dst column names
+        should load all rows, not silently return 0."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_path = self.data_dir / "nodes.parquet"
+        pq.write_table(
+            pa.table({
+                "id": pa.array([1, 2, 3, 4], type=pa.int64()),
+                "name": pa.array(["Alice", "Bob", "Carol", "Dave"]),
+            }),
+            str(node_path),
+        )
+
+        edge_path = self.data_dir / "edges_src_dst.parquet"
+        pq.write_table(
+            pa.table({
+                "src": pa.array([1, 2, 3, 1], type=pa.int64()),
+                "dst": pa.array([2, 3, 4, 4], type=pa.int64()),
+                "weight": pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
+            }),
+            str(edge_path),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY person FROM "{node_path}";')
+        self.conn.execute(
+            f'COPY knows FROM "{edge_path}" (from="person", to="person");'
+        )
+
+        result = self.conn.execute(
+            "MATCH ()-[k:knows]->() RETURN count(k);"
+        )
+        count = next(result)[0]
+        assert count == 4, f"Expected 4 edges, got {count}"
+
+        result = self.conn.execute(
+            "MATCH (a:person)-[k:knows]->(b:person) "
+            "RETURN a.name, b.name, k.weight ORDER BY k.weight;"
+        )
+        rows = list(result)
+        assert len(rows) == 4
+        assert str(rows[0][0]) == "Alice" and str(rows[0][1]) == "Bob"
+        assert str(rows[1][0]) == "Bob" and str(rows[1][1]) == "Carol"
+        assert str(rows[2][0]) == "Carol" and str(rows[2][1]) == "Dave"
+        assert str(rows[3][0]) == "Alice" and str(rows[3][1]) == "Dave"
+
+    def test_copy_edge_from_csv_non_standard_columns(self):
+        """Regression: CSV COPY edge with non-standard column names should
+        still work via positional mapping."""
+        csv_node = self.data_dir / "nodes.csv"
+        csv_node.write_text("id,name\n1,Alice\n2,Bob\n3,Carol\n")
+
+        csv_edge = self.data_dir / "edges.csv"
+        csv_edge.write_text("src,dst,weight\n1,2,1.0\n2,3,2.0\n1,3,3.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY person FROM "{csv_node}" (HEADER=true);')
+        self.conn.execute(
+            f'COPY knows FROM "{csv_edge}" (from="person", to="person", HEADER=true);'
+        )
+
+        result = self.conn.execute(
+            "MATCH ()-[k:knows]->() RETURN count(k);"
+        )
+        count = next(result)[0]
+        assert count == 3, f"Expected 3 edges, got {count}"
