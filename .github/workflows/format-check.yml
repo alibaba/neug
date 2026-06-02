@@ -17,11 +17,12 @@ concurrency:
 
 jobs:
   check-format:
-    # Use self-hosted runners for trusted events in alibaba/neug (push,
-    # workflow_dispatch, and PRs from non-fork branches). Fall back to
-    # GitHub-hosted runners for forks and other repositories so untrusted
-    # PR code never lands on self-hosted infrastructure.
-    runs-on: ${{ (github.repository == 'alibaba/neug' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
+    # Run on the self-hosted pool whenever the workflow is executing in
+    # alibaba/neug (push, workflow_dispatch, and any pull_request including
+    # those from forks). Fork PRs are intentionally included to avoid the
+    # GitHub-hosted runner queue. Other repositories (e.g. user forks running
+    # this workflow on their own branches) fall back to ubuntu-22.04.
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
 
     steps:
     - uses: actions/checkout@v4
