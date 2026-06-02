@@ -36,6 +36,8 @@
 
 namespace neug {
 
+class ModuleStore;
+class SnapshotMeta;
 class PropertyGraph;
 
 class IRecordBatchSupplier;
@@ -53,6 +55,26 @@ class EdgeTable {
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
   void Init(Checkpoint& ckp, MemoryLevel memory_level);
+
+  // --- Snapshot key builders (flat manifest convention) ---
+  static std::string KeyOutCsr(const std::string& src, const std::string& edge,
+                               const std::string& dst);
+  static std::string KeyInCsr(const std::string& src, const std::string& edge,
+                              const std::string& dst);
+  static std::string KeyProperty(const std::string& src,
+                                 const std::string& edge,
+                                 const std::string& dst, size_t index);
+  static std::string ScalarKey(const std::string& src, const std::string& edge,
+                               const std::string& dst,
+                               const std::string& field);
+
+  // --- Snapshot orchestration ---
+  static EdgeTable OpenFrom(Checkpoint& ckp,
+                            std::shared_ptr<const EdgeSchema> schema,
+                            ModuleStore& store, const SnapshotMeta& meta,
+                            MemoryLevel level);
+
+  void DisassembleTo(ModuleStore& store, SnapshotMeta& meta, Checkpoint& ckp);
 
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);

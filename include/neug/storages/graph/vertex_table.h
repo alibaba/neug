@@ -24,6 +24,10 @@
 
 namespace neug {
 
+class ModuleStore;
+class SnapshotMeta;
+class Checkpoint;
+
 class VertexSet {
  public:
   VertexSet(vid_t size, const VertexTimestamp& v_ts_, timestamp_t ts)
@@ -120,6 +124,30 @@ class VertexTable {
 
   void Init(Checkpoint& ckp, MemoryLevel memory_level);
 
+  // --- Snapshot key builders (flat manifest convention) ---
+  static std::string KeyKeys(const std::string& label);
+  static std::string KeyIndices(const std::string& label);
+  static std::string KeyVertexTimestamp(const std::string& label);
+  static std::string KeyProperty(const std::string& label, size_t index);
+  static std::string IndexerScalarKey(const std::string& label,
+                                      const std::string& field);
+
+  // --- Snapshot orchestration ---
+  /// Restore a VertexTable from a ModuleStore + SnapshotMeta snapshot.
+  /// Falls back to Init() when no checkpoint state exists for this label.
+  static VertexTable OpenFrom(Checkpoint& ckp,
+                              std::shared_ptr<const VertexSchema> schema,
+                              ModuleStore& store, const SnapshotMeta& meta,
+                              MemoryLevel level);
+
+  /// Transfer every leaf module out of this VertexTable into @p store / @p meta
+  /// so that a subsequent store.Dump() persists them.  After this call the
+  /// table is empty.
+  void DisassembleTo(ModuleStore& store, SnapshotMeta& meta, Checkpoint& ckp);
+
+  void SetIndexer(std::unique_ptr<IndexerType> indexer) {
+    indexer_ = std::move(indexer);
+  }
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
   void SetVertexTimestamp(std::unique_ptr<VertexTimestamp> v_ts) {
     v_ts_ = std::move(v_ts);

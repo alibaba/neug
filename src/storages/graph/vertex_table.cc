@@ -15,7 +15,9 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include "neug/storages/module/module_store.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/storages/snapshot_meta.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -246,6 +248,99 @@ vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts,
   }
   v_ts_->InsertVertex(vid, ts);
   return vid;
+}
+
+// --- Static key builders ---
+
+std::string VertexTable::KeyKeys(const std::string& label) {
+  return "vertex_" + label + "_keys";
+}
+
+std::string VertexTable::KeyIndices(const std::string& label) {
+  return "vertex_" + label + "_indices";
+}
+
+std::string VertexTable::KeyVertexTimestamp(const std::string& label) {
+  return "vertex_" + label + "_v_ts";
+}
+
+std::string VertexTable::KeyProperty(const std::string& label, size_t index) {
+  return "vertex_" + label + "_prop_" + std::to_string(index);
+}
+
+std::string VertexTable::IndexerScalarKey(const std::string& label,
+                                          const std::string& field) {
+  return "indexer_" + label + "/" + field;
+}
+
+// --- Snapshot orchestration ---
+
+VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
+                                  std::shared_ptr<const VertexSchema> vs,
+                                  ModuleStore& store, const SnapshotMeta& meta,
+                                  MemoryLevel level) {
+  VertexTable vt(vs);
+  vt.SetMemoryLevel(level);
+  const auto& lbl = vs->label_name;
+
+  if (!store.Contains(KeyKeys(lbl))) {
+    vt.Init(ckp, level);
+    return vt;
+  }
+
+  auto& idx = vt.get_indexer();
+  idx.SetKeys(store.TakeModule<ColumnBase>(KeyKeys(lbl)));
+  auto indices_desc = meta.module(KeyIndices(lbl));
+  CHECK(indices_desc.has_value())
+      << "missing indices meta entry for vertex " << lbl;
+  idx.SetIndices(
+      store.TakeModule<neug::TypedColumn<neug::vid_t>>(KeyIndices(lbl)));
+  idx.SetNumElements(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_elements"))
+          .value_or(0));
+  idx.SetNumSlotsMinusOne(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_slots_minus_one"))
+          .value_or(0));
+  idx.SetHashPolicyIndex(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "hash_policy"))
+          .value_or(0));
+
+  auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
+  for (size_t i = 0; i < vs->property_types.size(); ++i) {
+    table->SetColumn(static_cast<int>(i),
+                     std::shared_ptr<ColumnBase>(
+                         store.TakeModule<ColumnBase>(KeyProperty(lbl, i))));
+  }
+  vt.SetTable(std::move(table));
+  vt.SetVertexTimestamp(
+      store.TakeModule<VertexTimestamp>(KeyVertexTimestamp(lbl)));
+  return vt;
+}
+
+void VertexTable::DisassembleTo(ModuleStore& store, SnapshotMeta& meta,
+                                Checkpoint& ckp) {
+  const auto& lbl = vertex_schema_->label_name;
+  auto& idx = get_indexer();
+
+  meta.SetScalar(IndexerScalarKey(lbl, "num_elements"),
+                 std::to_string(idx.GetNumElements()));
+  meta.SetScalar(IndexerScalarKey(lbl, "num_slots_minus_one"),
+                 std::to_string(idx.GetNumSlotsMinusOne()));
+  meta.SetScalar(IndexerScalarKey(lbl, "hash_policy"),
+                 std::to_string(idx.GetHashPolicyIndex()));
+
+  store.SetModule(KeyKeys(lbl), idx.TakeKeys());
+
+  {
+    auto indices_buf = idx.TakeIndices();
+    meta.set_module(KeyIndices(lbl), indices_buf->Dump(ckp));
+  }
+
+  auto table = TakeTable();
+  for (size_t i = 0; i < table->col_num(); ++i) {
+    meta.set_module(KeyProperty(lbl, i), table->get_column_by_id(i)->Dump(ckp));
+  }
+  store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
 
 }  // namespace neug

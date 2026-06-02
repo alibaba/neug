@@ -15,6 +15,10 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/module/module_store.h"
+#include "neug/storages/snapshot_meta.h"
+
 #include <arrow/api.h>
 #include <arrow/array/array_base.h>
 #include <arrow/array/array_binary.h>
@@ -1082,6 +1086,102 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
   }
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
+}
+
+// --- Static key builders ---
+
+static std::string EdgeKeyBase(const std::string& src, const std::string& edge,
+                               const std::string& dst,
+                               const std::string& suffix) {
+  return "edge_" + src + "_" + edge + "_" + dst + "_" + suffix;
+}
+
+std::string EdgeTable::KeyOutCsr(const std::string& src,
+                                 const std::string& edge,
+                                 const std::string& dst) {
+  return EdgeKeyBase(src, edge, dst, "out_csr");
+}
+
+std::string EdgeTable::KeyInCsr(const std::string& src, const std::string& edge,
+                                const std::string& dst) {
+  return EdgeKeyBase(src, edge, dst, "in_csr");
+}
+
+std::string EdgeTable::KeyProperty(const std::string& src,
+                                   const std::string& edge,
+                                   const std::string& dst, size_t index) {
+  return EdgeKeyBase(src, edge, dst, "prop_" + std::to_string(index));
+}
+
+std::string EdgeTable::ScalarKey(const std::string& src,
+                                 const std::string& edge,
+                                 const std::string& dst,
+                                 const std::string& field) {
+  return "edge_" + src + "_" + edge + "_" + dst + "/" + field;
+}
+
+// --- Snapshot orchestration ---
+
+EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
+                              std::shared_ptr<const EdgeSchema> es,
+                              ModuleStore& store, const SnapshotMeta& meta,
+                              MemoryLevel level) {
+  EdgeTable et(es);
+  et.SetMemoryLevel(level);
+  const auto& src = es->src_label_name;
+  const auto& edge = es->edge_label_name;
+  const auto& dst = es->dst_label_name;
+
+  if (!store.Contains(KeyOutCsr(src, edge, dst))) {
+    et.Init(ckp, level);
+    return et;
+  }
+
+  et.SetInCsr(store.TakeModule<CsrBase>(KeyInCsr(src, edge, dst)));
+  et.SetOutCsr(store.TakeModule<CsrBase>(KeyOutCsr(src, edge, dst)));
+
+  if (!es->is_bundled()) {
+    auto table = std::make_unique<Table>(es->property_names, es->properties);
+    for (size_t i = 0; i < es->properties.size(); ++i) {
+      table->SetColumn(static_cast<int>(i),
+                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
+                           KeyProperty(src, edge, dst, i))));
+    }
+    et.SetTable(std::move(table));
+    et.SetTableIdx(
+        meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "table_idx"))
+            .value_or(0));
+  } else {
+    et.SetTable(std::make_unique<Table>());
+  }
+  et.SetCapacity(
+      meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "capacity"))
+          .value_or(0));
+  return et;
+}
+
+void EdgeTable::DisassembleTo(ModuleStore& store, SnapshotMeta& meta,
+                              Checkpoint& ckp) {
+  if (!meta_) {
+    return;
+  }
+  const auto& src = meta_->src_label_name;
+  const auto& edge = meta_->edge_label_name;
+  const auto& dst = meta_->dst_label_name;
+
+  store.SetModule(KeyOutCsr(src, edge, dst), TakeOutCsr());
+  store.SetModule(KeyInCsr(src, edge, dst), TakeInCsr());
+  if (!meta_->is_bundled()) {
+    auto table = TakeTable();
+    for (size_t i = 0; i < table->col_num(); ++i) {
+      meta.set_module(KeyProperty(src, edge, dst, i),
+                      table->get_column_by_id(i)->Dump(ckp));
+    }
+    meta.SetScalar(ScalarKey(src, edge, dst, "table_idx"),
+                   std::to_string(GetTableIdx()));
+  }
+  meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
+                 std::to_string(GetCapacity()));
 }
 
 }  // namespace neug
