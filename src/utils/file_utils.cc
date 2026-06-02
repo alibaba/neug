@@ -125,10 +125,24 @@ static bool try_reflink(const std::string& src_path,
 }
 
 /**
+ * @brief Is the file sparse? True iff allocated blocks < logical size.
+ *
+ * `st_blocks` is always in 512-byte units regardless of FS block size.
+ */
+static bool is_sparse(const struct stat& st) {
+  return static_cast<off_t>(st.st_blocks) * 512 < st.st_size;
+}
+
+/**
  * @brief Try to use copy_file_range() syscall.
  *
  * Available on Linux 4.5+. May utilize COW on supported filesystems.
  * Performs server-side copy without data passing through userspace.
+ *
+ * WARNING: on non-COW filesystems (e.g. ext4) the kernel materializes
+ * source holes into physical zero blocks. Callers MUST skip this path
+ * for sparse sources — use is_sparse() — and fall through to the
+ * SEEK_HOLE/SEEK_DATA-aware fallback_copy instead.
  */
 static bool try_copy_file_range(const std::string& src_path,
                                 const std::string& dst_path,
@@ -188,10 +202,12 @@ static bool is_block_zero(const char* buf, size_t n) {
   const uint64_t* q = reinterpret_cast<const uint64_t*>(buf);
   size_t qcount = n / sizeof(uint64_t);
   for (size_t i = 0; i < qcount; ++i) {
-    if (q[i] != 0) return false;
+    if (q[i] != 0)
+      return false;
   }
   for (size_t i = qcount * sizeof(uint64_t); i < n; ++i) {
-    if (buf[i] != 0) return false;
+    if (buf[i] != 0)
+      return false;
   }
   return true;
 }
@@ -224,13 +240,16 @@ static bool sparse_copy_seek_hole(int src_fd, int dst_fd, off_t size,
   while (off < size) {
     off_t data = ::lseek(src_fd, off, SEEK_DATA);
     if (data == -1) {
-      if (errno == ENXIO) break;  // remainder is hole
-      if (errno == EINVAL || errno == ENOTSUP) return false;
+      if (errno == ENXIO)
+        break;  // remainder is hole
+      if (errno == EINVAL || errno == ENOTSUP)
+        return false;
       throw std::runtime_error("SEEK_DATA failed on " + src + ": " +
                                std::strerror(errno));
     }
     off_t hole = ::lseek(src_fd, data, SEEK_HOLE);
-    if (hole == -1) hole = size;
+    if (hole == -1)
+      hole = size;
 
     for (off_t cur = data; cur < hole;) {
       size_t to_read =
@@ -350,12 +369,15 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
     return CopyResult::Reflink;
   }
 
-  // Try copy_file_range - may use server-side COW
-  if (try_copy_file_range(src_path, dst_path, src_stat)) {
+  // copy_file_range() materializes holes into zero blocks on non-COW
+  // filesystems (e.g. ext4). For sparse sources we MUST use the
+  // SEEK_HOLE/SEEK_DATA-aware fallback to avoid bloating dst from a few
+  // KB of real data into the full ftruncate-reserved logical size.
+  if (!is_sparse(src_stat) &&
+      try_copy_file_range(src_path, dst_path, src_stat)) {
     return CopyResult::CopyFileRange;
   }
 
-  // Fallback to traditional copy
   fallback_copy(src_path, dst_path, src_stat);
   return CopyResult::FallbackCopy;
 }

@@ -110,6 +110,12 @@ class FileUtilsCopyTest : public ::testing::Test {
 // On macOS/APFS this exercises the clonefile fast path; on Linux/Btrfs
 // it exercises FICLONE; elsewhere it falls through to fallback_copy.
 // All paths must preserve content and not blow up sparseness.
+//
+// Regression for issue #440: previously, on non-COW filesystems (e.g.
+// Linux ext4), reflink would fail and copy_file_range would succeed —
+// but copy_file_range materializes holes into physical zero blocks,
+// bloating a sparse src (4K real / 102G logical) into a 102G dst. The
+// fix routes sparse sources straight to fallback_copy.
 TEST_F(FileUtilsCopyTest, CopyFile_SparseFilePreservesContentAndSparseness) {
   const off_t kLogical = 64LL << 20;
   const std::vector<DataSegment> segs = {
@@ -121,7 +127,7 @@ TEST_F(FileUtilsCopyTest, CopyFile_SparseFilePreservesContentAndSparseness) {
   const std::string dst = path("dst");
   ASSERT_NO_FATAL_FAILURE(make_file(src, segs, kLogical));
 
-  file_utils::copy_file(src, dst, /*overwrite=*/true);
+  auto result = file_utils::copy_file(src, dst, /*overwrite=*/true);
 
   auto [dst_logical, dst_physical] = stat_sizes(dst);
   auto [src_logical, src_physical] = stat_sizes(src);
@@ -130,6 +136,10 @@ TEST_F(FileUtilsCopyTest, CopyFile_SparseFilePreservesContentAndSparseness) {
     EXPECT_EQ(read_at(dst, seg.offset, seg.data.size()), seg.data);
   }
   if (src_physical < kLogical / 2) {  // src is sparse on this FS
+    // Sparse sources must never take the copy_file_range path — it
+    // bloats holes on non-COW filesystems.
+    EXPECT_NE(result, file_utils::CopyResult::CopyFileRange)
+        << "Sparse src took copy_file_range path; risks bloating dst";
     EXPECT_LT(dst_physical, kLogical / 2)
         << "Sparse src materialized into dense dst (physical=" << dst_physical
         << ", logical=" << kLogical << ")";
