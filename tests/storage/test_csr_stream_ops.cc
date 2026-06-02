@@ -163,8 +163,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemoryEmpty) {
       1000, 1000, 20000,
       this->csr->csr_type() == neug::CsrType::kSingleMutable);
 
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, neug::ModuleDescriptor(), neug::MemoryLevel::kInMemory);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, neug::ModuleDescriptor(), neug::MemoryLevel::kInMemory);
   this->csr->resize(1000);
 
   auto ts = this->ParallelInsert(edges, 16, 1);
@@ -178,8 +178,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertFileEmpty) {
       1000, 1000, 20000,
       this->csr->csr_type() == neug::CsrType::kSingleMutable);
 
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, neug::ModuleDescriptor(),
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, neug::ModuleDescriptor(),
                   neug::MemoryLevel::kSyncToFile);
   this->csr->resize(1000);
 
@@ -204,8 +204,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemory) {
     data_list.push_back(std::get<2>(e));
   }
 
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, neug::ModuleDescriptor(), neug::MemoryLevel::kInMemory);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, neug::ModuleDescriptor(), neug::MemoryLevel::kInMemory);
   this->csr->resize(1000);
   this->csr->batch_put_edges(src_list, dst_list, data_list, 0);
   std::sort(init_edges.begin(), init_edges.end());
@@ -235,8 +235,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertFile) {
     data_list.push_back(std::get<2>(e));
   }
 
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, neug::ModuleDescriptor(),
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, neug::ModuleDescriptor(),
                   neug::MemoryLevel::kSyncToFile);
   this->csr->resize(1000);
   this->csr->batch_put_edges(src_list, dst_list, data_list, 0);

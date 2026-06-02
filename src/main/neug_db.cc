@@ -234,15 +234,15 @@ void NeugDB::openGraphAndIngestWals() {
       ckp_id = ws_.CreateCheckpoint();
       LOG(INFO) << "No checkpoint found, created new checkpoint: " << ckp_id;
     }
-    auto& ckp = ws_.GetCheckpoint(ckp_id);
-    LOG(INFO) << "Opening graph from checkpoint " << ckp.path();
+    auto ckp = ws_.GetCheckpoint(ckp_id);
+    LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
     graph_.Open(ckp, config_.memory_level);
 
     // Init allocators before ingesting wals
-    initAllocators(ckp.allocator_dir());
+    initAllocators(ckp->allocator_dir());
 
     neug::WalParserFactory::Init();
-    auto wal_parser = WalParserFactory::CreateWalParser(ckp.wal_dir());
+    auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
     ingestWals(*wal_parser);
 
   } catch (std::exception& e) {
@@ -306,9 +306,9 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
                    MAX_TIMESTAMP);
   }
   auto ckp_id = ws_.CreateCheckpoint();
-  auto& ckp = ws_.GetCheckpoint(ckp_id);
+  auto ckp = ws_.GetCheckpoint(ckp_id);
   graph_.Dump(ckp, reopen);
-  VLOG(1) << "Finish checkpoint: " << ckp.path();
+  VLOG(1) << "Finish checkpoint: " << ckp->path();
 }
 
 }  // namespace neug

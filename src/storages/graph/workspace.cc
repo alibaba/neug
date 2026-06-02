@@ -74,7 +74,7 @@ void Workspace::Open(const std::string& db_dir) {
         int32_t id;
         if (parse_checkpoint_path(entry.path().string(), id)) {
           checkpoints_[id] =
-              std::make_unique<Checkpoint>(entry.path().string(), id);
+              std::make_shared<Checkpoint>(entry.path().string(), id);
         }
       }
     }
@@ -116,15 +116,15 @@ int32_t Workspace::CreateCheckpoint() {
 
   std::filesystem::create_directories(path);
   SnapshotMeta::GenerateEmptyMeta(path + "/meta");
-  checkpoints_[id] = std::make_unique<Checkpoint>(path, id);
+  checkpoints_[id] = std::make_shared<Checkpoint>(path, id);
   return id;
 }
 
-Checkpoint& Workspace::GetCheckpoint(int32_t id) {
+std::shared_ptr<Checkpoint> Workspace::GetCheckpoint(int32_t id) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto& ptr = checkpoints_.at(id);
   assert(ptr != nullptr);
-  return *ptr;
+  return ptr;
 }
 
 }  // namespace neug

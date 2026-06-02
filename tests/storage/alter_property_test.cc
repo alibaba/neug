@@ -268,7 +268,8 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
       graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, casted).ok());
 }
 
-void testOpenEmptyGraph(neug::Checkpoint& ckp, const std::string& data_dir) {
+void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
+                        const std::string& data_dir) {
   PropertyGraph graph;
   graph.Open(ckp, MemoryLevel::kSyncToFile);
 
@@ -411,6 +412,6 @@ TEST(DatabaseTest, TestAlterProperty) {
   LOG(INFO) << "Data directory: " << data_dir;
   neug::Workspace ws;
   ws.Open(data_path);
-  auto& ckp = make_checkpoint(ws);
+  auto ckp = make_checkpoint(ws);
   neug::testOpenEmptyGraph(ckp, data_dir);
 }

@@ -49,7 +49,7 @@ class GraphViewTest : public ::testing::Test {
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
     ws_.Open(work_dir_);
-    auto& ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(ws_);
     graph_->Open(ckp, MemoryLevel::kInMemory);
 
     // Create vertex type: person with id as primary key and name as property

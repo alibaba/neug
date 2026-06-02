@@ -36,7 +36,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
     std::filesystem::create_directories(test_dir_);
 
     ws_.Open(test_dir_);
-    auto& ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(ws_);
     graph_.Open(ckp, MemoryLevel::kInMemory);
   }
 

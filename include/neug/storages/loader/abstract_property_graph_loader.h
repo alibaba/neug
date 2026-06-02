@@ -35,9 +35,9 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
       THROW_INVALID_ARGUMENT_EXCEPTION("Workspace is not empty: " + work_dir);
     }
     auto ckp_id = ws_.CreateCheckpoint();
-    auto& ckp = ws_.GetCheckpoint(ckp_id);
-    ckp.MutableMeta().SetSchema(schema_);
-    graph_.Open(ws_.GetCheckpoint(ckp_id), MemoryLevel::kSyncToFile);
+    auto ckp = ws_.GetCheckpoint(ckp_id);
+    ckp->MutableMeta().SetSchema(schema_);
+    graph_.Open(ckp, MemoryLevel::kSyncToFile);
   }
 
   virtual ~AbstractPropertyGraphLoader() = default;

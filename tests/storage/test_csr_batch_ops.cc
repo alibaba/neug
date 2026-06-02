@@ -86,8 +86,8 @@ class CsrBatchTest : public ::testing::Test {
 TYPED_TEST_SUITE(CsrBatchTest, CsrTypes);
 
 TYPED_TEST(CsrBatchTest, OpenInsertScan) {
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges0 = generate_random_edges<typename TypeParam::data_t>(
       500, 1000, 10000,
@@ -161,8 +161,8 @@ TYPED_TEST(CsrBatchTest, OpenInsertScan) {
 TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open -> dump -> open
   {
-    auto& ckp = make_checkpoint(this->Workspace());
-    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+    auto ckp = make_checkpoint(this->Workspace());
+    this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -183,11 +183,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(ckp);
+    auto desc = this->csr->Dump(*ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->Open(ckp, desc, MemoryLevel::kSyncToFile);
+    this->csr->Open(*ckp, desc, MemoryLevel::kSyncToFile);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 
@@ -199,8 +199,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open
   {
     this->csr = std::make_unique<TypeParam>();
-    auto& ckp = make_checkpoint(this->Workspace());
-    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    auto ckp = make_checkpoint(this->Workspace());
+    this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     this->csr->resize(1000);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
@@ -222,11 +222,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(ckp);
+    auto desc = this->csr->Dump(*ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->Open(ckp, desc, MemoryLevel::kSyncToFile);
+    this->csr->Open(*ckp, desc, MemoryLevel::kSyncToFile);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 
@@ -238,8 +238,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open_in_memory
   {
     this->csr = std::make_unique<TypeParam>();
-    auto& ckp = make_checkpoint(this->Workspace());
-    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    auto ckp = make_checkpoint(this->Workspace());
+    this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -260,11 +260,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(ckp);
+    auto desc = this->csr->Dump(*ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->Open(ckp, desc, MemoryLevel::kInMemory);
+    this->csr->Open(*ckp, desc, MemoryLevel::kInMemory);
     this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
@@ -277,8 +277,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open -> dump -> open_in_memory
   {
     this->csr = std::make_unique<TypeParam>();
-    auto& ckp = make_checkpoint(this->Workspace());
-    this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+    auto ckp = make_checkpoint(this->Workspace());
+    this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -299,11 +299,11 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(ckp);
+    auto desc = this->csr->Dump(*ckp);
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->Open(ckp, desc, MemoryLevel::kInMemory);
+    this->csr->Open(*ckp, desc, MemoryLevel::kInMemory);
     this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
@@ -316,8 +316,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteVertices) {
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
@@ -355,8 +355,8 @@ TYPED_TEST(CsrBatchTest, DeleteVertices) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteEdges) {
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
@@ -406,8 +406,8 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
 }
 
 TYPED_TEST(CsrBatchTest, DeleteEdgesAndCompact) {
-  auto& ckp = make_checkpoint(this->Workspace());
-  this->csr->Open(ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
+  auto ckp = make_checkpoint(this->Workspace());
+  this->csr->Open(*ckp, ModuleDescriptor(), MemoryLevel::kSyncToFile);
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,

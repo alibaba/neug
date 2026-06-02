@@ -99,8 +99,8 @@ class MutableCsrTest : public ::testing::Test {
     return edge_num;
   }
 
-  Checkpoint& load_csr_data(MutableCsr<EDATA_T>& csr,
-                            MemoryLevel memory_level) {
+  std::shared_ptr<Checkpoint> load_csr_data(MutableCsr<EDATA_T>& csr,
+                                            MemoryLevel memory_level) {
     if (std::filesystem::exists(TEST_DIR)) {
       std::filesystem::remove_all(TEST_DIR);
     }
@@ -111,8 +111,8 @@ class MutableCsrTest : public ::testing::Test {
     ws_.Close();
     ws_.Open(TEST_DIR);
 
-    auto& ckp = make_checkpoint(ws_);
-    csr.Open(ckp, ModuleDescriptor(), memory_level);
+    auto ckp = make_checkpoint(ws_);
+    csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
       csr.batch_put_edges(src_vid, dst_vid, int32_data);
@@ -140,8 +140,8 @@ class MutableCsrTest : public ::testing::Test {
     return ckp;
   }
 
-  Checkpoint& load_single_csr_data(SingleMutableCsr<EDATA_T>& csr,
-                                   MemoryLevel memory_level) {
+  std::shared_ptr<Checkpoint> load_single_csr_data(
+      SingleMutableCsr<EDATA_T>& csr, MemoryLevel memory_level) {
     if (std::filesystem::exists(TEST_DIR)) {
       std::filesystem::remove_all(TEST_DIR);
     }
@@ -152,8 +152,8 @@ class MutableCsrTest : public ::testing::Test {
     ws_.Close();
     ws_.Open(TEST_DIR);
 
-    auto& ckp = make_checkpoint(ws_);
-    csr.Open(ckp, ModuleDescriptor(), memory_level);
+    auto ckp = make_checkpoint(ws_);
+    csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(single_src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
       csr.batch_put_edges(single_src_vid, dst_vid, int32_data);
@@ -391,39 +391,39 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
 
 TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
   MutableCsr<TypeParam> mutable_csr;
-  auto& ckp = this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
-  auto desc = mutable_csr.Dump(ckp);
+  auto ckp = this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
+  auto desc = mutable_csr.Dump(*ckp);
   MutableCsr<TypeParam> fmap_mutable_csr, memory_mutable_csr,
       hugepage_mutable_csr;
-  fmap_mutable_csr.Open(ckp, desc, MemoryLevel::kSyncToFile);
+  fmap_mutable_csr.Open(*ckp, desc, MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_mutable_csr.edge_num(), edge_num);
-  memory_mutable_csr.Open(ckp, desc, MemoryLevel::kInMemory);
+  memory_mutable_csr.Open(*ckp, desc, MemoryLevel::kInMemory);
   EXPECT_EQ(memory_mutable_csr.edge_num(), edge_num);
-  hugepage_mutable_csr.Open(ckp, desc, MemoryLevel::kHugePagePreferred);
+  hugepage_mutable_csr.Open(*ckp, desc, MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_mutable_csr.edge_num(), edge_num);
 
   SingleMutableCsr<TypeParam> single_mutable_csr;
-  auto& single_ckp =
+  auto single_ckp =
       this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
-  auto single_desc = single_mutable_csr.Dump(single_ckp);
+  auto single_desc = single_mutable_csr.Dump(*single_ckp);
   SingleMutableCsr<TypeParam> fmap_single_mutable_csr,
       memory_single_mutable_csr, hugepage_single_mutable_csr;
-  fmap_single_mutable_csr.Open(single_ckp, single_desc,
+  fmap_single_mutable_csr.Open(*single_ckp, single_desc,
                                MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_single_mutable_csr.edge_num(), edge_num);
-  memory_single_mutable_csr.Open(single_ckp, single_desc,
+  memory_single_mutable_csr.Open(*single_ckp, single_desc,
                                  MemoryLevel::kInMemory);
   EXPECT_EQ(memory_single_mutable_csr.edge_num(), edge_num);
-  hugepage_single_mutable_csr.Open(single_ckp, single_desc,
+  hugepage_single_mutable_csr.Open(*single_ckp, single_desc,
                                    MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_single_mutable_csr.edge_num(), edge_num);
 
   EmptyCsr<TypeParam> empty_csr;
-  auto empty_desc = empty_csr.Dump(single_ckp);
+  auto empty_desc = empty_csr.Dump(*single_ckp);
   EmptyCsr<TypeParam> opened_empty_csr;
-  opened_empty_csr.Open(single_ckp, empty_desc, MemoryLevel::kSyncToFile);
-  opened_empty_csr.Open(single_ckp, empty_desc, MemoryLevel::kInMemory);
-  opened_empty_csr.Open(single_ckp, empty_desc,
+  opened_empty_csr.Open(*single_ckp, empty_desc, MemoryLevel::kSyncToFile);
+  opened_empty_csr.Open(*single_ckp, empty_desc, MemoryLevel::kInMemory);
+  opened_empty_csr.Open(*single_ckp, empty_desc,
                         MemoryLevel::kHugePagePreferred);
 }
 

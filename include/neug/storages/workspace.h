@@ -88,13 +88,13 @@ class Workspace {
   /**
    * @brief Get a checkpoint by ID.
    */
-  Checkpoint& GetCheckpoint(int32_t id);
+  std::shared_ptr<Checkpoint> GetCheckpoint(int32_t id) const;
 
   std::string db_dir() const { return db_dir_; }
 
  private:
   std::string db_dir_;
-  std::map<int32_t, std::unique_ptr<Checkpoint>> checkpoints_;
+  std::map<int32_t, std::shared_ptr<Checkpoint>> checkpoints_;
   mutable std::mutex mutex_;
 };
 

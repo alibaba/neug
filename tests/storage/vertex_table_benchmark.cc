@@ -66,8 +66,8 @@ class VertexTableBenchmark : public ::testing::Test {
 
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
     ws_.Open(test_dir_);
-    auto& ckp = make_checkpoint(ws_);
-    OpenVertexTableLegacy(table, ckp, neug::SnapshotMeta(),
+    auto ckp = make_checkpoint(ws_);
+    OpenVertexTableLegacy(table, *ckp, neug::SnapshotMeta(),
                           neug::MemoryLevel::kInMemory);
   }
 
