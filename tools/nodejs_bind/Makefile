@@ -22,6 +22,17 @@ endif
 
 PREBUILD_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/prebuilds/$(PREBUILD_PLATFORM)
 
+# Platform-specific shared library names
+ifeq ($(UNAME_S),Darwin)
+  NEUG_SHARED_LIB := libneug.dylib
+  MIMALLOC_SRC_LIB := libmimalloc.2.0.dylib
+  MIMALLOC_DST_LIB := libmimalloc.2.dylib
+else
+  NEUG_SHARED_LIB := libneug.so
+  MIMALLOC_SRC_LIB := libmimalloc.so.2.0
+  MIMALLOC_DST_LIB := libmimalloc.so.2
+endif
+
 .PHONY: all build dev clean install requirements pack prebuild help
 
 all: dev
@@ -43,14 +54,14 @@ dev: requirements  ## Compile neug and nodejs bindings via the main CMake projec
 		$(MAKE) -j$(or $(CMAKE_BUILD_PARALLEL_LEVEL),8) neug_node_bind
 	@mkdir -p build/Release
 	@find $(PROJECT_ROOT)/build -name "neug_node_bind.node" -exec cp {} build/Release/ \; 2>/dev/null || true
-	@# Copy libneug.so alongside the .node file so RPATH=$ORIGIN can find it
-	@cp $(PROJECT_ROOT)/build/src/libneug.so build/Release/
+	@# Copy libneug shared library alongside the .node file so RPATH can find it
+	@cp $(PROJECT_ROOT)/build/src/$(NEUG_SHARED_LIB) build/Release/
 	@echo "Build complete."
 
 .PHONY: build
 build: dev  ## Build the neug nodejs package, alias for dev
 
-# Copy shared libraries (libneug.so, libmimalloc.so) into prebuilds/<platform>/
+# Copy shared libraries (libneug, libmimalloc) into prebuilds/<platform>/
 # alongside neug_node_bind.node, so the npm package is self-contained.
 .PHONY: prebuild
 prebuild: dev  ## Prepare prebuilds/<platform>/ with .node + shared libs for packaging
@@ -58,12 +69,12 @@ prebuild: dev  ## Prepare prebuilds/<platform>/ with .node + shared libs for pac
 	@mkdir -p $(PREBUILD_DIR)
 	@# Copy the .node binding
 	@find $(PROJECT_ROOT)/build -name "neug_node_bind.node" -exec cp {} $(PREBUILD_DIR)/ \;
-	@# Copy libneug.so (core shared library)
-	@cp $(PROJECT_ROOT)/build/src/libneug.so $(PREBUILD_DIR)/
-	@# Copy libmimalloc: libneug.so NEEDED libmimalloc.so.2 (soname).
-	@# npm does not preserve symlinks, so copy the real file as libmimalloc.so.2
+	@# Copy libneug shared library (libneug.so on Linux, libneug.dylib on macOS)
+	@cp $(PROJECT_ROOT)/build/src/$(NEUG_SHARED_LIB) $(PREBUILD_DIR)/
+	@# Copy libmimalloc: libneug NEEDED libmimalloc.so.2 / libmimalloc.2.dylib (soname).
+	@# npm does not preserve symlinks, so copy the real file as the soname name
 	@# to ensure the dynamic linker can resolve it at runtime.
-	@cp $(PROJECT_ROOT)/build/third_party/mimalloc/libmimalloc.so.2.0 $(PREBUILD_DIR)/libmimalloc.so.2
+	@cp $(PROJECT_ROOT)/build/third_party/mimalloc/$(MIMALLOC_SRC_LIB) $(PREBUILD_DIR)/$(MIMALLOC_DST_LIB)
 	@echo "Prebuild complete. Contents of $(PREBUILD_DIR):"
 	@ls -lh $(PREBUILD_DIR)/
 

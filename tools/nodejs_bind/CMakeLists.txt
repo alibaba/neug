@@ -93,10 +93,17 @@ if (APPLE)
   set_target_properties(neug_node_bind PROPERTIES
     LINK_FLAGS "-undefined dynamic_lookup"
   )
+endif()
+
+# Set RPATH so neug_node_bind.node can find libneug.so / libneug.dylib
+# in the same directory (prebuilds/<platform>/). This is essential for
+# npm-distributed packages where the shared lib is bundled alongside the .node file.
+if (APPLE)
+  set_target_properties(neug_node_bind PROPERTIES
+    INSTALL_RPATH "@loader_path"
+    BUILD_WITH_INSTALL_RPATH TRUE
+  )
 else()
-  # Linux: set RPATH to $ORIGIN so neug_node_bind.node can find libneug.so
-  # in the same directory (prebuilds/<platform>/). This is essential for
-  # npm-distributed packages where libneug.so is bundled alongside the .node file.
   set_target_properties(neug_node_bind PROPERTIES
     INSTALL_RPATH "$ORIGIN"
     BUILD_WITH_INSTALL_RPATH TRUE

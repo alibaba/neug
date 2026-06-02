@@ -23,9 +23,10 @@
  *   2. build/Debug/neug_node_bind.node              (debug build)
  *   3. prebuilds/<platform>/neug_node_bind.node     (npm distributed package)
  *
- * When installed from npm, libneug.so and libmimalloc.so.2 are bundled
- * alongside the .node file in the prebuilds directory. The .node binary
- * is built with RPATH=$ORIGIN so the dynamic linker resolves them automatically.
+ * When installed from npm, libneug.so (or libneug.dylib on macOS) and
+ * libmimalloc are bundled alongside the .node file in the prebuilds
+ * directory. The .node binary is built with RPATH ($ORIGIN on Linux,
+ * @loader_path on macOS) so the dynamic linker resolves them automatically.
  */
 
 const path = require('path');
