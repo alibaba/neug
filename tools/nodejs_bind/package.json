@@ -30,9 +30,9 @@
   },
   "files": [
     "lib/",
-    "prebuilds/",
-    "build/",
+    "build/Release/",
     "src/",
-    "CMakeLists.txt"
+    "CMakeLists.txt",
+    "README.md"
   ]
 }

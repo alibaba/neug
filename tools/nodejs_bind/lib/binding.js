@@ -15,61 +15,15 @@
 
 'use strict';
 
-/**
- * Native addon loader for NeuG Node.js bindings.
- *
- * Looks for the compiled .node file in:
- *   1. build/Release/neug_node_bind.node           (standard build)
- *   2. build/Debug/neug_node_bind.node              (debug build)
- *   3. prebuilds/<platform>/neug_node_bind.node     (npm distributed package)
- *
- * When installed from npm, libneug.so (or libneug.dylib on macOS) and
- * libmimalloc are bundled alongside the .node file in the prebuilds
- * directory. The .node binary is built with RPATH ($ORIGIN on Linux,
- * @loader_path on macOS) so the dynamic linker resolves them automatically.
- */
+// Native artifacts live in build/<Release|Debug>/<platform>/.
+// Prefer Debug if present (dev intent); otherwise Release (the only
+// flavor shipped in npm tarballs).
 
 const path = require('path');
 const fs = require('fs');
 
-const MODULE_NAME = 'neug_node_bind.node';
-const ROOT = path.join(__dirname, '..');
+const platform = `${process.platform}-${process.arch}`;
+const buildDir = path.join(__dirname, '..', 'build');
+const cfg = fs.existsSync(path.join(buildDir, 'Debug', platform)) ? 'Debug' : 'Release';
 
-/**
- * Map Node.js process.platform + process.arch to the prebuilds directory name.
- */
-function getPrebuildPlatform() {
-  const { platform, arch } = process;
-  if (platform === 'linux' && arch === 'x64') return 'linux-x64';
-  if (platform === 'linux' && arch === 'arm64') return 'linux-arm64';
-  if (platform === 'darwin' && arch === 'x64') return 'darwin-x64';
-  if (platform === 'darwin' && arch === 'arm64') return 'darwin-arm64';
-  return null;
-}
-
-const candidates = [
-  path.join(ROOT, 'build', 'Release', MODULE_NAME),
-  path.join(ROOT, 'build', 'Debug', MODULE_NAME),
-];
-
-const prebuildPlatform = getPrebuildPlatform();
-if (prebuildPlatform) {
-  candidates.push(path.join(ROOT, 'prebuilds', prebuildPlatform, MODULE_NAME));
-}
-
-let nativeBinding;
-for (const candidate of candidates) {
-  if (fs.existsSync(candidate)) {
-    nativeBinding = require(candidate);
-    break;
-  }
-}
-
-if (!nativeBinding) {
-  throw new Error(
-    `NeuG native binding not found. Run \`make build\` first. ` +
-    `Searched: ${candidates.join(', ')}`
-  );
-}
-
-module.exports = nativeBinding;
+module.exports = require(path.join(buildDir, cfg, platform, 'neug_node_bind.node'));
