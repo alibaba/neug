@@ -119,6 +119,81 @@ bool ArrowOptionsBuilder::skipRows(ArrowOptions& options) {
   return true;
 }
 
+namespace {
+
+// Create a schema with list/fixed_size_list types replaced by large_utf8,
+// matching what the CSV reader actually produces.
+std::shared_ptr<arrow::Schema> createCsvSafeSchema(
+    const EntrySchema& entrySchema) {
+  auto schema = createSchema(entrySchema);
+  bool needsSubstitution = false;
+  for (int i = 0; i < schema->num_fields(); ++i) {
+    auto id = schema->field(i)->type()->id();
+    if (id == arrow::Type::LIST || id == arrow::Type::FIXED_SIZE_LIST) {
+      needsSubstitution = true;
+      break;
+    }
+  }
+  if (!needsSubstitution) {
+    return schema;
+  }
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  fields.reserve(schema->num_fields());
+  for (int i = 0; i < schema->num_fields(); ++i) {
+    auto field = schema->field(i);
+    auto id = field->type()->id();
+    if (id == arrow::Type::LIST || id == arrow::Type::FIXED_SIZE_LIST) {
+      fields.push_back(
+          arrow::field(field->name(), arrow::large_utf8(), field->nullable()));
+    } else {
+      fields.push_back(field);
+    }
+  }
+  return std::make_shared<arrow::Schema>(fields);
+}
+
+}  // namespace
+
+bool ArrowCsvOptionsBuilder::projectColumns(ArrowOptions& options) {
+  if (state->projectColumns.empty()) {
+    return true;
+  }
+
+  if (!options.scanOptions) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("ScanOptions is null in ArrowOptions");
+  }
+
+  if (!state->schema.entry) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Entry schema is null");
+  }
+
+  const EntrySchema& entrySchema = *state->schema.entry;
+  const auto& columns = state->projectColumns;
+  const auto& allColumnNames = entrySchema.columnNames;
+  for (const auto& column : columns) {
+    if (std::find(allColumnNames.begin(), allColumnNames.end(), column) ==
+        allColumnNames.end()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Column not found in entry schema: " +
+                                       column);
+    }
+  }
+
+  // Use CSV-safe schema (list types replaced by string) for projection,
+  // since the CSV reader reads list columns as strings.
+  auto dataset_schema = createCsvSafeSchema(entrySchema);
+  auto project_desc =
+      arrow::dataset::ProjectionDescr::FromNames(columns, *dataset_schema);
+  if (!project_desc.ok()) {
+    LOG(ERROR) << "Failed to build projection: "
+               << project_desc.status().message();
+    return false;
+  }
+
+  options.scanOptions->projection = project_desc.ValueOrDie().expression;
+  options.scanOptions->projected_schema = project_desc.ValueOrDie().schema;
+  return true;
+}
+
 ArrowOptions ArrowCsvOptionsBuilder::build() const {
   if (!state) {
     THROW_INVALID_ARGUMENT_EXCEPTION("State is null");
@@ -240,7 +315,14 @@ ArrowCsvOptionsBuilder::buildFragmentOptions() const {
         THROW_INVALID_ARGUMENT_EXCEPTION("Duplicate column name found: " +
                                          columnName);
       }
-      convert_options.column_types[columnName] = arrowType;
+      // CSV Reader cannot parse list types natively; read them as strings
+      // for post-processing conversion in ArrowTypeCaster.
+      if (arrowType->id() == arrow::Type::LIST ||
+          arrowType->id() == arrow::Type::FIXED_SIZE_LIST) {
+        convert_options.column_types[columnName] = arrow::large_utf8();
+      } else {
+        convert_options.column_types[columnName] = arrowType;
+      }
     }
   }
   fragment_scan_options->convert_options = convert_options;

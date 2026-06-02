@@ -22,6 +22,7 @@
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <unordered_map>
+#include "neug/common/extra_type_info.h"
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/utils/exception/exception.h"
 
@@ -75,6 +76,13 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     return DataType(DataTypeId::kTimestampMs);
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
     return DataType(DataTypeId::kTimestampMs);
+  } else if (type->id() == arrow::Type::LIST ||
+             type->id() == arrow::Type::LARGE_LIST ||
+             type->id() == arrow::Type::FIXED_SIZE_LIST) {
+    auto valueType = type->field(0)->type();
+    auto childType = arrow_type_to_rt_type(valueType);
+    auto typeInfo = std::make_shared<ListTypeInfo>(childType);
+    return DataType(DataTypeId::kList, typeInfo);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected arrow type: " + type->ToString());
   }

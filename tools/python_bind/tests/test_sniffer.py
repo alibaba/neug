@@ -155,6 +155,23 @@ class TestLoadSniffer:
         # CSV map is not inferred as map, remains string.
         assert isinstance(rows[0][0], str)
 
+    @pytest.mark.xfail(reason="TODO: support CAST to list type in CSV LOAD FROM.")
+    def test_csv_cast_list(self):
+        """CSV sniffer infers list column as string; CAST to INT64[] should parse it."""
+        csv_path = self.data_dir / "csv_cast_list.csv"
+        csv_path.write_text("id|list_col\n1|[1, 2, 3]\n2|[4, 5]\n")
+
+        result = self.conn.execute(
+            f"""
+            LOAD FROM "{csv_path}" (header=true, delim="|")
+            RETURN id, CAST(list_col, 'INT64[]')
+            """
+        )
+        rows = list(result)
+        assert len(rows) == 2
+        assert rows[0][1] == [1, 2, 3]
+        assert rows[1][1] == [4, 5]
+
     def test_csv_cast_numeric_conversions(self):
         csv_path = self.data_dir / "csv_cast_numeric.csv"
         csv_path.write_text("i_col,d_col\n42,3.25\n")

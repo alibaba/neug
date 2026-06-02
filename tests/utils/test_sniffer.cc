@@ -56,5 +56,32 @@ TEST_F(SnifferTest, TestSniffBasic) {
             ::common::PrimitiveType::DT_DOUBLE);
 }
 
+TEST_F(SnifferTest, TestSniffCsvWithListColumn) {
+  createCsvFile("test_sniff_list.csv",
+                "id|values\n"
+                "1|[1, 2, 3]\n"
+                "2|[4, 5]\n");
+
+  auto sharedState = createSharedState("test_sniff_list.csv", {}, {});
+
+  auto reader = createArrowReader(sharedState);
+  auto sniffer = reader::ArrowSniffer(reader);
+  auto schema = sniffer.sniff().value();
+
+  EXPECT_EQ(schema->type(), reader::EntrySchemaType::TABLE);
+
+  auto& columnNames = schema->columnNames;
+  EXPECT_EQ(columnNames.size(), 2);
+  EXPECT_EQ(columnNames[0], "id");
+  EXPECT_EQ(columnNames[1], "values");
+
+  auto& columnTypes = schema->columnTypes;
+  EXPECT_EQ(columnTypes.size(), 2);
+  EXPECT_EQ(columnTypes[0]->primitive_type(),
+            ::common::PrimitiveType::DT_SIGNED_INT64);
+  // CSV sniffer cannot infer list types; list-like strings remain strings
+  EXPECT_TRUE(columnTypes[1]->has_string());
+}
+
 }  // namespace test
 }  // namespace neug

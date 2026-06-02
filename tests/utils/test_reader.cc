@@ -346,6 +346,455 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
+// =============== CSV Array Type Tests ===============
+
+// Test 12: CSV with list<int64> column (full_read mode)
+TEST_F(ReaderTest, TestCsvWithListInt64FullRead) {
+  createCsvFile("test_list_int64.csv",
+                "id|name|scores\n"
+                "1|Alice|[90, 85, 92]\n"
+                "2|Bob|[78, 88]\n"
+                "3|Charlie|[95]\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "scores"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(),
+      createArrayType(createInt64Type())};
+
+  auto sharedState =
+      createSharedState("test_list_int64.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 3);
+
+  // Verify the third column (scores) is a list type
+  auto column2 = ctx.columns[2];
+  ASSERT_EQ(column2->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn2 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column2);
+  auto arrowType2 = arrayColumn2->GetArrowType();
+  EXPECT_EQ(arrowType2->id(), arrow::Type::LIST)
+      << "Expected list type, but got: " << arrowType2->ToString();
+
+  // Verify the list element type is int64
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType2);
+  EXPECT_TRUE(listType->value_type()->Equals(arrow::int64()))
+      << "Expected int64 elements, but got: "
+      << listType->value_type()->ToString();
+}
+
+// Test 13: CSV with list<double> column (full_read mode)
+TEST_F(ReaderTest, TestCsvWithListDoubleFullRead) {
+  createCsvFile("test_list_double.csv",
+                "id|values\n"
+                "1|[1.5, 2.5, 3.5]\n"
+                "2|[4.0]\n");
+
+  std::vector<std::string> columnNames = {"id", "values"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createDoubleType())};
+
+  auto sharedState =
+      createSharedState("test_list_double.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_TRUE(listType->value_type()->Equals(arrow::float64()));
+}
+
+// Test 14: CSV with list<string> column (full_read mode)
+TEST_F(ReaderTest, TestCsvWithListStringFullRead) {
+  createCsvFile("test_list_string.csv",
+                "id|tags\n"
+                "1|[hello, world]\n"
+                "2|[foo]\n");
+
+  std::vector<std::string> columnNames = {"id", "tags"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createStringType())};
+
+  auto sharedState =
+      createSharedState("test_list_string.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+}
+
+// Test 15: CSV with list column (batch_read mode)
+TEST_F(ReaderTest, TestCsvWithListBatchRead) {
+  std::string content = "id|scores\n";
+  for (int i = 1; i <= 50; ++i) {
+    content += std::to_string(i) + "|[" + std::to_string(i * 10) + ", " +
+               std::to_string(i * 20) + "]\n";
+  }
+  createCsvFile("test_list_batch.csv", content);
+
+  std::vector<std::string> columnNames = {"id", "scores"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createInt64Type())};
+
+  auto sharedState = createSharedState(
+      "test_list_batch.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_size", "1024"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  int64_t totalRows = count_batch_row_num(ctx);
+  EXPECT_EQ(totalRows, 50);
+}
+
+// Test 16: CSV with empty list "[]"
+TEST_F(ReaderTest, TestCsvWithEmptyList) {
+  createCsvFile("test_empty_list.csv",
+                "id|values\n"
+                "1|[10, 20]\n"
+                "2|[]\n"
+                "3|[30]\n");
+
+  std::vector<std::string> columnNames = {"id", "values"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createInt64Type())};
+
+  auto sharedState =
+      createSharedState("test_empty_list.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 3);
+}
+
+// Test 17: CSV with list column + column pruning
+TEST_F(ReaderTest, TestCsvWithListAndColumnPruning) {
+  createCsvFile("test_list_prune.csv",
+                "id|name|scores\n"
+                "1|Alice|[90, 85]\n"
+                "2|Bob|[78]\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "scores"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(),
+      createArrayType(createInt64Type())};
+
+  std::vector<std::string> projectColumns = {"id", "scores"};
+  auto sharedState = createSharedState(
+      "test_list_prune.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, projectColumns);
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  // Verify the second column (scores) is a list type
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+}
+
+// Test 18: CSV with list<float32> column
+TEST_F(ReaderTest, TestCsvWithListFloat32FullRead) {
+  createCsvFile("test_list_float32.csv",
+                "id|values\n"
+                "1|[1.5, 2.5, 3.5]\n"
+                "2|[4.0]\n");
+
+  std::vector<std::string> columnNames = {"id", "values"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createFloatType())};
+
+  auto sharedState =
+      createSharedState("test_list_float32.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_TRUE(listType->value_type()->Equals(arrow::float32()));
+}
+
+// Test 19: CSV with list<float64> column (alias for double, verify explicit)
+TEST_F(ReaderTest, TestCsvWithListFloat64FullRead) {
+  createCsvFile("test_list_float64.csv",
+                "id|values\n"
+                "1|[1.123456789, 2.987654321]\n"
+                "2|[3.141592653589793]\n");
+
+  std::vector<std::string> columnNames = {"id", "values"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createDoubleType())};
+
+  auto sharedState =
+      createSharedState("test_list_float64.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_TRUE(listType->value_type()->Equals(arrow::float64()));
+
+  // Verify actual values
+  auto arrays = arrayColumn1->GetColumns();
+  ASSERT_FALSE(arrays.empty());
+  auto listArray = std::static_pointer_cast<arrow::ListArray>(arrays[0]);
+  // First row: [1.123456789, 2.987654321]
+  auto slice0 = listArray->value_slice(0);
+  auto doubles0 = std::static_pointer_cast<arrow::DoubleArray>(slice0);
+  EXPECT_EQ(doubles0->length(), 2);
+  EXPECT_DOUBLE_EQ(doubles0->Value(0), 1.123456789);
+  EXPECT_DOUBLE_EQ(doubles0->Value(1), 2.987654321);
+}
+
+// Test 20: CSV with list<date32> column (ISO date strings)
+TEST_F(ReaderTest, TestCsvWithListDate32FullRead) {
+  createCsvFile("test_list_date32.csv",
+                "id|dates\n"
+                "1|[2012-01-02, 2023-06-15]\n"
+                "2|[1970-01-01]\n");
+
+  std::vector<std::string> columnNames = {"id", "dates"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createDate32Type())};
+
+  auto sharedState =
+      createSharedState("test_list_date32.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_EQ(listType->value_type()->id(), arrow::Type::DATE32);
+
+  // Verify: 1970-01-01 should be day 0
+  auto arrays = arrayColumn1->GetColumns();
+  ASSERT_FALSE(arrays.empty());
+  auto listArray = std::static_pointer_cast<arrow::ListArray>(arrays[0]);
+  auto slice1 = listArray->value_slice(1);
+  auto dates1 = std::static_pointer_cast<arrow::Date32Array>(slice1);
+  EXPECT_EQ(dates1->length(), 1);
+  EXPECT_EQ(dates1->Value(0), 0);  // 1970-01-01 = day 0
+}
+
+// Test 21: CSV with list<timestamp> column (ISO datetime strings)
+TEST_F(ReaderTest, TestCsvWithListTimestampFullRead) {
+  createCsvFile("test_list_timestamp.csv",
+                "id|timestamps\n"
+                "1|[2012-01-02 00:00:02, 2023-06-15 12:30:00]\n"
+                "2|[1970-01-01 00:00:00]\n");
+
+  std::vector<std::string> columnNames = {"id", "timestamps"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createTimestampType())};
+
+  auto sharedState =
+      createSharedState("test_list_timestamp.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_EQ(listType->value_type()->id(), arrow::Type::TIMESTAMP);
+
+  // Verify: 1970-01-01 00:00:00 should be 0 ms
+  auto arrays = arrayColumn1->GetColumns();
+  ASSERT_FALSE(arrays.empty());
+  auto listArray = std::static_pointer_cast<arrow::ListArray>(arrays[0]);
+  auto slice1 = listArray->value_slice(1);
+  auto ts1 = std::static_pointer_cast<arrow::TimestampArray>(slice1);
+  EXPECT_EQ(ts1->length(), 1);
+  EXPECT_EQ(ts1->Value(0), 0);  // 1970-01-01 00:00:00 = 0 ms
+}
+
+// Test 22: CSV with list<interval> column (stored as list<string>)
+// Interval maps to large_utf8 in type_converter, so list<interval>
+// becomes list<large_utf8>
+TEST_F(ReaderTest, TestCsvWithListIntervalFullRead) {
+  createCsvFile("test_list_interval.csv",
+                "id|durations\n"
+                "1|[1 year, 2 months 3 days]\n"
+                "2|[10 hours]\n");
+
+  std::vector<std::string> columnNames = {"id", "durations"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createArrayType(createIntervalType())};
+
+  auto sharedState =
+      createSharedState("test_list_interval.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto listType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  // Interval maps to large_utf8
+  EXPECT_EQ(listType->value_type()->id(), arrow::Type::LARGE_STRING);
+}
+
+// Test 23: CSV with nested list (list<list<int64>>)
+TEST_F(ReaderTest, TestCsvWithNestedListFullRead) {
+  createCsvFile("test_nested_list.csv",
+                "id|matrix\n"
+                "1|[[1, 2], [3, 4]]\n"
+                "2|[[5]]\n");
+
+  std::vector<std::string> columnNames = {"id", "matrix"};
+  auto innerListType = createArrayType(createInt64Type());
+  auto outerListType = createArrayType(innerListType);
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), outerListType};
+
+  auto sharedState =
+      createSharedState("test_nested_list.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createArrowReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto column1 = ctx.columns[1];
+  ASSERT_EQ(column1->column_type(), execution::ContextColumnType::kArrowArray);
+  auto arrayColumn1 =
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column1);
+  auto arrowType1 = arrayColumn1->GetArrowType();
+  EXPECT_EQ(arrowType1->id(), arrow::Type::LIST);
+  auto outerType = std::static_pointer_cast<arrow::ListType>(arrowType1);
+  EXPECT_EQ(outerType->value_type()->id(), arrow::Type::LIST);
+  auto innerType =
+      std::static_pointer_cast<arrow::ListType>(outerType->value_type());
+  EXPECT_TRUE(innerType->value_type()->Equals(arrow::int64()));
+
+  // Verify actual nested values: row 0 = [[1,2],[3,4]]
+  auto arrays = arrayColumn1->GetColumns();
+  ASSERT_FALSE(arrays.empty());
+  auto outerArray = std::static_pointer_cast<arrow::ListArray>(arrays[0]);
+  // outer row 0 has 2 inner lists
+  auto outerSlice0 = outerArray->value_slice(0);
+  auto innerArray = std::static_pointer_cast<arrow::ListArray>(outerSlice0);
+  EXPECT_EQ(innerArray->length(), 2);
+  // inner list 0 = [1, 2]
+  auto inner0 = innerArray->value_slice(0);
+  auto ints0 = std::static_pointer_cast<arrow::Int64Array>(inner0);
+  EXPECT_EQ(ints0->length(), 2);
+  EXPECT_EQ(ints0->Value(0), 1);
+  EXPECT_EQ(ints0->Value(1), 2);
+}
+
 // =============== Type Converter ===============
 class ArrowTypeConverterTest : public ::testing::Test {
  public:
