@@ -26,10 +26,15 @@
 #include <linux/fs.h>
 #include <sys/syscall.h>
 #endif
+#ifdef __APPLE__
+#include <sys/clonefile.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -63,14 +68,31 @@ static void copy_metadata(const struct stat& src_stat,
 }
 
 /**
- * @brief Try to use FICLONE ioctl for reflink copy.
+ * @brief Try to create an O(1) COW clone of the file.
  *
- * Supported filesystems: Btrfs, XFS (with reflink=1), OCFS2
- * This is the most efficient method - creates instant COW clone.
+ * Platform-specific instant-clone primitives:
+ *   - Linux: ioctl(FICLONE) on Btrfs, XFS (reflink=1), OCFS2
+ *   - macOS: clonefile(2) on APFS (preserves sparseness exactly)
+ *
+ * On success the destination shares its underlying storage with the
+ * source via copy-on-write, with no data copied.
  */
 static bool try_reflink(const std::string& src_path,
                         const std::string& dst_path,
                         const struct stat& src_stat) {
+#if defined(__APPLE__)
+  // clonefile() requires dst to not exist. The overwrite policy was
+  // already enforced by the caller; remove any leftover dst here.
+  ::unlink(dst_path.c_str());
+  if (::clonefile(src_path.c_str(), dst_path.c_str(), 0) == 0) {
+    // clonefile preserves mode/timestamps/ACLs by default; no need to
+    // re-apply metadata.
+    return true;
+  }
+  // Not on APFS or unsupported — leave no partial file behind.
+  ::unlink(dst_path.c_str());
+  return false;
+#elif defined(FICLONE)
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
   if (src_fd < 0) {
     return false;
@@ -83,13 +105,7 @@ static bool try_reflink(const std::string& src_path,
     return false;
   }
 
-// FICLONE: Clone entire file using COW
-#ifdef FICLONE
   int ret = ::ioctl(dst_fd, FICLONE, src_fd);
-#else
-  int ret = -1;  // FICLONE not supported
-#endif
-
   ::close(src_fd);
   ::close(dst_fd);
 
@@ -98,9 +114,14 @@ static bool try_reflink(const std::string& src_path,
     return true;
   }
 
-  // Failed - remove partially created file
   ::unlink(dst_path.c_str());
   return false;
+#else
+  (void) src_path;
+  (void) dst_path;
+  (void) src_stat;
+  return false;
+#endif
 }
 
 /**
@@ -161,15 +182,167 @@ static bool try_copy_file_range(const std::string& src_path,
 #endif
 }
 
+constexpr size_t COPY_BUFFER_SIZE = 64 * 1024;
+
+static bool is_block_zero(const char* buf, size_t n) {
+  const uint64_t* q = reinterpret_cast<const uint64_t*>(buf);
+  size_t qcount = n / sizeof(uint64_t);
+  for (size_t i = 0; i < qcount; ++i) {
+    if (q[i] != 0) return false;
+  }
+  for (size_t i = qcount * sizeof(uint64_t); i < n; ++i) {
+    if (buf[i] != 0) return false;
+  }
+  return true;
+}
+
+static void write_all(int fd, const char* buf, size_t n,
+                      const std::string& dst_path) {
+  size_t written = 0;
+  while (written < n) {
+    ssize_t x = ::write(fd, buf + written, n - written);
+    if (x < 0) {
+      throw std::runtime_error("Failed to write to destination file: " +
+                               dst_path);
+    }
+    written += static_cast<size_t>(x);
+  }
+}
+
 /**
- * @brief Traditional file copy using read/write with buffer.
+ * @brief Sparse-aware copy using SEEK_DATA / SEEK_HOLE.
  *
- * Fallback method that works on all filesystems.
- * Uses 64KB buffer for reasonable performance.
+ * Walks the source's data extents and copies only those, leaving holes
+ * unallocated in the destination. Returns false if the filesystem does
+ * not support SEEK_HOLE (caller should fall back).
  */
-static void fallback_copy(const std::string& src_path,
-                          const std::string& dst_path,
-                          const struct stat& src_stat) {
+static bool sparse_copy_seek_hole(int src_fd, int dst_fd, off_t file_size,
+                                  const std::string& src_path,
+                                  const std::string& dst_path) {
+#ifdef SEEK_HOLE
+  // Empty file: nothing to seek over. Just anchor dst size and return.
+  if (file_size == 0) {
+    if (::ftruncate(dst_fd, 0) < 0) {
+      throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
+    }
+    return true;
+  }
+  // Probe support: on filesystems without SEEK_HOLE, lseek fails with EINVAL.
+  // ENXIO at offset 0 means "no data/hole past offset"; valid response on
+  // some platforms (e.g. macOS) for files that are entirely past EOF.
+  if (::lseek(src_fd, 0, SEEK_HOLE) == -1) {
+    if (errno == EINVAL || errno == ENOTSUP) {
+      return false;
+    }
+    if (errno == ENXIO) {
+      if (::ftruncate(dst_fd, file_size) < 0) {
+        throw std::runtime_error("Failed to ftruncate destination: " +
+                                 dst_path);
+      }
+      return true;
+    }
+    throw std::runtime_error("lseek(SEEK_HOLE) failed on " + src_path + ": " +
+                             std::strerror(errno));
+  }
+
+  std::unique_ptr<char[]> buffer(new char[COPY_BUFFER_SIZE]);
+  off_t off = 0;
+  while (off < file_size) {
+    off_t data_start = ::lseek(src_fd, off, SEEK_DATA);
+    if (data_start == -1) {
+      if (errno == ENXIO) {
+        break;  // no more data; remainder is hole.
+      }
+      throw std::runtime_error("lseek(SEEK_DATA) failed on " + src_path + ": " +
+                               std::strerror(errno));
+    }
+    off_t hole_start = ::lseek(src_fd, data_start, SEEK_HOLE);
+    if (hole_start == -1) {
+      hole_start = file_size;
+    }
+
+    if (::lseek(src_fd, data_start, SEEK_SET) == -1 ||
+        ::lseek(dst_fd, data_start, SEEK_SET) == -1) {
+      throw std::runtime_error("lseek failed during sparse copy of " +
+                               src_path + ": " + std::strerror(errno));
+    }
+
+    size_t remaining = static_cast<size_t>(hole_start - data_start);
+    while (remaining > 0) {
+      size_t to_read = std::min(remaining, COPY_BUFFER_SIZE);
+      ssize_t r = ::read(src_fd, buffer.get(), to_read);
+      if (r <= 0) {
+        throw std::runtime_error("Failed to read from source file: " +
+                                 src_path);
+      }
+      write_all(dst_fd, buffer.get(), static_cast<size_t>(r), dst_path);
+      remaining -= static_cast<size_t>(r);
+    }
+    off = hole_start;
+  }
+
+  if (::ftruncate(dst_fd, file_size) < 0) {
+    throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
+  }
+  return true;
+#else
+  (void) src_fd;
+  (void) dst_fd;
+  (void) file_size;
+  (void) src_path;
+  (void) dst_path;
+  return false;
+#endif
+}
+
+/**
+ * @brief Sparse-aware fallback: read everything, but skip all-zero blocks
+ *        with lseek so the destination ends up sparse too.
+ *
+ * Used when SEEK_HOLE is unavailable. Still reads the whole source (pages
+ * back from cache fast for sparse holes), but avoids writing zero bytes.
+ */
+static void sparse_copy_zero_detect(int src_fd, int dst_fd, off_t file_size,
+                                    const std::string& src_path,
+                                    const std::string& dst_path) {
+  if (::lseek(src_fd, 0, SEEK_SET) == -1 ||
+      ::lseek(dst_fd, 0, SEEK_SET) == -1) {
+    throw std::runtime_error("lseek to start failed during copy of " +
+                             src_path);
+  }
+
+  std::unique_ptr<char[]> buffer(new char[COPY_BUFFER_SIZE]);
+  ssize_t r;
+  while ((r = ::read(src_fd, buffer.get(), COPY_BUFFER_SIZE)) > 0) {
+    if (is_block_zero(buffer.get(), static_cast<size_t>(r))) {
+      if (::lseek(dst_fd, r, SEEK_CUR) == -1) {
+        throw std::runtime_error("lseek over hole failed on " + dst_path);
+      }
+    } else {
+      write_all(dst_fd, buffer.get(), static_cast<size_t>(r), dst_path);
+    }
+  }
+  if (r < 0) {
+    throw std::runtime_error("Failed to read from source file: " + src_path);
+  }
+
+  if (::ftruncate(dst_fd, file_size) < 0) {
+    throw std::runtime_error("Failed to ftruncate destination: " + dst_path);
+  }
+}
+
+/**
+ * @brief Fallback file copy that preserves sparseness.
+ *
+ * Tries SEEK_DATA/SEEK_HOLE first to copy only allocated extents; if the
+ * filesystem doesn't support it, falls back to a read loop that skips
+ * all-zero blocks via lseek. Final size is anchored with ftruncate.
+ *
+ * Non-static so tests can call it directly (clonefile/FICLONE fast paths
+ * normally shadow this helper on supported filesystems).
+ */
+void fallback_copy(const std::string& src_path, const std::string& dst_path,
+                   const struct stat& src_stat) {
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
   if (src_fd < 0) {
     throw std::runtime_error("Failed to open source file: " + src_path);
@@ -182,33 +355,25 @@ static void fallback_copy(const std::string& src_path,
     throw std::runtime_error("Failed to create destination file: " + dst_path);
   }
 
-  constexpr size_t BUFFER_SIZE = 64 * 1024;  // 64KB buffer
-  std::unique_ptr<char[]> buffer(new char[BUFFER_SIZE]);
+#ifdef POSIX_FADV_SEQUENTIAL
+  ::posix_fadvise(src_fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
 
-  ssize_t bytes_read;
-  while ((bytes_read = ::read(src_fd, buffer.get(), BUFFER_SIZE)) > 0) {
-    ssize_t bytes_written = 0;
-    while (bytes_written < bytes_read) {
-      ssize_t written = ::write(dst_fd, buffer.get() + bytes_written,
-                                bytes_read - bytes_written);
-      if (written < 0) {
-        ::close(src_fd);
-        ::close(dst_fd);
-        ::unlink(dst_path.c_str());
-        throw std::runtime_error("Failed to write to destination file: " +
-                                 dst_path);
-      }
-      bytes_written += written;
+  try {
+    if (!sparse_copy_seek_hole(src_fd, dst_fd, src_stat.st_size, src_path,
+                               dst_path)) {
+      sparse_copy_zero_detect(src_fd, dst_fd, src_stat.st_size, src_path,
+                              dst_path);
     }
+  } catch (...) {
+    ::close(src_fd);
+    ::close(dst_fd);
+    ::unlink(dst_path.c_str());
+    throw;
   }
 
   ::close(src_fd);
   ::close(dst_fd);
-
-  if (bytes_read < 0) {
-    ::unlink(dst_path.c_str());
-    throw std::runtime_error("Failed to read from source file: " + src_path);
-  }
 
   copy_metadata(src_stat, dst_path);
 }
