@@ -16,6 +16,7 @@
 #include "neug/execution/common/columns/arrow_context_column.h"
 
 #include <arrow/array/array_binary.h>
+#include <arrow/array/array_nested.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
 #include <arrow/array/builder_time.h>
@@ -320,6 +321,79 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
   return col_builder.finish();
 }
 
+static Value get_arrow_scalar_value(const std::shared_ptr<arrow::Array>& array,
+                                    int64_t idx) {
+  auto arrow_type = array->type();
+  if (arrow_type->Equals(arrow::int64())) {
+    return Value::INT64(
+        std::static_pointer_cast<arrow::Int64Array>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::int32())) {
+    return Value::INT32(
+        std::static_pointer_cast<arrow::Int32Array>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::uint32())) {
+    return Value::UINT32(
+        std::static_pointer_cast<arrow::UInt32Array>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::uint64())) {
+    return Value::UINT64(
+        std::static_pointer_cast<arrow::UInt64Array>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::float32())) {
+    return Value::FLOAT(
+        std::static_pointer_cast<arrow::FloatArray>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::float64())) {
+    return Value::DOUBLE(
+        std::static_pointer_cast<arrow::DoubleArray>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::boolean())) {
+    return Value::BOOLEAN(
+        std::static_pointer_cast<arrow::BooleanArray>(array)->Value(idx));
+  } else if (arrow_type->Equals(arrow::utf8())) {
+    auto str_view =
+        std::static_pointer_cast<arrow::StringArray>(array)->GetView(idx);
+    return Value::STRING(std::string(str_view));
+  } else if (arrow_type->Equals(arrow::large_utf8())) {
+    auto str_view =
+        std::static_pointer_cast<arrow::LargeStringArray>(array)->GetView(idx);
+    return Value::STRING(std::string(str_view));
+  } else if (arrow_type->Equals(arrow::date32())) {
+    Date d;
+    d.from_num_days(
+        std::static_pointer_cast<arrow::Date32Array>(array)->Value(idx));
+    return Value::DATE(d);
+  } else if (arrow_type->Equals(arrow::date64())) {
+    return Value::DATE(
+        Date(std::static_pointer_cast<arrow::Date64Array>(array)->Value(idx)));
+  } else if (arrow_type->id() == arrow::Type::TIMESTAMP) {
+    return Value::TIMESTAMPMS(DateTime(
+        std::static_pointer_cast<arrow::TimestampArray>(array)->Value(idx)));
+  } else if (arrow_type->id() == arrow::Type::LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::ListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(idx);
+    int32_t length = list_arr->value_length(idx);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else if (arrow_type->id() == arrow::Type::FIXED_SIZE_LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::FixedSizeListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(idx);
+    int32_t length = list_arr->value_length(idx);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type in list element: " +
+                                  arrow_type->ToString());
+  }
+}
+
 Value ArrowArrayContextColumn::get_elem(size_t idx) const {
   CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
 
@@ -330,49 +404,32 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
   // Get value according to arrow type and convert to RTAny.
   auto arrow_type = array->type();
 
-  if (arrow_type->Equals(arrow::int64())) {
-    auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-    return Value::INT64(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::int32())) {
-    auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-    return Value::INT32(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::uint32())) {
-    auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-    return Value::UINT32(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::uint64())) {
-    auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-    return Value::UINT64(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::float32())) {
-    auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-    return Value::FLOAT(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::float64())) {
-    auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-    return Value::DOUBLE(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::boolean())) {
-    auto casted = std::static_pointer_cast<arrow::BooleanArray>(array);
-    return Value::BOOLEAN(casted->Value(offset));
-  } else if (arrow_type->Equals(arrow::utf8())) {
-    auto casted = std::static_pointer_cast<arrow::StringArray>(array);
-    auto str_view = casted->GetView(offset);
-    return Value::STRING(std::string(str_view));
-  } else if (arrow_type->Equals(arrow::large_utf8())) {
-    auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-    auto str_view = casted->GetView(offset);
-    return Value::STRING(std::string(str_view));
-  } else if (arrow_type->Equals(arrow::date32())) {
-    auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
-    Date d;
-    d.from_num_days(casted->Value(offset));
-    return Value::DATE(d);
-  } else if (arrow_type->Equals(arrow::date64())) {
-    auto casted = std::static_pointer_cast<arrow::Date64Array>(array);
-    return Value::DATE(Date(casted->Value(offset)));
-  } else if (arrow_type->id() == arrow::Type::TIMESTAMP) {
-    auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-    return Value::TIMESTAMPMS(DateTime(casted->Value(offset)));
-  } else {  // todo: support interval type
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
-                                  arrow_type->ToString());
+  if (arrow_type->id() == arrow::Type::LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::ListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(offset);
+    int32_t length = list_arr->value_length(offset);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else if (arrow_type->id() == arrow::Type::FIXED_SIZE_LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::FixedSizeListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(offset);
+    int32_t length = list_arr->value_length(offset);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else {
+    return get_arrow_scalar_value(array, offset);
   }
 }
 

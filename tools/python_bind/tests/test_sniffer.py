@@ -155,7 +155,6 @@ class TestLoadSniffer:
         # CSV map is not inferred as map, remains string.
         assert isinstance(rows[0][0], str)
 
-    @pytest.mark.xfail(reason="TODO: support CAST to list type in CSV LOAD FROM.")
     def test_csv_cast_list(self):
         """CSV sniffer infers list column as string; CAST to INT64[] should parse it."""
         csv_path = self.data_dir / "csv_cast_list.csv"
