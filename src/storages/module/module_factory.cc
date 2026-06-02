@@ -15,8 +15,6 @@
 
 #include "neug/storages/module/module_factory.h"
 
-#include <algorithm>
-
 namespace neug {
 
 ModuleFactory& ModuleFactory::instance() {
@@ -36,20 +34,6 @@ std::unique_ptr<Module> ModuleFactory::Create(
     return nullptr;
   }
   return it->second();
-}
-
-std::vector<std::string> ModuleFactory::List() const {
-  std::vector<std::string> keys;
-  keys.reserve(creators_.size());
-  for (const auto& kv : creators_) {
-    keys.push_back(kv.first);
-  }
-  std::sort(keys.begin(), keys.end());
-  return keys;
-}
-
-bool ModuleFactory::Has(const std::string& module_type) const {
-  return creators_.count(module_type) > 0;
 }
 
 }  // namespace neug

@@ -366,9 +366,7 @@ inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
   neug::ModuleStore store;
   store.Open(ckp, meta, level);
   idx.SetKeys(store.TakeModule<neug::ColumnBase>(kIndexerKeys));
-  auto indices_desc = meta.module(kIndexerIndices);
-  CHECK(indices_desc.has_value()) << "missing indices entry in meta";
-  idx.SetIndices(ckp.OpenFile(indices_desc->get_path("data"), level));
+  idx.SetIndices(store.TakeModule<neug::TypedColumn<INDEX_T>>(kIndexerIndices));
   idx.SetNumElements(meta.GetScalarAs<size_t>(kIndexerNumElements).value_or(0));
   idx.SetNumSlotsMinusOne(
       meta.GetScalarAs<size_t>(kIndexerNumSlotsMinusOne).value_or(0));
@@ -390,16 +388,8 @@ inline neug::SnapshotMeta DumpIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
   // this helper returns.
   neug::ModuleStore store;
   store.SetModule(kIndexerKeys, idx.TakeKeys());
+  store.SetModule(kIndexerIndices, idx.TakeIndices());
   store.Dump(ckp, meta);
-  // indices is a raw IDataContainer — Commit and stash its path on a
-  // path-only stub entry (empty module_type) so OpenIndexerLegacy can
-  // restore it without going through ModuleStore.
-  {
-    auto indices_buf = idx.TakeIndices();
-    neug::ModuleDescriptor indices_desc;
-    indices_desc.set_path("data", ckp.Commit(*indices_buf));
-    meta.set_module(kIndexerIndices, std::move(indices_desc));
-  }
   return meta;
 }
 
@@ -428,9 +418,8 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
   store.Open(ckp, meta, level);
   auto& idx = vt.get_indexer();
   idx.SetKeys(store.TakeModule<neug::ColumnBase>(kVertexIndexerKeys));
-  auto indices_desc = meta.module(kVertexIndexerIndices);
-  CHECK(indices_desc.has_value()) << "missing indices entry in vertex meta";
-  idx.SetIndices(ckp.OpenFile(indices_desc->get_path("data"), level));
+  idx.SetIndices(
+      store.TakeModule<neug::TypedColumn<neug::vid_t>>(kVertexIndexerIndices));
   idx.SetNumElements(meta.GetScalarAs<size_t>(kVertexNumElements).value_or(0));
   idx.SetNumSlotsMinusOne(
       meta.GetScalarAs<size_t>(kVertexNumSlotsMinusOne).value_or(0));
@@ -465,14 +454,9 @@ inline neug::SnapshotMeta DumpVertexTableLegacy(neug::VertexTable& vt,
   }
   neug::ModuleStore store;
   store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
+  store.SetModule(kVertexIndexerIndices, idx.TakeIndices());
   store.SetModule(kVertexVTs, vt.TakeVertexTimestamp());
   store.Dump(ckp, meta);
-  {
-    auto indices_buf = idx.TakeIndices();
-    neug::ModuleDescriptor indices_desc;
-    indices_desc.set_path("data", ckp.Commit(*indices_buf));
-    meta.set_module(kVertexIndexerIndices, std::move(indices_desc));
-  }
   return meta;
 }
 

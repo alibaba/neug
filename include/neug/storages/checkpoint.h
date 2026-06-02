@@ -52,7 +52,7 @@ class SnapshotMeta;  // forward declaration to break circular dependency
  *
  * Specifically:
  *   * `OpenFile` / `CreateRuntimeContainer` / `Commit` / `CommitRuntimeObject`
- *     / `CommitToSnapshot` / `LinkToSnapshot` / `create_runtime_object` —
+ *     / `CommitToSnapshot` / `LinkToSnapshot` / `CreateRuntimeObject` —
  *     internally lock when mutating `uncommitted_runtime_objects_` or
  *     touching `meta_`; otherwise they only read immutable members
  *     (`path_`, `id_`).
@@ -134,7 +134,7 @@ class Checkpoint {
 
   bool IsEmpty() const { return path_.empty(); }
 
-  std::string create_runtime_object();
+  std::string CreateRuntimeObject();
 
   /**
    * @brief Commit a runtime object into this checkpoint's persistent snapshot

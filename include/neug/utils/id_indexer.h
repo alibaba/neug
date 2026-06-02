@@ -208,7 +208,6 @@ class LFIndexer {
         hasher_() {}
   LFIndexer(LFIndexer&& rhs)
       : indices_(std::move(rhs.indices_)),
-        indices_size_(rhs.indices_size_),
         num_elements_(rhs.num_elements_.load()),
         num_slots_minus_one_(rhs.num_slots_minus_one_),
         keys_(std::move(rhs.keys_)),
@@ -227,16 +226,16 @@ class LFIndexer {
     auto keys = CreateColumn(pk_type_);
     keys->Open(ckp, empty, level);
     keys_ = std::move(keys);
-    // indices_ is the raw lock-free index table — a plain byte buffer keyed
-    // by INDEX_T slots.  Start empty; rehash() / reserve() will Resize().
-    indices_ = ckp.OpenFile("", level);
+    // indices_ is the lock-free index table keyed by INDEX_T slots.  Start
+    // empty; rehash() / reserve() will resize().
+    indices_ = std::make_unique<TypedColumn<INDEX_T>>();
+    indices_->Open(ckp, empty, level);
   }
 
   void SetKeys(std::unique_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
 
-  void SetIndices(std::unique_ptr<IDataContainer> indices) {
+  void SetIndices(std::unique_ptr<TypedColumn<INDEX_T>> indices) {
     indices_ = std::move(indices);
-    indices_size_ = indices_ ? indices_->GetDataSize() / sizeof(INDEX_T) : 0;
   }
 
   void SetNumElements(size_t n) { num_elements_.store(n); }
@@ -248,7 +247,9 @@ class LFIndexer {
   }
 
   std::unique_ptr<ColumnBase> TakeKeys() { return std::move(keys_); }
-  std::unique_ptr<IDataContainer> TakeIndices() { return std::move(indices_); }
+  std::unique_ptr<TypedColumn<INDEX_T>> TakeIndices() {
+    return std::move(indices_);
+  }
 
   size_t GetNumElements() const { return num_elements_.load(); }
   size_t GetNumSlotsMinusOne() const { return num_slots_minus_one_; }
@@ -258,7 +259,6 @@ class LFIndexer {
 
   void swap(LFIndexer& other) {
     indices_.swap(other.indices_);
-    std::swap(indices_size_, other.indices_size_);
     size_t temp_num = num_elements_.load();
     num_elements_.store(other.num_elements_.load());
     other.num_elements_.store(temp_num);
@@ -276,7 +276,7 @@ class LFIndexer {
     keys_->resize(size);
     size =
         static_cast<size_t>(std::ceil(size / id_indexer_impl::max_load_factor));
-    if (size == indices_size_) {
+    if (size == indices_->size()) {
       return;
     }
 
@@ -290,10 +290,9 @@ class LFIndexer {
     }
     auto new_prime_index = hash_policy_.next_size_over(size);
     hash_policy_.commit(new_prime_index);
-    indices_->Resize(size * sizeof(INDEX_T));
-    auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
-    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
-    for (size_t k = 0; k != indices_size_; ++k) {
+    indices_->resize(size);
+    auto* indices_ptr = indices_->mutable_data();
+    for (size_t k = 0; k != size; ++k) {
       indices_ptr[k] = LFIndexer<INDEX_T>::sentinel;
     }
     num_slots_minus_one_ = size - 1;
@@ -337,7 +336,7 @@ class LFIndexer {
     }
     // may throw if insert_safe is false and reserved size is not enough
     keys_->set_any(ind, oid, insert_safe);
-    auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->mutable_data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -352,7 +351,7 @@ class LFIndexer {
 
   INDEX_T get_index(const Property& oid) const {
     assert(oid.type() == get_type());
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -369,13 +368,13 @@ class LFIndexer {
   }
 
   bool get_index(const Property& oid, INDEX_T& ret) const {
-    if (indices_size_ <= 0) {
+    if (indices_->size() == 0) {
       return false;
     }
     if (oid.type() != get_type()) {
       return false;
     }
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -394,7 +393,7 @@ class LFIndexer {
 
   bool contains(const Property& oid) const {
     assert(oid.type() == get_type());
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -420,17 +419,13 @@ class LFIndexer {
     if (indices_) {
       indices_->Close();
     }
-    indices_size_ = 0;
   }
 
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
 
  private:
-  std::unique_ptr<IDataContainer> indices_;
-  // size() == indices_size_ == num_slots_minus_one_ +
-  // log(num_slots_minus_one_)
-  size_t indices_size_;
+  std::unique_ptr<TypedColumn<INDEX_T>> indices_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
   std::unique_ptr<ColumnBase> keys_;

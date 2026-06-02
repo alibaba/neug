@@ -102,7 +102,7 @@ ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   std::string nbr_path_committed;
   FileHeader header{};
 
-  auto runtime_uuid = ckp.create_runtime_object();
+  auto runtime_uuid = ckp.CreateRuntimeObject();
   auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
   std::ofstream nbr_out(nbr_path, std::ios::binary);
   if (!nbr_out.is_open()) {

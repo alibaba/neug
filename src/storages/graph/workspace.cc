@@ -81,6 +81,10 @@ void Workspace::Open(const std::string& db_dir) {
   } catch (const std::filesystem::filesystem_error& e) {
     db_dir_.clear();
     checkpoints_.clear();
+    if (e.code() == std::errc::permission_denied) {
+      THROW_PERMISSION_DENIED("Workspace::Open: cannot access " +
+                              std::string(db_dir) + ": " + e.what());
+    }
     THROW_IO_EXCEPTION("Workspace::Open: failed to enumerate " +
                        std::string(db_dir) + ": " + e.what());
   }
@@ -114,13 +118,6 @@ int32_t Workspace::CreateCheckpoint() {
   SnapshotMeta::GenerateEmptyMeta(path + "/meta");
   checkpoints_[id] = std::make_unique<Checkpoint>(path, id);
   return id;
-}
-
-const Checkpoint& Workspace::GetCheckpoint(int32_t id) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  auto& ptr = checkpoints_.at(id);
-  assert(ptr != nullptr);
-  return *ptr;
 }
 
 Checkpoint& Workspace::GetCheckpoint(int32_t id) {

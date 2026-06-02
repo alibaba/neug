@@ -87,13 +87,4 @@ std::string ModuleDescriptor::ToJsonString() const {
   return buf.GetString();
 }
 
-ModuleDescriptor ModuleDescriptor::FromJsonString(const std::string& json) {
-  rapidjson::Document doc;
-  doc.Parse(json.c_str(), json.size());
-  if (doc.HasParseError() || !doc.IsObject()) {
-    return ModuleDescriptor{};
-  }
-  return FromJson(doc);
-}
-
 }  // namespace neug

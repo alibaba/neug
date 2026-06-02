@@ -128,11 +128,6 @@ struct ModuleDescriptor {
    */
   std::string ToJsonString() const;
 
-  /**
-   * @brief Deserialize from a JSON string.
-   */
-  static ModuleDescriptor FromJsonString(const std::string& json);
-
  private:
   /// Optional free-form key-value pairs for module-specific metadata.
   std::unordered_map<std::string, std::string> extra_;

@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "neug/storages/module/module.h"
 
@@ -60,29 +59,9 @@ class ModuleFactory {
    */
   std::unique_ptr<Module> Create(const std::string& module_type) const;
 
-  /**
-   * @brief List all registered module types.
-   */
-  std::vector<std::string> List() const;
-
-  /**
-   * @brief Check if module_type is registered.
-   */
-  bool Has(const std::string& module_type) const;
-
  private:
   ModuleFactory() = default;
   std::unordered_map<std::string, Creator> creators_;
-};
-
-/**
- * @brief Registers Module creator via static initialization.
- */
-struct ModuleRegistrar {
-  ModuleRegistrar(const std::string& module_type,
-                  ModuleFactory::Creator creator) {
-    ModuleFactory::instance().Register(module_type, std::move(creator));
-  }
 };
 
 /**

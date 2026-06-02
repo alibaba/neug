@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -161,6 +160,11 @@ class TypedColumn : public ColumnBase {
   const IDataContainer& buffer() const { return *buffer_; }
   size_t buffer_size() const { return size_; }
 
+  inline T* mutable_data() { return reinterpret_cast<T*>(buffer_->GetData()); }
+  inline const T* data() const {
+    return reinterpret_cast<const T*>(buffer_->GetData());
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -295,7 +299,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       desc.set_path("data", ckp.LinkToSnapshot(data_buffer_->GetPath()));
       return desc;
     }
-    auto data_uuid = ckp.create_runtime_object();
+    auto data_uuid = ckp.CreateRuntimeObject();
     auto data_file = ckp.runtime_dir() + "/" + data_uuid;
     std::ofstream data_out(data_file, std::ios::binary);
     if (!data_out) {
@@ -304,7 +308,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     FileHeader header;
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    auto item_uuid = ckp.create_runtime_object();
+    auto item_uuid = ckp.CreateRuntimeObject();
     auto item_file = ckp.runtime_dir() + "/" + item_uuid;
     std::ofstream item_out(item_file, std::ios::binary);
     if (!item_out) {
@@ -504,16 +508,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   static std::string type_name() { return "column<string>"; }
 
  private:
-  inline void init_pos(const std::string& file_path) {
-    if (std::filesystem::exists(file_path)) {
-      size_t pos_val = 0;
-      read_file(file_path, &pos_val, sizeof(pos_val), 1);
-      pos_.store(pos_val);
-    } else {
-      pos_.store(0);
-    }
-  }
-
   inline string_item get_string_item(size_t idx) const {
     assert(idx < size_);
     auto raw_items =

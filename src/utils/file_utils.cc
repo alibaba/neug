@@ -411,17 +411,6 @@ void atomic_write_file(const std::string& path,
   }
 }
 
-bool link_or_copy(const std::string& src, const std::string& dst) {
-  std::error_code ec;
-  std::filesystem::create_hard_link(src, dst, ec);
-  if (!ec) {
-    return true;
-  }
-  // Cross-device or unsupported FS – fall back to a regular file copy.
-  copy_file(src, dst, /*overwrite=*/false);
-  return false;
-}
-
 void create_file(const std::string& path, size_t size) {
   // get dir
   std::filesystem::path dir = std::filesystem::path(path).parent_path();

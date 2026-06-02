@@ -88,14 +88,6 @@ void create_file(const std::string& path, size_t size);
 void atomic_write_file(const std::string& path,
                        const std::function<void(std::ostream&)>& writer);
 
-/**
- * @brief Hardlink @p src to @p dst; if the link fails (cross-device, FS without
- * hardlink support, …), fall back to a regular file copy.
- *
- * Returns true if hardlink succeeded, false if the fallback copy was used.
- */
-bool link_or_copy(const std::string& src, const std::string& dst);
-
 }  // namespace file_utils
 
 void ensure_directory_exists(const std::string& dir_path);

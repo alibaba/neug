@@ -1,2 +1,3 @@
 file(GLOB_RECURSE NEUG_STORAGES_MODULE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 add_library(neug_storages_module OBJECT ${NEUG_STORAGES_MODULE_SRC})
+add_dependencies(neug_storages_module neug_proto)

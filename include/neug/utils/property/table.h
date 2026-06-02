@@ -42,8 +42,6 @@ class Table {
 
   void SetColumn(int idx, std::shared_ptr<ColumnBase> col);
 
-  std::shared_ptr<ColumnBase> TakeColumn(int idx);
-
   void reset_header(const std::vector<std::string>& col_name);
 
   void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,

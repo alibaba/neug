@@ -14,7 +14,6 @@
  */
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -22,7 +21,6 @@
 #include <string>
 
 #include "neug/storages/checkpoint.h"
-#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -88,23 +86,9 @@ class Workspace {
   int32_t CreateCheckpoint();
 
   /**
-   * @brief Get a checkpoint by ID (const version).
-   */
-  const Checkpoint& GetCheckpoint(int32_t id) const;
-
-  /**
    * @brief Get a checkpoint by ID.
    */
   Checkpoint& GetCheckpoint(int32_t id);
-
-  Checkpoint& GetLatestCheckpoint() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (checkpoints_.empty()) {
-      THROW_RUNTIME_ERROR("No checkpoints available in workspace");
-    }
-    assert(checkpoints_.rbegin()->second != nullptr);
-    return *checkpoints_.rbegin()->second;
-  }
 
   std::string db_dir() const { return db_dir_; }
 

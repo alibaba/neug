@@ -15,7 +15,6 @@
 
 #include "neug/storages/snapshot_meta.h"
 
-#include "neug/storages/module/module_factory.h"
 #include "neug/utils/file_utils.h"
 
 #include <fstream>
@@ -26,8 +25,6 @@
 #include <rapidjson/istreamwrapper.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/writer.h>
-
-#include "neug/storages/workspace.h"
 
 namespace neug {
 
@@ -97,6 +94,19 @@ void SnapshotMeta::Open(const std::string& file_path) {
     return;
   }
 
+  if (!doc.HasMember("version") || !doc["version"].IsInt()) {
+    LOG(ERROR) << "SnapshotMeta::Open: missing or non-integer 'version' in "
+               << file_path;
+    return;
+  }
+  int file_version = doc["version"].GetInt();
+  if (file_version != kFormatVersion) {
+    LOG(ERROR) << "SnapshotMeta::Open: incompatible meta version "
+               << file_version << " (expected " << kFormatVersion << ") in "
+               << file_path;
+    return;
+  }
+
   if (doc.HasMember("schema") && doc["schema"].IsObject()) {
     schema_.FromJson(doc["schema"].GetObject());
   }
@@ -126,7 +136,7 @@ void SnapshotMeta::Dump(const std::string& file_path) const {
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
 
-    doc.AddMember("version", rapidjson::Value(1), alloc);
+    doc.AddMember("version", rapidjson::Value(kFormatVersion), alloc);
 
     auto schema_res = schema_.ToJson();
     if (!schema_res) {
@@ -168,7 +178,7 @@ void SnapshotMeta::GenerateEmptyMeta(const std::string& path) {
     rapidjson::Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
-    doc.AddMember("version", rapidjson::Value(1), alloc);
+    doc.AddMember("version", rapidjson::Value(kFormatVersion), alloc);
     doc.AddMember("modules", rapidjson::Value(rapidjson::kObjectType), alloc);
     doc.AddMember("scalars", rapidjson::Value(rapidjson::kObjectType), alloc);
     doc.Accept(writer);

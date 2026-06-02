@@ -28,11 +28,8 @@
 #include <utility>
 
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/module/module_factory.h"
 #include "neug/storages/module/module_store.h"
-#include "neug/storages/module/type_name.h"
 #include "neug/storages/snapshot_meta.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
@@ -102,13 +99,7 @@ VertexTable OpenVertexTable(Checkpoint& ckp,
 
   auto& idx = vt.get_indexer();
   idx.SetKeys(store.TakeModule<ColumnBase>(VKeyKeys(lbl)));
-  // indices is a raw IDataContainer — persisted as a path-only stub entry
-  // in meta (empty module_type), so it's not loaded by ModuleStore::Open.
-  // Open the file directly here.
-  auto indices_desc = meta.module(VKeyIndices(lbl));
-  CHECK(indices_desc.has_value())
-      << "missing indices meta entry for vertex " << lbl;
-  idx.SetIndices(ckp.OpenFile(indices_desc->get_path("data"), level));
+  idx.SetIndices(store.TakeModule<TypedColumn<vid_t>>(VKeyIndices(lbl)));
   idx.SetNumElements(
       meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_elements"))
           .value_or(0));
@@ -148,14 +139,7 @@ void DisassembleVertexTable(VertexTable& vt, ModuleStore& store,
   meta.SetScalar(IndexerScalarKey(lbl, "hash_policy"),
                  std::to_string(idx.GetHashPolicyIndex()));
   store.SetModule(VKeyKeys(lbl), idx.TakeKeys());
-  // indices is a raw IDataContainer — Commit it, then record the path on a
-  // stub meta entry (empty module_type) so OpenVertexTable can find it.
-  {
-    auto indices_buf = idx.TakeIndices();
-    ModuleDescriptor indices_desc;
-    indices_desc.set_path("data", ckp.Commit(*indices_buf));
-    meta.set_module(VKeyIndices(lbl), std::move(indices_desc));
-  }
+  store.SetModule(VKeyIndices(lbl), idx.TakeIndices());
 
   auto table = vt.TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
@@ -1100,6 +1084,10 @@ void PropertyGraph::Dump(Checkpoint& ckp, bool reopen) {
       auto v_size = vertex_tables_[i].LidNum();
       EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
       vertex_capacity[i] = vertex_tables_[i].Capacity();
+    }
+  }
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (schema_.is_vertex_label_valid(i)) {
       DisassembleVertexTable(vertex_tables_[i], store, meta, ckp);
     }
   }

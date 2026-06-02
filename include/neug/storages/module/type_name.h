@@ -72,15 +72,6 @@ inline std::string type_name_string() {
 
 namespace module_naming {
 
-/// Canonical factory key for the `vertex_timestamp` Module — never
-/// parameterized.
-inline constexpr const char* kVertexTimestamp = "vertex_timestamp";
-
-/// Canonical factory key for the `lf_indexer<uint32>` Module.  Only one
-/// template instantiation is registered (over `vid_t` = `uint32_t`); see
-/// `src/utils/id_indexer.cc`.
-inline std::string IndexerTypeName() { return "lf_indexer<uint32>"; }
-
 namespace detail {
 inline std::string DataTypeShortName(DataTypeId t) {
   switch (t) {
@@ -130,12 +121,6 @@ inline std::string CsrPrefix(EdgeStrategy strategy, bool is_mutable) {
                                 std::to_string(static_cast<int>(strategy)));
 }
 }  // namespace detail
-
-/// Canonical factory key for a `column<T>` Module from a schema `DataTypeId`.
-/// Mirrors the registrations in `src/utils/property/column.cc:105-116`.
-inline std::string ColumnTypeName(DataTypeId t) {
-  return "column<" + detail::DataTypeShortName(t) + ">";
-}
 
 /// Canonical factory key for a CSR Module given edge-data type, strategy, and
 /// mutability.  Mirrors `src/storages/graph/edge_table.cc:create_csr_impl`.

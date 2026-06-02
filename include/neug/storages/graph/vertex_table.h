@@ -120,16 +120,12 @@ class VertexTable {
 
   void Init(Checkpoint& ckp, MemoryLevel memory_level);
 
-  void SetIndexer(std::unique_ptr<IndexerType> indexer) {
-    indexer_ = std::move(indexer);
-  }
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
   void SetVertexTimestamp(std::unique_ptr<VertexTimestamp> v_ts) {
     v_ts_ = std::move(v_ts);
   }
   void SetMemoryLevel(MemoryLevel level) { memory_level_ = level; }
 
-  std::unique_ptr<IndexerType> TakeIndexer() { return std::move(indexer_); }
   std::unique_ptr<Table> TakeTable() { return std::move(table_); }
   std::unique_ptr<VertexTimestamp> TakeVertexTimestamp() {
     return std::move(v_ts_);
@@ -223,9 +219,6 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
  private:
-  void openImpl(const std::string& work_dir, MemoryLevel memory_level,
-                const std::string& checkpoint_dir_path);
-
   vid_t insert_vertex_pk(const Property& id, timestamp_t ts, bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(

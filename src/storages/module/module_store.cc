@@ -64,16 +64,6 @@ bool ModuleStore::Contains(const std::string& name) const {
   return modules_.count(name) > 0;
 }
 
-const Module* ModuleStore::GetModule(const std::string& name) const {
-  auto it = modules_.find(name);
-  return it == modules_.end() ? nullptr : it->second.get();
-}
-
-Module* ModuleStore::GetModule(const std::string& name) {
-  auto it = modules_.find(name);
-  return it == modules_.end() ? nullptr : it->second.get();
-}
-
 std::unique_ptr<Module> ModuleStore::TakeModule(const std::string& name) {
   auto it = modules_.find(name);
   if (it == modules_.end()) {

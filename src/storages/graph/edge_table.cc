@@ -15,8 +15,6 @@
 
 #include "neug/storages/graph/edge_table.h"
 
-#include "neug/storages/module/module_factory.h"
-
 #include <arrow/api.h>
 #include <arrow/array/array_base.h>
 #include <arrow/array/array_binary.h>
@@ -35,7 +33,6 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/type_name.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"

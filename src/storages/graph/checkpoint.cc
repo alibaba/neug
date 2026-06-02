@@ -135,7 +135,7 @@ void Checkpoint::create_dirs() const {
 std::unique_ptr<IDataContainer> Checkpoint::CreateRuntimeContainer(
     size_t size, MemoryLevel level) {
   assert(!IsEmpty());
-  std::string path = runtime_dir() + "/" + create_runtime_object();
+  std::string path = runtime_dir() + "/" + CreateRuntimeObject();
   auto ret = OpenContainer("", path, level);
   ret->Resize(size);
   return ret;
@@ -179,7 +179,7 @@ void Checkpoint::UpdateMeta(SnapshotMeta&& meta) {
         std::string name = entry.path().filename().string();
         if (is_valid_uuid(name) && referenced_snapshot_files.count(name) == 0) {
           std::filesystem::remove(entry.path());
-          LOG(INFO) << "UpdateMeta: removed orphan from snapshot_dir: " << name;
+          VLOG(1) << "UpdateMeta: removed orphan from snapshot_dir: " << name;
         }
       }
     } catch (const std::filesystem::filesystem_error& e) {
@@ -216,8 +216,8 @@ std::string Checkpoint::commitToSnapshotLocked(const std::string& abs_path) {
     try {
       std::filesystem::rename(abs_path, dst);
       uncommitted_runtime_objects_.erase(uuid);
-      VLOG(1) << "CommitToSnapshot: " << uuid
-              << " moved from runtime to snapshot_dir: " << dst;
+      VLOG(20) << "CommitToSnapshot: " << uuid
+               << " moved from runtime to snapshot_dir: " << dst;
       return dst;
     } catch (const std::filesystem::filesystem_error& e) {
       THROW_RUNTIME_ERROR(
@@ -276,7 +276,7 @@ std::string Checkpoint::LinkToSnapshot(const std::string& abs_path) {
   return dst;
 }
 
-std::string Checkpoint::create_runtime_object() {
+std::string Checkpoint::CreateRuntimeObject() {
   std::lock_guard<std::mutex> lock(mutex_);
   while (true) {
     std::string uuid = UUIDGenerator::Generate();
@@ -322,7 +322,7 @@ std::unique_ptr<IDataContainer> Checkpoint::OpenFile(
     const std::string& file_path, MemoryLevel level) {
   std::string new_path = "";
   if (level == MemoryLevel::kSyncToFile) {
-    new_path = runtime_dir() + "/" + create_runtime_object();
+    new_path = runtime_dir() + "/" + CreateRuntimeObject();
   }
   return OpenContainer(file_path, new_path, level);
 }
@@ -337,7 +337,7 @@ std::string Checkpoint::Commit(IDataContainer& buffer) {
   if (buffer.GetPath().empty()) {
     // Anonymous mapping → write to a new UUID file in runtime_dir,
     // then move to snapshot_dir.
-    std::string new_obj_id = create_runtime_object();
+    std::string new_obj_id = CreateRuntimeObject();
     auto runtime_path = runtime_dir() + "/" + new_obj_id;
     buffer.Dump(runtime_path);  // Dump() closes the container internally
     return CommitRuntimeObject(new_obj_id);  // returns snapshot path
@@ -347,7 +347,7 @@ std::string Checkpoint::Commit(IDataContainer& buffer) {
     return CommitToSnapshot(buffer.GetPath());
   }
   // File lives elsewhere → dump to runtime_dir, then move to snapshot_dir.
-  std::string new_obj_id = create_runtime_object();
+  std::string new_obj_id = CreateRuntimeObject();
   auto new_path = runtime_dir() + "/" + new_obj_id;
   buffer.Dump(new_path);  // Dump() closes the container internally
   return CommitRuntimeObject(new_obj_id);  // returns snapshot path

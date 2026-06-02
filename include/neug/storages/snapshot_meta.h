@@ -21,7 +21,6 @@
 #include <unordered_map>
 
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/module/module.h"
 #include "neug/storages/module_descriptor.h"
 
 namespace neug {
@@ -36,6 +35,13 @@ class SnapshotMeta {
  public:
   /// Name of the meta file written inside the checkpoint directory.
   static constexpr const char* kMetaFileName = "meta";
+
+  /// Current on-disk format version for the meta JSON.
+  ///
+  /// Bump only on breaking changes to the JSON layout (renamed/removed
+  /// fields, changed value semantics).  Additive changes (new optional
+  /// fields) do not require a bump.  Readers must reject unknown versions.
+  static constexpr int kFormatVersion = 1;
 
   SnapshotMeta() = default;
 

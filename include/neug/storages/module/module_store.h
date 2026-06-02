@@ -90,13 +90,6 @@ class ModuleStore {
   bool Contains(const std::string& name) const;
 
   /**
-   * @brief Borrow a module by name without transferring ownership.  Returns
-   * nullptr if absent.
-   */
-  const Module* GetModule(const std::string& name) const;
-  Module* GetModule(const std::string& name);
-
-  /**
    * @brief Move an owned module out of the store and erase the entry.
    * Returns nullptr if absent (or if the entry is borrowed — borrowed
    * entries are not transferable).

@@ -65,15 +65,6 @@ void Table::SetColumn(int idx, std::shared_ptr<ColumnBase> col) {
   columns_[idx] = std::move(col);
 }
 
-std::shared_ptr<ColumnBase> Table::TakeColumn(int idx) {
-  if (idx < 0 || static_cast<size_t>(idx) >= columns_.size()) {
-    return nullptr;
-  }
-  auto out = std::move(columns_[idx]);
-  columns_[idx].reset();
-  return out;
-}
-
 void Table::reset_header(const std::vector<std::string>& col_name) {
   std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();
