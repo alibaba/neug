@@ -68,7 +68,15 @@ class SnapshotMeta;  // forward declaration to break circular dependency
  */
 class Checkpoint {
  public:
-  Checkpoint(std::string path, uint32_t id);
+  /**
+   * @brief Create and initialize a checkpoint at @p path.
+   *
+   * Creates directories, loads meta JSON, absolutizes paths, and cleans up
+   * orphaned runtime files.  Returns nullptr only on unrecoverable errors
+   * (currently throws instead).
+   */
+  static std::shared_ptr<Checkpoint> Open(std::string path, uint32_t id);
+
   ~Checkpoint();  // defined in .cc where SnapshotMeta is complete
   Checkpoint(const Checkpoint&) = delete;
   Checkpoint& operator=(const Checkpoint&) = delete;
@@ -155,19 +163,16 @@ class Checkpoint {
   std::string LinkToSnapshot(const std::string& abs_path);
 
  private:
+  /// Private constructor — only initializes members. Use Open() to create.
+  Checkpoint(std::string path, uint32_t id);
+
+  /// Performs all I/O: create dirs, load meta, absolutize paths, clean orphans.
+  void initialize();
+
   void create_dirs() const;
-  // Lock-free core of CommitToSnapshot, called by both CommitRuntimeObject and
-  // CommitToSnapshot.
   std::string commitToSnapshotLocked(const std::string& abs_path);
   std::string makeRelativePath(const std::string& abs_path) const;
   std::string resolveAbsolutePath(const std::string& rel_path) const;
-  /**
-   * @brief Commit a file to snapshot_dir, ensuring it's in the final location.
-   * - If file is in runtime_dir: moves it to snapshot_dir and cleans up
-   * - If file is already in snapshot_dir: returns it unchanged (no-op)
-   * - If file is elsewhere: copies it to snapshot_dir
-   * @return the path to the committed snapshot file
-   */
   std::string CommitToSnapshot(const std::string& abs_path);
 
   std::string path_;

@@ -65,33 +65,32 @@ Checkpoint::~Checkpoint() {
 }
 
 Checkpoint::Checkpoint(std::string path, uint32_t id)
-    : path_(std::move(path)), id_(id) {
+    : path_(std::move(path)), id_(id) {}
+
+std::shared_ptr<Checkpoint> Checkpoint::Open(std::string path, uint32_t id) {
+  // Can't use make_shared because constructor is private.
+  auto ckp = std::shared_ptr<Checkpoint>(new Checkpoint(std::move(path), id));
+  ckp->initialize();
+  return ckp;
+}
+
+void Checkpoint::initialize() {
   create_dirs();
   meta_ = std::make_unique<SnapshotMeta>();
   meta_->Open(meta_path());
 
-  auto to_absolute = [this](const std::string& p) {
-    return resolveAbsolutePath(p);
-  };
   for (const auto& [key, desc] : meta_->modules()) {
     ModuleDescriptor absolute_desc = desc;
     for (auto& [_, v] : absolute_desc.mutable_paths()) {
-      v = to_absolute(v);
+      v = resolveAbsolutePath(v);
     }
     meta_->set_module(key, std::move(absolute_desc));
   }
 
-  // Simplified cleanup logic:
-  // 1. Collect all files referenced in meta that are in runtime_dir
-  // 2. Delete unreferenced files from runtime_dir
-  // 3. Leave snapshot_dir untouched
-
+  // Clean orphaned runtime files not referenced by meta.
   std::set<std::string> referenced_runtime_files;
-
-  if (meta_ != nullptr) {
-    for (auto& [key, desc] : meta_->modules()) {
-      CollectReferencedFiles(desc, runtime_dir(), referenced_runtime_files);
-    }
+  for (auto& [key, desc] : meta_->modules()) {
+    CollectReferencedFiles(desc, runtime_dir(), referenced_runtime_files);
   }
 
   try {
@@ -99,19 +98,16 @@ Checkpoint::Checkpoint(std::string path, uint32_t id)
          std::filesystem::directory_iterator(runtime_dir())) {
       if (entry.is_regular_file()) {
         std::string name = entry.path().filename().string();
-
-        // Only delete valid UUIDs that aren't referenced
         if (is_valid_uuid(name) && referenced_runtime_files.count(name) == 0) {
           std::filesystem::remove(entry.path());
-          VLOG(1) << "Checkpoint::ctor: cleaned orphan file " << name;
+          VLOG(1) << "Checkpoint::initialize: cleaned orphan file " << name;
         }
       }
     }
   } catch (const std::filesystem::filesystem_error& e) {
-    LOG(WARNING) << "Checkpoint::ctor: error during cleanup: " << e.what();
+    LOG(WARNING) << "Checkpoint::initialize: error during cleanup: "
+                 << e.what();
   }
-
-  // snapshot_dir files are not touched (committed data is preserved)
 }
 
 void Checkpoint::create_dirs() const {

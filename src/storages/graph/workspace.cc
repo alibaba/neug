@@ -74,7 +74,7 @@ void Workspace::Open(const std::string& db_dir) {
         int32_t id;
         if (parse_checkpoint_path(entry.path().string(), id)) {
           checkpoints_[id] =
-              std::make_shared<Checkpoint>(entry.path().string(), id);
+              Checkpoint::Open(entry.path().string(), id);
         }
       }
     }
@@ -116,7 +116,7 @@ int32_t Workspace::CreateCheckpoint() {
 
   std::filesystem::create_directories(path);
   SnapshotMeta::GenerateEmptyMeta(path + "/meta");
-  checkpoints_[id] = std::make_shared<Checkpoint>(path, id);
+  checkpoints_[id] = Checkpoint::Open(path, id);
   return id;
 }
 
