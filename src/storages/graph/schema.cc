@@ -16,6 +16,9 @@
 #include "neug/storages/graph/schema.h"
 #include <ctype.h>
 #include <glog/logging.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <filesystem>
@@ -1636,6 +1639,96 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
   return true;
 }
 
+// Recursively populate a rapidjson::Value from a YAML::Node.
+static void yaml_to_rj(const YAML::Node& node, rapidjson::Value& out,
+                       rapidjson::Document::AllocatorType& alloc) {
+  if (node.IsNull()) {
+    out.SetNull();
+  } else if (node.IsScalar()) {
+    const auto val = node.as<std::string>();
+    if (val == "true") {
+      out.SetBool(true);
+    } else if (val == "false") {
+      out.SetBool(false);
+    } else if (val == "null") {
+      out.SetNull();
+    } else if (val.empty()) {
+      out.SetString("", 0, alloc);
+    } else {
+      try {
+        if (val.find('.') != std::string::npos) {
+          out.SetDouble(std::stod(val));
+        } else {
+          out.SetInt64(std::stoll(val));
+        }
+      } catch (...) {
+        out.SetString(val.c_str(), static_cast<rapidjson::SizeType>(val.size()),
+                      alloc);
+      }
+    }
+  } else if (node.IsSequence()) {
+    out.SetArray();
+    for (const auto& item : node) {
+      rapidjson::Value elem;
+      yaml_to_rj(item, elem, alloc);
+      out.PushBack(elem, alloc);
+    }
+  } else if (node.IsMap()) {
+    out.SetObject();
+    for (const auto& pair : node) {
+      const auto key = pair.first.as<std::string>();
+      rapidjson::Value k(key.c_str(),
+                         static_cast<rapidjson::SizeType>(key.size()), alloc);
+      rapidjson::Value v;
+      yaml_to_rj(pair.second, v, alloc);
+      out.AddMember(k, v, alloc);
+    }
+  } else {
+    out.SetNull();
+  }
+}
+
+rapidjson::Document yaml_to_json(const YAML::Node& node) {
+  rapidjson::Document doc;
+  yaml_to_rj(node, doc, doc.GetAllocator());
+  return doc;
+}
+
+result<YAML::Node> json_to_yaml(const rapidjson::Value& j) {
+  YAML::Node node;
+  if (j.IsNull()) {
+    node = YAML::Node();
+  } else if (j.IsBool()) {
+    node = YAML::Node(j.GetBool());
+  } else if (j.IsInt64()) {
+    node = YAML::Node(j.GetInt64());
+  } else if (j.IsDouble()) {
+    node = YAML::Node(j.GetDouble());
+  } else if (j.IsString()) {
+    node = YAML::Node(std::string(j.GetString(), j.GetStringLength()));
+  } else if (j.IsArray()) {
+    node = YAML::Node(YAML::NodeType::Sequence);
+    for (const auto& elem : j.GetArray()) {
+      auto elem_result = json_to_yaml(elem);
+      if (!elem_result) {
+        return tl::unexpected(elem_result.error());
+      }
+      node.push_back(elem_result.value());
+    }
+  } else if (j.IsObject()) {
+    node = YAML::Node(YAML::NodeType::Map);
+    for (auto it = j.MemberBegin(); it != j.MemberEnd(); ++it) {
+      auto val_result = json_to_yaml(it->value);
+      if (!val_result) {
+        return tl::unexpected(val_result.error());
+      }
+      node[std::string(it->name.GetString(), it->name.GetStringLength())] =
+          val_result.value();
+    }
+  }
+  return node;
+}
+
 }  // namespace config_parsing
 
 std::string Schema::GetDescription() const { return description_; }
@@ -2163,6 +2256,31 @@ Schema Schema::Compact() const {
   return new_schema;
 }
 
+Schema Schema::Clone() const {
+  Schema cloned;
+
+  cloned.v_schemas_.reserve(v_schemas_.size());
+  for (const auto& vs : v_schemas_) {
+    cloned.v_schemas_.push_back(std::make_shared<VertexSchema>(*vs));
+  }
+
+  for (const auto& [key, es] : e_schemas_) {
+    cloned.e_schemas_[key] = std::make_shared<EdgeSchema>(*es);
+  }
+
+  cloned.vlabel_indexer_ = vlabel_indexer_;
+  cloned.elabel_indexer_ = elabel_indexer_;
+
+  cloned.name_ = name_;
+  cloned.id_ = id_;
+  cloned.description_ = description_;
+  cloned.vlabel_tomb_ = vlabel_tomb_;
+  cloned.elabel_tomb_ = elabel_tomb_;
+  cloned.elabel_triplet_tomb_ = elabel_triplet_tomb_;
+
+  return cloned;
+}
+
 InArchive& operator<<(InArchive& in_archive, const DataType& type) {
   auto id = type.id();
   in_archive << id;
@@ -2287,6 +2405,33 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
     e_schema.sort_key_for_nbr = std::nullopt;
   }
   return archive;
+}
+
+result<rapidjson::Document> Schema::ToJson() const {
+  auto yaml_result = to_yaml();
+  if (!yaml_result) {
+    return tl::unexpected(yaml_result.error());
+  }
+  return config_parsing::yaml_to_json(yaml_result.value());
+}
+
+void Schema::FromJson(const rapidjson::Value& j) {
+  if (!j.IsObject()) {
+    LOG(ERROR) << "Schema JSON must be an object";
+    return;
+  }
+  auto yaml_result = config_parsing::json_to_yaml(j);
+  if (!yaml_result) {
+    LOG(ERROR) << "Failed to convert JSON to YAML: " << yaml_result.error();
+    return;
+  }
+  auto load_result = LoadFromYamlNode(yaml_result.value());
+  if (!load_result) {
+    LOG(ERROR) << "Failed to load schema from JSON: "
+               << load_result.error().ToString();
+    return;
+  }
+  *this = std::move(load_result.value());
 }
 
 }  // namespace neug

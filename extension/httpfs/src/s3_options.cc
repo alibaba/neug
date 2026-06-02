@@ -15,14 +15,110 @@
  */
 
 #include "s3_options.h"
+#include <arrow/filesystem/filesystem.h>
 #include <glog/logging.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <string>
+#include <vector>
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/options.h"
 
 namespace neug {
 namespace extension {
 namespace s3 {
+
+// ============================================================================
+// TLS CA bundle resolution for Arrow's FileSystemGlobalOptions
+// ============================================================================
+
+namespace {
+
+bool fileExistsAndReadable(const std::string& path) {
+  if (path.empty()) return false;
+  struct stat st;
+  if (::stat(path.c_str(), &st) != 0) return false;
+  if (!S_ISREG(st.st_mode)) return false;
+  // Best-effort readability check; Arrow/AWS SDK will fail loudly if not.
+  return ::access(path.c_str(), R_OK) == 0;
+}
+
+std::string resolveTlsCaFilePath() {
+  // 1) Honor explicit env overrides.
+  for (const char* env_key : {"SSL_CERT_FILE", "CURL_CA_BUNDLE", "AWS_CA_BUNDLE"}) {
+    const char* v = std::getenv(env_key);
+    if (v && std::strlen(v) > 0 && fileExistsAndReadable(v)) {
+      LOG(INFO) << "TLS CA bundle resolved from env " << env_key << "=" << v;
+      return v;
+    }
+  }
+  // 2) Probe common distro locations.
+  static const std::vector<std::string> kCommonPaths = {
+      "/etc/ssl/certs/ca-certificates.crt",   // Debian/Ubuntu
+      "/etc/pki/tls/certs/ca-bundle.crt",     // CentOS/RHEL/Fedora
+      "/etc/ssl/cert.pem",                    // Alpine/macOS
+      "/etc/ssl/ca-bundle.pem",               // OpenSUSE
+  };
+  for (const auto& p : kCommonPaths) {
+    if (fileExistsAndReadable(p)) {
+      LOG(INFO) << "TLS CA bundle resolved from system path: " << p;
+      return p;
+    }
+  }
+  return "";
+}
+
+std::string resolveTlsCaDirPath() {
+  for (const char* env_key : {"SSL_CERT_DIR"}) {
+    const char* v = std::getenv(env_key);
+    if (v && std::strlen(v) > 0) {
+      struct stat st;
+      if (::stat(v, &st) == 0 && S_ISDIR(st.st_mode)) {
+        return v;
+      }
+    }
+  }
+  // Fallback to a directory next to the chosen ca-bundle, if it exists.
+  struct stat st;
+  if (::stat("/etc/ssl/certs", &st) == 0 && S_ISDIR(st.st_mode)) {
+    return "/etc/ssl/certs";
+  }
+  return "";
+}
+
+}  // namespace
+
+void InitializeArrowTlsOptions() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    arrow::fs::FileSystemGlobalOptions opts;
+    opts.tls_ca_file_path = resolveTlsCaFilePath();
+    opts.tls_ca_dir_path = resolveTlsCaDirPath();
+    if (opts.tls_ca_file_path.empty() && opts.tls_ca_dir_path.empty()) {
+      LOG(ERROR) << "InitializeArrowTlsOptions: no TLS CA bundle found. "
+                 << "HTTPS requests (OSS / S3) will fail with curlCode 77 "
+                 << "(\"unable to get local issuer certificate\"). "
+                 << "Fix: install a CA certificate bundle, e.g. "
+                 << "'apt-get install ca-certificates' (Debian/Ubuntu) or "
+                 << "'yum install ca-certificates' (CentOS/RHEL), or set "
+                 << "SSL_CERT_FILE=/path/to/ca-bundle.crt in your environment.";
+      return;
+    }
+    auto status = arrow::fs::Initialize(opts);
+    if (!status.ok()) {
+      LOG(ERROR) << "arrow::fs::Initialize failed: " << status.ToString()
+                 << ". TLS certificate verification may not work correctly.";
+      return;
+    }
+    LOG(INFO) << "Arrow FileSystemGlobalOptions initialized: caFile='"
+              << opts.tls_ca_file_path << "', caPath='"
+              << opts.tls_ca_dir_path << "'";
+  });
+}
 
 // ============================================================================
 // Helper: Get option with environment variable fallback
