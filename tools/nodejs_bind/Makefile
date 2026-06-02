@@ -78,11 +78,11 @@ pack: build  ## Create per-platform npm tarball (uses default Release build)
 	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
 	@VERSION=$$(node -p 'require("./package.json").version'); \
 		npm pack && \
-		mv neug-nodejs-$$VERSION.tgz neug-nodejs-$$VERSION-$(PREBUILD_PLATFORM).tgz; \
+		mv neug-$$VERSION.tgz neug-$$VERSION-$(PREBUILD_PLATFORM).tgz; \
 		PACK_RC=$$?; \
 		mv package.json.orig package.json; \
 		exit $$PACK_RC
-	@echo "Package created: neug-nodejs-*-$(PREBUILD_PLATFORM).tgz"
+	@echo "Package created: neug-*-$(PREBUILD_PLATFORM).tgz"
 
 .PHONY: clean
 clean:  ## Clean up build artifacts

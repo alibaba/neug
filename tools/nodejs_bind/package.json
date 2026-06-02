@@ -1,5 +1,5 @@
 {
-  "name": "neug-nodejs",
+  "name": "neug",
   "version": "0.1.2",
   "description": "NeuG Graph Database Node.js bindings - high performance embedded graph database with Cypher query support",
   "main": "lib/index.js",

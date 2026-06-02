@@ -43,7 +43,7 @@ const VALID_MODES = [
  * Use this class to open a database, create connections, and manage the database lifecycle.
  *
  * @example
- * const { Database } = require('neug-nodejs');
+ * const { Database } = require('neug');
  *
  * const db = new Database({ databasePath: '/tmp/test.db', mode: 'w' });
  * const conn = db.connect();

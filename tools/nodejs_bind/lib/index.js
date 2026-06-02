@@ -19,7 +19,7 @@
  * A high-performance embedded graph database with Cypher query support.
  *
  * @example
- * const { Database } = require('neug-nodejs');
+ * const { Database } = require('neug');
  *
  * // Open an in-memory database
  * const db = new Database({ mode: 'w' });
@@ -37,7 +37,7 @@
  * conn.close();
  * db.close();
  *
- * @module neug-nodejs
+ * @module neug
  */
 
 'use strict';

@@ -57,12 +57,12 @@ Create a self-contained, distributable npm package tarball (`.tgz`). This will:
    - `neug_node_bind.node` — the native addon
    - `libneug.so` — core shared library
    - `libmimalloc.so.2` — memory allocator
-3. Run `npm pack` to produce `neug-nodejs-<version>.tgz`
+3. Run `npm pack` to produce `neug-<version>.tgz`
 
 The resulting tarball can be installed without a C++ build environment:
 
 ```bash
-npm install ./neug-nodejs-0.1.2.tgz
+npm install ./neug-0.1.2.tgz
 ```
 
  
