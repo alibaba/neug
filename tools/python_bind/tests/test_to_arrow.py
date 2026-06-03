@@ -33,8 +33,6 @@ import sys
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 pa = pytest.importorskip("pyarrow")
 
 from neug.database import Database
