@@ -8,7 +8,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  check:
+  pr-completeness:
     runs-on: ubuntu-latest
     steps:
       - name: Check PR completeness
