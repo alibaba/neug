@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import glob
 import logging
 import os
 import platform
@@ -180,43 +181,53 @@ def get_build_lib_dir() -> str:
     return build_dir
 
 
-config_logging("INFO")
+def _find_neug_py_bind_dir():
+    """Locate the directory containing neug_py_bind*.so.
 
+    Priority:
+      1. Package dir itself (wheel install — setup.py copied .so + libneug here).
+      2. NEUG_BUILD_DIR / default <repo_root>/build/tools/python_bind (dev: root build).
+      3. Legacy get_build_lib_dir() walk (back-compat for external scripts).
+    """
+    cur_dir = os.path.dirname(os.path.abspath(__file__))
+
+    if glob.glob(os.path.join(cur_dir, "neug_py_bind*.so")):
+        return cur_dir
+
+    # Assume layout: <repo>/tools/python_bind/neug/__init__.py → repo is 3 up.
+    repo_root = os.path.abspath(os.path.join(cur_dir, "..", "..", ".."))
+    root_build = os.environ.get(
+        "NEUG_BUILD_DIR", os.path.join(repo_root, "build")
+    )
+    candidate = os.path.join(root_build, "tools", "python_bind")
+    if glob.glob(os.path.join(candidate, "neug_py_bind*.so")):
+        return candidate
+
+    return get_build_lib_dir()
+
+
+config_logging("INFO")
 _ensure_protobuf_runtime_matches()
 
+_bind_dir = _find_neug_py_bind_dir()
+if _bind_dir and _bind_dir not in sys.path:
+    logger.info("Adding bindings directory to sys.path: %s", _bind_dir)
+    sys.path.insert(0, _bind_dir)
+
 try:
-    # Try to first include the c++ extension directory, if it exists
-    # it means we are in development mode.
-    build_dir = get_build_lib_dir()
-    if build_dir and os.path.exists(build_dir):
-        import sys
-
-        logger.info("Adding build directory to sys.path: %s", build_dir)
-        sys.path.append(build_dir)
-    try:
-        import neug_py_bind
-    except ImportError as e:
-        import os
-
-        if os.environ.get("BUILD_DOC", "OFF") == "ON":
-            # If we are building docs, we don't need the C++ extension
-            logger.warning("Building docs, skipping C++ extension import.")
-        else:
-            raise e
-
-    # set home for loading and installing extensions
-    if build_dir and os.path.exists(build_dir):
-        os.environ["NEUG_EXTENSION_HOME_PYENV"] = build_dir
-    else:
-        cur_dir = os.path.dirname(__file__)
-        os.environ["NEUG_EXTENSION_HOME_PYENV"] = os.path.join(cur_dir, "..")
-    logger.info(f"Extension home: {os.environ['NEUG_EXTENSION_HOME_PYENV']}")
-
-
+    import neug_py_bind  # noqa: F401
 except ImportError as e:
-    raise ImportError(
-        f"NeuG is not installed. Please install it using pip or build it from source: {e}"
-    )
+    if os.environ.get("BUILD_DOC", "OFF") == "ON":
+        logger.warning("Building docs, skipping C++ extension import.")
+    else:
+        raise ImportError(
+            f"NeuG is not installed. Install via pip or build from source: {e}"
+        ) from e
+
+os.environ["NEUG_EXTENSION_HOME_PYENV"] = _bind_dir or os.path.join(
+    os.path.dirname(__file__), ".."
+)
+logger.info("Extension home: %s", os.environ["NEUG_EXTENSION_HOME_PYENV"])
 
 from neug.async_connection import AsyncConnection
 from neug.connection import Connection
