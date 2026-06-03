@@ -27,7 +27,6 @@ import pytest
 import requests
 from click.testing import CliRunner
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug import neug_cli
 from neug import web_ui
 from neug.database import Database
