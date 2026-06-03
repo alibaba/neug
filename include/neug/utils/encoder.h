@@ -20,11 +20,13 @@
 #include <string_view>
 #include <vector>
 
+#include "neug/utils/mi_allocator.h"
+
 namespace neug {
 
 class Encoder {
  public:
-  explicit Encoder(std::vector<char>& buf) : buf_(buf) {}
+  explicit Encoder(vector_t<char>& buf) : buf_(buf) {}
 
   void put_long(int64_t v);
 
@@ -52,10 +54,6 @@ class Encoder {
 
   void put_string_view(const std::string_view& v);
 
-  void put_var_len_string(const std::string& v);
-
-  void put_var_len_string_view(const std::string_view& v);
-
   void put_small_string(const std::string& v);
 
   void put_small_string_view(const std::string_view& v);
@@ -67,7 +65,7 @@ class Encoder {
   void clear();
 
  private:
-  std::vector<char>& buf_;
+  vector_t<char>& buf_;
 };
 
 class Decoder {

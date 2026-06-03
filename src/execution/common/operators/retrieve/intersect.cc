@@ -28,17 +28,18 @@ namespace execution {
 
 void get_labels(
     const EdgeExpandParams& eep, const StorageReadInterface& graph,
-    std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>&
-        labels) {
-  std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>> labels_i;
+    vector_t<vector_t<std::pair<LabelTriplet, vector_t<DataTypeId>>>>& labels) {
+  vector_t<std::pair<LabelTriplet, vector_t<DataTypeId>>> labels_i;
   for (const auto& label_triplet : eep.labels) {
     auto props = graph.schema().get_edge_properties_id(
         label_triplet.src_label, label_triplet.dst_label,
         label_triplet.edge_label);
     if (props.empty()) {
-      labels_i.emplace_back(label_triplet, std::vector{DataTypeId::kEmpty});
+      labels_i.emplace_back(label_triplet,
+                            vector_t<DataTypeId>{DataTypeId::kEmpty});
     } else {
-      labels_i.emplace_back(label_triplet, props);
+      labels_i.emplace_back(label_triplet,
+                            vector_t<DataTypeId>(props.begin(), props.end()));
     }
   }
   labels.push_back(std::move(labels_i));
@@ -57,15 +58,15 @@ static neug::result<neug::execution::Context> Binary_Intersect_SL_Impl(
       << "IntersectOprBeta only supports single label edge expand";
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "IntersectOprBeta does not support optional edge expand";
-  size_t row_num = ctx.row_num();
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
 
   auto label = (eep0.dir == Direction::kOut ? eep0.labels[0].dst_label
                                             : eep0.labels[0].src_label);
   MSVertexColumnBuilder builder(label);
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
-  for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_set<vid_t> vertex_set;
+  for (sel_t i = 0; i < row_num; ++i) {
+    flat_hash_set_t<vid_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -150,14 +151,14 @@ static neug::result<neug::execution::Context> Binary_Intersect_ML_Impl(
 
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "IntersectOprBeta does not support optional edge expand";
-  size_t row_num = ctx.row_num();
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
-  for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_map<VertexRecord, uint32_t> vertex_set;
+  for (sel_t i = 0; i < row_num; ++i) {
+    flat_hash_map_t<VertexRecord, uint32_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -280,31 +281,30 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect(
 
 neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
-    const std::vector<EdgeExpandParams>& eeps, int vertex_alias) {
-  std::vector<IVertexColumn*> vertex_cols;
+    neug::execution::Context&& ctx, vector_t<EdgeAndNbrPredicate>&& preds,
+    const vector_t<EdgeExpandParams>& eeps, int vertex_alias) {
+  vector_t<IVertexColumn*> vertex_cols;
   for (const auto& eep : eeps) {
     auto col = ctx.get(eep.v_tag);
     vertex_cols.push_back(dynamic_cast<IVertexColumn*>(col.get()));
   }
-  size_t row_num = ctx.row_num();
+  sel_t row_num = ctx.row_num();
   MLVertexColumnBuilder builder;
-  std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
-      labels;
+  vector_t<vector_t<std::pair<LabelTriplet, vector_t<DataTypeId>>>> labels;
   labels.reserve(eeps.size());
 
   for (size_t i = 0; i < eeps.size(); ++i) {
     get_labels(eeps[i], graph, labels);
-    std::vector<LabelTriplet> label_triplets;
+    vector_t<LabelTriplet> label_triplets;
     for (const auto& p : labels.back()) {
       label_triplets.push_back(p.first);
     }
   }
 
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
-  for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_map<VertexRecord, size_t> vertex_set;
+  for (sel_t i = 0; i < static_cast<sel_t>(row_num); ++i) {
+    flat_hash_map_t<VertexRecord, size_t> vertex_set;
     auto v = vertex_cols[0]->get_vertex(i);
     if (eeps[0].dir == Direction::kOut || eeps[0].dir == Direction::kBoth) {
       for (const auto& label_triplet : eeps[0].labels) {
@@ -352,7 +352,7 @@ neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
     }
 
     for (size_t j = 1; j < eeps.size(); ++j) {
-      phmap::flat_hash_map<VertexRecord, size_t> tmp_set;
+      flat_hash_map_t<VertexRecord, size_t> tmp_set;
       v = vertex_cols[j]->get_vertex(i);
       if (eeps[j].dir == Direction::kOut || eeps[j].dir == Direction::kBoth) {
         for (const auto& label_triplet : eeps[j].labels) {
@@ -427,7 +427,7 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
     neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int vertex_alias,
-    const std::vector<int>& edge_alias) {
+    const vector_t<int>& edge_alias) {
   const auto& vertex_col0 =
       dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
   const auto& vertex_col1 =
@@ -435,18 +435,17 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
 
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "Intersect operator does not support optional edge expand.";
-  size_t row_num = ctx.row_num();
+  sel_t row_num = static_cast<sel_t>(ctx.row_num());
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
-  std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
-      labels;
-  std::vector<BDMLEdgeColumnBuilder> edge_builders;
+  vector_t<vector_t<std::pair<LabelTriplet, vector_t<DataTypeId>>>> labels;
+  vector_t<BDMLEdgeColumnBuilder> edge_builders;
   {
     get_labels(eep0, graph, labels);
-    std::vector<LabelTriplet> label_triplets;
+    vector_t<LabelTriplet> label_triplets;
     for (const auto& p : labels.back()) {
       label_triplets.push_back(p.first);
     }
@@ -454,19 +453,19 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
   }
   {
     get_labels(eep1, graph, labels);
-    std::vector<LabelTriplet> label_triplets;
+    vector_t<LabelTriplet> label_triplets;
     for (const auto& p : labels.back()) {
       label_triplets.push_back(p.first);
     }
     edge_builders.emplace_back(label_triplets);
   }
 
-  for (size_t i = 0; i < row_num; ++i) {
+  for (sel_t i = 0; i < row_num; ++i) {
     using value_t =
         std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
 
-    std::vector<value_t> aux_values;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> vertex_set;
+    vector_t<value_t> aux_values;
+    flat_hash_map_t<VertexRecord, sel_vec_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {

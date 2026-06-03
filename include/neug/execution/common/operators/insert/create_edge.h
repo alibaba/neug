@@ -14,8 +14,8 @@
  */
 #pragma once
 
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
-
 namespace neug {
 class StorageInsertInterface;
 namespace execution {
@@ -27,11 +27,12 @@ class CreateEdge {
  public:
   static neug::result<Context> insert_edge(
       StorageInsertInterface& graph, Context&& ctx,
-      std::vector<LabelTriplet> labels,
-      const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-      std::vector<std::vector<
-          std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&& props,
-      const std::vector<int>& alias);
+      vector_t<LabelTriplet> labels,
+      const vector_t<std::pair<int32_t, int32_t>>& src_dst_tags,
+      vector_t<
+          vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+          props,
+      const vector_t<int>& alias);
 };
 }  // namespace ops
 }  // namespace execution

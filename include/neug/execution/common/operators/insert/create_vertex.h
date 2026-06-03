@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -26,10 +27,11 @@ class CreateVertex {
  public:
   static neug::result<Context> insert_vertex(
       StorageInsertInterface& graph, Context&& ctx,
-      const std::vector<label_t>& labels,
-      std::vector<std::vector<
-          std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&& props,
-      const std::vector<int>& alias);
+      const vector_t<label_t>& labels,
+      vector_t<
+          vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+          props,
+      const vector_t<int>& alias);
 };
 }  // namespace ops
 }  // namespace execution

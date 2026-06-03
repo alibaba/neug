@@ -85,18 +85,18 @@ struct NestedValueInfo : public ExtraValueInfo {
 
  public:
   NestedValueInfo() : ExtraValueInfo(ExtraValueInfoType::NESTED_VALUE_INFO) {}
-  explicit NestedValueInfo(std::vector<Value> values_p)
+  explicit NestedValueInfo(vector_t<Value> values_p)
       : ExtraValueInfo(ExtraValueInfoType::NESTED_VALUE_INFO),
         values(std::move(values_p)) {}
 
-  const std::vector<Value>& GetValues() { return values; }
+  const vector_t<Value>& GetValues() { return values; }
 
  protected:
   bool EqualsInternal(ExtraValueInfo* other_p) const override {
     return other_p->Get<NestedValueInfo>().values == values;
   }
 
-  std::vector<Value> values;
+  vector_t<Value> values;
 };
 
 struct PathValueInfo : public ExtraValueInfo {
@@ -218,14 +218,14 @@ Value Value::DOUBLE(double value) {
   return result;
 }
 
-Value Value::LIST(const DataType& child_type, std::vector<Value>&& values) {
+Value Value::LIST(const DataType& child_type, vector_t<Value>&& values) {
   Value result(DataType::List(child_type));
   result.value_info_ = std::make_shared<NestedValueInfo>(std::move(values));
   result.is_null_ = false;
   return result;
 }
 
-Value Value::LIST(std::vector<Value>&& values) {
+Value Value::LIST(vector_t<Value>&& values) {
   if (values.empty()) {
     throw std::runtime_error("Cannot create LIST Value with empty values");
   }
@@ -233,7 +233,7 @@ Value Value::LIST(std::vector<Value>&& values) {
   return Value::LIST(type, std::move(values));
 }
 
-Value Value::STRUCT(const DataType& type, std::vector<Value>&& struct_values) {
+Value Value::STRUCT(const DataType& type, vector_t<Value>&& struct_values) {
   Value result(type);
   result.value_info_ =
       std::make_shared<NestedValueInfo>(std::move(struct_values));
@@ -241,7 +241,7 @@ Value Value::STRUCT(const DataType& type, std::vector<Value>&& struct_values) {
   return result;
 }
 
-Value Value::STRUCT(std::vector<Value>&& values) {
+Value Value::STRUCT(vector_t<Value>&& values) {
   std::vector<DataType> child_types;
   for (const auto& val : values) {
     child_types.push_back(val.type());
@@ -293,7 +293,7 @@ const std::string& StringValue::Get(const Value& value) {
   return value.value_info_->Get<StringValueInfo>().GetString();
 }
 
-const std::vector<Value>& ListValue::GetChildren(const Value& value) {
+const vector_t<Value>& ListValue::GetChildren(const Value& value) {
   if (value.IsNull()) {
     throw std::runtime_error("Cannot get children of null ListValue");
   }
@@ -301,7 +301,7 @@ const std::vector<Value>& ListValue::GetChildren(const Value& value) {
   return value.value_info_->Get<NestedValueInfo>().GetValues();
 }
 
-const std::vector<Value>& StructValue::GetChildren(const Value& value) {
+const vector_t<Value>& StructValue::GetChildren(const Value& value) {
   if (value.IsNull()) {
     throw std::runtime_error("Cannot get children of null StructValue");
   }
@@ -670,7 +670,7 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     }
   }
   case DataTypeId::kList: {
-    std::vector<execution::Value> values;
+    vector_t<execution::Value> values;
     if (!json_value.IsArray()) {
       return execution::Value::LIST(DataType::UNKNOWN, std::move(values));
     }

@@ -25,7 +25,7 @@ class BindedRecordAccessor : public RecordExprBase {
   BindedRecordAccessor(int tag, const DataType& type)
       : tag_(tag), type_(type) {}
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     return ctx.get(tag_)->get_elem(idx);
   }
 
@@ -60,7 +60,7 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
     }
   }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& vertex_val = ctx.get(tag_)->get_elem(idx);
     if (vertex_val.IsNull()) {
       return Value(type_);
@@ -83,14 +83,14 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
   int tag_;
   std::string property_name_;
   DataType type_;
-  std::vector<std::shared_ptr<RefColumnBase>> property_columns_;
+  vector_t<std::shared_ptr<RefColumnBase>> property_columns_;
 };
 
 class BindedRecordVertexLabelExpr : public RecordExprBase {
  public:
   BindedRecordVertexLabelExpr(int tag, const Schema& schema)
       : tag_(tag), schema_(schema), type_(DataTypeId::kVarchar) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     Value vertex_val = ctx.get(tag_)->get_elem(idx);
     if (vertex_val.IsNull()) {
       return Value(type_);
@@ -110,7 +110,7 @@ class BindedRecordVertexLabelExpr : public RecordExprBase {
 class BindedRecordVertexGIdExpr : public RecordExprBase {
  public:
   BindedRecordVertexGIdExpr(int tag) : tag_(tag), type_(DataTypeId::kInt64) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     Value vertex_val = ctx.get(tag_)->get_elem(idx);
     if (vertex_val.IsNull()) {
       return Value(type_);
@@ -171,9 +171,8 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
                                                     edge_label)) {
             continue;
           }
-          const std::vector<std::string>& names =
-              graph.schema().get_edge_property_names(src_label, dst_label,
-                                                     edge_label);
+          const auto& names = graph.schema().get_edge_property_names(
+              src_label, dst_label, edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
             if (names[i] == prop_name) {
               LabelTriplet label{src_label, dst_label, edge_label};
@@ -186,7 +185,7 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
       }
     }
   }
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& edge_val = ctx.get(tag_)->get_elem(idx);
     if (edge_val.IsNull()) {
       return Value(type_);
@@ -207,14 +206,14 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
  private:
   int tag_;
   DataType type_;
-  std::map<LabelTriplet, EdgeDataAccessor> edge_accessors_;
+  flat_hash_map_t<LabelTriplet, EdgeDataAccessor> edge_accessors_;
 };
 
 class BindedEdgeRecordLabelExpr : public RecordExprBase {
  public:
   BindedEdgeRecordLabelExpr(int tag, const Schema& schema)
       : tag_(tag), schema_(schema), type_(DataTypeId::kVarchar) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     Value edge_val = ctx.get(tag_)->get_elem(idx);
     if (edge_val.IsNull()) {
       return Value(type_);
@@ -234,7 +233,7 @@ class BindedEdgeRecordLabelExpr : public RecordExprBase {
 class BindedEdgeRecordGIdExpr : public RecordExprBase {
  public:
   BindedEdgeRecordGIdExpr(int tag) : tag_(tag), type_(DataTypeId::kInt64) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& edge_val = ctx.get(tag_)->get_elem(idx);
     if (edge_val.IsNull()) {
       return Value(type_);
@@ -276,7 +275,7 @@ std::unique_ptr<BindedExprBase> RecordEdgeAccessor::bind(
 class BindedRecordPathLengthExpr : public RecordExprBase {
  public:
   BindedRecordPathLengthExpr(int tag) : tag_(tag), type_(DataTypeId::kInt64) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     Value path_val = ctx.get(tag_)->get_elem(idx);
     if (path_val.IsNull()) {
       return Value(type_);
@@ -295,7 +294,7 @@ class BindedRecordPathLengthExpr : public RecordExprBase {
 class BindedPathWeightExpr : public RecordExprBase {
  public:
   BindedPathWeightExpr(int tag) : tag_(tag), type_(DataTypeId::kDouble) {}
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     Value path_val = ctx.get(tag_)->get_elem(idx);
     if (path_val.IsNull()) {
       return Value(type_);

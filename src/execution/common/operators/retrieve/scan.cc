@@ -47,7 +47,7 @@ struct ScanVertexSPOp {
 neug::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
     const SpecialPredicateConfig& config, const ParamsMap& query_params) {
-  std::set<label_t> expected_labels;
+  flat_hash_set_t<label_t> expected_labels;
   for (auto label : params.tables) {
     expected_labels.insert(label);
   }

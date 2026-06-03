@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include <vector>
+#include "neug/utils/mi_allocator.h"
 
 #include "neug/utils/result.h"
 
@@ -26,7 +26,7 @@ class Context;
 class Dedup {
  public:
   static neug::result<Context> dedup(Context&& ctx,
-                                     const std::vector<size_t>& cols);
+                                     const vector_t<uint32_t>& cols);
 };
 
 }  // namespace execution

@@ -16,6 +16,7 @@
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -23,8 +24,8 @@ namespace ops {
 
 class BatchDeleteVertexOpr : public IOperator {
  public:
-  BatchDeleteVertexOpr(const std::vector<std::vector<label_t>>& vertex_labels,
-                       const std::vector<int32_t> vertex_bindings)
+  BatchDeleteVertexOpr(const vector_t<vector_t<label_t>>& vertex_labels,
+                       const vector_t<int32_t> vertex_bindings)
       : vertex_labels_(vertex_labels), vertex_bindings_(vertex_bindings) {}
 
   std::string get_operator_name() const override {
@@ -35,8 +36,8 @@ class BatchDeleteVertexOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override;
 
  private:
-  std::vector<std::vector<label_t>> vertex_labels_;
-  std::vector<int32_t> vertex_bindings_;
+  vector_t<vector_t<label_t>> vertex_labels_;
+  vector_t<int32_t> vertex_bindings_;
 };
 
 neug::result<Context> BatchDeleteVertexOpr::Eval(
@@ -51,13 +52,23 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
       auto sl_vertex_column =
           std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
-          sl_vertex_column->label(), sl_vertex_column->vertices()));
+      // Storage interface takes std::vector, so we build std::vector here
+      // rather than vector_t to avoid an allocator-mismatched copy at the
+      // call boundary.
+      std::vector<vid_t> vids;
+      vids.reserve(sl_vertex_column->size());
+      for (auto vid : sl_vertex_column->vertices()) {
+        vids.emplace_back(vid);
+      }
+      RETURN_STATUS_ERROR_IF_NOT_OK(
+          graph.BatchDeleteVertices(sl_vertex_column->label(), vids));
     } else if (vertex_column->vertex_column_type() ==
                    VertexColumnType::kMultiple ||
                vertex_column->vertex_column_type() ==
                    VertexColumnType::kMultiSegment) {
-      std::unordered_map<label_t, std::vector<vid_t>> vids_map;
+      // Same boundary reason: keep std::vector for what we hand to the
+      // storage layer's BatchDeleteVertices.
+      flat_hash_map_t<label_t, std::vector<vid_t>> vids_map;
       for (auto label : vertex_column->get_labels_set()) {
         std::vector<vid_t> vids;
         vids_map.insert({label, vids});
@@ -75,9 +86,8 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
       THROW_RUNTIME_ERROR(
           "Unsupported vertex column type for batch delete vertex operation.");
     }
-    std::vector<size_t> offsets;
-    ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
-                             // remove all data.
+    ctx.reshuffle(sel_vec_t());  // reshuffle the context with empty offsets, to
+                                 // remove all data.
   }
 
   return neug::result<Context>(std::move(ctx));
@@ -88,11 +98,11 @@ neug::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().delete_vertex();
-  std::vector<std::vector<label_t>> vertex_types;
-  std::vector<int32_t> vertex_bindings;
+  vector_t<vector_t<label_t>> vertex_types;
+  vector_t<int32_t> vertex_bindings;
   for (auto& entry : opr.entries()) {
     auto& vertex_binding = entry.vertex_binding();
-    std::vector<label_t> vertex_type;
+    vector_t<label_t> vertex_type;
     vertex_bindings.emplace_back(vertex_binding.tag().id());
     for (auto& graph_data_type :
          vertex_binding.node_type().graph_type().graph_data_type()) {

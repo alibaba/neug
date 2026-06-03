@@ -324,6 +324,8 @@ create_record_batch_supplier_from_arrow_array_column(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  // arrow::Schema and ArrowRecordBatchArraySupplier take std::vector, so keep
+  // these locals as std::vector to avoid an allocator-mismatch at the boundary.
   std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrays;
   std::vector<std::shared_ptr<arrow::Field>> fields;
 

@@ -36,7 +36,7 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return std::make_shared<MLVertexColumnBuilder>();
   }
   case DataTypeId::kEdge: {
-    return std::make_shared<BDMLEdgeColumnBuilder>(std::vector<LabelTriplet>());
+    return std::make_shared<BDMLEdgeColumnBuilder>(vector_t<LabelTriplet>());
   }
   case DataTypeId::kStruct: {
     return std::make_shared<StructColumnBuilder>(type);

@@ -18,13 +18,14 @@
 
 #include <cstddef>
 #include <memory>
-#include <vector>
+
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
 class Value;
 
-using neug_func_exec_t = Value (*)(const std::vector<Value>&);
+using neug_func_exec_t = Value (*)(const vector_t<Value>&);
 
 }  // namespace execution
 }  // namespace neug

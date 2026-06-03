@@ -44,7 +44,7 @@ EdgeRecord CreateTestEdge() {
 }
 
 Path CreateTestPath() {
-  std::vector<std::pair<Direction, const void*>> edge_data = {
+  vector_t<std::pair<Direction, const void*>> edge_data = {
       std::make_pair(Direction::kOut, nullptr),
       std::make_pair(Direction::kOut, nullptr)};
   Path path(0, 1, {0, 1, 2}, edge_data);
@@ -143,8 +143,7 @@ TEST_F(ValueTest, PathConstruction) {
 
 // List and Struct tests
 TEST_F(ValueTest, ListConstruction) {
-  std::vector<Value> values = {Value::INT32(1), Value::INT32(2),
-                               Value::INT32(3)};
+  vector_t<Value> values = {Value::INT32(1), Value::INT32(2), Value::INT32(3)};
 
   Value list_val = Value::LIST(std::move(values));
   EXPECT_EQ(list_val.type().id(), DataTypeId::kList);
@@ -156,8 +155,8 @@ TEST_F(ValueTest, ListConstruction) {
 }
 
 TEST_F(ValueTest, StructConstruction) {
-  std::vector<Value> values = {Value::INT32(42), Value::STRING("test"),
-                               Value::DOUBLE(3.14)};
+  vector_t<Value> values = {Value::INT32(42), Value::STRING("test"),
+                            Value::DOUBLE(3.14)};
 
   Value struct_val = Value::STRUCT(std::move(values));
   EXPECT_EQ(struct_val.type().id(), DataTypeId::kStruct);
@@ -310,13 +309,13 @@ TEST_F(ValueTest, ToStringConversion) {
   Value str_val = Value::STRING("hello");
   EXPECT_EQ(str_val.to_string(), "hello");
 
-  std::vector<Value> int32_list = {Value::INT32(0), Value::INT32(1),
-                                   Value::INT32(2)};
+  vector_t<Value> int32_list = {Value::INT32(0), Value::INT32(1),
+                                Value::INT32(2)};
   Value list_val = Value::LIST(std::move(int32_list));
   EXPECT_EQ(list_val.to_string(), "[0, 1, 2]");
 
-  std::vector<Value> int64_list = {Value::INT64(0), Value::INT64(1),
-                                   Value::INT64(2)};
+  vector_t<Value> int64_list = {Value::INT64(0), Value::INT64(1),
+                                Value::INT64(2)};
   Value struct_val = Value::STRUCT(std::move(int64_list));
   EXPECT_EQ(struct_val.to_string(), "(0, 1, 2)");
 
@@ -474,7 +473,7 @@ TEST_F(ValueTest, PropertyConversion) {
 }
 
 TEST_F(ValueTest, EdgeCases) {
-  EXPECT_THROW({ Value::LIST(std::vector<Value>()); }, std::runtime_error);
+  EXPECT_THROW({ Value::LIST(vector_t<Value>()); }, std::runtime_error);
 
   // LOG(FATAL) calls abort(); EXPECT_DEATH is unreliable under sanitizers.
 #if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \

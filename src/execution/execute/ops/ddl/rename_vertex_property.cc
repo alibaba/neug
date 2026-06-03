@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/rename_vertex_property.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {

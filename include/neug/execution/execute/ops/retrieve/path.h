@@ -34,7 +34,7 @@ class SPOrderByLimitOprBuilder : public IOperatorBuilder {
 
   int stepping(int i) override { return i + 4; }
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {
         physical::PhysicalOpr_Operator::OpKindCase::kPath,
@@ -57,7 +57,7 @@ class SPOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kPath,
             physical::PhysicalOpr_Operator::OpKindCase::kVertex};
@@ -74,7 +74,7 @@ class PathExpandVOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {
         physical::PhysicalOpr_Operator::OpKindCase::kPath,
@@ -92,7 +92,7 @@ class PathExpandOprBuilder : public IOperatorBuilder {
                                      const ContextMeta& ctx_meta,
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kPath};
   }

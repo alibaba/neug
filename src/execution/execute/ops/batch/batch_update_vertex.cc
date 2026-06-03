@@ -19,6 +19,7 @@
 #include "neug/utils/pb_utils.h"
 
 #include <glog/logging.h>
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -30,7 +31,7 @@ namespace ops {
 class UpdateVertexOpr : public IOperator {
  public:
   using vertex_prop_vec_t =
-      std::vector<std::tuple<int32_t, std::string, std::unique_ptr<ExprBase>>>;
+      vector_t<std::tuple<int32_t, std::string, std::unique_ptr<ExprBase>>>;
   UpdateVertexOpr(vertex_prop_vec_t&& vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
 

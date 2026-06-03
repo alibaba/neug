@@ -28,9 +28,9 @@ namespace execution {
 Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag_id));
-  std::vector<size_t> selected_offsets;
-  size_t num = vertex_col->size();
-  for (size_t k = 0; k < num; ++k) {
+  sel_vec_t selected_offsets;
+  sel_t num = static_cast<sel_t>(vertex_col->size());
+  for (sel_t k = 0; k < num; ++k) {
     if (vertex_col->has_value(k)) {
       selected_offsets.push_back(k);
     }
@@ -45,7 +45,7 @@ neug::result<Context> EdgeExpand::expand_degree(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<CsrView>> mps;
+  flat_hash_map_t<label_t, vector_t<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -62,12 +62,12 @@ neug::result<Context> EdgeExpand::expand_degree(
     }
   }
   ValueColumnBuilder<int64_t> builder;
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   if (mps.empty()) {
     ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   }
-  foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
+  foreach_vertex(*vertex_col, [&](sel_t index, label_t label, vid_t v) {
     int64_t degree = 0;
     if (v == graph.kInvalidVid) {
       return;
@@ -97,7 +97,7 @@ neug::result<Context> EdgeExpand::expand_count(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<CsrView>> mps;
+  flat_hash_map_t<label_t, vector_t<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -121,7 +121,7 @@ neug::result<Context> EdgeExpand::expand_count(
     ret.set(params.alias, builder.finish());
     return ret;
   }
-  foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
+  foreach_vertex(*vertex_col, [&](sel_t index, label_t label, vid_t v) {
     if (v == graph.kInvalidVid) {
       return;
     }
@@ -152,7 +152,7 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
     RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
   }
   auto input_vertex_labels_set = input_col->get_labels_set();
-  std::vector<LabelTriplet> expected_labels;
+  vector_t<LabelTriplet> expected_labels;
   for (const auto& triplet : params.labels) {
     if ((params.dir == Direction::kOut || params.dir == Direction::kBoth) &&
         input_vertex_labels_set.count(triplet.src_label)) {
@@ -261,10 +261,10 @@ template <typename T>
 void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
                                const SLVertexColumn& input_column,
                                MSVertexColumnBuilder& builder,
-                               std::vector<size_t>& offsets,
-                               label_t input_label, label_t nbr_label,
-                               label_t edge_label, Direction dir,
-                               const Value& cmp_value, SPPredicateType tp) {
+                               sel_vec_t& offsets, label_t input_label,
+                               label_t nbr_label, label_t edge_label,
+                               Direction dir, const Value& cmp_value,
+                               SPPredicateType tp) {
   T cmp_val = [&cmp_value]() -> T {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return StringValue::Get(cmp_value);
@@ -278,8 +278,8 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
                                                       edge_label)
                   : graph.GetGenericIncomingGraphView(input_label, nbr_label,
                                                       edge_label);
-  auto& vertices = input_column.vertices();
-  size_t vertex_num = vertices.size();
+  const auto& vertices = input_column.vertices();
+  sel_t vertex_num = static_cast<sel_t>(vertices.size());
   auto ed_accessor = graph.GetEdgeDataAccessor(
       dir == Direction::kOut ? input_label : nbr_label,
       dir == Direction::kOut ? nbr_label : input_label, edge_label, 0);
@@ -288,7 +288,7 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
     auto typed_view =
         view.template get_typed_view<T, CsrViewType::kMultipleMutable>();
     if (tp == SPPredicateType::kPropertyGT) {
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         vid_t v = vertices[idx];
         typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
           builder.push_back_opt(nbr);
@@ -297,7 +297,7 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
       }
     } else {
       CHECK(tp == SPPredicateType::kPropertyLT);
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         vid_t v = vertices[idx];
         typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
           builder.push_back_opt(nbr);
@@ -307,7 +307,7 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
     }
   } else {
     if (tp == SPPredicateType::kPropertyGT) {
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         vid_t v = vertices[idx];
         auto es = view.get_edges(v);
         for (auto it = es.begin(); it != es.end(); ++it) {
@@ -321,7 +321,7 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
       }
     } else {
       CHECK(tp == SPPredicateType::kPropertyLT);
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         vid_t v = vertices[idx];
         auto es = view.get_edges(v);
         for (auto it = es.begin(); it != es.end(); ++it) {
@@ -353,7 +353,7 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     auto casted_input_vertex_list =
         std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
     label_t input_label = casted_input_vertex_list->label();
-    std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
+    vector_t<std::tuple<label_t, label_t, Direction>> label_dirs;
     for (auto& triplet : params.labels) {
       if (!graph.schema().is_edge_triplet_valid(
               triplet.src_label, triplet.dst_label, triplet.edge_label)) {
@@ -384,7 +384,7 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       label_dirs.erase(std::unique(label_dirs.begin(), label_dirs.end()),
                        label_dirs.end());
     }
-    std::vector<DataTypeId> ed_types;
+    vector_t<DataTypeId> ed_types;
     for (auto& label_dir : label_dirs) {
       Direction dir = std::get<2>(label_dir);
       label_t nbr_label = std::get<0>(label_dir);
@@ -407,7 +407,7 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       ed_types.push_back(pt);
     }
     MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     size_t ld_idx = 0;
     for (auto& label_dir : label_dirs) {
       label_t nbr_label = std::get<0>(label_dir);
@@ -456,7 +456,7 @@ neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
   auto input_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
   auto input_vertex_labels_set = input_col->get_labels_set();
-  std::set<label_t> expected_labels;
+  flat_hash_set_t<label_t> expected_labels;
   for (const auto& triplet : params.labels) {
     if ((params.dir == Direction::kOut || params.dir == Direction::kBoth) &&
         input_vertex_labels_set.count(triplet.src_label)) {

@@ -31,6 +31,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -39,11 +40,11 @@ namespace ops {
 
 namespace {
 
-std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
+vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
     const google::protobuf::RepeatedPtrField<::physical::PropertyMapping>&
         mappings,
     const ContextMeta& ctx_meta) {
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
   for (const auto& prop : mappings) {
     if (!prop.has_property()) {
       LOG(FATAL) << "PropertyMapping has no property: " << prop.DebugString();
@@ -58,14 +59,13 @@ std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
   return props;
 }
 
-std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
 merge_pattern_and_on_create(
-    std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-        pattern,
-    std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+    vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>> pattern,
+    vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
         on_create) {
-  std::unordered_map<std::string, size_t> pos;
-  std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>> merged;
+  flat_hash_map_t<std::string, size_t> pos;
+  vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>> merged;
   merged.reserve(pattern.size() + on_create.size());
   for (auto& p : pattern) {
     pos[p.first] = merged.size();
@@ -84,9 +84,9 @@ merge_pattern_and_on_create(
 }
 
 void apply_on_match_edge_impl(
-    StorageUpdateInterface& graph, Context& ctx, size_t row,
+    StorageUpdateInterface& graph, Context& ctx, sel_t row,
     const IEdgeColumn& edge_col,
-    const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
+    const vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         on_match) {
   for (const auto& [prop_name, expression] : on_match) {
     auto value = expression->Cast<RecordExprBase>().eval_record(ctx, row);
@@ -125,10 +125,10 @@ void apply_on_match_edge_impl(
 
 // insert and return the new edge record
 EdgeRecord insert_and_return_edge_row(
-    StorageUpdateInterface& graph, Context& ctx, size_t row, label_t src_label,
+    StorageUpdateInterface& graph, Context& ctx, sel_t row, label_t src_label,
     label_t dst_label, label_t edge_label, const IVertexColumn& src_vertex_col,
     const IVertexColumn& dst_vertex_col,
-    const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
+    const vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         properties) {
   const auto& schema = graph.schema();
   auto properties_name =
@@ -189,15 +189,14 @@ struct EdgeEntryPlan {
   LabelTriplet labels;
   int32_t alias_id;
   std::pair<int32_t, int32_t> src_dst_tags;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> pattern_props;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>
-      on_create_props;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> on_match_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> pattern_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> on_create_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> on_match_props;
 };
 
 class MergeEdgeOpr : public IOperator {
  public:
-  explicit MergeEdgeOpr(std::vector<EdgeEntryPlan>&& entries)
+  explicit MergeEdgeOpr(vector_t<EdgeEntryPlan>&& entries)
       : entries_(std::move(entries)) {}
 
   std::string get_operator_name() const override { return "MergeEdgeOpr"; }
@@ -213,11 +212,11 @@ class MergeEdgeOpr : public IOperator {
     }
 
     for (const auto& plan : entries_) {
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           pattern_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           on_create_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           on_match_binded;
       for (const auto& [n, e] : plan.pattern_props) {
         pattern_binded.emplace_back(n, e->bind(graph_read, params));
@@ -271,7 +270,7 @@ class MergeEdgeOpr : public IOperator {
         }
       }
 
-      for (size_t row = 0; row < nrows; ++row) {
+      for (sel_t row = 0; row < nrows; ++row) {
         bool matched = false;
         // Optional edge columns represent unmatched rows with null (no value);
         // SDSLEdgeColumn::has_value is false for those rows — treat as
@@ -301,7 +300,7 @@ class MergeEdgeOpr : public IOperator {
   }
 
  private:
-  std::vector<EdgeEntryPlan> entries_;
+  vector_t<EdgeEntryPlan> entries_;
 };
 
 }  // namespace
@@ -311,7 +310,7 @@ neug::result<OpBuildResultT> MergeEdgeOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().merge_edge();
-  std::vector<EdgeEntryPlan> entries;
+  vector_t<EdgeEntryPlan> entries;
   for (const auto& edge : opr.entries()) {
     if (edge.alias().item_case() != common::NameOrId::ItemCase::kId) {
       THROW_RUNTIME_ERROR(

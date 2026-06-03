@@ -88,7 +88,7 @@ TEST_F(VertexColumnTest, SLVertexColumnBasic) {
   EXPECT_EQ(sl_col->get_vertex(0), VertexRecord(kLabel0, kVid0));
   EXPECT_EQ(sl_col->get_vertex(1), VertexRecord(kLabel0, kVid1));
 
-  std::set<label_t> labels = sl_col->get_labels_set();
+  auto labels = sl_col->get_labels_set();
   EXPECT_EQ(labels.size(), 1);
   EXPECT_EQ(*labels.begin(), kLabel0);
 }
@@ -114,7 +114,7 @@ TEST_F(VertexColumnTest, SLVertexColumnForeach) {
   std::shared_ptr<SLVertexColumn> sl_col =
       this->build_sl_vertex_column(kLabel0, false);
 
-  std::vector<VertexRecord> collected;
+  vector_t<VertexRecord> collected;
   sl_col->foreach_vertex([&](size_t idx, label_t label, vid_t vid) {
     collected.push_back({label, vid});
   });
@@ -128,7 +128,7 @@ TEST_F(VertexColumnTest, SLVertexColumnShuffle) {
   std::shared_ptr<SLVertexColumn> sl_col =
       this->build_sl_vertex_column(kLabel0, false);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled = sl_col->shuffle(offsets);
   auto* ms_col = dynamic_cast<SLVertexColumn*>(shuffled.get());
   ASSERT_NE(ms_col, nullptr);
@@ -140,7 +140,7 @@ TEST_F(VertexColumnTest, SLVertexColumnOptionalShuffle) {
   std::shared_ptr<SLVertexColumn> sl_optional_col =
       this->build_sl_vertex_column(kLabel0, true);
 
-  std::vector<size_t> offsets = {std::numeric_limits<size_t>::max(), 1, 2};
+  sel_vec_t offsets = {std::numeric_limits<sel_t>::max(), 1, 2};
   auto shuffled = sl_optional_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
@@ -195,7 +195,7 @@ TEST_F(VertexColumnTest, SLVertexColumnDedup) {
   ASSERT_EQ(unioned->size(), 5);
 
   auto* sl_col = dynamic_cast<SLVertexColumn*>(unioned.get());
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   sl_col->generate_dedup_offset(offsets);
 
   std::set<vid_t> expected_vids = {kVid0, kVid1, kNullVid};
@@ -245,7 +245,7 @@ TEST_F(VertexColumnTest, MSVertexColumnBasic) {
 TEST_F(VertexColumnTest, MSVertexColumnForeach) {
   std::shared_ptr<MSVertexColumn> ms_col = this->build_ms_vertex_column(false);
 
-  std::vector<VertexRecord> collected;
+  vector_t<VertexRecord> collected;
   ms_col->foreach_vertex([&](size_t idx, label_t label, vid_t vid) {
     collected.push_back({label, vid});
   });
@@ -260,7 +260,7 @@ TEST_F(VertexColumnTest, MSVertexColumnForeach) {
 TEST_F(VertexColumnTest, MSVertexColumnShuffle) {
   std::shared_ptr<MSVertexColumn> ms_col = this->build_ms_vertex_column(true);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled = ms_col->shuffle(offsets);
   auto* shuffled_col = dynamic_cast<MLVertexColumn*>(shuffled.get());
   ASSERT_NE(shuffled_col, nullptr);
@@ -272,7 +272,7 @@ TEST_F(VertexColumnTest, MSVertexColumnOptionalShuffle) {
   std::shared_ptr<MSVertexColumn> ms_optional_col =
       this->build_ms_vertex_column(true);
 
-  std::vector<size_t> offsets = {std::numeric_limits<size_t>::max(), 1, 4};
+  sel_vec_t offsets = {std::numeric_limits<sel_t>::max(), 1, 4};
   auto shuffled = ms_optional_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
@@ -300,7 +300,7 @@ TEST_F(VertexColumnTest, MLVertexColumnBasic) {
 TEST_F(VertexColumnTest, MLVertexColumnDedup) {
   std::shared_ptr<MLVertexColumn> ml_col = this->build_ml_vertex_column(true);
 
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   ml_col->generate_dedup_offset(offsets);
 
   std::set<VertexRecord> expected_vertex = {
@@ -317,7 +317,7 @@ TEST_F(VertexColumnTest, MLVertexColumnDedup) {
 TEST_F(VertexColumnTest, MLVertexColumnShuffle) {
   std::shared_ptr<MLVertexColumn> ml_col = this->build_ml_vertex_column(false);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled = ml_col->shuffle(offsets);
   auto* shuffled_col = dynamic_cast<MLVertexColumn*>(shuffled.get());
   ASSERT_NE(shuffled_col, nullptr);
@@ -329,7 +329,7 @@ TEST_F(VertexColumnTest, MLVertexColumnOptionalShuffle) {
   std::shared_ptr<MLVertexColumn> ml_optional_col =
       this->build_ml_vertex_column(true);
 
-  std::vector<size_t> offsets = {std::numeric_limits<size_t>::max(), 1, 4};
+  sel_vec_t offsets = {std::numeric_limits<sel_t>::max(), 1, 4};
   auto shuffled = ml_optional_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
@@ -409,7 +409,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnShuffle) {
   std::shared_ptr<SDSLEdgeColumn> sl_col =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(sl_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -436,7 +436,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnOptionalShuffle) {
   std::shared_ptr<SDSLEdgeColumn> sl_col =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {2, std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {2, std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = std::dynamic_pointer_cast<SDSLEdgeColumn>(
       sl_col->optional_shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 3);
@@ -486,7 +486,7 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnShuffle) {
   std::shared_ptr<BDSLEdgeColumn> bdsl_col =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(bdsl_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -532,7 +532,7 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnOptionalShuffle) {
   std::shared_ptr<BDSLEdgeColumn> bdsl_col =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {2, std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {2, std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = std::dynamic_pointer_cast<BDSLEdgeColumn>(
       bdsl_col->optional_shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 3);
@@ -551,7 +551,7 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnOptionalShuffle) {
 TEST_F(EdgeColumnTest, SDMLEdgeColumnBasic) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr);
   builder.push_back_opt(label1, kVid1, kVid2, nullptr);
@@ -578,7 +578,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnBasic) {
 TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr);
   builder.push_back_opt(label1, kVid1, kVid2, nullptr);
@@ -586,7 +586,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
   std::shared_ptr<SDMLEdgeColumn> sdml_col =
       std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<SDMLEdgeColumn>(sdml_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -625,7 +625,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
 TEST_F(EdgeColumnTest, SDMLEdgeColumnOptionalShuffle) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr);
   builder.push_back_opt(label1, kVid1, kVid2, nullptr);
@@ -634,7 +634,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnOptionalShuffle) {
   std::shared_ptr<SDMLEdgeColumn> sdml_col =
       std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {2, std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {2, std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = std::dynamic_pointer_cast<SDMLEdgeColumn>(
       sdml_col->optional_shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 3);
@@ -652,7 +652,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnOptionalShuffle) {
 TEST_F(EdgeColumnTest, BDMLEdgeColumnBasic) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   BDMLEdgeColumnBuilder builder(labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
   builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
@@ -679,7 +679,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnBasic) {
 TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   BDMLEdgeColumnBuilder builder(labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
   builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
@@ -687,7 +687,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
   std::shared_ptr<BDMLEdgeColumn> bdml_col =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(bdml_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -727,7 +727,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
 TEST_F(EdgeColumnTest, BDMLEdgeColumnOptionalShuffle) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   BDMLEdgeColumnBuilder builder(labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
   builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
@@ -736,7 +736,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnOptionalShuffle) {
   std::shared_ptr<BDMLEdgeColumn> bdml_col =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {2, std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {2, std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = std::dynamic_pointer_cast<BDMLEdgeColumn>(
       bdml_col->optional_shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 3);
@@ -792,7 +792,7 @@ TEST_F(EdgeColumnTest, MSEdgeColumnSingleLabelShuffle) {
   std::shared_ptr<MSEdgeColumn> ms_col =
       std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(ms_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -842,7 +842,7 @@ TEST_F(EdgeColumnTest, MSEdgeColumnShuffle) {
   std::shared_ptr<MSEdgeColumn> ms_col =
       std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(ms_col->shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -892,7 +892,7 @@ TEST_F(EdgeColumnTest, MSEdgeColumnOptionalShuffle) {
   std::shared_ptr<MSEdgeColumn> ms_col =
       std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets = {std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = std::dynamic_pointer_cast<BDMLEdgeColumn>(
       ms_col->optional_shuffle(offsets));
   ASSERT_EQ(shuffled->size(), 2);
@@ -931,7 +931,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeSDSL) {
   std::shared_ptr<SDSLEdgeColumn> sdsl_col =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   foreach_edge(*sdsl_col,
                [&](size_t idx, const LabelTriplet& label, Direction dir,
                    vid_t src, vid_t dst, const void* prop) {
@@ -951,7 +951,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeBDSL) {
   std::shared_ptr<BDSLEdgeColumn> bdsl_col =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   foreach_edge(*bdsl_col,
                [&](size_t idx, const LabelTriplet& label, Direction dir,
                    vid_t src, vid_t dst, const void* prop) {
@@ -966,7 +966,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeBDSL) {
 TEST_F(EdgeColumnTest, ForeachEdgeSDML) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr);
   builder.push_back_opt(label1, kVid1, kVid2, nullptr);
@@ -974,7 +974,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeSDML) {
   std::shared_ptr<SDMLEdgeColumn> sdml_col =
       std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   foreach_edge(*sdml_col,
                [&](size_t idx, const LabelTriplet& label, Direction dir,
                    vid_t src, vid_t dst, const void* prop) {
@@ -989,7 +989,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeSDML) {
 TEST_F(EdgeColumnTest, ForeachEdgeBDML) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   BDMLEdgeColumnBuilder builder(labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
   builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
@@ -997,7 +997,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeBDML) {
   std::shared_ptr<BDMLEdgeColumn> bdml_col =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   foreach_edge(*bdml_col,
                [&](size_t idx, const LabelTriplet& label, Direction dir,
                    vid_t src, vid_t dst, const void* prop) {
@@ -1018,9 +1018,9 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterSDSL) {
   std::shared_ptr<SDSLEdgeColumn> sdsl_col =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   // Filter for different label -> should include all
-  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+  vector_t<std::pair<LabelTriplet, Direction>> filter = {
       {label1, Direction::kOut}};
   foreach_edge(
       *sdsl_col,
@@ -1044,9 +1044,9 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterBDSL) {
   std::shared_ptr<BDSLEdgeColumn> bdsl_col =
       std::dynamic_pointer_cast<BDSLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   // Filter to exclude in-edges
-  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+  vector_t<std::pair<LabelTriplet, Direction>> filter = {
       {label0, Direction::kOut}};
   foreach_edge(
       *bdsl_col,
@@ -1065,7 +1065,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterBDSL) {
 TEST_F(EdgeColumnTest, ForeachEdgeFilterSDML) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr);
   builder.push_back_opt(label1, kVid1, kVid2, nullptr);
@@ -1073,9 +1073,9 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterSDML) {
   std::shared_ptr<SDMLEdgeColumn> sdml_col =
       std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   // Filter for different label -> should include all
-  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+  vector_t<std::pair<LabelTriplet, Direction>> filter = {
       {label1, Direction::kOut}};
   foreach_edge(
       *sdml_col,
@@ -1093,7 +1093,7 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterSDML) {
 TEST_F(EdgeColumnTest, ForeachEdgeFilterBDML) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
-  std::vector<LabelTriplet> labels = {label0, label1};
+  vector_t<LabelTriplet> labels = {label0, label1};
   BDMLEdgeColumnBuilder builder(labels);
   builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
   builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
@@ -1101,9 +1101,9 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterBDML) {
   std::shared_ptr<BDMLEdgeColumn> bdml_col =
       std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
 
-  std::vector<EdgeRecord> collected;
+  vector_t<EdgeRecord> collected;
   // Filter to exclude in-edges
-  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+  vector_t<std::pair<LabelTriplet, Direction>> filter = {
       {label0, Direction::kOut}};
   foreach_edge(
       *bdml_col,
@@ -1129,7 +1129,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnDedup) {
   std::shared_ptr<SDSLEdgeColumn> sdsl_col =
       std::dynamic_pointer_cast<SDSLEdgeColumn>(col_ptr);
 
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   sdsl_col->generate_dedup_offset(offsets);
 
   // Should have 2 unique edges
@@ -1142,9 +1142,9 @@ TEST_F(PathColumnTest, PathColumnBasic) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1177,9 +1177,9 @@ TEST_F(PathColumnTest, PathColumnShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1195,7 +1195,7 @@ TEST_F(PathColumnTest, PathColumnShuffle) {
   builder.push_back_opt(p2);
   auto base_col = builder.finish();
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled = base_col->shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 2);
 
@@ -1207,9 +1207,9 @@ TEST_F(PathColumnTest, PathColumnOptionalShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1225,7 +1225,7 @@ TEST_F(PathColumnTest, PathColumnOptionalShuffle) {
   builder.push_back_opt(p2);
   auto base_col = builder.finish();
 
-  std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+  sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
   auto shuffled = base_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
@@ -1243,9 +1243,9 @@ TEST_F(PathColumnTest, PathColumnDedup) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1263,7 +1263,7 @@ TEST_F(PathColumnTest, PathColumnDedup) {
   builder.push_back_opt(p2);
   auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   col->generate_dedup_offset(offsets);
 
   EXPECT_EQ(offsets.size(), 2);  // unique paths
@@ -1279,9 +1279,9 @@ TEST_F(PathColumnTest, OptionalPathColumnBasic) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1318,8 +1318,8 @@ TEST_F(PathColumnTest, OptionalPathColumnShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids = {1, 2, 3};
-  std::vector<std::pair<Direction, const void*>> edge_datas;
+  vector_t<vid_t> vids = {1, 2, 3};
+  vector_t<std::pair<Direction, const void*>> edge_datas;
   for (size_t i = 0; i < 3; i++) {
     edge_datas.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1332,7 +1332,7 @@ TEST_F(PathColumnTest, OptionalPathColumnShuffle) {
 
   auto base_col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
-  std::vector<size_t> offsets = {1, 0};
+  sel_vec_t offsets = {1, 0};
   auto shuffled = base_col->shuffle(offsets);
   auto opt_col = std::dynamic_pointer_cast<PathColumn>(shuffled);
 
@@ -1346,8 +1346,8 @@ TEST_F(PathColumnTest, OptionalPathColumnPushBackNull) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids = {1, 2, 3};
-  std::vector<std::pair<Direction, const void*>> edge_datas;
+  vector_t<vid_t> vids = {1, 2, 3};
+  vector_t<std::pair<Direction, const void*>> edge_datas;
   for (size_t i = 0; i < 3; i++) {
     edge_datas.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1370,9 +1370,9 @@ TEST_F(PathColumnTest, PathColumnForeach) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1388,7 +1388,7 @@ TEST_F(PathColumnTest, PathColumnForeach) {
   builder.push_back_opt(p2);
   auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
-  std::vector<Path> collected;
+  vector_t<Path> collected;
   col->foreach_path(
       [&](size_t idx, const Path& path) { collected.push_back(path); });
 
@@ -1401,9 +1401,9 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   label_t v_label = 0;
   label_t e_label = 1;
 
-  std::vector<vid_t> vids1 = {1, 2, 3};
-  std::vector<vid_t> vids2 = {4, 5};
-  std::vector<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
+  vector_t<vid_t> vids1 = {1, 2, 3};
+  vector_t<vid_t> vids2 = {4, 5};
+  vector_t<std::pair<Direction, const void*>> edge_datas1, edge_datas2;
   for (size_t i = 0; i < 3; i++) {
     edge_datas1.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
@@ -1420,7 +1420,7 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
 
   auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
-  std::vector<std::pair<size_t, Path>> collected;
+  vector_t<std::pair<size_t, Path>> collected;
   col->foreach_path(
       [&](size_t idx, const Path& path) { collected.emplace_back(idx, path); });
 
@@ -1435,7 +1435,7 @@ class ArrowContextColumnTest : public ::testing::Test {
 };
 
 TEST_F(ArrowContextColumnTest, ArrowArrayContextColumnBasic) {
-  std::vector<std::shared_ptr<arrow::Array>> columns;
+  vector_t<std::shared_ptr<arrow::Array>> columns;
   ArrowArrayContextColumn col = ArrowArrayContextColumn(columns);
 
   EXPECT_EQ(col.column_info(), "ArrowArrayContextColumn");

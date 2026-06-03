@@ -18,6 +18,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 
 #include <string_view>
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -25,9 +26,9 @@ namespace ops {
 class BatchDeleteEdgeOpr : public IOperator {
  public:
   BatchDeleteEdgeOpr(
-      const std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>&
+      const vector_t<vector_t<std::tuple<label_t, label_t, label_t>>>&
           edge_triplets,
-      const std::vector<int32_t> edge_bindings)
+      const vector_t<int32_t> edge_bindings)
       : edge_triplets_(edge_triplets), edge_bindings_(edge_bindings) {}
 
   std::string get_operator_name() const override {
@@ -38,9 +39,8 @@ class BatchDeleteEdgeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override;
 
  private:
-  std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>
-      edge_triplets_;
-  std::vector<int32_t> edge_bindings_;
+  vector_t<vector_t<std::tuple<label_t, label_t, label_t>>> edge_triplets_;
+  vector_t<int32_t> edge_bindings_;
 };
 
 neug::result<Context> BatchDeleteEdgeOpr::Eval(
@@ -65,6 +65,8 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
                                                        edge_label);
       auto edge_prop_types = graph.schema().get_edge_properties(
           src_v_label, dst_v_label, edge_label);
+      // Storage interface BatchDeleteEdges takes std::vector, so keep
+      // std::vector here to avoid an allocator-mismatched conversion.
       std::vector<std::pair<vid_t, int32_t>> oe_to_delete, ie_to_delete;
       oe_to_delete.reserve(edge_size);
       ie_to_delete.reserve(edge_size);
@@ -80,7 +82,7 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
       RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteEdges(
           src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
     } else {
-      std::unordered_map<uint32_t, std::vector<EdgeRecord>> edges_map;
+      flat_hash_map_t<uint32_t, vector_t<EdgeRecord>> edges_map;
       for (size_t j = 0; j < edge_column->size(); j++) {
         auto edge = edge_column->get_edge(j);
         uint32_t index = graph.schema().generate_edge_label(
@@ -99,6 +101,8 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
             src_v_label, dst_v_label, edge_label);
         auto ie_view = graph.GetGenericIncomingGraphView(
             dst_v_label, src_v_label, edge_label);
+        // Storage interface BatchDeleteEdges takes std::vector, so keep
+        // std::vector here to avoid an allocator-mismatched conversion.
         std::vector<std::pair<vid_t, int32_t>> oe_to_delete, ie_to_delete;
         oe_to_delete.reserve(edges.size());
         ie_to_delete.reserve(edges.size());
@@ -114,9 +118,8 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
             src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
       }
     }
-    std::vector<size_t> offsets;
-    ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
-                             // remove all data.
+    ctx.reshuffle(sel_vec_t());  // reshuffle the context with empty offsets, to
+                                 // remove all data.
   }
 
   return neug::result<Context>(std::move(ctx));
@@ -127,10 +130,10 @@ neug::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().delete_edge();
-  std::vector<std::vector<std::tuple<label_t, label_t, label_t>>> edge_types;
-  std::vector<int32_t> edge_bindings;
+  vector_t<vector_t<std::tuple<label_t, label_t, label_t>>> edge_types;
+  vector_t<int32_t> edge_bindings;
   for (auto& edge_binding : opr.edge_binding()) {
-    std::vector<std::tuple<label_t, label_t, label_t>> edge_type;
+    vector_t<std::tuple<label_t, label_t, label_t>> edge_type;
     edge_bindings.emplace_back(edge_binding.tag().id());
     for (auto& graph_data_type :
          edge_binding.node_type().graph_type().graph_data_type()) {

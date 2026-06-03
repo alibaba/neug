@@ -116,8 +116,8 @@ Path::Path(label_t v_label, vid_t vid) : impl_(std::make_shared<PathImpl>()) {
   impl_->prev_ = nullptr;
 }
 
-Path::Path(label_t label, label_t e_label, const std::vector<vid_t>& vids,
-           const std::vector<std::pair<Direction, const void*>>& edge_datas) {
+Path::Path(label_t label, label_t e_label, const vector_t<vid_t>& vids,
+           const vector_t<std::pair<Direction, const void*>>& edge_datas) {
   auto cur = std::make_shared<PathImpl>();
   cur->v_label_ = label;
   cur->e_label_ = std::numeric_limits<label_t>::max();
@@ -138,8 +138,8 @@ Path::Path(label_t label, label_t e_label, const std::vector<vid_t>& vids,
 }
 
 Path::Path(
-    const std::vector<std::tuple<label_t, Direction, const void*>>& edge_datas,
-    const std::vector<VertexRecord>& path) {
+    const vector_t<std::tuple<label_t, Direction, const void*>>& edge_datas,
+    const vector_t<VertexRecord>& path) {
   auto cur = std::make_shared<PathImpl>();
   cur->v_label_ = path[0].label_;
   cur->e_label_ = std::numeric_limits<label_t>::max();
@@ -181,8 +181,8 @@ int32_t Path::length() const {
   return len - 1;
 }
 
-std::vector<VertexRecord> Path::nodes() const {
-  std::vector<VertexRecord> vertices;
+vector_t<VertexRecord> Path::nodes() const {
+  vector_t<VertexRecord> vertices;
   auto cur = impl_;
   while (cur != nullptr) {
     vertices.emplace_back(cur->v_label_, cur->vid_);
@@ -192,10 +192,10 @@ std::vector<VertexRecord> Path::nodes() const {
   return vertices;
 }
 
-std::vector<EdgeRecord> Path::relationships() const {
-  std::vector<EdgeRecord> relations;
+vector_t<EdgeRecord> Path::relationships() const {
+  vector_t<EdgeRecord> relations;
   auto cur = impl_;
-  std::vector<std::shared_ptr<PathImpl>> nodes;
+  vector_t<std::shared_ptr<PathImpl>> nodes;
   while (cur != nullptr) {
     nodes.push_back(cur);
     cur = cur->prev_;

@@ -38,12 +38,12 @@ class Intersect {
       neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
       EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int vertex_alias,
-      const std::vector<int>& edge_alias);
+      const vector_t<int>& edge_alias);
 
   static neug::result<neug::execution::Context> Multiple_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
-      const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
+      neug::execution::Context&& ctx, vector_t<EdgeAndNbrPredicate>&& preds,
+      const vector_t<EdgeExpandParams>& eeps, int vertex_alias);
 };
 
 }  // namespace execution

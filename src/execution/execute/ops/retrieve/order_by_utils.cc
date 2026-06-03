@@ -17,6 +17,7 @@
 
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 namespace neug {
 namespace execution {
 namespace ops {
@@ -25,8 +26,8 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
                                const std::shared_ptr<IVertexColumn>& col,
                                const StorageReadInterface& graph,
                                const std::string& prop_name,
-                               std::vector<size_t>& offsets) {
-  std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
+                               sel_vec_t& offsets) {
+  vector_t<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
   label_t label_num = graph.schema().vertex_label_frontier();
   for (label_t i = 0; i < label_num; ++i) {
@@ -40,7 +41,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
   bool success = true;
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
+    foreach_vertex(*col, [&](sel_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
         gen.push(property_columns[label]->get_view(v), idx);
       } else {
@@ -52,7 +53,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
     }
   } else {
     TopNGenerator<T, TopNDescCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
+    foreach_vertex(*col, [&](sel_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
         gen.push(property_columns[label]->get_view(v), idx);
       } else {
@@ -70,9 +71,8 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
 bool vertex_property_topN(bool asc, size_t limit,
                           const std::shared_ptr<IVertexColumn>& col,
                           const StorageReadInterface& graph,
-                          const std::string& prop_name,
-                          std::vector<size_t>& offsets) {
-  std::vector<DataTypeId> prop_types;
+                          const std::string& prop_name, sel_vec_t& offsets) {
+  vector_t<DataTypeId> prop_types;
   const auto& labels = col->get_labels_set();
   for (auto l : labels) {
     const auto& pk = graph.schema().get_vertex_primary_key(l)[0];

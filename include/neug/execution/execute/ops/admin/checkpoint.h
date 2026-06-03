@@ -31,7 +31,7 @@ class CheckpointOprBuilder : public IOperatorBuilder {
                                      int op_idx) override;
   virtual int stepping(int i) override { return i + GetOpKinds().size(); }
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kCheckpoint};
   }

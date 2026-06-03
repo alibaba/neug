@@ -17,6 +17,7 @@
 #include <optional>
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -38,15 +39,15 @@ class VertexArray {
     data_.resize(keys.size(), val);
   }
 
-  inline typename std::vector<T>::reference operator[](vid_t v) {
+  inline typename vector_t<T>::reference operator[](vid_t v) {
     return data_[v];
   }
-  inline typename std::vector<T>::const_reference operator[](vid_t v) const {
+  inline typename vector_t<T>::const_reference operator[](vid_t v) const {
     return data_[v];
   }
 
  private:
-  std::vector<T> data_;
+  vector_t<T> data_;
 };
 
 }  // namespace graph_interface_impl

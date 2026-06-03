@@ -33,7 +33,7 @@ class BindedArithExpr : public VertexExprBase,
 
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
     const auto& rhs_val = rhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
     return eval_impl(arith_, lhs_val, rhs_val);

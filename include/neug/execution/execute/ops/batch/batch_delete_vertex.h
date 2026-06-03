@@ -16,6 +16,7 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -31,7 +32,7 @@ class BatchDeleteVertexOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kDeleteVertex};
   }

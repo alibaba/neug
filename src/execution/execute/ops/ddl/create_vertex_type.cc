@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/ddl/create_vertex_type.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -59,6 +60,8 @@ class CreateVertexTypeOpr : public IOperator {
 
  private:
   std::string type_name_;
+  // Kept as std::vector because both are handed to the storage layer
+  // (CreateVertexTypeParamBuilder), which takes std::vector arguments.
   std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
   bool ignore_conflict_;

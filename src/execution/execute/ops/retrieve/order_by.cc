@@ -19,6 +19,7 @@
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -28,7 +29,7 @@ namespace ops {
 
 class OrderByOpr : public IOperator {
  public:
-  OrderByOpr(std::vector<std::pair<int32_t, bool>> keys, int lower, int upper)
+  OrderByOpr(vector_t<std::pair<int32_t, bool>> keys, int lower, int upper)
       : keys_(std::move(keys)), lower_(lower), upper_(upper) {}
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
@@ -44,7 +45,7 @@ class OrderByOpr : public IOperator {
     for (int i = 0; i < keys_num; ++i) {
       cmp.add_keys(ctx.get(keys_[i].first), keys_[i].second);
     }
-    std::vector<size_t> indices;
+    sel_vec_t indices;
     int32_t tag = keys_[0].first;
     bool order = keys_[0].second;
     if (ctx.get(tag)->order_by_limit(order, upper_, indices)) {
@@ -57,7 +58,7 @@ class OrderByOpr : public IOperator {
   }
 
  private:
-  std::vector<std::pair<int32_t, bool>> keys_;
+  vector_t<std::pair<int32_t, bool>> keys_;
 
   int lower_;
   int upper_;
@@ -79,7 +80,7 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
     LOG(ERROR) << "keys_num should be greater than 0";
     return std::make_pair(nullptr, ret_meta);
   }
-  std::vector<std::pair<int32_t, bool>> keys;
+  vector_t<std::pair<int32_t, bool>> keys;
 
   for (int i = 0; i < keys_num; ++i) {
     const auto& pair = opr.pairs(i);

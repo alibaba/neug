@@ -49,7 +49,7 @@ class PathExpand {
   single_source_shortest_path_with_order_by_length_limit(
       const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred, int limit_upper) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 &&
@@ -74,7 +74,7 @@ class PathExpand {
   static neug::result<Context> single_source_shortest_path(
       const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 &&
@@ -112,12 +112,12 @@ class PathExpand {
       RETURN_UNSUPPORTED_ERROR(
           "only support arbitrary path expand with predicate");
     }
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto& input_vertex_list =
         *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     auto label_sets = input_vertex_list.get_labels_set();
     auto labels = params.labels;
-    std::vector<std::vector<LabelTriplet>> out_labels_map(
+    vector_t<vector_t<LabelTriplet>> out_labels_map(
         graph.schema().vertex_label_frontier()),
         in_labels_map(graph.schema().vertex_label_frontier());
     for (const auto& triplet : labels) {
@@ -125,14 +125,14 @@ class PathExpand {
       in_labels_map[triplet.dst_label].emplace_back(triplet);
     }
     auto dir = params.dir;
-    std::vector<std::pair<Path, size_t>> input;
-    std::vector<std::pair<Path, size_t>> output;
+    vector_t<std::pair<Path, sel_t>> input;
+    vector_t<std::pair<Path, sel_t>> output;
 
     PathColumnBuilder builder;
 
     if (dir == Direction::kOut) {
       foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
+                     [&](sel_t index, label_t label, vid_t v) {
                        auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
@@ -179,7 +179,7 @@ class PathExpand {
       return ctx;
     } else if (dir == Direction::kIn) {
       foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
+                     [&](sel_t index, label_t label, vid_t v) {
                        auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
@@ -228,7 +228,7 @@ class PathExpand {
 
     } else if (dir == Direction::kBoth) {
       foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
+                     [&](sel_t index, label_t label, vid_t v) {
                        auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
@@ -300,11 +300,10 @@ class PathExpand {
     auto col = ctx.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
     PathColumnBuilder path_builder;
-    std::vector<size_t> shuffle_offset;
-    foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
-                                          vid_t v) {
-      std::unordered_map<VertexRecord, double> dist;
-      std::unordered_set<VertexRecord> visited;
+    sel_vec_t shuffle_offset;
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      flat_hash_map_t<VertexRecord, double> dist;
+      flat_hash_set_t<VertexRecord> visited;
       VertexRecord start_vr(label, v);
       dist[start_vr] = 0;
       auto cmp = [](const Path& a, const Path& b) {
@@ -312,7 +311,7 @@ class PathExpand {
         double wb = b.get_weight();
         return wa > wb;
       };
-      std::priority_queue<Path, std::vector<Path>, decltype(cmp)> pq(cmp);
+      std::priority_queue<Path, vector_t<Path>, decltype(cmp)> pq(cmp);
       Path root = Path(label, v);
       root.set_weight(0.0);
       pq.push(root);

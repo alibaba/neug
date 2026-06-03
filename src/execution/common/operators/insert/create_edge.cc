@@ -24,13 +24,12 @@ namespace neug {
 namespace execution {
 namespace ops {
 neug::result<Context> CreateEdge::insert_edge(
-    StorageInsertInterface& graph, Context&& ctx,
-    std::vector<LabelTriplet> labels,
-    const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+    StorageInsertInterface& graph, Context&& ctx, vector_t<LabelTriplet> labels,
+    const vector_t<std::pair<int32_t, int32_t>>& src_dst_tags,
+    vector_t<
+        vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
         props,
-    const std::vector<int>& alias) {
+    const vector_t<int>& alias) {
   const auto& schema = graph.schema();
   for (size_t i = 0; i < labels.size(); ++i) {
     label_t src_label = labels[i].src_label;
@@ -56,7 +55,7 @@ neug::result<Context> CreateEdge::insert_edge(
         *ctx.get(src_dst_tags[i].first).get());
     const auto& dst_vertex_col = dynamic_cast<const IVertexColumn&>(
         *ctx.get(src_dst_tags[i].second).get());
-    for (size_t i = 0; i < ctx.row_num(); ++i) {
+    for (sel_t i = 0; i < ctx.row_num(); ++i) {
       auto v1 = src_vertex_col.get_vertex(i);
       if (v1.label_ != src_label) {
         THROW_RUNTIME_ERROR("Source vertex label mismatch: expected " +

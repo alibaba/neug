@@ -27,6 +27,7 @@
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -35,11 +36,11 @@ namespace ops {
 
 namespace {
 
-std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
+vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
     const google::protobuf::RepeatedPtrField<::physical::PropertyMapping>&
         mappings,
     const ContextMeta& ctx_meta) {
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
   for (const auto& prop : mappings) {
     if (!prop.has_property()) {
       LOG(FATAL) << "PropertyMapping has no property: " << prop.DebugString();
@@ -54,14 +55,13 @@ std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> parse_mappings(
   return props;
 }
 
-std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
 merge_pattern_and_on_create(
-    std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-        pattern,
-    std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+    vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>> pattern,
+    vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
         on_create) {
-  std::unordered_map<std::string, size_t> pos;
-  std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>> merged;
+  flat_hash_map_t<std::string, size_t> pos;
+  vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>> merged;
   merged.reserve(pattern.size() + on_create.size());
   for (auto& p : pattern) {
     pos[p.first] = merged.size();
@@ -80,9 +80,9 @@ merge_pattern_and_on_create(
 }
 
 void apply_on_match_vertex(
-    StorageUpdateInterface& graph, Context& ctx, size_t row, label_t label,
+    StorageUpdateInterface& graph, Context& ctx, sel_t row, label_t label,
     vid_t vid,
-    const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
+    const vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         on_match) {
   const auto& property_names = graph.schema().get_vertex_property_names(label);
   const auto& property_types = graph.schema().get_vertex_properties(label);
@@ -110,8 +110,8 @@ void apply_on_match_vertex(
 }
 
 neug::result<vid_t> insert_vertex_row(
-    StorageInsertInterface& graph, Context& ctx, size_t row, label_t label,
-    const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
+    StorageInsertInterface& graph, Context& ctx, sel_t row, label_t label,
+    const vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         properties) {
   const auto& schema = graph.schema();
   auto properties_name = schema.get_vertex_property_names(label);
@@ -178,15 +178,14 @@ neug::result<vid_t> insert_vertex_row(
 struct VertexEntryPlan {
   label_t label;
   int32_t alias_id;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> pattern_props;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>
-      on_create_props;
-  std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> on_match_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> pattern_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> on_create_props;
+  vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> on_match_props;
 };
 
 class MergeVertexOpr : public IOperator {
  public:
-  explicit MergeVertexOpr(std::vector<VertexEntryPlan>&& entries)
+  explicit MergeVertexOpr(vector_t<VertexEntryPlan>&& entries)
       : entries_(std::move(entries)) {}
 
   std::string get_operator_name() const override { return "MergeVertexOpr"; }
@@ -202,11 +201,11 @@ class MergeVertexOpr : public IOperator {
     }
 
     for (const auto& plan : entries_) {
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           pattern_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           on_create_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           on_match_binded;
       for (const auto& [n, e] : plan.pattern_props) {
         pattern_binded.emplace_back(n, e->bind(graph_read, params));
@@ -241,7 +240,7 @@ class MergeVertexOpr : public IOperator {
         num_rows = 1;
       }
 
-      for (size_t row = 0; row < num_rows; ++row) {
+      for (sel_t row = 0; row < num_rows; ++row) {
         bool matched = false;
         vid_t matched_vid = 0;
         if (alias_col) {
@@ -277,7 +276,7 @@ class MergeVertexOpr : public IOperator {
   }
 
  private:
-  std::vector<VertexEntryPlan> entries_;
+  vector_t<VertexEntryPlan> entries_;
 };
 
 }  // namespace
@@ -287,7 +286,7 @@ neug::result<OpBuildResultT> MergeVertexOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().merge_vertex();
-  std::vector<VertexEntryPlan> entries;
+  vector_t<VertexEntryPlan> entries;
   for (const auto& entry : opr.entries()) {
     VertexEntryPlan e;
     switch (entry.vertex_type().item_case()) {

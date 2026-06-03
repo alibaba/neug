@@ -235,7 +235,7 @@ class SPOrderByLimitOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::set<label_t> expected_labels;
+    flat_hash_set_t<label_t> expected_labels;
     for (auto label : spp_.labels) {
       expected_labels.insert(label.src_label);
       expected_labels.insert(label.dst_label);
@@ -687,9 +687,9 @@ neug::result<OpBuildResultT> PathExpandVOprBuilder::Build(
       return std::make_pair(nullptr, ContextMeta());
     }
     if (next_opr.has_params()) {
-      std::vector<label_t> vertex_labels = parse_tables(next_opr.params());
-      std::unordered_set<label_t> vertex_label_set(vertex_labels.begin(),
-                                                   vertex_labels.end());
+      vector_t<label_t> vertex_labels = parse_tables(next_opr.params());
+      flat_hash_set_t<label_t> vertex_label_set(vertex_labels.begin(),
+                                                vertex_labels.end());
       for (const auto& lt : pep.labels) {
         if ((pep.dir == Direction::kOut || pep.dir == Direction::kBoth) &&
             vertex_label_set.find(lt.dst_label) == vertex_label_set.end()) {

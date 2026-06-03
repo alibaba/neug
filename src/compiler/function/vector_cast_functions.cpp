@@ -749,8 +749,8 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP:
-    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
-                                             CastToDate, EXECUTOR>;
+    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t,
+                                             DST_TYPE, CastToDate, EXECUTOR>;
     break;
   // LCOV_EXCL_START
   default:
@@ -788,8 +788,9 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   } break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
-                                             CastBetweenTimestamp, EXECUTOR>;
+    func =
+        ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
+                                          CastBetweenTimestamp, EXECUTOR>;
   } break;
   default:
     THROW_CONVERSION_EXCEPTION(
@@ -998,7 +999,7 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
-static execution::Value castFunc(const std::vector<execution::Value>& args) {
+static execution::Value castFunc(const vector_t<execution::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));

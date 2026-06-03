@@ -196,7 +196,8 @@ std::string parse_query(const std::string& filename) {
 void benchmark_iteration(
     neug::IStorageInterface& graph, neug::execution::Pipeline& pipeline,
     const std::vector<neug::execution::ParamsMap>& parameters, int query_num,
-    std::vector<std::vector<char>>& outputs, neug::execution::OprTimer& timer) {
+    std::vector<neug::vector_t<char>>& outputs,
+    neug::execution::OprTimer& timer) {
   outputs.resize(query_num);
   for (int i = 0; i < query_num; ++i) {
     neug::execution::Context ctx;
@@ -288,7 +289,7 @@ int main(int argc, char** argv) {
     }
     LOG(INFO) << "Running benchmark: " << unit.name
               << ", repeat: " << query_num;
-    std::vector<std::vector<char>> outputs(query_num);
+    std::vector<neug::vector_t<char>> outputs(query_num);
 
     auto query_str = parse_query(unit.query_pb_path);
     const auto res = compiler->compilePlan(query_str);

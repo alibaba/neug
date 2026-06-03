@@ -21,6 +21,7 @@
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/expression/special_predicates.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -30,16 +31,15 @@ namespace ops {
 
 class ProjectOpr : public IOperator {
  public:
-  ProjectOpr(std::vector<std::pair<int, int>>&& select_columns_mapping,
+  ProjectOpr(vector_t<std::pair<int, int>>&& select_columns_mapping,
              bool is_append)
       : is_append_(is_append),
         is_select_columns_(true),
         select_columns_mapping_(std::move(select_columns_mapping)) {}
-  ProjectOpr(
-      std::vector<std::unique_ptr<ProjectExprBuilderBase>>&& expr_builders,
-      std::vector<std::unique_ptr<ProjectExprBuilderBase>>&&
-          fallback_expr_builders,
-      bool is_append)
+  ProjectOpr(vector_t<std::unique_ptr<ProjectExprBuilderBase>>&& expr_builders,
+             vector_t<std::unique_ptr<ProjectExprBuilderBase>>&&
+                 fallback_expr_builders,
+             bool is_append)
       : is_append_(is_append),
         is_select_columns_(false),
         expr_builders_(std::move(expr_builders)),
@@ -59,7 +59,7 @@ class ProjectOpr : public IOperator {
       return ret;
     }
 
-    std::vector<ProjectOp> exprs;
+    vector_t<ProjectOp> exprs;
 
     for (size_t i = 0; i < expr_builders_.size(); ++i) {
       if (!expr_builders_[i]) {
@@ -87,18 +87,18 @@ class ProjectOpr : public IOperator {
   bool is_append_;
 
   bool is_select_columns_;
-  std::vector<std::pair<int, int>> select_columns_mapping_;
+  vector_t<std::pair<int, int>> select_columns_mapping_;
 
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders_;
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> expr_builders_;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
 };
 
 neug::result<OpBuildResultT> ProjectOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<common::IrDataType> data_types;
+  vector_t<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
-  std::vector<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
+  vector_t<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
       expr_infos;
   ContextMeta ret_meta;
   bool is_append = plan.plan(op_idx).opr().project().is_append();
@@ -127,9 +127,9 @@ neug::result<OpBuildResultT> ProjectOprBuilder::Build(
     return std::make_pair(nullptr, ret_meta);
   }
 
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders;
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders;
-  std::vector<std::pair<int, int>> select_columns_mapping;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> expr_builders;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders;
+  vector_t<std::pair<int, int>> select_columns_mapping;
 
   bool is_select_columns = true;
   for (auto& expr_info : expr_infos) {
@@ -159,12 +159,13 @@ neug::result<OpBuildResultT> ProjectOprBuilder::Build(
 class ProjectOrderByOprBeta : public IOperator {
  public:
   ProjectOrderByOprBeta(
-      std::vector<std::unique_ptr<ProjectExprBuilderBase>>&& expr_builders,
-      std::vector<std::unique_ptr<ProjectExprBuilderBase>>&&
+      vector_t<std::unique_ptr<ProjectExprBuilderBase>>&& expr_builders,
+      vector_t<std::unique_ptr<ProjectExprBuilderBase>>&&
           fallback_expr_builders,
-      const common::Expression& fst_expr, const std::set<int>& order_by_keys,
-      const std::vector<std::pair<int32_t, bool>>& order_by_pairs,
-      int lower_bound, int upper_bound, const std::pair<int, bool>& first_pair)
+      const common::Expression& fst_expr,
+      const flat_hash_set_t<int>& order_by_keys,
+      const vector_t<std::pair<int32_t, bool>>& order_by_pairs, int lower_bound,
+      int upper_bound, const std::pair<int, bool>& first_pair)
       : expr_builders_(std::move(expr_builders)),
         fallback_expr_builders_(std::move(fallback_expr_builders)),
         fst_expr_(fst_expr),
@@ -193,7 +194,7 @@ class ProjectOrderByOprBeta : public IOperator {
       return cmp;
     };
 
-    std::vector<ProjectOp> exprs;
+    vector_t<ProjectOp> exprs;
 
     for (size_t i = 0; i < expr_builders_.size(); ++i) {
       if (!expr_builders_[i]) {
@@ -217,20 +218,19 @@ class ProjectOrderByOprBeta : public IOperator {
   }
 
  private:
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders_;
-  std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> expr_builders_;
+  vector_t<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
   ::common::Expression fst_expr_;
-  std::set<int> order_by_keys_;
-  std::vector<std::pair<int32_t, bool>> order_by_pairs_;
+  flat_hash_set_t<int> order_by_keys_;
+  vector_t<std::pair<int32_t, bool>> order_by_pairs_;
   int lower_bound_, upper_bound_;
   std::pair<int, bool> first_pair_;
 };
 
 static bool project_order_by_fusable_beta(
     const physical::Project& project_opr, const algebra::OrderBy& order_by_opr,
-    const ContextMeta& ctx_meta,
-    const std::vector<common::IrDataType>& data_types,
-    std::set<int>& order_by_keys) {
+    const ContextMeta& ctx_meta, const vector_t<common::IrDataType>& data_types,
+    flat_hash_set_t<int>& order_by_keys) {
   if (!order_by_opr.has_limit()) {
     return false;
   }
@@ -263,21 +263,21 @@ static bool project_order_by_fusable_beta(
 neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<common::IrDataType> data_types;
+  vector_t<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
   if (plan.plan(op_idx).meta_data_size() == mappings_size) {
     for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
       data_types.push_back(plan.plan(op_idx).meta_data(i).type());
     }
   }
-  std::set<int> order_by_keys;
+  flat_hash_set_t<int> order_by_keys;
   if (project_order_by_fusable_beta(plan.plan(op_idx).opr().project(),
                                     plan.plan(op_idx + 1).opr().order_by(),
                                     ctx_meta, data_types, order_by_keys)) {
     ContextMeta ret_meta;
-    std::vector<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
+    vector_t<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
         expr_infos;
-    std::set<int> index_set;
+    flat_hash_set_t<int> index_set;
     int first_key =
         plan.plan(op_idx + 1).opr().order_by().pairs(0).key().tag().id();
     int first_idx = -1;
@@ -305,7 +305,7 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
 
     auto order_by_opr = plan.plan(op_idx + 1).opr().order_by();
     int pair_size = order_by_opr.pairs_size();
-    std::vector<std::pair<int32_t, bool>> order_by_pairs;
+    vector_t<std::pair<int32_t, bool>> order_by_pairs;
     std::pair<int, bool> first_tuple;
     for (int i = 0; i < pair_size; ++i) {
       const auto& pair = order_by_opr.pairs(i);
@@ -336,8 +336,8 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
       upper = order_by_opr.limit().upper();
     }
     const auto& first_expr = std::get<0>(expr_infos[first_idx]);
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders;
-    std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders;
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>> expr_builders;
+    vector_t<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders;
     create_project_expr_builders(std::move(expr_infos), expr_builders,
                                  fallback_expr_builders);
     return std::make_pair(

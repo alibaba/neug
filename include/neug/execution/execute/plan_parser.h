@@ -57,9 +57,9 @@ class PlanParser {
   static ParamsMetaMap parse_params_type(const physical::PhysicalPlan& plan);
 
  private:
-  std::vector<std::vector<
-      std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
-                std::unique_ptr<IOperatorBuilder>>>>
+  vector_t<
+      vector_t<std::pair<vector_t<physical::PhysicalOpr_Operator::OpKindCase>,
+                         std::unique_ptr<IOperatorBuilder>>>>
       op_builders_;
 };
 

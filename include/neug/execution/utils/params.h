@@ -18,13 +18,14 @@
 #include <vector>
 
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
 
 struct ScanParams {
   int alias;
-  std::vector<label_t> tables;
+  vector_t<label_t> tables;
 
   ScanParams() : alias(-1) {}
 };
@@ -32,13 +33,13 @@ struct ScanParams {
 struct GetVParams {
   VOpt opt;
   int tag;
-  std::vector<label_t> tables;
+  vector_t<label_t> tables;
   int alias;
 };
 
 struct EdgeExpandParams {
   int v_tag;
-  std::vector<LabelTriplet> labels;
+  vector_t<LabelTriplet> labels;
   int alias;
   Direction dir;
   bool is_optional;
@@ -46,7 +47,7 @@ struct EdgeExpandParams {
 
 struct PathExpandParams {
   int start_tag;
-  std::vector<LabelTriplet> labels;
+  vector_t<LabelTriplet> labels;
   int alias;
   Direction dir;
   int hop_lower;
@@ -56,7 +57,7 @@ struct PathExpandParams {
 
 struct ShortestPathParams {
   int start_tag;
-  std::vector<LabelTriplet> labels;
+  vector_t<LabelTriplet> labels;
   int alias;
   int v_alias;
   Direction dir;

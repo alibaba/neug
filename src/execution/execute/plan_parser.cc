@@ -285,7 +285,7 @@ PlanParser::parse_execute_pipeline_with_meta(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan) {
   int opr_num = plan.plan_size();
-  std::vector<std::unique_ptr<IOperator>> operators;
+  vector_t<std::unique_ptr<IOperator>> operators;
   ContextMeta cur_ctx_meta = ctx_meta;
   for (int i = 0; i < opr_num;) {
     physical::PhysicalOpr_Operator::OpKindCase cur_op_kind =

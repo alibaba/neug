@@ -20,6 +20,7 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -238,14 +239,13 @@ class EdgeExpand {
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
 
     static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
-    static thread_local std::vector<vid_t> d0_vec;
-
+    static thread_local vector_t<vid_t> d0_vec;
     d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);
 
-    size_t idx = 0;
+    sel_t idx = 0;
     if (csr0.type() == CsrViewType::kMultipleMutable &&
         ed_accessor0.is_bundled()) {
       auto typed_csr0 =
@@ -360,8 +360,8 @@ class EdgeExpand {
       }
     }
 
-    std::shared_ptr<IContextColumn> col1 = builder1.finish();
-    std::shared_ptr<IContextColumn> col2 = builder2.finish();
+    auto col1 = builder1.finish();
+    auto col2 = builder2.finish();
     ctx.set_with_reshuffle(alias1, col1, offsets);
     ctx.set(alias2, col2);
     return ctx;

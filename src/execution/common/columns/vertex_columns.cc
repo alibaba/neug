@@ -23,7 +23,7 @@ namespace neug {
 namespace execution {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -44,11 +44,11 @@ std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MSVertexColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else if (vertices_[offset] == std::numeric_limits<vid_t>::max()) {
       builder.push_back_null();
@@ -59,16 +59,16 @@ std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool SLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
 
-  std::vector<bool> bitset;
-  size_t vnum = vertices_.size();
+  vector_t<bool> bitset;
+  sel_t vnum = static_cast<sel_t>(vertices_.size());
   bitset.resize(vnum);
 
   bool flag = false;
-  size_t idx = 0;
-  for (size_t i = 0; i < vnum; ++i) {
+  sel_t idx = 0;
+  for (sel_t i = 0; i < vnum; ++i) {
     vid_t v = vertices_[i];
     if (v == std::numeric_limits<vid_t>::max()) {
       if (!flag) {
@@ -95,18 +95,18 @@ bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   return true;
 }
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
+std::pair<std::shared_ptr<IContextColumn>, vector_t<sel_vec_t>>
 SLVertexColumn::generate_aggregate_offset() const {
-  std::vector<std::vector<size_t>> offsets;
+  vector_t<sel_vec_t> offsets;
   MSVertexColumnBuilder builder(label_);
-  phmap::flat_hash_map<vid_t, size_t> vertex_to_offset;
-  size_t idx = 0;
+  flat_hash_map_t<vid_t, size_t> vertex_to_offset;
+  sel_t idx = 0;
   for (auto v : vertices_) {
     auto iter = vertex_to_offset.find(v);
     if (iter == vertex_to_offset.end()) {
       builder.push_back_opt(v);
       vertex_to_offset.emplace(v, offsets.size());
-      std::vector<size_t> tmp;
+      sel_vec_t tmp;
       tmp.push_back(idx);
       offsets.emplace_back(std::move(tmp));
     } else {
@@ -155,20 +155,20 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
     }
   }
   auto col = dynamic_cast<const IVertexColumn*>(other.get());
-  std::set<label_t> labels_set = col->get_labels_set();
+  auto labels_set = col->get_labels_set();
   labels_set.insert(label_);
   MLVertexColumnBuilderOpt builder(labels_set);
   for (auto v : vertices_) {
     builder.push_back_vertex({label_, v});
   }
-  for (size_t i = 0; i < col->size(); ++i) {
+  for (sel_t i = 0; i < col->size(); ++i) {
     builder.push_back_vertex(col->get_vertex(i));
   }
   return builder.finish();
 }
 
 std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -183,11 +183,11 @@ std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto v = get_vertex(offset);
@@ -226,12 +226,12 @@ std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
   }
 }
 
-bool MSVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool MSVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
-  std::set<VertexRecord> vset;
+  flat_hash_set_t<VertexRecord> vset;
   bool null_seen = false;
-  size_t len = size();
-  for (size_t i = 0; i != len; ++i) {
+  sel_t len = static_cast<sel_t>(size());
+  for (sel_t i = 0; i != len; ++i) {
     auto cur = get_vertex(i);
     if (cur.vid_ == std::numeric_limits<vid_t>::max()) {
       if (!null_seen) {
@@ -246,7 +246,7 @@ bool MSVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   return true;
 }
 std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
@@ -261,11 +261,11 @@ std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& v = vertices_[offset];
@@ -279,11 +279,11 @@ std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+bool MLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
-  std::set<VertexRecord> vset;
-  size_t n = vertices_.size();
-  for (size_t i = 0; i != n; ++i) {
+  flat_hash_set_t<VertexRecord> vset;
+  sel_t n = static_cast<sel_t>(vertices_.size());
+  for (sel_t i = 0; i != n; ++i) {
     auto cur = vertices_[i];
     if (vset.find(cur) == vset.end()) {
       offsets.push_back(i);

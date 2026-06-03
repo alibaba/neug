@@ -22,6 +22,7 @@
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -50,7 +51,7 @@ class IOperatorBuilder {
                                              int op_idx) = 0;
   virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
-  virtual std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  virtual vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const = 0;
 };
 

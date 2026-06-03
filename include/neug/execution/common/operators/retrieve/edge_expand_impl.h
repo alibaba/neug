@@ -68,10 +68,10 @@ namespace execution {
     }                                                                     \
   }
 
-static inline std::vector<std::tuple<label_t, label_t, Direction>>
-get_label_dirs(label_t input_label, const Schema& schema,
-               const std::vector<LabelTriplet>& labels, Direction dir) {
-  std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
+static inline vector_t<std::tuple<label_t, label_t, Direction>> get_label_dirs(
+    label_t input_label, const Schema& schema,
+    const vector_t<LabelTriplet>& labels, Direction dir) {
+  vector_t<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
     if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
                                       triplet.edge_label)) {
@@ -96,11 +96,12 @@ get_label_dirs(label_t input_label, const Schema& schema,
   return label_dirs;
 }
 
-static inline std::vector<std::vector<std::tuple<label_t, label_t, Direction>>>
-get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
-                    const std::vector<LabelTriplet>& labels, Direction dir) {
+static inline vector_t<vector_t<std::tuple<label_t, label_t, Direction>>>
+get_label_dirs_list(const flat_hash_set_t<label_t>& input_labels,
+                    const Schema& schema, const vector_t<LabelTriplet>& labels,
+                    Direction dir) {
   int label_num = schema.vertex_label_frontier();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs(
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> label_dirs(
       label_num);
   for (auto& triplet : labels) {
     if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
@@ -129,22 +130,21 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const SLVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const SLVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const GPRED_T& gpred) {
   label_t input_label = input.label();
-  std::vector<std::tuple<label_t, label_t, Direction>> label_dirs =
+  vector_t<std::tuple<label_t, label_t, Direction>> label_dirs =
       get_label_dirs(input_label, graph.schema(), labels, dir);
   if (label_dirs.empty()) {
     MLVertexColumnBuilder builder;
-    return std::make_pair(builder.finish(), std::vector<size_t>());
+    return std::make_pair(builder.finish(), sel_vec_t());
   }
   MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   auto& vertices = input.vertices();
-  std::vector<bool> matched;
+  sel_t vertex_num = static_cast<sel_t>(vertices.size());
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -160,7 +160,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
                                                          edge_label));
     builder.start_label(nbr_label);
     if constexpr (GPRED_T::is_dummy) {
-      for (size_t idx = 0; idx < vertices.size(); ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v != std::numeric_limits<vid_t>::max()) {
@@ -181,7 +181,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         }
       }
     } else {
-      for (size_t idx = 0; idx < vertices.size(); ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v != std::numeric_limits<vid_t>::max()) {
@@ -206,7 +206,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     }
   }
   if constexpr (is_optional) {
-    for (size_t idx = 0; idx < vertices.size(); ++idx) {
+    for (sel_t idx = 0; idx < vertex_num; ++idx) {
       if (!matched[idx]) {
         builder.push_back_null();
         offsets.push_back(idx);
@@ -217,16 +217,14 @@ expand_vertex_impl(const StorageReadInterface& graph,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const MLVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
-  const std::set<label_t>& input_labels = input.get_labels_set();
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const MLVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const GPRED_T& gpred) {
+  const auto& input_labels = input.get_labels_set();
   int label_num = graph.schema().vertex_label_frontier();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
-  std::set<label_t> nbr_labels;
+  flat_hash_set_t<label_t> nbr_labels;
   bool single_view_per_label = true;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
     if (!graph.schema().is_vertex_label_valid(v_label)) {
@@ -242,16 +240,16 @@ expand_vertex_impl(const StorageReadInterface& graph,
   }
   if (nbr_labels.size() == 0) {
     MLVertexColumnBuilder builder;
-    return std::make_pair(builder.finish(), std::vector<size_t>());
+    return std::make_pair(builder.finish(), sel_vec_t());
   }
   if (input_labels.size() == 1) {
-    std::vector<bool> matched;
+    vector_t<bool> matched;
     if constexpr (is_optional) {
       matched.resize(input.size(), false);
     }
     label_t input_label = *input_labels.begin();
     MSVertexColumnBuilder builder(std::get<0>(label_dirs[input_label][0]));
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     const auto& label_dirs_input = label_dirs[input_label];
     for (auto& label_dir : label_dirs_input) {
       label_t nbr_label = std::get<0>(label_dir);
@@ -265,7 +263,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
                             input_label, nbr_label, edge_label));
       builder.start_label(nbr_label);
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t v) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t v) {
           if constexpr (is_optional) {
             if (v != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -285,7 +283,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
           }
         });
       } else {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t v) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t v) {
           if constexpr (is_optional) {
             if (v != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -309,7 +307,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
       }
     }
     if constexpr (is_optional) {
-      for (size_t idx = 0; idx < matched.size(); ++idx) {
+      for (sel_t idx = 0; idx < static_cast<sel_t>(matched.size()); ++idx) {
         if (!matched[idx]) {
           builder.push_back_null();
           offsets.push_back(idx);
@@ -320,12 +318,12 @@ expand_vertex_impl(const StorageReadInterface& graph,
   } else if (nbr_labels.size() == 1) {
     label_t nbr_label = *nbr_labels.begin();
     MSVertexColumnBuilder builder(nbr_label);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     if (single_view_per_label) {
-      std::vector<CsrView> single_views(label_num);
-      std::vector<label_t> single_edge_labels(
-          label_num, std::numeric_limits<label_t>::max());
-      std::vector<Direction> single_dirs(label_num);
+      vector_t<CsrView> single_views(label_num);
+      vector_t<label_t> single_edge_labels(label_num,
+                                           std::numeric_limits<label_t>::max());
+      vector_t<Direction> single_dirs(label_num);
       for (auto input_label : input_labels) {
         if (!label_dirs[input_label].empty()) {
           auto& t = label_dirs[input_label][0];
@@ -344,7 +342,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           auto& view = single_views[l];
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
@@ -363,7 +361,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
           }
         });
       } else {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           auto& view = single_views[l];
           label_t edge_label = single_edge_labels[l];
           Direction dir = single_dirs[l];
@@ -387,7 +385,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         });
       }
     } else {
-      std::vector<std::vector<CsrView>> views(label_num);
+      vector_t<vector_t<CsrView>> views(label_num);
       for (label_t v_label = 0; v_label < label_num; ++v_label) {
         for (auto& t : label_dirs[v_label]) {
           label_t edge_label = std::get<1>(t);
@@ -403,7 +401,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
             if (vid == std::numeric_limits<vid_t>::max()) {
               builder.push_back_null();
@@ -432,7 +430,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
           }
         });
       } else {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -468,14 +466,14 @@ expand_vertex_impl(const StorageReadInterface& graph,
     return std::make_pair(builder.finish(), std::move(offsets));
   } else {
     MLVertexColumnBuilderOpt builder(nbr_labels);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     if (single_view_per_label) {
-      std::vector<CsrView> single_views(label_num);
-      std::vector<label_t> single_nbr_labels(
-          label_num, std::numeric_limits<label_t>::max());
-      std::vector<label_t> single_edge_labels(
-          label_num, std::numeric_limits<label_t>::max());
-      std::vector<Direction> single_dirs(label_num);
+      vector_t<CsrView> single_views(label_num);
+      vector_t<label_t> single_nbr_labels(label_num,
+                                          std::numeric_limits<label_t>::max());
+      vector_t<label_t> single_edge_labels(label_num,
+                                           std::numeric_limits<label_t>::max());
+      vector_t<Direction> single_dirs(label_num);
       for (auto input_label : input_labels) {
         if (!label_dirs[input_label].empty()) {
           auto& t = label_dirs[input_label][0];
@@ -496,7 +494,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           auto& view = single_views[l];
           label_t nbr_label = single_nbr_labels[l];
           if constexpr (is_optional) {
@@ -520,7 +518,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
           }
         });
       } else {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           auto& view = single_views[l];
           label_t nbr_label = single_nbr_labels[l];
           label_t edge_label = single_edge_labels[l];
@@ -545,7 +543,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         });
       }
     } else {
-      std::vector<std::vector<CsrView>> views(label_num);
+      vector_t<vector_t<CsrView>> views(label_num);
       for (label_t v_label = 0; v_label < label_num; ++v_label) {
         for (auto& t : label_dirs[v_label]) {
           label_t nbr_label = std::get<0>(t);
@@ -562,7 +560,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         }
       }
       if constexpr (GPRED_T::is_dummy) {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -587,7 +585,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
           }
         });
       } else {
-        input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+        input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
           if constexpr (is_optional) {
             if (vid != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
@@ -625,14 +623,12 @@ expand_vertex_impl(const StorageReadInterface& graph,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const MSVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
-  const std::set<label_t>& input_labels = input.get_labels_set();
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const MSVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const GPRED_T& gpred) {
+  const auto& input_labels = input.get_labels_set();
   int label_num = graph.schema().vertex_label_frontier();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::set<label_t> nbr_labels;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
@@ -646,9 +642,9 @@ expand_vertex_impl(const StorageReadInterface& graph,
   }
   if (nbr_labels.empty()) {
     MLVertexColumnBuilder builder;
-    return std::make_pair(builder.finish(), std::vector<size_t>());
+    return std::make_pair(builder.finish(), sel_vec_t());
   }
-  std::vector<std::vector<CsrView>> views(label_num);
+  vector_t<vector_t<CsrView>> views(label_num);
   for (auto v_label : input_labels) {
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
@@ -665,11 +661,11 @@ expand_vertex_impl(const StorageReadInterface& graph,
     }
   }
   MSVertexColumnBuilder builder(*nbr_labels.begin());
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
   size_t input_seg_num = input.seg_num();
-  size_t seg_start_idx = 0;
-  std::vector<bool> edges_found;
+  sel_t seg_start_idx = 0;
+  vector_t<bool> edges_found;
   if constexpr (is_optional) {
     edges_found.resize(input.size(), false);
   }
@@ -681,7 +677,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
       auto& view = views[input_label][csr_idx];
       label_t nbr_label = std::get<0>(label_dirs[input_label][csr_idx]);
       builder.start_label(nbr_label);
-      size_t vertex_idx = seg_start_idx;
+      sel_t vertex_idx = seg_start_idx;
       if constexpr (GPRED_T::is_dummy) {
         for (auto vid : vertices) {
           size_t old_size = builder.cur_size();
@@ -722,7 +718,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     seg_start_idx += vertices.size();
   }
   if constexpr (is_optional) {
-    for (size_t i = 0; i < edges_found.size(); ++i) {
+    for (sel_t i = 0; i < static_cast<sel_t>(edges_found.size()); ++i) {
       if (!edges_found[i]) {
         builder.push_back_null();
         offsets.push_back(i);
@@ -739,11 +735,11 @@ expand_vertex_impl(const StorageReadInterface& graph,
 #undef expand_sv_p_ml
 
 template <typename PRED_T>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
 expand_vertex_optional_impl(const StorageReadInterface& graph,
                             const IVertexColumn& input,
-                            const std::vector<LabelTriplet>& labels,
-                            Direction dir, const PRED_T& pred) {
+                            const vector_t<LabelTriplet>& labels, Direction dir,
+                            const PRED_T& pred) {
   auto vertex_column_type = input.vertex_column_type();
   if (vertex_column_type == VertexColumnType::kSingle) {
     const SLVertexColumn& sl_col = dynamic_cast<const SLVertexColumn&>(input);
@@ -758,21 +754,21 @@ expand_vertex_optional_impl(const StorageReadInterface& graph,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const SLVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const PRED_T& pred) {
   label_t input_label = input.label();
   auto& vertices = input.vertices();
-  std::vector<std::tuple<label_t, label_t, Direction>> label_dirs =
+  sel_t vertex_num = static_cast<sel_t>(vertices.size());
+  vector_t<std::tuple<label_t, label_t, Direction>> label_dirs =
       get_label_dirs(input_label, graph.schema(), labels, dir);
   if (label_dirs.empty()) {
     MSEdgeColumnBuilder builder;
-    return std::make_pair(builder.finish(), std::vector<size_t>());
+    return std::make_pair(builder.finish(), sel_vec_t());
   }
   MSEdgeColumnBuilder builder;
-  std::vector<size_t> offsets;
-  std::vector<bool> matched;
+  sel_vec_t offsets;
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -791,7 +787,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
                          edge_label);
     builder.start_label_dir(triplet, dir);
     if constexpr (PRED_T::is_dummy) {
-      for (size_t idx = 0; idx < vertices.size(); ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v == std::numeric_limits<vid_t>::max()) {
@@ -827,7 +823,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
         }
       }
     } else {
-      for (size_t idx = 0; idx < vertices.size(); ++idx) {
+      for (sel_t idx = 0; idx < vertex_num; ++idx) {
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v == std::numeric_limits<vid_t>::max()) {
@@ -870,7 +866,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
     }
   }
   if constexpr (is_optional) {
-    for (size_t i = 0; i < matched.size(); ++i) {
+    for (sel_t i = 0; i < static_cast<sel_t>(matched.size()); ++i) {
       if (!matched[i]) {
         builder.push_back_null();
         offsets.push_back(i);
@@ -881,21 +877,20 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const MSVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   MSEdgeColumnBuilder builder;
-  std::vector<size_t> offsets;
-  std::vector<bool> matched;
+  sel_vec_t offsets;
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(input.seg_num(), false);
   }
   size_t input_seg_num = input.seg_num();
-  size_t seg_start_idx = 0;
+  sel_t seg_start_idx = 0;
   for (size_t k = 0; k < input_seg_num; ++k) {
     label_t input_label = input.seg_label(k);
     auto& vertices = input.seg_vertices(k);
@@ -913,7 +908,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
                            dir == Direction::kOut ? nbr_label : input_label,
                            edge_label);
       builder.start_label_dir(triplet, dir);
-      size_t vertex_idx = seg_start_idx;
+      sel_t vertex_idx = seg_start_idx;
       if constexpr (PRED_T::is_dummy) {
         for (auto v : vertices) {
           if constexpr (is_optional) {
@@ -996,7 +991,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
     }
     seg_start_idx += vertices.size();
   }
-  for (size_t i = 0; i < matched.size(); ++i) {
+  for (sel_t i = 0; i < static_cast<sel_t>(matched.size()); ++i) {
     if (!matched[i]) {
       builder.push_back_null();
       offsets.push_back(i);
@@ -1006,16 +1001,15 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const MLVertexColumn& input,
+    const vector_t<LabelTriplet>& labels, Direction dir, const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
   label_t label_num = graph.schema().vertex_label_frontier();
-  std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
+  vector_t<vector_t<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
-  std::vector<std::vector<CsrView>> views(label_num);
-  std::vector<LabelTriplet> all_triplets;
+  vector_t<vector_t<CsrView>> views(label_num);
+  vector_t<LabelTriplet> all_triplets;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
     if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
@@ -1042,8 +1036,8 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
                        all_triplets.end());
   }
   BDMLEdgeColumnBuilder builder(all_triplets);
-  std::vector<size_t> offsets;
-  std::vector<std::vector<int>> triplet_idx_map(label_num);
+  sel_vec_t offsets;
+  vector_t<vector_t<int>> triplet_idx_map(label_num);
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
@@ -1056,7 +1050,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
     }
   }
   size_t old_size;
-  input.foreach_vertex([&](size_t idx, label_t l, vid_t vid) {
+  input.foreach_vertex([&](sel_t idx, label_t l, vid_t vid) {
     if constexpr (is_optional) {
       if (vid == std::numeric_limits<vid_t>::max()) {
         builder.push_back_null();

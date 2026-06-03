@@ -16,6 +16,7 @@
 #pragma once
 
 #include "neug/execution/execute/operator.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -29,7 +30,7 @@ class AddVertexPropertySchemaOprBuilder : public IOperatorBuilder {
                                      const ContextMeta& ctx_meta,
                                      const physical::PhysicalPlan& plan,
                                      int op_id) override;
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {
         physical::PhysicalOpr_Operator::OpKindCase::kAddVertexPropertySchema};

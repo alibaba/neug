@@ -33,7 +33,7 @@ class BindedUnaryLogicalExpr : public VertexExprBase,
 
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& val = operand_->Cast<RecordExprBase>().eval_record(ctx, idx);
     return eval_impl(logical_, val);
   }
@@ -119,7 +119,7 @@ class BindedBinaryLogicalExpr : public VertexExprBase,
       return Value(type_);
     }
   }
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     return eval_impl(lhs_->Cast<RecordExprBase>().eval_record(ctx, idx),
                      rhs_->Cast<RecordExprBase>().eval_record(ctx, idx));
   }
@@ -152,7 +152,7 @@ class BindedAndExpr : public VertexExprBase,
 
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
     if (!lhs_val.IsTrue()) {
       return lhs_val;
@@ -195,7 +195,7 @@ class BindedOrExpr : public VertexExprBase,
 
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
 
     if (lhs_val.IsTrue()) {
@@ -268,7 +268,7 @@ class BindedWithInExpr : public VertexExprBase,
     return Value::BOOLEAN(false);
   }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const Context& ctx, sel_t idx) const override {
     const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
     const auto& rhs_val = rhs_->Cast<RecordExprBase>().eval_record(ctx, idx);
     return eval_impl(lhs_val, rhs_val);

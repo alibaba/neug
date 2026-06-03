@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/ddl/create_edge_type.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -27,7 +28,7 @@ class CreateEdgeTypeOpr : public IOperator {
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t,
                  EdgeStrategy, EdgeStrategy, std::optional<std::string>>;
-  CreateEdgeTypeOpr(const std::vector<create_edge_type_t>& create_edge_types,
+  CreateEdgeTypeOpr(const vector_t<create_edge_type_t>& create_edge_types,
                     bool ignore_conflict)
       : create_edge_types_(create_edge_types),
         ignore_conflict_(ignore_conflict) {}
@@ -41,7 +42,7 @@ class CreateEdgeTypeOpr : public IOperator {
     int32_t defs_size = create_edge_types_.size();
     // Track indices of edge types actually created by this operator,
     // so rollback only reverts what we created (not pre-existing types).
-    std::vector<int32_t> created_indices;
+    vector_t<int32_t> created_indices;
     Status status;
     bool failed = false;
     for (int32_t i = 0; i < defs_size; ++i) {
@@ -91,7 +92,7 @@ class CreateEdgeTypeOpr : public IOperator {
   }
 
  private:
-  std::vector<create_edge_type_t> create_edge_types_;
+  vector_t<create_edge_type_t> create_edge_types_;
   bool ignore_conflict_;
 };
 
@@ -146,7 +147,7 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
   bool ignore_conflict =
       !conflict_action_to_bool(create_edges.conflict_action());
   using create_edge_value_t = typename CreateEdgeTypeOpr::create_edge_type_t;
-  std::vector<create_edge_value_t> create_edge_defs;
+  vector_t<create_edge_value_t> create_edge_defs;
   for (int32_t i = 0; i < create_edges.type_info_size(); ++i) {
     const auto& create_edge = create_edges.type_info(i);
     auto multiplicity = create_edges.type_info(i).multiplicity();

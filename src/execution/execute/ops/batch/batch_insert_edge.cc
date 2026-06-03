@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <string>
 #include <utility>
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 class IRecordBatchSupplier;

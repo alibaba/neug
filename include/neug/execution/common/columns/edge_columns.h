@@ -35,9 +35,9 @@ class IEdgeColumn : public IContextColumn {
     return ContextColumnType::kEdge;
   }
 
-  virtual EdgeRecord get_edge(size_t idx) const = 0;
+  virtual EdgeRecord get_edge(sel_t idx) const = 0;
 
-  inline Value get_elem(size_t idx) const override {
+  inline Value get_elem(sel_t idx) const override {
     if (is_optional() && !has_value(idx)) {
       return Value(DataType(DataTypeId::kEdge));
     } else {
@@ -49,7 +49,7 @@ class IEdgeColumn : public IContextColumn {
   virtual Direction dir() const { return Direction::kBoth; }
 
   inline const DataType& elem_type() const override { return type_; }
-  virtual std::vector<LabelTriplet> get_labels() const = 0;
+  virtual vector_t<LabelTriplet> get_labels() const = 0;
   virtual EdgeColumnType edge_column_type() const = 0;
 
  private:
@@ -64,7 +64,7 @@ class SDSLEdgeColumn : public IEdgeColumn {
   SDSLEdgeColumn(Direction dir, const LabelTriplet& label)
       : dir_(dir), label_(label), is_optional_(false) {}
 
-  inline EdgeRecord get_edge(size_t idx) const override {
+  inline EdgeRecord get_edge(sel_t idx) const override {
     EdgeRecord ret;
     ret.label = label_;
     ret.dir = dir_;
@@ -78,8 +78,8 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline Direction dir() const override { return dir_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -91,26 +91,27 @@ class SDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, std::get<0>(tup), std::get<1>(tup), std::get<2>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return {label_}; }
+  vector_t<LabelTriplet> get_labels() const override { return {label_}; }
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDSL;
   }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     auto& tup = edges_[idx];
     return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
   }
@@ -124,8 +125,8 @@ class SDSLEdgeColumn : public IEdgeColumn {
   Direction dir_;
   LabelTriplet label_;
   bool is_optional_;
-
-  std::vector<std::tuple<vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  vector_t<EdgeTuple> edges_;
 };
 
 class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
@@ -156,7 +157,8 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   Direction dir_;
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -165,7 +167,7 @@ class MSEdgeColumn : public IEdgeColumn {
   MSEdgeColumn() {}
   ~MSEdgeColumn() = default;
 
-  inline EdgeRecord get_edge(size_t idx) const override {
+  inline EdgeRecord get_edge(sel_t idx) const override {
     for (auto& seg_tuple : edges_) {
       auto& seg = std::get<2>(seg_tuple);
       if (idx < seg.size()) {
@@ -185,7 +187,7 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return total_size_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     LOG(ERROR) << "not implemented for " << this->column_info();
     return false;
   }
@@ -198,10 +200,10 @@ class MSEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kMS;
@@ -209,11 +211,11 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline bool is_optional() const override { return is_optional_; }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    size_t idx = 0;
+    sel_t idx = 0;
     for (auto& seg_tuple : edges_) {
       auto& seg = std::get<2>(seg_tuple);
       for (auto& e : seg) {
@@ -224,7 +226,7 @@ class MSEdgeColumn : public IEdgeColumn {
     }
   }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     const auto& tup = get_edge(idx);
     return tup.src != std::numeric_limits<vid_t>::max();
   }
@@ -234,8 +236,8 @@ class MSEdgeColumn : public IEdgeColumn {
     return labels_[std::get<0>(edges_[idx])];
   }
   Direction seg_dir(size_t idx) const { return std::get<1>(edges_[idx]); }
-  const std::vector<std::tuple<vid_t, vid_t, const void*>>& seg_edges(
-      size_t idx) const {
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  const vector_t<EdgeTuple>& seg_edges(size_t idx) const {
     return std::get<2>(edges_[idx]);
   }
 
@@ -243,10 +245,9 @@ class MSEdgeColumn : public IEdgeColumn {
   friend class MSEdgeColumnBuilder;
 
   bool is_optional_;
-  std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, Direction,
-                         std::vector<std::tuple<vid_t, vid_t, const void*>>>>
-      edges_;
+  vector_t<LabelTriplet> labels_;
+
+  vector_t<std::tuple<int, Direction, vector_t<EdgeTuple>>> edges_;
   size_t total_size_;
 };
 
@@ -321,16 +322,15 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
   }
 
  private:
-  std::vector<std::tuple<int, Direction,
-                         std::vector<std::tuple<vid_t, vid_t, const void*>>>>
-      edges_;
-  std::vector<LabelTriplet> labels_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*>;
+  vector_t<std::tuple<int, Direction, vector_t<EdgeTuple>>> edges_;
+  vector_t<LabelTriplet> labels_;
   bool is_optional_;
   std::map<LabelTriplet, int> label_idx_map_;
 
   int cur_label_idx_ = -1;
   Direction cur_dir_;
-  std::vector<std::tuple<vid_t, vid_t, const void*>> cur_edges_;
+  vector_t<EdgeTuple> cur_edges_;
 };
 
 class BDSLEdgeColumnBuilder;
@@ -340,7 +340,7 @@ class BDSLEdgeColumn : public IEdgeColumn {
   explicit BDSLEdgeColumn(const LabelTriplet& label)
       : label_(label), is_optional_(false) {}
 
-  inline EdgeRecord get_edge(size_t idx) const override {
+  inline EdgeRecord get_edge(sel_t idx) const override {
     EdgeRecord ret;
     auto& e = edges_[idx];
     ret.label = label_;
@@ -353,8 +353,8 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -365,10 +365,10 @@ class BDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDSL;
@@ -376,20 +376,21 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline bool is_optional() const override { return is_optional_; }
 
-  std::vector<LabelTriplet> get_labels() const override {
-    return std::vector<LabelTriplet>{label_};
+  vector_t<LabelTriplet> get_labels() const override {
+    return vector_t<LabelTriplet>{label_};
   }
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, std::get<0>(tup), std::get<1>(tup), std::get<2>(tup),
            std::get<3>(tup));
     }
   }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     const auto& tup = edges_[idx];
     return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
   }
@@ -397,7 +398,8 @@ class BDSLEdgeColumn : public IEdgeColumn {
  private:
   friend class BDSLEdgeColumnBuilder;
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -437,7 +439,8 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
 
  private:
   LabelTriplet label_;
-  std::vector<std::tuple<vid_t, vid_t, const void*, Direction>> edges_;
+  using EdgeTuple = std::tuple<vid_t, vid_t, const void*, Direction>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -448,7 +451,7 @@ class SDMLEdgeColumn : public IEdgeColumn {
   explicit SDMLEdgeColumn(Direction dir) : dir_(dir) {}
   ~SDMLEdgeColumn() = default;
 
-  inline EdgeRecord get_edge(size_t idx) const override {
+  inline EdgeRecord get_edge(sel_t idx) const override {
     EdgeRecord ret;
     auto& e = edges_[idx];
     ret.label = labels_[std::get<0>(e)];
@@ -461,8 +464,8 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -474,10 +477,10 @@ class SDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDML;
@@ -485,18 +488,19 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, labels_[std::get<0>(tup)], std::get<1>(tup), std::get<2>(tup),
            std::get<3>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
   Direction dir() const override { return dir_; }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     const auto& tup = edges_[idx];
     return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
   }
@@ -507,14 +511,15 @@ class SDMLEdgeColumn : public IEdgeColumn {
   friend class SDMLEdgeColumnBuilder;
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
-  std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*>> edges_;
+  vector_t<LabelTriplet> labels_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
  public:
-  SDMLEdgeColumnBuilder(Direction dir, const std::vector<LabelTriplet>& labels)
+  SDMLEdgeColumnBuilder(Direction dir, const vector_t<LabelTriplet>& labels)
       : dir_(dir), labels_(labels), is_optional_(false) {
     for (size_t i = 0; i < labels.size(); ++i) {
       index_.emplace(labels[i], i);
@@ -560,8 +565,9 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
  private:
   Direction dir_;
   std::map<LabelTriplet, label_t> index_;
-  std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*>> edges_;
+  vector_t<LabelTriplet> labels_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
@@ -572,7 +578,7 @@ class BDMLEdgeColumn : public IEdgeColumn {
   BDMLEdgeColumn() {}
   ~BDMLEdgeColumn() = default;
 
-  inline EdgeRecord get_edge(size_t idx) const override {
+  inline EdgeRecord get_edge(sel_t idx) const override {
     EdgeRecord ret;
     auto& e = edges_[idx];
     ret.label = labels_[std::get<0>(e)];
@@ -585,8 +591,8 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_.data(), edges_.size(), offsets);
     return true;
   }
 
@@ -598,10 +604,10 @@ class BDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDML;
@@ -609,16 +615,17 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
-    for (size_t i = 0; i < edges_.size(); ++i) {
+    sel_t n = static_cast<sel_t>(edges_.size());
+    for (sel_t i = 0; i < n; ++i) {
       auto& tup = edges_[i];
       func(i, labels_[std::get<0>(tup)], std::get<4>(tup), std::get<1>(tup),
            std::get<2>(tup), std::get<3>(tup));
     }
   }
 
-  std::vector<LabelTriplet> get_labels() const override { return labels_; }
+  vector_t<LabelTriplet> get_labels() const override { return labels_; }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     const auto& tup = edges_[idx];
     return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
   }
@@ -628,14 +635,15 @@ class BDMLEdgeColumn : public IEdgeColumn {
  private:
   friend class BDMLEdgeColumnBuilder;
   std::map<LabelTriplet, int> index_;
-  std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*, Direction>> edges_;
+  vector_t<LabelTriplet> labels_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
  public:
-  explicit BDMLEdgeColumnBuilder(const std::vector<LabelTriplet>& labels)
+  explicit BDMLEdgeColumnBuilder(const vector_t<LabelTriplet>& labels)
       : labels_(labels), edges_(), is_optional_(false) {
     for (size_t i = 0; i < labels.size(); ++i) {
       index_.emplace(labels[i], i);
@@ -698,15 +706,16 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
  private:
   std::map<LabelTriplet, int> index_;
-  std::vector<LabelTriplet> labels_;
-  std::vector<std::tuple<int, vid_t, vid_t, const void*, Direction>> edges_;
+  vector_t<LabelTriplet> labels_;
+  using EdgeTuple = std::tuple<int, vid_t, vid_t, const void*, Direction>;
+  vector_t<EdgeTuple> edges_;
   bool is_optional_;
 };
 
 template <typename FUNC_T>
 void foreach_edge(
     const IEdgeColumn& col, const FUNC_T& func,
-    const std::vector<std::pair<LabelTriplet, Direction>>& to_filter = {}) {
+    const vector_t<std::pair<LabelTriplet, Direction>>& to_filter = {}) {
   auto col_type = col.edge_column_type();
   if (to_filter.empty()) {
     if (col_type == EdgeColumnType::kSDSL) {
@@ -714,14 +723,14 @@ void foreach_edge(
       LabelTriplet label = c.get_labels()[0];
       Direction dir = c.dir();
       c.foreach_edge_opt(
-          [&](size_t idx, vid_t src, vid_t dst, const void* prop) {
+          [&](sel_t idx, vid_t src, vid_t dst, const void* prop) {
             func(idx, label, dir, src, dst, prop);
           });
     } else if (col_type == EdgeColumnType::kBDSL) {
       auto& c = dynamic_cast<const BDSLEdgeColumn&>(col);
       LabelTriplet label = c.get_labels()[0];
       c.foreach_edge_opt(
-          [&](size_t idx, vid_t src, vid_t dst, const void* prop,
+          [&](sel_t idx, vid_t src, vid_t dst, const void* prop,
               Direction dir) { func(idx, label, dir, src, dst, prop); });
     } else if (col_type == EdgeColumnType::kMS) {
       auto& c = dynamic_cast<const MSEdgeColumn&>(col);
@@ -730,7 +739,7 @@ void foreach_edge(
       auto& c = dynamic_cast<const SDMLEdgeColumn&>(col);
       Direction dir = c.dir();
       c.foreach_edge_opt(
-          [&](size_t idx, const LabelTriplet& label, vid_t src, vid_t dst,
+          [&](sel_t idx, const LabelTriplet& label, vid_t src, vid_t dst,
               const void* prop) { func(idx, label, dir, src, dst, prop); });
     } else if (col_type == EdgeColumnType::kBDML) {
       auto& c = dynamic_cast<const BDMLEdgeColumn&>(col);
@@ -770,14 +779,14 @@ void foreach_edge(
       if (hit_oe && hit_ie) {
         // do nothing
       } else if (hit_oe && !hit_ie) {
-        c.foreach_edge_opt([&](size_t idx, vid_t src, vid_t dst,
+        c.foreach_edge_opt([&](sel_t idx, vid_t src, vid_t dst,
                                const void* prop, Direction dir) {
           if (dir != Direction::kIn) {
             func(idx, self_label, dir, src, dst, prop);
           }
         });
       } else if (!hit_oe && hit_ie) {
-        c.foreach_edge_opt([&](size_t idx, vid_t src, vid_t dst,
+        c.foreach_edge_opt([&](sel_t idx, vid_t src, vid_t dst,
                                const void* prop, Direction dir) {
           if (dir != Direction::kOut) {
             func(idx, self_label, dir, src, dst, prop);
@@ -804,7 +813,7 @@ void foreach_edge(
         foreach_edge(col, func);
       } else {
         auto seg_num = c.seg_num();
-        size_t idx = 0;
+        sel_t idx = 0;
         for (size_t i = 0; i < seg_num; ++i) {
           auto seg_label = c.seg_label(i);
           auto seg_dir = c.seg_dir(i);
@@ -821,7 +830,7 @@ void foreach_edge(
               ++idx;
             }
           } else {
-            idx += c.seg_edges(i).size();
+            idx += static_cast<sel_t>(c.seg_edges(i).size());
           }
         }
       }
@@ -839,7 +848,7 @@ void foreach_edge(
       if (filter_label_set.empty()) {
         foreach_edge(col, func);
       } else {
-        c.foreach_edge_opt([&](size_t idx, const LabelTriplet& label, vid_t src,
+        c.foreach_edge_opt([&](sel_t idx, const LabelTriplet& label, vid_t src,
                                vid_t dst, const void* prop) {
           if (filter_label_set.find(label) == filter_label_set.end()) {
             func(idx, label, dir, src, dst, prop);
@@ -863,7 +872,7 @@ void foreach_edge(
       if (oe_filter_label_set.empty() && ie_filter_label_set.empty()) {
         foreach_edge(col, func);
       } else {
-        c.foreach_edge_opt([&](size_t idx, const LabelTriplet& label,
+        c.foreach_edge_opt([&](sel_t idx, const LabelTriplet& label,
                                Direction dir, vid_t src, vid_t dst,
                                const void* prop) {
           if ((dir == Direction::kOut &&

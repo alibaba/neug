@@ -79,8 +79,7 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kCase: {
       auto op = opr.case_();
       size_t len = op.when_then_expressions_size();
-      std::vector<
-          std::pair<std::unique_ptr<ExprBase>, std::unique_ptr<ExprBase>>>
+      vector_t<std::pair<std::unique_ptr<ExprBase>, std::unique_ptr<ExprBase>>>
           when_then_exprs;
       DataType type = DataType::SQLNULL;
       for (size_t i = 0; i < len; ++i) {
@@ -111,7 +110,7 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kToTuple: {
       const auto& compisite_fields = opr.to_tuple().fields();
 
-      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      vector_t<std::unique_ptr<ExprBase>> exprs_vec;
       for (int i = 0; i < compisite_fields.size(); ++i) {
         exprs_vec.emplace_back(
             parse_expression(compisite_fields[i], ctx_meta, var_type));
@@ -122,7 +121,7 @@ static std::unique_ptr<ExprBase> build_expr(
 
     case ::common::ExprOpr::kToList: {
       const auto& list_fields = opr.to_list().fields();
-      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      vector_t<std::unique_ptr<ExprBase>> exprs_vec;
       for (int i = 0; i < list_fields.size(); ++i) {
         exprs_vec.emplace_back(
             parse_expression(list_fields[i], ctx_meta, var_type));
@@ -172,7 +171,7 @@ static std::unique_ptr<ExprBase> build_expr(
       if (opr.has_node_type()) {
         ret_type = parse_from_ir_data_type(opr.node_type());
       }
-      std::vector<std::unique_ptr<ExprBase>> children;
+      vector_t<std::unique_ptr<ExprBase>> children;
       children.reserve(op.parameters_size());
       for (int i = 0; i < op.parameters_size(); ++i) {
         children.emplace_back(

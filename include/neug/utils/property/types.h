@@ -507,6 +507,23 @@ struct hash<neug::GlobalId> {
   }
 };
 
+template <>
+struct hash<neug::Date> {
+  size_t operator()(const neug::Date& v) const {
+    return std::hash<uint32_t>()(v.value.integer);
+  }
+};
+
+template <>
+struct hash<neug::Interval> {
+  size_t operator()(const neug::Interval& v) const {
+    size_t h = std::hash<int32_t>()(v.months);
+    h ^= std::hash<int32_t>()(v.days) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<int64_t>()(v.micros) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
+  }
+};
+
 }  // namespace std
 
 namespace YAML {

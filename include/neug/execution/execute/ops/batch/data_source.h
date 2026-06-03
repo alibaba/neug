@@ -16,6 +16,7 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/reader/reader.h"
 
 namespace neug {
@@ -45,7 +46,7 @@ class DataSourceOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kSource};
   }

@@ -17,6 +17,7 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/csr/csr_view_utils.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -32,7 +33,7 @@ class UpdateEdgeOpr : public IOperator {
   using edge_data_t =
       std::tuple<int32_t, std::string,
                  std::unique_ptr<ExprBase>>;  // tag_id, property_name, value
-  using edge_data_vec_t = std::vector<edge_data_t>;
+  using edge_data_vec_t = vector_t<edge_data_t>;
 
   explicit UpdateEdgeOpr(edge_data_vec_t&& edge_data)
       : edge_data_(std::move(edge_data)) {}

@@ -41,35 +41,35 @@ class StructColumn : public IContextColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   const DataType& elem_type() const override { return type_; }
-  Value get_elem(size_t idx) const override;
+  Value get_elem(sel_t idx) const override;
 
   bool is_optional() const override { return is_optional_; }
 
-  bool has_value(size_t idx) const override {
+  bool has_value(sel_t idx) const override {
     if (!is_optional_) {
       return true;
     }
     return valids_[idx];
   }
 
-  const std::vector<std::shared_ptr<IContextColumn>>& children() const {
+  const vector_t<std::shared_ptr<IContextColumn>>& children() const {
     return children_;
   }
 
-  const std::vector<bool>& validity_bitmap() const { return valids_; }
+  const vector_t<uint8_t>& validity_bitmap() const { return valids_; }
   friend class StructColumnBuilder;
 
  private:
   DataType type_;
   bool is_optional_;
-  std::vector<bool> valids_;
-  std::vector<std::shared_ptr<IContextColumn>> children_;
+  vector_t<uint8_t> valids_;
+  vector_t<std::shared_ptr<IContextColumn>> children_;
 };
 
 class StructColumnBuilder : public IContextColumnBuilder {
@@ -92,8 +92,8 @@ class StructColumnBuilder : public IContextColumnBuilder {
   size_t current_size_ = 0;
   DataType type_;
   bool is_optional_;
-  std::vector<bool> valids_;
-  std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
+  vector_t<uint8_t> valids_;
+  vector_t<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 
 }  // namespace execution

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 #pragma once
-#include <vector>
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -23,7 +23,7 @@ class Context;
 
 class Union {
  public:
-  static neug::result<Context> union_op(std::vector<Context>&& ctxs);
+  static neug::result<Context> union_op(vector_t<Context>&& ctxs);
 };
 
 }  // namespace execution

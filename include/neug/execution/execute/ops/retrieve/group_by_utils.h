@@ -18,17 +18,18 @@
 #include "neug/execution/utils/pb_parse_utils.h"
 
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
 namespace ops {
 
 bool BuildGroupByUtils(const physical::GroupBy& group_by,
-                       std::vector<std::pair<int, int>>& mappings,
-                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs);
+                       vector_t<std::pair<int, int>>& mappings,
+                       vector_t<physical::GroupBy_AggFunc>& reduce_funcs);
 
 std::unique_ptr<KeyBase> create_key_func(
-    const std::vector<std::pair<int, int>>& mappings,
+    const vector_t<std::pair<int, int>>& mappings,
     const IStorageInterface& graph, const Context& ctx);
 
 ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,

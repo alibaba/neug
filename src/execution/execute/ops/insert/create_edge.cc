@@ -17,6 +17,7 @@
 #include "neug/execution/execute/ops/insert/create_edge.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -25,11 +26,9 @@ namespace ops {
 class CreateEdgeOpr : public IOperator {
  public:
   CreateEdgeOpr(
-      const std::vector<LabelTriplet>& labels,
-      const std::vector<int32_t>& alias,
-      const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-      std::vector<
-          std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>&&
+      const vector_t<LabelTriplet>& labels, const vector_t<int32_t>& alias,
+      const vector_t<std::pair<int32_t, int32_t>>& src_dst_tags,
+      vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>&&
           properties)
       : labels_(labels),
         alias_(alias),
@@ -43,12 +42,11 @@ class CreateEdgeOpr : public IOperator {
     if (graph_interface.readable()) {
       graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
     }
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
+    vector_t<vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
         expr_properties;
     for (size_t i = 0; i < labels_.size(); ++i) {
       const auto& props = properties_[i];
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           expr_props;
       for (const auto& [prop, prop_value] : props) {
         auto expr = prop_value->bind(graph_ptr, params);
@@ -63,10 +61,10 @@ class CreateEdgeOpr : public IOperator {
   std::string get_operator_name() const override { return "CreateEdgeOpr"; }
 
  private:
-  std::vector<LabelTriplet> labels_;
-  std::vector<int32_t> alias_;
-  std::vector<std::pair<int32_t, int32_t>> src_dst_tags_;
-  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
+  vector_t<LabelTriplet> labels_;
+  vector_t<int32_t> alias_;
+  vector_t<std::pair<int32_t, int32_t>> src_dst_tags_;
+  vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties_;
 };
 neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
@@ -74,10 +72,10 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().create_edge();
-  std::vector<LabelTriplet> labels;
-  std::vector<int32_t> alias;
-  std::vector<std::pair<int32_t, int32_t>> src_dst_tags;
-  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
+  vector_t<LabelTriplet> labels;
+  vector_t<int32_t> alias;
+  vector_t<std::pair<int32_t, int32_t>> src_dst_tags;
+  vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties;
   for (const auto& edge : opr.entries()) {
     LabelTriplet triplet;
@@ -90,7 +88,7 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     src_dst_tags.emplace_back(src_tag, dst_tag);
     alias.push_back(edge.alias().id());
     ret_meta.set(edge.alias().id(), DataType::EDGE);
-    std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
+    vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : edge.property_mappings()) {
       auto expr = neug::execution::parse_expression(
           prop.data(), ctx_meta, neug::execution::VarType::kRecord);

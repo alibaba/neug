@@ -36,9 +36,9 @@ class IVertexColumn : public IContextColumn {
   }
 
   virtual VertexColumnType vertex_column_type() const = 0;
-  virtual VertexRecord get_vertex(size_t idx) const = 0;
+  virtual VertexRecord get_vertex(sel_t idx) const = 0;
 
-  Value get_elem(size_t idx) const override {
+  Value get_elem(sel_t idx) const override {
     if (is_optional() && !has_value(idx)) {
       return Value(DataType::VERTEX);
     }
@@ -49,7 +49,7 @@ class IVertexColumn : public IContextColumn {
     return type_;
   }
 
-  virtual std::set<label_t> get_labels_set() const = 0;
+  virtual flat_hash_set_t<label_t> get_labels_set() const = 0;
 
  private:
   DataType type_;
@@ -93,13 +93,13 @@ class SLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offset) const override;
+      const sel_vec_t& offset) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+      sel_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -107,41 +107,41 @@ class SLVertexColumn : public IVertexColumn {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  __attribute__((always_inline)) bool has_value(sel_t idx) const override {
     return vertices_[idx] != std::numeric_limits<vid_t>::max();
   }
 
   std::shared_ptr<IContextColumn> union_col(
       std::shared_ptr<IContextColumn> other) const override;
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
+  std::pair<std::shared_ptr<IContextColumn>, vector_t<sel_vec_t>>
   generate_aggregate_offset() const override;
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t num = vertices_.size();
-    for (size_t k = 0; k < num; ++k) {
+    sel_t num = static_cast<sel_t>(vertices_.size());
+    for (sel_t k = 0; k < num; ++k) {
       func(k, label_, vertices_[k]);
     }
   }
 
-  std::set<label_t> get_labels_set() const override {
-    std::set<label_t> ret;
+  flat_hash_set_t<label_t> get_labels_set() const override {
+    flat_hash_set_t<label_t> ret;
     ret.insert(label_);
     return ret;
   }
 
   __attribute__((always_inline)) label_t label() const { return label_; }
 
-  __attribute__((always_inline)) const std::vector<vid_t>& vertices() const {
+  __attribute__((always_inline)) const vector_t<vid_t>& vertices() const {
     return vertices_;
   }
 
  private:
   friend class MSVertexColumnBuilder;
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
   label_t label_;
   bool is_optional_ = false;
 };
@@ -178,13 +178,13 @@ class MSVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+      sel_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -200,14 +200,14 @@ class MSVertexColumn : public IVertexColumn {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  __attribute__((always_inline)) bool has_value(sel_t idx) const override {
     auto v = get_vertex(idx);
     return v.vid_ != std::numeric_limits<vid_t>::max();
   }
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t index = 0;
+    sel_t index = 0;
     for (auto& pair : vertices_) {
       label_t label = pair.first;
       for (auto v : pair.second) {
@@ -216,7 +216,7 @@ class MSVertexColumn : public IVertexColumn {
     }
   }
 
-  std::set<label_t> get_labels_set() const override { return labels_; }
+  flat_hash_set_t<label_t> get_labels_set() const override { return labels_; }
 
   __attribute__((always_inline)) size_t seg_num() const {
     return vertices_.size();
@@ -226,17 +226,18 @@ class MSVertexColumn : public IVertexColumn {
     return vertices_[seg_id].first;
   }
 
-  __attribute__((always_inline)) const std::vector<vid_t>& seg_vertices(
+  __attribute__((always_inline)) const vector_t<vid_t>& seg_vertices(
       size_t seg_id) const {
     return vertices_[seg_id].second;
   }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MSVertexColumnBuilder;
-  std::vector<std::pair<label_t, std::vector<vid_t>>> vertices_;
-  std::set<label_t> labels_;
+  using VertexVec = vector_t<vid_t>;
+  vector_t<std::pair<label_t, VertexVec>> vertices_;
+  flat_hash_set_t<label_t> labels_;
 
   bool is_optional_ = false;
 };
@@ -286,9 +287,10 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
 
  private:
   label_t cur_label_;
-  std::vector<vid_t> cur_list_;
+  using VertexVec = vector_t<vid_t>;
+  VertexVec cur_list_;
 
-  std::vector<std::pair<label_t, std::vector<vid_t>>> vertices_;
+  vector_t<std::pair<label_t, VertexVec>> vertices_;
 
   bool is_optional_ = false;
 };
@@ -324,12 +326,12 @@ class MLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+      sel_t idx) const override {
     return vertices_[idx];
   }
 
@@ -337,34 +339,34 @@ class MLVertexColumn : public IVertexColumn {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  __attribute__((always_inline)) bool has_value(sel_t idx) const override {
     return vertices_[idx].vid_ != std::numeric_limits<vid_t>::max();
   }
 
   template <typename FUNC_T>
   void foreach_vertex(const FUNC_T& func) const {
-    size_t index = 0;
+    sel_t index = 0;
     for (auto& pair : vertices_) {
       func(index++, pair.label_, pair.vid_);
     }
   }
 
-  std::set<label_t> get_labels_set() const override { return labels_; }
+  flat_hash_set_t<label_t> get_labels_set() const override { return labels_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;
   friend class MLVertexColumnBuilderOpt;
-  std::vector<VertexRecord> vertices_;
-  std::set<label_t> labels_;
+  vector_t<VertexRecord> vertices_;
+  flat_hash_set_t<label_t> labels_;
   bool is_optional_ = false;
 };
 
 class MLVertexColumnBuilder : public IVertexColumnBuilder {
  public:
   MLVertexColumnBuilder() {}
-  explicit MLVertexColumnBuilder(const std::set<label_t>& labels)
+  explicit MLVertexColumnBuilder(const flat_hash_set_t<label_t>& labels)
       : labels_(labels) {}
   ~MLVertexColumnBuilder() = default;
 
@@ -388,16 +390,19 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   std::shared_ptr<IContextColumn> finish() override;
 
  private:
-  std::vector<VertexRecord> vertices_;
-  std::set<label_t> labels_;
+  vector_t<VertexRecord> vertices_;
+  flat_hash_set_t<label_t> labels_;
   bool is_optional_ = false;
 };
 
 class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
  public:
-  explicit MLVertexColumnBuilderOpt(const std::set<label_t>& labels) {
-    size_t max_label = labels.empty() ? 0 : *labels.rbegin();
-    labels_bitmap_.resize(max_label + 1, false);
+  explicit MLVertexColumnBuilderOpt(const flat_hash_set_t<label_t>& labels) {
+    label_t max_label = 0;
+    for (auto label : labels) {
+      max_label = std::max(max_label, label);
+    }
+    labels_bitmap_.resize(max_label + 1, 0);
   }
   ~MLVertexColumnBuilderOpt() = default;
 
@@ -405,7 +410,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
 
   // v should not be null
   __attribute__((always_inline)) void push_back_opt(VertexRecord v) {
-    labels_bitmap_[v.label_] = true;
+    labels_bitmap_[v.label_] = 1;
     assert(v.vid_ != std::numeric_limits<vid_t>::max());
     vertices_.push_back(v);
   }
@@ -440,8 +445,8 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   __attribute__((always_inline)) size_t cur_size() { return vertices_.size(); }
 
  private:
-  std::vector<VertexRecord> vertices_;
-  std::vector<bool> labels_bitmap_;
+  vector_t<VertexRecord> vertices_;
+  vector_t<uint8_t> labels_bitmap_;
   bool is_optional_ = false;
 };
 

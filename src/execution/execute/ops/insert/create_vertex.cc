@@ -19,6 +19,7 @@
 
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
@@ -27,9 +28,8 @@ namespace ops {
 class CreateVertexOpr : public IOperator {
  public:
   CreateVertexOpr(
-      const std::vector<label_t>& labels, const std::vector<int32_t>& alias,
-      std::vector<
-          std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>&&
+      const vector_t<label_t>& labels, const vector_t<int32_t>& alias,
+      vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>&&
           properties)
       : labels_(labels), alias_(alias), properties_(std::move(properties)) {}
 
@@ -42,12 +42,11 @@ class CreateVertexOpr : public IOperator {
     if (graph_interface.readable()) {
       graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
     }
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
+    vector_t<vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
         expr_properties;
     for (size_t i = 0; i < labels_.size(); ++i) {
       const auto& props = properties_[i];
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+      vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
           expr_props;
       for (auto& [prop, prop_value] : props) {
         auto expr = prop_value->bind(graph_ptr, params);
@@ -62,9 +61,9 @@ class CreateVertexOpr : public IOperator {
   std::string get_operator_name() const override { return "CreateVertexOpr"; }
 
  private:
-  std::vector<label_t> labels_;
-  std::vector<int32_t> alias_;
-  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
+  vector_t<label_t> labels_;
+  vector_t<int32_t> alias_;
+  vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties_;
 };
 
@@ -73,9 +72,9 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().create_vertex();
-  std::vector<label_t> labels;
-  std::vector<int32_t> alias;
-  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
+  vector_t<label_t> labels;
+  vector_t<int32_t> alias;
+  vector_t<vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties;
   for (const auto& entry : opr.entries()) {
     label_t label;
@@ -96,7 +95,7 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     alias.push_back(entry.alias().id());
     ret_meta.set(entry.alias().id(), DataType::VERTEX);
 
-    std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
+    vector_t<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : entry.property_mappings()) {
       if (!prop.has_property()) {
         THROW_INTERNAL_EXCEPTION("PropertyMapping has no property: " +

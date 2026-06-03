@@ -25,9 +25,9 @@ class Select {
  public:
   template <typename PRED_T>
   static neug::result<Context> select(Context&& ctx, const PRED_T& pred) {
-    size_t row_num = ctx.row_num();
-    std::vector<size_t> offsets;
-    for (size_t k = 0; k < row_num; ++k) {
+    sel_t row_num = ctx.row_num();
+    sel_vec_t offsets;
+    for (sel_t k = 0; k < static_cast<sel_t>(row_num); ++k) {
       if (pred(ctx, k)) {
         offsets.push_back(k);
       }

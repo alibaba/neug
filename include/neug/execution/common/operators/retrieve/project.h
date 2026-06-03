@@ -28,7 +28,7 @@ struct ProjectExprBase {
   virtual ~ProjectExprBase() = default;
   virtual std::shared_ptr<IContextColumn> evaluate(const Context& ctx) = 0;
   virtual bool order_by_limit(const Context& ctx, bool asc, size_t limit,
-                              std::vector<size_t>& offsets) const {
+                              sel_vec_t& offsets) const {
     return false;
   }
 };
@@ -55,7 +55,7 @@ struct ProjectOp {
   }
 
   bool order_by_limit(const Context& ctx, bool asc, size_t limit,
-                      std::vector<size_t>& offsets) const {
+                      sel_vec_t& offsets) const {
     if (expr_) {
       return expr_->order_by_limit(ctx, asc, limit, offsets);
     }
@@ -68,7 +68,7 @@ struct ProjectOp {
 class Project {
  public:
   static neug::result<Context> project(Context&& ctx,
-                                       const std::vector<ProjectOp>& exprs,
+                                       const vector_t<ProjectOp>& exprs,
                                        bool is_append = false) {
     Context ret;
     if (is_append) {
@@ -83,19 +83,19 @@ class Project {
   template <typename Comparer>
   static neug::result<Context> project_order_by_fuse(
       const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
-      std::vector<ProjectOp>&& exprs,
+      vector_t<ProjectOp>&& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,
-      size_t upper, const std::set<int>& order_index,
+      size_t upper, const flat_hash_set_t<int>& order_index,
       std::pair<int32_t, bool> fst_idx) {
     lower = std::max(lower, static_cast<size_t>(0));
-    upper = std::min(upper, ctx.row_num());
+    upper = std::min(upper, static_cast<size_t>(ctx.row_num()));
 
     Context ret;
     Context tmp;
 
-    std::vector<int> alias;
+    vector_t<int> alias;
 
-    std::vector<size_t> indices;
+    sel_vec_t indices;
 
     if (upper * 2 < ctx.row_num() && exprs[fst_idx.first].order_by_limit(
                                          ctx, fst_idx.second, upper, indices)) {
@@ -107,7 +107,7 @@ class Project {
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(tmp);
-      std::vector<size_t> offsets;
+      sel_vec_t offsets;
 
       OrderBy::order_by_limit_impl(graph, tmp, cmp_, lower, upper, offsets);
       ctx.reshuffle(offsets);
@@ -130,7 +130,7 @@ class Project {
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(ret);
-      std::vector<size_t> offsets;
+      sel_vec_t offsets;
       OrderBy::order_by_limit_impl(graph, ret, cmp_, lower, upper, offsets);
 
       ret.reshuffle(offsets);

@@ -47,7 +47,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -58,7 +58,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -88,7 +88,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 3);
@@ -106,7 +106,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 2);
   }
@@ -134,7 +134,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -145,7 +145,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -175,7 +175,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -192,7 +192,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -220,7 +220,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -231,7 +231,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -261,7 +261,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -278,7 +278,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -306,7 +306,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -317,7 +317,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -347,7 +347,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -364,7 +364,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -392,7 +392,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -403,7 +403,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -433,7 +433,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -450,7 +450,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -478,7 +478,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -489,7 +489,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -519,7 +519,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -536,7 +536,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -564,7 +564,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -575,7 +575,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -605,7 +605,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -622,7 +622,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -654,7 +654,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -665,7 +665,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -696,7 +696,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -713,7 +713,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -741,7 +741,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -752,7 +752,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -782,7 +782,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -799,7 +799,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -827,7 +827,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -841,7 +841,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -873,7 +873,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -890,7 +890,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -919,7 +919,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -933,7 +933,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -965,7 +965,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
 
   // order_by_limit
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -983,7 +983,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -999,21 +999,21 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
   StructColumnBuilder builder(struct_type);
 
   // Add first element
-  std::vector<Value> values1;
+  vector_t<Value> values1;
   values1.emplace_back(Value::INT32(1));
   values1.emplace_back(Value::INT64(2));
   values1.emplace_back(Value::DOUBLE(-3.0));
   builder.push_back_elem(Value::STRUCT(std::move(values1)));
 
   // Add second element
-  std::vector<Value> values2;
+  vector_t<Value> values2;
   values2.emplace_back(Value::INT32(10));
   values2.emplace_back(Value::INT64(3));
   values2.emplace_back(Value::DOUBLE(2.1));
   builder.push_back_elem(Value::STRUCT(std::move(values2)));
 
   // Add third element
-  std::vector<Value> values3;
+  vector_t<Value> values3;
   values3.emplace_back(Value::INT32(15));
   values3.emplace_back(Value::INT64(-2));
   values3.emplace_back(Value::DOUBLE(3.6));
@@ -1037,7 +1037,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {2, 0, 1};
+    sel_vec_t offsets = {2, 0, 1};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -1062,7 +1062,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
 
   // optional shuffle
   {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
+    sel_vec_t offsets = {1, std::numeric_limits<sel_t>::max(), 0};
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
@@ -1087,7 +1087,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
   // union
   /*{
     StructColumnBuilder builder2(struct_type);
-    std::vector<Value> values4;
+    vector_t<Value> values4;
     values4.emplace_back(Value::INT32(19));
     values4.emplace_back(Value::INT64(-2));
     values4.emplace_back(Value::DOUBLE(3.6));
@@ -1115,7 +1115,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
   // order_by_limit
   /*
    {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     bool success = col->order_by_limit(true, 2, offsets);
     ASSERT_TRUE(success);
     ASSERT_EQ(offsets.size(), 2);
@@ -1132,7 +1132,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }*/
@@ -1144,13 +1144,13 @@ TEST_F(ValueColumnTest, ListColumnBasic) {
   ListColumnBuilder builder(list_type);
 
   // Add first list [10, 20]
-  std::vector<Value> list_values1;
+  vector_t<Value> list_values1;
   list_values1.emplace_back(Value::INT32(10));
   list_values1.emplace_back(Value::INT32(20));
   builder.push_back_elem(Value::LIST(list_type, std::move(list_values1)));
 
   // Add second list [30]
-  std::vector<Value> list_values2;
+  vector_t<Value> list_values2;
   list_values2.emplace_back(Value::INT32(30));
   builder.push_back_elem(Value::LIST(list_type, std::move(list_values2)));
 
@@ -1170,7 +1170,7 @@ TEST_F(ValueColumnTest, ListColumnBasic) {
 
   // // shuffle
   // {
-  //   std::vector<size_t> offsets = {1, 0};
+  //   sel_vec_t offsets = {1, 0};
   //   auto shuffled = col->shuffle(offsets);
   //   ASSERT_EQ(shuffled->size(), 2);
 
@@ -1207,7 +1207,7 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<bool>>(shuffled);
 
@@ -1218,7 +1218,7 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1248,7 +1248,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<int32_t>>(shuffled);
 
@@ -1259,7 +1259,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1289,7 +1289,7 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<int64_t>>(shuffled);
 
@@ -1300,7 +1300,7 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1330,7 +1330,7 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint32_t>>(shuffled);
 
@@ -1341,7 +1341,7 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1371,7 +1371,7 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint64_t>>(shuffled);
 
@@ -1382,7 +1382,7 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1412,7 +1412,7 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<float>>(shuffled);
 
@@ -1423,7 +1423,7 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1453,7 +1453,7 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<double>>(shuffled);
 
@@ -1464,7 +1464,7 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1498,7 +1498,7 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col =
         std::dynamic_pointer_cast<ValueColumn<std::string>>(shuffled);
@@ -1510,7 +1510,7 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1540,7 +1540,7 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<Date>>(shuffled);
 
@@ -1551,7 +1551,7 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1581,7 +1581,7 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<DateTime>>(shuffled);
 
@@ -1592,7 +1592,7 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1624,7 +1624,7 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<ValueColumn<Interval>>(shuffled);
 
@@ -1635,7 +1635,7 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
 
   // dedup
   {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     col->generate_dedup_offset(offsets);
     EXPECT_EQ(offsets.size(), 3);
   }
@@ -1651,7 +1651,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   StructColumnBuilder builder(struct_type);
 
   // Add first element
-  std::vector<Value> values1;
+  vector_t<Value> values1;
   values1.emplace_back(Value::INT32(1));
   values1.emplace_back(Value::INT64(2));
   values1.emplace_back(Value::DOUBLE(-3.0));
@@ -1661,7 +1661,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   builder.push_back_null();
 
   // Add third element
-  std::vector<Value> values2;
+  vector_t<Value> values2;
   values2.emplace_back(Value::INT32(10));
   values2.emplace_back(Value::INT64(3));
   values2.emplace_back(Value::DOUBLE(2.1));
@@ -1696,7 +1696,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col = std::dynamic_pointer_cast<StructColumn>(shuffled);
 
@@ -1712,14 +1712,14 @@ TEST_F(ListColumnTest, ListColumnBasic) {
   ListColumnBuilder builder(DataTypeId::kInt32);
 
   // Add first list [10, 20]
-  std::vector<Value> list_values1;
+  vector_t<Value> list_values1;
   list_values1.emplace_back(Value::INT32(10));
   list_values1.emplace_back(Value::INT32(20));
   builder.push_back_elem(
       Value::LIST(DataType(DataTypeId::kInt32), std::move(list_values1)));
 
   // Add second list [30]
-  std::vector<Value> list_values2;
+  vector_t<Value> list_values2;
   list_values2.emplace_back(Value::INT32(30));
   builder.push_back_elem(
       Value::LIST(DataType(DataTypeId::kInt32), std::move(list_values2)));
@@ -1743,7 +1743,7 @@ TEST_F(ListColumnTest, ListColumnBasic) {
 
   // shuffle
   {
-    std::vector<size_t> offsets = {1, 0};
+    sel_vec_t offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 2);
 
@@ -1768,12 +1768,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kInt32);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::INT32(10));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kInt32), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::INT32(20));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kInt32), std::move(list_values2)));
@@ -1796,12 +1796,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
     ListColumnBuilder builder(
         (DataType(DataTypeId::kInt64)));  // -Wvexing-parse
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::INT64(10));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kInt64), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::INT64(20));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kInt64), std::move(list_values2)));
@@ -1823,12 +1823,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kUInt32);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::UINT32(10));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kUInt32), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::UINT32(20));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kUInt32), std::move(list_values2)));
@@ -1850,12 +1850,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kUInt64);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::UINT64(10));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kUInt64), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::UINT64(20));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kUInt64), std::move(list_values2)));
@@ -1877,12 +1877,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kFloat);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::FLOAT(10.42));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kFloat), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::FLOAT(20.43));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kFloat), std::move(list_values2)));
@@ -1904,12 +1904,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kDouble);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::DOUBLE(10.42));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kDouble), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::DOUBLE(20.43));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kDouble), std::move(list_values2)));
@@ -1935,12 +1935,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
     ListColumnBuilder builder(
         (DataType(DataTypeId::kVarchar)));  // -Wvexing-parse
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::STRING(s1));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kVarchar), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::STRING(s2));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kVarchar), std::move(list_values2)));
@@ -1962,12 +1962,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kDate);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::DATE(Date(10)));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kDate), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::DATE(Date(20)));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kDate), std::move(list_values2)));
@@ -1989,12 +1989,12 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kTimestampMs);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(Value::TIMESTAMPMS(DateTime(10)));
     builder.push_back_elem(Value::LIST(DataType(DataTypeId::kTimestampMs),
                                        std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(Value::TIMESTAMPMS(DateTime(20)));
     builder.push_back_elem(Value::LIST(DataType(DataTypeId::kTimestampMs),
                                        std::move(list_values2)));
@@ -2016,13 +2016,13 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
   {
     ListColumnBuilder builder(DataTypeId::kInterval);
 
-    std::vector<Value> list_values1;
+    vector_t<Value> list_values1;
     list_values1.emplace_back(
         Value::INTERVAL(Interval(std::string("10months"))));
     builder.push_back_elem(
         Value::LIST(DataType(DataTypeId::kInterval), std::move(list_values1)));
 
-    std::vector<Value> list_values2;
+    vector_t<Value> list_values2;
     list_values2.emplace_back(
         Value::INTERVAL(Interval(std::string("20months"))));
     builder.push_back_elem(

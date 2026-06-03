@@ -23,11 +23,11 @@ namespace execution {
 namespace ops {
 neug::result<Context> CreateVertex::insert_vertex(
     StorageInsertInterface& graph, Context&& ctx,
-    const std::vector<label_t>& labels,
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+    const vector_t<label_t>& labels,
+    vector_t<
+        vector_t<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
         props,
-    const std::vector<int>& alias) {
+    const vector_t<int>& alias) {
   const auto& schema = graph.schema();
   for (size_t i = 0; i < labels.size(); ++i) {
     MSVertexColumnBuilder builder(labels[i]);
@@ -59,7 +59,7 @@ neug::result<Context> CreateVertex::insert_vertex(
 
     Property pk_value;
     std::vector<Property> property_values(properties.size() - 1);
-    for (size_t i = 0; i < ctx.row_num(); ++i) {
+    for (sel_t i = 0; i < ctx.row_num(); ++i) {
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);

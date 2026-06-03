@@ -20,11 +20,10 @@ namespace neug {
 namespace execution {
 class CaseWhenExpr : public ExprBase {
  public:
-  CaseWhenExpr(
-      const DataType& type,
-      std::vector<std::pair<std::unique_ptr<ExprBase>,
-                            std::unique_ptr<ExprBase>>>&& when_then_exprs,
-      std::unique_ptr<ExprBase>&& else_expr)
+  CaseWhenExpr(const DataType& type,
+               vector_t<std::pair<std::unique_ptr<ExprBase>,
+                                  std::unique_ptr<ExprBase>>>&& when_then_exprs,
+               std::unique_ptr<ExprBase>&& else_expr)
       : type_(type),
         when_then_exprs_(std::move(when_then_exprs)),
         else_expr_(std::move(else_expr)) {}
@@ -35,7 +34,7 @@ class CaseWhenExpr : public ExprBase {
 
  private:
   DataType type_;
-  std::vector<std::pair<std::unique_ptr<ExprBase>, std::unique_ptr<ExprBase>>>
+  vector_t<std::pair<std::unique_ptr<ExprBase>, std::unique_ptr<ExprBase>>>
       when_then_exprs_;
   std::unique_ptr<ExprBase> else_expr_;
 };

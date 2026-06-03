@@ -19,17 +19,18 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 namespace execution {
 namespace ops {
 
 template <typename T>
-std::vector<Property> parse_ids_from_idx_predicate(
+vector_t<Property> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-    std::vector<Property> ret;
+    vector_t<Property> ret;
     if (triplet.const_().item_case() == common::Value::kI32) {
       ret.emplace_back(
           PropUtils<T>::to_prop(static_cast<T>(triplet.const_().i32())));
@@ -60,10 +61,10 @@ std::vector<Property> parse_ids_from_idx_predicate(
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kInt32) {
-      return std::vector<Property>{PropUtils<T>::to_prop(
+      return vector_t<Property>{PropUtils<T>::to_prop(
           params.at(triplet.param().name()).template GetValue<T>())};
     } else if (param_type.id() == DataTypeId::kInt64) {
-      return std::vector<Property>{PropUtils<T>::to_prop(
+      return vector_t<Property>{PropUtils<T>::to_prop(
           params.at(triplet.param().name()).template GetValue<T>())};
     }
   }
@@ -73,9 +74,9 @@ std::vector<Property> parse_ids_from_idx_predicate(
   return {};
 }
 
-std::vector<Property> parse_ids_from_idx_predicate(
+vector_t<Property> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
-  std::vector<Property> ret;
+  vector_t<Property> ret;
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
     if (triplet.const_().item_case() == common::Value::kStr) {
@@ -104,7 +105,7 @@ std::vector<Property> parse_ids_from_idx_predicate(
   }
   return ret;
 }
-std::vector<Property> ScanUtils::parse_ids_with_type(
+vector_t<Property> ScanUtils::parse_ids_with_type(
     DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
     const ParamsMap& params) {
   switch (type) {

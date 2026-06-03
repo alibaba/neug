@@ -20,7 +20,7 @@ namespace execution {
 
 neug::result<Context> GroupBy::group_by(Context&& ctx,
                                         std::unique_ptr<KeyBase>&& key,
-                                        std::vector<ReduceOp>&& aggrs) {
+                                        vector_t<ReduceOp>&& aggrs) {
   auto [offsets, groups] = key->group(ctx);
   Context ret;
   const auto& tag_alias = key->tag_alias();

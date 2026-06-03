@@ -37,7 +37,7 @@ class IRecordBatchSupplier;
 namespace execution {
 
 std::pair<size_t, size_t> locate_array_and_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     size_t idx);
 
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
@@ -51,7 +51,7 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 class ArrowArrayContextColumn : public IContextColumn {
  public:
   ArrowArrayContextColumn(
-      const std::vector<std::shared_ptr<arrow::Array>>& columns)
+      const vector_t<std::shared_ptr<arrow::Array>>& columns)
       : columns_(columns), size_(0) {
     for (const auto& column : columns_) {
       size_ += column->length();
@@ -76,7 +76,7 @@ class ArrowArrayContextColumn : public IContextColumn {
 
   bool is_optional() const override { return false; }
 
-  const std::vector<std::shared_ptr<arrow::Array>>& GetColumns() const {
+  const vector_t<std::shared_ptr<arrow::Array>>& GetColumns() const {
     return columns_;
   }
 
@@ -86,17 +86,17 @@ class ArrowArrayContextColumn : public IContextColumn {
     }
     return arrow::null();
   }
-  Value get_elem(size_t idx) const override;
+  Value get_elem(sel_t idx) const override;
 
-  bool has_value(size_t idx) const override { return idx >= 0 && idx < size_; }
+  bool has_value(sel_t idx) const override { return idx >= 0 && idx < size_; }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> cast_to_value_column() const;
 
  private:
-  std::vector<std::shared_ptr<arrow::Array>> columns_;
+  vector_t<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
   DataType type_;
 };
@@ -118,7 +118,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
   void push_back(const std::shared_ptr<arrow::Array>& column);
 
  private:
-  std::vector<std::shared_ptr<arrow::Array>> columns_;
+  vector_t<std::shared_ptr<arrow::Array>> columns_;
 };
 
 /**
@@ -150,7 +150,7 @@ class ArrowStreamContextColumn : public IContextColumn {
     return suppliers_;
   }
 
-  Value get_elem(size_t idx) const override {
+  Value get_elem(sel_t idx) const override {
     LOG(FATAL) << "get_elem not implemented for arrow stream column";
     return Value(DataType::SQLNULL);
   }

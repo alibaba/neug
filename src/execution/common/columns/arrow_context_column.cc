@@ -29,7 +29,7 @@ namespace neug {
 namespace execution {
 
 std::pair<size_t, size_t> locate_array_and_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
     size_t idx) {
   CHECK(idx < size) << "Index out of range: " << idx << " >= " << size;
 
@@ -83,8 +83,8 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
 // Template function to shuffle Arrow arrays based on type
 template <typename ArrowArrayType, typename ArrowBuilderType>
 static std::shared_ptr<arrow::Array> shuffle_impl(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   // Create builder
   auto builder_result = arrow::MakeBuilder(arrow_type);
@@ -138,8 +138,8 @@ static std::shared_ptr<arrow::Array> shuffle_impl(
 template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::StringArray, arrow::StringBuilder>(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
   if (!builder_result.ok()) {
@@ -190,8 +190,8 @@ shuffle_impl<arrow::StringArray, arrow::StringBuilder>(
 template <>
 std::shared_ptr<arrow::Array>
 shuffle_impl<arrow::LargeStringArray, arrow::LargeStringBuilder>(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::vector<size_t>& offsets,
+    const vector_t<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    const sel_vec_t& offsets,
     const std::shared_ptr<arrow::DataType>& arrow_type) {
   auto builder_result = arrow::MakeBuilder(arrow_type);
   if (!builder_result.ok()) {
@@ -258,10 +258,10 @@ void ArrowArrayContextColumnBuilder::push_back(
 }
 
 std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   if (columns_.empty()) {
     return std::make_shared<ArrowArrayContextColumn>(
-        std::vector<std::shared_ptr<arrow::Array>>());
+        vector_t<std::shared_ptr<arrow::Array>>());
   }
 
   auto arrow_type = columns_[0]->type();
@@ -312,7 +312,7 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
   return col_builder.finish();
 }
 
-Value ArrowArrayContextColumn::get_elem(size_t idx) const {
+Value ArrowArrayContextColumn::get_elem(sel_t idx) const {
   CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
 
   // Locate the array and offset for the given index.

@@ -46,8 +46,8 @@ struct ListParameterScenario {
   }
 
  private:
-  static std::vector<execution::Value> ListStorage() {
-    static std::vector<execution::Value> elements;
+  static vector_t<execution::Value> ListStorage() {
+    static vector_t<execution::Value> elements;
     for (int i = 1; i <= 5; ++i) {
       elements.emplace_back(execution::Value::INT32(i));
     }

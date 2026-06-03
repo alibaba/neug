@@ -338,6 +338,11 @@ if (WITH_MIMALLOC)
     add_subdirectory(third_party/mimalloc)
     set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
     include_directories(SYSTEM third_party/mimalloc/include)
+    # Use a NEUG_-prefixed name as the C++ macro to avoid colliding with
+    # WITH_MIMALLOC tokens that may be present in the CI environment / dev
+    # container. The CMake option keeps the unprefixed name so user-facing
+    # `-DWITH_MIMALLOC=ON/OFF` still works.
+    add_compile_definitions(NEUG_WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
@@ -1003,6 +1008,16 @@ set(CPACK_DEB_COMPONENT_INSTALL YES)
 #install CMakeLists.txt.template to resources/
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/flat_hash_map
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+)
+
+# parallel-hashmap is referenced by include/neug/utils/mi_allocator.h, which
+# is now a public header (installed under include/neug/utils/). Downstream
+# consumers need its headers on the include path.
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/parallel-hashmap/parallel_hashmap
             DESTINATION include/
             FILES_MATCHING
             PATTERN "*.h"

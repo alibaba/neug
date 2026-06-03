@@ -21,6 +21,7 @@
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/utils/mi_allocator.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -45,7 +46,7 @@ class FilterOidsGPredOpr : public IOperator {
         std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
             .id();
 
-    std::vector<Property> oids =
+    vector_t<Property> oids =
         ScanUtils::parse_ids_with_type(type, oids_, params);
 
     if (pred_ == nullptr) {

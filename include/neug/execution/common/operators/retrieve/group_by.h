@@ -24,25 +24,24 @@ namespace execution {
 
 struct KeyBase {
   virtual ~KeyBase() = default;
-  virtual std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>>
-  group(const Context& ctx) = 0;
-  virtual const std::vector<std::pair<int, int>>& tag_alias() const = 0;
+  virtual std::pair<sel_vec_t, vector_t<sel_vec_t>> group(
+      const Context& ctx) = 0;
+  virtual const vector_t<std::pair<int, int>>& tag_alias() const = 0;
 };
 template <typename EXPR>
 struct Key : public KeyBase {
-  Key(EXPR&& expr, const std::vector<std::pair<int, int>>& tag_alias)
+  Key(EXPR&& expr, const vector_t<std::pair<int, int>>& tag_alias)
       : expr(std::move(expr)), tag_alias_(tag_alias) {}
-  std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>> group(
-      const Context& ctx) override {
-    size_t row_num = ctx.row_num();
-    std::vector<std::vector<size_t>> groups;
-    std::vector<size_t> offsets;
-    phmap::flat_hash_map<typename EXPR::V, size_t> group_map;
-    for (size_t i = 0; i < row_num; ++i) {
+  std::pair<sel_vec_t, vector_t<sel_vec_t>> group(const Context& ctx) override {
+    sel_t row_num = static_cast<sel_t>(ctx.row_num());
+    vector_t<sel_vec_t> groups;
+    sel_vec_t offsets;
+    flat_hash_map_t<typename EXPR::V, sel_t> group_map;
+    for (sel_t i = 0; i < row_num; ++i) {
       auto val = expr(i);
       auto iter = group_map.find(val);
       if (iter == group_map.end()) {
-        size_t idx = groups.size();
+        sel_t idx = static_cast<sel_t>(groups.size());
         group_map[val] = idx;
         groups.emplace_back();
         groups.back().push_back(i);
@@ -53,17 +52,17 @@ struct Key : public KeyBase {
     }
     return std::make_pair(std::move(offsets), std::move(groups));
   }
-  const std::vector<std::pair<int, int>>& tag_alias() const override {
+  const vector_t<std::pair<int, int>>& tag_alias() const override {
     return tag_alias_;
   }
   EXPR expr;
-  std::vector<std::pair<int, int>> tag_alias_;
+  vector_t<std::pair<int, int>> tag_alias_;
 };
 
 struct ReducerBase {
   virtual ~ReducerBase() = default;
   virtual std::shared_ptr<IContextColumn> reduce(
-      const std::vector<std::vector<size_t>>& groups) = 0;
+      const vector_t<sel_vec_t>& groups) = 0;
 };
 
 struct ReduceOp {
@@ -71,7 +70,7 @@ struct ReduceOp {
       : reducer_(std::move(reducer)), alias_(alias) {}
 
   void reduce(const Context& ctx, Context& ret,
-              const std::vector<std::vector<size_t>>& groups) {
+              const vector_t<sel_vec_t>& groups) {
     auto col = reducer_->reduce(groups);
     ret.set(alias_, col);
   }
@@ -84,7 +83,7 @@ class GroupBy {
  public:
   static neug::result<Context> group_by(Context&& ctx,
                                         std::unique_ptr<KeyBase>&& key,
-                                        std::vector<ReduceOp>&& aggrs);
+                                        vector_t<ReduceOp>&& aggrs);
 };
 
 }  // namespace execution

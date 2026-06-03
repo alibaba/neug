@@ -52,7 +52,7 @@ class ExtensionInstallOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kExtInstall};
   }
@@ -68,7 +68,7 @@ class ExtensionLoadOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kExtLoad};
   }
@@ -84,7 +84,7 @@ class ExtensionUninstallOprBuilder : public IOperatorBuilder {
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
 
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+  vector_t<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kExtUninstall};
   }

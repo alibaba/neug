@@ -46,11 +46,11 @@ class ListColumn : public IContextColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   const DataType& elem_type() const override { return type_; }
-  Value get_elem(size_t idx) const override {
-    std::vector<Value> list_values;
+  Value get_elem(sel_t idx) const override {
+    vector_t<Value> list_values;
     for (size_t i = items_[idx].offset;
          i < items_[idx].offset + items_[idx].length; ++i) {
       list_values.emplace_back(datas_->get_elem(i));
@@ -58,18 +58,17 @@ class ListColumn : public IContextColumn {
     return Value::LIST(elem_type_, std::move(list_values));
   }
 
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold()
-      const;
+  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold() const;
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
 
-  const std::vector<list_item>& items() const { return items_; }
+  const vector_t<list_item>& items() const { return items_; }
 
   std::shared_ptr<IContextColumn> reorder() const {
     auto ptr = std::make_shared<ListColumn>(elem_type_);
-    std::vector<list_item> new_items(items_.size());
+    vector_t<list_item> new_items(items_.size());
     size_t cur_offset = 0;
-    std::vector<size_t> indices;
+    sel_vec_t indices;
     indices.reserve(datas_->size());
     for (size_t i = 0; i < items_.size(); ++i) {
       new_items[i].offset = cur_offset;
@@ -90,11 +89,10 @@ class ListColumn : public IContextColumn {
 
  private:
   template <typename T>
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold_impl()
-      const {
-    std::vector<size_t> offsets;
+  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold_impl() const {
+    sel_vec_t offsets;
     auto builder = std::make_shared<ValueColumnBuilder<T>>();
-    size_t i = 0;
+    sel_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         builder->push_back_elem(datas_->get_elem(j));
@@ -108,7 +106,7 @@ class ListColumn : public IContextColumn {
   friend class ListColumnBuilder;
   DataType elem_type_;
   DataType type_;
-  std::vector<list_item> items_;
+  vector_t<list_item> items_;
   std::shared_ptr<IContextColumn> datas_;
 };
 
@@ -143,7 +141,7 @@ class ListColumnBuilder : public IContextColumnBuilder {
   DataType type_;
   size_t cur_offset_;
 
-  std::vector<list_item> items_;
+  vector_t<list_item> items_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 

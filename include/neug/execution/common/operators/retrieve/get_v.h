@@ -25,10 +25,10 @@
 namespace neug {
 namespace execution {
 
-inline std::vector<label_t> extract_labels(
-    const std::vector<LabelTriplet>& labels, const std::vector<label_t>& tables,
-    VOpt opt) {
-  std::vector<label_t> output_labels;
+inline vector_t<label_t> extract_labels(const vector_t<LabelTriplet>& labels,
+                                        const vector_t<label_t>& tables,
+                                        VOpt opt) {
+  vector_t<label_t> output_labels;
   for (const auto& label : labels) {
     if (opt == VOpt::kStart) {
       if (std::find(tables.begin(), tables.end(), label.src_label) !=
@@ -51,14 +51,14 @@ inline std::vector<label_t> extract_labels(
 class GetV {
  public:
   template <typename PRED_T, bool is_optional = false>
-  static std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+  static std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
   get_vertex_from_edges_impl(const IEdgeColumn& input_edge_list,
                              const GetVParams& params, const PRED_T& pred) {
     auto labels = input_edge_list.get_labels();
     auto input_dir = input_edge_list.dir();
     auto v_opt = params.opt;
 
-    std::vector<std::pair<LabelTriplet, Direction>> containing;
+    vector_t<std::pair<LabelTriplet, Direction>> containing;
     if (input_dir == Direction::kBoth) {
       for (auto& label : labels) {
         containing.emplace_back(label, Direction::kOut);
@@ -78,13 +78,13 @@ class GetV {
       }
     }
 
-    std::set<label_t> keep_set;
+    flat_hash_set_t<label_t> keep_set;
     for (auto table : params.tables) {
       keep_set.insert(table);
     }
 
-    std::vector<std::pair<LabelTriplet, Direction>> to_filter;
-    std::set<label_t> output_labels;
+    vector_t<std::pair<LabelTriplet, Direction>> to_filter;
+    flat_hash_set_t<label_t> output_labels;
     if (v_opt == VOpt::kOther) {
       CHECK(input_dir == Direction::kBoth);
       for (auto& pair : containing) {
@@ -111,10 +111,10 @@ class GetV {
         return {builder.finish(), {}};
       } else if (output_labels.size() == 1) {
         MSVertexColumnBuilder builder(*output_labels.begin());
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -140,10 +140,10 @@ class GetV {
         return {builder.finish(), std::move(shuffle_offset)};
       } else {
         MLVertexColumnBuilderOpt builder(output_labels);
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -183,10 +183,10 @@ class GetV {
         return {builder.finish(), {}};
       } else if (output_labels.size() == 1) {
         MSVertexColumnBuilder builder(*output_labels.begin());
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -205,10 +205,10 @@ class GetV {
         return {builder.finish(), std::move(shuffle_offset)};
       } else {
         MLVertexColumnBuilderOpt builder(output_labels);
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -241,10 +241,10 @@ class GetV {
         return {builder.finish(), {}};
       } else if (output_labels.size() == 1) {
         MSVertexColumnBuilder builder(*output_labels.begin());
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -263,10 +263,10 @@ class GetV {
         return {builder.finish(), std::move(shuffle_offset)};
       } else {
         MLVertexColumnBuilderOpt builder(output_labels);
-        std::vector<size_t> shuffle_offset;
+        sel_vec_t shuffle_offset;
         foreach_edge(
             input_edge_list,
-            [&](size_t index, const LabelTriplet& label, Direction dir,
+            [&](sel_t index, const LabelTriplet& label, Direction dir,
                 vid_t src, vid_t dst, const void* data_ptr) {
               if constexpr (is_optional) {
                 if (src == std::numeric_limits<vid_t>::max() ||
@@ -294,19 +294,18 @@ class GetV {
   static neug::result<Context> get_vertex_from_path(
       const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
-    std::vector<bool> required_label(graph.schema().vertex_label_frontier(),
-                                     false);
-    std::vector<size_t> shuffle_offset;
+    vector_t<uint8_t> required_label(graph.schema().vertex_label_frontier(), 0);
+    sel_vec_t shuffle_offset;
     auto col = ctx.get(params.tag);
-    std::set<label_t> required_label_set;
+    flat_hash_set_t<label_t> required_label_set;
     for (auto label : params.tables) {
-      required_label[label] = true;
+      required_label[label] = 1;
       required_label_set.insert(label);
     }
     auto& input_path_list = *std::dynamic_pointer_cast<PathColumn>(col);
 
     MLVertexColumnBuilderOpt builder(required_label_set);
-    input_path_list.foreach_path([&](size_t index, const Path& path) {
+    input_path_list.foreach_path([&](sel_t index, const Path& path) {
       auto [label, vid] = path.end_node();
 
       if (required_label[label] && pred(label, vid)) {
@@ -322,7 +321,7 @@ class GetV {
   static neug::result<Context> get_vertex_from_edges(
       const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto col = ctx.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
       return get_vertex_from_path(graph, std::move(ctx), params, pred);

@@ -96,7 +96,7 @@ SPPredicateType parse_sp_pred(const common::Expression& expr) {
 }
 
 bool is_special_edge_predicate(const Schema& schema,
-                               const std::vector<LabelTriplet>& labels,
+                               const vector_t<LabelTriplet>& labels,
                                const common::Expression& expr,
                                SpecialPredicateConfig& config) {
   if (expr.operators_size() == 3) {
@@ -169,7 +169,7 @@ bool is_special_edge_predicate(const Schema& schema,
 }
 
 bool is_special_vertex_predicate(const Schema& schema,
-                                 const std::vector<label_t>& labels,
+                                 const vector_t<label_t>& labels,
                                  const common::Expression& expr,
                                  SpecialPredicateConfig& config) {
   if (expr.operators_size() == 3) {

@@ -26,7 +26,7 @@ namespace execution {
 neug::result<Context> PathExpand::edge_expand_v(
     const StorageReadInterface& graph, Context&& ctx,
     const PathExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
 
   if (params.labels.size() == 1 &&
       params.labels[0].src_label == params.labels[0].dst_label &&
@@ -49,8 +49,8 @@ neug::result<Context> PathExpand::edge_expand_v(
   if (params.dir == Direction::kOut) {
     auto& input_vertex_list =
         *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
-    std::set<label_t> labels;
-    std::vector<std::vector<LabelTriplet>> out_labels_map(
+    flat_hash_set_t<label_t> labels;
+    vector_t<vector_t<LabelTriplet>> out_labels_map(
         graph.schema().vertex_label_frontier());
     for (const auto& label : params.labels) {
       labels.emplace(label.dst_label);
@@ -61,12 +61,11 @@ neug::result<Context> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    std::vector<std::tuple<label_t, vid_t, size_t>> input;
-    std::vector<std::tuple<label_t, vid_t, size_t>> output;
-    foreach_vertex(input_vertex_list,
-                   [&](size_t index, label_t label, vid_t v) {
-                     output.emplace_back(label, v, index);
-                   });
+    vector_t<std::tuple<label_t, vid_t, sel_t>> input;
+    vector_t<std::tuple<label_t, vid_t, sel_t>> output;
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      output.emplace_back(label, v, index);
+    });
     int depth = 0;
     while (depth < params.hop_upper && (!output.empty())) {
       input.clear();
@@ -104,8 +103,8 @@ neug::result<Context> PathExpand::edge_expand_v(
   } else if (params.dir == Direction::kIn) {
     auto& input_vertex_list =
         *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
-    std::set<label_t> labels;
-    std::vector<std::vector<LabelTriplet>> in_labels_map(
+    flat_hash_set_t<label_t> labels;
+    vector_t<vector_t<LabelTriplet>> in_labels_map(
         graph.schema().vertex_label_frontier());
     for (auto& label : params.labels) {
       labels.emplace(label.src_label);
@@ -116,12 +115,11 @@ neug::result<Context> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    std::vector<std::tuple<label_t, vid_t, size_t>> input;
-    std::vector<std::tuple<label_t, vid_t, size_t>> output;
-    foreach_vertex(input_vertex_list,
-                   [&](size_t index, label_t label, vid_t v) {
-                     output.emplace_back(label, v, index);
-                   });
+    vector_t<std::tuple<label_t, vid_t, sel_t>> input;
+    vector_t<std::tuple<label_t, vid_t, sel_t>> output;
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      output.emplace_back(label, v, index);
+    });
     int depth = 0;
     while (depth < params.hop_upper && (!output.empty())) {
       input.clear();
@@ -157,8 +155,8 @@ neug::result<Context> PathExpand::edge_expand_v(
     ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   } else {
-    std::set<label_t> labels;
-    std::vector<std::vector<LabelTriplet>> in_labels_map(
+    flat_hash_set_t<label_t> labels;
+    vector_t<vector_t<LabelTriplet>> in_labels_map(
         graph.schema().vertex_label_frontier()),
         out_labels_map(graph.schema().vertex_label_frontier());
     for (const auto& label : params.labels) {
@@ -169,8 +167,8 @@ neug::result<Context> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    std::vector<std::tuple<label_t, vid_t, size_t>> input;
-    std::vector<std::tuple<label_t, vid_t, size_t>> output;
+    vector_t<std::tuple<label_t, vid_t, sel_t>> input;
+    vector_t<std::tuple<label_t, vid_t, sel_t>> output;
     auto input_vertex_list =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (input_vertex_list->vertex_column_type() ==
@@ -179,12 +177,12 @@ neug::result<Context> PathExpand::edge_expand_v(
           *std::dynamic_pointer_cast<MLVertexColumn>(ctx.get(params.start_tag));
 
       input_vertex_list.foreach_vertex(
-          [&](size_t index, label_t label, vid_t v) {
+          [&](sel_t index, label_t label, vid_t v) {
             output.emplace_back(label, v, index);
           });
     } else {
       foreach_vertex(*input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
+                     [&](sel_t index, label_t label, vid_t v) {
                        output.emplace_back(label, v, index);
                      });
     }
@@ -241,12 +239,12 @@ neug::result<Context> PathExpand::edge_expand_v(
 neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
                                               Context&& ctx,
                                               const PathExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
-  std::vector<std::vector<LabelTriplet>> out_labels_map(
+  vector_t<vector_t<LabelTriplet>> out_labels_map(
       graph.schema().vertex_label_frontier()),
       in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
@@ -254,16 +252,15 @@ neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
     in_labels_map[triplet.dst_label].emplace_back(triplet);
   }
   auto dir = params.dir;
-  std::vector<std::pair<Path, size_t>> input;
-  std::vector<std::pair<Path, size_t>> output;
+  vector_t<std::pair<Path, sel_t>> input;
+  vector_t<std::pair<Path, sel_t>> output;
 
   PathColumnBuilder builder;
   if (dir == Direction::kOut) {
-    foreach_vertex(input_vertex_list,
-                   [&](size_t index, label_t label, vid_t v) {
-                     auto p = Path(label, v);
-                     input.emplace_back(std::move(p), index);
-                   });
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      auto p = Path(label, v);
+      input.emplace_back(std::move(p), index);
+    });
     int depth = 0;
     while (depth < params.hop_upper) {
       output.clear();
@@ -302,11 +299,10 @@ neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
 
     return ctx;
   } else if (dir == Direction::kIn) {
-    foreach_vertex(input_vertex_list,
-                   [&](size_t index, label_t label, vid_t v) {
-                     auto p = Path(label, v);
-                     input.emplace_back(std::move(p), index);
-                   });
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      auto p = Path(label, v);
+      input.emplace_back(std::move(p), index);
+    });
     int depth = 0;
     while (depth < params.hop_upper) {
       output.clear();
@@ -348,11 +344,10 @@ neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
     return ctx;
 
   } else if (dir == Direction::kBoth) {
-    foreach_vertex(input_vertex_list,
-                   [&](size_t index, label_t label, vid_t v) {
-                     auto p = Path(label, v);
-                     input.emplace_back(std::move(p), index);
-                   });
+    foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+      auto p = Path(label, v);
+      input.emplace_back(std::move(p), index);
+    });
     int depth = 0;
     while (depth < params.hop_upper) {
       output.clear();
@@ -409,12 +404,12 @@ neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
 neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
                                            Context&& ctx,
                                            const PathExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
-  std::vector<std::vector<LabelTriplet>> out_labels_map(
+  vector_t<vector_t<LabelTriplet>> out_labels_map(
       graph.schema().vertex_label_frontier()),
       in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
@@ -424,13 +419,13 @@ neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
   auto dir = params.dir;
 
   PathColumnBuilder builder;
-  std::function<void(std::vector<VertexRecord>&,
-                     std::vector<std::tuple<label_t, Direction, const void*>>&,
-                     size_t)>
-      dfs = [&](std::vector<VertexRecord>& path,
-                std::vector<std::tuple<label_t, Direction, const void*>>&
+  std::function<void(vector_t<VertexRecord>&,
+                     vector_t<std::tuple<label_t, Direction, const void*>>&,
+                     sel_t)>
+      dfs = [&](vector_t<VertexRecord>& path,
+                vector_t<std::tuple<label_t, Direction, const void*>>&
                     edge_labels,
-                size_t index) {
+                sel_t index) {
         if (path.size() >= static_cast<size_t>(params.hop_lower)) {
           auto ptr = Path(edge_labels, path);
           builder.push_back_opt(Path(ptr));
@@ -479,9 +474,9 @@ neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
           }
         }
       };
-  foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-    std::vector<VertexRecord> path = {VertexRecord{label, v}};
-    std::vector<std::tuple<label_t, Direction, const void*>> edge_labels;
+  foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+    vector_t<VertexRecord> path = {VertexRecord{label, v}};
+    vector_t<std::tuple<label_t, Direction, const void*>> edge_labels;
     dfs(path, edge_labels, index);
   });
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
@@ -491,12 +486,12 @@ neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
 neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
                                           Context&& ctx,
                                           const PathExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
-  std::vector<std::vector<LabelTriplet>> out_labels_map(
+  vector_t<vector_t<LabelTriplet>> out_labels_map(
       graph.schema().vertex_label_frontier()),
       in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
@@ -506,13 +501,13 @@ neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
   auto dir = params.dir;
 
   PathColumnBuilder builder;
-  std::function<void(std::vector<VertexRecord>&,
-                     std::vector<std::tuple<label_t, Direction, const void*>>&,
-                     size_t)>
-      dfs = [&](std::vector<VertexRecord>& path,
-                std::vector<std::tuple<label_t, Direction, const void*>>&
+  std::function<void(vector_t<VertexRecord>&,
+                     vector_t<std::tuple<label_t, Direction, const void*>>&,
+                     sel_t)>
+      dfs = [&](vector_t<VertexRecord>& path,
+                vector_t<std::tuple<label_t, Direction, const void*>>&
                     edge_labels,
-                size_t index) {
+                sel_t index) {
         if (path.size() >= static_cast<size_t>(params.hop_lower)) {
           auto ptr = Path(edge_labels, path);
           builder.push_back_opt(ptr);
@@ -581,9 +576,9 @@ neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
           }
         }
       };
-  foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-    std::vector<VertexRecord> path = {VertexRecord{label, v}};
-    std::vector<std::tuple<label_t, Direction, const void*>> edge_labels;
+  foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+    vector_t<VertexRecord> path = {VertexRecord{label, v}};
+    vector_t<std::tuple<label_t, Direction, const void*>> edge_labels;
     dfs(path, edge_labels, index);
   });
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
@@ -593,12 +588,12 @@ neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
 neug::result<Context> path_expand_p_any_shortest(
     const StorageReadInterface& graph, Context&& ctx,
     const PathExpandParams& params) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
-  std::vector<std::vector<LabelTriplet>> out_labels_map(
+  vector_t<vector_t<LabelTriplet>> out_labels_map(
       graph.schema().vertex_label_frontier()),
       in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
@@ -608,16 +603,16 @@ neug::result<Context> path_expand_p_any_shortest(
   auto dir = params.dir;
 
   PathColumnBuilder builder;
-  std::function<void(const VertexRecord&, size_t)> bfs = [&](const VertexRecord&
-                                                                 root,
-                                                             size_t index) {
-    std::unordered_map<
-        VertexRecord, std::tuple<VertexRecord, label_t, Direction, const void*>>
+  std::function<void(const VertexRecord&, sel_t)> bfs = [&](const VertexRecord&
+                                                                root,
+                                                            sel_t index) {
+    flat_hash_map_t<VertexRecord,
+                    std::tuple<VertexRecord, label_t, Direction, const void*>>
         visited;
     std::tuple<VertexRecord, label_t, Direction, const void*> dummy;
     visited.emplace(root, dummy);
-    std::vector<VertexRecord> current_level;
-    std::vector<VertexRecord> next_level;
+    vector_t<VertexRecord> current_level;
+    vector_t<VertexRecord> next_level;
     current_level.emplace_back(root);
     int depth = 0;
     while (depth + 1 < params.hop_upper && !current_level.empty()) {
@@ -665,8 +660,8 @@ neug::result<Context> path_expand_p_any_shortest(
         if (node == root) {
           continue;
         }
-        std::vector<VertexRecord> path;
-        std::vector<std::tuple<label_t, Direction, const void*>> edge_labels;
+        vector_t<VertexRecord> path;
+        vector_t<std::tuple<label_t, Direction, const void*>> edge_labels;
         VertexRecord cur = node;
         while (!(cur == root)) {
           path.emplace_back(cur);
@@ -685,7 +680,7 @@ neug::result<Context> path_expand_p_any_shortest(
       }
     }
   };
-  foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
+  foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
     VertexRecord root{label, v};
     bfs(root, index);
   });
@@ -714,8 +709,8 @@ neug::result<Context> PathExpand::edge_expand_p(
 
 static bool single_source_single_dest_shortest_path_impl(
     const StorageReadInterface& graph, const ShortestPathParams& params,
-    vid_t src, vid_t dst, std::vector<vid_t>& path,
-    std::vector<std::pair<Direction, const void*>>& edge_datas) {
+    vid_t src, vid_t dst, vector_t<vid_t>& path,
+    vector_t<std::pair<Direction, const void*>>& edge_datas) {
   std::queue<vid_t> q1;
   std::queue<vid_t> q2;
   std::queue<vid_t> tmp;
@@ -881,7 +876,7 @@ static bool single_source_single_dest_shortest_path_impl(
 neug::result<Context> PathExpand::single_source_single_dest_shortest_path(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, std::pair<label_t, vid_t>& dest) {
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
   auto label_sets = input_vertex_list.get_labels_set();
@@ -900,9 +895,9 @@ neug::result<Context> PathExpand::single_source_single_dest_shortest_path(
   }
   MSVertexColumnBuilder builder(label_triplet.dst_label);
   PathColumnBuilder path_builder;
-  foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-    std::vector<vid_t> path;
-    std::vector<std::pair<Direction, const void*>> edge_datas;
+  foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+    vector_t<vid_t> path;
+    vector_t<std::pair<Direction, const void*>> edge_datas;
     if (single_source_single_dest_shortest_path_impl(
             graph, params, v, dest.second, path, edge_datas)) {
       builder.push_back_opt(dest.second);
@@ -922,10 +917,10 @@ static void dfs(
     const CsrView& oview, const CsrView& iview, vid_t src, vid_t dst,
     const StorageReadInterface::vertex_array_t<bool>& visited,
     const StorageReadInterface::vertex_array_t<int8_t>& dist,
-    const ShortestPathParams& params, std::vector<std::vector<vid_t>>& paths,
-    std::vector<vid_t>& cur_path,
-    std::vector<std::vector<std::pair<Direction, const void*>>>& edge_datas,
-    std::vector<std::pair<Direction, const void*>>& cur_edge_data) {
+    const ShortestPathParams& params, vector_t<vector_t<vid_t>>& paths,
+    vector_t<vid_t>& cur_path,
+    vector_t<vector_t<std::pair<Direction, const void*>>>& edge_datas,
+    vector_t<std::pair<Direction, const void*>>& cur_edge_data) {
   cur_path.push_back(src);
   if (src == dst) {
     paths.emplace_back(cur_path);
@@ -958,8 +953,8 @@ static void dfs(
 
 static void all_shortest_path_with_given_source_and_dest_impl(
     const StorageReadInterface& graph, const ShortestPathParams& params,
-    vid_t src, vid_t dst, std::vector<std::vector<vid_t>>& paths,
-    std::vector<std::vector<std::pair<Direction, const void*>>>& edge_datas) {
+    vid_t src, vid_t dst, vector_t<vector_t<vid_t>>& paths,
+    vector_t<vector_t<std::pair<Direction, const void*>>>& edge_datas) {
   StorageReadInterface::vertex_array_t<int8_t> dist_from_src(
       graph.GetVertexSet(params.labels[0].src_label), -1);
   StorageReadInterface::vertex_array_t<int8_t> dist_from_dst(
@@ -969,7 +964,7 @@ static void all_shortest_path_with_given_source_and_dest_impl(
   std::queue<vid_t> q1, q2, tmp;
   q1.push(src);
   q2.push(dst);
-  std::vector<vid_t> vec;
+  vector_t<vid_t> vec;
   int8_t src_dep = 0, dst_dep = 0;
 
   auto oview1 = graph.GetGenericOutgoingGraphView(params.labels[0].src_label,
@@ -1113,8 +1108,8 @@ static void all_shortest_path_with_given_source_and_dest_impl(
       }
     }
   }
-  std::vector<vid_t> cur_path;
-  std::vector<std::pair<Direction, const void*>> cur_edge_data;
+  vector_t<vid_t> cur_path;
+  vector_t<std::pair<Direction, const void*>> cur_edge_data;
   dfs(oview1, iview1, src, dst, visited, dist_from_src, params, paths, cur_path,
       edge_datas, cur_edge_data);
 }
@@ -1147,10 +1142,10 @@ neug::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
   }
   MSVertexColumnBuilder builder(label_triplet.dst_label);
   PathColumnBuilder path_builder;
-  std::vector<size_t> shuffle_offset;
-  foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
-    std::vector<std::vector<vid_t>> paths;
-    std::vector<std::vector<std::pair<Direction, const void*>>> edge_datas;
+  sel_vec_t shuffle_offset;
+  foreach_vertex(input_vertex_list, [&](sel_t index, label_t label, vid_t v) {
+    vector_t<vector_t<vid_t>> paths;
+    vector_t<vector_t<std::pair<Direction, const void*>>> edge_datas;
     all_shortest_path_with_given_source_and_dest_impl(
         graph, params, v, dest.second, paths, edge_datas);
     for (size_t i = 0; i < paths.size(); ++i) {
@@ -1183,7 +1178,7 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const SpecialPredicateConfig& config,
     const ParamsMap& query_params) {
-  std::set<label_t> expected_labels;
+  flat_hash_set_t<label_t> expected_labels;
   for (const auto& label_triplet : params.labels) {
     expected_labels.insert(label_triplet.dst_label);
     expected_labels.insert(label_triplet.src_label);

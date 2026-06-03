@@ -47,7 +47,7 @@ void Context::set(int alias, std::shared_ptr<IContextColumn> col) {
 }
 
 void Context::set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                                 const std::vector<size_t>& offsets) {
+                                 const sel_vec_t& offsets) {
   head.reset();
   head = nullptr;
 
@@ -63,9 +63,9 @@ void Context::set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
   set(alias, col);
 }
 
-void Context::reshuffle(const std::vector<size_t>& offsets) {
+void Context::reshuffle(const sel_vec_t& offsets) {
   bool head_shuffled = false;
-  std::vector<std::shared_ptr<IContextColumn>> new_cols;
+  vector_t<std::shared_ptr<IContextColumn>> new_cols;
 
   for (auto col : columns) {
     if (col == nullptr) {
@@ -87,9 +87,9 @@ void Context::reshuffle(const std::vector<size_t>& offsets) {
   std::swap(new_cols, columns);
 }
 
-void Context::optional_reshuffle(const std::vector<size_t>& offsets) {
+void Context::optional_reshuffle(const sel_vec_t& offsets) {
   bool head_shuffled = false;
-  std::vector<std::shared_ptr<IContextColumn>> new_cols;
+  vector_t<std::shared_ptr<IContextColumn>> new_cols;
 
   for (auto col : columns) {
     if (col == nullptr) {
@@ -151,14 +151,14 @@ void Context::remove(int alias) {
   }
 }
 
-size_t Context::row_num() const {
+sel_t Context::row_num() const {
   for (auto col : columns) {
     if (col != nullptr) {
-      return col->size();
+      return static_cast<sel_t>(col->size());
     }
   }
   if (head != nullptr) {
-    return head->size();
+    return static_cast<sel_t>(head->size());
   }
   return 0;
 }
@@ -186,9 +186,9 @@ void Context::desc(const std::string& info) const {
 }
 
 void Context::show(const StorageReadInterface& graph) const {
-  size_t rn = row_num();
+  sel_t rn = row_num();
   size_t cn = col_num();
-  for (size_t ri = 0; ri < rn; ++ri) {
+  for (sel_t ri = 0; ri < rn; ++ri) {
     std::string line;
     for (size_t ci = 0; ci < cn; ++ci) {
       if (columns[ci] != nullptr &&

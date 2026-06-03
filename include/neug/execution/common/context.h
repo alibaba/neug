@@ -14,8 +14,8 @@
  */
 
 #pragma once
-#include <unordered_map>
 #include "neug/common/types.h"
+#include "neug/utils/mi_allocator.h"
 
 namespace neug {
 class StorageReadInterface;
@@ -34,10 +34,10 @@ class Context {
   void set(int alias, std::shared_ptr<IContextColumn> col);
 
   void set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                          const std::vector<size_t>& offsets);
+                          const sel_vec_t& offsets);
 
-  void reshuffle(const std::vector<size_t>& offsets);
-  void optional_reshuffle(const std::vector<size_t>& offsets);
+  void reshuffle(const sel_vec_t& offsets);
+  void optional_reshuffle(const sel_vec_t& offsets);
 
   std::shared_ptr<IContextColumn> get(int alias);
 
@@ -45,7 +45,7 @@ class Context {
 
   void remove(int alias);
 
-  size_t row_num() const;
+  sel_t row_num() const;
 
   bool exist(int alias) const;
 
@@ -57,10 +57,10 @@ class Context {
 
   Context union_ctx(const Context& ctx) const;
 
-  std::vector<std::shared_ptr<IContextColumn>> columns;
+  vector_t<std::shared_ptr<IContextColumn>> columns;
   std::shared_ptr<IContextColumn> head;
 
-  std::vector<int> tag_ids;
+  vector_t<int> tag_ids;
 };
 
 class ContextMeta {
@@ -80,14 +80,14 @@ class ContextMeta {
 
   DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  const std::unordered_map<int32_t, DataType>& columns() const {
+  const flat_hash_map_t<int32_t, DataType>& columns() const {
     return alias_set_;
   }
 
   void desc() const;
 
  private:
-  std::unordered_map<int32_t, DataType> alias_set_;
+  flat_hash_map_t<int32_t, DataType> alias_set_;
 };
 
 }  // namespace execution

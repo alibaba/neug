@@ -91,7 +91,7 @@ class TopNGenerator {
     }
   }
 
-  void generate_indices(std::vector<size_t>& indices) {
+  void generate_indices(sel_vec_t& indices) {
     indices = std::move(replicated_indices_);
     replicated_indices_.clear();
     while (!pq_.empty()) {
@@ -100,7 +100,7 @@ class TopNGenerator {
     }
   }
 
-  void generate_pairs(std::vector<T>& values, std::vector<size_t>& indices) {
+  void generate_pairs(vector_t<T>& values, sel_vec_t& indices) {
     indices = std::move(replicated_indices_);
     replicated_indices_.clear();
     values.clear();
@@ -114,8 +114,8 @@ class TopNGenerator {
 
  private:
   size_t n_;
-  std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq_;
-  std::vector<size_t> replicated_indices_;
+  std::priority_queue<unit_t, vector_t<unit_t>, CMP_T> pq_;
+  sel_vec_t replicated_indices_;
 };
 
 template <typename T, typename CMP_T>
@@ -125,11 +125,10 @@ class InplaceTopNGenerator {
  public:
   explicit InplaceTopNGenerator(size_t n) : n_(n) {}
 
-  void generate_indices(const std::vector<T>& input,
-                        std::vector<size_t>& indices) {
-    size_t size = input.size();
-    std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq(CMP_T{});
-    for (size_t i = 0; i < size; ++i) {
+  void generate_indices(const vector_t<T>& input, sel_vec_t& indices) {
+    sel_t size = input.size();
+    std::priority_queue<unit_t, vector_t<unit_t>, CMP_T> pq(CMP_T{});
+    for (sel_t i = 0; i < size; ++i) {
       if (pq.size() < n_) {
         pq.emplace(input[i], i);
       } else if (CMP_T()(input[i], pq.top().val)) {
@@ -140,7 +139,7 @@ class InplaceTopNGenerator {
 
     T top_val = pq.top().val;
     pq.pop();
-    for (size_t i = 0; i < size; ++i) {
+    for (sel_t i = 0; i < size; ++i) {
       if (input[i] == top_val) {
         indices.push_back(i);
       }
