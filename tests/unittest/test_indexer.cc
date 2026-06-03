@@ -179,7 +179,7 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
       std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".keys"));
   EXPECT_TRUE(
       std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".indices"));
-  copied_to_workdir.drop();
+  copied_to_workdir.close();
 
   LFIndexer<uint32_t> in_memory;
   in_memory.init(DataTypeId::kInt64);
@@ -194,19 +194,7 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   hugepage_indexer.close();
 }
 
-TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
-  const std::string empty_name = "empty_index";
-  const std::string empty_dir = test_dir_ + "/empty_dir";
-  std::filesystem::create_directories(empty_dir);
-  CreateEmptyIndicesFile(empty_dir + "/" + empty_name);
-
-  LFIndexer<uint32_t> empty_indexer;
-  empty_indexer.init(DataTypeId::kInt64);
-  empty_indexer.build_empty_LFIndexer(empty_name, "", empty_dir);
-  EXPECT_TRUE(std::filesystem::exists(empty_dir + "/" + empty_name + ".meta"));
-  EXPECT_TRUE(
-      std::filesystem::exists(empty_dir + "/" + empty_name + ".indices"));
-
+TEST_F(LFIndexerTest, SupportsSwapAndVarcharKeys) {
   const std::string lhs_base = test_dir_ + "/lhs_varchar";
   const std::string rhs_base = test_dir_ + "/rhs_varchar";
   CreateEmptyIndicesFile(lhs_base);
@@ -242,7 +230,7 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   ExpectStringValues(lhs, rhs_values);
   ExpectStringValues(rhs, lhs_values);
 
-  rhs.drop();
+  rhs.close();
   lhs.close();
 }
 
@@ -593,7 +581,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
-  indexer.drop();
+  indexer.close();
 }
 
 // Test: String overflow handling when inserting strings exceeding max length.

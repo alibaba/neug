@@ -23,7 +23,7 @@
 
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/property/types.h"
 
@@ -35,20 +35,20 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
 
-  ImmutableCsr() {}
+  ImmutableCsr() : unsorted_since_(0) {}
   ~ImmutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kImmutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
-        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
-        reinterpret_cast<const int*>(degree_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
+    return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+                   reinterpret_cast<const int*>(degree_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -134,15 +134,14 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   CsrType csr_type() const override { return CsrType::kSingleImmutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
-        reinterpret_cast<const char*>(nbr_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1,
-        std::numeric_limits<timestamp_t>::max());
+    return CsrView(reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {

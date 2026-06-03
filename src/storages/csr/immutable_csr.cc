@@ -249,6 +249,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
     adj_arr[i] = ptr;
     ptr += deg_arr[i];
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -285,6 +286,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
       }
     }
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -314,6 +316,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
       }
     }
   }
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -332,6 +335,7 @@ void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbrs[offset].neighbor = std::numeric_limits<vid_t>::max();
   edge_num_.fetch_sub(1, std::memory_order_relaxed);
+  unsorted_since_ = 0;
 }
 
 template <typename EDATA_T>
@@ -385,6 +389,10 @@ void ImmutableCsr<EDATA_T>::batch_put_edges(
     nbr.neighbor = dst_list[i];
     nbr.data = data_list[i];
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+  }
+  // invalidate sort flag
+  if (ts < unsorted_since_) {
+    unsorted_since_ = 0;
   }
 }
 

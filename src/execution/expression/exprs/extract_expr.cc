@@ -15,8 +15,8 @@
 
 #include "neug/execution/expression/exprs/extract_expr.h"
 
-#include "neug/utils/exception/exception.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -95,8 +95,8 @@ class BindedExtractExpr : public VertexExprBase,
         return Value(DataType::INT64);
       }
     } else {
-      THROW_NOT_SUPPORTED_EXCEPTION("not support: " +
-                                    std::to_string(static_cast<int>(val.type().id())));
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "not support: " + std::to_string(static_cast<int>(val.type().id())));
       return Value(DataType::INT64);
     }
   }

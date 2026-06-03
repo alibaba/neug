@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       extensions:
-        description: 'Semicolon-separated list of extensions to build (e.g., json;parquet)'
+        description: 'Semicolon-separated list of extensions to build (e.g., parquet;httpfs)'
         required: false
-        default: 'json;parquet'
+        default: 'parquet;httpfs'
       version:
-        description: 'Version tag for the extensions (e.g., 0.1.1)'
+        description: 'Version tag for the extensions (e.g., 0.1.2)'
         required: false
-        default: '0.1.1'
+        default: '0.1.2'
   push:
     branches:
       - main
@@ -51,7 +51,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             EXTENSIONS="${{ github.event.inputs.extensions }}"
           else
-            EXTENSIONS="json;parquet"
+            EXTENSIONS="parquet;httpfs"
           fi
           echo "extensions=$EXTENSIONS" >> $GITHUB_OUTPUT
           echo "Building extensions: $EXTENSIONS"
@@ -64,8 +64,8 @@ jobs:
           elif [ -n "${{ github.ref }}" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            # Default to 0.1.1 if no version is specified
-            VERSION="0.1.1"
+            # Default to 0.1.2 if no version is specified
+            VERSION="0.1.2"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
@@ -76,7 +76,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, daily, X64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-x86_64
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-x86_64
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -159,7 +159,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, daily, ARM64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-arm64
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-arm64
     steps:
       - name: checkout
         uses: actions/checkout@v4

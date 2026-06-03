@@ -600,6 +600,12 @@ if(BUILD_EXTENSIONS AND "parquet" IN_LIST BUILD_EXTENSIONS)
     message(STATUS "Arrow Parquet support enabled for parquet extension")
 endif()
 
+# Configure Arrow S3 support if httpfs extension is enabled
+if(BUILD_EXTENSIONS AND "httpfs" IN_LIST BUILD_EXTENSIONS)
+    set(ARROW_ENABLE_S3 ON CACHE BOOL "" FORCE)
+    message(STATUS "Arrow S3 support enabled for httpfs extension")
+endif()
+
 set(NEUG_USE_SYSTEM_ARROW OFF)
 if(DEFINED ENV{CI})
     if("$ENV{CI}" STREQUAL "ON")
@@ -946,7 +952,7 @@ list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}
-    COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
+    COMMENT "Running clang-format (pin: clang-format==10.0.1; install via 'python3 -m pip install clang-format==10.0.1')"
     VERBATIM)
 
 file(GLOB_RECURSE FILES_NEED_FORMAT

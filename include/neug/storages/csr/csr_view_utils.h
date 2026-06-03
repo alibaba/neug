@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 
 namespace neug {
 
@@ -30,12 +30,12 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
                                           const DataTypeId& type);
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
-    const GenericView& oe, const GenericView& ie,
+    const CsrView& oe, const CsrView& ie,
     const neug::execution::EdgeRecord& record,
     const std::vector<DataType>& props);
 
-int32_t search_other_offset_with_cur_offset(const GenericView& cur_view,
-                                            const GenericView& other_view,
+int32_t search_other_offset_with_cur_offset(const CsrView& cur_view,
+                                            const CsrView& other_view,
                                             vid_t src_lid, vid_t other_lid,
                                             int32_t cur_offset,
                                             const std::vector<DataType>& props);

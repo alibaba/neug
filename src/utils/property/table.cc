@@ -312,11 +312,6 @@ void Table::ingest(uint32_t index, OutArchive& arc) {
 
 void Table::close() { columns_.clear(); }
 
-void Table::drop() {
-  close();
-  // TODO(zhanglei): delete files in work_dir
-}
-
 void Table::set_name(const std::string& name) { name_ = name; }
 
 void Table::set_work_dir(const std::string& work_dir) { work_dir_ = work_dir; }

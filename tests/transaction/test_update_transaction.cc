@@ -17,7 +17,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/update_transaction.h"
 
@@ -1238,7 +1238,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
     EXPECT_THROW(gi.schema().get_vertex_label_id("company"),
                  neug::exception::Exception);
     EXPECT_FALSE(
-        gi.schema().has_edge_label("person", "company", "employed_by"));
+        gi.schema().has_edge_triplet("person", "company", "employed_by"));
     EXPECT_THROW(
         gi.GetGenericOutgoingGraphView(person_label, cmp_label, employ_label),
         neug::exception::Exception);
@@ -1295,8 +1295,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(txn.DeleteEdgeType("person", "software", "created"));
-    EXPECT_FALSE(txn.schema().edge_triplet_valid(person_label, software_label,
-                                                 created_label));
+    EXPECT_FALSE(txn.schema().is_edge_triplet_valid(
+        person_label, software_label, created_label));
     txn.Abort();
   }
   {
@@ -1306,9 +1306,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
-    EXPECT_TRUE(gi.schema().exist("person", "software", "created"));
-    EXPECT_TRUE(gi.schema().edge_triplet_valid(person_label, software_label,
-                                               created_label));
+    EXPECT_TRUE(
+        gi.schema().is_edge_triplet_valid("person", "software", "created"));
+    EXPECT_TRUE(gi.schema().is_edge_triplet_valid(person_label, software_label,
+                                                  created_label));
   }
   db.Close();
 }
@@ -1730,10 +1731,10 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
       }
     }
     EXPECT_TRUE(found);
-    EXPECT_FALSE(gi.schema().contains_vertex_label("software"));
-    EXPECT_TRUE(gi.schema().contains_vertex_label("company"));
-    EXPECT_FALSE(gi.schema().contains_edge_label("created"));
-    EXPECT_TRUE(gi.schema().contains_edge_label("employed_by"));
+    EXPECT_FALSE(gi.schema().is_vertex_label_valid("software"));
+    EXPECT_TRUE(gi.schema().is_vertex_label_valid("company"));
+    EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
+    EXPECT_TRUE(gi.schema().is_edge_label_valid("employed_by"));
     txn.Commit();
     db.Close();
   }
