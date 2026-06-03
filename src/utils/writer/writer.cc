@@ -20,8 +20,8 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
 
-#include <arrow/util/io_util.h>                                                                                                             
-#include <cerrno>   
+#include <arrow/util/io_util.h>
+#include <cerrno>
 #include <climits>
 #include <cstdint>
 #include <cstdio>
