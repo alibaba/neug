@@ -20,6 +20,8 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
 
+#include <arrow/util/io_util.h>                                                                                                             
+#include <cerrno>   
 #include <climits>
 #include <cstdint>
 #include <cstdio>
@@ -352,8 +354,8 @@ neug::Status CsvQueryExportWriter::writeTable(
   }
   auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
   if (!stream_result.ok()) {
-    auto err_msg = stream_result.status().ToString();
-    auto code = err_msg.find("Permission denied") != std::string::npos
+    int err = arrow::internal::ErrnoFromStatus(stream_result.status());
+    auto code = code = (err == EACCES || err == EPERM)
                     ? StatusCode::ERR_PERMISSION
                     : StatusCode::ERR_IO_ERROR;
     return neug::Status(code, "Failed to open file stream: " + err_msg);
