@@ -87,15 +87,15 @@ class VertexTable {
         work_dir_("") {}
 
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
-      : indexer_(std::make_shared<IndexerType>()),
+      : indexer_(std::make_shared<IndexerType>(
+            std::get<0>(vertex_schema->primary_keys[0]))),
         table_(std::make_unique<Table>()),
+        pk_type_(std::get<0>(vertex_schema->primary_keys[0])),
         vertex_schema_(vertex_schema),
         v_ts_(std::make_shared<VertexTimestamp>()),
         memory_level_(MemoryLevel::kInMemory),
         work_dir_("") {
     assert(vertex_schema->primary_keys.size() == 1);
-    pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
-    indexer_->init(pk_type_.id());
   }
 
   VertexTable(VertexTable&& other)

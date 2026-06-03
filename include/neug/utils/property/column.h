@@ -172,6 +172,11 @@ class TypedColumn : public ColumnBase {
   const IDataContainer& buffer() const { return *buffer_; }
   size_t buffer_size() const { return size_; }
 
+  inline T* mutable_data() { return reinterpret_cast<T*>(buffer_->GetData()); }
+  inline const T* data() const {
+    return reinterpret_cast<const T*>(buffer_->GetData());
+  }
+
  private:
   std::unique_ptr<IDataContainer> buffer_;
   size_t size_;

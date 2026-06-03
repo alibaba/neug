@@ -96,7 +96,10 @@ class EdgeTableTest : public ::testing::Test {
                      const std::string& name, const std::string& snapshot_dir,
                      const std::string& work_dir) {
     indexer.close();
-    indexer.init(DataTypeId::kInt64);
+    {
+      neug::LFIndexer<neug::vid_t> fresh(DataTypeId::kInt64);
+      indexer.swap(fresh);
+    }
     indexer.open(name, snapshot_dir, work_dir);
     indexer.reserve(num);
     for (neug::vid_t i = 0; i < num; ++i) {
@@ -1558,8 +1561,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   }
   EXPECT_EQ(suppliers.size(), 1);
 
-  LFIndexer<vid_t> indexer;
-  indexer.init(DataTypeId::kUInt32);
+  LFIndexer<vid_t> indexer(DataTypeId::kUInt32);
   indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
@@ -1604,8 +1606,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
       file_path, column_types, csv_options);
   EXPECT_EQ(suppliers.size(), 1);
 
-  LFIndexer<vid_t> indexer;
-  indexer.init(DataTypeId::kUInt32);
+  LFIndexer<vid_t> indexer(DataTypeId::kUInt32);
   indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
