@@ -175,7 +175,7 @@ class EdgeTable {
 
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp,
-                                  std::shared_ptr<ColumnBase> prev_data_col);
+                                  ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 
   std::shared_ptr<const EdgeSchema> meta_;

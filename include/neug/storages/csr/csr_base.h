@@ -86,7 +86,7 @@ class CsrBase : public Module {
       Allocator& alloc) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const = 0;
+      ColumnBase* prev_data_col) const = 0;
 };
 
 template <typename EDATA_T>

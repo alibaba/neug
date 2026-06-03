@@ -36,15 +36,14 @@ Table::Table(const std::vector<std::string>& col_names,
   columns_.clear();
   col_names_.clear();
   col_id_map_.clear();
-  columns_.resize(col_num, nullptr);
+  columns_.resize(col_num);
 
   for (size_t i = 0; i < col_num; ++i) {
     int col_id = col_names_.size();
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
     assert(i < property_types.size());
-    columns_[col_id] =
-        std::shared_ptr<ColumnBase>(CreateColumn(property_types[i]));
+    columns_[col_id] = CreateColumn(property_types[i]);
   }
   columns_.resize(col_id_map_.size());
 }
@@ -56,13 +55,20 @@ void Table::Init(Checkpoint& ckp, MemoryLevel level) {
   }
 }
 
-void Table::SetColumn(int idx, std::shared_ptr<ColumnBase> col) {
+void Table::SetColumn(int idx, std::unique_ptr<ColumnBase> col) {
   if (idx < 0 || static_cast<size_t>(idx) >= columns_.size()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Table::SetColumn: index " + std::to_string(idx) +
         " out of range (col_num=" + std::to_string(columns_.size()) + ")");
   }
   columns_[idx] = std::move(col);
+}
+
+std::unique_ptr<ColumnBase> Table::TakeColumn(int idx) {
+  if (idx < 0 || static_cast<size_t>(idx) >= columns_.size()) {
+    return nullptr;
+  }
+  return std::move(columns_[idx]);
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {
@@ -99,7 +105,7 @@ void Table::add_columns(Checkpoint& ckp,
     int col_id = col_names_.size();
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
-    columns_[col_id] = std::shared_ptr<ColumnBase>(CreateColumn(col_types[i]));
+    columns_[col_id] = CreateColumn(col_types[i]);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     columns_[i]->Open(ckp, ModuleDescriptor(), memory_level);
@@ -164,57 +170,51 @@ std::vector<DataTypeId> Table::column_types() const {
   return types;
 }
 
-std::shared_ptr<ColumnBase> Table::get_column(const std::string& name) {
+ColumnBase* Table::get_column(const std::string& name) {
   auto it = col_id_map_.find(name);
   if (it != col_id_map_.end()) {
     int col_id = it->second;
     if (static_cast<size_t>(col_id) < columns_.size()) {
-      return columns_[col_id];
+      return columns_[col_id].get();
     }
   }
-
   return nullptr;
 }
 
-const std::shared_ptr<ColumnBase> Table::get_column(
-    const std::string& name) const {
+const ColumnBase* Table::get_column(const std::string& name) const {
   auto it = col_id_map_.find(name);
   if (it != col_id_map_.end()) {
     int col_id = it->second;
     if (static_cast<size_t>(col_id) < columns_.size()) {
-      return columns_[col_id];
+      return columns_[col_id].get();
     }
   }
-
   return nullptr;
 }
 
 std::vector<Property> Table::get_row(size_t row_id) const {
   std::vector<Property> ret;
-  for (auto ptr : columns_) {
+  for (const auto& ptr : columns_) {
     ret.push_back(ptr->get_prop(row_id));
   }
   return ret;
 }
 
-std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) {
+ColumnBase* Table::get_column_by_id(size_t index) {
   if (index >= columns_.size()) {
     return nullptr;
-  } else {
-    return columns_[index];
   }
+  return columns_[index].get();
 }
 
-const std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) const {
+const ColumnBase* Table::get_column_by_id(size_t index) const {
   if (index >= columns_.size()) {
     return nullptr;
-  } else {
-    return columns_[index];
   }
+  return columns_[index].get();
 }
 
 size_t Table::col_num() const { return columns_.size(); }
-std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 
 void Table::insert(size_t index, const std::vector<Property>& values,
                    bool insert_safe) {
@@ -227,7 +227,7 @@ void Table::insert(size_t index, const std::vector<Property>& values,
 }
 
 void Table::resize(size_t row_num) {
-  for (auto col : columns_) {
+  for (const auto& col : columns_) {
     col->resize(row_num);
   }
 }

@@ -146,7 +146,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* const* adjlists =
@@ -164,8 +164,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -283,7 +282,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
@@ -296,8 +295,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -394,7 +392,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     return {};
   }
 

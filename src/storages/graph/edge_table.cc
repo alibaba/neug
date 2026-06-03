@@ -710,7 +710,7 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
   }
   if (!meta_->is_bundled()) {
     return EdgeDataAccessor(meta_->properties[col_id].id(),
-                            table_->get_column_by_id(col_id).get());
+                            table_->get_column_by_id(col_id));
   } else {
     if (col_id != 0) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -958,8 +958,8 @@ size_t EdgeTable::Capacity() const {
   return capacity_.load();
 }
 
-void EdgeTable::dropAndCreateNewBundledCSR(
-    Checkpoint& ckp, std::shared_ptr<ColumnBase> remaining_col) {
+void EdgeTable::dropAndCreateNewBundledCSR(Checkpoint& ckp,
+                                           ColumnBase* remaining_col) {
   DataTypeId property_type = (remaining_col == nullptr)
                                  ? meta_->properties[0].id()
                                  : remaining_col->type();
@@ -986,10 +986,9 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                        property_type, default_props[0],
                                        new_in_csr.get());
   } else {
-    std::shared_ptr<ColumnBase> row_id_col_base(
-        CreateColumn(DataTypeId::kUInt64));
-    auto row_id_col = std::dynamic_pointer_cast<ULongColumn>(row_id_col_base);
-    row_id_col->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    auto row_id_col_base = CreateColumn(DataTypeId::kUInt64);
+    row_id_col_base->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    auto* row_id_col = dynamic_cast<ULongColumn*>(row_id_col_base.get());
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());
@@ -1026,7 +1025,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
     table_->Init(ckp, MemoryLevel::kInMemory);
   }
 
-  std::shared_ptr<ColumnBase> prev_data_col = nullptr;
+  ColumnBase* prev_data_col = nullptr;
 
   if (!delete_property) {
     if (table_->col_num() >= 1 &&
@@ -1144,8 +1143,8 @@ EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
     auto table = std::make_unique<Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
       table->SetColumn(static_cast<int>(i),
-                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
-                           KeyProperty(src, edge, dst, i))));
+                       store.TakeModule<ColumnBase>(
+                           KeyProperty(src, edge, dst, i)));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(

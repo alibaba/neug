@@ -99,7 +99,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     LOG(FATAL) << "not implemented...";
     return {};
   }
@@ -187,7 +187,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     LOG(FATAL) << "not implemented...";
     return {};
   }

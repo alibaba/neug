@@ -681,8 +681,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
 }
 
 template <typename COL_T>
-void set_column(std::shared_ptr<neug::ColumnBase> col,
-                std::shared_ptr<arrow::ChunkedArray> array,
+void set_column(ColumnBase* col, std::shared_ptr<arrow::ChunkedArray> array,
                 const std::vector<vid_t>& vids) {
   using arrow_array_type = typename neug::TypeConverter<COL_T>::ArrowArrayType;
   auto array_type = array->type();
@@ -703,7 +702,7 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
   }
 }
 
-void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
+void set_column_from_date_array(ColumnBase* col,
                                 std::shared_ptr<arrow::ChunkedArray> array,
                                 const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -743,7 +742,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
 }
 
 template <typename COL_T>  // COL_T = DateTime or Timestamp
-void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
+void set_column_from_timestamp_array(ColumnBase* col,
                                      std::shared_ptr<arrow::ChunkedArray> array,
                                      const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -771,8 +770,7 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
 }
 
 void set_interval_column_from_string_array(
-    std::shared_ptr<neug::ColumnBase> col,
-    std::shared_ptr<arrow::ChunkedArray> array,
+    ColumnBase* col, std::shared_ptr<arrow::ChunkedArray> array,
     const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
@@ -806,14 +804,13 @@ void set_interval_column_from_string_array(
   }
 }
 
-void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
+void set_column_from_string_array(ColumnBase* col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
                                   const std::vector<vid_t>& vids,
                                   std::shared_mutex& rw_mutex,
                                   bool enable_resize = false) {
   auto type = array->type();
-  auto typed_col =
-      dynamic_cast<neug::TypedColumn<std::string_view>*>(col.get());
+  auto typed_col = dynamic_cast<neug::TypedColumn<std::string_view>*>(col);
   if (enable_resize) {
     CHECK(typed_col != nullptr) << "Only support TypedColumn<std::string_view>";
   }
@@ -881,7 +878,7 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
   }
 }
 
-void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
+void set_properties_column(ColumnBase* col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids,
                            std::shared_mutex& mutex) {
