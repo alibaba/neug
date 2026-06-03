@@ -81,8 +81,8 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
     if (ftruncate(fd_, new_file_size) != 0) {
-      THROW_IO_EXCEPTION("Failed to truncate wal file " +
-                         std::string(strerror(errno)));
+      LOG(ERROR) << "Failed to truncate wal file " << strerror(errno);
+      return false;
     }
     file_size_ = new_file_size;
   }
@@ -90,26 +90,21 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   file_used_ += length;
 
   if (static_cast<size_t>(write(fd_, data, length)) != length) {
-    THROW_IO_EXCEPTION("Failed to write wal file " +
-                       std::string(strerror(errno)));
+    LOG(ERROR) << "Failed to write wal file " << strerror(errno);
+    return false;
   }
 
 #if 1
 #ifdef F_FULLFSYNC
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
-#ifdef __APPLE__
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerror(errno)));
-#else
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerrno(errno)));
-#endif
+    LOG(ERROR) << "Failed to fcntl sync wal file " << strerror(errno);
+    return false;
   }
 #else
   // if (fsync(fd_) != 0) {
   if (fdatasync(fd_) != 0) {
-    THROW_IO_EXCEPTION("Failed to fsync wal file " +
-                       std::string(strerror(errno)));
+    LOG(ERROR) << "Failed to fsync wal file " << strerror(errno);
+    return false;
   }
 #endif
 #endif
