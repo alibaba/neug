@@ -273,8 +273,7 @@ class VarLenColumn : public ColumnBase {
   }
 
   void open_in_memory(const std::string& name) override {
-    items_buffer_ =
-        OpenContainer(name + ".items", "", MemoryLevel::kInMemory);
+    items_buffer_ = OpenContainer(name + ".items", "", MemoryLevel::kInMemory);
     data_buffer_ = OpenContainer(name + ".data", "", MemoryLevel::kInMemory);
     size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
     init_pos(name + ".pos");
