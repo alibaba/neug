@@ -39,7 +39,6 @@ namespace neug {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
-  Close();
   unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
   degree_list_buffer_ =
@@ -146,15 +145,9 @@ size_t ImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Close() {
-  if (adj_list_buffer_) {
-    adj_list_buffer_->Close();
-  }
-  if (degree_list_buffer_) {
-    degree_list_buffer_->Close();
-  }
-  if (nbr_list_buffer_) {
-    nbr_list_buffer_->Close();
-  }
+  adj_list_buffer_.reset();
+  degree_list_buffer_.reset();
+  nbr_list_buffer_.reset();
 }
 
 template <typename EDATA_T>
@@ -411,9 +404,7 @@ size_t SingleImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::Close() {
-  if (nbr_list_buffer_) {
-    nbr_list_buffer_->Close();
-  }
+  nbr_list_buffer_.reset();
 }
 
 template <typename EDATA_T>

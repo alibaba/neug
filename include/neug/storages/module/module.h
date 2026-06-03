@@ -47,11 +47,6 @@ class Module {
   virtual ModuleDescriptor Dump(Checkpoint& ckp) = 0;
 
   /**
-   * @brief Release all in-memory buffers and file handles.
-   */
-  virtual void Close() = 0;
-
-  /**
    * @brief Return factory registration key (e.g., "vertex_table").
    */
   virtual std::string ModuleTypeName() const = 0;

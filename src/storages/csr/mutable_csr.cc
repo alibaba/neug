@@ -45,8 +45,6 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                const ModuleDescriptor& descriptor,
                                MemoryLevel memory_level) {
-  Close();
-
   unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
   degree_list_ = ckp.OpenFile(descriptor.get_path("degree_list"), memory_level);
@@ -60,7 +58,7 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
         "Capacity list size does not match degree list size");
   }
 
-  locks_ = new SpinLock[v_cap];
+  locks_ = std::make_unique<SpinLock[]>(v_cap);
   const auto* deg_ptr = reinterpret_cast<const int*>(degree_list_->GetData());
   const auto* cap_ptr = reinterpret_cast<const int*>(cap_list_->GetData());
   auto* adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
@@ -214,8 +212,7 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
       sz_arr[i] = 0;
       cap_arr[i] = 0;
     }
-    delete[] locks_;
-    locks_ = new SpinLock[vnum];
+    locks_ = std::make_unique<SpinLock[]>(vnum);
   } else {
     adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
     degree_list_->Resize(vnum * sizeof(int));
@@ -231,22 +228,11 @@ size_t MutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Close() {
-  if (locks_ != nullptr) {
-    delete[] locks_;
-    locks_ = nullptr;
-  }
-  if (adj_list_buffer_) {
-    adj_list_buffer_->Close();
-  }
-  if (degree_list_) {
-    degree_list_->Close();
-  }
-  if (cap_list_) {
-    cap_list_->Close();
-  }
-  if (nbr_list_) {
-    nbr_list_->Close();
-  }
+  locks_.reset();
+  adj_list_buffer_.reset();
+  degree_list_.reset();
+  cap_list_.reset();
+  nbr_list_.reset();
 }
 
 template <typename EDATA_T>
@@ -565,9 +551,7 @@ size_t SingleMutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::Close() {
-  if (nbr_list_) {
-    nbr_list_->Close();
-  }
+  nbr_list_.reset();
 }
 
 template <typename EDATA_T>

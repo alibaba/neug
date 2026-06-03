@@ -131,58 +131,63 @@ void SnapshotMeta::Open(const std::string& file_path) {
 }
 
 void SnapshotMeta::Dump(const std::string& file_path) const {
-  file_utils::atomic_write_file(file_path, [this](std::ostream& os) {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
+  file_utils::AtomicFileWriter writer(file_path);
+  auto& os = writer.stream();
 
-    doc.AddMember("version", rapidjson::Value(kFormatVersion), alloc);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto& alloc = doc.GetAllocator();
+  doc.AddMember("version", rapidjson::Value(kFormatVersion), alloc);
 
-    auto schema_res = schema_.ToJson();
-    if (!schema_res) {
-      LOG(ERROR) << "SnapshotMeta::Dump: failed to serialize schema: "
-                 << schema_res.error().error_message();
-    } else {
-      doc.AddMember("schema", schema_res.value().Move(), alloc);
-    }
+  auto schema_res = schema_.ToJson();
+  if (!schema_res) {
+    LOG(ERROR) << "SnapshotMeta::Dump: failed to serialize schema: "
+               << schema_res.error().error_message();
+  } else {
+    doc.AddMember("schema", schema_res.value().Move(), alloc);
+  }
 
-    rapidjson::Value modules_obj(rapidjson::kObjectType);
-    for (const auto& [key, desc] : modules_) {
-      rapidjson::Value key_val(
-          key.c_str(), static_cast<rapidjson::SizeType>(key.size()), alloc);
-      modules_obj.AddMember(key_val, desc.ToJson(alloc), alloc);
-    }
-    doc.AddMember("modules", modules_obj, alloc);
+  rapidjson::Value modules_obj(rapidjson::kObjectType);
+  for (const auto& [key, desc] : modules_) {
+    rapidjson::Value key_val(
+        key.c_str(), static_cast<rapidjson::SizeType>(key.size()), alloc);
+    modules_obj.AddMember(key_val, desc.ToJson(alloc), alloc);
+  }
+  doc.AddMember("modules", modules_obj, alloc);
 
-    rapidjson::Value scalars_obj(rapidjson::kObjectType);
-    for (const auto& [key, value] : scalars_) {
-      rapidjson::Value key_val(
-          key.c_str(), static_cast<rapidjson::SizeType>(key.size()), alloc);
-      rapidjson::Value value_val(
-          value.c_str(), static_cast<rapidjson::SizeType>(value.size()), alloc);
-      scalars_obj.AddMember(key_val, value_val, alloc);
-    }
-    doc.AddMember("scalars", scalars_obj, alloc);
+  rapidjson::Value scalars_obj(rapidjson::kObjectType);
+  for (const auto& [key, value] : scalars_) {
+    rapidjson::Value key_val(
+        key.c_str(), static_cast<rapidjson::SizeType>(key.size()), alloc);
+    rapidjson::Value value_val(
+        value.c_str(), static_cast<rapidjson::SizeType>(value.size()), alloc);
+    scalars_obj.AddMember(key_val, value_val, alloc);
+  }
+  doc.AddMember("scalars", scalars_obj, alloc);
 
-    rapidjson::OStreamWrapper osw(os);
-    rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
-    doc.Accept(writer);
-  });
+  rapidjson::OStreamWrapper osw(os);
+  rapidjson::Writer<rapidjson::OStreamWrapper> json_writer(osw);
+  doc.Accept(json_writer);
+
+  writer.Commit();
   LOG(INFO) << "SnapshotMeta::Dump: dumped meta to " << file_path;
 }
 
 void SnapshotMeta::GenerateEmptyMeta(const std::string& path) {
-  file_utils::atomic_write_file(path, [](std::ostream& os) {
-    rapidjson::OStreamWrapper osw(os);
-    rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
-    doc.AddMember("version", rapidjson::Value(kFormatVersion), alloc);
-    doc.AddMember("modules", rapidjson::Value(rapidjson::kObjectType), alloc);
-    doc.AddMember("scalars", rapidjson::Value(rapidjson::kObjectType), alloc);
-    doc.Accept(writer);
-  });
+  file_utils::AtomicFileWriter writer(path);
+  auto& os = writer.stream();
+
+  rapidjson::OStreamWrapper osw(os);
+  rapidjson::Writer<rapidjson::OStreamWrapper> json_writer(osw);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto& alloc = doc.GetAllocator();
+  doc.AddMember("version", rapidjson::Value(1), alloc);
+  doc.AddMember("modules", rapidjson::Value(rapidjson::kObjectType), alloc);
+  doc.AddMember("scalars", rapidjson::Value(rapidjson::kObjectType), alloc);
+  doc.Accept(json_writer);
+
+  writer.Commit();
 }
 
 const Schema& SnapshotMeta::GetSchema() const { return schema_; }

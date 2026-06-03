@@ -15,13 +15,65 @@
 
 #pragma once
 
-#include <functional>
+#include <memory>
 #include <ostream>
 #include <string>
 
 namespace neug {
 
 namespace file_utils {
+
+/**
+ * @brief RAII wrapper for crash-safe atomic file writes.
+ *
+ * Writes go to a temporary file (`target + ".tmp"`) in the same directory
+ * (same filesystem) so the final rename is guaranteed to be POSIX-atomic.
+ *
+ * Lifecycle:
+ *   1. Construct with target path — opens the tmp file, acquires fd.
+ *   2. Write via `fd()` (low-level) or `stream()` (C++ ostream).
+ *   3. Call `Commit()` — flushes stream, fsync(fd), closes fd,
+ *      rename(tmp → target), fsync(parent dir).
+ *   4. If the writer is destroyed without `Commit()`, the tmp file is
+ *      removed automatically (abort semantics).
+ *
+ * Thread safety: not thread-safe; a single writer per instance.
+ */
+class AtomicFileWriter {
+ public:
+  explicit AtomicFileWriter(const std::string& target_path);
+  ~AtomicFileWriter();
+
+  AtomicFileWriter(const AtomicFileWriter&) = delete;
+  AtomicFileWriter& operator=(const AtomicFileWriter&) = delete;
+  AtomicFileWriter(AtomicFileWriter&& other) noexcept;
+  AtomicFileWriter& operator=(AtomicFileWriter&& other) noexcept;
+
+  /// Raw POSIX file descriptor — valid until Commit() or destruction.
+  int fd() const { return fd_; }
+
+  /// C++ ostream backed by the same fd.  Lazily created on first call.
+  std::ostream& stream();
+
+  /// Flush + fsync(fd) + close + rename(tmp → target) + fsync(parent dir).
+  /// Throws on any I/O failure.  After Commit() the writer is spent.
+  void Commit();
+
+ private:
+  void Abort() noexcept;
+
+  std::string target_path_;
+  std::string tmp_path_;
+  int fd_ = -1;
+  bool committed_ = false;
+
+  // Lazily created ostream that wraps fd_ via a FILE*.
+  FILE* file_ = nullptr;
+  struct OStreamDeleter {
+    void operator()(std::ostream* os) const { delete os; }
+  };
+  std::unique_ptr<std::ostream, OStreamDeleter> ostream_;
+};
 
 /**
  * @brief File copy utility with Copy-on-Write (COW) optimization.
@@ -77,16 +129,6 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
                      bool overwrite);
 
 void create_file(const std::string& path, size_t size);
-
-/**
- * @brief Atomically replace @p path with content produced by @p writer.
- *
- * Writes to `path + ".tmp"` then renames over @p path. POSIX rename is atomic,
- * so a reader at @p path always sees either the old or new full content, never
- * a truncated state. On exception the tmp file is removed before rethrowing.
- */
-void atomic_write_file(const std::string& path,
-                       const std::function<void(std::ostream&)>& writer);
 
 }  // namespace file_utils
 

@@ -549,12 +549,8 @@ void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
 }
 
 void EdgeTable::Close() {
-  if (out_csr_) {
-    out_csr_->Close();
-  }
-  if (in_csr_) {
-    in_csr_->Close();
-  }
+  out_csr_.reset();
+  in_csr_.reset();
   if (table_) {
     table_->close();
   }
@@ -1010,8 +1006,6 @@ void EdgeTable::dropAndCreateNewBundledCSR(
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
-  out_csr_->Close();
-  in_csr_->Close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
 }
@@ -1086,8 +1080,6 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
   }
-  out_csr_->Close();
-  in_csr_->Close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
 }

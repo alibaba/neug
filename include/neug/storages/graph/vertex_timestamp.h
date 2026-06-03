@@ -34,7 +34,7 @@ class VertexTimestamp : public Module {
   static std::string type_name() { return "vertex_timestamp"; }
 
   VertexTimestamp() : init_vertex_num_(0), max_vertex_num_(0) {}
-  ~VertexTimestamp() { Reset(); }
+  ~VertexTimestamp() = default;
   VertexTimestamp(VertexTimestamp&& other)
       : init_vertex_num_(other.init_vertex_num_),
         inserted_vertices_(std::move(other.inserted_vertices_)),
@@ -164,7 +164,7 @@ class VertexTimestamp : public Module {
 
   const vid_t InitVertexNum() const { return init_vertex_num_; }
 
-  void Close() override;
+  void Close();
 
  private:
   void load_ts(const std::string& ts_filename);

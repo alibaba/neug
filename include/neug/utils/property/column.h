@@ -83,7 +83,7 @@ template <typename T>
 class TypedColumn : public ColumnBase {
  public:
   explicit TypedColumn() : size_(0) {}
-  ~TypedColumn() { Close(); }
+  ~TypedColumn() = default;
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
@@ -92,7 +92,7 @@ class TypedColumn : public ColumnBase {
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
-  void Close() override { buffer_.reset(); }
+  void Close() { buffer_.reset(); }
 
   ModuleDescriptor Dump(Checkpoint& ckp) override {
     ModuleDescriptor desc;
@@ -193,13 +193,12 @@ template <>
 class TypedColumn<EmptyType> : public ColumnBase {
  public:
   explicit TypedColumn() {}
-  ~TypedColumn() {}
+  ~TypedColumn() = default;
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {}
 
   ModuleDescriptor Dump(Checkpoint& ckp) override { return ModuleDescriptor(); }
-  void Close() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
   void resize(size_t size, const Property& default_value) override {}
@@ -248,7 +247,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     type_ = rhs.type_;
   }
 
-  ~TypedColumn() { Close(); }
+  ~TypedColumn() = default;
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
@@ -259,13 +258,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
     assert(pos_.load() <= data_buffer_->GetDataSize());
   }
 
-  void Close() override {
-    if (items_buffer_) {
-      items_buffer_->Close();
-    }
-    if (data_buffer_) {
-      data_buffer_->Close();
-    }
+  void Close() {
+    items_buffer_.reset();
+    data_buffer_.reset();
   }
 
   bool is_data_unmodified() const {

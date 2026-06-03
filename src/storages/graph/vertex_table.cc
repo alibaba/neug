@@ -56,9 +56,7 @@ void VertexTable::insert_vertices(
 }
 
 void VertexTable::Close() {
-  if (indexer_) {
-    indexer_->Close();
-  }
+  indexer_.reset();
   if (table_) {
     table_->close();
   }

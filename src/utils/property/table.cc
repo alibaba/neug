@@ -125,7 +125,6 @@ void Table::delete_column(const std::string& col_name) {
   if (it != col_id_map_.end()) {
     int col_id = it->second;
     col_id_map_.erase(it);
-    columns_[col_id]->Close();
     columns_[col_id].reset();
     columns_.erase(columns_.begin() + col_id);
     col_names_.erase(col_names_.begin() + col_id);

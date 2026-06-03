@@ -48,8 +48,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
 
-  MutableCsr() : locks_(nullptr), unsorted_since_(0) {}
-  ~MutableCsr() { Close(); }
+  MutableCsr() : unsorted_since_(0) {}
+  ~MutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
@@ -82,7 +82,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void Close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -185,7 +185,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  SpinLock* locks_;
+  std::unique_ptr<SpinLock[]> locks_;
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_;
   std::unique_ptr<IDataContainer> cap_list_;
@@ -208,7 +208,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   SingleMutableCsr() {}
-  ~SingleMutableCsr() { Close(); }
+  ~SingleMutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 
@@ -242,7 +242,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void Close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -365,8 +365,6 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void resize(vid_t vnum) override {}
 
   size_t capacity() const override { return 0; }
-
-  void Close() override {}
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 

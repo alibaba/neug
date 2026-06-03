@@ -387,7 +387,6 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
   EXPECT_EQ(empty_csr.size(), 0);
   EXPECT_EQ(empty_csr.edge_num(), 0);
   empty_csr.compact();
-  empty_csr.Close();
 }
 
 TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {

@@ -37,7 +37,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   ImmutableCsr() : unsorted_since_(0) {}
-  ~ImmutableCsr() { Close(); }
+  ~ImmutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kImmutable; }
 
@@ -75,7 +75,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void Close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -125,7 +125,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   SingleImmutableCsr() {}
-  ~SingleImmutableCsr() { Close(); }
+  ~SingleImmutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kSingleImmutable; }
 
@@ -163,7 +163,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void Close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
