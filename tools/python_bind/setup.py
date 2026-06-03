@@ -133,6 +133,27 @@ class CMakeBuild(build_ext):
             shutil.copy2(src, extdir, follow_symlinks=True)
             print(f"[CMakeBuild] copied {src.name} -> {extdir}")
 
+        # Mirror <repo>/build/extension/<name>/* into <extdir>/extension/<name>/
+        # so they get packaged into the wheel. Triggered by CI_INSTALL_EXTENSIONS
+        # (which the wheel-build CI sets); InstallLib's copy then becomes
+        # idempotent because the source dir already exists in build_lib.
+        ext_names = [
+            n.strip()
+            for n in os.environ.get("CI_INSTALL_EXTENSIONS", "").split(";")
+            if n.strip()
+        ]
+        ext_src_root = build_dir / "extension"
+        for name in ext_names:
+            src_dir = ext_src_root / name
+            if not src_dir.is_dir():
+                continue
+            dst_dir = extdir / "extension" / name
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            for f in src_dir.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, dst_dir, follow_symlinks=True)
+            print(f"[CMakeBuild] copied extension/{name}/ -> {dst_dir}")
+
     def _cmake_build_in_root(self, build_dir: Path) -> None:
         build_dir.mkdir(parents=True, exist_ok=True)
         cmake = shutil.which("cmake")
