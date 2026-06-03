@@ -2107,23 +2107,31 @@ class TestCopyFrom:
         node_pq = self.tmp_path / "node.parquet"
         edge_pq = self.tmp_path / "edge.parquet"
         pq.write_table(
-            pa.table({
-                "id": pa.array([1, 2, 3, 4], type=pa.int64()),
-                "name": pa.array(["Alice", "Bob", "Carol", "Dave"]),
-            }),
+            pa.table(
+                {
+                    "id": pa.array([1, 2, 3, 4], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob", "Carol", "Dave"]),
+                }
+            ),
             str(node_pq),
         )
         pq.write_table(
-            pa.table({
-                "src": pa.array([1, 2, 3, 1], type=pa.int64()),
-                "dst": pa.array([2, 3, 4, 4], type=pa.int64()),
-                "weight": pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
-            }),
+            pa.table(
+                {
+                    "src": pa.array([1, 2, 3, 1], type=pa.int64()),
+                    "dst": pa.array([2, 3, 4, 4], type=pa.int64()),
+                    "weight": pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
+                }
+            ),
             str(edge_pq),
         )
 
-        self.conn.execute("CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);")
-        self.conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);")
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
         self.conn.execute(f'COPY Person FROM "{node_pq}";')
         self.conn.execute(f'COPY Knows FROM "{edge_pq}" (from="Person", to="Person");')
 
@@ -2154,23 +2162,31 @@ class TestCopyFrom:
         node_pq = self.tmp_path / "node.parquet"
         edge_pq = self.tmp_path / "edge.parquet"
         pq.write_table(
-            pa.table({
-                "id": pa.array([1, 2], type=pa.int64()),
-                "name": pa.array(["Alice", "Bob"]),
-            }),
+            pa.table(
+                {
+                    "id": pa.array([1, 2], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob"]),
+                }
+            ),
             str(node_pq),
         )
         pq.write_table(
-            pa.table({
-                "src": pa.array([1], type=pa.int64()),
-                "dst": pa.array([2], type=pa.int64()),
-                "weight": pa.array([3.14], type=pa.float64()),
-            }),
+            pa.table(
+                {
+                    "src": pa.array([1], type=pa.int64()),
+                    "dst": pa.array([2], type=pa.int64()),
+                    "weight": pa.array([3.14], type=pa.float64()),
+                }
+            ),
             str(edge_pq),
         )
 
-        self.conn.execute("CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);")
-        self.conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);")
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
         self.conn.execute(f'COPY Person FROM "{node_pq}";')
         self.conn.execute(f'COPY Knows FROM "{edge_pq}";')
 
@@ -2186,8 +2202,12 @@ class TestCopyFrom:
         csv_edge = self.tmp_path / "edges.csv"
         csv_edge.write_text("src,dst,weight\n1,2,1.0\n2,3,2.0\n1,3,3.0\n")
 
-        self.conn.execute("CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);")
-        self.conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);")
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
         self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
         self.conn.execute(
             f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=true, delim=",");'

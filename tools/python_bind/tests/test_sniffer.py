@@ -417,4 +417,3 @@ class TestLoadSniffer:
         assert len(rows) == 1
         assert isinstance(rows[0][0], dict)
         assert rows[0][0] == {"a": "abc", "b": "bcd"}
-

@@ -1101,5 +1101,3 @@ def test_copy_from_parquet_edge_no_schema(tmp_path):
 
     conn.close()
     db.close()
-
-
