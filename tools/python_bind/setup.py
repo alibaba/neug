@@ -81,13 +81,13 @@ class CMakeExtension(Extension):
 # BUILD_* options whose default differs between setup.py (wheel/CI use case)
 # and the root CMakeLists.txt. Keep these defaults stable — CI relies on them.
 _ENV_FLAGS = {
-    "BUILD_EXECUTABLES":  "OFF",
-    "BUILD_HTTP_SERVER":  "ON",
-    "BUILD_COMPILER":     "ON",
-    "ENABLE_BACKTRACES":  "OFF",
-    "WITH_MIMALLOC":      "OFF",
-    "BUILD_TEST":         "OFF",
-    "ENABLE_GCOV":        "OFF",
+    "BUILD_EXECUTABLES": "OFF",
+    "BUILD_HTTP_SERVER": "ON",
+    "BUILD_COMPILER": "ON",
+    "ENABLE_BACKTRACES": "OFF",
+    "WITH_MIMALLOC": "OFF",
+    "BUILD_TEST": "OFF",
+    "ENABLE_GCOV": "OFF",
 }
 
 
@@ -117,9 +117,7 @@ class CMakeBuild(build_ext):
         self._cmake_build_in_root(build_dir)
 
         if not list(py_so_dir.glob("neug_py_bind*.so")):
-            raise RuntimeError(
-                f"neug_py_bind*.so not found in {py_so_dir} after build"
-            )
+            raise RuntimeError(f"neug_py_bind*.so not found in {py_so_dir} after build")
 
         if self.inplace:
             return
@@ -149,9 +147,7 @@ class CMakeBuild(build_ext):
         # or BUILD_TEST is ON this includes bulk_loader / simple_example /
         # ctest binaries that CI exercises after `make build`.
         print(f"[CMakeBuild] building with {build_args}")
-        subprocess.run(
-            [cmake, "--build", ".", *build_args], cwd=build_dir, check=True
-        )
+        subprocess.run([cmake, "--build", ".", *build_args], cwd=build_dir, check=True)
 
     def _collect_cmake_args(self) -> tuple[list[str], list[str]]:
         build_type = (os.environ.get("BUILD_TYPE") or "Release").upper()
@@ -167,8 +163,10 @@ class CMakeBuild(build_ext):
             "-DBUILD_PYTHON=ON",
             "-DOPTIMIZE_FOR_HOST=OFF",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
-            *(f"-D{name}={_on_off(name, default)}"
-              for name, default in _ENV_FLAGS.items()),
+            *(
+                f"-D{name}={_on_off(name, default)}"
+                for name, default in _ENV_FLAGS.items()
+            ),
         ]
 
         # BUILD_EXTENSIONS may come from BUILD_EXTENSIONS or CI_INSTALL_EXTENSIONS.
@@ -191,6 +189,7 @@ class CMakeBuild(build_ext):
             if use_ninja or not cmake_generator or cmake_generator == "Ninja":
                 try:
                     import ninja
+
                     cmake_args += [
                         "-GNinja",
                         f"-DCMAKE_MAKE_PROGRAM:FILEPATH={Path(ninja.BIN_DIR) / 'ninja'}",

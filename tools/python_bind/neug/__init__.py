@@ -196,9 +196,7 @@ def _find_neug_py_bind_dir():
 
     # Assume layout: <repo>/tools/python_bind/neug/__init__.py → repo is 3 up.
     repo_root = os.path.abspath(os.path.join(cur_dir, "..", "..", ".."))
-    root_build = os.environ.get(
-        "NEUG_BUILD_DIR", os.path.join(repo_root, "build")
-    )
+    root_build = os.environ.get("NEUG_BUILD_DIR", os.path.join(repo_root, "build"))
     candidate = os.path.join(root_build, "tools", "python_bind")
     if glob.glob(os.path.join(candidate, "neug_py_bind*.so")):
         return candidate
