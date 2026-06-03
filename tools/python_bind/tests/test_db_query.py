@@ -20,14 +20,10 @@ import logging
 import os
 import shutil
 import sys
+from ctypes import sizeof
 from unittest import result
 
 import pytest
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
-from ctypes import sizeof
-
 from conftest import ensure_result_cnt_eq
 from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
