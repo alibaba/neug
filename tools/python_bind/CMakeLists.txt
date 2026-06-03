@@ -13,14 +13,17 @@ pybind11_add_module(neug_py_bind MODULE ${SOURCE_CPP})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../../src/compiler)
 add_dependencies(neug_py_bind neug_proto)
 
-# BUILD_RPATH: find sibling libneug under build/src/ at dev time.
-# INSTALL_RPATH: find sibling libneug in the wheel package dir.
+# BUILD_RPATH covers both layouts because setup.py copies the build-tree .so
+# straight into the wheel (no cmake --install), so INSTALL_RPATH never gets
+# baked in for wheel artifacts:
+#   - dev:   <build>/tools/python_bind/neug_py_bind*.so → ../../src/libneug.*
+#   - wheel: <site-packages>/neug_py_bind*.so          → sibling libneug.*
 # Root CMake omits $ORIGIN on Linux+Clang, so we set it explicitly here.
 if(APPLE)
-    set(_neug_py_build_rpath "@loader_path/../../src")
+    set(_neug_py_build_rpath "@loader_path/../../src;@loader_path")
     set(_neug_py_install_rpath "@loader_path")
 else()
-    set(_neug_py_build_rpath "$ORIGIN/../../src")
+    set(_neug_py_build_rpath "$ORIGIN/../../src;$ORIGIN")
     set(_neug_py_install_rpath "$ORIGIN")
 endif()
 set_target_properties(neug_py_bind PROPERTIES

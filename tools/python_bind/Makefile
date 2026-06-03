@@ -24,14 +24,15 @@ CMAKE_PARALLEL = CMAKE_BUILD_PARALLEL_LEVEL="$${CMAKE_BUILD_PARALLEL_LEVEL:-$(JO
 .DEFAULT_GOAL := help
 
 requirements:  ## Install Python deps (one-time)
-	python3 -m pip install -r requirements.txt -r requirements_dev.txt
+	$(PYTHON) -m pip install -r requirements.txt -r requirements_dev.txt
 
 proto:  ## Compile protobuf files
-	python3 setup.py build_proto
+	$(PYTHON) setup.py build_proto
 
 # Honors all BUILD_*/WITH_*/CMAKE_* env vars on every invocation. CI uses this.
+# Run setup.py under $(PYTHON) so sys.executable matches the locked interpreter.
 build:  ## Build via setup.py (honors all BUILD_* env vars; CI entry)
-	$(CMAKE_PARALLEL) python3 setup.py build_ext
+	$(CMAKE_PARALLEL) $(PYTHON) setup.py build_ext
 
 # Falls through to dev-full when the cache is missing or wasn't configured
 # with -DBUILD_PYTHON=ON (avoids cryptic "No rule to make target" errors).
@@ -49,7 +50,7 @@ dev-full:  ## Configure root build + build neug_py_bind from scratch
 	cmake --build $(ROOT_BUILD) --target neug_py_bind -j$(JOBS)
 
 wheel:  ## Build the neug python wheel (honors BUILD_* env vars)
-	$(CMAKE_PARALLEL) python3 setup.py bdist_wheel
+	$(CMAKE_PARALLEL) $(PYTHON) setup.py bdist_wheel
 
 clean:  ## Clean Python build artifacts (does NOT touch $(ROOT_BUILD))
 	rm -rf build/ dist/ *.egg-info neug.egg-info/ __pycache__/
