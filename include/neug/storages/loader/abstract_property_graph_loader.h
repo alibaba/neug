@@ -14,11 +14,11 @@
  */
 #pragma once
 
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/i_fragment_loader.h"
 #include "neug/storages/loader/loading_config.h"
-#include "neug/storages/checkpoint_manifest.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -32,7 +32,8 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
         thread_num_(loading_config_.GetParallelism()) {
     ws_.Open(work_dir);
     if (ws_.NumCheckpoints() > 0) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("CheckpointManager is not empty: " + work_dir);
+      THROW_INVALID_ARGUMENT_EXCEPTION("CheckpointManager is not empty: " +
+                                       work_dir);
     }
     auto ckp_id = ws_.CreateCheckpoint();
     auto ckp = ws_.GetCheckpoint(ckp_id);

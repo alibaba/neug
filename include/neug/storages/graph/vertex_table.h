@@ -136,13 +136,15 @@ class VertexTable {
   /// Falls back to Init() when no checkpoint state exists for this label.
   static VertexTable OpenFrom(Checkpoint& ckp,
                               std::shared_ptr<const VertexSchema> schema,
-                              ModuleBroker& store, const CheckpointManifest& meta,
+                              ModuleBroker& store,
+                              const CheckpointManifest& meta,
                               MemoryLevel level);
 
   /// Transfer every leaf module out of this VertexTable into @p store / @p meta
   /// so that a subsequent store.Dump() persists them.  After this call the
   /// table is empty.
-  void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta, Checkpoint& ckp);
+  void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                     Checkpoint& ckp);
 
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);

@@ -22,26 +22,26 @@
 
 #include "neug/config.h"
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/checkpoint_manifest.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
 /**
  * @brief Transient broker that owns named Module instances during Open and
- * Dump cycles.  On Open, ModuleBroker reads CheckpointManifest entries, asks the
- * factory to construct a Module per entry, calls Module::Open, and holds the
- * result until the caller TakeModule()s it out.  On Dump, the caller hands
+ * Dump cycles.  On Open, ModuleBroker reads CheckpointManifest entries, asks
+ * the factory to construct a Module per entry, calls Module::Open, and holds
+ * the result until the caller TakeModule()s it out.  On Dump, the caller hands
  * each Module into the store via SetModule(name, std::move(unique_ptr))
  * (typically via the owner's TakeXxx() accessor); ModuleBroker then iterates
  * and calls Module::Dump on each, writing descriptors to a CheckpointManifest.
  *
  * Scalars that have no Module home of their own (LFIndexer's num_elements,
- * EdgeTable's table_idx, ...) live separately on CheckpointManifest::scalars_; see
- * `module_naming::*` for naming conventions.
+ * EdgeTable's table_idx, ...) live separately on CheckpointManifest::scalars_;
+ * see `module_naming::*` for naming conventions.
  */
 class ModuleBroker {
  public:
@@ -54,16 +54,16 @@ class ModuleBroker {
 
   /**
    * @brief Instantiate (via ModuleFactory) and Open every module entry from
-   * @p checkpoint 's CheckpointManifest.  Throws if any entry's `module_type` is not
-   * registered with the factory.
+   * @p checkpoint 's CheckpointManifest.  Throws if any entry's `module_type`
+   * is not registered with the factory.
    */
   void Open(Checkpoint& checkpoint, MemoryLevel level);
 
   /**
    * @brief Same as Open(checkpoint, level), but reads module entries from the
    * supplied @p meta instead of the checkpoint's resident meta.  Useful for
-   * test fixtures that round-trip via an explicit CheckpointManifest token rather
-   * than via UpdateMeta on the checkpoint.
+   * test fixtures that round-trip via an explicit CheckpointManifest token
+   * rather than via UpdateMeta on the checkpoint.
    */
   void Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
             MemoryLevel level);

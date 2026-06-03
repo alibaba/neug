@@ -24,11 +24,11 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module.h"
-#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -74,7 +74,8 @@ class EdgeTable {
                             ModuleBroker& store, const CheckpointManifest& meta,
                             MemoryLevel level);
 
-  void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta, Checkpoint& ckp);
+  void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                     Checkpoint& ckp);
 
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);
@@ -174,8 +175,7 @@ class EdgeTable {
   size_t Capacity() const;
 
  private:
-  void dropAndCreateNewBundledCSR(Checkpoint& ckp,
-                                  ColumnBase* prev_data_col);
+  void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 
   std::shared_ptr<const EdgeSchema> meta_;

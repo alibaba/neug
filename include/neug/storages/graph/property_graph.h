@@ -28,12 +28,12 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"

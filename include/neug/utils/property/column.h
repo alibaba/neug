@@ -88,7 +88,8 @@ class TypedColumn : public ColumnBase {
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
     assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
-    buffer_ = ckp.OpenFile(desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
+    buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -251,8 +252,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
-    items_buffer_ = ckp.OpenFile(desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
-    data_buffer_ = ckp.OpenFile(desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
+    items_buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
+    data_buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     pos_.store(std::stoull(desc.get("pos").value_or("0")));
     assert(pos_.load() <= data_buffer_->GetDataSize());
@@ -290,8 +293,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     // snapshot_dir without rewriting any data.
     if (is_data_unmodified()) {
       desc.set("pos", std::to_string(pos_.load()));
-      desc.set_path(ModuleDescriptor::kItemsPath, ckp.LinkToSnapshot(items_buffer_->GetPath()));
-      desc.set_path(ModuleDescriptor::kDataPath, ckp.LinkToSnapshot(data_buffer_->GetPath()));
+      desc.set_path(ModuleDescriptor::kItemsPath,
+                    ckp.LinkToSnapshot(items_buffer_->GetPath()));
+      desc.set_path(ModuleDescriptor::kDataPath,
+                    ckp.LinkToSnapshot(data_buffer_->GetPath()));
       return desc;
     }
     auto data_uuid = ckp.CreateRuntimeObject();
@@ -372,8 +377,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
 
     desc.set("pos", std::to_string(offset));
-    desc.set_path(ModuleDescriptor::kItemsPath, ckp.CommitRuntimeObject(item_uuid));
-    desc.set_path(ModuleDescriptor::kDataPath, ckp.CommitRuntimeObject(data_uuid));
+    desc.set_path(ModuleDescriptor::kItemsPath,
+                  ckp.CommitRuntimeObject(item_uuid));
+    desc.set_path(ModuleDescriptor::kDataPath,
+                  ckp.CommitRuntimeObject(data_uuid));
     return desc;
   }
 

@@ -16,8 +16,8 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
 
-#include "neug/storages/module/module_factory.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/module/module_factory.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -47,7 +47,8 @@ ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
   Compact();
   dump_ts(ts_filename);
   ModuleDescriptor descriptor;
-  descriptor.set_path(ModuleDescriptor::kDataPath, ckp.CommitRuntimeObject(uuid));
+  descriptor.set_path(ModuleDescriptor::kDataPath,
+                      ckp.CommitRuntimeObject(uuid));
   descriptor.module_type = ModuleTypeName();
   return descriptor;
 }
