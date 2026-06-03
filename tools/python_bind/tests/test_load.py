@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 import os
 import shutil
 import sys
@@ -2216,3 +2217,155 @@ class TestCopyFrom:
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
         count = next(res)[0]
         assert count == 3, f"Expected 3 edges, got {count}"
+
+    @extension_test
+    def test_copy_from_parquet_edge_column_name_mismatch(self):
+        """COPY edge FROM parquet with wrong property column name should raise error."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        edge_pq = self.tmp_path / "edge.parquet"
+        pq.write_table(
+            pa.table(
+                {"id": pa.array([1, 2], type=pa.int64()), "name": pa.array(["A", "B"])}
+            ),
+            str(node_pq),
+        )
+        pq.write_table(
+            pa.table(
+                {
+                    "src": pa.array([1], type=pa.int64()),
+                    "dst": pa.array([2], type=pa.int64()),
+                    "wrong_col": pa.array([1.0], type=pa.float64()),
+                }
+            ),
+            str(edge_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{node_pq}";')
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(
+                f'COPY Knows FROM "{edge_pq}" (from="Person", to="Person");'
+            )
+
+    def test_copy_from_csv_edge_column_name_mismatch(self):
+        """COPY edge FROM csv with wrong property column name should raise error."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,A\n2,B\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("from,to,wrong_col\n1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(
+                f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=true, delim=",");'
+            )
+
+    def test_copy_from_json_edge_column_name_mismatch(self):
+        """COPY edge FROM json with wrong property column name should raise error."""
+        json_node = self.tmp_path / "nodes.json"
+        json_node.write_text(
+            json.dumps([{"id": 1, "name": "A"}, {"id": 2, "name": "B"}])
+        )
+        json_edge = self.tmp_path / "edges.json"
+        json_edge.write_text(json.dumps([{"from": 1, "to": 2, "wrong_col": 1.0}]))
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{json_node}";')
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(
+                f'COPY Knows FROM "{json_edge}" (from="Person", to="Person");'
+            )
+
+    @extension_test
+    def test_copy_from_parquet_node_column_name_mismatch(self):
+        """COPY node FROM parquet with wrong column name should raise error."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        pq.write_table(
+            pa.table(
+                {
+                    "id": pa.array([1, 2], type=pa.int64()),
+                    "wrong_col": pa.array(["A", "B"]),
+                }
+            ),
+            str(node_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(f'COPY Person FROM "{node_pq}";')
+
+    def test_copy_from_csv_node_column_name_mismatch(self):
+        """COPY node FROM csv with wrong column name should raise error."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,wrong_col\n1,A\n2,B\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(
+                f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");'
+            )
+
+    def test_copy_from_json_node_column_name_mismatch(self):
+        """COPY node FROM json with wrong column name should raise error."""
+        json_node = self.tmp_path / "nodes.json"
+        json_node.write_text(
+            json.dumps([{"id": 1, "wrong_col": "A"}, {"id": 2, "wrong_col": "B"}])
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        with pytest.raises(RuntimeError, match="Column name mismatch"):
+            self.conn.execute(f'COPY Person FROM "{json_node}";')
+
+    def test_copy_from_csv_edge_no_header_positional(self):
+        """CSV COPY edge without header should work via positional mapping (no name validation)."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,A\n2,B\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        self.conn.execute(
+            f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=false, delim=",");'
+        )
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 1, f"Expected 1 edge, got {count}"
