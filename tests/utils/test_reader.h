@@ -260,8 +260,7 @@ class ReaderTest : public ::testing::Test {
   }
 
   std::shared_ptr<reader::ReadSharedState> createJsonSharedState(
-      const std::string& jsonFile,
-      const std::vector<std::string>& columnNames,
+      const std::string& jsonFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
       const common::case_insensitive_map_t<std::string>& options = {}) {
     auto sharedState = std::make_shared<reader::ReadSharedState>();
