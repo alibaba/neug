@@ -169,20 +169,29 @@ std::string CheckpointFileManager::LinkToSnapshot(const std::string& abs_path) {
   return dst;
 }
 
+// True iff the first path component of @p p is exactly "..".  A path escapes
+// its root only when normalization leaves a leading parent-dir component;
+// filenames that merely *contain* ".." (e.g. "..hidden", "foo..bar") are safe.
+bool escapes_root(const std::filesystem::path& p) {
+  static const std::filesystem::path kParent("..");
+  auto it = p.begin();
+  return it != p.end() && *it == kParent;
+}
+
 std::string CheckpointFileManager::MakeRelativePath(
     const std::string& abs_path, const std::string& checkpoint_root) const {
   if (abs_path.empty() || checkpoint_root.empty()) {
     return abs_path;
   }
-  std::filesystem::path abs_fs = abs_path;
-  std::filesystem::path root_fs = checkpoint_root;
   try {
-    auto rel_path = std::filesystem::relative(abs_fs, root_fs);
-    std::string result = rel_path.string();
-    if (result.find("..") == 0) {
+    auto rel_path =
+        std::filesystem::relative(std::filesystem::path(abs_path),
+                                  std::filesystem::path(checkpoint_root))
+            .lexically_normal();
+    if (rel_path.empty() || escapes_root(rel_path)) {
       return abs_path;
     }
-    return result;
+    return rel_path.string();
   } catch (...) { return abs_path; }
 }
 
@@ -191,14 +200,12 @@ std::string CheckpointFileManager::ResolveAbsolutePath(
   if (rel_path.empty() || checkpoint_root.empty()) {
     return rel_path;
   }
-  if (std::filesystem::path(rel_path).is_absolute() ||
-      rel_path.find("..") != std::string::npos) {
+  std::filesystem::path rel_fs(rel_path);
+  if (rel_fs.is_absolute() || escapes_root(rel_fs.lexically_normal())) {
     return rel_path;
   }
   try {
-    std::filesystem::path abs_path =
-        std::filesystem::path(checkpoint_root) / rel_path;
-    return abs_path.string();
+    return (std::filesystem::path(checkpoint_root) / rel_fs).string();
   } catch (...) { return rel_path; }
 }
 

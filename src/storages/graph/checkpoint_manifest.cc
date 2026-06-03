@@ -15,6 +15,7 @@
 
 #include "neug/storages/checkpoint_manifest.h"
 
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 
 #include <fstream>
@@ -93,22 +94,21 @@ void CheckpointManifest::Load(const std::string& file_path) {
   doc.ParseStream(isw);
 
   if (doc.HasParseError() || !doc.IsObject()) {
-    LOG(ERROR) << "CheckpointManifest::Load: invalid JSON in " << file_path;
-    return;
+    THROW_STORAGE_EXCEPTION("CheckpointManifest::Load: invalid JSON in " +
+                            file_path);
   }
 
   if (!doc.HasMember("version") || !doc["version"].IsInt()) {
-    LOG(ERROR)
-        << "CheckpointManifest::Open: missing or non-integer 'version' in "
-        << file_path;
-    return;
+    THROW_STORAGE_EXCEPTION(
+        "CheckpointManifest::Load: missing or non-integer 'version' in " +
+        file_path);
   }
   int file_version = doc["version"].GetInt();
   if (file_version != kFormatVersion) {
-    LOG(ERROR) << "CheckpointManifest::Open: incompatible meta version "
-               << file_version << " (expected " << kFormatVersion << ") in "
-               << file_path;
-    return;
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "CheckpointManifest::Load: incompatible meta version " +
+        std::to_string(file_version) + " (expected " +
+        std::to_string(kFormatVersion) + ") in " + file_path);
   }
 
   if (doc.HasMember("schema") && doc["schema"].IsObject()) {
