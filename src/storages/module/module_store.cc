@@ -28,9 +28,8 @@ void ModuleStore::Open(Checkpoint& checkpoint, const SnapshotMeta& meta,
   auto& factory = ModuleFactory::instance();
   for (const auto& [name, desc] : meta.modules()) {
     if (desc.module_type.empty()) {
-      // Path-only stub entry (e.g. LFIndexer's indices buffer): the
-      // orchestrator opens the file directly from desc.paths(); nothing for
-      // the factory to do.
+      // Non-factory entry (e.g. LFIndexer descriptor): the higher-level
+      // orchestrator (VertexTable::OpenFrom) processes this directly.
       continue;
     }
     auto module = factory.Create(desc.module_type);

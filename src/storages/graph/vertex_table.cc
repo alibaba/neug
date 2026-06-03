@@ -30,7 +30,12 @@ void VertexTable::Init(Checkpoint& ckp, MemoryLevel level) {
       << "VertexTable::Init: pk_type must be set; was the schema-aware "
          "constructor used?";
   memory_level_ = level;
-  indexer_->Init(ckp, level);
+  auto keys = CreateColumn(pk_type_);
+  keys->Open(ckp, ModuleDescriptor{}, level);
+  auto indices = std::make_unique<TypedColumn<vid_t>>();
+  indices->Open(ckp, ModuleDescriptor{}, level);
+  indexer_->Open(ckp, ModuleDescriptor{}, level, std::move(keys),
+                 std::move(indices));
   table_ = std::make_unique<Table>(vertex_schema_->property_names,
                                    vertex_schema_->property_types);
   table_->Init(ckp, level);
@@ -260,17 +265,16 @@ std::string VertexTable::KeyIndices(const std::string& label) {
   return "vertex_" + label + "_indices";
 }
 
+std::string VertexTable::KeyIndexer(const std::string& label) {
+  return "vertex_" + label + "_indexer";
+}
+
 std::string VertexTable::KeyVertexTimestamp(const std::string& label) {
   return "vertex_" + label + "_v_ts";
 }
 
 std::string VertexTable::KeyProperty(const std::string& label, size_t index) {
   return "vertex_" + label + "_prop_" + std::to_string(index);
-}
-
-std::string VertexTable::IndexerScalarKey(const std::string& label,
-                                          const std::string& field) {
-  return "indexer_" + label + "/" + field;
 }
 
 // --- Snapshot orchestration ---
@@ -288,22 +292,14 @@ VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
     return vt;
   }
 
+  // Restore indexer via LFIndexer::Open
   auto& idx = vt.get_indexer();
-  idx.SetKeys(store.TakeModule<ColumnBase>(KeyKeys(lbl)));
-  auto indices_desc = meta.module(KeyIndices(lbl));
-  CHECK(indices_desc.has_value())
-      << "missing indices meta entry for vertex " << lbl;
-  idx.SetIndices(
-      store.TakeModule<neug::TypedColumn<neug::vid_t>>(KeyIndices(lbl)));
-  idx.SetNumElements(
-      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_elements"))
-          .value_or(0));
-  idx.SetNumSlotsMinusOne(
-      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_slots_minus_one"))
-          .value_or(0));
-  idx.SetHashPolicyIndex(
-      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "hash_policy"))
-          .value_or(0));
+  auto indexer_desc = meta.module(KeyIndexer(lbl));
+  CHECK(indexer_desc.has_value())
+      << "missing indexer meta entry for vertex " << lbl;
+  idx.Open(ckp, indexer_desc.value(), level,
+           store.TakeModule<ColumnBase>(KeyKeys(lbl)),
+           store.TakeModule<TypedColumn<vid_t>>(KeyIndices(lbl)));
 
   auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
@@ -322,19 +318,15 @@ void VertexTable::DisassembleTo(ModuleStore& store, SnapshotMeta& meta,
   const auto& lbl = vertex_schema_->label_name;
   auto& idx = get_indexer();
 
-  meta.SetScalar(IndexerScalarKey(lbl, "num_elements"),
-                 std::to_string(idx.GetNumElements()));
-  meta.SetScalar(IndexerScalarKey(lbl, "num_slots_minus_one"),
-                 std::to_string(idx.GetNumSlotsMinusOne()));
-  meta.SetScalar(IndexerScalarKey(lbl, "hash_policy"),
-                 std::to_string(idx.GetHashPolicyIndex()));
-
-  store.SetModule(KeyKeys(lbl), idx.TakeKeys());
-
-  {
-    auto indices_buf = idx.TakeIndices();
-    meta.set_module(KeyIndices(lbl), indices_buf->Dump(ckp));
-  }
+  // Persist indexer via LFIndexer::Dump.  The returned descriptor carries the
+  // indexer's three scalars; store it under KeyIndexer so store.Dump's later
+  // pass (which writes the columns' own descriptors to KeyKeys / KeyIndices)
+  // does not clobber it.
+  std::unique_ptr<ColumnBase> keys_out;
+  std::unique_ptr<TypedColumn<vid_t>> indices_out;
+  meta.set_module(KeyIndexer(lbl), idx.Dump(ckp, keys_out, indices_out));
+  store.SetModule(KeyKeys(lbl), std::move(keys_out));
+  store.SetModule(KeyIndices(lbl), std::move(indices_out));
 
   auto table = TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {

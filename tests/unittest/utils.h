@@ -360,7 +360,12 @@ inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
     idx.swap(fresh);
   }
   if (!meta.has_module(kIndexerKeys)) {
-    idx.Init(ckp, level);
+    auto keys = CreateColumn(key_type);
+    keys->Open(ckp, neug::ModuleDescriptor{}, level);
+    auto indices = std::make_unique<neug::TypedColumn<INDEX_T>>();
+    indices->Open(ckp, neug::ModuleDescriptor{}, level);
+    idx.Open(ckp, neug::ModuleDescriptor{}, level, std::move(keys),
+             std::move(indices));
     return;
   }
   neug::ModuleStore store;

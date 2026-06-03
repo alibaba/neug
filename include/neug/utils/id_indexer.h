@@ -219,19 +219,6 @@ class LFIndexer {
 
   ~LFIndexer() {}
 
-  void Init(Checkpoint& ckp, MemoryLevel level) {
-    CHECK(pk_type_.id() != DataTypeId::kUnknown)
-        << "LFIndexer::Init requires a concrete pk_type";
-    const ModuleDescriptor empty{};
-    auto keys = CreateColumn(pk_type_);
-    keys->Open(ckp, empty, level);
-    keys_ = std::move(keys);
-    // indices_ is the lock-free index table keyed by INDEX_T slots.  Start
-    // empty; rehash() / reserve() will resize().
-    indices_ = std::make_unique<TypedColumn<INDEX_T>>();
-    indices_->Open(ckp, empty, level);
-  }
-
   void SetKeys(std::unique_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
 
   void SetIndices(std::unique_ptr<TypedColumn<INDEX_T>> indices) {
@@ -244,6 +231,45 @@ class LFIndexer {
 
   void SetHashPolicyIndex(size_t idx) {
     hash_policy_.set_mod_function_by_index(idx);
+  }
+
+  /// Restore indexer state from a ModuleDescriptor produced by Dump().
+  /// The descriptor's extra map holds the three scalar fields; its paths
+  /// map holds the indices data path; and @p keys is the deserialized
+  /// primary-key column (already opened by the caller / ModuleStore).
+  /// Restore indexer state from a ModuleDescriptor produced by Dump().
+  /// When @p descriptor is empty (no paths/extras), creates a fresh empty
+  /// indexer — making this the single entry point for both Init and restore.
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level, std::unique_ptr<ColumnBase> keys,
+            std::unique_ptr<TypedColumn<INDEX_T>> indices) {
+    keys_ = std::move(keys);
+    indices_ = std::move(indices);
+    auto parse = [](const ModuleDescriptor& d, const char* key) -> size_t {
+      auto val = d.get(key);
+      return val.has_value() ? std::stoull(val.value()) : 0;
+    };
+    SetNumElements(parse(descriptor, "num_elements"));
+    SetNumSlotsMinusOne(parse(descriptor, "num_slots_minus_one"));
+    SetHashPolicyIndex(parse(descriptor, "hash_policy"));
+  }
+
+  /// Persist indexer state into a ModuleDescriptor.  The keys column is
+  /// transferred out via @p keys_out for the caller to store separately
+  /// (since ColumnBase is itself a Module with its own Dump path).
+  /// The indices buffer is committed to the checkpoint and its path is
+  /// recorded in the returned descriptor.
+  ModuleDescriptor Dump(Checkpoint& ckp, std::unique_ptr<ColumnBase>& keys_out,
+                        std::unique_ptr<TypedColumn<INDEX_T>>& indices_out) {
+    ModuleDescriptor descriptor;
+    descriptor.set("num_elements", std::to_string(GetNumElements()));
+    descriptor.set("num_slots_minus_one",
+                   std::to_string(GetNumSlotsMinusOne()));
+    descriptor.set("hash_policy", std::to_string(GetHashPolicyIndex()));
+
+    keys_out = TakeKeys();
+    indices_out = TakeIndices();
+    return descriptor;
   }
 
   std::unique_ptr<ColumnBase> TakeKeys() { return std::move(keys_); }

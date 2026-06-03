@@ -127,10 +127,9 @@ class VertexTable {
   // --- Snapshot key builders (flat manifest convention) ---
   static std::string KeyKeys(const std::string& label);
   static std::string KeyIndices(const std::string& label);
+  static std::string KeyIndexer(const std::string& label);
   static std::string KeyVertexTimestamp(const std::string& label);
   static std::string KeyProperty(const std::string& label, size_t index);
-  static std::string IndexerScalarKey(const std::string& label,
-                                      const std::string& field);
 
   // --- Snapshot orchestration ---
   /// Restore a VertexTable from a ModuleStore + SnapshotMeta snapshot.
