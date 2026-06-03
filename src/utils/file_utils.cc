@@ -26,10 +26,15 @@
 #include <linux/fs.h>
 #include <sys/syscall.h>
 #endif
+#ifdef __APPLE__
+#include <sys/clonefile.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -63,14 +68,31 @@ static void copy_metadata(const struct stat& src_stat,
 }
 
 /**
- * @brief Try to use FICLONE ioctl for reflink copy.
+ * @brief Try to create an O(1) COW clone of the file.
  *
- * Supported filesystems: Btrfs, XFS (with reflink=1), OCFS2
- * This is the most efficient method - creates instant COW clone.
+ * Platform-specific instant-clone primitives:
+ *   - Linux: ioctl(FICLONE) on Btrfs, XFS (reflink=1), OCFS2
+ *   - macOS: clonefile(2) on APFS (preserves sparseness exactly)
+ *
+ * On success the destination shares its underlying storage with the
+ * source via copy-on-write, with no data copied.
  */
 static bool try_reflink(const std::string& src_path,
                         const std::string& dst_path,
                         const struct stat& src_stat) {
+#if defined(__APPLE__)
+  // clonefile() requires dst to not exist. The overwrite policy was
+  // already enforced by the caller; remove any leftover dst here.
+  ::unlink(dst_path.c_str());
+  if (::clonefile(src_path.c_str(), dst_path.c_str(), 0) == 0) {
+    // clonefile preserves mode/timestamps/ACLs by default; no need to
+    // re-apply metadata.
+    return true;
+  }
+  // Not on APFS or unsupported — leave no partial file behind.
+  ::unlink(dst_path.c_str());
+  return false;
+#elif defined(FICLONE)
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
   if (src_fd < 0) {
     return false;
@@ -83,13 +105,7 @@ static bool try_reflink(const std::string& src_path,
     return false;
   }
 
-// FICLONE: Clone entire file using COW
-#ifdef FICLONE
   int ret = ::ioctl(dst_fd, FICLONE, src_fd);
-#else
-  int ret = -1;  // FICLONE not supported
-#endif
-
   ::close(src_fd);
   ::close(dst_fd);
 
@@ -98,9 +114,23 @@ static bool try_reflink(const std::string& src_path,
     return true;
   }
 
-  // Failed - remove partially created file
   ::unlink(dst_path.c_str());
   return false;
+#else
+  (void) src_path;
+  (void) dst_path;
+  (void) src_stat;
+  return false;
+#endif
+}
+
+/**
+ * @brief Is the file sparse? True iff allocated blocks < logical size.
+ *
+ * `st_blocks` is always in 512-byte units regardless of FS block size.
+ */
+static bool is_sparse(const struct stat& st) {
+  return static_cast<off_t>(st.st_blocks) * 512 < st.st_size;
 }
 
 /**
@@ -108,6 +138,11 @@ static bool try_reflink(const std::string& src_path,
  *
  * Available on Linux 4.5+. May utilize COW on supported filesystems.
  * Performs server-side copy without data passing through userspace.
+ *
+ * WARNING: on non-COW filesystems (e.g. ext4) the kernel materializes
+ * source holes into physical zero blocks. Callers MUST skip this path
+ * for sparse sources — use is_sparse() — and fall through to the
+ * SEEK_HOLE/SEEK_DATA-aware fallback_copy instead.
  */
 static bool try_copy_file_range(const std::string& src_path,
                                 const std::string& dst_path,
@@ -161,20 +196,124 @@ static bool try_copy_file_range(const std::string& src_path,
 #endif
 }
 
+constexpr size_t COPY_BUFFER_SIZE = 64 * 1024;
+
+static bool is_block_zero(const char* buf, size_t n) {
+  const uint64_t* q = reinterpret_cast<const uint64_t*>(buf);
+  size_t qcount = n / sizeof(uint64_t);
+  for (size_t i = 0; i < qcount; ++i) {
+    if (q[i] != 0)
+      return false;
+  }
+  for (size_t i = qcount * sizeof(uint64_t); i < n; ++i) {
+    if (buf[i] != 0)
+      return false;
+  }
+  return true;
+}
+
+// pwrite exact n bytes at off; throws on short write / error.
+static void pwrite_all(int fd, const char* buf, size_t n, off_t off,
+                       const std::string& path) {
+  while (n > 0) {
+    ssize_t w = ::pwrite(fd, buf, n, off);
+    if (w <= 0) {
+      throw std::runtime_error("pwrite failed on " + path + ": " +
+                               std::strerror(errno));
+    }
+    buf += w;
+    off += w;
+    n -= static_cast<size_t>(w);
+  }
+}
+
+// Walk source's data extents via SEEK_DATA/SEEK_HOLE; pwrite each extent
+// at the same offset in dst (dst has already been ftruncate'd to the
+// final size, so holes are pre-allocated). Returns false iff the FS
+// doesn't implement SEEK_HOLE — caller should fall back.
+static bool sparse_copy_seek_hole(int src_fd, int dst_fd, off_t size,
+                                  const std::string& src,
+                                  const std::string& dst) {
+#ifdef SEEK_HOLE
+  auto buf = std::make_unique<char[]>(COPY_BUFFER_SIZE);
+  off_t off = 0;
+  while (off < size) {
+    off_t data = ::lseek(src_fd, off, SEEK_DATA);
+    if (data == -1) {
+      if (errno == ENXIO)
+        break;  // remainder is hole
+      if (errno == EINVAL || errno == ENOTSUP)
+        return false;
+      throw std::runtime_error("SEEK_DATA failed on " + src + ": " +
+                               std::strerror(errno));
+    }
+    off_t hole = ::lseek(src_fd, data, SEEK_HOLE);
+    if (hole == -1)
+      hole = size;
+
+    for (off_t cur = data; cur < hole;) {
+      size_t to_read =
+          std::min(static_cast<size_t>(hole - cur), COPY_BUFFER_SIZE);
+      ssize_t r = ::pread(src_fd, buf.get(), to_read, cur);
+      if (r <= 0) {
+        throw std::runtime_error("pread failed on " + src + ": " +
+                                 std::strerror(errno));
+      }
+      pwrite_all(dst_fd, buf.get(), static_cast<size_t>(r), cur, dst);
+      cur += r;
+    }
+    off = hole;
+  }
+  return true;
+#else
+  (void) src_fd;
+  (void) dst_fd;
+  (void) size;
+  (void) src;
+  (void) dst;
+  return false;
+#endif
+}
+
+// Fallback for FS without SEEK_HOLE: read every block linearly and pwrite
+// only the non-zero ones; zero blocks stay as the dst's pre-allocated hole.
+static void sparse_copy_zero_detect(int src_fd, int dst_fd, off_t size,
+                                    const std::string& src,
+                                    const std::string& dst) {
+  auto buf = std::make_unique<char[]>(COPY_BUFFER_SIZE);
+  for (off_t off = 0; off < size;) {
+    size_t to_read =
+        std::min(static_cast<size_t>(size - off), COPY_BUFFER_SIZE);
+    ssize_t r = ::pread(src_fd, buf.get(), to_read, off);
+    if (r <= 0) {
+      throw std::runtime_error("pread failed on " + src + ": " +
+                               std::strerror(errno));
+    }
+    if (!is_block_zero(buf.get(), static_cast<size_t>(r))) {
+      pwrite_all(dst_fd, buf.get(), static_cast<size_t>(r), off, dst);
+    }
+    off += r;
+  }
+}
+
 /**
- * @brief Traditional file copy using read/write with buffer.
+ * @brief Fallback file copy that preserves sparseness.
  *
- * Fallback method that works on all filesystems.
- * Uses 64KB buffer for reasonable performance.
+ * Anchors dst at the final size with ftruncate, then pwrites only the
+ * source's allocated extents into the corresponding offsets — holes in
+ * the source stay as holes in the destination. Tries SEEK_DATA/SEEK_HOLE
+ * first; on filesystems that don't implement them, falls back to reading
+ * every block and pwriting only the non-zero ones.
+ *
+ * Non-static so tests can call it directly (clonefile/FICLONE fast paths
+ * normally shadow this helper on supported filesystems).
  */
-static void fallback_copy(const std::string& src_path,
-                          const std::string& dst_path,
-                          const struct stat& src_stat) {
+void fallback_copy(const std::string& src_path, const std::string& dst_path,
+                   const struct stat& src_stat) {
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
   if (src_fd < 0) {
     throw std::runtime_error("Failed to open source file: " + src_path);
   }
-
   int dst_fd =
       ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
   if (dst_fd < 0) {
@@ -182,34 +321,30 @@ static void fallback_copy(const std::string& src_path,
     throw std::runtime_error("Failed to create destination file: " + dst_path);
   }
 
-  constexpr size_t BUFFER_SIZE = 64 * 1024;  // 64KB buffer
-  std::unique_ptr<char[]> buffer(new char[BUFFER_SIZE]);
+#ifdef POSIX_FADV_SEQUENTIAL
+  ::posix_fadvise(src_fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
 
-  ssize_t bytes_read;
-  while ((bytes_read = ::read(src_fd, buffer.get(), BUFFER_SIZE)) > 0) {
-    ssize_t bytes_written = 0;
-    while (bytes_written < bytes_read) {
-      ssize_t written = ::write(dst_fd, buffer.get() + bytes_written,
-                                bytes_read - bytes_written);
-      if (written < 0) {
-        ::close(src_fd);
-        ::close(dst_fd);
-        ::unlink(dst_path.c_str());
-        throw std::runtime_error("Failed to write to destination file: " +
-                                 dst_path);
-      }
-      bytes_written += written;
+  try {
+    // Anchor dst size up front. Empty / all-hole / trailing-hole cases all
+    // fall out naturally: the inner loops simply don't run for hole regions.
+    if (::ftruncate(dst_fd, src_stat.st_size) < 0) {
+      throw std::runtime_error("ftruncate failed on " + dst_path);
     }
+    if (!sparse_copy_seek_hole(src_fd, dst_fd, src_stat.st_size, src_path,
+                               dst_path)) {
+      sparse_copy_zero_detect(src_fd, dst_fd, src_stat.st_size, src_path,
+                              dst_path);
+    }
+  } catch (...) {
+    ::close(src_fd);
+    ::close(dst_fd);
+    ::unlink(dst_path.c_str());
+    throw;
   }
 
   ::close(src_fd);
   ::close(dst_fd);
-
-  if (bytes_read < 0) {
-    ::unlink(dst_path.c_str());
-    throw std::runtime_error("Failed to read from source file: " + src_path);
-  }
-
   copy_metadata(src_stat, dst_path);
 }
 
@@ -234,12 +369,15 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
     return CopyResult::Reflink;
   }
 
-  // Try copy_file_range - may use server-side COW
-  if (try_copy_file_range(src_path, dst_path, src_stat)) {
+  // copy_file_range() materializes holes into zero blocks on non-COW
+  // filesystems (e.g. ext4). For sparse sources we MUST use the
+  // SEEK_HOLE/SEEK_DATA-aware fallback to avoid bloating dst from a few
+  // KB of real data into the full ftruncate-reserved logical size.
+  if (!is_sparse(src_stat) &&
+      try_copy_file_range(src_path, dst_path, src_stat)) {
     return CopyResult::CopyFileRange;
   }
 
-  // Fallback to traditional copy
   fallback_copy(src_path, dst_path, src_stat);
   return CopyResult::FallbackCopy;
 }
