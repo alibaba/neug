@@ -357,7 +357,7 @@ neug::Status CsvQueryExportWriter::writeTable(
     auto code = (err == EACCES || err == EPERM)
                     ? StatusCode::ERR_PERMISSION
                     : StatusCode::ERR_IO_ERROR;
-    return neug::Status(code, "Failed to open file stream: " + err_msg);
+    return neug::Status(code, "Failed to open file stream: " + stream_result.status().ToString());
   }
   auto stream = stream_result.ValueOrDie();
 
