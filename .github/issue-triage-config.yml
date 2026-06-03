@@ -11,7 +11,7 @@ milestone: "NeuG v0.2"
 # "high" = unambiguous fit. Recommended starting value: never auto-link
 # (set to "never") for the first 1-2 weeks. After backtest accuracy >= 80%,
 # raise to "high".
-auto_link_threshold: "never"   # one of: never | high | medium
+auto_link_threshold: "high"   # one of: never | high | medium
 
 umbrellas:
   - number: 49
