@@ -352,9 +352,11 @@ neug::Status CsvQueryExportWriter::writeTable(
   }
   auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
   if (!stream_result.ok()) {
-    return neug::Status(
-        StatusCode::ERR_IO_ERROR,
-        "Failed to open file stream: " + stream_result.status().ToString());
+    auto err_msg = stream_result.status().ToString();
+    auto code = err_msg.find("Permission denied") != std::string::npos
+                    ? StatusCode::ERR_PERMISSION
+                    : StatusCode::ERR_IO_ERROR;
+    return neug::Status(code, "Failed to open file stream: " + err_msg);
   }
   auto stream = stream_result.ValueOrDie();
 
