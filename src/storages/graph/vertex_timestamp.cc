@@ -26,9 +26,9 @@ namespace neug {
 void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                            MemoryLevel level) {
   assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
-  auto path = desc.get_path("data");
-  if (!path.empty() && std::filesystem::exists(path)) {
-    load_ts(path);
+  auto path = desc.get_path(ModuleDescriptor::kDataPath);
+  if (path.has_value() && std::filesystem::exists(path.value())) {
+    load_ts(path.value());
   } else {
     Init(0, 4096);
   }
@@ -47,7 +47,7 @@ ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
   Compact();
   dump_ts(ts_filename);
   ModuleDescriptor descriptor;
-  descriptor.set_path("data", ckp.CommitRuntimeObject(uuid));
+  descriptor.set_path(ModuleDescriptor::kDataPath, ckp.CommitRuntimeObject(uuid));
   descriptor.module_type = ModuleTypeName();
   return descriptor;
 }

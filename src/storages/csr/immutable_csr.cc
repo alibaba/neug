@@ -41,9 +41,11 @@ void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
   unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
-  degree_list_buffer_ =
-      ckp.OpenFile(desc.get_path("degree_list"), memory_level);
-  nbr_list_buffer_ = ckp.OpenFile(desc.get_path("nbr_list"), memory_level);
+  degree_list_buffer_ = ckp.OpenFile(
+      desc.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
+      memory_level);
+  nbr_list_buffer_ = ckp.OpenFile(
+      desc.get_path(ModuleDescriptor::kNbrListPath).value_or(""), memory_level);
   auto v_cap = size();
   adj_list_buffer_ = ckp.CreateRuntimeContainer(v_cap * sizeof(nbr_t*),
                                                 MemoryLevel::kInMemory);
@@ -69,8 +71,9 @@ ModuleDescriptor ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   desc.module_type = ModuleTypeName();
   desc.set("unsorted_since", std::to_string(unsorted_since_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
-  desc.set_path("degree_list", ckp.Commit(*degree_list_buffer_));
-  desc.set_path("nbr_list", ckp.Commit(*nbr_list_buffer_));
+  desc.set_path(ModuleDescriptor::kDegreeListPath,
+                ckp.Commit(*degree_list_buffer_));
+  desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
   return desc;
 }
 
@@ -365,8 +368,9 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                        const ModuleDescriptor& descriptor,
                                        MemoryLevel memory_level) {
-  nbr_list_buffer_ =
-      ckp.OpenFile(descriptor.get_path("nbr_list"), memory_level);
+  nbr_list_buffer_ = ckp.OpenFile(
+      descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
+      memory_level);
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
 }
 
@@ -374,7 +378,7 @@ template <typename EDATA_T>
 ModuleDescriptor SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
-  desc.set_path("nbr_list", ckp.Commit(*nbr_list_buffer_));
+  desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
   return desc;
 }
