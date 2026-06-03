@@ -50,7 +50,7 @@ std::string_view truncate_utf8(std::string_view str, size_t length);
 
 class ColumnBase {
  public:
-  virtual ~ColumnBase() {}
+  virtual ~ColumnBase() = default;
 
   virtual void open(const std::string& name, const std::string& snapshot_dir,
                     const std::string& work_dir) = 0;
@@ -79,9 +79,7 @@ class ColumnBase {
 
   virtual Property get_prop(size_t index) const = 0;
 
-  virtual void set_prop(size_t index, const Property& prop) {
-    LOG(FATAL) << "Not implemented";
-  }
+  virtual void set_prop(size_t index, const Property& prop) = 0;
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
@@ -193,8 +191,8 @@ using IntervalColumn = TypedColumn<Interval>;
 template <>
 class TypedColumn<EmptyType> : public ColumnBase {
  public:
-  explicit TypedColumn() {}
-  ~TypedColumn() {}
+  explicit TypedColumn() = default;
+  ~TypedColumn() override = default;
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
@@ -222,31 +220,45 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void ingest(uint32_t index, OutArchive& arc) override {}
 };
 
-struct string_item {
+struct var_len_item {
   uint64_t offset : 48;
   uint32_t length : 16;
 };
 
-template <>
-class TypedColumn<std::string_view> : public ColumnBase {
+/**
+ * @brief VarLenColumn is a non-template base class for variable-length column
+ * types that provides shared dual-buffer storage logic.
+ *
+ * Storage layout:
+ * - items_buffer_: stores a var_len_item (offset + length) per row.
+ * - data_buffer_:  stores the actual variable-length byte blobs.
+ * - pos_:          atomic write frontier in data_buffer_.
+ *
+ * Thread Safety:
+ * - Concurrent writes to different indices are safe: pos_ uses atomic fetch_add
+ *   for offset allocation, ensuring no two threads write to overlapping
+ * regions.
+ * - resize() operations require external synchronization (not atomic).
+ * - set_any() with insert_safe=true may resize buffer; caller must handle
+ *   synchronization or ensure pre-resize is sufficient.
+ *
+ * Subclasses (e.g. TypedColumn<std::string_view>) must implement: type(),
+ * default_avg_size(), resize(size, default_value), set_any(), get_prop(), and
+ * set_prop().
+ *
+ * Subclass helpers (protected): ensure_capacity_or_throw() centralizes the
+ * grow-or-throw policy for writes; resize_with_replicated_default() handles
+ * the resize-and-replicate-default-blob path.
+ */
+class VarLenColumn : public ColumnBase {
  public:
-  TypedColumn(uint16_t width)
-      : size_(0), pos_(0), width_(width), type_(DataTypeId::kVarchar) {}
-  explicit TypedColumn()
-      : size_(0),
-        pos_(0),
-        width_(STRING_DEFAULT_MAX_LENGTH),
-        type_(DataTypeId::kVarchar) {}
-  TypedColumn(TypedColumn<std::string_view>&& rhs) {
-    items_buffer_ = std::move(rhs.items_buffer_);
-    data_buffer_ = std::move(rhs.data_buffer_);
-    size_ = rhs.size_;
-    pos_ = rhs.pos_.load();
-    width_ = rhs.width_;
-    type_ = rhs.type_;
-  }
+  VarLenColumn() : size_(0), pos_(0) {}
 
-  ~TypedColumn() { close(); }
+  VarLenColumn(const VarLenColumn&) = delete;
+  VarLenColumn& operator=(const VarLenColumn&) = delete;
+  VarLenColumn& operator=(VarLenColumn&&) = delete;
+
+  ~VarLenColumn() override { VarLenColumn::close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
@@ -256,25 +268,25 @@ class TypedColumn<std::string_view> : public ColumnBase {
     data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
                                  work_dir + "/" + name + ".data",
                                  MemoryLevel::kSyncToFile);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
-  void open_in_memory(const std::string& prefix) override {
+  void open_in_memory(const std::string& name) override {
     items_buffer_ =
-        OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
-    data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
-    init_pos(prefix + ".pos");
+        OpenContainer(name + ".items", "", MemoryLevel::kInMemory);
+    data_buffer_ = OpenContainer(name + ".data", "", MemoryLevel::kInMemory);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
+    init_pos(name + ".pos");
   }
 
-  void open_with_hugepages(const std::string& prefix) override {
+  void open_with_hugepages(const std::string& name) override {
     items_buffer_ =
-        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePreferred);
+        OpenContainer(name + ".items", "", MemoryLevel::kHugePagePreferred);
     data_buffer_ =
-        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePreferred);
-    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
-    init_pos(prefix + ".pos");
+        OpenContainer(name + ".data", "", MemoryLevel::kHugePagePreferred);
+    size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
+    init_pos(name + ".pos");
   }
 
   void close() override {
@@ -305,21 +317,19 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     item_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    auto raw_items =
-        reinterpret_cast<const string_item*>(items_buffer_->GetData());
     auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
     MD5_CTX data_ctx, item_ctx;
     MD5_Init(&data_ctx);
     MD5_Init(&item_ctx);
-    string_item cur_item = {0, 0};
+    var_len_item cur_item = var_len_item{0, 0};
     size_t offset = 0;
     size_t count_no_empty = 0;
-    string_item pre_item = {0, 0};
+    var_len_item pre_item = var_len_item{0, 0};
     for (size_t i = 0; i < size_; ++i) {
-      const auto& item = raw_items[i];
+      const auto& item = get_item(i);
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
-        // If the current item is the same as the previous one, we can reuse the
-        // offset and length without writing duplicate data.
+        // If the current item is the same as the previous one, we can reuse
+        // the offset and length without writing duplicate data.
         MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
                        sizeof(cur_item));
@@ -327,7 +337,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       }
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
-      cur_item = {offset, item.length};
+      cur_item = var_len_item{offset, item.length};
       MD5_Update(&data_ctx, raw_data + item.offset, item.length);
       MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
@@ -353,7 +363,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     data_out.close();
     item_out.close();
 
-    size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
+    size_t avg_size =
+        count_no_empty > 0 ? offset / count_no_empty : default_avg_size();
     size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
     size_t truncated_size = avg_size * count + sizeof(FileHeader);
     int rt = truncate(data_file.c_str(), truncated_size);
@@ -365,7 +376,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
       THROW_IO_EXCEPTION(ss.str());
     }
     size_t pos_val = offset;
-    // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
   }
 
@@ -373,113 +383,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void resize(size_t size) override {
     if (items_buffer_->GetDataSize() == 0) {
-      items_buffer_->Resize(size * sizeof(string_item));
-      data_buffer_->Resize(
-          std::max(size * static_cast<size_t>(width_), pos_.load()));
+      items_buffer_->Resize(size * sizeof(var_len_item));
+      data_buffer_->Resize(std::max(size * default_avg_size(), pos_.load()));
     } else {
-      size_t avg_size = string_avg_size() > 0 ? string_avg_size() : width_;
-      items_buffer_->Resize(size * sizeof(string_item));
-      data_buffer_->Resize(std::max(size * avg_size, pos_.load()));
+      size_t avg_size_ = avg_size() > 0 ? avg_size() : default_avg_size();
+      items_buffer_->Resize(size * sizeof(var_len_item));
+      data_buffer_->Resize(std::max(size * avg_size_, pos_.load()));
     }
     size_ = size;
   }
 
-  void resize(size_t size, const Property& default_value) override {
-    if (default_value.type() != type()) {
-      THROW_RUNTIME_ERROR("Default value type does not match column type");
-    }
-    size_t old_size = size_;
-    size_ = size;
-    auto default_str = PropUtils<std::string_view>::to_typed(default_value);
-    default_str = truncate_utf8(default_str, width_);
-
-    size_t new_items = (size > old_size) ? (size - old_size) : 0;
-    items_buffer_->Resize(size * sizeof(string_item));
-    size_t needed = pos_.load() + new_items * static_cast<size_t>(width_);
-    data_buffer_->Resize(std::max(needed, size * string_avg_size()));
-
-    if (default_str.size() == 0) {
-      return;
-    }
-
-    if (old_size < size_) {
-      set_value(old_size, default_str);
-      const auto& string_item = get_string_item(old_size);
-      for (size_t i = old_size + 1; i < size_; ++i) {
-        set_string_item(i, string_item);
-      }
-    }
-  }
-
-  DataTypeId type() const override { return type_; }
-
-  void set_value(size_t idx, const std::string_view& val) {
-    auto copied_val = val;
-    if (copied_val.size() >= width_) {
-      VLOG(1) << "String length" << copied_val.size()
-              << " exceeds the maximum length: " << width_ << ", cut off.";
-      copied_val = truncate_utf8(copied_val, width_);
-    }
-    if (idx < size_ &&
-        pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
-      // NOTE: Even if idx has been set before, we always append the new value
-      // to the end of buffer_. The previous value is not reclaimed, and should
-      // be handled by garbage collection or compaction.
-      size_t offset = pos_.fetch_add(copied_val.size());
-      set_string_item(idx, {offset, static_cast<uint32_t>(copied_val.size())});
-      assert(offset + copied_val.size() <= data_buffer_->GetDataSize());
-      auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
-      memcpy(raw_data + offset, copied_val.data(), copied_val.size());
-    } else {
-      THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
-    }
-  }
-
-  // When insert_safe is set to true, concurrency control should be guaranteed
-  // by caller.
-  void set_any(size_t idx, const Property& value, bool insert_safe) override {
-    if (idx >= size_) {
-      THROW_RUNTIME_ERROR("Index out of range");
-    }
-    auto dst_value = value.as_string_view();
-    if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
-      if (insert_safe) {
-        size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
-        size_t new_len =
-            std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
-        data_buffer_->Resize(new_len);
-      } else {
-        std::stringstream ss;
-        ss << "Not enough space in buffer for new value, and insert_safe is "
-              "false. "
-           << "Current buffer size: " << data_buffer_->GetDataSize()
-           << ", current position: " << pos_.load()
-           << ", new value size: " << dst_value.size();
-        THROW_STORAGE_EXCEPTION(ss.str());
-      }
-    }
-    set_value(idx, dst_value);
-  }
-
-  inline std::string_view get_view(size_t idx) const {
-    const auto& item = get_string_item(idx);
-    assert(item.offset + item.length <= data_buffer_->GetDataSize());
-    auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
-    return std::string_view(raw_data + item.offset, item.length);
-  }
-
-  Property get_prop(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
-  }
-
-  void set_prop(size_t index, const Property& prop) override {
-    set_value(index, PropUtils<std::string_view>::to_typed(prop));
-  }
-
-  void ingest(uint32_t index, OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-    set_value(index, val);
+  void ingest(uint32_t idx, OutArchive& arc) override {
+    std::string_view sv;
+    arc >> sv;
+    ensure_capacity_or_throw(idx, sv.size(), /*insert_safe=*/false);
+    set_value_internal(idx, sv);
   }
 
   size_t available_space() const {
@@ -490,39 +408,111 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return data_buffer_->GetDataSize() - pos_.load();
   }
 
- private:
-  inline void init_pos(const std::string& file_path) {
-    if (std::filesystem::exists(file_path)) {
-      size_t pos_val = 0;
-      read_file(file_path, &pos_val, sizeof(pos_val), 1);
-      pos_.store(pos_val);
-    } else {
-      pos_.store(0);
+ protected:
+  // Subclass-supplied per-row size hint used when no actual data exists yet.
+  virtual size_t default_avg_size() const = 0;
+
+  // Protected move ctor: lets subclass move ctors delegate the dual-buffer +
+  // atomic pos_ transfer. (Implicit move is deleted because of std::atomic.)
+  VarLenColumn(VarLenColumn&& rhs) noexcept
+      : items_buffer_(std::move(rhs.items_buffer_)),
+        data_buffer_(std::move(rhs.data_buffer_)),
+        size_(rhs.size_),
+        pos_(rhs.pos_.load()) {
+    rhs.size_ = 0;
+    rhs.pos_.store(0);
+  }
+
+  // Ensure data_buffer_ has room for `blob_size` more bytes starting at pos_.
+  // If not, grow when `insert_safe` is true (caller holds external lock),
+  // otherwise throw. The `idx` is used only as a hint for the grow heuristic.
+  void ensure_capacity_or_throw(size_t idx, size_t blob_size,
+                                bool insert_safe) {
+    size_t cur_pos = pos_.load();
+    if (cur_pos + blob_size <= data_buffer_->GetDataSize()) {
+      return;
+    }
+    if (!insert_safe) {
+      std::stringstream ss;
+      ss << "Not enough space in buffer for new value, and insert_safe is "
+            "false. "
+         << "Current buffer size: " << data_buffer_->GetDataSize()
+         << ", current position: " << cur_pos
+         << ", new value size: " << blob_size;
+      THROW_STORAGE_EXCEPTION(ss.str());
+    }
+    size_t new_avg = (cur_pos + idx) / (idx + 1);
+    size_t new_len = std::max(size_ * new_avg, cur_pos + blob_size);
+    data_buffer_->Resize(new_len);
+  }
+
+  // Resize the column to `new_size` rows. If `default_blob` is non-empty and
+  // the column is growing, write the blob once at the current pos_ and share
+  // its item entry across all newly-added rows [old_size, new_size).
+  // Subclasses are responsible for any type/truncation transformation on the
+  // blob before calling.
+  void resize_with_replicated_default(size_t new_size,
+                                      std::string_view default_blob) {
+    size_t old_size = size_;
+    VarLenColumn::resize(new_size);
+    if (default_blob.empty() || old_size >= new_size) {
+      return;
+    }
+    size_t cur_pos = pos_.load();
+    if (cur_pos + default_blob.size() > data_buffer_->GetDataSize()) {
+      data_buffer_->Resize(
+          std::max(data_buffer_->GetDataSize(), cur_pos + default_blob.size()));
+    }
+    set_value_internal(old_size, default_blob);
+    const auto first_item = get_item(old_size);
+    for (size_t i = old_size + 1; i < new_size; ++i) {
+      set_item(i, first_item);
     }
   }
 
-  inline string_item get_string_item(size_t idx) const {
+  // Append blob to data buffer at current pos_ and record item at idx.
+  // Caller must ensure sufficient space in data_buffer_.
+  void set_value_internal(size_t idx, std::string_view blob) {
     assert(idx < size_);
-    auto raw_items =
-        reinterpret_cast<const string_item*>(items_buffer_->GetData());
-    return raw_items[idx];
+    size_t offset = pos_.fetch_add(blob.size());
+    if (!blob.empty()) {
+      std::memcpy(reinterpret_cast<char*>(data_buffer_->GetData()) + offset,
+                  blob.data(), blob.size());
+    }
+    set_item(idx, var_len_item{static_cast<uint64_t>(offset),
+                               static_cast<uint32_t>(blob.size())});
   }
 
-  inline void set_string_item(size_t idx, const string_item& item) {
+  // Return raw view of the blob at idx.
+  std::string_view get_raw_view(size_t idx) const {
     assert(idx < size_);
-    auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
-    raw_items[idx] = item;
+    const auto item = get_item(idx);
+    assert(item.offset + item.length <= data_buffer_->GetDataSize());
+    return std::string_view(
+        reinterpret_cast<const char*>(data_buffer_->GetData()) + item.offset,
+        item.length);
   }
 
-  size_t string_avg_size() const {
+  inline var_len_item get_item(size_t idx) const {
+    assert(idx < size_);
+    return reinterpret_cast<const var_len_item*>(items_buffer_->GetData())[idx];
+  }
+
+  inline void set_item(size_t idx, const var_len_item& item) {
+    assert(idx < size_);
+    reinterpret_cast<var_len_item*>(items_buffer_->GetData())[idx] = item;
+  }
+
+  size_t avg_size() const {
     if (size_ == 0) {
       return 0;
     }
     size_t total_length = 0;
     size_t non_zero_count = 0;
     for (size_t i = 0; i < size_; ++i) {
-      if (get_string_item(i).length > 0) {
-        total_length += get_string_item(i).length;
+      auto item = get_item(i);
+      if (item.length > 0) {
+        total_length += item.length;
         non_zero_count++;
       }
     }
@@ -535,6 +525,91 @@ class TypedColumn<std::string_view> : public ColumnBase {
   std::unique_ptr<IDataContainer> data_buffer_;
   size_t size_;
   std::atomic<size_t> pos_;
+
+ private:
+  void init_pos(const std::string& pos_path) {
+    if (std::filesystem::exists(pos_path)) {
+      size_t v = 0;
+      read_file(pos_path, &v, sizeof(v), 1);
+      pos_.store(v);
+    } else {
+      pos_.store(0);
+    }
+  }
+};
+
+template <>
+class TypedColumn<std::string_view> : public VarLenColumn {
+ public:
+  using VarLenColumn::resize;
+
+  TypedColumn(uint16_t width) : width_(width), type_(DataTypeId::kVarchar) {}
+  explicit TypedColumn()
+      : width_(STRING_DEFAULT_MAX_LENGTH), type_(DataTypeId::kVarchar) {}
+  TypedColumn(TypedColumn<std::string_view>&& rhs) noexcept
+      : VarLenColumn(std::move(rhs)), width_(rhs.width_), type_(rhs.type_) {}
+
+  ~TypedColumn() override = default;
+
+  size_t default_avg_size() const override {
+    return static_cast<size_t>(width_);
+  }
+
+  void resize(size_t size, const Property& default_value) override {
+    if (default_value.type() != type()) {
+      THROW_RUNTIME_ERROR("Default value type does not match column type");
+    }
+    auto default_str =
+        truncate_utf8(PropUtils<std::string_view>::to_typed(default_value),
+                      static_cast<size_t>(width_));
+    resize_with_replicated_default(size, default_str);
+  }
+
+  // Thread-safe for concurrent writes to different indices when
+  // insert_safe=false (throws on insufficient space). When insert_safe=true,
+  // buffer may resize; caller must provide external synchronization.
+  void set_any(size_t idx, const Property& value, bool insert_safe) override {
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
+    }
+    auto truncated = truncate_if_needed(value.as_string_view());
+    ensure_capacity_or_throw(idx, truncated.size(), insert_safe);
+    set_value_internal(idx, truncated);
+  }
+
+  DataTypeId type() const override { return type_; }
+
+  void set_value(size_t idx, std::string_view val) {
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
+    }
+    auto truncated = truncate_if_needed(val);
+    ensure_capacity_or_throw(idx, truncated.size(), /*insert_safe=*/false);
+    set_value_internal(idx, truncated);
+  }
+
+  inline std::string_view get_view(size_t idx) const {
+    return get_raw_view(idx);
+  }
+
+  Property get_prop(size_t index) const override {
+    return PropUtils<std::string_view>::to_prop(get_view(index));
+  }
+
+  void set_prop(size_t index, const Property& prop) override {
+    set_value(index, PropUtils<std::string_view>::to_typed(prop));
+  }
+
+ private:
+  std::string_view truncate_if_needed(std::string_view val) const {
+    if (val.size() < width_) {
+      return val;
+    }
+    VLOG(1) << "String length " << val.size()
+            << " exceeds the maximum length: " << width_ << ", cut off.";
+    return truncate_utf8(val, width_);
+  }
+
   uint16_t width_;
   DataTypeId type_;
 };
@@ -550,7 +625,7 @@ class RefColumnBase {
     kInternal,
     kExternal,
   };
-  virtual ~RefColumnBase() {}
+  virtual ~RefColumnBase() = default;
   virtual Property get(size_t index) const = 0;
   virtual DataTypeId type() const = 0;
   virtual ColType col_type() const = 0;
@@ -565,7 +640,7 @@ class TypedRefColumn : public RefColumnBase {
   explicit TypedRefColumn(const TypedColumn<T>& column)
       : basic_buffer(reinterpret_cast<const T*>(column.buffer().GetData())),
         basic_size(column.buffer_size()) {}
-  ~TypedRefColumn() {}
+  ~TypedRefColumn() override = default;
 
   inline T get_view(size_t index) const {
     assert(index < basic_size);
@@ -592,7 +667,7 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
 
   explicit TypedRefColumn(const TypedColumn<std::string_view>& column)
       : column_(column), basic_size(column.size()) {}
-  ~TypedRefColumn() {}
+  ~TypedRefColumn() override = default;
 
   inline std::string_view get_view(size_t index) const {
     assert(index < basic_size);
