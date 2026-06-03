@@ -233,7 +233,7 @@ class ArrowOptionsBuilder : public OptionsBuilder<ArrowOptions> {
    * @param state The shared read state containing schema and configuration
    */
   explicit ArrowOptionsBuilder(std::shared_ptr<ReadSharedState> state)
-      : OptionsBuilder<ArrowOptions>(state) {};
+      : OptionsBuilder<ArrowOptions>(state){};
 
   virtual ~ArrowOptionsBuilder() override = default;
 
@@ -292,7 +292,7 @@ class ArrowCsvOptionsBuilder : public ArrowOptionsBuilder {
    * @param state The shared read state containing CSV schema and configuration
    */
   explicit ArrowCsvOptionsBuilder(std::shared_ptr<ReadSharedState> state)
-      : ArrowOptionsBuilder(state) {};
+      : ArrowOptionsBuilder(state){};
 
   virtual ArrowOptions build() const override;
 
