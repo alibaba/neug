@@ -17,7 +17,7 @@
 #include <filesystem>
 
 #include "neug/storages/module/module_factory.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 

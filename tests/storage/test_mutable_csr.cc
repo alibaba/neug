@@ -343,8 +343,8 @@ class MutableCsrTest : public ::testing::Test {
   }
 
   std::vector<std::unique_ptr<neug::Allocator>> allocators;
-  Workspace& workspace() { return ws_; }
-  Workspace ws_;
+  CheckpointManager& workspace() { return ws_; }
+  CheckpointManager ws_;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
 

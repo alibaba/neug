@@ -48,7 +48,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 
   PropertyGraph graph_;
   std::string test_dir_;
-  Workspace ws_;
+  CheckpointManager ws_;
 
   CreateVertexTypeParam BuildCreateVertexTypeParam(
       const std::string& name,

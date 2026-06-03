@@ -236,7 +236,7 @@ class LFIndexer {
   /// Restore indexer state from a ModuleDescriptor produced by Dump().
   /// The descriptor's extra map holds the three scalar fields; its paths
   /// map holds the indices data path; and @p keys is the deserialized
-  /// primary-key column (already opened by the caller / ModuleStore).
+  /// primary-key column (already opened by the caller / ModuleBroker).
   /// Restore indexer state from a ModuleDescriptor produced by Dump().
   /// When @p descriptor is empty (no paths/extras), creates a fresh empty
   /// indexer — making this the single entry point for both Init and restore.

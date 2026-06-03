@@ -37,7 +37,7 @@
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"

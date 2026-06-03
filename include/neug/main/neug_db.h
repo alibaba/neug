@@ -30,7 +30,7 @@
 #include "neug/main/connection.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -322,7 +322,7 @@ class NeugDB {
   bool is_pure_memory_;
   int thread_num_;
   NeugDBConfig config_;
-  Workspace ws_;
+  CheckpointManager ws_;
   std::unique_ptr<FileLock> file_lock_;
 
   // The property graph and transaction controls

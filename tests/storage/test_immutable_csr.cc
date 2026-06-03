@@ -17,9 +17,9 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
-#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -209,7 +209,7 @@ class IMMutableCsrTest : public ::testing::Test {
     return true;
   }
 
-  neug::Workspace& Workspace() { return ws; }
+  neug::CheckpointManager& Workspace() { return ws; }
   std::filesystem::path WorkDirectory() const { return temp_dir_ / "work"; }
   std::filesystem::path SnapshotDirectory() const {
     return temp_dir_ / "snapshot";
@@ -233,7 +233,7 @@ class IMMutableCsrTest : public ::testing::Test {
 
  private:
   std::filesystem::path temp_dir_;
-  neug::Workspace ws;
+  neug::CheckpointManager ws;
 
   std::string GetTestName() const {
     const testing::TestInfo* const test_info =

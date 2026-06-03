@@ -16,10 +16,10 @@
 #include <unistd.h>
 #include <filesystem>
 
-#include "neug/storages/module/module_store.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/snapshot_meta.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "unittest/utils.h"
@@ -62,15 +62,15 @@ static const std::vector<std::string> string_data = {
 namespace neug {
 namespace test {
 
-// Test-side Open / Dump for Table: round-trips columns through ModuleStore
-// + SnapshotMeta the same way the production OpenVertexTable flow does.
-// Pass an empty SnapshotMeta to initialize fresh columns, or one returned
+// Test-side Open / Dump for Table: round-trips columns through ModuleBroker
+// + CheckpointManifest the same way the production OpenVertexTable flow does.
+// Pass an empty CheckpointManifest to initialize fresh columns, or one returned
 // from a previous DumpTableLegacy to restore.
 inline std::string TablePropKey(size_t i) {
   return "table/col_" + std::to_string(i);
 }
 
-static Table OpenTableLegacy(Checkpoint& ckp, const SnapshotMeta& meta,
+static Table OpenTableLegacy(Checkpoint& ckp, const CheckpointManifest& meta,
                              MemoryLevel level,
                              const std::vector<std::string>& col_names,
                              const std::vector<DataType>& types) {
@@ -79,7 +79,7 @@ static Table OpenTableLegacy(Checkpoint& ckp, const SnapshotMeta& meta,
     t.Init(ckp, level);
     return t;
   }
-  ModuleStore store;
+  ModuleBroker store;
   store.Open(ckp, meta, level);
   for (size_t i = 0; i < types.size(); ++i) {
     t.SetColumn(static_cast<int>(i),
@@ -88,10 +88,10 @@ static Table OpenTableLegacy(Checkpoint& ckp, const SnapshotMeta& meta,
   return t;
 }
 
-static SnapshotMeta DumpTableLegacy(Table& t, Checkpoint& ckp) {
+static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
   // Table holds columns by shared_ptr, so ownership can't be transferred
-  // into a unique_ptr-typed ModuleStore — dump inline directly.
-  SnapshotMeta meta;
+  // into a unique_ptr-typed ModuleBroker — dump inline directly.
+  CheckpointManifest meta;
   for (size_t i = 0; i < t.col_num(); ++i) {
     meta.set_module(TablePropKey(i), t.get_column_by_id(i)->Dump(ckp));
   }
@@ -117,13 +117,13 @@ class TableTest : public ::testing::Test {
     }
   }
 
-  neug::Workspace& Workspace() { return ws; }
+  neug::CheckpointManager& Workspace() { return ws; }
 
   std::string TempDir() const { return temp_dir_.string(); }
 
  private:
   std::filesystem::path temp_dir_;
-  neug::Workspace ws;
+  neug::CheckpointManager ws;
 
   std::string GetTestName() const {
     const testing::TestInfo* const test_info =
@@ -149,12 +149,15 @@ TEST_F(TableTest, TestTableBasic) {
       {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
       {DataTypeId::kVarchar}};
 
-  auto disk_table = OpenTableLegacy(
-      *ckp, SnapshotMeta(), MemoryLevel::kSyncToFile, col_name, property_types);
-  auto mem_table = OpenTableLegacy(*ckp, SnapshotMeta(), MemoryLevel::kInMemory,
-                                   col_name, property_types);
-  auto none_table = OpenTableLegacy(
-      *ckp, SnapshotMeta(), MemoryLevel::kInMemory, col_name, property_types);
+  auto disk_table =
+      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kSyncToFile,
+                      col_name, property_types);
+  auto mem_table =
+      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                      col_name, property_types);
+  auto none_table =
+      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                      col_name, property_types);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -391,8 +394,9 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   std::vector<std::string> col_name = {"string_column"};
   std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
 
-  Table table = OpenTableLegacy(*ckp, SnapshotMeta(), MemoryLevel::kInMemory,
-                                col_name, property_types);
+  Table table =
+      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                      col_name, property_types);
   table.resize(2, {Property::from_string_view("default_value")});
 
   auto string_column =

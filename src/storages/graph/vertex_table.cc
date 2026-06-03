@@ -15,9 +15,9 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
-#include "neug/storages/module/module_store.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/snapshot_meta.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -281,7 +281,8 @@ std::string VertexTable::KeyProperty(const std::string& label, size_t index) {
 
 VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
                                   std::shared_ptr<const VertexSchema> vs,
-                                  ModuleStore& store, const SnapshotMeta& meta,
+                                  ModuleBroker& store,
+                                  const CheckpointManifest& meta,
                                   MemoryLevel level) {
   VertexTable vt(vs);
   vt.SetMemoryLevel(level);
@@ -312,7 +313,7 @@ VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
   return vt;
 }
 
-void VertexTable::DisassembleTo(ModuleStore& store, SnapshotMeta& meta,
+void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                                 Checkpoint& ckp) {
   const auto& lbl = vertex_schema_->label_name;
   auto& idx = get_indexer();

@@ -24,10 +24,10 @@
 #include <vector>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module/type_name.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
 #include "unittest/utils.h"
@@ -93,13 +93,13 @@ class LFIndexerTest : public ::testing::Test {
 };
 
 TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, DataType(DataTypeId::kInt64), SnapshotMeta(),
-                    MemoryLevel::kInMemory);
+  OpenIndexerLegacy(indexer, *ckp, DataType(DataTypeId::kInt64),
+                    CheckpointManifest(), MemoryLevel::kInMemory);
 
   EXPECT_EQ(indexer.get_type(), DataTypeId::kInt64);
   EXPECT_EQ(indexer.get_keys().type(), DataTypeId::kInt64);
@@ -137,16 +137,16 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
 }
 
 TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   std::vector<int64_t> values = {5, 10, 15, 20};
   DataType int64_type(DataTypeId::kInt64);
-  SnapshotMeta desc;
+  CheckpointManifest desc;
   {
     LFIndexer<uint32_t> writable;
-    OpenIndexerLegacy(writable, *ckp, int64_type, SnapshotMeta(),
+    OpenIndexerLegacy(writable, *ckp, int64_type, CheckpointManifest(),
                       MemoryLevel::kInMemory);
     for (const auto& value : values) {
       writable.insert(Property::from_int64(value), true);
@@ -182,27 +182,27 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
 }
 
 TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   DataType int64_type(DataTypeId::kInt64);
   LFIndexer<uint32_t> empty_indexer;
-  OpenIndexerLegacy(empty_indexer, *ckp, int64_type, SnapshotMeta(),
+  OpenIndexerLegacy(empty_indexer, *ckp, int64_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
-  SnapshotMeta empty_dump = DumpIndexerLegacy(empty_indexer, *ckp);
+  CheckpointManifest empty_dump = DumpIndexerLegacy(empty_indexer, *ckp);
   EXPECT_TRUE(empty_dump.has_module(kIndexerIndices));
   empty_indexer.Close();
 
   DataType varchar_type(DataTypeId::kVarchar);
 
   LFIndexer<uint32_t> lhs;
-  OpenIndexerLegacy(lhs, *ckp, varchar_type, SnapshotMeta(),
+  OpenIndexerLegacy(lhs, *ckp, varchar_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
   lhs.reserve(4);
 
   LFIndexer<uint32_t> rhs;
-  OpenIndexerLegacy(rhs, *ckp, varchar_type, SnapshotMeta(),
+  OpenIndexerLegacy(rhs, *ckp, varchar_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
   rhs.reserve(4);
 
@@ -229,14 +229,14 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
 }
 
 TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   constexpr size_t N = 8;
@@ -253,7 +253,7 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
 }
 
 TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
@@ -261,7 +261,7 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
   auto type_info = std::make_shared<StringTypeInfo>(kMaxWidth);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   constexpr size_t N = 6;
@@ -280,14 +280,14 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
 }
 
 TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   indexer.reserve(4);
@@ -310,14 +310,14 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
 }
 
 TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   indexer.reserve(16);
@@ -334,14 +334,14 @@ TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
 }
 
 TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   std::vector<std::string> values = {"foo",  "bar",   "baz",   "qux",
@@ -358,7 +358,7 @@ TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
 }
 
 TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
@@ -366,7 +366,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
   DataType string_type(DataTypeId::kVarchar, type_info);
 
   LFIndexer<uint32_t> writable;
-  OpenIndexerLegacy(writable, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(writable, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
 
   constexpr size_t N = 5;
@@ -378,7 +378,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
   }
   ExpectStringValues(writable, values);
 
-  SnapshotMeta dump_desc = DumpIndexerLegacy(writable, *ckp);
+  CheckpointManifest dump_desc = DumpIndexerLegacy(writable, *ckp);
 
   LFIndexer<uint32_t> reader;
   OpenIndexerLegacy(reader, *ckp, string_type, dump_desc,
@@ -388,19 +388,19 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 }
 
 TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   constexpr uint16_t kWidth = 64;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
   DataType string_type(DataTypeId::kVarchar, type_info);
-  SnapshotMeta dump_desc;
+  CheckpointManifest dump_desc;
 
   std::vector<std::string> short_values = {"a", "bb", "ccc"};
   {
     LFIndexer<uint32_t> writer;
-    OpenIndexerLegacy(writer, *ckp, string_type, SnapshotMeta(),
+    OpenIndexerLegacy(writer, *ckp, string_type, CheckpointManifest(),
                       MemoryLevel::kInMemory);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -432,19 +432,19 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
 }
 
 TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   constexpr uint16_t kWidth = 48;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
   DataType string_type(DataTypeId::kVarchar, type_info);
-  SnapshotMeta dump_desc;
+  CheckpointManifest dump_desc;
 
   std::vector<std::string> short_values = {"x", "y", "z", "w"};
   {
     LFIndexer<uint32_t> writer;
-    OpenIndexerLegacy(writer, *ckp, string_type, SnapshotMeta(),
+    OpenIndexerLegacy(writer, *ckp, string_type, CheckpointManifest(),
                       MemoryLevel::kInMemory);
     writer.reserve(short_values.size());
     for (const auto& v : short_values) {
@@ -474,19 +474,19 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
 }
 
 TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   constexpr uint16_t kWidth = 32;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
   DataType string_type(DataTypeId::kVarchar, type_info);
-  SnapshotMeta dump_desc;
+  CheckpointManifest dump_desc;
 
   std::vector<std::string> short_values = {"hi", "yo", "ok"};
   {
     LFIndexer<uint32_t> writer;
-    OpenIndexerLegacy(writer, *ckp, string_type, SnapshotMeta(),
+    OpenIndexerLegacy(writer, *ckp, string_type, CheckpointManifest(),
                       MemoryLevel::kInMemory);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -519,14 +519,14 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
 }
 
 TEST_F(LFIndexerTest, VarcharStringOverflow) {
-  Workspace ws;
+  CheckpointManager ws;
   ws.Open(test_dir_);
   auto ckp = make_checkpoint(ws);
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  OpenIndexerLegacy(indexer, *ckp, string_type, SnapshotMeta(),
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
   indexer.reserve(4);
 

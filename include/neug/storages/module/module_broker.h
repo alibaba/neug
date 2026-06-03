@@ -25,36 +25,36 @@
 #include "neug/storages/module/module.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/snapshot_meta.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
 /**
  * @brief Transient broker that owns named Module instances during Open and
- * Dump cycles.  On Open, ModuleStore reads SnapshotMeta entries, asks the
+ * Dump cycles.  On Open, ModuleBroker reads CheckpointManifest entries, asks the
  * factory to construct a Module per entry, calls Module::Open, and holds the
  * result until the caller TakeModule()s it out.  On Dump, the caller hands
  * each Module into the store via SetModule(name, std::move(unique_ptr))
- * (typically via the owner's TakeXxx() accessor); ModuleStore then iterates
- * and calls Module::Dump on each, writing descriptors to a SnapshotMeta.
+ * (typically via the owner's TakeXxx() accessor); ModuleBroker then iterates
+ * and calls Module::Dump on each, writing descriptors to a CheckpointManifest.
  *
  * Scalars that have no Module home of their own (LFIndexer's num_elements,
- * EdgeTable's table_idx, ...) live separately on SnapshotMeta::scalars_; see
+ * EdgeTable's table_idx, ...) live separately on CheckpointManifest::scalars_; see
  * `module_naming::*` for naming conventions.
  */
-class ModuleStore {
+class ModuleBroker {
  public:
-  ModuleStore() = default;
-  ~ModuleStore() = default;
-  ModuleStore(const ModuleStore&) = delete;
-  ModuleStore& operator=(const ModuleStore&) = delete;
-  ModuleStore(ModuleStore&&) = default;
-  ModuleStore& operator=(ModuleStore&&) = default;
+  ModuleBroker() = default;
+  ~ModuleBroker() = default;
+  ModuleBroker(const ModuleBroker&) = delete;
+  ModuleBroker& operator=(const ModuleBroker&) = delete;
+  ModuleBroker(ModuleBroker&&) = default;
+  ModuleBroker& operator=(ModuleBroker&&) = default;
 
   /**
    * @brief Instantiate (via ModuleFactory) and Open every module entry from
-   * @p checkpoint 's SnapshotMeta.  Throws if any entry's `module_type` is not
+   * @p checkpoint 's CheckpointManifest.  Throws if any entry's `module_type` is not
    * registered with the factory.
    */
   void Open(Checkpoint& checkpoint, MemoryLevel level);
@@ -62,10 +62,10 @@ class ModuleStore {
   /**
    * @brief Same as Open(checkpoint, level), but reads module entries from the
    * supplied @p meta instead of the checkpoint's resident meta.  Useful for
-   * test fixtures that round-trip via an explicit SnapshotMeta token rather
+   * test fixtures that round-trip via an explicit CheckpointManifest token rather
    * than via UpdateMeta on the checkpoint.
    */
-  void Open(Checkpoint& checkpoint, const SnapshotMeta& meta,
+  void Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
             MemoryLevel level);
 
   /**
@@ -82,7 +82,7 @@ class ModuleStore {
    * keep their values unless their key is in the store.  Does not write
    * scalars — callers manage those directly on @p meta.
    */
-  void Dump(Checkpoint& checkpoint, SnapshotMeta& meta);
+  void Dump(Checkpoint& checkpoint, CheckpointManifest& meta);
 
   /**
    * @brief True if a module is registered under @p name.
@@ -107,7 +107,7 @@ class ModuleStore {
     if (!base) {
       if (require) {
         THROW_INVALID_ARGUMENT_EXCEPTION(
-            "ModuleStore::TakeModule: no module under name '" + name + "'");
+            "ModuleBroker::TakeModule: no module under name '" + name + "'");
       }
       return nullptr;
     }
@@ -119,7 +119,7 @@ class ModuleStore {
     std::string actual_type = raw ? raw->ModuleTypeName() : std::string{};
     base.reset(raw);  // released via Module's virtual dtor on scope exit
     if (require) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("ModuleStore::TakeModule: module '" +
+      THROW_INVALID_ARGUMENT_EXCEPTION("ModuleBroker::TakeModule: module '" +
                                        name + "' (type='" + actual_type +
                                        "') does not satisfy requested cast");
     }

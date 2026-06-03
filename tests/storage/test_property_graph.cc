@@ -16,8 +16,8 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -26,7 +26,7 @@ class PropertyGraphTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
-  Workspace ws_;
+  CheckpointManager ws_;
 
   void SetUp() override {
     work_dir_ = std::string("/tmp/test_property_graph") +

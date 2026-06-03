@@ -7,7 +7,7 @@ set -e
 #   --extensions EXTENSIONS    Semicolon-separated list of extensions (default: json)
 #   --version VERSION         Version tag (default: dev)
 #   --platform PLATFORM       Platform identifier (default: linux-x86_64)
-#   --workspace WORKSPACE     Workspace directory (default: current directory)
+#   --workspace WORKSPACE     CheckpointManagerdirectory (default: current directory)
 #   --python-version VER      Python dir under /opt/python (default: cp310-cp310, or env PYTHON_VERSION)
 #   --skip-build              Skip building, only package and upload
 #   --skip-upload             Skip uploading to OSS
@@ -64,7 +64,7 @@ Options:
     --extensions EXTENSIONS    Semicolon-separated list of extensions (default: json)
     --version VERSION         Version tag (default: dev)
     --platform PLATFORM       Platform identifier (default: linux-x86_64)
-    --workspace WORKSPACE     Workspace directory (default: current directory)
+    --workspace WORKSPACE     CheckpointManagerdirectory (default: current directory)
     --python-version VER      Python dir under /opt/python (default: cp310-cp310, or env PYTHON_VERSION)
     --skip-build              Skip building, only package and upload
     --skip-upload             Skip uploading to OSS

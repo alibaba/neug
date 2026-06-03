@@ -2,9 +2,9 @@
 #include <filesystem>
 
 #include "neug/config.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 using neug::Checkpoint;
@@ -68,10 +68,10 @@ class CsrBatchTest : public ::testing::Test {
     }
   }
 
-  neug::Workspace& Workspace() { return ws; }
+  neug::CheckpointManager& Workspace() { return ws; }
 
   std::unique_ptr<CsrType> csr = nullptr;
-  neug::Workspace ws;
+  neug::CheckpointManager ws;
 
  private:
   std::filesystem::path temp_dir_;

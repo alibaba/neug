@@ -15,9 +15,9 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/storages/module/module_store.h"
-#include "neug/storages/snapshot_meta.h"
 
 #include <arrow/api.h>
 #include <arrow/array/array_base.h>
@@ -31,6 +31,7 @@
 #include <string_view>
 #include <utility>
 
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
@@ -1123,7 +1124,8 @@ std::string EdgeTable::ScalarKey(const std::string& src,
 
 EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
                               std::shared_ptr<const EdgeSchema> es,
-                              ModuleStore& store, const SnapshotMeta& meta,
+                              ModuleBroker& store,
+                              const CheckpointManifest& meta,
                               MemoryLevel level) {
   EdgeTable et(es);
   et.SetMemoryLevel(level);
@@ -1142,9 +1144,9 @@ EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
   if (!es->is_bundled()) {
     auto table = std::make_unique<Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
-      table->SetColumn(static_cast<int>(i),
-                       store.TakeModule<ColumnBase>(
-                           KeyProperty(src, edge, dst, i)));
+      table->SetColumn(
+          static_cast<int>(i),
+          store.TakeModule<ColumnBase>(KeyProperty(src, edge, dst, i)));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(
@@ -1159,7 +1161,7 @@ EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
   return et;
 }
 
-void EdgeTable::DisassembleTo(ModuleStore& store, SnapshotMeta& meta,
+void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                               Checkpoint& ckp) {
   if (!meta_) {
     return;

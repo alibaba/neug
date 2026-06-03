@@ -16,20 +16,16 @@
 
 #include <cassert>
 #include <cstdint>
-#include <filesystem>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <string>
 
-#include "neug/storages/container/container_utils.h"
-#include "neug/storages/container/i_container.h"
+#include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/utils/uuid.h"
 
 namespace neug {
 
-class SnapshotMeta;  // forward declaration to break circular dependency
+class CheckpointManifest;  // forward declaration to break circular dependency
 
 /**
  * @brief Represents a single numbered checkpoint directory.
@@ -38,7 +34,7 @@ class SnapshotMeta;  // forward declaration to break circular dependency
  *
  * ```
  * checkpoint-NNNNN/
- * ├── meta        ← SnapshotMeta JSON
+ * ├── meta        ← CheckpointManifest JSON
  * ├── snapshot/   ← immutable data files
  * ├── runtime/    ← mutable working files (allocator, tmp, …)
  * └── wal/        ← write-ahead log files
@@ -77,7 +73,7 @@ class Checkpoint {
    */
   static std::shared_ptr<Checkpoint> Open(std::string path, uint32_t id);
 
-  ~Checkpoint();  // defined in .cc where SnapshotMeta is complete
+  ~Checkpoint();  // defined in .cc where CheckpointManifest is complete
   Checkpoint(const Checkpoint&) = delete;
   Checkpoint& operator=(const Checkpoint&) = delete;
 
@@ -112,55 +108,45 @@ class Checkpoint {
   }
 
   std::unique_ptr<IDataContainer> OpenFile(const std::string& file_path,
-                                           MemoryLevel level);
+                                           MemoryLevel level) {
+    return file_mgr_->OpenFile(file_path, level);
+  }
 
   std::unique_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
-                                                         MemoryLevel level);
+                                                         MemoryLevel level) {
+    return file_mgr_->CreateRuntimeContainer(size, level);
+  }
 
-  /**
-   * @brief Commit a data container to a persistent snapshot file and return
-   * a ModuleDescriptor whose `path` points to the written file.
-   *
-   * For MAP_SHARED containers (kSyncToFile) the backing file is already on
-   * disk – we just Sync() and record its path.  For all other container
-   * types the data is written to a freshly generated UUID file under
-   * runtime_dir().
-   */
-  std::string Commit(IDataContainer& buffer);
+  std::string Commit(IDataContainer& buffer) {
+    return file_mgr_->Commit(buffer);
+  }
 
-  void UpdateMeta(SnapshotMeta&& meta);
+  void UpdateMeta(CheckpointManifest&& meta);
 
-  const SnapshotMeta& GetMeta() const {
+  const CheckpointManifest& GetMeta() const {
     assert(meta_ != nullptr);
     return *meta_;
   }
 
-  SnapshotMeta& MutableMeta() {
+  CheckpointManifest& MutableMeta() {
     assert(meta_ != nullptr);
     return *meta_;
   }
 
   bool IsEmpty() const { return path_.empty(); }
 
-  std::string CreateRuntimeObject();
+  std::string CreateRuntimeObject() { return file_mgr_->CreateRuntimeObject(); }
 
-  /**
-   * @brief Commit a runtime object into this checkpoint's persistent snapshot
-   * state.
-   *
-   * Given the UUID of a file created under runtime_dir(), this finalizes the
-   * object via the normal snapshot commit path. In particular, runtime files
-   * may be moved into snapshot_dir() as part of the commit process, so callers
-   * must not assume the file remains in runtime_dir() after this call.
-   *
-   * Returns the full absolute path to the committed file.
-   */
-  std::string CommitRuntimeObject(const std::string& uuid);
+  std::string CommitRuntimeObject(const std::string& uuid) {
+    return file_mgr_->CommitRuntimeObject(uuid);
+  }
 
-  // Create a hardlink of abs_path inside snapshot_dir (O(1), zero data copy).
-  // Falls back to file copy on cross-device filesystems.
-  // If abs_path is already inside snapshot_dir, returns it unchanged.
-  std::string LinkToSnapshot(const std::string& abs_path);
+  std::string LinkToSnapshot(const std::string& abs_path) {
+    return file_mgr_->LinkToSnapshot(abs_path);
+  }
+
+  /// Access the underlying file manager (e.g. for path utilities).
+  CheckpointFileManager& file_manager() { return *file_mgr_; }
 
  private:
   /// Private constructor — only initializes members. Use Open() to create.
@@ -170,16 +156,12 @@ class Checkpoint {
   void initialize();
 
   void create_dirs() const;
-  std::string commitToSnapshotLocked(const std::string& abs_path);
-  std::string makeRelativePath(const std::string& abs_path) const;
-  std::string resolveAbsolutePath(const std::string& rel_path) const;
-  std::string CommitToSnapshot(const std::string& abs_path);
 
   std::string path_;
   uint32_t id_;
   mutable std::mutex mutex_;
-  std::unique_ptr<SnapshotMeta> meta_;
-  std::set<std::string> uncommitted_runtime_objects_;
+  std::unique_ptr<CheckpointManifest> meta_;
+  std::unique_ptr<CheckpointFileManager> file_mgr_;
 };
 
 }  // namespace neug

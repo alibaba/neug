@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 using StreamCsrTypes = ::testing::Types<
@@ -52,7 +52,7 @@ class CsrStreamTest : public ::testing::Test {
     }
   }
 
-  neug::Workspace& Workspace() { return ws; }
+  neug::CheckpointManager& Workspace() { return ws; }
 
   void CheckEqual(const std::vector<std::tuple<neug::vid_t, neug::vid_t,
                                                typename T::data_t>>& expected,
@@ -123,7 +123,7 @@ class CsrStreamTest : public ::testing::Test {
 
  private:
   std::filesystem::path temp_dir_;
-  neug::Workspace ws;
+  neug::CheckpointManager ws;
 
   std::string GetTestName() const {
     const testing::TestInfo* const test_info =

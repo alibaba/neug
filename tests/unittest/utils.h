@@ -25,14 +25,14 @@
 #include <vector>
 
 #include "neug/main/connection.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/storages/module/module_store.h"
 #include "neug/storages/module/type_name.h"
-#include "neug/storages/snapshot_meta.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/column.h"
@@ -319,28 +319,32 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
 // Allocates a fresh checkpoint on `ws` and returns a shared_ptr to it.
 // Replaces the boilerplate `auto id = ws.CreateCheckpoint(); auto ckp =
 // ws.GetCheckpoint(id);` pair that recurs across the storage tests.
-inline std::shared_ptr<neug::Checkpoint> make_checkpoint(neug::Workspace& ws) {
+inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
+    neug::CheckpointManager& ws) {
   return ws.GetCheckpoint(ws.CreateCheckpoint());
 }
 
 // Test fixtures used to round-trip storage objects through encoded paths in a
-// single ModuleDescriptor.  The current production path uses ModuleStore +
-// SnapshotMeta: each leaf Module lives as its own entry in
-// SnapshotMeta::modules() (keyed by a flat string), scalars live in
-// SnapshotMeta::scalars().  The helpers below mirror that flow so test code
-// can simulate Dump / Open cycles without spinning up a full PropertyGraph.
+// single ModuleDescriptor.  The current production path uses ModuleBroker +
+// CheckpointManifest: each leaf Module lives as its own entry in
+// CheckpointManifest::modules() (keyed by a flat string), scalars live in
+// CheckpointManifest::scalars().  The helpers below mirror that flow so test
+// code can simulate Dump / Open cycles without spinning up a full
+// PropertyGraph.
 //
 // API contract:
-//   * `Dump*Legacy` returns a fresh SnapshotMeta carrying the modules + scalars
+//   * `Dump*Legacy` returns a fresh CheckpointManifest carrying the modules +
+//   scalars
 //     for that one object.  The source object's leaf shared_ptrs are *shared*
-//     into a temporary ModuleStore and remain usable after Dump returns.
-//   * `Open*Legacy` accepts either an empty SnapshotMeta (treated as fresh
+//     into a temporary ModuleBroker and remain usable after Dump returns.
+//   * `Open*Legacy` accepts either an empty CheckpointManifest (treated as
+//   fresh
 //     init — equivalent to the production *::Init flow) or a previously
-//     returned SnapshotMeta (restoration via ModuleStore::Open).
+//     returned CheckpointManifest (restoration via ModuleBroker::Open).
 //
 // Each helper namespaces its module / scalar keys with a fixed prefix so a
-// single SnapshotMeta could in principle host several objects, but the tests
-// only ever round-trip one object per meta.
+// single CheckpointManifest could in principle host several objects, but the
+// tests only ever round-trip one object per meta.
 
 inline constexpr const char* kIndexerKeys = "indexer/keys";
 inline constexpr const char* kIndexerIndices = "indexer/indices";
@@ -353,7 +357,7 @@ template <typename INDEX_T>
 inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
                               neug::Checkpoint& ckp,
                               const neug::DataType& key_type,
-                              const neug::SnapshotMeta& meta,
+                              const neug::CheckpointManifest& meta,
                               neug::MemoryLevel level) {
   {
     neug::LFIndexer<INDEX_T> fresh(key_type);
@@ -368,7 +372,7 @@ inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
              std::move(indices));
     return;
   }
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.Open(ckp, meta, level);
   idx.SetKeys(store.TakeModule<neug::ColumnBase>(kIndexerKeys));
   idx.SetIndices(store.TakeModule<neug::TypedColumn<INDEX_T>>(kIndexerIndices));
@@ -380,9 +384,9 @@ inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
 }
 
 template <typename INDEX_T>
-inline neug::SnapshotMeta DumpIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
-                                            neug::Checkpoint& ckp) {
-  neug::SnapshotMeta meta;
+inline neug::CheckpointManifest DumpIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
+                                                  neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
   // Capture scalars before TakeXxx empties the indexer.
   meta.SetScalar(kIndexerNumElements, std::to_string(idx.GetNumElements()));
   meta.SetScalar(kIndexerNumSlotsMinusOne,
@@ -391,14 +395,14 @@ inline neug::SnapshotMeta DumpIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
   // Move the indexer's leaves into a transient store, which Dumps and then
   // destroys them when it goes out of scope.  The indexer is empty after
   // this helper returns.
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.SetModule(kIndexerKeys, idx.TakeKeys());
   store.SetModule(kIndexerIndices, idx.TakeIndices());
   store.Dump(ckp, meta);
   return meta;
 }
 
-// VertexTable round-trip via ModuleStore.  Keys: nested under "vertex/".
+// VertexTable round-trip via ModuleBroker.  Keys: nested under "vertex/".
 inline constexpr const char* kVertexIndexerKeys = "vertex/indexer/keys";
 inline constexpr const char* kVertexIndexerIndices = "vertex/indexer/indices";
 inline constexpr const char* kVertexVTs = "vertex/v_ts";
@@ -411,7 +415,7 @@ inline constexpr const char* kVertexNumSlotsMinusOne =
 inline constexpr const char* kVertexHashPolicy = "vertex/hash_policy";
 
 inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
-                                  const neug::SnapshotMeta& meta,
+                                  const neug::CheckpointManifest& meta,
                                   neug::MemoryLevel level) {
   vt.SetMemoryLevel(level);
   if (!meta.has_module(kVertexIndexerKeys)) {
@@ -419,7 +423,7 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
     return;
   }
   auto vs = vt.get_vertex_schema_ptr();
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.Open(ckp, meta, level);
   auto& idx = vt.get_indexer();
   idx.SetKeys(store.TakeModule<neug::ColumnBase>(kVertexIndexerKeys));
@@ -441,9 +445,9 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
   vt.SetVertexTimestamp(store.TakeModule<neug::VertexTimestamp>(kVertexVTs));
 }
 
-inline neug::SnapshotMeta DumpVertexTableLegacy(neug::VertexTable& vt,
-                                                neug::Checkpoint& ckp) {
-  neug::SnapshotMeta meta;
+inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
+                                                      neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
   auto& idx = vt.get_indexer();
   // Capture scalars before TakeXxx empties the indexer.
   meta.SetScalar(kVertexNumElements, std::to_string(idx.GetNumElements()));
@@ -456,7 +460,7 @@ inline neug::SnapshotMeta DumpVertexTableLegacy(neug::VertexTable& vt,
   for (size_t i = 0; i < table->col_num(); ++i) {
     meta.set_module(VertexPropKey(i), table->get_column_by_id(i)->Dump(ckp));
   }
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
   store.SetModule(kVertexIndexerIndices, idx.TakeIndices());
   store.SetModule(kVertexVTs, vt.TakeVertexTimestamp());
@@ -464,7 +468,7 @@ inline neug::SnapshotMeta DumpVertexTableLegacy(neug::VertexTable& vt,
   return meta;
 }
 
-// EdgeTable round-trip via ModuleStore.
+// EdgeTable round-trip via ModuleBroker.
 inline constexpr const char* kEdgeInCsr = "edge/in_csr";
 inline constexpr const char* kEdgeOutCsr = "edge/out_csr";
 inline std::string EdgePropKey(size_t i) {
@@ -474,7 +478,7 @@ inline constexpr const char* kEdgeTableIdx = "edge/table_idx";
 inline constexpr const char* kEdgeCapacity = "edge/capacity";
 
 inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
-                                const neug::SnapshotMeta& meta,
+                                const neug::CheckpointManifest& meta,
                                 neug::MemoryLevel level) {
   et.SetMemoryLevel(level);
   if (!meta.has_module(kEdgeOutCsr)) {
@@ -482,7 +486,7 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
     return;
   }
   auto es = et.get_edge_schema_ptr();
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.Open(ckp, meta, level);
   et.SetInCsr(store.TakeModule<neug::CsrBase>(kEdgeInCsr));
   et.SetOutCsr(store.TakeModule<neug::CsrBase>(kEdgeOutCsr));
@@ -499,9 +503,9 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
   et.SetCapacity(meta.GetScalarAs<uint64_t>(kEdgeCapacity).value_or(0));
 }
 
-inline neug::SnapshotMeta DumpEdgeTableLegacy(neug::EdgeTable& et,
-                                              neug::Checkpoint& ckp) {
-  neug::SnapshotMeta meta;
+inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
+                                                    neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
   meta.SetScalar(kEdgeCapacity, std::to_string(et.GetCapacity()));
   auto es = et.get_edge_schema_ptr();
   if (es && !es->is_bundled()) {
@@ -511,7 +515,7 @@ inline neug::SnapshotMeta DumpEdgeTableLegacy(neug::EdgeTable& et,
       meta.set_module(EdgePropKey(i), table->get_column_by_id(i)->Dump(ckp));
     }
   }
-  neug::ModuleStore store;
+  neug::ModuleBroker store;
   store.SetModule(kEdgeOutCsr, et.TakeOutCsr());
   store.SetModule(kEdgeInCsr, et.TakeInCsr());
   store.Dump(ckp, meta);

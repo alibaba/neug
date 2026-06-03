@@ -31,7 +31,7 @@ namespace neug {
  * Maps canonical string keys to ModuleDescriptors for all modules in a
  * checkpoint. Serialized as JSON for persistence inside checkpoint directories.
  */
-class SnapshotMeta {
+class CheckpointManifest {
  public:
   /// Name of the meta file written inside the checkpoint directory.
   static constexpr const char* kMetaFileName = "meta";
@@ -43,7 +43,7 @@ class SnapshotMeta {
   /// fields) do not require a bump.  Readers must reject unknown versions.
   static constexpr int kFormatVersion = 1;
 
-  SnapshotMeta() = default;
+  CheckpointManifest() = default;
 
   /**
    * @brief Return the descriptor for @p key, or std::nullopt if absent.
@@ -109,9 +109,9 @@ class SnapshotMeta {
   /// Read-only access to the full scalar map.
   const std::unordered_map<std::string, std::string>& scalars() const;
 
-  void Open(const std::string& file_path);
+  void Load(const std::string& file_path);
 
-  void Dump(const std::string& file_path) const;
+  void Save(const std::string& file_path) const;
 
   static void GenerateEmptyMeta(const std::string& file_path);
 

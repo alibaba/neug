@@ -31,7 +31,7 @@ namespace neug {
  * Holds the path / size / module_type / extras a Module needs to open or dump
  * itself.  Descriptors are leaves: composite structures (VertexTable,
  * EdgeTable, …) hold their children as separate top-level entries in
- * SnapshotMeta::modules_, keyed by the orchestration layer.
+ * CheckpointManifest::modules_, keyed by the orchestration layer.
  */
 struct ModuleDescriptor {
   // High-frequency path key constants

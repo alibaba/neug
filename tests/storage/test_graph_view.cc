@@ -21,10 +21,10 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
@@ -34,7 +34,7 @@ class GraphViewTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
-  Workspace ws_;
+  CheckpointManager ws_;
   // Owns the buffers backing the SetUp edges' adjacency lists. Must outlive
   // graph_; tests that need to mutate the graph reuse this allocator so the
   // SetUp buffers stay live alongside any new ones they add.

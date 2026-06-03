@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "neug/config.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"

@@ -67,7 +67,7 @@ class VertexTableBenchmark : public ::testing::Test {
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
     ws_.Open(test_dir_);
     auto ckp = make_checkpoint(ws_);
-    OpenVertexTableLegacy(table, *ckp, neug::SnapshotMeta(),
+    OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(),
                           neug::MemoryLevel::kInMemory);
   }
 
@@ -156,7 +156,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
  protected:
   std::string test_dir_;
-  neug::Workspace ws_;
+  neug::CheckpointManager ws_;
   std::string v_label_name_;
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;

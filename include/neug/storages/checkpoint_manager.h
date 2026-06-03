@@ -26,7 +26,7 @@ namespace neug {
 
 // ---------------------------------------------------------------------------
 
-/// Sentinel returned by Workspace::HeadId() when no checkpoint exists.
+/// Sentinel returned by CheckpointManager::HeadId() when no checkpoint exists.
 constexpr int32_t kInvalidCheckpointId = -1;
 
 /**
@@ -44,7 +44,7 @@ constexpr int32_t kInvalidCheckpointId = -1;
  * └── ...
  * ```
  *
- * `Workspace` does **not** inherit `Module`; it is a directory-level
+ * `CheckpointManager` does **not** inherit `Module`; it is a directory-level
  * manager, not a data module itself.
  *
  * Thread safety: All public methods are individually thread-safe (guarded by
@@ -52,10 +52,10 @@ constexpr int32_t kInvalidCheckpointId = -1;
  * GetCheckpoint(id)) are not atomic — callers that race CreateCheckpoint() /
  * Close() must coordinate externally.
  */
-class Workspace {
+class CheckpointManager {
  public:
-  Workspace();
-  ~Workspace();
+  CheckpointManager();
+  ~CheckpointManager();
 
   /**
    * @brief Open a database directory.

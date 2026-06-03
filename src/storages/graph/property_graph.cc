@@ -27,9 +27,10 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/module/module_store.h"
-#include "neug/storages/snapshot_meta.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
@@ -738,12 +739,12 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   Clear();
   memory_level_ = memory_level;
 
-  const SnapshotMeta& meta = ckp->GetMeta();
+  const CheckpointManifest& meta = ckp->GetMeta();
   schema_ = meta.GetSchema();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
 
-  ModuleStore store;
+  ModuleBroker store;
   store.Open(*ckp, memory_level_);
 
   std::vector<size_t> vertex_capacities(vertex_label_total_count_, 0);
@@ -900,8 +901,8 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
     obsolete_wal_dir = ckp_->wal_dir();
   }
 
-  SnapshotMeta meta;
-  ModuleStore store;
+  CheckpointManifest meta;
+  ModuleBroker store;
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {

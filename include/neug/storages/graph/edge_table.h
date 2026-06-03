@@ -28,7 +28,7 @@
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -36,8 +36,8 @@
 
 namespace neug {
 
-class ModuleStore;
-class SnapshotMeta;
+class ModuleBroker;
+class CheckpointManifest;
 class PropertyGraph;
 
 class IRecordBatchSupplier;
@@ -71,10 +71,10 @@ class EdgeTable {
   // --- Snapshot orchestration ---
   static EdgeTable OpenFrom(Checkpoint& ckp,
                             std::shared_ptr<const EdgeSchema> schema,
-                            ModuleStore& store, const SnapshotMeta& meta,
+                            ModuleBroker& store, const CheckpointManifest& meta,
                             MemoryLevel level);
 
-  void DisassembleTo(ModuleStore& store, SnapshotMeta& meta, Checkpoint& ckp);
+  void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta, Checkpoint& ckp);
 
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/storages/snapshot_meta.h"
+#include "neug/storages/checkpoint_manifest.h"
 
 #include "neug/utils/file_utils.h"
 
@@ -26,9 +26,11 @@
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/writer.h>
 
+#include "neug/storages/checkpoint_manager.h"
+
 namespace neug {
 
-std::optional<ModuleDescriptor> SnapshotMeta::module(
+std::optional<ModuleDescriptor> CheckpointManifest::module(
     const std::string& key) const {
   auto it = modules_.find(key);
   if (it == modules_.end()) {
@@ -37,29 +39,30 @@ std::optional<ModuleDescriptor> SnapshotMeta::module(
   return it->second;
 }
 
-void SnapshotMeta::set_module(const std::string& key, ModuleDescriptor desc) {
+void CheckpointManifest::set_module(const std::string& key,
+                                    ModuleDescriptor desc) {
   modules_[key] = std::move(desc);
 }
 
-void SnapshotMeta::remove_module(const std::string& key) {
+void CheckpointManifest::remove_module(const std::string& key) {
   modules_.erase(key);
 }
 
-bool SnapshotMeta::has_module(const std::string& key) const {
+bool CheckpointManifest::has_module(const std::string& key) const {
   return modules_.count(key) > 0;
 }
 
-const std::unordered_map<std::string, ModuleDescriptor>& SnapshotMeta::modules()
-    const {
+const std::unordered_map<std::string, ModuleDescriptor>&
+CheckpointManifest::modules() const {
   return modules_;
 }
 
 std::unordered_map<std::string, ModuleDescriptor>&
-SnapshotMeta::mutable_modules() {
+CheckpointManifest::mutable_modules() {
   return modules_;
 }
 
-std::optional<std::string> SnapshotMeta::GetScalar(
+std::optional<std::string> CheckpointManifest::GetScalar(
     const std::string& key) const {
   auto it = scalars_.find(key);
   if (it == scalars_.end()) {
@@ -68,20 +71,20 @@ std::optional<std::string> SnapshotMeta::GetScalar(
   return it->second;
 }
 
-void SnapshotMeta::SetScalar(std::string key, std::string value) {
+void CheckpointManifest::SetScalar(std::string key, std::string value) {
   scalars_[std::move(key)] = std::move(value);
 }
 
-const std::unordered_map<std::string, std::string>& SnapshotMeta::scalars()
-    const {
+const std::unordered_map<std::string, std::string>&
+CheckpointManifest::scalars() const {
   return scalars_;
 }
 
-void SnapshotMeta::Open(const std::string& file_path) {
-  // SnapshotMeta lives at the canonical checkpoint meta path.
+void CheckpointManifest::Load(const std::string& file_path) {
+  // CheckpointManifest lives at the canonical checkpoint meta path.
   std::ifstream ifs(file_path);
   if (!ifs.is_open()) {
-    LOG(WARNING) << "SnapshotMeta::Open: cannot open " << file_path;
+    LOG(WARNING) << "CheckpointManifest::Load: cannot open " << file_path;
     return;
   }
 
@@ -90,18 +93,19 @@ void SnapshotMeta::Open(const std::string& file_path) {
   doc.ParseStream(isw);
 
   if (doc.HasParseError() || !doc.IsObject()) {
-    LOG(ERROR) << "SnapshotMeta::Open: invalid JSON in " << file_path;
+    LOG(ERROR) << "CheckpointManifest::Load: invalid JSON in " << file_path;
     return;
   }
 
   if (!doc.HasMember("version") || !doc["version"].IsInt()) {
-    LOG(ERROR) << "SnapshotMeta::Open: missing or non-integer 'version' in "
-               << file_path;
+    LOG(ERROR)
+        << "CheckpointManifest::Open: missing or non-integer 'version' in "
+        << file_path;
     return;
   }
   int file_version = doc["version"].GetInt();
   if (file_version != kFormatVersion) {
-    LOG(ERROR) << "SnapshotMeta::Open: incompatible meta version "
+    LOG(ERROR) << "CheckpointManifest::Open: incompatible meta version "
                << file_version << " (expected " << kFormatVersion << ") in "
                << file_path;
     return;
@@ -130,7 +134,7 @@ void SnapshotMeta::Open(const std::string& file_path) {
   }
 }
 
-void SnapshotMeta::Dump(const std::string& file_path) const {
+void CheckpointManifest::Save(const std::string& file_path) const {
   file_utils::AtomicFileWriter writer(file_path);
   auto& os = writer.stream();
 
@@ -141,7 +145,7 @@ void SnapshotMeta::Dump(const std::string& file_path) const {
 
   auto schema_res = schema_.ToJson();
   if (!schema_res) {
-    LOG(ERROR) << "SnapshotMeta::Dump: failed to serialize schema: "
+    LOG(ERROR) << "CheckpointManifest::Save: failed to serialize schema: "
                << schema_res.error().error_message();
   } else {
     doc.AddMember("schema", schema_res.value().Move(), alloc);
@@ -170,10 +174,10 @@ void SnapshotMeta::Dump(const std::string& file_path) const {
   doc.Accept(json_writer);
 
   writer.Commit();
-  LOG(INFO) << "SnapshotMeta::Dump: dumped meta to " << file_path;
+  LOG(INFO) << "CheckpointManifest::Save: dumped meta to " << file_path;
 }
 
-void SnapshotMeta::GenerateEmptyMeta(const std::string& path) {
+void CheckpointManifest::GenerateEmptyMeta(const std::string& path) {
   file_utils::AtomicFileWriter writer(path);
   auto& os = writer.stream();
 
@@ -190,8 +194,8 @@ void SnapshotMeta::GenerateEmptyMeta(const std::string& path) {
   writer.Commit();
 }
 
-const Schema& SnapshotMeta::GetSchema() const { return schema_; }
+const Schema& CheckpointManifest::GetSchema() const { return schema_; }
 
-void SnapshotMeta::SetSchema(const Schema& schema) { schema_ = schema; }
+void CheckpointManifest::SetSchema(const Schema& schema) { schema_ = schema; }
 
 }  // namespace neug

@@ -33,7 +33,7 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/storages/workspace.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -121,7 +121,7 @@ class PropertyGraph {
   /**
    * @brief Open the graph from the given Checkpoint using the Module interface.
    *
-   * Reads a SnapshotMeta from @p ckp, then opens each module (Schema,
+   * Reads a CheckpointManifest from @p ckp, then opens each module (Schema,
    * VertexTable, EdgeTable) via Module::Open.  If the checkpoint contains no
    * meta the graph starts empty.
    */
