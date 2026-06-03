@@ -25,8 +25,6 @@ import unittest
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug.database import Database
 
 logger = logging.getLogger(__name__)

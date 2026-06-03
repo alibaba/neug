@@ -22,8 +22,6 @@ import sys
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug import Database
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (

@@ -29,8 +29,6 @@ import sys
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 import neug
 from neug.database import Database
 
