@@ -25,8 +25,8 @@
 #include <string>
 #include <vector>
 
-#include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace reader {
@@ -154,38 +154,37 @@ void appendScalarValue(arrow::ArrayBuilder* builder, std::string_view value,
   case arrow::Type::DATE32: {
     // Parse ISO date string "YYYY-MM-DD" -> days since epoch
     auto* b = static_cast<arrow::Date32Builder*>(builder);
-    auto d = ::neug::common::Date::fromCString(val_str.c_str(), val_str.size());
-    THROW_IF_ARROW_NOT_OK(b->Append(d.days));
+    ::neug::Date d(val_str);
+    THROW_IF_ARROW_NOT_OK(b->Append(d.to_num_days()));
     break;
   }
   case arrow::Type::DATE64: {
     // Parse ISO date string "YYYY-MM-DD" -> milliseconds since epoch
     auto* b = static_cast<arrow::Date64Builder*>(builder);
-    auto d = ::neug::common::Date::fromCString(val_str.c_str(), val_str.size());
+    ::neug::Date d(val_str);
     THROW_IF_ARROW_NOT_OK(
-        b->Append(static_cast<int64_t>(d.days) * 86400LL * 1000LL));
+        b->Append(static_cast<int64_t>(d.to_num_days()) * 86400LL * 1000LL));
     break;
   }
   case arrow::Type::TIMESTAMP: {
     // Parse ISO timestamp string "YYYY-MM-DD hh:mm:ss" -> value in
-    // microseconds; convert to the target unit.
+    // milliseconds; convert to the target unit.
     auto* b = static_cast<arrow::TimestampBuilder*>(builder);
-    auto ts =
-        ::neug::common::Timestamp::fromCString(val_str.c_str(), val_str.size());
+    ::neug::DateTime dt(val_str);
     auto tsType = std::static_pointer_cast<arrow::TimestampType>(valueType);
     int64_t v;
     switch (tsType->unit()) {
     case arrow::TimeUnit::SECOND:
-      v = ts.value / 1000000LL;
+      v = dt.milli_second / 1000LL;
       break;
     case arrow::TimeUnit::MILLI:
-      v = ts.value / 1000LL;
+      v = dt.milli_second;
       break;
     case arrow::TimeUnit::MICRO:
-      v = ts.value;
+      v = dt.milli_second * 1000LL;
       break;
     case arrow::TimeUnit::NANO:
-      v = ts.value * 1000LL;
+      v = dt.milli_second * 1000000LL;
       break;
     }
     THROW_IF_ARROW_NOT_OK(b->Append(v));
