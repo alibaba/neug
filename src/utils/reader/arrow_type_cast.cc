@@ -371,30 +371,6 @@ std::shared_ptr<arrow::Table> ArrowTypeCaster::castTable(
                             table->num_rows());
 }
 
-std::shared_ptr<arrow::RecordBatch> ArrowTypeCaster::castBatch(
-    const std::shared_ptr<arrow::RecordBatch>& batch,
-    const std::shared_ptr<arrow::Schema>& expectedSchema) const {
-  bool needsCast = false;
-  for (int i = 0; i < batch->num_columns(); ++i) {
-    if (!batch->column(i)->type()->Equals(expectedSchema->field(i)->type())) {
-      needsCast = true;
-      break;
-    }
-  }
-  if (!needsCast) {
-    return batch;
-  }
-
-  std::vector<std::shared_ptr<arrow::Array>> newColumns;
-  newColumns.reserve(batch->num_columns());
-  for (int i = 0; i < batch->num_columns(); ++i) {
-    auto expectedType = expectedSchema->field(i)->type();
-    newColumns.push_back(castArray(batch->column(i), expectedType));
-  }
-  return arrow::RecordBatch::Make(expectedSchema, batch->num_rows(),
-                                  std::move(newColumns));
-}
-
 // --- LazyTypeCastRecordBatch implementation ---
 
 LazyTypeCastRecordBatch::LazyTypeCastRecordBatch(

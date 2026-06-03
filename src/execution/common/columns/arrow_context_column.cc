@@ -396,41 +396,8 @@ static Value get_arrow_scalar_value(const std::shared_ptr<arrow::Array>& array,
 
 Value ArrowArrayContextColumn::get_elem(size_t idx) const {
   CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
-
-  // Locate the array and offset for the given index.
   auto [array_idx, offset] = locate_array_and_offset(columns_, size_, idx);
-  const auto& array = columns_[array_idx];
-
-  // Get value according to arrow type and convert to RTAny.
-  auto arrow_type = array->type();
-
-  if (arrow_type->id() == arrow::Type::LIST) {
-    auto list_arr = std::static_pointer_cast<arrow::ListArray>(array);
-    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
-    auto values_arr = list_arr->values();
-    int32_t start = list_arr->value_offset(offset);
-    int32_t length = list_arr->value_length(offset);
-    std::vector<Value> list_values;
-    list_values.reserve(length);
-    for (int32_t j = start; j < start + length; ++j) {
-      list_values.push_back(get_arrow_scalar_value(values_arr, j));
-    }
-    return Value::LIST(child_type, std::move(list_values));
-  } else if (arrow_type->id() == arrow::Type::FIXED_SIZE_LIST) {
-    auto list_arr = std::static_pointer_cast<arrow::FixedSizeListArray>(array);
-    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
-    auto values_arr = list_arr->values();
-    int32_t start = list_arr->value_offset(offset);
-    int32_t length = list_arr->value_length(offset);
-    std::vector<Value> list_values;
-    list_values.reserve(length);
-    for (int32_t j = start; j < start + length; ++j) {
-      list_values.push_back(get_arrow_scalar_value(values_arr, j));
-    }
-    return Value::LIST(child_type, std::move(list_values));
-  } else {
-    return get_arrow_scalar_value(array, offset);
-  }
+  return get_arrow_scalar_value(columns_[array_idx], offset);
 }
 
 std::shared_ptr<IContextColumn> ArrowArrayContextColumn::cast_to_value_column()

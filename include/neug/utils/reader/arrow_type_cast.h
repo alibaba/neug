@@ -50,10 +50,6 @@ class ArrowTypeCaster {
       const std::shared_ptr<arrow::Table>& table,
       const std::shared_ptr<arrow::Schema>& expectedSchema) const;
 
-  std::shared_ptr<arrow::RecordBatch> castBatch(
-      const std::shared_ptr<arrow::RecordBatch>& batch,
-      const std::shared_ptr<arrow::Schema>& expectedSchema) const;
-
   std::shared_ptr<arrow::Array> castArray(
       const std::shared_ptr<arrow::Array>& array,
       const std::shared_ptr<arrow::DataType>& targetType) const;
