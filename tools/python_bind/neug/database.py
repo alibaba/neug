@@ -345,6 +345,8 @@ class Database(object):
         """
         Close the database connection.
         """
+        if not self._database:
+            return
         if self._db_path and self._db_path.strip() != "":
             logger.info(f"Closing database {self._db_path}.")
         # Close all connections
@@ -360,9 +362,8 @@ class Database(object):
                     async_conn.close()
                 except Exception as e:
                     logger.warning(f"Failed to close async connection: {e}")
-        if self._database:
-            self._database.close()
-            self._database = None
+        self._database.close()
+        self._database = None
         # Don't clear the connections list, because the connections may be held by the user.
 
     def load_builtin_dataset(self, dataset_name: str) -> None:

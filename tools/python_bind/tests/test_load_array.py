@@ -21,6 +21,8 @@
 import os
 import shutil
 import sys
+from datetime import date
+from datetime import datetime
 
 import pytest
 
@@ -187,11 +189,11 @@ class TestLoadArray:
         result = list(self.conn.execute(query))
         assert len(result) == 2
         assert len(result[0][1]) == 2
-        # Verify dates are returned (as date objects or strings)
-        assert str(result[0][1][0]) == "1970-01-01"
-        assert str(result[0][1][1]) == "2023-06-15"
+        # Verify dates are returned as datetime.date objects
+        assert result[0][1][0] == date(1970, 1, 1)
+        assert result[0][1][1] == date(2023, 6, 15)
         assert len(result[1][1]) == 1
-        assert str(result[1][1][0]) == "2000-01-01"
+        assert result[1][1][0] == date(2000, 1, 1)
 
     def test_cast_timestamp_array(self):
         """LOAD FROM CSV with CAST(col, 'TIMESTAMP[]')."""
@@ -208,11 +210,11 @@ class TestLoadArray:
         result = list(self.conn.execute(query))
         assert len(result) == 2
         assert len(result[0][1]) == 2
-        # Verify epoch timestamp
-        assert "1970-01-01" in str(result[0][1][0])
-        assert "2023-06-15" in str(result[0][1][1])
+        # Verify timestamps are returned as datetime.datetime objects
+        assert result[0][1][0] == datetime(1970, 1, 1, 0, 0)
+        assert result[0][1][1] == datetime(2023, 6, 15, 12, 30)
         assert len(result[1][1]) == 1
-        assert "2000-01-01" in str(result[1][1][0])
+        assert result[1][1][0] == datetime(2000, 1, 1, 0, 0)
 
     def test_cast_interval_array(self):
         """LOAD FROM CSV with CAST(col, 'INTERVAL[]')."""
@@ -226,8 +228,9 @@ class TestLoadArray:
         """
         result = list(self.conn.execute(query))
         assert len(result) == 2
-        assert len(result[0][1]) == 2
-        assert len(result[1][1]) == 1
+        # Verify intervals are returned as strings
+        assert result[0][1] == ["2 days", "3 hours"]
+        assert result[1][1] == ["1 year 2 months"]
 
     def test_cast_multiple_array_columns(self):
         """LOAD FROM CSV with multiple CAST array columns."""
