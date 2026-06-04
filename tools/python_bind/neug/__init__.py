@@ -222,9 +222,20 @@ except ImportError as e:
             f"NeuG is not installed. Install via pip or build from source: {e}"
         ) from e
 
-os.environ["NEUG_EXTENSION_HOME_PYENV"] = _bind_dir or os.path.join(
-    os.path.dirname(__file__), ".."
-)
+# Resolve where loaded extensions live (loader appends /extension/<name>/):
+#  - dev (root build): _bind_dir is <root_build>/tools/python_bind/, but
+#    extensions are written by cmake to <root_build>/extension/<name>/, so the
+#    extension home is two dirs up from _bind_dir.
+#  - wheel install: _bind_dir is None (neug_py_bind*.so sits at site-packages
+#    root, not in the neug/ package). CI copies extensions to
+#    <site-packages>/extension/<name>/, matching parent-of-__init__.
+#  - legacy lib.<plat>-* fallback: extensions used to be colocated with the .so.
+_norm_bind = os.path.normpath(_bind_dir) if _bind_dir else ""
+if _norm_bind.endswith(os.sep + os.path.join("tools", "python_bind")):
+    _extension_home = os.path.abspath(os.path.join(_norm_bind, "..", ".."))
+else:
+    _extension_home = _bind_dir or os.path.join(os.path.dirname(__file__), "..")
+os.environ["NEUG_EXTENSION_HOME_PYENV"] = _extension_home
 logger.info("Extension home: %s", os.environ["NEUG_EXTENSION_HOME_PYENV"])
 
 from neug.async_connection import AsyncConnection

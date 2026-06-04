@@ -4,6 +4,9 @@ REPO_ROOT  := $(abspath $(CURDIR)/../..)
 ROOT_BUILD := $(REPO_ROOT)/build
 CACHE_FILE := $(ROOT_BUILD)/CMakeCache.txt
 
+BUILD_TYPE         ?= Release
+EXTRA_CMAKE_FLAGS  ?=
+
 # `cmake --build -j` without N is unlimited parallelism — tanks memory-limited
 # machines on heavy template instantiation. Default to detected CPU count;
 # override with `JOBS=N`.
@@ -46,7 +49,9 @@ dev:  ## Fast incremental rebuild via cmake (no env-var forwarding)
 
 dev-full:  ## Configure root build + build neug_py_bind from scratch
 	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_PYTHON=ON \
-	    -DPython_EXECUTABLE=$(PYTHON) -DPYTHON_EXECUTABLE=$(PYTHON)
+	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	    -DPython_EXECUTABLE=$(PYTHON) -DPYTHON_EXECUTABLE=$(PYTHON) \
+	    $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) --target neug_py_bind -j$(JOBS)
 
 wheel:  ## Build the neug python wheel (honors BUILD_* env vars)

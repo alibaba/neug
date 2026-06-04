@@ -39,7 +39,7 @@ python-clean:  ## Clean Python build artifacts (does NOT touch <repo>/build)
 clean: python-clean  ## Clean Python build artifacts (alias for python-clean)
 
 dist-clean: python-clean  ## Clean Python artifacts AND the root build dir
-	rm -rf build/
+	rm -rf $(ROOT_BUILD)
 
 format-check:  ## Run format checks only (C++ and Python)
 	@bash scripts/pre_commit_check.sh --format-only

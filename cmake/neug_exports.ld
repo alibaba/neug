@@ -45,4 +45,25 @@
 
     /* utf8_range (protobuf dependency) */
     utf8_range*;
+
+    /* AWS C++ SDK (bundled by Arrow when ARROW_S3=ON). Already mostly
+     * suppressed by --exclude-libs,libarrow_bundled_dependencies.a in
+     * neug_symbol_visibility.cmake, but listed here for symmetry with the
+     * macOS unexported list and to guard against future link-line changes
+     * that might re-expose them. */
+    _ZN3Aws*;
+    _ZNK3Aws*;
+    _ZTI*3Aws*;
+    _ZTV*3Aws*;
+    _ZTS*3Aws*;
+    _ZTT*3Aws*;
+    _ZTC*3Aws*;
+    _ZTh*3Aws*;
+    _ZTv*3Aws*;
+
+    /* AWS C SDK (aws-c-common, aws-c-cal, aws-c-io, aws-c-http, aws-c-auth,
+     * aws-c-mqtt, aws-c-s3, aws-c-sdkutils, aws-checksums, aws-crt-cpp). */
+    aws_*;
+    s_aws_*;
+    g_aws_*;
 };
