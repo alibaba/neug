@@ -29,6 +29,7 @@
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
@@ -1803,6 +1804,30 @@ TEST_F(ParquetTest, TestParquetExportWithPathType) {
   auto file_size = std::filesystem::file_size(export_path);
   EXPECT_GT(file_size, 0) << "Parquet file should not be empty";
   
+}
+
+// =============================================================================
+// Test Suite: Schema Validation
+// Verify reader-level column existence check
+// =============================================================================
+
+TEST_F(ParquetTest, TestParquetNonExistentColumnThrows) {
+  createSimpleParquetFile("test_nonexist.parquet");
+
+  std::vector<std::string> columnNames = {"id", "name", "wrong_col"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  auto sharedState = createSharedState(
+      "test_nonexist.parquet", columnNames, columnTypes,
+      {{"batch_read", "false"}});
+  auto reader = createParquetReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_THROW(reader->read(localState, ctx),
+               exception::SchemaMismatchException);
 }
 
 // End of Test Suites
