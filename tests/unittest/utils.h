@@ -439,7 +439,8 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
       std::make_unique<neug::Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
     table->SetColumn(static_cast<int>(i),
-                     store.TakeModule<neug::ColumnBase>(VertexPropKey(i)));
+                     std::shared_ptr<neug::ColumnBase>(
+                         store.TakeModule<neug::ColumnBase>(VertexPropKey(i))));
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(store.TakeModule<neug::VertexTimestamp>(kVertexVTs));
@@ -495,7 +496,8 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
         std::make_unique<neug::Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
       table->SetColumn(static_cast<int>(i),
-                       store.TakeModule<neug::ColumnBase>(EdgePropKey(i)));
+                       std::shared_ptr<neug::ColumnBase>(
+                           store.TakeModule<neug::ColumnBase>(EdgePropKey(i))));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(meta.GetScalarAs<uint64_t>(kEdgeTableIdx).value_or(0));

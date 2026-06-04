@@ -305,7 +305,8 @@ VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
   auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
     table->SetColumn(static_cast<int>(i),
-                     store.TakeModule<ColumnBase>(KeyProperty(lbl, i)));
+                     std::shared_ptr<ColumnBase>(
+                         store.TakeModule<ColumnBase>(KeyProperty(lbl, i))));
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(

@@ -32,7 +32,6 @@ namespace neug {
 class Table {
  public:
   Table();
-  Table(Table&&) = default;
 
   Table(const std::vector<std::string>& col_names,
         const std::vector<DataType>& property_types);
@@ -41,9 +40,7 @@ class Table {
 
   void Init(Checkpoint& ckp, MemoryLevel level);
 
-  void SetColumn(int idx, std::unique_ptr<ColumnBase> col);
-
-  std::unique_ptr<ColumnBase> TakeColumn(int idx);
+  void SetColumn(int idx, std::shared_ptr<ColumnBase> col);
 
   void reset_header(const std::vector<std::string>& col_name);
 
@@ -61,15 +58,15 @@ class Table {
 
   std::vector<DataTypeId> column_types() const;
 
-  ColumnBase* get_column(const std::string& name);
+  std::shared_ptr<ColumnBase> get_column(const std::string& name);
 
-  const ColumnBase* get_column(const std::string& name) const;
+  const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
 
   std::vector<Property> get_row(size_t row_id) const;
 
-  ColumnBase* get_column_by_id(size_t index);
+  std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
 
-  const ColumnBase* get_column_by_id(size_t index) const;
+  const std::shared_ptr<ColumnBase> get_column_by_id(size_t index) const;
 
   void rename_column(const std::string& old_name, const std::string& new_name);
 
@@ -83,6 +80,8 @@ class Table {
       return columns_[0]->size();
     }
   }
+  std::vector<std::shared_ptr<ColumnBase>>& columns();
+
   void insert(size_t index, const std::vector<Property>& values,
               bool insert_safe);
 
@@ -102,7 +101,7 @@ class Table {
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
 
-  std::vector<std::unique_ptr<ColumnBase>> columns_;
+  std::vector<std::shared_ptr<ColumnBase>> columns_;
 };
 
 }  // namespace neug

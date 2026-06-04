@@ -70,22 +70,22 @@ inline std::string TablePropKey(size_t i) {
   return "table/col_" + std::to_string(i);
 }
 
-static Table OpenTableLegacy(Checkpoint& ckp, const CheckpointManifest& meta,
-                             MemoryLevel level,
-                             const std::vector<std::string>& col_names,
-                             const std::vector<DataType>& types) {
-  Table t(col_names, types);
+static void OpenTableLegacy(Table& t, Checkpoint& ckp,
+                            const CheckpointManifest& meta, MemoryLevel level,
+                            const std::vector<std::string>& col_names,
+                            const std::vector<DataType>& types) {
+  t = Table(col_names, types);
   if (!meta.has_module(TablePropKey(0))) {
     t.Init(ckp, level);
-    return t;
+    return;
   }
   ModuleBroker store;
   store.Open(ckp, meta, level);
   for (size_t i = 0; i < types.size(); ++i) {
     t.SetColumn(static_cast<int>(i),
-                store.TakeModule<ColumnBase>(TablePropKey(i)));
+                std::shared_ptr<ColumnBase>(
+                    store.TakeModule<ColumnBase>(TablePropKey(i))));
   }
-  return t;
 }
 
 static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
@@ -136,6 +136,8 @@ TEST_F(TableTest, TestTableBasic) {
   auto& ws = Workspace();
   auto ckp = make_checkpoint(ws);
 
+  Table disk_table, mem_table, none_table;
+
   std::vector<std::string> col_name = {
       "bool_column",     "int32_column",    "uint32_column", "int64_column",
       "uint64_column",   "float_column",    "double_column", "date_column",
@@ -149,15 +151,12 @@ TEST_F(TableTest, TestTableBasic) {
       {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
       {DataTypeId::kVarchar}};
 
-  auto disk_table =
-      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kSyncToFile,
-                      col_name, property_types);
-  auto mem_table =
-      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
-                      col_name, property_types);
-  auto none_table =
-      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
-                      col_name, property_types);
+  OpenTableLegacy(disk_table, *ckp, CheckpointManifest(),
+                  MemoryLevel::kSyncToFile, col_name, property_types);
+  OpenTableLegacy(mem_table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                  col_name, property_types);
+  OpenTableLegacy(none_table, *ckp, CheckpointManifest(),
+                  MemoryLevel::kInMemory, col_name, property_types);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -350,7 +349,7 @@ TEST_F(TableTest, TestTableBasic) {
   }
 
   {
-    EXPECT_EQ(disk_table.col_num(), 11);
+    EXPECT_EQ(disk_table.columns().size(), 11);
     EXPECT_EQ(disk_table.column_names().size(), 11);
     EXPECT_EQ(disk_table.column_types().size(), 11);
     EXPECT_EQ(disk_table.column_name(0), "bool_column");
@@ -366,23 +365,23 @@ TEST_F(TableTest, TestTableBasic) {
   disk_table.close();
   mem_table.close();
 
-  auto disk_table2 = OpenTableLegacy(*ckp, disk_desc, MemoryLevel::kSyncToFile,
-                                     col_name, property_types);
-  EXPECT_EQ(disk_table2.col_num(), 11);
-  EXPECT_EQ(disk_table2.get_column_by_id(0)->size(), 10);
-  disk_table2.reset_header(col_name);
-  disk_table2.rename_column("bool_column", "renamed_bool_column");
-  EXPECT_EQ(disk_table2.get_column_id_by_name("renamed_bool_column"), 0);
-  disk_table2.delete_column("renamed_bool_column");
-  EXPECT_EQ(disk_table2.col_num(), 10);
-  disk_table2.close();
+  OpenTableLegacy(disk_table, *ckp, disk_desc, MemoryLevel::kSyncToFile,
+                  col_name, property_types);
+  EXPECT_EQ(disk_table.col_num(), 11);
+  EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
+  disk_table.reset_header(col_name);
+  disk_table.rename_column("bool_column", "renamed_bool_column");
+  EXPECT_EQ(disk_table.get_column_id_by_name("renamed_bool_column"), 0);
+  disk_table.delete_column("renamed_bool_column");
+  EXPECT_EQ(disk_table.col_num(), 10);
+  disk_table.close();
 
   // reopen from the same descriptor in-memory
-  auto mem_table2 = OpenTableLegacy(*ckp, disk_desc, MemoryLevel::kInMemory,
-                                    col_name, property_types);
-  EXPECT_EQ(mem_table2.col_num(), 11);
-  EXPECT_EQ(mem_table2.get_column_by_id(0)->size(), 10);
-  const Table& mem_table_ref = mem_table2;
+  OpenTableLegacy(mem_table, *ckp, disk_desc, MemoryLevel::kInMemory, col_name,
+                  property_types);
+  EXPECT_EQ(mem_table.col_num(), 11);
+  EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
+  const Table& mem_table_ref = mem_table;
   EXPECT_EQ(mem_table_ref.get_column("bool_column")->type(),
             DataTypeId::kBoolean);
   EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::kBoolean);
@@ -391,16 +390,16 @@ TEST_F(TableTest, TestTableBasic) {
 TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   auto ckp = make_checkpoint(Workspace());
 
+  Table table;
   std::vector<std::string> col_name = {"string_column"};
   std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
 
-  Table table =
-      OpenTableLegacy(*ckp, CheckpointManifest(), MemoryLevel::kInMemory,
-                      col_name, property_types);
+  OpenTableLegacy(table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                  col_name, property_types);
   table.resize(2, {Property::from_string_view("default_value")});
 
-  auto string_column =
-      dynamic_cast<StringColumn*>(table.get_column("string_column"));
+  auto string_column = std::dynamic_pointer_cast<StringColumn>(
+      table.get_column("string_column"));
   ASSERT_NE(string_column, nullptr);
 
   EXPECT_EQ(string_column->get_prop(0).as_string_view(), "default_value");
