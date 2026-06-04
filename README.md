@@ -1,10 +1,6 @@
 <p align="center">
-  <img src="img/neug-logo.png" width="320" alt="NeuG">
-</p>
-<p align="center">
-  <b>A Graph Database for HTAP Workloads</b>
-</p>
-<p align="center">
+  <img src="img/neug-logo.png" width="280" alt="NeuG"><br>
+  <b>A Graph Database for HTAP Workloads</b><br><br>
   <a href="https://github.com/alibaba/neug/actions/workflows/neug-test.yml"><img src="https://github.com/alibaba/neug/actions/workflows/neug-test.yml/badge.svg" alt="NeuG Test"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
