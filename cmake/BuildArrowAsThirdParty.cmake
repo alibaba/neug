@@ -118,6 +118,19 @@ function(build_arrow_as_third_party)
             unset(_curl_multiarch_inc)
             unset(_curl_multiarch_lib)
         endif()
+        # Fail fast with a clear message before Arrow's bundled S3 toolchain
+        # emits a generic "Could NOT find CURL" that hides the real cause.
+        # See issue 480.
+        if(NOT (CURL_LIBRARY AND CURL_INCLUDE_DIR))
+            find_package(CURL QUIET)
+            if(NOT CURL_FOUND)
+                message(FATAL_ERROR
+                    "The 'httpfs' extension requires libcurl development "
+                    "headers (e.g. libcurl4-openssl-dev on Debian/Ubuntu, "
+                    "libcurl-devel on RHEL). Install it, or drop 'httpfs' "
+                    "from -DBUILD_EXTENSIONS.")
+            endif()
+        endif()
     else()
         set(ARROW_S3 OFF CACHE BOOL "" FORCE)
     endif()
