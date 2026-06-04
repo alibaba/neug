@@ -12,7 +12,7 @@ on:
         required: false
         default: '1000'
       rss_iters:
-        description: '--iters for neug_rss_workload / test_memory_leak.py'
+        description: '--iters for tests/memory_leak/test_memory_leak.py'
         required: false
         default: '2000'
       run_valgrind:
@@ -85,15 +85,15 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             2>&1 | tee "$LOG_DIR/cmake-configure.log"
 
-      - name: Build neug + test_node_create + neug_rss_workload
+      - name: Build neug + memory-leak gtest binaries
         run: |
           cmake --build build \
-            --target neug test_node_create neug_rss_workload \
+            --target neug test_node_create test_temporary_tables \
             -- -j"$(nproc)" \
             2>&1 | tee "$LOG_DIR/cmake-build.log"
 
       # ----------------------------------------------------------------
-      # 1) gtest single-case leak smoke (external observer expected)
+      # 1a) gtest -- test_node_create (long write-path soak)
       # ----------------------------------------------------------------
       - name: gtest -- test_node_create
         env:
@@ -109,19 +109,24 @@ jobs:
             2>&1 | tee "$LOG_DIR/test_node_create.log"
 
       # ----------------------------------------------------------------
-      # 2) Multi-scenario RSS workload with internal slope+delta verdict
+      # 1b) gtest -- test_temporary_tables (scan / ddl / temp_insert)
       # ----------------------------------------------------------------
-      - name: bin/neug_rss_workload (4 scenarios, --exit-on-leak)
+      - name: gtest -- test_temporary_tables
+        env:
+          NEUG_RUN_MEMORY_LEAK_TESTS: '1'
+          NEUG_LEAK_OUTER_ITERS:      ${{ env.OUTER_ITERS }}
+          NEUG_LEAK_INNER_ROWS:       ${{ env.INNER_ROWS }}
+          NEUG_LEAK_BULK_ROWS:        '100000'
+          NEUG_LEAK_SCAN_ITERS:       '200'
+          GLOG_logtostderr:           '1'
         run: |
           set -o pipefail
-          ./build/bin/neug_rss_workload \
-            --iters "$RSS_ITERS" --sample 100 \
-            --slope-threshold 0.5 --delta-threshold 5.0 \
-            --exit-on-leak \
-            2>&1 | tee "$LOG_DIR/rss_workload.log"
+          ./build/tests/memory_leak/test_temporary_tables \
+            --gtest_color=no \
+            2>&1 | tee "$LOG_DIR/test_temporary_tables.log"
 
       # ----------------------------------------------------------------
-      # 3) Python-side RSS workload (uses the same NeuG build via wheel)
+      # 2) Python-side RSS workload (uses the same NeuG build via wheel)
       # ----------------------------------------------------------------
       - name: Build & install Python wheel (no mimalloc)
         working-directory: tools/python_bind
@@ -144,7 +149,7 @@ jobs:
             2>&1 | tee "$LOG_DIR/test_memory_leak_py.log"
 
       # ----------------------------------------------------------------
-      # 4) Optional valgrind pass — slow, so run with shrunken iter counts
+      # 3) Optional valgrind pass — slow, so run with shrunken iter counts
       # ----------------------------------------------------------------
       - name: valgrind -- test_node_create (small workload)
         if: ${{ env.RUN_VALGRIND == 'true' }}
@@ -173,17 +178,23 @@ jobs:
             2>&1 | tee "$LOG_DIR/valgrind.stdout"
 
       # ----------------------------------------------------------------
-      # 5) Always upload logs for postmortem
+      # 4) Always upload logs for postmortem
       # ----------------------------------------------------------------
       - name: Summarize verdicts
         if: always()
         run: |
           echo '## Memory Leak Nightly Summary' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
-          if [ -f "$LOG_DIR/rss_workload.log" ]; then
-            echo '### bin/neug_rss_workload' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$LOG_DIR/test_node_create.log" ]; then
+            echo '### gtest test_node_create' >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 20 "$LOG_DIR/rss_workload.log" >> "$GITHUB_STEP_SUMMARY" || true
+            tail -n 20 "$LOG_DIR/test_node_create.log" >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f "$LOG_DIR/test_temporary_tables.log" ]; then
+            echo '### gtest test_temporary_tables' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 "$LOG_DIR/test_temporary_tables.log" >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
           if [ -f "$LOG_DIR/test_memory_leak_py.log" ]; then
