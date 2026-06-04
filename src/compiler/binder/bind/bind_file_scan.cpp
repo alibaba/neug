@@ -197,7 +197,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
           "Sniffed schema has {} columns but {} columns were expected.",
           sniffSchema->columnNames.size(), columnNames.size()));
     }
-    expectedColumnNames = columnNames;
+    expectedColumnNames = sniffSchema->columnNames;
     expectedColumnTypes = LogicalType::copy(columnTypes);
   }
 
