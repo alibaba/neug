@@ -226,29 +226,17 @@ struct var_len_item {
 };
 
 /**
- * @brief VarLenColumn is a non-template base class for variable-length column
- * types that provides shared dual-buffer storage logic.
+ * @brief Non-template base for variable-length columns. Provides dual-buffer
+ * storage: items_buffer_ holds per-row (offset, length); data_buffer_ holds
+ * the blobs; pos_ is an atomic write frontier into data_buffer_.
  *
- * Storage layout:
- * - items_buffer_: stores a var_len_item (offset + length) per row.
- * - data_buffer_:  stores the actual variable-length byte blobs.
- * - pos_:          atomic write frontier in data_buffer_.
+ * Thread safety: concurrent writes to distinct indices are safe (pos_ uses
+ * atomic fetch_add). resize() and any buffer growth (set_any with
+ * insert_safe=true) require external synchronization.
  *
- * Thread Safety:
- * - Concurrent writes to different indices are safe: pos_ uses atomic fetch_add
- *   for offset allocation, ensuring no two threads write to overlapping
- * regions.
- * - resize() operations require external synchronization (not atomic).
- * - set_any() with insert_safe=true may resize buffer; caller must handle
- *   synchronization or ensure pre-resize is sufficient.
- *
- * Subclasses (e.g. TypedColumn<std::string_view>) must implement: type(),
- * default_avg_size(), resize(size, default_value), set_any(), get_prop(), and
- * set_prop().
- *
- * Subclass helpers (protected): ensure_capacity_or_throw() centralizes the
- * grow-or-throw policy for writes; resize_with_replicated_default() handles
- * the resize-and-replicate-default-blob path.
+ * Subclasses implement type-specific hooks (default_avg_size, resize with
+ * default, set_any, get_prop, set_prop) and may use the protected helpers
+ * ensure_capacity_or_throw and resize_with_replicated_default.
  */
 class VarLenColumn : public ColumnBase {
  public:
@@ -258,6 +246,17 @@ class VarLenColumn : public ColumnBase {
   VarLenColumn& operator=(const VarLenColumn&) = delete;
   VarLenColumn& operator=(VarLenColumn&&) = delete;
 
+ protected:
+  VarLenColumn(VarLenColumn&& rhs) noexcept
+      : items_buffer_(std::move(rhs.items_buffer_)),
+        data_buffer_(std::move(rhs.data_buffer_)),
+        size_(rhs.size_),
+        pos_(rhs.pos_.load()) {
+    rhs.size_ = 0;
+    rhs.pos_.store(0);
+  }
+
+ public:
   ~VarLenColumn() override { VarLenColumn::close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -272,20 +271,21 @@ class VarLenColumn : public ColumnBase {
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
-  void open_in_memory(const std::string& name) override {
-    items_buffer_ = OpenContainer(name + ".items", "", MemoryLevel::kInMemory);
-    data_buffer_ = OpenContainer(name + ".data", "", MemoryLevel::kInMemory);
+  void open_in_memory(const std::string& prefix) override {
+    items_buffer_ =
+        OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
+    data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
     size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
-    init_pos(name + ".pos");
+    init_pos(prefix + ".pos");
   }
 
-  void open_with_hugepages(const std::string& name) override {
+  void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ =
-        OpenContainer(name + ".items", "", MemoryLevel::kHugePagePreferred);
+        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePreferred);
     data_buffer_ =
-        OpenContainer(name + ".data", "", MemoryLevel::kHugePagePreferred);
+        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePreferred);
     size_ = items_buffer_->GetDataSize() / sizeof(var_len_item);
-    init_pos(name + ".pos");
+    init_pos(prefix + ".pos");
   }
 
   void close() override {
@@ -375,6 +375,7 @@ class VarLenColumn : public ColumnBase {
       THROW_IO_EXCEPTION(ss.str());
     }
     size_t pos_val = offset;
+    // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
   }
 
@@ -410,17 +411,6 @@ class VarLenColumn : public ColumnBase {
  protected:
   // Subclass-supplied per-row size hint used when no actual data exists yet.
   virtual size_t default_avg_size() const = 0;
-
-  // Protected move ctor: lets subclass move ctors delegate the dual-buffer +
-  // atomic pos_ transfer. (Implicit move is deleted because of std::atomic.)
-  VarLenColumn(VarLenColumn&& rhs) noexcept
-      : items_buffer_(std::move(rhs.items_buffer_)),
-        data_buffer_(std::move(rhs.data_buffer_)),
-        size_(rhs.size_),
-        pos_(rhs.pos_.load()) {
-    rhs.size_ = 0;
-    rhs.pos_.store(0);
-  }
 
   // Ensure data_buffer_ has room for `blob_size` more bytes starting at pos_.
   // If not, grow when `insert_safe` is true (caller holds external lock),
@@ -564,9 +554,8 @@ class TypedColumn<std::string_view> : public VarLenColumn {
     resize_with_replicated_default(size, default_str);
   }
 
-  // Thread-safe for concurrent writes to different indices when
-  // insert_safe=false (throws on insufficient space). When insert_safe=true,
-  // buffer may resize; caller must provide external synchronization.
+  // When insert_safe is set to true, concurrency control should be guaranteed
+  // by caller.
   void set_any(size_t idx, const Property& value, bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");
@@ -600,7 +589,7 @@ class TypedColumn<std::string_view> : public VarLenColumn {
   }
 
  private:
-  std::string_view truncate_if_needed(std::string_view val) const {
+  inline std::string_view truncate_if_needed(std::string_view val) const {
     if (val.size() < width_) {
       return val;
     }
