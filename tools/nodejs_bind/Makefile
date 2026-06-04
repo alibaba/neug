@@ -1,79 +1,80 @@
-SHELL=/bin/bash
+SHELL := /bin/bash
 
-# Path to the project root (2 levels up from tools/nodejs_bind/)
-PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
+REPO_ROOT  := $(abspath $(CURDIR)/../..)
+ROOT_BUILD := $(REPO_ROOT)/build
 
-# Detect prebuild platform tag (linux_x86_64, linux_arm64, osx_x86_64, osx_arm64)
+BUILD_TYPE         ?= Release
+EXTRA_CMAKE_FLAGS  ?=
+
+# Detect platform: {os}_{arch}
+#   OS:   Linux -> linux, Darwin -> osx
+#   Arch: x86_64/amd64 -> x86_64, aarch64/arm64 -> arm64
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
+
+# OS tag
 ifeq ($(UNAME_S),Linux)
-  ifneq (,$(filter $(UNAME_M),x86_64 amd64))
-    PREBUILD_PLATFORM := linux_x86_64
-  else ifneq (,$(filter $(UNAME_M),aarch64 arm64))
-    PREBUILD_PLATFORM := linux_arm64
-  endif
+  OS_TAG := linux
 else ifeq ($(UNAME_S),Darwin)
-  ifneq (,$(filter $(UNAME_M),x86_64 amd64))
-    PREBUILD_PLATFORM := osx_x86_64
-  else ifneq (,$(filter $(UNAME_M),arm64 aarch64))
-    PREBUILD_PLATFORM := osx_arm64
-  endif
-endif
-
-# Normalize BUILD_TYPE → CMake-style {Release,Debug}. Drives both the
-# CMake CMAKE_BUILD_TYPE flag and the output directory name.
-ifeq ($(filter $(BUILD_TYPE),DEBUG Debug debug),)
-  BUILD_TYPE_NORM := Release
+  OS_TAG := osx
 else
-  BUILD_TYPE_NORM := Debug
+  OS_TAG := $(UNAME_S)
 endif
 
-# Single source of truth for native artifacts: build/<Release|Debug>/<platform>/
-# Used both for local dev (node example.js) and npm pack distribution.
-# `make pack` overrides BUILD_TYPE=Release internally regardless of env.
-PLATFORM_DIR := build/$(BUILD_TYPE_NORM)/$(PREBUILD_PLATFORM)
+# Arch tag
+ifneq (,$(filter $(UNAME_M),x86_64 amd64))
+  ARCH_TAG := x86_64
+else ifneq (,$(filter $(UNAME_M),aarch64 arm64))
+  ARCH_TAG := arm64
+else
+  ARCH_TAG := $(UNAME_M)
+endif
 
-# Platform-specific shared library names
+PREBUILD_PLATFORM := $(OS_TAG)_$(ARCH_TAG)
+
+# Parallel build jobs
+NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
+              || { command -v sysctl >/dev/null 2>&1 && sysctl -n hw.ncpu; } 2>/dev/null \
+              || echo 4)
+JOBS   ?= $(NPROC)
+
+# Platform-specific shared library name
 ifeq ($(UNAME_S),Darwin)
   NEUG_SHARED_LIB := libneug.dylib
 else
   NEUG_SHARED_LIB := libneug.so
 endif
 
-.PHONY: all build dev clean install requirements pack help
+# Local staging directory for .node + libneug artifacts
+PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 
-all: dev
+.PHONY: help dev build stage pack clean
 
-.PHONY: requirements
-requirements:  ## Install Node.js dependencies
-	@echo "Installing requirements..."
+.DEFAULT_GOAL := help
+
+# One command does everything: install deps, configure cmake (if needed), build, stage.
+dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	npm install
+	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_NODEJS=ON -DBUILD_PYTHON=OFF \
+	    -DBUILD_HTTP_SERVER=ON -DWITH_MIMALLOC=OFF \
+	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	    $(EXTRA_CMAKE_FLAGS)
+	cmake --build $(ROOT_BUILD) --target neug_node_bind -j$(JOBS)
+	@$(MAKE) stage
 
-.PHONY: install
-install: requirements  ## Install Node.js dependencies (alias for requirements)
+build: dev  ## Alias for dev
 
-.PHONY: dev
-dev: requirements  ## Compile neug + nodejs binding; stage all native artifacts into $(PLATFORM_DIR)
-	@echo "Building neug nodejs package (BUILD_TYPE=$(BUILD_TYPE_NORM))..."
-	@mkdir -p $(PROJECT_ROOT)/build
-	cd $(PROJECT_ROOT)/build && \
-		cmake .. -DBUILD_NODEJS=ON -DBUILD_HTTP_SERVER=ON -DWITH_MIMALLOC=OFF -DCMAKE_BUILD_TYPE=$(BUILD_TYPE_NORM) && \
-		$(MAKE) -j$(or $(CMAKE_BUILD_PARALLEL_LEVEL),8) neug_node_bind
+# Stage .node + libneug into PLATFORM_DIR so @loader_path/$ORIGIN resolves.
+stage:
 	@mkdir -p $(PLATFORM_DIR)
-	@# Stage .node + libneug together so @loader_path/$ORIGIN resolves cleanly
-	@# for both local `node example.js` and npm-packed tarballs.
-	@find $(PROJECT_ROOT)/build -name "neug_node_bind.node" -exec cp {} $(PLATFORM_DIR)/ \;
-	@cp $(PROJECT_ROOT)/build/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
-	@echo "Build complete. Contents of $(PLATFORM_DIR):"
+	@find $(ROOT_BUILD) -name "neug_node_bind.node" -exec cp {} $(PLATFORM_DIR)/ \;
+	@cp $(ROOT_BUILD)/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
+	@echo "Artifacts staged in $(PLATFORM_DIR):"
 	@ls -lh $(PLATFORM_DIR)/
 
-.PHONY: build
-build: dev  ## Build the neug nodejs package, alias for dev
-
-.PHONY: pack
-pack: build  ## Create per-platform npm tarball (uses default Release build)
+pack: build  ## Create per-platform npm tarball
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
-	@# Temporarily inject os/cpu into package.json so npm rejects cross-platform installs.
 	@cp package.json package.json.orig
 	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
 	@VERSION=$$(node -p 'require("./package.json").version'); \
@@ -84,13 +85,11 @@ pack: build  ## Create per-platform npm tarball (uses default Release build)
 		exit $$PACK_RC
 	@echo "Package created: neug-*-$(PREBUILD_PLATFORM).tgz"
 
-.PHONY: clean
-clean:  ## Clean up build artifacts
-	@echo "Cleaning up..."
-	rm -rf build/ node_modules/
-	@echo "Clean complete."
+clean:  ## Clean Node.js build artifacts (does NOT touch $(ROOT_BUILD))
+	rm -rf build/
 
-.PHONY: help
 help:  ## Display this help information
 	@echo -e "\033[1mAvailable commands:\033[0m"
-	@grep -E '^[a-z.A-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' | sort
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' | \
+		sort
