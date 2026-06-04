@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 import os
 import shutil
 import sys
@@ -1431,6 +1432,7 @@ class TestCopyFrom:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
         """Setup test database."""
+        self.tmp_path = tmp_path
         self.db_dir = str(tmp_path / "test_copy_from_db")
         shutil.rmtree(self.db_dir, ignore_errors=True)
         self.db = Database(db_path=self.db_dir, mode="w")
@@ -2091,3 +2093,147 @@ class TestCopyFrom:
         assert str(rows[0][5]).startswith(
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
+
+    @extension_test
+    def test_copy_from_parquet_edge_non_standard_columns(self):
+        """COPY edge FROM parquet whose endpoint columns are named src/dst
+        (not from/to) should load all rows correctly."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        edge_pq = self.tmp_path / "edge.parquet"
+        pq.write_table(
+            pa.table(
+                {
+                    "id": pa.array([1, 2, 3, 4], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob", "Carol", "Dave"]),
+                }
+            ),
+            str(node_pq),
+        )
+        pq.write_table(
+            pa.table(
+                {
+                    "src": pa.array([1, 2, 3, 1], type=pa.int64()),
+                    "dst": pa.array([2, 3, 4, 4], type=pa.int64()),
+                    "weight": pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
+                }
+            ),
+            str(edge_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{node_pq}";')
+        self.conn.execute(f'COPY Knows FROM "{edge_pq}" (from="Person", to="Person");')
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 4, f"Expected 4 edges, got {count}"
+
+        res = self.conn.execute(
+            "MATCH (a:Person)-[k:Knows]->(b:Person) "
+            "RETURN a.name, b.name, k.weight ORDER BY k.weight;"
+        )
+        rows = list(res)
+        assert len(rows) == 4
+        assert str(rows[0][0]) == "Alice" and str(rows[0][1]) == "Bob"
+        assert str(rows[1][0]) == "Bob" and str(rows[1][1]) == "Carol"
+        assert str(rows[2][0]) == "Carol" and str(rows[2][1]) == "Dave"
+        assert str(rows[3][0]) == "Alice" and str(rows[3][1]) == "Dave"
+
+    @extension_test
+    def test_copy_from_parquet_edge_without_from_to_options(self):
+        """COPY edge FROM parquet without explicit from/to options should
+        work when endpoint columns are named src/dst."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        edge_pq = self.tmp_path / "edge.parquet"
+        pq.write_table(
+            pa.table(
+                {
+                    "id": pa.array([1, 2], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob"]),
+                }
+            ),
+            str(node_pq),
+        )
+        pq.write_table(
+            pa.table(
+                {
+                    "src": pa.array([1], type=pa.int64()),
+                    "dst": pa.array([2], type=pa.int64()),
+                    "weight": pa.array([3.14], type=pa.float64()),
+                }
+            ),
+            str(edge_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{node_pq}";')
+        self.conn.execute(f'COPY Knows FROM "{edge_pq}";')
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 1, f"Expected 1 edge, got {count}"
+
+    def test_copy_from_csv_edge_non_standard_columns(self):
+        """CSV COPY edge with non-standard column names (src/dst) should
+        still work via positional mapping."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,Alice\n2,Bob\n3,Carol\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("src,dst,weight\n1,2,1.0\n2,3,2.0\n1,3,3.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        self.conn.execute(
+            f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=true, delim=",");'
+        )
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 3, f"Expected 3 edges, got {count}"
+
+    def test_copy_from_csv_edge_no_header_positional(self):
+        """CSV COPY edge without header should work via positional mapping (no name validation)."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,A\n2,B\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        self.conn.execute(
+            f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=false, delim=",");'
+        )
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 1, f"Expected 1 edge, got {count}"
