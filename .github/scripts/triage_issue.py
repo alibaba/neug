@@ -5,25 +5,23 @@ Issue triage worker.
 Inputs (env):
   GITHUB_EVENT_PATH  - path to GitHub Actions event payload
   DASHSCOPE_API_KEY  - Qwen API key (DashScope)
-  GITHUB_TOKEN       - for posting comments via gh CLI
+  GH_TOKEN           - GitHub token for API calls
   CONFIG_PATH        - path to issue-triage-config.yml (default: .github/issue-triage-config.yml)
 
 Behavior:
   1. Read the new/edited issue from the event payload.
   2. Skip if it's an umbrella tracker (title contains "[Tracking]" or matches a configured umbrella number).
   3. Build a prompt with each umbrella's scope_in/scope_out.
-  4. Call Qwen (qwen3-max via OpenAI-compatible endpoint).
+  4. Call Qwen via OpenAI-compatible endpoint.
   5. Post a comment with the suggestion.
   6. (Optional) If config.auto_link_threshold is met, add as sub-issue.
 
 The script is intentionally single-file with no third-party deps beyond
-`pyyaml` and `requests` (installed in the workflow). It does NOT import
-the `openai` SDK to keep the dependency footprint small.
+`pyyaml` and `requests` (installed in the workflow).
 """
 from __future__ import annotations
 import json
 import os
-import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -32,7 +30,9 @@ import requests
 import yaml
 
 QWEN_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3-max")
+QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen-plus")
+
+GITHUB_API = "https://api.github.com"
 
 CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1}
 
@@ -75,6 +75,15 @@ Return an empty list if none clearly applies.
 Output ONLY a JSON object:
 {"umbrella": <number_or_null>, "confidence": "high"|"medium"|"low"|"n/a", "reason": "<one sentence>", "type": "Bug"|"Feature"|"Task", "labels": ["label1", ...]}
 """
+
+
+def gh_headers() -> dict:
+    token = os.environ.get("GH_TOKEN", "").strip()
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
 
 
 def load_config() -> dict:
@@ -134,14 +143,72 @@ def should_auto_link(cfg: dict, confidence: str) -> bool:
     return CONFIDENCE_LEVELS.get(confidence, 0) >= CONFIDENCE_LEVELS.get(threshold, 99)
 
 
-def link_sub_issue(repo: str, parent_number: int, child_issue_id: int) -> bool:
-    result = subprocess.run(
-        ["gh", "api", f"repos/{repo}/issues/{parent_number}/sub_issues",
-         "-X", "POST", "-F", f"sub_issue_id={child_issue_id}"],
-        capture_output=True, text=True,
+def check_has_parent(repo: str, number: int) -> bool:
+    resp = requests.get(
+        f"{GITHUB_API}/repos/{repo}/issues/{number}",
+        headers=gh_headers(),
+        timeout=15,
     )
-    if result.returncode != 0:
-        print(f"Failed to link sub-issue: {result.stderr.strip()}")
+    if resp.status_code != 200:
+        return False
+    data = resp.json()
+    return bool(data.get("parent"))
+
+
+def link_sub_issue(repo: str, parent_number: int, child_issue_id: int) -> bool:
+    resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/issues/{parent_number}/sub_issues",
+        headers=gh_headers(),
+        json={"sub_issue_id": child_issue_id},
+        timeout=15,
+    )
+    if resp.status_code not in (200, 201):
+        print(f"Failed to link sub-issue: {resp.status_code} {resp.text[:200]}")
+        return False
+    return True
+
+
+def set_issue_type(repo: str, number: int, type_name: str) -> bool:
+    if type_name not in ISSUE_TYPES:
+        print(f"Unknown issue type: {type_name}")
+        return False
+    resp = requests.patch(
+        f"{GITHUB_API}/repos/{repo}/issues/{number}",
+        headers=gh_headers(),
+        json={"type": type_name},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        print(f"Failed to set issue type: {resp.status_code} {resp.text[:200]}")
+        return False
+    return True
+
+
+def set_issue_labels(repo: str, number: int, labels: list[str]) -> bool:
+    valid = [l for l in labels if l in SUBSYSTEM_LABELS]
+    if not valid:
+        return False
+    resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/issues/{number}/labels",
+        headers=gh_headers(),
+        json={"labels": valid},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        print(f"Failed to set labels: {resp.status_code} {resp.text[:200]}")
+        return False
+    return True
+
+
+def post_comment(repo: str, number: int, body: str) -> bool:
+    resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/issues/{number}/comments",
+        headers=gh_headers(),
+        json={"body": body},
+        timeout=15,
+    )
+    if resp.status_code != 201:
+        print(f"Failed to post comment: {resp.status_code} {resp.text[:200]}")
         return False
     return True
 
@@ -151,12 +218,9 @@ def render_comment(cfg: dict, result: dict, auto_linked: bool,
     umbrella = result.get("umbrella")
     confidence = result.get("confidence", "low")
     reason = result.get("reason", "")
-    issue_type = result.get("type", "")
-    labels = result.get("labels", [])
 
     lines = []
 
-    # umbrella section
     if umbrella is None:
         lines.append(
             "🤖 **Auto-triage**: could not confidently classify this issue "
@@ -178,16 +242,14 @@ def render_comment(cfg: dict, result: dict, auto_linked: bool,
 
     lines.append(f"\n_Reason_: {reason}")
 
-    # type & labels section
     actions = []
     if type_set:
-        actions.append(f"type → **{issue_type}**")
+        actions.append(f"type → **{result.get('type', '')}**")
     if labels_set:
         actions.append(f"labels → {', '.join(f'`{l}`' for l in labels_set)}")
     if actions:
         lines.append(f"\n_Auto-applied_: {'; '.join(actions)}")
 
-    # footer
     if auto_linked:
         lines.append(
             "\nIf this is wrong, please unlink and re-assign — "
@@ -205,43 +267,6 @@ def render_comment(cfg: dict, result: dict, auto_linked: bool,
         )
 
     return "\n".join(lines)
-
-
-def set_issue_type(repo: str, number: int, type_name: str) -> bool:
-    type_id = ISSUE_TYPES.get(type_name)
-    if not type_id:
-        print(f"Unknown issue type: {type_name}")
-        return False
-    result = subprocess.run(
-        ["gh", "issue", "edit", str(number), "--repo", repo,
-         "--type", type_name],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        print(f"Failed to set issue type: {result.stderr.strip()}")
-        return False
-    return True
-
-
-def set_issue_labels(repo: str, number: int, labels: list[str]) -> bool:
-    valid = [l for l in labels if l in SUBSYSTEM_LABELS]
-    if not valid:
-        return False
-    cmd = ["gh", "issue", "edit", str(number), "--repo", repo]
-    for label in valid:
-        cmd.extend(["--add-label", label])
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Failed to set labels: {result.stderr.strip()}")
-        return False
-    return True
-
-
-def post_comment(repo: str, number: int, body: str) -> None:
-    subprocess.run(
-        ["gh", "issue", "comment", str(number), "--repo", repo, "--body-file", "-"],
-        input=body, text=True, check=True,
-    )
 
 
 def main() -> int:
@@ -276,16 +301,9 @@ def main() -> int:
     confidence = result.get("confidence", "low")
     auto_linked = False
 
-    # check if issue already has a parent
     has_parent = bool(issue.get("sub_issue_summary") or issue.get("parent"))
     if not has_parent:
-        # sub_issue_summary/parent may not be in the event payload; check via API
-        parent_check = subprocess.run(
-            ["gh", "api", f"repos/{repo}/issues/{number}",
-             "--jq", ".parent // empty"],
-            capture_output=True, text=True,
-        )
-        has_parent = bool(parent_check.stdout.strip())
+        has_parent = check_has_parent(repo, number)
 
     if has_parent:
         print(f"Issue #{number} already has a parent; skipping auto-link")
@@ -321,8 +339,8 @@ def main() -> int:
             print(f"Labels already present: {already}; skipping")
 
     comment = render_comment(cfg, result, auto_linked, type_set, labels_set)
-    post_comment(repo, number, comment)
-    print(f"Posted triage comment on #{number}")
+    if post_comment(repo, number, comment):
+        print(f"Posted triage comment on #{number}")
     return 0
 
 
