@@ -30,7 +30,8 @@ concurrency:
 jobs:
   memory-leak:
     name: Build NeuG (RelWithDebInfo, no mimalloc) and run leak checks
-    if: github.repository == 'alibaba/neug' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    # NOTE: temporarily removed `github.repository == 'alibaba/neug'` guard for debugging on forks.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: [self-hosted, daily, linux, x64]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
