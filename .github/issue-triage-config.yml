@@ -1,0 +1,150 @@
+# Issue triage configuration.
+#
+# Each umbrella's scope_in/scope_out is the **LLM context**. Keep them concise
+# and disjoint — that's what makes the classifier accurate. Do NOT paste the
+# umbrella's full GitHub body here (it usually contains a child-issue list
+# which would leak labels during backtesting).
+
+milestone: "NeuG v0.2"
+
+# Minimum confidence required to auto-link as sub-issue (without human approval).
+# "high" = unambiguous fit. Recommended starting value: never auto-link
+# (set to "never") for the first 1-2 weeks. After backtest accuracy >= 80%,
+# raise to "high".
+auto_link_threshold: "high"   # one of: never | high | medium
+
+umbrellas:
+  - number: 49
+    title: "Bundle some almost ready features"
+    scope_in: |
+      Mid-to-large features that are nearly ready and being bundled into the v0.2
+      release. Typically external-contributor or experimental features being shaped
+      into a shippable bundle.
+    scope_out: |
+      Small bug fixes, refactors, or single-PR features. Targeted ingestion / storage
+      / transaction work (those have dedicated umbrellas).
+
+  - number: 86
+    title: "Refactor UpdateTransaction"
+    scope_in: |
+      Transaction layer: COW (copy-on-write), WAL (write-ahead log), rollback,
+      concurrency isolation, atomicity. Includes UpdateTransaction concurrency
+      design, WAL mechanics, transaction rollback for inserts/updates, schema
+      forkability for COW, IngestWal logic, AND API shape changes for the
+      insert / update / write-side surface (parameter types, method signatures,
+      Value-vs-positional API). Even small / one-line API tweaks belong here
+      if they live on the UpdateTransaction surface.
+    scope_out: |
+      Persistence / checkpoint / dump / load / mmap (those go to #272).
+
+  - number: 97
+    title: "Support EXPLAIN, PROFILE Queries"
+    scope_in: |
+      Query introspection: EXPLAIN (logical/physical plan output), PROFILE
+      (per-operator runtime stats). Includes binder / planner / runtime hooks
+      for plan emission and stat collection.
+    scope_out: |
+      General compiler bugs not specific to EXPLAIN/PROFILE.
+
+  - number: 122
+    title: "Issues from graph testing benchmark"
+    scope_in: |
+      Bugs surfaced by GDSmith / fuzz / property-testing / repeated-cycle
+      benchmarks, regardless of which subsystem the underlying cause lives in
+      (compiler, executor, storage, COPY pipeline, service mode). Includes:
+      query crashes, binder errors on valid queries, service-mode memory growth,
+      RSS leaks, concurrent-query memory pathologies, repeated create/copy/drop
+      cycle memory retention, planner internal errors on edge-case Cypher.
+    scope_out: |
+      Storage-layer or transaction-layer bugs not tied to a specific test discovery.
+
+  - number: 158
+    title: "External Data Support: Multi-Format, Remote Filesystem, Data Lake"
+    scope_in: |
+      Extension-system work for external file access: S3 / OSS / HTTP filesystems,
+      new on-disk file formats (Iceberg, Hudi), remote credential handling,
+      filesystem registration mechanism. The infrastructure beneath LOAD/COPY.
+    scope_out: |
+      LOAD/COPY semantics, type inference, batching (those go to #221).
+
+  - number: 221
+    title: "Improve & Extend COPY FROM: schema, typing, performance, options"
+    scope_in: |
+      End-to-end COPY FROM / LOAD FROM behavior: schema auto-detection, scalar &
+      temporal type inference, CAST, performance (latency, batching, memory caps,
+      column remapping), reader options (Arrow ScanOptions, CSV ReadOptions),
+      validation diagnostics for missing nodes / mis-named edge columns.
+    scope_out: |
+      LIST / composite (tuple, struct) types — both storage primitives and
+      load_data integration are tracked under #446. Underlying remote-filesystem
+      infra is tracked under #158. Memory growth / RSS leaks discovered via
+      testing — even when the test path involves COPY operations or staging
+      tables — those are tracked under #122 (the keyword "copy" alone is NOT
+      enough to claim an issue here; the issue must be about COPY's correctness
+      or performance, not about a memory leak that happens to appear during a
+      COPY-heavy test).
+
+  - number: 254
+    title: "Reproduce LDBC SNB benchmark auditing results"
+    scope_in: |
+      LDBC SNB benchmark correctness, performance regressions found running
+      LDBC IC/BI workloads, multi-process DB access (used by audit harness),
+      compaction correctness under benchmark stress, benchmark-tooling protobuf
+      / runtime conflicts.
+    scope_out: |
+      General test infra (those go to #257).
+
+  - number: 257
+    title: "Grouping adhoc issues"
+    scope_in: |
+      Genuinely hard-to-categorize issues that DO NOT live on any specific
+      subsystem's surface: cross-cutting micro-perf optimizations, small
+      cross-area consistency fixes, isolated CI/build-infra one-offs that
+      don't fit a build umbrella, etc.
+    scope_out: |
+      Anything that fits another umbrella's scope, INCLUDING small or one-line
+      changes within a known umbrella's domain. A small API tweak to
+      UpdateTransaction belongs to #86, not here. A small COPY validation fix
+      belongs to #221, not here. A small checkpoint-format fix belongs to #272,
+      not here. This is the LAST RESORT bucket — only land here if the issue
+      truly does not belong to any specific umbrella's surface.
+
+  - number: 272
+    title: "Refine checkpoint mechanism"
+    scope_in: |
+      Persistence layer: checkpoint / snapshot dump and load, mmap behavior,
+      file reuse across checkpoints, MD5 / dirty-tracking, open/close performance,
+      snapshot file format and size, workspace directory layout, persistent
+      storage module abstractions.
+    scope_out: |
+      Transaction concurrency / WAL / rollback (those go to #86). Schema-fork
+      for COW transaction (that goes to #86).
+
+  - number: 352
+    title: "GDS (Graph Data Science) Extension"
+    scope_in: |
+      Graph algorithm extension: PageRank, BFS, SSSP, community detection, etc.
+      Algorithm implementations and their performance optimization within the
+      extension framework.
+    scope_out: |
+      General extension-system infra (those go to #158 if remote/filesystem,
+      or #257 if generic).
+
+  - number: 418
+    title: "Fully support Node.js binding for NeuG"
+    scope_in: |
+      Node.js client binding: native addon, Promise API, type definitions,
+      packaging, npm publication, Node.js-specific CI.
+    scope_out: |
+      Java / Python / C++ bindings.
+
+  - number: 446
+    title: "Support LIST and composite types (storage + runtime)"
+    scope_in: |
+      LIST type and other composite/nested types (tuple, struct) end-to-end:
+      storage layer (recursive component_type, per-field columnar layout),
+      ingestion (load_data for CSV / JSON / Parquet specifically for LIST),
+      runtime expression handling for LIST/composite.
+    scope_out: |
+      Scalar / temporal type inference (#221). Storage refactor unrelated to
+      LIST (#272).
