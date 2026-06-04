@@ -15,7 +15,7 @@ concurrency:
 jobs:
   triage:
     runs-on: ubuntu-latest
-    if: github.event.issue.state == 'open' && secrets.DASHSCOPE_API_KEY != ''
+    if: github.event.issue.state == 'open'
     steps:
       - uses: actions/checkout@v4
 
@@ -32,5 +32,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           CONFIG_PATH: .github/issue-triage-config.yml
-          QWEN_MODEL: qwen3-max
+          QWEN_MODEL: qwen3-plus
         run: python .github/scripts/triage_issue.py
