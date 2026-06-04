@@ -7,3 +7,4 @@
 # unaffected.
 
 add_neug_test(test_node_create test_node_create.cc)
+add_neug_test(test_temporary_tables test_temporary_tables.cc)
