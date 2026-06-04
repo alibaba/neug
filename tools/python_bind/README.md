@@ -1,46 +1,90 @@
 # The python binding API for NeuG
 
-## Building the Wheel
+## Architecture
 
-### Develop
+The Python binding (`neug_py_bind*.so`) dynamically links against the core
+shared library `libneug.{dylib,so}` produced by the root CMake build.
+Both bindings and core are built in the **same** root build tree
+(`<repo>/build/`); the Python flow consumes those artifacts rather than
+re-running a separate CMake configure.
 
-To build a wheel for the local environment, run:
-
-```bash
-source ~/.neug_env
-cd tools/python_bind
-export DEBUG=1
-python3 -m pip  install -r requirements.txt
-python3 -m pip  install -r requirements_dev.txt
-python3 setup.py build_ext
-python3 setup.py bdist_wheel
-python3 -m pip  install dist/*
+```
+<repo>/build/                          # single root build tree
+├── src/libneug.{dylib,so}             # core (shared)
+└── tools/python_bind/
+    └── neug_py_bind.<abi>.so          # binding, RPATH → core
 ```
 
-### Distribution
+Future bindings (Node, Rust, …) follow the same pattern: their `.so` lives
+under `build/tools/<binding>/` and link against the same `libneug`.
 
-To build wheels for all supported Python versions on this platform, use the following commands:
+## Development
+
+### Setup
 
 ```bash
-python3 -m pip  install cibuildwheel
-cd ${ROOT_DIR}
+cd tools/python_bind
+make requirements    # one-time: install Python deps
+make dev             # incremental rebuild of neug_py_bind; auto-bootstraps
+                     # the root build on first run or if it wasn't configured
+                     # with -DBUILD_PYTHON=ON
+```
+
+`make dev-full` is also available if you want to force a full reconfigure
+(equivalent to `cmake -S <repo> -B <repo>/build -DBUILD_PYTHON=ON && cmake --build ...`).
+
+### Dev loop
+
+```bash
+# After editing C++ binding sources or core
+make dev          # incremental rebuild of neug_py_bind only (seconds)
+
+# After editing only Python sources (neug/*.py): no rebuild needed,
+# editable import works because the loader auto-finds the .so in
+# <repo>/build/tools/python_bind/.
+
+python3 -m pytest -s tests/test_db_query.py
+```
+
+The `neug/__init__.py` loader resolves `neug_py_bind*.so` in this order:
+1. The `neug/` package directory itself (wheel-installed layout).
+2. `$NEUG_BUILD_DIR/tools/python_bind/` (default `<repo>/build/...`).
+3. Legacy `tools/python_bind/build/lib.<plat>-cpython-*` (back-compat fallback).
+
+So you can point at an out-of-tree build via `NEUG_BUILD_DIR=/path/to/build`.
+
+### Building the Wheel
+
+```bash
+make wheel        # produces dist/neug-*.whl
+```
+
+`make wheel` reuses the root build (creating it on the fly via the `setup.py`
+fallback if absent). The wheel bundles both `neug_py_bind*.so` and
+`libneug.{dylib,so}` into the `neug` package; they find each other at runtime
+via `@loader_path` (macOS) / `$ORIGIN` (Linux) RPATH.
+
+### Multi-version wheels via cibuildwheel
+
+```bash
+python3 -m pip install cibuildwheel
+cd <repo>
 cibuildwheel ./tools/python_bind --output-dir wheelhouse
 ```
 
-## Development Mode Setup
+Cibuildwheel runs in fresh manylinux/macOS containers; `setup.py` detects no
+pre-existing root build and falls back to running cmake configure in
+`<repo>/build/` inside the container, then builds only the `neug_py_bind`
+target. No changes to `pyproject.toml` are needed.
 
-In development mode, wheels are not built or installed. Instead, the required dynamic library is built and copied to `tools/python_bind/build`. Any changes made to the Python codebase will take effect immediately, allowing for seamless reloading of files.
+### Clean
 
 ```bash
-make develop
-# run tests
+make clean        # clears dist/, *.egg-info, and any stray .so left in neug/
+                  # (does NOT touch <repo>/build — keep that for incremental builds)
 
-python3 -m pytest tests/test_a.py
-```
-
-or 
-```bash
-python3 setup.py build_ext --inplace --build-temp=build
+# Or from the repo root, also nuke <repo>/build:
+make -C ../.. dist-clean
 ```
 
 ## Neug CLI
