@@ -49,6 +49,12 @@ function(build_brpc_as_third_party)
         message(STATUS "Patched brpc build_config.h: added #ifndef guard for HAVE_DLADDR")
     endif()
 
+    if(NOT OPENSSL_ROOT_DIR)
+        find_package(OpenSSL REQUIRED)
+        get_filename_component(OPENSSL_ROOT_DIR "${OPENSSL_INCLUDE_DIR}/.." ABSOLUTE)
+        message(STATUS "Set OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR} from find_package(OpenSSL)")
+    endif()
+
     add_subdirectory(third_party/brpc)
     
     # Apply warning suppression flags to brpc targets

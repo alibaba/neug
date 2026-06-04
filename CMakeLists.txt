@@ -470,21 +470,6 @@ if(HAVE_COPY_FILE_RANGE_COMPILES)
 endif()
 
 find_package(Threads REQUIRED)
-
-# macOS: auto-detect Homebrew OpenSSL path (arm64 uses /opt/homebrew, x86_64 uses /usr/local)
-if (APPLE AND NOT OPENSSL_ROOT_DIR)
-    execute_process(
-        COMMAND brew --prefix openssl@3
-        OUTPUT_VARIABLE BREW_OPENSSL_PREFIX
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-    )
-    if (BREW_OPENSSL_PREFIX AND EXISTS "${BREW_OPENSSL_PREFIX}")
-        set(OPENSSL_ROOT_DIR "${BREW_OPENSSL_PREFIX}")
-        message(STATUS "Using Homebrew OpenSSL: ${OPENSSL_ROOT_DIR}")
-    endif()
-endif()
-
 find_package(OpenSSL)
 if (NOT OpenSSL_FOUND)
     message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
