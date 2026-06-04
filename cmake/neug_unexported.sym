@@ -42,25 +42,3 @@ __ZTS*4absl*
 
 # utf8_range (protobuf dependency)
 _utf8_range*
-
-# AWS C++ SDK (bundled by Arrow when ARROW_S3=ON). Hiding these prevents
-# dyld from coalescing libneug's weak template instantiations (e.g.
-# Aws::Endpoint::DefaultEndpointProvider<S3ClientConfiguration,...>) with
-# the extension's copy. If coalesced, calls jump into libneug's text and
-# resolve aws-c-common references against libneug's uninitialized copy,
-# which fires aws_fatal_assert(allocator != NULL) inside S3FileSystem::Make.
-__ZN3Aws*
-__ZNK3Aws*
-__ZTI*3Aws*
-__ZTV*3Aws*
-__ZTS*3Aws*
-__ZTT*3Aws*
-__ZTC*3Aws*
-__ZTh*3Aws*
-__ZTv*3Aws*
-
-# AWS C SDK (aws-c-common, aws-c-cal, aws-c-io, aws-c-http, aws-c-auth,
-# aws-c-mqtt, aws-c-s3, aws-c-sdkutils, aws-checksums, aws-crt-cpp).
-_aws_*
-_s_aws_*
-_g_aws_*
