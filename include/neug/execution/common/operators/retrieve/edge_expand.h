@@ -21,6 +21,7 @@
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
+#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 namespace execution {
