@@ -23,8 +23,6 @@ import sys
 import pytest
 from prompt_toolkit.document import Document
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug import neug_cli
 from neug.database import Database
 
