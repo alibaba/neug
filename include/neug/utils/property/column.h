@@ -415,8 +415,8 @@ class VarLenColumn : public ColumnBase {
   // Ensure data_buffer_ has room for `blob_size` more bytes starting at pos_.
   // If not, grow when `insert_safe` is true (caller holds external lock),
   // otherwise throw. The `idx` is used only as a hint for the grow heuristic.
-  void ensure_capacity_or_throw(size_t idx, size_t blob_size,
-                                bool insert_safe) {
+  inline void ensure_capacity_or_throw(size_t idx, size_t blob_size,
+                                       bool insert_safe) {
     size_t cur_pos = pos_.load();
     if (cur_pos + blob_size <= data_buffer_->GetDataSize()) {
       return;
@@ -461,7 +461,7 @@ class VarLenColumn : public ColumnBase {
 
   // Append blob to data buffer at current pos_ and record item at idx.
   // Caller must ensure sufficient space in data_buffer_.
-  void set_value_internal(size_t idx, std::string_view blob) {
+  inline void set_value_internal(size_t idx, std::string_view blob) {
     assert(idx < size_);
     size_t offset = pos_.fetch_add(blob.size());
     if (!blob.empty()) {
@@ -473,7 +473,7 @@ class VarLenColumn : public ColumnBase {
   }
 
   // Return raw view of the blob at idx.
-  std::string_view get_raw_view(size_t idx) const {
+  inline std::string_view get_raw_view(size_t idx) const {
     assert(idx < size_);
     const auto item = get_item(idx);
     assert(item.offset + item.length <= data_buffer_->GetDataSize());
