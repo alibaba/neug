@@ -17,8 +17,8 @@
 #include <iostream>
 #include <string>
 #include "neug/main/neug_db.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 std::vector<std::string> read_lines_from_file(const std::string& file_path) {
   std::ifstream file(file_path);

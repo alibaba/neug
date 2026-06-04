@@ -67,9 +67,9 @@ std::string read_at(const std::string& path, off_t offset, size_t len) {
   std::string buf(len, '\0');
   int fd = ::open(path.c_str(), O_RDONLY);
   EXPECT_GE(fd, 0) << ::strerror(errno);
-  if (fd < 0) return buf;
-  EXPECT_EQ(::pread(fd, buf.data(), len, offset),
-            static_cast<ssize_t>(len));
+  if (fd < 0)
+    return buf;
+  EXPECT_EQ(::pread(fd, buf.data(), len, offset), static_cast<ssize_t>(len));
   ::close(fd);
   return buf;
 }
@@ -77,7 +77,8 @@ std::string read_at(const std::string& path, off_t offset, size_t len) {
 // {logical_size, physical_size_bytes}; physical is st_blocks * 512.
 std::pair<off_t, off_t> stat_sizes(const std::string& path) {
   struct stat st {};
-  if (::stat(path.c_str(), &st) != 0) return {-1, -1};
+  if (::stat(path.c_str(), &st) != 0)
+    return {-1, -1};
   return {st.st_size, static_cast<off_t>(st.st_blocks) * 512};
 }
 
@@ -173,7 +174,8 @@ TEST_F(FileUtilsCopyTest, FallbackCopy_SparseFilePreservesSparseness) {
     EXPECT_EQ(read_at(dst, seg.offset, seg.data.size()), seg.data);
   }
   // A sample inside a hole reads back as zeros.
-  for (char c : read_at(dst, 1LL << 20, 4096)) EXPECT_EQ(c, '\0');
+  for (char c : read_at(dst, 1LL << 20, 4096))
+    EXPECT_EQ(c, '\0');
 
   if (src_physical < kLogical / 2) {
     EXPECT_LE(dst_physical, src_physical + (4LL << 20))
