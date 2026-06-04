@@ -1,12 +1,15 @@
-# NeuG
+<p align="center">
+  <img src="img/neug-logo.png" width="280" alt="NeuG"><br>
+  <b>A Graph Database for HTAP Workloads</b><br><br>
+  <a href="https://github.com/alibaba/neug/actions/workflows/neug-test.yml"><img src="https://github.com/alibaba/neug/actions/workflows/neug-test.yml/badge.svg" alt="NeuG Test"></a>
+  <a href="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
+  <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
+  <a href="https://codecov.io/gh/alibaba/neug"><img src="https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://discord.gg/2S8344ew"><img src="https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://x.com/graphscope2021"><img src="https://img.shields.io/badge/Twitter-@graphscope2021-1da1f2?logo=x&logoColor=white" alt="Twitter"></a>
+</p>
 
-[![NeuG Test](https://github.com/alibaba/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/neug-test.yml)
-[![NeuG Wheel Packaging](https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/build-wheel.yml)
-[![NeuG Documentation](https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/docs.yml)
-[![Coverage](https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg)](https://codecov.io/gh/alibaba/neug)
-[![Discord](https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white)](https://discord.gg/2S8344ew)
-[![Twitter](https://img.shields.io/badge/Twitter-@graphscope2021-1da1f2?logo=x&logoColor=white)](https://x.com/graphscope2021)
-
+---
 
 **NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. NeuG provides **two modes** that you can switch between based on your needs:
 
