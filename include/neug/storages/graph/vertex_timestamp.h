@@ -162,8 +162,6 @@ class VertexTimestamp {
   const vid_t InitVertexNum() const { return init_vertex_num_; }
 
  private:
-  void load_meta(const std::string& meta_filename);
-  void dump_meta(const std::string& meta_filename);
   void load_ts(const std::string& ts_filename);
   void dump_ts(const std::string& ts_filename);
   void resize_inserted_vertices(size_t new_size, bool keep_front = true);

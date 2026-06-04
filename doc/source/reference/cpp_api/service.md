@@ -120,15 +120,6 @@ auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
 
 - **Returns:** `SessionGuard` managing the acquired session
 
-#### `IsInitialized() const`
-
-Checks if the service has been initialized.
-
-- **Notes:**
-  - This is a thread-safe atomic operation
-
-- **Returns:** `true` if init() was successfully called, `false` otherwise
-
 #### `IsRunning() const`
 
 Checks if the HTTP server is currently running.

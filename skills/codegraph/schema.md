@@ -10,6 +10,8 @@
 | `Module` | id, name, path_prefix | Auto-discovered from directories (e.g. `kernel/sched`) |
 | `Commit` | id, hash, message, author, timestamp, version_tag | `version_tag='bf'` means MODIFIES edges computed |
 | `Metadata` | id, value | Pipeline state (e.g. `oldest_commit`) |
+| `PR` | id, title, author, risk_level, label | Open pull request; populated by `codegraph pr-review prepare` |
+| `AUTHOR` | login, name, company, location, bio, avatar_url | GitHub user who opened the PR |
 
 ## Edges
 
@@ -22,8 +24,13 @@
 | `IMPORTS` | File → File | Include / import dependency |
 | `BELONGS_TO` | File → Module | File belongs to this module |
 | `INHERITS` | Class → Class | Class inheritance |
+| `COMPOSES` | Class → Class | Composition relationship (strong ownership, filled diamond in UML) |
+| `AGGREGATES` | Class → Class | Aggregation relationship (optional/weak, open diamond in UML) |
+| `USES` | Class → Class | Dependency relationship (uses per-call, dashed arrow in UML) |
 | `MODIFIES` | Commit → Function | Commit changed this function (requires backfill) |
 | `TOUCHES` | Commit → File | Commit changed this file (always present) |
+| `CHANGES` | PR → Function | PR modifies this function; `info` = 'hunk' (modified in diff), 'deleted' (removed), 'related' (newly called), 'new' (newly added) |
+| `OPENS` | AUTHOR → PR | Author opened this PR |
 
 ## Backfill State
 
@@ -49,6 +56,5 @@ MATCH (c:Commit) RETURN count(c) AS total_commits
 - Boolean: `AND`, `OR`, `NOT`
 
 **Limitations:**
-- `OPTIONAL MATCH` is not available in the pip package
 - Chained `MATCH` after `WITH` may be limited — prefer single `MATCH` clauses with multiple patterns separated by commas
 - No `CREATE`, `SET`, `DELETE` via Cypher — graph mutations go through the Python API

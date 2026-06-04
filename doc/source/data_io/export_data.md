@@ -37,6 +37,21 @@ e
 {"_SRC":"0:0","_DST":"0:2","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":1.0}
 ```
 
+## Copy to JSON
+
+Since NeuG v0.1.2, JSON export is a built-in feature. You can export query results to JSON or JSONL format:
+
+```cypher
+COPY (MATCH (p:person) RETURN p.*) TO 'person.json';
+COPY (MATCH (p:person) RETURN p.*) TO 'person.jsonl';
+```
+
+The output format is determined by the file extension:
+- `.json` — JSON array format (all rows in a single array)
+- `.jsonl` — JSON Lines format (one JSON object per line)
+
+> **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON export was provided via the JSON Extension and required `INSTALL json; LOAD json;` before use.
+
 ## Additional Export Formats
 
 NeuG is expanding export capabilities through the [Extension](../extensions/index) framework. Planned export formats include:

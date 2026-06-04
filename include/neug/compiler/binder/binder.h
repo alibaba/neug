@@ -28,7 +28,9 @@
 #include "neug/compiler/binder/query/bound_regular_query.h"
 #include "neug/compiler/binder/query/query_graph.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
+#include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
@@ -183,6 +185,12 @@ class Binder {
   std::unique_ptr<BoundStatement> bindCopyRelFrom(
       const parser::Statement& statement,
       catalog::RelTableCatalogEntry* relTableEntry);
+  std::unique_ptr<BoundStatement> bindCopyNodeFromNoSchema(
+      const parser::Statement& statement,
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
+  std::unique_ptr<BoundStatement> bindCopyRelFromNoSchema(
+      const parser::Statement& statement,
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
 
   std::unique_ptr<BoundStatement> bindCopyToClause(
       const parser::Statement& statement);

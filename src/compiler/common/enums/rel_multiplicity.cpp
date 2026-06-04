@@ -32,9 +32,10 @@ namespace common {
 
 RelMultiplicity RelMultiplicityUtils::getFwd(const std::string& str) {
   auto normStr = common::StringUtils::getUpper(str);
-  if ("ONE_ONE" == normStr || "ONE_MANY" == normStr) {
+  if ("ONE_TO_ONE" == normStr || "ONE_TO_MANY" == normStr) {
     return RelMultiplicity::ONE;
-  } else if ("MANY_ONE" == normStr || "MANY_MANY" == normStr) {
+  }
+  if ("MANY_TO_ONE" == normStr || "MANY_TO_MANY" == normStr) {
     return RelMultiplicity::MANY;
   }
   THROW_BINDER_EXCEPTION(
@@ -43,9 +44,10 @@ RelMultiplicity RelMultiplicityUtils::getFwd(const std::string& str) {
 
 RelMultiplicity RelMultiplicityUtils::getBwd(const std::string& str) {
   auto normStr = common::StringUtils::getUpper(str);
-  if ("ONE_ONE" == normStr || "MANY_ONE" == normStr) {
+  if ("ONE_TO_ONE" == normStr || "MANY_TO_ONE" == normStr) {
     return RelMultiplicity::ONE;
-  } else if ("ONE_MANY" == normStr || "MANY_MANY" == normStr) {
+  }
+  if ("ONE_TO_MANY" == normStr || "MANY_TO_MANY" == normStr) {
     return RelMultiplicity::MANY;
   }
   THROW_BINDER_EXCEPTION(

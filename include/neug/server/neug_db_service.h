@@ -181,15 +181,6 @@ class NeugDBService {
   neug::SessionGuard AcquireSession();
 
   /**
-   * @brief Checks if the service has been initialized
-   *
-   * @return true if init() was successfully called, false otherwise
-   *
-   * @note This is a thread-safe atomic operation
-   */
-  bool IsInitialized() const;
-
-  /**
    * @brief Checks if the HTTP server is currently running
    *
    * @return true if the underlying BRPC server is accepting connections
@@ -262,7 +253,6 @@ class NeugDBService {
   bool compact_thread_running_ = false;
 
   std::atomic<bool> running_{false};
-  std::atomic<bool> initialized_{false};
   std::mutex mtx_;
 
   ServiceConfig service_config_;

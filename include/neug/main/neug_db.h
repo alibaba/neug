@@ -297,9 +297,8 @@ class NeugDB {
  private:
   void preprocessConfig();
   void initAllocators();
-  void openGraphAndSchema();
-  void ingestWals();
-  void ingestWals(IWalParser& parser, const std::string& work_dir);
+  void openGraphAndIngestWals();
+  void ingestWals(IWalParser& parser);
   void initPlannerAndQueryProcessor();
   /**
    * @brief Create a checkpoint of the current graph.

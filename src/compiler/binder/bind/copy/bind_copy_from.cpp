@@ -22,13 +22,27 @@
 
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/copy/bound_copy_from.h"
+#include "neug/compiler/binder/ddl/bound_create_table_info.h"
+#include "neug/compiler/binder/ddl/property_definition.h"
+#include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
+#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/common/constants.h"
+#include "neug/compiler/common/copy_constructors.h"
+#include "neug/compiler/common/enums/conflict_action.h"
+#include "neug/compiler/common/enums/extend_direction.h"
+#include "neug/compiler/common/enums/rel_multiplicity.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/system_config.h"
+#include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/copy.h"
+#include "neug/compiler/parser/expression/parsed_literal_expression.h"
+#include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::binder;
@@ -39,6 +53,142 @@ using namespace neug::function;
 
 namespace neug {
 namespace binder {
+
+DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
+                             const std::string& primaryKeyName,
+                             const expression_vector& columns,
+                             ExpressionBinder& binder) {
+  nodeTableEntry =
+      std::make_unique<NodeTableCatalogEntry>(vertexLabelName, primaryKeyName);
+  bool primaryKeyFound = false;
+  for (const auto& col : columns) {
+    const auto& colName = col->rawName();
+    if (colName == primaryKeyName) {
+      primaryKeyFound = true;
+    }
+    auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
+        Value::createDefaultValue(col->getDataType()), "NULL");
+    auto boundExpr = binder.bindExpression(*defaultExpr);
+    nodeTableEntry->addProperty(
+        PropertyDefinition(ColumnDefinition(colName, col->getDataType().copy()),
+                           std::move(defaultExpr), std::move(boundExpr)));
+  }
+  if (!primaryKeyFound) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "Primary key column `{}` is not present among COPY columns for table "
+        "`{}`.",
+        primaryKeyName, vertexLabelName));
+  }
+  auto propCopies = nodeTableEntry->getProperties();
+  auto boundExtra = std::make_unique<BoundExtraCreateNodeTableInfo>(
+      primaryKeyName, std::move(propCopies));
+  createTableInfo =
+      BoundCreateTableInfo(CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
+                           ConflictAction::ON_CONFLICT_THROW,
+                           std::move(boundExtra), false /* isInternal */);
+}
+
+std::string DDLVertexInfo::getVertexLabelName() {
+  return nodeTableEntry->getName();
+}
+
+catalog::TableCatalogEntry* DDLVertexInfo::getTableEntry() const {
+  return nodeTableEntry.get();
+}
+
+BoundCreateTableInfo DDLVertexInfo::getCreateInfo() const {
+  return createTableInfo.copy();
+}
+
+DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
+                         const std::string& srcLabelName,
+                         const std::string& dstLabelName, table_id_t srcLabelID,
+                         table_id_t dstLabelID,
+                         const expression_vector& columns,
+                         ExpressionBinder& binder)
+    : srcLabelName_{srcLabelName}, dstLabelName_{dstLabelName} {
+  if (columns.size() < 2u) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "Cannot infer edge `{}`: need at least two columns (source key, "
+        "destination key).",
+        edgeLabelName));
+  }
+  // First two COPY columns are source/destination vertex keys (resolved via
+  // index lookup); they are not stored as edge table properties. Storage strips
+  // the first two RecordBatch columns before applying edge property types.
+  std::vector<PropertyDefinition> relProps;
+  for (size_t i = 2; i < columns.size(); ++i) {
+    const auto& column = columns[i];
+    const auto& colName = column->rawName();
+    auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
+        Value::createDefaultValue(column->getDataType()), "NULL");
+    auto boundExpr = binder.bindExpression(*defaultExpr);
+    relProps.emplace_back(
+        ColumnDefinition(colName, column->getDataType().copy()),
+        std::move(defaultExpr), std::move(boundExpr));
+  }
+  auto boundExtra = std::make_unique<BoundExtraCreateRelTableInfo>(
+      RelMultiplicity::MANY, RelMultiplicity::MANY, ExtendDirection::BOTH,
+      srcLabelID, dstLabelID, std::move(relProps));
+  createTableInfo =
+      BoundCreateTableInfo(CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
+                           ConflictAction::ON_CONFLICT_THROW,
+                           std::move(boundExtra), false /* isInternal */);
+
+  relTableEntry = std::make_unique<GRelTableCatalogEntry>(
+      edgeLabelName, RelMultiplicity::MANY, RelMultiplicity::MANY,
+      INVALID_TABLE_ID, INVALID_TABLE_ID, srcLabelID, dstLabelID,
+      ExtendDirection::BOTH);
+  for (const auto& p :
+       createTableInfo.extraInfo->constPtrCast<BoundExtraCreateRelTableInfo>()
+           ->propertyDefinitions) {
+    relTableEntry->addProperty(p.copy());
+  }
+}
+
+std::string DDLEdgeInfo::getEdgeLabelName() { return relTableEntry->getName(); }
+
+std::string DDLEdgeInfo::getSrcLabelName() { return srcLabelName_; }
+
+std::string DDLEdgeInfo::getDstLabelName() { return dstLabelName_; }
+
+catalog::TableCatalogEntry* DDLEdgeInfo::getTableEntry() const {
+  return relTableEntry.get();
+}
+
+BoundCreateTableInfo DDLEdgeInfo::getCreateInfo() const {
+  return createTableInfo.copy();
+}
+
+BoundCopyFromInfo::BoundCopyFromInfo(
+    std::unique_ptr<BoundBaseScanSource> source,
+    std::shared_ptr<Expression> offset, expression_vector columnExprs,
+    std::vector<ColumnEvaluateType> columnEvaluateTypes,
+    std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo,
+    std::unique_ptr<DDLTableInfo> extraTableInfoIn)
+    : tableEntry{nullptr},
+      source{std::move(source)},
+      offset{std::move(offset)},
+      columnExprs{std::move(columnExprs)},
+      columnEvaluateTypes{std::move(columnEvaluateTypes)},
+      extraInfo{std::move(extraInfo)},
+      ddlTableInfo{std::move(extraTableInfoIn)} {
+  if (!ddlTableInfo) {
+    THROW_BINDER_EXCEPTION(
+        "BoundCopyFromInfo: extraTableInfo is required for inferred COPY.");
+  }
+  tableEntry = ddlTableInfo->getTableEntry();
+}
+
+// boundCopyOptions: keys are upper-case (see bindParsingOptions).
+static bool autoDetectEnabled(
+    const case_insensitive_map_t<Value>& boundCopyOptions) {
+  auto it = boundCopyOptions.find("AUTO_DETECT");
+  if (it != boundCopyOptions.end()) {
+    return it->second.getValue<bool>();
+  }
+  return true;
+}
 
 std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     const Statement& statement) {
@@ -79,7 +229,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     }
     THROW_BINDER_EXCEPTION(
         stringFormat("REL GROUP {} does not exist.", tableName));
-  } else if (catalog->getTableCatalogEntry(transaction, tableName)) {
+  } else if (catalog->containsTable(transaction, tableName)) {
     auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
     switch (tableEntry->getType()) {
     case CatalogEntryType::NODE_TABLE_ENTRY: {
@@ -95,7 +245,16 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     }
     }
   }
-  THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", tableName));
+  auto boundOpts = bindParsingOptions(copyStatement.getParsingOptions());
+  if (!autoDetectEnabled(boundOpts)) {
+    THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", tableName));
+  }
+  auto fromIt = boundOpts.find(CopyConstants::FROM_OPTION_NAME);
+  auto toIt = boundOpts.find(CopyConstants::TO_OPTION_NAME);
+  if (fromIt != boundOpts.end() && toIt != boundOpts.end()) {
+    return bindCopyRelFromNoSchema(statement, boundOpts);
+  }
+  return bindCopyNodeFromNoSchema(statement, boundOpts);
 }
 
 static void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
@@ -137,8 +296,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   auto boundSource = bindScanSource(copyStatement.getSource(),
                                     copyStatement.getParsingOptions(),
                                     expectedColumnNames, expectedColumnTypes);
-  expression_vector columns =
-      createVariables(expectedColumnNames, expectedColumnTypes);
+  expression_vector columns = boundSource->getColumns();
   std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
                                                 ColumnEvaluateType::REFERENCE);
   auto offset = createInvisibleVariable(
@@ -188,10 +346,9 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
                                   LogicalType::INT64());
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
                                   LogicalType::INT64());
-  expression_vector columns =
-      createVariables(expectedColumnNames, expectedColumnTypes);
-  std::vector<ColumnEvaluateType> evaluateTypes{columns.size(),
-                                                ColumnEvaluateType::REFERENCE};
+  expression_vector columns = boundSource->getColumns();
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
   std::shared_ptr<Expression> srcKey = nullptr, dstKey = nullptr;
   if (expectedColumnTypes[0] != columns[0]->getDataType()) {
     srcKey = expressionBinder.forceCast(columns[0], expectedColumnTypes[0]);
@@ -214,6 +371,99 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto boundCopyFromInfo = BoundCopyFromInfo(
       relTableEntry, boundSource->copy(), offset, std::move(columns),
       std::move(evaluateTypes), std::move(extraCopyRelInfo));
+  return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
+    const Statement& statement,
+    const case_insensitive_map_t<Value>& boundCopyOptions) {
+  (void) boundCopyOptions;
+  auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
+  auto boundSource = bindScanSource(copyStatement.getSource(),
+                                    copyStatement.getParsingOptions(), {}, {});
+  expression_vector columns = boundSource->getColumns();
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
+  auto offset = createInvisibleVariable(
+      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+  const auto& labelName = copyStatement.getTableName();
+  if (columns.empty()) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "No columns found for table {}, cannot set primary key", labelName));
+  }
+  const auto& primaryKey = columns[0]->rawName();
+  auto ddlTableInfo = std::make_unique<DDLVertexInfo>(
+      labelName, primaryKey, columns, expressionBinder);
+  auto boundCopyFromInfo =
+      BoundCopyFromInfo(std::move(boundSource), std::move(offset),
+                        std::move(columns), std::move(evaluateTypes),
+                        nullptr /* extraInfo */, std::move(ddlTableInfo));
+  return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
+    const Statement& statement,
+    const case_insensitive_map_t<Value>& boundCopyOptions) {
+  auto& copyStatement = statement.constCast<CopyFrom>();
+  if (copyStatement.byColumn()) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "Copy by column is not supported for relationship table."));
+  }
+  auto fromIt = boundCopyOptions.find(CopyConstants::FROM_OPTION_NAME);
+  auto toIt = boundCopyOptions.find(CopyConstants::TO_OPTION_NAME);
+  if (fromIt == boundCopyOptions.end() || toIt == boundCopyOptions.end()) {
+    THROW_BINDER_EXCEPTION(
+        "COPY into a new edge type requires FROM and TO options naming "
+        "existing vertex types.");
+  }
+  auto fromLabel = fromIt->second.getValue<std::string>();
+  auto toLabel = toIt->second.getValue<std::string>();
+  auto* srcCatalogEntry = bindNodeTableEntry(fromLabel);
+  auto* dstCatalogEntry = bindNodeTableEntry(toLabel);
+  Binder::validateNodeTableType(srcCatalogEntry);
+  Binder::validateNodeTableType(dstCatalogEntry);
+  auto* srcNode = srcCatalogEntry->ptrCast<NodeTableCatalogEntry>();
+  auto* dstNode = dstCatalogEntry->ptrCast<NodeTableCatalogEntry>();
+
+  auto boundSource = bindScanSource(
+      copyStatement.getSource(), getScanSourceOptions(copyStatement), {}, {});
+  expression_vector warningDataExprs;
+  auto offset = createInvisibleVariable(
+      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+  auto srcTableID = srcNode->getTableID();
+  auto dstTableID = dstNode->getTableID();
+
+  auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
+                                  LogicalType::INT64());
+  auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
+                                  LogicalType::INT64());
+  expression_vector columns = boundSource->getColumns();
+  if (columns.size() < 2u) {
+    THROW_BINDER_EXCEPTION(
+        "Cannot infer edge schema: need at least two columns (source key, "
+        "destination key).");
+  }
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
+  std::shared_ptr<Expression> srcKey = columns[0], dstKey = columns[1];
+
+  auto srcLookUpInfo =
+      IndexLookupInfo(srcTableID, srcOffset, srcKey, warningDataExprs);
+  auto dstLookUpInfo =
+      IndexLookupInfo(dstTableID, dstOffset, dstKey, warningDataExprs);
+  auto lookupInfos = std::vector<IndexLookupInfo>{srcLookUpInfo, dstLookUpInfo};
+  auto internalIDColumnIndices = std::vector<idx_t>{0, 1, 2};
+  auto extraCopyRelInfo = std::make_unique<ExtraBoundCopyRelInfo>(
+      internalIDColumnIndices, lookupInfos);
+
+  const auto& edgeLabel = copyStatement.getTableName();
+  auto extraTableInfo =
+      std::make_unique<DDLEdgeInfo>(edgeLabel, fromLabel, toLabel, srcTableID,
+                                    dstTableID, columns, expressionBinder);
+  auto boundCopyFromInfo =
+      BoundCopyFromInfo(std::move(boundSource), std::move(offset),
+                        std::move(columns), std::move(evaluateTypes),
+                        std::move(extraCopyRelInfo), std::move(extraTableInfo));
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
 

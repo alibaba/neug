@@ -23,11 +23,14 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
+#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/enums/accumulate_type.h"
 #include "neug/compiler/common/enums/expression_type.h"
@@ -46,6 +49,7 @@
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
+#include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
@@ -196,6 +200,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::INSERT: {
     auto insert = op.constPtrCast<planner::LogicalInsert>();
     convertInsert(*insert, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::MERGE: {
+    auto merge = op.constPtrCast<planner::LogicalMerge>();
+    convertMerge(*merge, plan);
     break;
   }
   case planner::LogicalOperatorType::SET_PROPERTY: {
@@ -1173,15 +1182,10 @@ void GQueryConvertor::convertDataSource(
     sourcePB->set_allocated_skip_rows(
         exprConvertor->convert(*rowSkips, {}).release());
   }
-  auto columnSkips = scanBindData->getColumnSkips();
-  if (scanBindData->columns.size() != columnSkips.size()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Each column should have a skip flag");
-  }
-  for (auto idx = 0; idx < scanBindData->columns.size(); idx++) {
-    if (columnSkips[idx]) {
-      sourcePB->mutable_skip_columns()->Add(
-          scanBindData->columns[idx]->rawName());
-    }
+  // Proto field is named skip_columns for historical reasons; it now carries
+  // the list of columns to project (include), not skip.
+  for (const auto& column : scanBindData->getProjectColumns()) {
+    sourcePB->add_project_columns(column);
   }
 
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -1287,6 +1291,57 @@ bool GQueryConvertor::skipColumn(const std::string& columnName) {
          columnName == common::InternalKeyword::DST;
 }
 
+std::unique_ptr<::physical::EdgeType> convertEdgeType(
+    const binder::BoundCopyFromInfo* info) {
+  auto edgeTypePB = std::make_unique<::physical::EdgeType>();
+  auto& ddlInfo = info->ddlTableInfo;
+  if (ddlInfo) {
+    auto* ddlEdgeInfo = dynamic_cast<binder::DDLEdgeInfo*>(ddlInfo.get());
+    if (!ddlEdgeInfo) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "ddlTableInfo is not a DDLEdgeInfo in convertEdgeType");
+    }
+    auto typeName = std::make_unique<::common::NameOrId>();
+    typeName->set_name(ddlEdgeInfo->getEdgeLabelName());
+    edgeTypePB->set_allocated_type_name(typeName.release());
+    auto* relBase =
+        ddlEdgeInfo->getTableEntry()->ptrCast<catalog::RelTableCatalogEntry>();
+    if (!relBase) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "DDLEdgeInfo table entry is not a RelTableCatalogEntry");
+    }
+    auto srcTypeName = std::make_unique<::common::NameOrId>();
+    srcTypeName->set_id(relBase->getSrcTableID());
+    edgeTypePB->set_allocated_src_type_name(srcTypeName.release());
+    auto dstTypeName = std::make_unique<::common::NameOrId>();
+    dstTypeName->set_id(relBase->getDstTableID());
+    edgeTypePB->set_allocated_dst_type_name(dstTypeName.release());
+    return edgeTypePB;
+  }
+  auto* tableEntry = info->tableEntry;
+  if (!tableEntry) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "cannot convert batch insert edge without rel table entry");
+  }
+  auto* grel = tableEntry->ptrCast<catalog::GRelTableCatalogEntry>();
+  if (!grel) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "catalog REL copy requires GRelTableCatalogEntry for edge label id");
+  }
+  EdgeLabelId edgeLabelId(grel->getLabelId(), grel->getSrcTableID(),
+                          grel->getDstTableID());
+  auto typeName = std::make_unique<::common::NameOrId>();
+  typeName->set_id(edgeLabelId.edgeId);
+  edgeTypePB->set_allocated_type_name(typeName.release());
+  auto srcTypeName = std::make_unique<::common::NameOrId>();
+  srcTypeName->set_id(edgeLabelId.srcId);
+  edgeTypePB->set_allocated_src_type_name(srcTypeName.release());
+  auto dstTypeName = std::make_unique<::common::NameOrId>();
+  dstTypeName->set_id(edgeLabelId.dstId);
+  edgeTypePB->set_allocated_dst_type_name(dstTypeName.release());
+  return edgeTypePB;
+}
+
 void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
                                       ::physical::PhysicalPlan* plan) {
   auto info = copyFrom.getInfo();
@@ -1325,13 +1380,11 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
 
   switch (tableEntry->getTableType()) {
   case common::TableType::NODE: {
-    auto nodeEntry = tableEntry->ptrCast<catalog::NodeTableCatalogEntry>();
-    convertBatchInsertVertex(nodeEntry, columnExprs, columnIdMap, plan);
+    convertBatchInsertVertex(info, columnExprs, columnIdMap, plan);
     break;
   }
   case common::TableType::REL: {
-    auto relEntry = tableEntry->ptrCast<catalog::GRelTableCatalogEntry>();
-    convertBatchInsertEdge(relEntry, columnExprs, columnIdMap, plan);
+    convertBatchInsertEdge(info, columnExprs, columnIdMap, plan);
     break;
   }
   default: {
@@ -1343,7 +1396,7 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
 }
 
 void GQueryConvertor::convertBatchInsertEdge(
-    catalog::GRelTableCatalogEntry* relEntry,
+    const binder::BoundCopyFromInfo* info,
     const binder::expression_vector& columnExprs,
     const std::vector<common::alias_id_t>& columnIdMap,
     ::physical::PhysicalPlan* plan) {
@@ -1353,11 +1406,18 @@ void GQueryConvertor::convertBatchInsertEdge(
         std::to_string(columnIdMap.size()) + ") and number of input columns (" +
         std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
   }
-  neug::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
-                                      relEntry->getSrcTableID(),
-                                      relEntry->getDstTableID());
+  auto* tableEntry = info->tableEntry;
+  if (!tableEntry) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "cannot convert batch insert edge without rel table entry");
+  }
+  auto* relEntry = tableEntry->ptrCast<catalog::RelTableCatalogEntry>();
+  if (!relEntry) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "batch insert edge: table entry is not a relationship table");
+  }
   auto batchEdge = std::make_unique<::physical::BatchInsertEdge>();
-  batchEdge->set_allocated_edge_type(convertToEdgeType(edgeLabelId).release());
+  batchEdge->set_allocated_edge_type(convertEdgeType(info).release());
   if (columnIdMap.size() < 2) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "At least two columns are required for edge insertion");
@@ -1536,6 +1596,215 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_create_edge(insertPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::appendMergeVertexBoundSet(
+    const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+    const binder::Expression& insertPattern,
+    const planner::LogicalMerge& mergeOp, ::physical::MergeVertex::Entry* entry,
+    bool forOnCreate) {
+  auto* repeated =
+      forOnCreate ? entry->mutable_on_create() : entry->mutable_on_match();
+  for (const auto& info : boundInfos) {
+    if (info.pattern->getUniqueName() != insertPattern.getUniqueName()) {
+      continue;
+    }
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    repeated->AddAllocated(
+        convertPropMapping(columnName, *info.columnData, mergeOp).release());
+  }
+}
+
+void GQueryConvertor::appendMergeEdgeBoundSet(
+    const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+    const binder::Expression& insertPattern,
+    const planner::LogicalMerge& mergeOp, ::physical::MergeEdge::Entry* entry,
+    bool forOnCreate) {
+  auto* repeated =
+      forOnCreate ? entry->mutable_on_create() : entry->mutable_on_match();
+  for (const auto& info : boundInfos) {
+    if (info.pattern->getUniqueName() != insertPattern.getUniqueName()) {
+      continue;
+    }
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    repeated->AddAllocated(
+        convertPropMapping(columnName, *info.columnData, mergeOp).release());
+  }
+}
+
+void GQueryConvertor::convertMerge(const planner::LogicalMerge& merge,
+                                   ::physical::PhysicalPlan* plan) {
+  const auto& nodeInfos = merge.getInsertNodeInfos();
+  const auto& relInfos = merge.getInsertRelInfos();
+  if (nodeInfos.empty() && relInfos.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Merge insert info should not be empty");
+  }
+  if (!nodeInfos.empty() && !relInfos.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Merge cannot combine vertex and edge patterns in one operator");
+  }
+  if (!nodeInfos.empty()) {
+    convertMergeVertex(merge, plan);
+  } else {
+    convertMergeEdge(merge, plan);
+  }
+}
+
+void GQueryConvertor::convertMergeVertex(const planner::LogicalMerge& merge,
+                                         ::physical::PhysicalPlan* plan) {
+  auto& infos = merge.getInsertNodeInfos();
+  auto mergePB = std::make_unique<::physical::MergeVertex>();
+  for (auto& info : infos) {
+    auto nodeExpr = info.pattern->ptrCast<binder::NodeExpression>();
+    GNodeType nodeType(*nodeExpr);
+    auto typeIds = nodeType.getLabelIds();
+    if (typeIds.size() != 1) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "merge vertex with multiple labels is not supported");
+    }
+    auto labelId = typeIds[0];
+    auto labelPB = std::make_unique<::common::NameOrId>();
+    labelPB->set_id(labelId);
+    auto entryPB = std::make_unique<::physical::MergeVertex::Entry>();
+    entryPB->set_allocated_vertex_type(labelPB.release());
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data, merge).release());
+    }
+    auto aliasId = aliasManager->getAliasId(nodeExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Merge vertex alias not found: " +
+                                     nodeExpr->getUniqueName());
+    }
+    appendMergeVertexBoundSet(merge.getOnCreateSetNodeInfos(), *nodeExpr, merge,
+                              entryPB.get(), true);
+    appendMergeVertexBoundSet(merge.getOnMatchSetNodeInfos(), *nodeExpr, merge,
+                              entryPB.get(), false);
+    mergePB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_merge_vertex(mergePB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertMergeEdge(const planner::LogicalMerge& merge,
+                                       ::physical::PhysicalPlan* plan) {
+  auto& infos = merge.getInsertRelInfos();
+  auto mergePB = std::make_unique<::physical::MergeEdge>();
+  for (auto& info : infos) {
+    auto relExpr = info.pattern->ptrCast<binder::RelExpression>();
+    GRelType relType(*relExpr);
+    auto& rels = relType.relTables;
+    if (rels.size() != 1) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "merge edge bound by multiple rel types is not supported");
+    }
+    EdgeLabelId edgeLabel(rels[0]->getLabelId(), rels[0]->getSrcTableID(),
+                          rels[0]->getDstTableID());
+    auto entryPB = std::make_unique<::physical::MergeEdge::Entry>();
+    entryPB->set_allocated_edge_type(convertToEdgeType(edgeLabel).release());
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data, merge).release());
+    }
+    auto srcAliasId = aliasManager->getAliasId(relExpr->getSrcNodeName());
+    if (srcAliasId != DEFAULT_ALIAS_ID) {
+      auto srcAliasPB = std::make_unique<::common::NameOrId>();
+      srcAliasPB->set_id(srcAliasId);
+      entryPB->set_allocated_source_vertex_binding(srcAliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Source vertex binding not found: " +
+                                     relExpr->getSrcNodeName());
+    }
+    auto dstAliasId = aliasManager->getAliasId(relExpr->getDstNodeName());
+    if (dstAliasId != DEFAULT_ALIAS_ID) {
+      auto dstAliasPB = std::make_unique<::common::NameOrId>();
+      dstAliasPB->set_id(dstAliasId);
+      entryPB->set_allocated_destination_vertex_binding(dstAliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Destination vertex binding not found: " +
+                                     relExpr->getDstNodeName());
+    }
+    auto aliasId = aliasManager->getAliasId(relExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Merge edge alias not found: " +
+                                     relExpr->getUniqueName());
+    }
+    appendMergeEdgeBoundSet(merge.getOnCreateSetRelInfos(), *relExpr, merge,
+                            entryPB.get(), true);
+    appendMergeEdgeBoundSet(merge.getOnMatchSetRelInfos(), *relExpr, merge,
+                            entryPB.get(), false);
+    mergePB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_merge_edge(mergePB.release());
   physicalPB->set_allocated_opr(oprPB.release());
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
@@ -1846,8 +2115,30 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
       pk, pk);
 }
 
+std::unique_ptr<::common::NameOrId> convertVertexType(
+    const binder::BoundCopyFromInfo* info) {
+  auto labelPB = std::make_unique<::common::NameOrId>();
+  auto& ddlInfo = info->ddlTableInfo;
+  if (ddlInfo) {
+    auto ddlVertexInfo = dynamic_cast<binder::DDLVertexInfo*>(ddlInfo.get());
+    if (!ddlVertexInfo) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "ddlTableInfo is not a DDLVertexInfo in convertVertexType");
+    }
+    labelPB->set_name(ddlVertexInfo->getVertexLabelName());
+  } else {
+    auto tableEntry = info->tableEntry;
+    if (!tableEntry) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "cannot convert batch insert vertex without node table entry");
+    }
+    labelPB->set_id(tableEntry->getTableID());
+  }
+  return labelPB;
+}
+
 void GQueryConvertor::convertBatchInsertVertex(
-    catalog::NodeTableCatalogEntry* nodeEntry,
+    const binder::BoundCopyFromInfo* info,
     const binder::expression_vector& columnExprs,
     const std::vector<common::alias_id_t>& columnIdMap,
     ::physical::PhysicalPlan* plan) {
@@ -1857,9 +2148,7 @@ void GQueryConvertor::convertBatchInsertVertex(
         std::to_string(columnIdMap.size()) + ") and number of input columns (" +
         std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
   }
-  auto labelId = nodeEntry->getTableID();
-  auto labelPB = std::make_unique<::common::NameOrId>();
-  labelPB->set_id(labelId);
+  auto labelPB = convertVertexType(info);
   auto batchVertex = std::make_unique<::physical::BatchInsertVertex>();
   batchVertex->set_allocated_vertex_type(labelPB.release());
   for (size_t i = 0; i < columnExprs.size(); ++i) {

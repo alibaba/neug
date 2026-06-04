@@ -157,65 +157,30 @@ class UpdateTransaction {
 
   void Abort();
 
-  Status CreateVertexType(
-      const std::string& name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      const std::vector<std::string>& primary_key_names,
-      bool error_on_conflict);
+  Status CreateVertexType(const CreateVertexTypeParam& config);
 
-  Status CreateEdgeType(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-      EdgeStrategy ie_edge_strategy);
+  Status CreateEdgeType(const CreateEdgeTypeParam& config);
 
-  Status AddVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict);
+  Status AddVertexProperties(const AddVertexPropertiesParam& config);
 
-  Status AddEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict);
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config);
 
-  Status RenameVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict);
+  Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
 
-  Status RenameEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict);
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config);
 
-  Status DeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict);
+  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config);
 
-  Status DeleteEdgeProperties(const std::string& src_type,
-                              const std::string& dst_type,
-                              const std::string& edge_type,
-                              const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict);
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
 
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true);
+  Status DeleteVertexType(const std::string& vertex_type_name);
 
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
-                        const std::string& edge_type, bool error_on_conflict);
+                        const std::string& edge_type);
 
-  bool AddVertex(label_t label, const Property& oid,
-                 const std::vector<Property>& props, vid_t& vid);
+  Status AddVertex(label_t label, const Property& oid,
+                   const std::vector<Property>& props, vid_t& vid);
 
   /**
    * @brief Delete vertex and its associated edges.
@@ -226,8 +191,9 @@ class UpdateTransaction {
    */
   bool DeleteVertex(label_t label, vid_t lid);
 
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop);
 
   bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                    label_t edge_label);
@@ -256,9 +222,8 @@ class UpdateTransaction {
                           int32_t ie_offset, int32_t col_id,
                           const Property& value);
 
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
@@ -266,9 +231,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
@@ -276,9 +240,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
-                        uint32_t timestamp, char* data, size_t length,
-                        Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+                        size_t length, Allocator& alloc);
   Property GetVertexId(label_t label, vid_t lid) const;
 
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
@@ -389,33 +352,32 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       : StorageUpdateInterface(txn.graph(), txn.timestamp()), txn_(txn) {}
   ~StorageTPUpdateInterface() {}
 
-  inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                   const Property& value) override {
+  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                            const Property& value) override {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
-  inline void UpdateEdgeProperty(label_t src_label, vid_t src,
-                                 label_t dst_label, vid_t dst,
-                                 label_t edge_label, int32_t oe_offset,
-                                 int32_t ie_offset, int32_t col_id,
-                                 const Property& value) override {
+  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const Property& value) override {
     txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                             oe_offset, ie_offset, col_id, value);
   }
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop) override {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                        prop);
   }
   void CreateCheckpoint() override;
-  inline UpdateTransaction& GetTransaction() { return txn_; }
+
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;
@@ -430,54 +392,20 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
-  Status CreateVertexType(
-      const std::string& name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      const std::vector<std::string>& primary_key_names,
-      bool error_on_conflict) override;
-  Status CreateEdgeType(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          properties,
-      bool error_on_conflict, EdgeStrategy oe_edge_strategy,
-      EdgeStrategy ie_edge_strategy) override;
-  Status AddVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) override;
-  Status AddEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Property>>&
-          add_properties,
-      bool error_on_conflict) override;
+  Status CreateVertexType(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
+  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
+  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
   Status RenameVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) override;
-  Status RenameEdgeProperties(
-      const std::string& src_type, const std::string& dst_type,
-      const std::string& edge_type,
-      const std::vector<std::pair<std::string, std::string>>& rename_properties,
-      bool error_on_conflict) override;
+      const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
   Status DeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict) override;
-  Status DeleteEdgeProperties(const std::string& src_type,
-                              const std::string& dst_type,
-                              const std::string& edge_type,
-                              const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict) override;
-  Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true) override;
+      const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexType(const std::string& vertex_type_name) override;
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
-                        const std::string& edge_type,
-                        bool error_on_conflict) override;
+                        const std::string& edge_type) override;
 
  private:
   UpdateTransaction& txn_;

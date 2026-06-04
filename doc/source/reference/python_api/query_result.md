@@ -31,6 +31,20 @@ It has the following methods to iterate over the results.
 
 ```
 
+<a id="neug.query_result.QueryResult.__init__"></a>
+
+### \_\_init\_\_
+
+```python
+def __init__(result)
+```
+
+Initialize the QueryResult.
+
+- **Parameters:**
+  - `result` (PyQueryResult)
+    The result of the query, returned by the query engine. It is a C++ object and is exported to python via pybind.
+
 <a id="neug.query_result.QueryResult.column_names"></a>
 
 ### column\_names
@@ -55,3 +69,17 @@ TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response
 - **Returns:**
   - **str**
     The result in Bolt response format.
+
+<a id="neug.query_result.QueryResult.to_arrow"></a>
+
+### to\_arrow
+
+```python
+def to_arrow()
+```
+
+Convert the result to an Arrow table.
+
+- **Returns:**
+  - **pyarrow.Table**
+    The result converted to an Arrow table.

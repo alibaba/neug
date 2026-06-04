@@ -48,7 +48,7 @@ INSTANTIATE_TEST_SUITE_P(
     AllMemoryLevels, MemoryLevelPersistenceTest,
     ::testing::Values(neug::MemoryLevel::kSyncToFile,
                       neug::MemoryLevel::kInMemory,
-                      neug::MemoryLevel::kHugePagePrefered));
+                      neug::MemoryLevel::kHugePagePreferred));
 
 TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   // 1. Open DB, do DDL and DML

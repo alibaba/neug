@@ -241,6 +241,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
 
 void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
-                           const std::vector<vid_t>& vids);
+                           const std::vector<vid_t>& vids,
+                           std::shared_mutex& mutex);
 
 }  // namespace neug

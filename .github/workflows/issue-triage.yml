@@ -1,0 +1,36 @@
+name: Auto-triage new issue
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    if: github.event.issue.state == 'open' && secrets.DASHSCOPE_API_KEY != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install --quiet pyyaml requests
+
+      - name: Run triage
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          CONFIG_PATH: .github/issue-triage-config.yml
+          QWEN_MODEL: qwen3-max
+        run: python .github/scripts/triage_issue.py

@@ -37,9 +37,6 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
   try {
     // Prepare and compile query
     auto statement = ctx->prepare(query);
-    if (!statement->success) {
-      RETURN_ERROR(Status(StatusCode::ERR_QUERY_SYNTAX, statement->errMsg));
-    }
 
     VLOG(1) << "Logical Plan: " << std::endl
             << statement->logicalPlan->toString() << std::endl;
@@ -84,8 +81,8 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const neug::exception::OverflowException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_TYPE_OVERFLOW, e.what()));
-  } catch (const neug::exception::PropertyNotFoundException& e) {
-    RETURN_ERROR(Status(StatusCode::ERR_PROPERTY_NOT_FOUND, e.what()));
+  } catch (const neug::exception::SchemaMismatchException& e) {
+    RETURN_ERROR(Status(StatusCode::ERR_SCHEMA_MISMATCH, e.what()));
   } catch (const neug::exception::Exception& e) {
     RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const std::exception& e) {
@@ -178,7 +175,8 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
 
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
   static common::case_insensitve_set_t updateOps = {
-      "set", "copy", "checkpoint", "load", "install", "uninstall", "call"};
+      "set",     "copy",      "checkpoint", "load",
+      "install", "uninstall", "call",       "merge"};
   return updateOps;
 }
 

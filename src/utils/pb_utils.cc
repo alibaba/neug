@@ -14,14 +14,17 @@
  */
 
 #include "neug/utils/pb_utils.h"
+
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
+#include <google/protobuf/util/json_util.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/stringbuffer.h>
 #include <stddef.h>
+#include "neug/utils/exception/exception.h"
 
 #include <cstdint>
 #include <limits>
@@ -39,6 +42,25 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+std::string proto_to_string(const google::protobuf::Message& proto) {
+  std::string json_str;
+  google::protobuf::util::JsonPrintOptions options;
+  options.add_whitespace = true;
+#if PROTOBUF_VERSION < 4026000
+  options.always_print_primitive_fields = true;
+#else
+  options.always_print_fields_with_no_presence = true;
+#endif
+  options.preserve_proto_field_names = true;
+  auto status =
+      google::protobuf::util::MessageToJsonString(proto, &json_str, options);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to convert proto to string: " +
+                        status.ToString());
+  }
+  return json_str;
+}
 
 std::vector<std::string> parse_result_schema_column_names(
     const std::string& result_schema) {
@@ -309,8 +331,8 @@ property_defs_to_value(
                  << property.default_value().DebugString();
       }
     } else {
-      default_value =
-          execution::property_to_value(get_default_value(type.id()), type);
+      default_value = get_default_value(type);
+
       VLOG(1) << "No default value, use type default:"
               << default_value.to_string()
               << " type: " << default_value.type().ToString();
@@ -327,7 +349,8 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   } else if (action == physical::ConflictAction::ON_CONFLICT_DO_NOTHING) {
     return false;
   } else {
-    LOG(FATAL) << "invalid action: " << action;
+    THROW_INVALID_ARGUMENT_EXCEPTION("invalid action: " +
+                                     std::to_string(static_cast<int>(action)));
     return false;  // to suppress warning
   }
 }

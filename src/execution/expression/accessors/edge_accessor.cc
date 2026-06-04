@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/expression/accessors/edge_accessor.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -26,16 +27,17 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
     label_t edge_label_num = graph.schema().edge_label_frontier();
     label_t vertex_label_num = graph.schema().vertex_label_frontier();
     for (label_t src_label = 0; src_label < vertex_label_num; ++src_label) {
-      if (!graph.schema().vertex_label_valid(src_label)) {
+      if (!graph.schema().is_vertex_label_valid(src_label)) {
         continue;
       }
       for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-        if (!graph.schema().vertex_label_valid(dst_label)) {
+        if (!graph.schema().is_vertex_label_valid(dst_label)) {
           continue;
         }
         for (label_t edge_label = 0; edge_label < edge_label_num;
              ++edge_label) {
-          if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+          if (!graph.schema().is_edge_triplet_valid(src_label, dst_label,
+                                                    edge_label)) {
             continue;
           }
           const std::vector<std::string>& names =
@@ -95,6 +97,39 @@ class BindedEdgeLabelAccessor : public EdgeExprBase {
   const Schema& schema_;
 };
 
+class BindedEdgeGIdAccessor : public EdgeExprBase {
+ public:
+  explicit BindedEdgeGIdAccessor() { type_ = DataType(DataTypeId::kInt64); }
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void*) const override {
+    int64_t gid = encode_unique_edge_id(
+        generate_edge_label_id(label.src_label, label.dst_label,
+                               label.edge_label),
+        src, dst);
+    return Value::CreateValue<int64_t>(gid);
+  }
+
+  const DataType& type() const override { return type_; }
+
+ private:
+  DataType type_;
+};
+
+class BindedEdgeIdentityAccessor : public EdgeExprBase {
+ public:
+  explicit BindedEdgeIdentityAccessor() { type_ = DataType::EDGE; }
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data) const override {
+    return Value::EDGE(edge_t{label, src, dst, data, Direction::kOut});
+  }
+  const DataType& type() const override { return type_; }
+
+ private:
+  DataType type_;
+};
+
 std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   switch (access_type_) {
@@ -106,9 +141,16 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
   case GraphAccessType::kLabel: {
     return std::make_unique<BindedEdgeLabelAccessor>(*storage);
   }
+  case GraphAccessType::kGid: {
+    return std::make_unique<BindedEdgeGIdAccessor>();
+  }
+  case GraphAccessType::kIdentity: {
+    return std::make_unique<BindedEdgeIdentityAccessor>();
+  }
   default:
-    LOG(FATAL) << "Unknown GraphAccessorType: "
-               << static_cast<int>(access_type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessorType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;

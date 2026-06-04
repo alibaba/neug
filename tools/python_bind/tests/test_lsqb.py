@@ -26,8 +26,6 @@ from conftest import ensure_result_cnt_eq
 from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug.database import Database
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,6 @@ class TestLsqb(unittest.TestCase):
             self.db.close()
 
     def test_queries(self):
-
         submit_cypher_query(
             conn=self.conn,
             query="MATCH (n:Country) return n limit 10;",

@@ -28,6 +28,7 @@
 #include <ostream>
 
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
@@ -54,7 +55,7 @@ static void put_block_size_option(const LoadingConfig& loading_config,
                                   arrow::csv::ReadOptions& read_options) {
   auto batch_size = loading_config.GetBatchSize();
   if (batch_size <= 0) {
-    LOG(FATAL) << "Block size should be positive";
+    THROW_INVALID_ARGUMENT_EXCEPTION("Block size should be positive");
   }
   read_options.block_size = batch_size;
 }
@@ -87,12 +88,14 @@ void printDiskRemaining(const std::string& path) {
 void put_delimiter_option(const std::string& delimiter_str,
                           arrow::csv::ParseOptions& parse_options) {
   if (delimiter_str.size() != 1 && delimiter_str[0] != '\\') {
-    LOG(FATAL) << "Delimiter should be a single character, or a escape "
-                  "character, like '\\t'";
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Delimiter should be a single character, or a escape "
+        "character, like '\\t'");
   }
   if (delimiter_str[0] == '\\') {
     if (delimiter_str.size() != 2) {
-      LOG(FATAL) << "Delimiter should be a single character";
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Delimiter should be a single character");
     }
     // escape the special character
     switch (delimiter_str[1]) {
@@ -100,7 +103,8 @@ void put_delimiter_option(const std::string& delimiter_str,
       parse_options.delimiter = '\t';
       break;
     default:
-      LOG(FATAL) << "Unsupported escape character: " << delimiter_str[1];
+      THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported escape character: " +
+                                       std::string(1, delimiter_str[1]));
     }
   } else {
     parse_options.delimiter = delimiter_str[0];
@@ -301,8 +305,8 @@ CSVTableRecordBatchSupplier::CSVTableRecordBatchSupplier(
     : file_path_(path) {
   auto read_result = arrow::io::ReadableFile::Open(path);
   if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << path
-               << " error: " << read_result.status().message();
+    THROW_IO_EXCEPTION("Failed to open file: " + path +
+                       " error: " + read_result.status().message());
   }
   std::shared_ptr<arrow::io::ReadableFile> file = read_result.ValueOrDie();
   auto res = arrow::csv::TableReader::Make(arrow::io::default_io_context(),
@@ -310,16 +314,16 @@ CSVTableRecordBatchSupplier::CSVTableRecordBatchSupplier(
                                            convert_options);
 
   if (!res.ok()) {
-    LOG(FATAL) << "Failed to create table reader for file: " << path
-               << " error: " << res.status().message();
+    THROW_IO_EXCEPTION("Failed to create table reader for file: " + path +
+                       " error: " + res.status().message());
   }
   auto reader = res.ValueOrDie();
 
   auto result = reader->Read();
   auto status = result.status();
   if (!status.ok()) {
-    LOG(FATAL) << "Failed to read table from file: " << path
-               << " error: " << status.message();
+    THROW_IO_EXCEPTION("Failed to read table from file: " + path +
+                       " error: " + status.message());
   }
   table_ = result.ValueOrDie();
   reader_ = std::make_shared<arrow::TableBatchReader>(*table_);
@@ -349,7 +353,7 @@ ArrowRecordBatchArraySupplier::GetNextBatch() {
       num_rows = arrays_[i][current_batch_index_]->length();
     } else {
       if (num_rows != arrays_[i][current_batch_index_]->length()) {
-        LOG(FATAL) << "The length of columns is not equal";
+        THROW_INTERNAL_EXCEPTION("The length of columns is not equal");
       }
     }
   }
@@ -439,17 +443,19 @@ void fillVertexReaderMeta(
       auto& [col_id, col_name, property_name] = cur_label_col_mapping[i];
       if (col_name.empty()) {
         if (col_id >= read_options.column_names.size() || col_id < 0) {
-          LOG(FATAL) << "The specified column index: " << col_id
-                     << " is out of range, please check your configuration";
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "The specified column index: " + std::to_string(col_id) +
+              " is out of range, please check your configuration");
         }
         col_name = read_options.column_names[col_id];
       }
       // check whether index match to the name if col_id is valid
       if (col_id >= 0 && col_id < read_options.column_names.size()) {
         if (col_name != read_options.column_names[col_id]) {
-          LOG(FATAL) << "The specified column name: " << col_name
-                     << " does not match the column name in the file: "
-                     << read_options.column_names[col_id];
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "The specified column name: " + col_name +
+              " does not match the column name in the file: " +
+              read_options.column_names[col_id]);
         }
       }
       included_col_names.emplace_back(col_name);
@@ -477,12 +483,13 @@ void fillVertexReaderMeta(
         }
       }
       if (ind == mapped_property_names.size()) {
-        LOG(FATAL) << "The specified property name: " << property_name
-                   << " does not exist in the vertex column mapping for "
-                      "vertex label: "
-                   << v_label_name
-                   << " please "
-                      "check your configuration";
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "The specified property name: " + property_name +
+            " does not exist in the vertex column mapping for "
+            "vertex label: " +
+            v_label_name +
+            " please "
+            "check your configuration");
       }
       auto arrow_type = PropertyTypeToArrowType(property_type);
       VLOG(10) << "vertex_label: " << v_label_name
@@ -501,9 +508,10 @@ void fillVertexReaderMeta(
         }
       }
       if (ind == mapped_property_names.size()) {
-        LOG(FATAL) << "The specified property name: " << pk_name
-                   << " does not exist in the vertex column mapping, please "
-                      "check your configuration";
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "The specified property name: " + pk_name +
+            " does not exist in the vertex column mapping, please "
+            "check your configuration");
       }
       arrow_types.insert(
           {included_col_names[ind], PropertyTypeToArrowType(pk_type)});
@@ -593,17 +601,19 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
       auto& [col_id, col_name, property_name] = cur_label_col_mapping[i];
       if (col_name.empty()) {
         if (col_id >= read_options.column_names.size() || col_id < 0) {
-          LOG(FATAL) << "The specified column index: " << col_id
-                     << " is out of range, please check your configuration";
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "The specified column index: " + std::to_string(col_id) +
+              " is out of range, please check your configuration");
         }
         col_name = read_options.column_names[col_id];
       }
       // check whether index match to the name if col_id is valid
       if (col_id >= 0 && col_id < read_options.column_names.size()) {
         if (col_name != read_options.column_names[col_id]) {
-          LOG(FATAL) << "The specified column name: " << col_name
-                     << " does not match the column name in the file: "
-                     << read_options.column_names[col_id];
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "The specified column name: " + col_name +
+              " does not match the column name in the file: " +
+              read_options.column_names[col_id]);
         }
       }
       if (loading_config.GetHasHeaderRow()) {
@@ -635,9 +645,10 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
         }
       }
       if (ind == mapped_property_names.size()) {
-        LOG(FATAL) << "The specified property name: " << property_name
-                   << " does not exist in the vertex column mapping, please "
-                      "check your configuration";
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "The specified property name: " + property_name +
+            " does not exist in the vertex column mapping, please "
+            "check your configuration");
       }
       VLOG(10) << "edge_label: " << edge_label_name
                << " property_name: " << property_name
@@ -686,7 +697,8 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
         continue;
       }
       col->set_any(vids[k],
-                   std::move(PropUtils<COL_T>::to_prop(casted->Value(k))));
+                   std::move(PropUtils<COL_T>::to_prop(casted->Value(k))),
+                   false);
     }
   }
 }
@@ -696,6 +708,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
                                 const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
+  auto col_data_type = DataType(col_type);
   if (type->Equals(arrow::date32())) {
     for (auto j = 0; j < array->num_chunks(); ++j) {
       auto casted =
@@ -706,7 +719,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))));
+            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
       }
     }
   } else if (type->Equals(arrow::date64())) {
@@ -719,12 +732,13 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))));
+            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
       }
     }
   } else {
-    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
-               << col_type;
+    THROW_NOT_IMPLEMENTED_EXCEPTION("Not implemented: converting " +
+                                    type->ToString() + " to " +
+                                    col_data_type.ToString());
   }
 }
 
@@ -734,6 +748,7 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
                                      const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
+  auto col_data_type = DataType(col_type);
   if (type->Equals(arrow::timestamp(arrow::TimeUnit::type::MILLI))) {
     for (auto j = 0; j < array->num_chunks(); ++j) {
       auto casted =
@@ -744,12 +759,14 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<COL_T>::to_prop(COL_T(casted->Value(k)))));
+            std::move(PropUtils<COL_T>::to_prop(COL_T(casted->Value(k)))),
+            false);
       }
     }
   } else {
-    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
-               << col_type;
+    THROW_NOT_IMPLEMENTED_EXCEPTION("Not implemented: converting " +
+                                    type->ToString() + " to " +
+                                    col_data_type.ToString());
   }
 }
 
@@ -759,6 +776,7 @@ void set_interval_column_from_string_array(
     const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
+  auto col_data_type = DataType(col_type);
   switch (type->id()) {
 #define SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(ARROW_TYPE, ARROW_ARRAY_TYPE) \
   case ARROW_TYPE:                                                           \
@@ -769,8 +787,10 @@ void set_interval_column_from_string_array(
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {                  \
           continue;                                                          \
         }                                                                    \
-        col->set_any(vids[k], std::move(PropUtils<Interval>::to_prop(        \
-                                  Interval(casted->GetView(k)))));           \
+        col->set_any(vids[k],                                                \
+                     std::move(PropUtils<Interval>::to_prop(                 \
+                         Interval(casted->GetView(k)))),                     \
+                     false);                                                 \
       }                                                                      \
     }                                                                        \
     break;
@@ -779,8 +799,9 @@ void set_interval_column_from_string_array(
     SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(arrow::Type::STRING,
                                            arrow::StringArray)
   default:
-    LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
-               << col_type;
+    THROW_NOT_IMPLEMENTED_EXCEPTION("Not implemented: converting " +
+                                    type->ToString() + " to " +
+                                    col_data_type.ToString());
 #undef SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY
   }
 }
@@ -788,6 +809,7 @@ void set_interval_column_from_string_array(
 void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
                                   const std::vector<vid_t>& vids,
+                                  std::shared_mutex& rw_mutex,
                                   bool enable_resize = false) {
   auto type = array->type();
   auto typed_col =
@@ -815,9 +837,17 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
         }
         if (!enable_resize) {
           Property any_val = Property::From(sw);
-          col->set_any(vids[k], any_val);
+          col->set_any(vids[k], any_val, false);
         } else {
-          typed_col->set_value_safe(vids[k], std::move(sw));
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
+          if (typed_col->available_space() <= sw.size()) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
+            typed_col->resize(typed_col->size());
+            w_lock.unlock();
+            lock.lock();
+          }
+          typed_col->set_value(vids[k], std::move(sw));
         }
       }
     }
@@ -834,9 +864,17 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
 
         if (!enable_resize) {
           Property any_val = Property::From(sw);
-          col->set_any(vids[k], std::move(any_val));
+          col->set_any(vids[k], std::move(any_val), false);
         } else {
-          typed_col->set_value_safe(vids[k], std::move(sw));
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
+          if (typed_col->available_space() <= sw.size()) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
+            typed_col->resize(typed_col->size());
+            w_lock.unlock();
+            lock.lock();
+          }
+          typed_col->set_value(vids[k], std::move(sw));
         }
       }
     }
@@ -845,7 +883,8 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
 
 void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
-                           const std::vector<vid_t>& vids) {
+                           const std::vector<vid_t>& vids,
+                           std::shared_mutex& mutex) {
   auto type = array->type();
   auto col_type = col->type();
 
@@ -867,10 +906,10 @@ void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
     set_interval_column_from_string_array(col, array, vids);
     break;
   case DataTypeId::kVarchar:
-    set_column_from_string_array(col, array, vids, true);
+    set_column_from_string_array(col, array, vids, mutex, true);
     break;
   default:
-    LOG(FATAL) << "Not support type: " << type->ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("Not support type: " + type->ToString());
   }
 }
 

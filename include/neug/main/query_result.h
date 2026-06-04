@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <cstdint>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -95,22 +96,21 @@ class QueryResult {
   static QueryResult From(std::string&& serialized_table);
   static QueryResult From(const std::string& serialized_table);
 
-  QueryResult() = default;
+  QueryResult() : response_(std::make_shared<neug::QueryResponse>()) {}
 
   QueryResult(QueryResult&& other) noexcept = default;
 
-  QueryResult(const neug::QueryResponse& response) {
-    response_.CopyFrom(response);
-  }
+  QueryResult(const neug::QueryResponse& response)
+      : response_(std::make_shared<neug::QueryResponse>(response)) {}
 
   QueryResult(const QueryResult& other) = delete;
   QueryResult& operator=(const QueryResult& other) = delete;
 
   ~QueryResult() {}
 
-  void Swap(QueryResult& other) noexcept { response_.Swap(&other.response_); }
+  void Swap(QueryResult& other) noexcept { response_.swap(other.response_); }
 
-  void Swap(QueryResult&& other) noexcept { response_.Swap(&other.response_); }
+  void Swap(QueryResult&& other) noexcept { response_.swap(other.response_); }
 
   /**
    * @brief Convert entire result set to string.
@@ -120,17 +120,27 @@ class QueryResult {
   /**
    * @brief Get total number of rows.
    */
-  size_t length() const { return response_.row_count(); }
+  size_t length() const { return response_->row_count(); }
 
   /**
    * @brief Get result schema metadata.
    */
-  const neug::MetaDatas& result_schema() const { return response_.schema(); }
+  const neug::MetaDatas& result_schema() const { return response_->schema(); }
 
   /**
-   * @brief Get underlying protobuf response.
+   * @brief Get underlying protobuf response (const reference).
    */
-  const neug::QueryResponse& response() const { return response_; }
+  const neug::QueryResponse& response() const { return *response_; }
+
+  /**
+   * @brief Get shared ownership of the underlying protobuf response.
+   *
+   * Useful when callers need to extend the lifetime of the response beyond
+   * the QueryResult (e.g. zero-copy Arrow export).
+   */
+  std::shared_ptr<const neug::QueryResponse> shared_response() const {
+    return response_;
+  }
 
   /**
    * @brief Serialize entire result set to string.
@@ -140,21 +150,21 @@ class QueryResult {
   /**
    * @brief Begin iterator for range-for traversal by row index.
    */
-  const_iterator begin() const { return const_iterator(&response_, 0); }
+  const_iterator begin() const { return const_iterator(response_.get(), 0); }
 
   /**
    * @brief End iterator for range-for traversal by row index.
    */
   const_iterator end() const {
-    return const_iterator(&response_,
-                          static_cast<size_t>(response_.row_count()));
+    return const_iterator(response_.get(),
+                          static_cast<size_t>(response_->row_count()));
   }
 
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
 
  private:
-  neug::QueryResponse response_;
+  std::shared_ptr<neug::QueryResponse> response_;
 };
 
 }  // namespace neug

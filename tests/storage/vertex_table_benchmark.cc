@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -81,7 +82,7 @@ class VertexTableBenchmark : public ::testing::Test {
       vertex_id.set_int64(static_cast<int64_t>(i));
 
       neug::vid_t vid;
-      EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
+      EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
       EXPECT_EQ(vid, i);
       if (i % (count / 100) == 0) {
         LOG(INFO) << "Added " << i << " vertices so far...";
@@ -160,7 +161,7 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
-  std::vector<neug::Property> default_prop_values_;
+  std::vector<neug::execution::Value> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
   std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;
   std::vector<std::shared_ptr<neug::ExtraTypeInfo>> property_extra_infos_;
@@ -182,7 +183,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
     neug::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
     neug::vid_t vid;
-    EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
+    EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
   }
 
   auto end = std::chrono::high_resolution_clock::now();

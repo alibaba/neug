@@ -54,7 +54,7 @@ make install
 In your cmake project, find and link NeuG libraries with the following command:
 
 ```cmake
-cmake_minimum_required (VERSION 3.10)
+cmake_minimum_required (VERSION 3.16)
 project (
   NeuGTest
   VERSION 0.1
@@ -77,7 +77,7 @@ A sample test.cc looks like:
 #include <iostream>
 
 int main() {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open("test_db");
   auto conn = db.Connect();
   std::cout << "NeuG C++ client installation successful!" << std::endl;

@@ -140,7 +140,7 @@ class MLVertexPropertyGetter {
                          const std::string& property_name) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     for (label_t i = 0; i < graph.schema().vertex_label_frontier(); ++i) {
-      if (!graph.schema().vertex_label_valid(i)) {
+      if (!graph.schema().is_vertex_label_valid(i)) {
         continue;
       }
       columns_.emplace_back(

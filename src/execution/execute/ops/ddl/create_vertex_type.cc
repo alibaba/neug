@@ -26,11 +26,11 @@ class CreateVertexTypeOpr : public IOperator {
   CreateVertexTypeOpr(
       const std::string& type_name,
       const std::vector<std::pair<std::string, Value>>& properties,
-      const std::vector<std::string>& pks, bool error_on_conflict)
+      const std::vector<std::string>& pks, bool ignore_conflict)
       : type_name_(type_name),
         properties_(properties),
         pks_(pks),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override {
     return "CreateVertexTypeOpr";
@@ -40,14 +40,16 @@ class CreateVertexTypeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
+    CreateVertexTypeParamBuilder builder;
+    builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
     for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
+      builder.AddProperty(prop_name, prop_value);
     }
-    auto res = storage.CreateVertexType(type_name_, property_tuples, pks_,
-                                        error_on_conflict_);
+    auto res = storage.CreateVertexType(builder.Build());
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to create vertex type: " << type_name_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -59,7 +61,7 @@ class CreateVertexTypeOpr : public IOperator {
   std::string type_name_;
   std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
@@ -84,11 +86,11 @@ neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
   for (const auto& pk : create_vertex.primary_key()) {
     pks.push_back(pk);
   }
-  bool error_on_conflict_ =
-      conflict_action_to_bool(create_vertex.conflict_action());
+  bool ignore_conflict =
+      !conflict_action_to_bool(create_vertex.conflict_action());
   return std::make_pair(
       std::make_unique<CreateVertexTypeOpr>(vertex_type_name, tuple_res.value(),
-                                            pks, error_on_conflict_),
+                                            pks, ignore_conflict),
       meta);
 }
 

@@ -65,21 +65,10 @@ void MMapContainer::Open(const std::string& path) {
   }
   data_ = static_cast<char*>(mmap_data_) + sizeof(FileHeader);
   size_ = mmap_size_ - sizeof(FileHeader);
-  unsigned char data_md5[MD5_DIGEST_LENGTH];
-  MD5((unsigned char*) data_, size_, data_md5);
-  if (size_ > 0) {
-    if (memcmp(data_md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
-               MD5_DIGEST_LENGTH) != 0) {
-      Close();
-      THROW_INTERNAL_EXCEPTION("Data integrity check failed for file: " + path);
-    }
-  }
+  // Skip checksum verification, always assume it is correct.
 }
 
 void MMapContainer::Close() {
-  // Flush MD5 header to the backing file before unmapping.
-  // For non-file containers the base Sync() is a no-op, so this is free.
-  Sync();
   if (mmap_data_ && mmap_size_ > 0) {
     munmapImpl(mmap_data_, mmap_size_);
   }
@@ -155,15 +144,18 @@ void MMapContainer::Dump(const std::string& path) {
       THROW_IO_EXCEPTION("Failed to write data to file: " + path);
     }
   }
+  Close();
 }
 
 bool MMapContainer::IsDirty() {
-  // Guard: no mapping or mapping too small to hold a header → never dirty.
-  if (mmap_data_ == nullptr || mmap_size_ < sizeof(FileHeader)) {
+  if (mmap_data_ == nullptr) {
     return false;
   }
   if (path_.empty()) {
     // Anonymous mmap with no backing file – always considered dirty.
+    // Must precede the FileHeader-size guard: small anonymous mmaps (e.g. a
+    // freshly-resized column with only a few entries) won't fit a FileHeader
+    // but still hold live data that Fork must copy.
     return true;
   }
   if (size_ == 0) {

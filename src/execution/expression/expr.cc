@@ -28,6 +28,7 @@
 #include "neug/execution/expression/exprs/struct_expr.h"
 #include "neug/execution/expression/exprs/udfs.h"
 #include "neug/execution/expression/exprs/variable.h"
+#include "neug/utils/exception/exception.h"
 
 #include "neug/generated/proto/plan/expr.pb.h"
 
@@ -119,6 +120,20 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs_vec));
     }
 
+    case ::common::ExprOpr::kToList: {
+      const auto& list_fields = opr.to_list().fields();
+      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      for (int i = 0; i < list_fields.size(); ++i) {
+        exprs_vec.emplace_back(
+            parse_expression(list_fields[i], ctx_meta, var_type));
+      }
+      DataType list_type = opr.has_node_type()
+                               ? parse_from_ir_data_type(opr.node_type())
+                               : DataType::List(exprs_vec[0]->type());
+      return std::make_unique<ListExpr>(std::move(exprs_vec),
+                                        std::move(list_type));
+    }
+
     case ::common::ExprOpr::kToDate: {
       Date date(opr.to_date().date_str());
       return std::make_unique<ConstExpr>(Value::DATE(date));
@@ -180,7 +195,7 @@ static std::unique_ptr<ExprBase> build_expr(
       } else if (name == "gs.function.endNode") {
         return std::make_unique<StartEndNodeExpr>(std::move(expr), false);
       } else {
-        LOG(FATAL) << "not support udf" << opr.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support udf" + opr.DebugString());
       }
     }
     case ::common::ExprOpr::kPathFunc: {
@@ -189,7 +204,8 @@ static std::unique_ptr<ExprBase> build_expr(
       int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
       if (opr.node_type().data_type().item_case() !=
           ::common::DataType::kArray) {
-        LOG(FATAL) << "path function node_type is not array type";
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "path function node_type is not array type");
         return nullptr;
       }
       auto type = parse_from_data_type(
@@ -201,13 +217,14 @@ static std::unique_ptr<ExprBase> build_expr(
                  ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
         return std::make_unique<PathPropsExpr>(tag, name, type, false);
       } else {
-        LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("unsupport path function opt" +
+                                      opr.DebugString());
       }
 
       break;
     }
     default:
-      LOG(FATAL) << "not support" << opr.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support" + opr.DebugString());
       break;
     }
   }
@@ -317,6 +334,7 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
     case ::common::ExprOpr::kToDate:
     case ::common::ExprOpr::kToDatetime:
     case ::common::ExprOpr::kToTuple:
+    case ::common::ExprOpr::kToList:
     case ::common::ExprOpr::kScalarFunc:
     case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);

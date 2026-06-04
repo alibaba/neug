@@ -27,7 +27,7 @@ message DataSource {
     string extension_name = 1;
     EntrySchema entry_schema = 4;
     FileSchema file_schema = 5;
-    repeated string skip_columns = 6;
+    repeated string project_columns = 6;
     common.Expression skip_rows = 7;
 }
 
@@ -111,6 +111,43 @@ message InsertEdge {
         repeated PropertyMapping property_mappings = 4;
         common.NameOrId alias = 5;
         ConflictAction conflict_action = 6;
+    }
+
+    repeated Entry entries = 1;
+}
+
+message MergeVertex {
+    // Define the insertion operation for a single vertex type
+    message Entry {
+        common.NameOrId vertex_type = 1;
+        // Specify property key-value pairs
+        repeated PropertyMapping property_mappings = 2;
+        // check the existence of alias
+        common.NameOrId alias = 3;
+
+        repeated PropertyMapping on_create = 4;
+        repeated PropertyMapping on_match = 5;
+    }
+    // include multiple vertex type insertion operations
+    repeated Entry entries = 1;
+}
+
+message MergeEdge {
+    // Define the insertion operation for a single edge type
+    message Entry {
+        EdgeType edge_type = 1;
+        // Specify the source node bound to the edge using an alias. 
+        // If the query does not explicitly provide an alias for the src node, the system will automatically assign a unique alias.
+        common.NameOrId source_vertex_binding = 2;
+        // Specify the destination node bound to the edge using an alias.
+        // If the query does not explicitly provide an alias for the dst node, the system will automatically assign a unique alias.
+        common.NameOrId destination_vertex_binding = 3;
+        // Specify property key-value pairs
+        repeated PropertyMapping property_mappings = 4;
+        common.NameOrId alias = 5;
+
+        repeated PropertyMapping on_create = 6;
+        repeated PropertyMapping on_match = 7;
     }
 
     repeated Entry entries = 1;

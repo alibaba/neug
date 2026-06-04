@@ -31,8 +31,6 @@
 #include <arrow/api.h>
 #include <arrow/array/concatenate.h>
 #include <arrow/io/api.h>
-#include <arrow/ipc/reader.h>
-#include <arrow/ipc/writer.h>
 #include <arrow/memory_pool.h>
 #include <arrow/pretty_print.h>
 #include <arrow/scalar.h>
@@ -190,7 +188,7 @@ std::string RowView::ToString() const {
   return ss.str();
 }
 
-std::string QueryResult::ToString() const { return response_.DebugString(); }
+std::string QueryResult::ToString() const { return response_->DebugString(); }
 
 QueryResult QueryResult::From(const std::string& serialized_table) {
   return From(std::string(serialized_table));
@@ -198,7 +196,7 @@ QueryResult QueryResult::From(const std::string& serialized_table) {
 
 QueryResult QueryResult::From(std::string&& serialized_table) {
   QueryResult result;
-  if (!result.response_.ParseFromString(serialized_table)) {
+  if (!result.response_->ParseFromString(serialized_table)) {
     LOG(ERROR) << "Failed to parse QueryResponse from string";
   }
   return result;
@@ -206,7 +204,7 @@ QueryResult QueryResult::From(std::string&& serialized_table) {
 
 std::string QueryResult::Serialize() const {
   std::string serialized_response;
-  if (!response_.SerializeToString(&serialized_response)) {
+  if (!response_->SerializeToString(&serialized_response)) {
     LOG(ERROR) << "Failed to serialize QueryResponse to string";
     THROW_RUNTIME_ERROR("Failed to serialize QueryResponse to string");
   }

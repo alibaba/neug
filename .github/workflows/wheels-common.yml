@@ -103,7 +103,7 @@ jobs:
   build_wheels_linux_x86_64:
     needs:
       - determine_python_versions
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, daily, linux, x64]
     if: ${{
           (
             inputs.mode == 'release' &&
@@ -242,7 +242,7 @@ jobs:
   build_wheels_linux_arm64:
     needs:
       - determine_python_versions
-    runs-on: [self-hosted, linux, arm64]
+    runs-on: [self-hosted, daily, linux, arm64]
     if: ${{
           (
             inputs.mode == 'release' &&

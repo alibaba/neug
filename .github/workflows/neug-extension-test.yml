@@ -4,6 +4,10 @@ on:
   schedule:
     # Run at 08:00 UTC every Saturday
     - cron: '0 8 * * 6'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/neug-extension-test.yml'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:
@@ -11,11 +15,6 @@ on:
         required: true
         default: 'main'
         type: string
-      rebuild_neug:
-        description: 'Rebuild NeuG wheel package before testing extension'
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -26,9 +25,9 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   extension_tests_default:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, daily, linux]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -55,9 +54,9 @@ jobs:
           ${{ runner.os }}-ccache-ext-
           ${{ runner.os }}-ccache-
 
-    - name: Setup CCache
+    - name: Setup CCache and build dependencies
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev
         ccache --max-size=2G
         ccache --zero-stats
 
@@ -72,14 +71,13 @@ jobs:
       with:
         python-version: '3.13'
 
-    # TODO: After unifying wheel build (neug-manylinux:v0.1.0-x86_64) and dev images (neug-dev:v0.1.0), 
-    # skip the build process and use `pip3 install neug` to test the locally built json/parquet extension 
+    # TODO: After unifying wheel build (neug-manylinux:v0.1.2-x86_64) and dev images (neug-dev:v0.1.2), 
+    # skip the build process and use `pip3 install neug` to test the locally built json extension 
     # with the released wheel package.
     - name: Build NeuG with extensions
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
-        export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
         export BUILD_EXECUTABLES=ON
@@ -88,11 +86,11 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json;parquet"
+        export BUILD_EXTENSIONS="parquet;httpfs"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
-        export CC="ccache gcc"
-        export CXX="ccache g++"
+        export CMAKE_C_COMPILER_LAUNCHER=ccache
+        export CMAKE_CXX_COMPILER_LAUNCHER=ccache
         cd tools/python_bind
         make clean
         make requirements
@@ -107,8 +105,8 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
-        ctest -R json_extension_test -V
         ctest -R parquet_extension_test -V
+        ctest -R httpfs_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -121,12 +119,15 @@ jobs:
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "httpfs"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "httpfs"
 
   extension_tests_wheel_linux_x86_64:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, daily, linux, x64]
     steps:
       - name: checkout
         id: checkout
@@ -138,11 +139,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-
-      - name: Setup Python Env
-        run: |
-          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
-          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
 
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==3.4.0
@@ -157,7 +153,6 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_x86_64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -169,7 +164,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -180,19 +175,26 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
-            for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
-            done
-          else
-            python3 -m pip install neug
-          fi
+          for i in wheelhouse/*.whl; do
+            [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages) and install extension there
-          rm -rf $USER_SITE/extension
-          cp -r extension_packages/extension $USER_SITE
+          # copy extension to the same site-packages where neug is installed
+          NEUG_SITE=$(python3 -c "import neug, os; print(os.path.dirname(os.path.dirname(neug.__file__)))")
+          mkdir -p $NEUG_SITE/extension
+          rm -rf $NEUG_SITE/extension
+          cp -r extension_packages/extension $NEUG_SITE/
+          # Copy auditwheel-bundled shared libraries (e.g. libcurl, libarrow_s3)
+          # from the extension wheel.  auditwheel renames .so files with a
+          # content hash (e.g. libcurl-34c6b10f.so.4.3.0) and places them in
+          # <package>.libs/.  Without this step the extension .so files fail to
+          # load at runtime because the hash-renamed libraries are missing.
+          if [ -d extension_packages/neug.libs ]; then
+            mkdir -p $NEUG_SITE/neug.libs
+            cp -rf extension_packages/neug.libs/* $NEUG_SITE/neug.libs/
+          fi
 
       - name: Run simple and complex tests
         env:
@@ -203,7 +205,7 @@ jobs:
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
 
   extension_tests_wheel_linux_arm64:
-    runs-on: [self-hosted, linux, arm64]
+    runs-on: [self-hosted, daily, linux, arm64]
     steps:
       - name: checkout
         id: checkout
@@ -217,12 +219,6 @@ jobs:
         with:
           python-version: '3.13'
   
-      - name: Setup Python Env
-        run: |
-          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
-          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
-          echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
-
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==3.4.0
 
@@ -236,7 +232,6 @@ jobs:
           echo "CIBW_BUILD=cp313-manylinux_aarch64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
-        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
@@ -248,7 +243,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -259,19 +254,21 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
           # install NeuG wheel
-          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
-            for i in wheelhouse/*.whl; do
-              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
-            done
-          else
-            python3 -m pip install neug
-          fi
+          for i in wheelhouse/*.whl; do
+            [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages) and install extension there
-          rm -rf $USER_SITE/extension
-          cp -r extension_packages/extension $USER_SITE
+          # copy extension to the same site-packages where neug is installed
+          NEUG_SITE=$(python3 -c "import neug, os; print(os.path.dirname(os.path.dirname(neug.__file__)))")
+          mkdir -p $NEUG_SITE/extension
+          rm -rf $NEUG_SITE/extension
+          cp -r extension_packages/extension $NEUG_SITE/
+          if [ -d extension_packages/neug.libs ]; then
+            mkdir -p $NEUG_SITE/neug.libs
+            cp -rf extension_packages/neug.libs/* $NEUG_SITE/neug.libs/
+          fi
 
       - name: Run simple and complex tests
         env:
@@ -280,3 +277,38 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
+
+  # ============================================================
+  # Notify: Send results to DingTalk
+  # ============================================================
+  notify-extension-result:
+    needs: [extension_tests_default, extension_tests_wheel_linux_x86_64, extension_tests_wheel_linux_arm64]
+    if: always() && github.repository == 'alibaba/neug'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send DingTalk notification
+        env:
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+        run: |
+          if [ -z "$DINGTALK_TOKEN" ]; then
+            echo "DINGTALK_TOKEN not set, skipping notification."
+            exit 0
+          fi
+          WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+          STATUS_DEFAULT="${{ needs.extension_tests_default.result }}"
+          STATUS_X86="${{ needs.extension_tests_wheel_linux_x86_64.result }}"
+          STATUS_ARM="${{ needs.extension_tests_wheel_linux_arm64.result }}"
+          if [[ "$STATUS_DEFAULT" == "success" && "$STATUS_X86" == "success" && "$STATUS_ARM" == "success" ]]; then
+            TITLE="[Nightly Report] NeuG Extension Test Passed"
+          else
+            TITLE="[Nightly Report] NeuG Extension Test Failed"
+          fi
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"title\": \"$TITLE\",
+                \"text\": \"## $TITLE\n\n- **extension_tests_default**: ${STATUS_DEFAULT}\n- **wheel_linux_x86_64**: ${STATUS_X86}\n- **wheel_linux_arm64**: ${STATUS_ARM}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              }
+            }"

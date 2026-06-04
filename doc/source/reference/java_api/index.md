@@ -20,14 +20,7 @@ The current Java SDK supports **remote access over HTTP only**, i.e., [**service
 
 If you need embedded access, use the C++ or Python APIs. The Java SDK should be treated as a client for an already running NeuG service.
 
-## Installation
-
-### Use from this repository
-
-```bash
-cd tools/java_driver
-mvn clean install -DskipTests
-```
+## Usage
 
 ### Add dependency in another Maven project
 

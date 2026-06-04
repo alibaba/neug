@@ -31,8 +31,7 @@ struct SessionLocalContext {
       PropertyGraph& graph_, std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<Allocator> alloc,
-      std::shared_ptr<IVersionManager> version_manager,
-      const std::string& work_dir, int thread_id,
+      std::shared_ptr<IVersionManager> version_manager, int thread_id,
       std::unique_ptr<IWalWriter> in_logger, const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
@@ -144,16 +143,15 @@ class SessionPool {
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<IVersionManager> version_manager,
       std::vector<std::shared_ptr<Allocator>>& allocators,
-      const NeugDBConfig& config, const std::string& work_dir) {
+      const NeugDBConfig& config, const std::string& wal_uri) {
     session_num_ = config.thread_num;
-    auto wal_uri = parse_wal_uri(config.wal_uri, work_dir);
     WalWriterFactory::Init();
     contexts_ = static_cast<SessionLocalContext*>(
         aligned_alloc(4096, sizeof(SessionLocalContext) * config.thread_num));
     for (int i = 0; i < config.thread_num; ++i) {
       new (&contexts_[i]) SessionLocalContext(
-          graph, planner, global_query_cache, allocators[i], version_manager,
-          work_dir, i, WalWriterFactory::CreateWalWriter(wal_uri, i), config);
+          graph, planner, global_query_cache, allocators[i], version_manager, i,
+          WalWriterFactory::CreateWalWriter(wal_uri, i), config);
     }
     bthread_cond_init(&cond_, nullptr);
     bthread_mutex_init(&mutex_, nullptr);

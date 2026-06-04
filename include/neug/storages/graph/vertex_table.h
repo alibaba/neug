@@ -79,15 +79,23 @@ class VertexSet {
 class PropertyGraph;
 class VertexTable {
  public:
-  VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
-      : table_(std::make_unique<Table>()),
-        vertex_schema_(vertex_schema),
+  VertexTable()
+      : table_(nullptr),
+        vertex_schema_(nullptr),
         v_ts_(),
+        memory_level_(MemoryLevel::kInMemory),
+        work_dir_("") {}
+
+  VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
+      : indexer_(std::make_shared<IndexerType>()),
+        table_(std::make_unique<Table>()),
+        vertex_schema_(vertex_schema),
+        v_ts_(std::make_shared<VertexTimestamp>()),
         memory_level_(MemoryLevel::kInMemory),
         work_dir_("") {
     assert(vertex_schema->primary_keys.size() == 1);
     pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
-    indexer_.init(pk_type_.id());
+    indexer_->init(pk_type_.id());
   }
 
   VertexTable(VertexTable&& other)
@@ -106,12 +114,16 @@ class VertexTable {
     table_.swap(other.table_);
     std::swap(pk_type_, other.pk_type_);
     std::swap(vertex_schema_, other.vertex_schema_);
-    v_ts_.Swap(other.v_ts_);
+    v_ts_.swap(other.v_ts_);
     std::swap(memory_level_, other.memory_level_);
     std::swap(work_dir_, other.work_dir_);
   }
 
+  // Restore an existing vertex table from its checkpoint snapshot.
   void Open(const std::string& work_dir, MemoryLevel memory_level);
+
+  // Bring up a freshly-created vertex table with no checkpoint to read.
+  void Initialize(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -121,8 +133,6 @@ class VertexTable {
 
   size_t EnsureCapacity(size_t capacity);
 
-  bool is_dropped() const { return table_ == nullptr; }
-
   bool get_index(const Property& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
 
@@ -130,7 +140,7 @@ class VertexTable {
 
   // Return false if the reserved space is not enough.
   bool AddVertex(const Property& id, const std::vector<Property>& props,
-                 vid_t& vid, timestamp_t ts = 0, bool insert_safe = false);
+                 vid_t& vid, timestamp_t ts, bool insert_safe);
 
   bool UpdateProperty(vid_t vid, int32_t prop_id, const Property& value,
                       timestamp_t ts);
@@ -141,20 +151,20 @@ class VertexTable {
                           // size of the indexer
 
   // Capacity of the vertex table
-  inline size_t Capacity() const { return indexer_.capacity(); }
+  inline size_t Capacity() const { return indexer_->capacity(); }
 
-  inline size_t Size() const { return indexer_.size(); }
+  inline size_t Size() const { return indexer_->size(); }
 
   bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  IndexerType& get_indexer() { return indexer_; }
-  const IndexerType& get_indexer() const { return indexer_; }
+  IndexerType& get_indexer() { return *indexer_; }
+  const IndexerType& get_indexer() const { return *indexer_; }
 
   inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
       const std::string& prop) const {
     auto pk = vertex_schema_->primary_keys[0];
     if (prop == std::get<1>(pk)) {
-      return CreateRefColumn(indexer_.get_keys());
+      return CreateRefColumn(indexer_->get_keys());
     }
     auto ptr = table_->get_column(prop);
     if (ptr == nullptr) {
@@ -163,13 +173,17 @@ class VertexTable {
     return CreateRefColumn(*ptr);
   }
 
-  inline std::shared_ptr<ColumnBase> get_property_column(int32_t col_id) const {
-    assert(col_id >= 0 && col_id < static_cast<int32_t>(table_->col_num()));
-    return table_->get_column_by_id(col_id);
+  inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
+      int32_t col_id) const {
+    auto ptr = table_->get_column_by_id(col_id);
+    if (ptr == nullptr) {
+      return nullptr;
+    }
+    return CreateRefColumn(*ptr);
   }
 
   inline VertexSet GetVertexSet(timestamp_t ts) const {
-    return VertexSet(LidNum(), v_ts_, ts);
+    return VertexSet(LidNum(), *v_ts_, ts);
   }
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
@@ -186,8 +200,6 @@ class VertexTable {
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
-  void Drop();
-
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
@@ -199,10 +211,13 @@ class VertexTable {
 
   void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
 
-  const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
+  const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
  private:
-  vid_t insert_vertex_pk(const Property& id, timestamp_t ts);
+  void openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                const std::string& checkpoint_dir_path);
+
+  vid_t insert_vertex_pk(const Property& id, timestamp_t ts, bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -223,15 +238,15 @@ class VertexTable {
 
       for (size_t j = 0; j < row_num; ++j) {
         auto oid = PropUtils<PK_T>::to_prop(casted_array->Value(j));
-        if (NEUG_UNLIKELY(indexer_.get_index(oid, vids[j]))) {
-          if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+        if (NEUG_UNLIKELY(indexer_->get_index(oid, vids[j]))) {
+          if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
             vids[j] = std::numeric_limits<vid_t>::max();
           } else {
-            v_ts_.InsertVertex(vids[j], 0);
+            v_ts_->InsertVertex(vids[j], 0);
           }
           continue;  // already exists
         }
-        vids[j] = insert_vertex_pk(oid, 0);
+        vids[j] = insert_vertex_pk(oid, 0, false);
       }
     } else {
       if (primary_key_column->type()->Equals(arrow::utf8())) {
@@ -239,30 +254,30 @@ class VertexTable {
             std::static_pointer_cast<arrow::StringArray>(primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
           auto oid = Property::from_string_view(casted_array->GetView(j));
-          if (indexer_.get_index(oid, vids[j])) {
-            if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+          if (indexer_->get_index(oid, vids[j])) {
+            if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();
             } else {
-              v_ts_.InsertVertex(vids[j], 0);
+              v_ts_->InsertVertex(vids[j], 0);
             }
             continue;  // already exists
           }
-          vids[j] = insert_vertex_pk(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0, true);
         }
       } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
             primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
           auto oid = Property::from_string_view(casted_array->GetView(j));
-          if (indexer_.get_index(oid, vids[j])) {
-            if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+          if (indexer_->get_index(oid, vids[j])) {
+            if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();
             } else {
-              v_ts_.InsertVertex(vids[j], 0);
+              v_ts_->InsertVertex(vids[j], 0);
             }
             continue;  // already exists
           }
-          vids[j] = insert_vertex_pk(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0, true);
         }
       } else {
         LOG(FATAL) << "Not support type: "
@@ -279,14 +294,15 @@ class VertexTable {
       LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
       row_nums = 0;
     }
-    size_t new_size = indexer_.size() + row_nums;
-    if (new_size > indexer_.capacity()) {
-      size_t cap = indexer_.capacity();
+    size_t new_size = indexer_->size() + row_nums;
+    if (new_size > indexer_->capacity()) {
+      size_t cap = indexer_->capacity();
       while (new_size >= cap) {
         cap = cap < 4096 ? 4096 : cap + cap / 4;
       }
       EnsureCapacity(cap);
     }
+    std::shared_mutex rw_mutex;
     while (true) {
       auto batch = supplier->GetNextBatch();
       if (batch == nullptr) {
@@ -302,9 +318,9 @@ class VertexTable {
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
       // Add capacity checking logic when performing the actual batch insert.
-      size_t new_size = indexer_.size() + batch->num_rows();
-      if (new_size > indexer_.capacity()) {
-        size_t cap = indexer_.capacity();
+      size_t new_size = indexer_->size() + batch->num_rows();
+      if (new_size > indexer_->capacity()) {
+        size_t cap = indexer_->capacity();
         while (new_size >= cap) {
           cap = cap < 4096 ? 4096 : cap + cap / 4;
         }
@@ -316,18 +332,18 @@ class VertexTable {
       for (size_t i = 0; i < columns.size(); ++i) {
         auto col = table_->get_column_by_id(i);
         auto chunked_array = std::make_shared<arrow::ChunkedArray>(columns[i]);
-        set_properties_column(col, chunked_array, vids);
+        set_properties_column(col, chunked_array, vids, rw_mutex);
       }
       VLOG(10) << "Inserted " << pk_array->length()
                << " vertices, current vertex num: " << VertexNum();
     }
   }
 
-  IndexerType indexer_;
+  std::shared_ptr<IndexerType> indexer_;
   std::unique_ptr<Table> table_;
   DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
-  VertexTimestamp v_ts_;
+  std::shared_ptr<VertexTimestamp> v_ts_;
   MemoryLevel memory_level_;
 
   std::string work_dir_;

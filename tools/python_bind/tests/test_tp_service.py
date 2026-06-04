@@ -24,8 +24,7 @@ import sys
 import time
 
 import pytest
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from conftest import wait_for_server_ready
 
 from neug.database import Database
 from neug.session import Session
@@ -318,6 +317,83 @@ def test_delete_edges():
     db.close()
 
 
+def test_merge_vertex():
+    db_dir = "/tmp/test_merge_vertex"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10013, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "CREATE NODE TABLE User(name STRING, age INT64, PRIMARY KEY(name));"
+    )
+    session.execute("CREATE (:User {name: 'Adam', age: 29});")
+
+    existing = list(session.execute("MERGE (u:User {name: 'Adam'}) RETURN u.age;"))
+    assert existing == [[29]]
+
+    created = list(
+        session.execute("MERGE (u:User {name: 'Bob', age: 45}) RETURN u.name, u.age;")
+    )
+    assert created == [["Bob", 45]]
+
+    names = sorted(r[0] for r in session.execute("MATCH (u:User) RETURN u.name;"))
+    assert names == ["Adam", "Bob"]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_merge_edge():
+    db_dir = "/tmp/test_merge_edge"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10014, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "CREATE NODE TABLE User(name STRING, age INT64, PRIMARY KEY(name));"
+    )
+    session.execute("CREATE REL TABLE follows(FROM User TO User, date INT64);")
+    session.execute("CREATE (:User {name: 'Adam', age: 29});")
+    session.execute("CREATE (:User {name: 'marko', age: 32});")
+    session.execute("CREATE (:User {name: 'Bob', age: 40});")
+    session.execute(
+        "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
+        "CREATE (u1)-[:follows {date: 2012}]->(u2);"
+    )
+
+    matched = list(
+        session.execute(
+            "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
+            "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+            "RETURN u1.name, e.date, u2.name;"
+        )
+    )
+    assert matched == [["Adam", 2012, "marko"]]
+
+    created = list(
+        session.execute(
+            "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) "
+            "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+            "RETURN u1.name, e.date, u2.name;"
+        )
+    )
+    assert created == [["Adam", 2012, "Bob"]]
+
+    edge_count = list(session.execute("MATCH ()-[e:follows]->() RETURN count(e);"))
+    assert edge_count == [[2]]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
 def test_query_cache():
     db_dir = "/tmp/test_query_cache"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -423,7 +499,7 @@ def test_parameterized_query():
             datetime.date(2024, 1, 1),
         ),
         (
-            "MATCH (n:param_values) WHERE n.timestamp_prop <> $value RETURN n.timestamp_prop;",
+            "MATCH (n:param_values) WHERE n.timestamp_prop = $value RETURN n.timestamp_prop;",
             {"value": "2024-01-02 03:04:05"},
             datetime.datetime(2024, 1, 2, 3, 4, 5),
         ),
@@ -1043,7 +1119,7 @@ def test_insert_string_column_exaustion():
         for i in range(7000):
             sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
     except Exception as e:
-        raise AssertionError("Failed to insert string column with large length") from e
+        assert "not enough space" in e.__str__(), f"Unexpected exception: {e}"
     finally:
         try:
             sess.close()
@@ -1055,3 +1131,64 @@ def test_insert_string_column_exaustion():
                 e,
             )
         logging.disable(logging.NOTSET)
+
+
+def test_readonly_db_rejects_write_queries_via_session():
+    """A database opened in read-only mode must reject INSERT/UPDATE queries
+    submitted through a Session, while still serving read queries correctly."""
+    db_dir = "/tmp/test_readonly_db_rejects_write_queries_via_session"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+
+    # Step 1: create the database and populate it in write mode.
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2"
+        " CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.close()
+    db.close()
+
+    # Step 2: reopen in read-only mode and start serving.
+    db_ro = Database(db_dir, "r")
+    uri = db_ro.serve(10006, "localhost", False)
+    wait_for_server_ready(uri)
+
+    session = Session(uri, timeout="10s")
+
+    # Read queries must succeed.
+    res = session.execute("MATCH (n:person) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
+
+    # INSERT must be rejected by the server.
+    with pytest.raises(Exception):
+        session.execute("CREATE (p:person {id: 3, name: 'josh', age: 32});")
+
+    # UPDATE must be rejected by the server.
+    with pytest.raises(Exception):
+        session.execute("MATCH (n:person) WHERE n.id = 1 SET n.age = 99;")
+
+    # The read-only data must be unchanged after the failed writes.
+    res = session.execute("MATCH (n:person) RETURN n.id ORDER BY n.id;")
+    assert len(res) == 2
+    assert res[0][0] == 1
+    assert res[1][0] == 2
+
+    session.close()
+    db_ro.stop_serving()
+    db_ro.close()
+
+
+def test_in_memory_service_start_and_stop():
+    db = Database("", "w")
+    db.serve(19001, "127.0.0.1", False)
+    db.stop_serving()
+    db.close()

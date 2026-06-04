@@ -17,6 +17,19 @@ with the database, such as executing queries and managing transactions.
 The connection is created by the `Database.connect` method, and should be closed by calling the `close` method
 when it is no longer needed. If the database is closed, all the connections to the database will be closed automatically.
 
+<a id="neug.connection.Connection.__init__"></a>
+
+### \_\_init\_\_
+
+```python
+def __init__(py_connection)
+```
+
+Initialize a Connection object.
+- **Parameters:**
+  - `py_connection` (PyConnection)
+    The underlying c++ connection object that provides the actual database connection.
+
 <a id="neug.connection.Connection.is_open"></a>
 
 ### is\_open

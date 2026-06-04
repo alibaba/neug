@@ -104,6 +104,25 @@ class Option {
         });
   }
 
+  static Option<double> DoubleOption(const std::string& key,
+                                     double default_val) {
+    return Option<double>(
+        key, std::to_string(default_val), [](const std::string& s) -> double {
+          try {
+            double val = std::stod(s);
+            if (val < 0) {
+              THROW_INVALID_ARGUMENT_EXCEPTION(
+                  "Value must be non-negative, got: " + s);
+            }
+            return val;
+          } catch (const exception::Exception&) {
+            throw;  // re-throw our own exceptions
+          } catch (const std::exception& e) {
+            THROW_INVALID_ARGUMENT_EXCEPTION("Failed to parse double: " + s);
+          }
+        });
+  }
+
  private:
   std::string key_;
   std::string default_val_;
@@ -133,12 +152,12 @@ struct ReadOptions {
  * @brief Template base class for building format-specific scan options
  *
  * This template class provides a generic interface for building scan options
- * for different data formats. It handles column projection (skipColumns) and
- * row filtering (skipRows) operations. Derived classes implement
+ * for different data formats. It handles column projection (projectColumns)
+ * and row filtering (skipRows) operations. Derived classes implement
  * format-specific option building logic.
  *
  * @tparam T The type of options structure returned by build() and modified by
- *           skipColumns() and skipRows()
+ *           projectColumns() and skipRows()
  */
 template <class T>
 class OptionsBuilder {
@@ -158,11 +177,11 @@ class OptionsBuilder {
   virtual T build() const = 0;
 
   /**
-   * @brief Applies column projection to exclude skipped columns
+   * @brief Applies column projection to include only specified columns
    * @param options The options structure to modify
    * @return true if column projection was successfully applied, false otherwise
    */
-  virtual bool skipColumns(T& options) { return false; }
+  virtual bool projectColumns(T& options) { return false; }
 
   /**
    * @brief Applies row filtering based on filter expressions
@@ -206,8 +225,9 @@ struct ArrowOptions {
  *   and batch size
  * - File format: builds format-specific FileFormat via buildFileFormat()
  *
- * The skipColumns() method implements column pruning by setting the projection
- * expression in scanOptions, excluding columns listed in state.skipColumns.
+ * The projectColumns() method implements column pruning by setting the
+ * projection expression in scanOptions to include only columns listed in
+ * state.projectColumns.
  *
  * The skipRows() method implements filter pushdown by converting
  * common::Expression to arrow::compute::Expression and setting it as the
@@ -241,15 +261,15 @@ class ArrowOptionsBuilder : public OptionsBuilder<ArrowOptions> {
   virtual ArrowOptions build() const override = 0;
 
   /**
-   * @brief Applies column projection to exclude skipped columns
+   * @brief Applies column projection to include only specified columns
    *
-   * Modifies the projection expression in options.scanOptions to exclude
-   * columns listed in state.skipColumns, implementing column pruning.
+   * Modifies the projection expression in options.scanOptions to include
+   * only columns listed in state.projectColumns, implementing column pruning.
    *
    * @param options The ArrowOptions to modify
    * @return true if column projection was successfully applied, false otherwise
    */
-  virtual bool skipColumns(ArrowOptions& options) override;
+  virtual bool projectColumns(ArrowOptions& options) override;
 
   /**
    * @brief Applies row filtering based on filter expressions

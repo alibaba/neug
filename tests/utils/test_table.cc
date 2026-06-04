@@ -278,19 +278,18 @@ TEST(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.columns().size(), 11);
     EXPECT_EQ(disk_table.column_names().size(), 11);
     EXPECT_EQ(disk_table.column_types().size(), 11);
-    EXPECT_EQ(disk_table.column_ptrs().size(), 11);
     EXPECT_EQ(disk_table.column_name(0), "bool_column");
     EXPECT_EQ(disk_table.get_row(0).size(), 11);
     EXPECT_EQ(disk_table.get_column("bool_column")->type(),
               DataTypeId::kBoolean);
     disk_table.set_name("disk_table");
     std::vector<Property> properties = disk_table.get_row(9);
-    disk_table.insert(9, properties);
+    disk_table.insert(9, properties, false);
   }
 
   disk_table.dump("disk_table", std::string(TEST_DIR) + "/checkpoint");
-  disk_table.drop();
-  mem_table.drop();
+  disk_table.close();
+  mem_table.close();
 
   disk_table.open("disk_table", std::string(TEST_DIR), col_name,
                   property_types);
@@ -302,7 +301,7 @@ TEST(TableTest, TestTableBasic) {
   disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(disk_table.col_num(), 10);
   disk_table.set_work_dir(std::string(TEST_DIR));
-  disk_table.drop();
+  disk_table.close();
 
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
                            property_types);

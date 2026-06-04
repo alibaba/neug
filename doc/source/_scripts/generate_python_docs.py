@@ -150,7 +150,7 @@ def _run_single_module_generation(scripts_dir: Path, doc_dir: Path, output_dir: 
             {
                 'type': 'filter',
                 'expression': '''not (
-                    name.startswith("_") or 
+                    (name.startswith("_") and name != "__init__") or
                     name in ["logging", "os", "json", "requests", "adapters"] or
                     name.startswith("ERR_") or
                     name in ["logger", "cur_file_path", "cur_dir_path", "resource_dir", "readable", "OK", "Code"]

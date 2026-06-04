@@ -64,10 +64,6 @@ TEST_F(TestJsonExtension, VPersonJson) {
   auto conn = db.Connect();
   ASSERT_TRUE(conn != nullptr);
 
-  auto load_res = conn->Query("LOAD json");
-  ASSERT_TRUE(load_res.has_value())
-      << "LOAD json failed: " << load_res.error().ToString();
-
   std::string import_query =
       "COPY person FROM (LOAD FROM \"" + vperson_json +
       "\" RETURN ID, fName, gender, age, eyesight, height);";
@@ -114,10 +110,6 @@ TEST_F(TestJsonExtension, VPersonJsonl) {
   ASSERT_TRUE(db.Open(db_path));
   auto conn = db.Connect();
   ASSERT_TRUE(conn != nullptr);
-
-  auto load_res = conn->Query("LOAD json");
-  ASSERT_TRUE(load_res.has_value())
-      << "LOAD json failed: " << load_res.error().ToString();
 
   std::string import_query = "COPY person FROM (LOAD FROM \"" + vperson_jsonl +
                              "\" RETURN ID, fName, "

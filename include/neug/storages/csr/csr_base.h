@@ -15,22 +15,18 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
-enum class CsrType {
-  kImmutable,
-  kMutable,
-  kSingleMutable,
-  kSingleImmutable,
-  kEmpty,
-};
+// CsrType is defined in csr_view.h to avoid a csr_base <-> csr_view
+// include cycle (CsrView may need to know about CsrType in future).
 
 class CsrBase {
  public:
@@ -41,7 +37,7 @@ class CsrBase {
 
   virtual CsrType csr_type() const = 0;
 
-  virtual GenericView get_generic_view(timestamp_t ts) const = 0;
+  virtual CsrView get_generic_view(timestamp_t ts) const = 0;
 
   virtual timestamp_t unsorted_since() const { return 0; }
 
@@ -94,8 +90,9 @@ class CsrBase {
   virtual void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
                                   timestamp_t ts) = 0;
 
-  virtual int32_t put_generic_edge(vid_t src, vid_t dst, const Property& data,
-                                   timestamp_t ts, Allocator& alloc) = 0;
+  virtual std::pair<int32_t, const void*> put_generic_edge(
+      vid_t src, vid_t dst, const Property& data, timestamp_t ts,
+      Allocator& alloc) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const = 0;
@@ -109,14 +106,18 @@ class TypedCsrBase : public CsrBase {
                                const std::vector<EDATA_T>& data_list,
                                timestamp_t ts = 0) = 0;
 
-  virtual int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data,
-                           timestamp_t ts, Allocator& alloc) {
+  virtual std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                                   const EDATA_T& data,
+                                                   timestamp_t ts,
+                                                   Allocator& alloc) {
     LOG(FATAL) << "not supported...";
-    return 0;
+    return {0, nullptr};
   }
 
-  int32_t put_generic_edge(vid_t src, vid_t dst, const Property& data,
-                           timestamp_t ts, Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_generic_edge(vid_t src, vid_t dst,
+                                                   const Property& data,
+                                                   timestamp_t ts,
+                                                   Allocator& alloc) override {
     return this->put_edge(src, dst, PropUtils<EDATA_T>::to_typed(data), ts,
                           alloc);
   }

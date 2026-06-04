@@ -23,11 +23,10 @@ import time
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
-from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
@@ -170,25 +169,25 @@ def test_auto_transaction_management(tmp_path):
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r3 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r3) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP not_exist;")
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r4 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r4) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("DROP TABLE not_exist;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r5 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r5) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
-    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
     r6 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r6) == 1
 
@@ -597,7 +596,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "locked for read-only access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()
@@ -613,7 +612,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "locked for write access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     with pytest.raises(Exception) as excinfo:
         db3 = Database(db_path=str(db_dir), mode="w")
@@ -621,7 +620,7 @@ def test_database_concurrent_lock(tmp_path):
         conn3.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn3.close()
         db3.close()
-    assert "locked for write access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()

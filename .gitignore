@@ -136,3 +136,12 @@ tools/python_bind/neug/extensions/
 
 # Coverage file
 **/.coverage
+
+# aone copilot
+.aone_copilot/
+
+# claude code
+.claude/
+
+# qoder ide
+.qoder/

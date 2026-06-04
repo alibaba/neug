@@ -20,6 +20,7 @@
 #include "neug/execution/expression/accessors/record_accessor.h"
 #include "neug/execution/expression/accessors/vertex_accessor.h"
 #include "neug/generated/proto/plan/common.pb.h"
+#include "neug/utils/exception/exception.h"
 namespace neug {
 namespace execution {
 
@@ -229,13 +230,14 @@ static std::unique_ptr<ExprBase> parse_record_var(const ::common::Variable& var,
           return std::make_unique<RecordPathAccessor>(tag, DataType::DOUBLE,
                                                       "cost");
         }
-        LOG(FATAL) << "unsupported record path property key: "
-                   << prop.key().name();
+        THROW_NOT_SUPPORTED_EXCEPTION("unsupported record path property key: " +
+                                      prop.key().name());
         return nullptr;
       } else {
-        LOG(FATAL) << "unsupported record variable tag type: "
-                   << static_cast<int>(ctx_meta.get(tag).id()) << " "
-                   << var.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION(
+            "unsupported record variable tag type: " +
+            std::to_string(static_cast<int>(ctx_meta.get(tag).id())) + " " +
+            var.DebugString());
       }
     } else if (prop.has_label()) {
       if (ctx_meta.get(tag).id() == DataTypeId::kVertex) {
@@ -243,8 +245,9 @@ static std::unique_ptr<ExprBase> parse_record_var(const ::common::Variable& var,
       } else if (ctx_meta.get(tag).id() == DataTypeId::kEdge) {
         return RecordEdgeAccessor::create_label_accessor(tag);
       } else {
-        LOG(FATAL) << "unsupported record variable tag type: "
-                   << static_cast<int>(ctx_meta.get(tag).id());
+        THROW_NOT_SUPPORTED_EXCEPTION(
+            "unsupported record variable tag type: " +
+            std::to_string(static_cast<int>(ctx_meta.get(tag).id())));
       }
     } else if (prop.has_id()) {
       if (ctx_meta.get(tag).id() == DataTypeId::kVertex) {
@@ -252,8 +255,9 @@ static std::unique_ptr<ExprBase> parse_record_var(const ::common::Variable& var,
       } else if (ctx_meta.get(tag).id() == DataTypeId::kEdge) {
         return RecordEdgeAccessor::create_gid_accessor(tag);
       } else {
-        LOG(FATAL) << "unsupported record variable tag type: "
-                   << static_cast<int>(ctx_meta.get(tag).id());
+        THROW_NOT_SUPPORTED_EXCEPTION(
+            "unsupported record variable tag type: " +
+            std::to_string(static_cast<int>(ctx_meta.get(tag).id())));
       }
     } else if (prop.has_len()) {
       if (ctx_meta.get(tag).id() == DataTypeId::kPath) {
@@ -261,7 +265,8 @@ static std::unique_ptr<ExprBase> parse_record_var(const ::common::Variable& var,
                                                     "length");
       }
     } else {
-      LOG(FATAL) << "unsupported property access: " << prop.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION("unsupported property access: " +
+                                    prop.DebugString());
     }
   }
   return nullptr;
@@ -271,7 +276,8 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
 
                                                   DataType type) {
   if (!var.has_property()) {
-    LOG(FATAL) << "vertex variable missing property: " << var.DebugString();
+    return std::make_unique<VertexAccessor>(type, GraphAccessType::kIdentity,
+                                            "");
   } else {
     const auto& prop = var.property();
     if (prop.has_key()) {
@@ -281,7 +287,8 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
     } else if (prop.has_id()) {
       return VertexAccessor::create_gid_accessor();
     } else {
-      LOG(FATAL) << "unsupported property access: " << prop.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "unsupported vertex variable property access: " + var.DebugString());
     }
   }
   return nullptr;
@@ -290,15 +297,18 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
 static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
                                                 DataType type) {
   if (!var.has_property()) {
-    LOG(FATAL) << "edge variable missing property: " << var.DebugString();
+    return std::make_unique<EdgeAccessor>(type, GraphAccessType::kIdentity, "");
   } else {
     const auto& prop = var.property();
     if (prop.has_key()) {
       return EdgeAccessor::create_property_accessor(type, prop.key().name());
     } else if (prop.has_label()) {
       return EdgeAccessor::create_label_accessor();
+    } else if (prop.has_id()) {
+      return EdgeAccessor::create_gid_accessor();
     } else {
-      LOG(FATAL) << "unsupported property access: " << prop.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "unsupported edge variable property access: " + var.DebugString());
     }
   }
   return nullptr;
@@ -308,7 +318,8 @@ std::unique_ptr<ExprBase> parse_variable(const common::Variable& var,
                                          const ContextMeta& ctx_meta,
                                          VarType var_type) {
   if (!var.has_node_type()) {
-    LOG(FATAL) << "variable missing node_type: " << var.DebugString();
+    THROW_INTERNAL_EXCEPTION("variable missing node_type: " +
+                             var.DebugString());
   }
   DataType type = parse_from_ir_data_type(var.node_type());
   int tag = var.has_tag() ? var.tag().id() : -1;

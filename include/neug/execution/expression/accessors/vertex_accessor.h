@@ -43,6 +43,11 @@ class VertexAccessor : public ExprBase {
                                             GraphAccessType::kGid, "");
   }
 
+  static std::unique_ptr<ExprBase> create_identity_accessor() {
+    return std::make_unique<VertexAccessor>(DataType::VERTEX,
+                                            GraphAccessType::kIdentity, "");
+  }
+
   std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
                                        const ParamsMap& params) const override;
 

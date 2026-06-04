@@ -27,12 +27,12 @@ class AddEdgePropertySchemaOpr : public IOperator {
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, Value>>& properties,
-      bool error_on_conflict)
+      bool ignore_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
         edge_type_(edge_type),
         properties_(properties),
-        error_on_conflict_(error_on_conflict) {}
+        ignore_conflict_(ignore_conflict) {}
   std::string get_operator_name() const override {
     return "AddEdgePropertySchemaOpr";
   }
@@ -40,14 +40,19 @@ class AddEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
+    AddEdgePropertiesParamBuilder builder;
     for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type(), prop_name,
-                                   value_to_property(prop_value));
+      builder.AddProperty(prop_name, prop_value);
     }
-    auto res = storage.AddEdgeProperties(src_type_, dst_type_, edge_type_,
-                                         property_tuples, error_on_conflict_);
+    auto config = builder.SrcLabel(src_type_)
+                      .DstLabel(dst_type_)
+                      .EdgeLabel(edge_type_)
+                      .Build();
+    auto res = storage.AddEdgeProperties(config);
     if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return neug::result<Context>(std::move(ctx));
+      }
       LOG(ERROR) << "Fail to add edge property to type: " << edge_type_
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
@@ -60,7 +65,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   std::string dst_type_;
   std::string edge_type_;
   std::vector<std::pair<std::string, Value>> properties_;
-  bool error_on_conflict_;
+  bool ignore_conflict_;
 };
 
 neug::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
@@ -78,7 +83,7 @@ neug::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
   return std::make_pair(
       std::make_unique<AddEdgePropertySchemaOpr>(
           src_name, dst_name, edge_name, tuple_res.value(),
-          conflict_action_to_bool(add_edge_property.conflict_action())),
+          !conflict_action_to_bool(add_edge_property.conflict_action())),
       ctx_meta);
 }
 

@@ -35,10 +35,6 @@ bool PreparedStatement::isTransactionStatement() const {
   return preparedSummary.statementType == StatementType::TRANSACTION;
 }
 
-bool PreparedStatement::isSuccess() const { return success; }
-
-std::string PreparedStatement::getErrorMessage() const { return errMsg; }
-
 bool PreparedStatement::isReadOnly() const { return readOnly; }
 
 bool PreparedStatement::isProfile() const { return logicalPlan->isProfile(); }

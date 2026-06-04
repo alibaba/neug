@@ -28,7 +28,7 @@
 
 namespace neug {
 
-Table::Table() : touched_(false) {}
+Table::Table() {}
 Table::~Table() { close(); }
 
 void Table::initColumns(const std::vector<std::string>& col_name,
@@ -60,8 +60,6 @@ void Table::open(const std::string& name, const std::string& work_dir,
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
                       tmp_dir(work_dir));
   }
-  touched_ = false;
-  buildColumnPtrs();
 }
 
 void Table::open_in_memory(const std::string& name, const std::string& work_dir,
@@ -75,8 +73,6 @@ void Table::open_in_memory(const std::string& name, const std::string& work_dir,
     columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
                                 std::to_string(i));
   }
-  touched_ = true;
-  buildColumnPtrs();
 }
 
 void Table::open_with_hugepages(const std::string& name,
@@ -91,8 +87,6 @@ void Table::open_with_hugepages(const std::string& name,
     columns_[i]->open_with_hugepages(snapshot_dir_ + "/" + name + ".col_" +
                                      std::to_string(i));
   }
-  touched_ = true;
-  buildColumnPtrs();
 }
 
 void Table::dump(const std::string& name, const std::string& snapshot_dir) {
@@ -101,7 +95,6 @@ void Table::dump(const std::string& name, const std::string& snapshot_dir) {
     col->dump(snapshot_dir + "/" + name + ".col_" + std::to_string(i++));
   }
   columns_.clear();
-  column_ptrs_.clear();
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {
@@ -146,7 +139,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     } else if (memory_level == MemoryLevel::kInMemory) {
       columns_[i]->open_in_memory(tmp_dir(work_dir_) + "/" + name_ + ".col_" +
                                   std::to_string(i));
-    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
       columns_[i]->open_with_hugepages(tmp_dir(work_dir_) + "/" + name_ +
                                        ".col_" + std::to_string(i));
     } else {
@@ -156,7 +149,6 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     }
     columns_[i]->resize(capacity, default_property_values[i - old_size]);
   }
-  buildColumnPtrs();
 }
 
 void Table::rename_column(const std::string& old_name,
@@ -181,15 +173,11 @@ void Table::delete_column(const std::string& col_name) {
     columns_[col_id].reset();
     columns_.erase(columns_.begin() + col_id);
     col_names_.erase(col_names_.begin() + col_id);
-    for (size_t i = col_id; i < column_ptrs_.size() - 1; i++) {
-      column_ptrs_[i] = column_ptrs_[i + 1];
-    }
     for (auto& pair : col_id_map_) {
       if (pair.second > col_id) {
         pair.second -= 1;
       }
     }
-    column_ptrs_.resize(column_ptrs_.size() - 1);
   } else {
     LOG(ERROR) << "Column " << col_name << " does not exist.";
   }
@@ -272,8 +260,6 @@ const std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) const {
 
 size_t Table::col_num() const { return columns_.size(); }
 std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
-// get column pointers
-std::vector<ColumnBase*>& Table::column_ptrs() { return column_ptrs_; }
 
 void Table::insert(size_t index, const std::vector<Property>& values,
                    bool insert_safe) {
@@ -304,44 +290,27 @@ void Table::resize(size_t row_num,
 }
 
 void Table::ingest(uint32_t index, OutArchive& arc) {
-  if (column_ptrs_.size() == 0) {
+  if (columns_.size() == 0) {
     return;
   }
 
-  CHECK_GT(column_ptrs_[0]->size(), index);
+  CHECK_GT(columns_[0]->size(), index);
   uint32_t num_updates;
   arc >> num_updates;
   for (uint32_t i = 0; i < num_updates; ++i) {
     uint32_t col_id;
     arc >> col_id;
-    if (col_id >= column_ptrs_.size()) {
+    if (col_id >= columns_.size()) {
       THROW_INTERNAL_EXCEPTION(
           "Column id out of range: " + std::to_string(col_id) +
-          " >= " + std::to_string(column_ptrs_.size()) + "Table::ingest");
+          " >= " + std::to_string(columns_.size()) + "Table::ingest");
       continue;
     }
-    column_ptrs_[col_id]->ingest(index, arc);
+    columns_[col_id]->ingest(index, arc);
   }
 }
 
-void Table::buildColumnPtrs() {
-  size_t col_num = columns_.size();
-  column_ptrs_.clear();
-  column_ptrs_.resize(col_num);
-  for (size_t col_i = 0; col_i < col_num; ++col_i) {
-    column_ptrs_[col_i] = columns_[col_i].get();
-  }
-}
-
-void Table::close() {
-  columns_.clear();
-  column_ptrs_.clear();
-}
-
-void Table::drop() {
-  close();
-  // TODO(zhanglei): delete files in work_dir
-}
+void Table::close() { columns_.clear(); }
 
 void Table::set_name(const std::string& name) { name_ = name; }
 

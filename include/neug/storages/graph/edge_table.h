@@ -20,11 +20,12 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
@@ -49,7 +50,13 @@ class EdgeTable {
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
+  // Restore an existing edge table from its checkpoint snapshot.
   void Open(const std::string& work_dir, MemoryLevel memory_level);
+
+  // Bring up a freshly-created edge table with no checkpoint to read.
+  void Initialize(const std::string& work_dir, MemoryLevel memory_level);
+
+  void Close();
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -73,8 +80,8 @@ class EdgeTable {
 
   size_t PropertyNum() const;
 
-  GenericView get_outgoing_view(timestamp_t ts) const;
-  GenericView get_incoming_view(timestamp_t ts) const;
+  CsrView get_outgoing_view(timestamp_t ts) const;
+  CsrView get_incoming_view(timestamp_t ts) const;
 
   EdgeDataAccessor get_edge_data_accessor(int col_id) const;
 
@@ -91,9 +98,9 @@ class EdgeTable {
 
   // Add a single edge to the edge table. Note this method requires an Allocator
   // to allocate memory for the edge data. Should be called in tp mode.
-  int32_t AddEdge(vid_t src_lid, vid_t dst_lid,
-                  const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc, bool insert_safe = false);
+  std::pair<int32_t, const void*> AddEdge(
+      vid_t src_lid, vid_t dst_lid, const std::vector<Property>& properties,
+      timestamp_t ts, Allocator& alloc, bool insert_safe);
 
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
@@ -122,13 +129,18 @@ class EdgeTable {
                           int32_t ie_offset, int32_t col_id,
                           const Property& new_prop, timestamp_t ts);
 
-  void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
+  void Compact(bool compact_csr,
+               const std::optional<std::string>& sort_key_for_nbr,
+               timestamp_t ts);
 
-  size_t Size() const;
+  size_t PropTableSize() const;
 
   size_t Capacity() const;
 
  private:
+  void openImpl(const std::string& work_dir, MemoryLevel memory_level,
+                const std::string& checkpoint_dir_path);
+
   void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();

@@ -217,7 +217,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
   auto querySource = scanSource.constPtrCast<QueryScanSource>();
   auto boundStatement = bind(*querySource->statement);
   auto columns = boundStatement->getStatementResult()->getColumns();
-  if (columns.size() != columnNames.size()) {
+  if (!columnNames.empty() && columns.size() != columnNames.size()) {
     THROW_SCHEMA_MISMATCH(
         stringFormat("Query returns {} columns but {} columns were expected.",
                      columns.size(), columnNames.size()));

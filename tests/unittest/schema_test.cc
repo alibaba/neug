@@ -14,10 +14,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include <string>
 #include <tuple>
 #include <vector>
+
+#include "neug/execution/common/types/value.h"
 
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -58,7 +63,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
                         /*max_vnum*/ 1024, /*desc*/ "person vertex");
 
   // Check basics
-  EXPECT_TRUE(schema.contains_vertex_label("Person"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("Person"));
   auto vid = schema.get_vertex_label_id("Person");
   EXPECT_EQ(schema.get_vertex_label_name(vid), "Person");
   EXPECT_EQ(schema.get_vertex_description("Person"), "person vertex");
@@ -74,7 +79,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
   std::vector<DataType> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
-  std::vector<neug::Property> add_defaults;  // not used currently
+  std::vector<neug::execution::Value> add_defaults;  // not used currently
   schema.AddVertexProperties("Person", add_names, add_types, add_defaults);
 
   ASSERT_EQ(schema.get_vertex_properties("Person").size(), 3);
@@ -122,11 +127,11 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names,
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
-                      /*oe_mutable*/ true, /*ie_mutable*/ false,
-                      /*sort_on_compaction*/ true, /*desc*/ "employment");
+                      /*oe_mutable*/ true, /*ie_mutable*/ false, e_names[0],
+                      /*desc*/ "employment");
 
   // Check basics
-  EXPECT_TRUE(schema.exist("Person", "Company", "WorksAt"));
+  EXPECT_TRUE(schema.is_edge_triplet_valid("Person", "Company", "WorksAt"));
   auto props = schema.get_edge_properties("Person", "Company", "WorksAt");
   ASSERT_EQ(props.size(), 1);
   EXPECT_EQ(props[0], DataTypeId::kInt32);
@@ -146,13 +151,14 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
             EdgeStrategy::kSingle);
   EXPECT_TRUE(schema.outgoing_edge_mutable("Person", "Company", "WorksAt"));
   EXPECT_FALSE(schema.incoming_edge_mutable("Person", "Company", "WorksAt"));
-  EXPECT_TRUE(schema.get_sort_on_compaction("Person", "Company", "WorksAt"));
+  EXPECT_TRUE(
+      schema.get_sort_key_for_nbr("Person", "Company", "WorksAt").has_value());
 
   // 2) Add edge properties
   std::vector<std::string> add_e_names = {"role", "salary"};
   std::vector<DataType> add_e_types = {DataTypeId::kVarchar,
                                        DataTypeId::kInt64};
-  std::vector<neug::Property> dummy_defaults;
+  std::vector<neug::execution::Value> dummy_defaults;
   schema.AddEdgeProperties("Person", "Company", "WorksAt", add_e_names,
                            add_e_types, dummy_defaults);
   auto names_after_add =
@@ -193,15 +199,15 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk, 100, "");
-  ASSERT_TRUE(schema.contains_vertex_label("City"));
+  ASSERT_TRUE(schema.is_vertex_label_valid("City"));
 
   schema.DeleteVertexLabel("City", true);
-  EXPECT_FALSE(schema.contains_vertex_label("City"));
+  EXPECT_FALSE(schema.is_vertex_label_valid("City"));
 
   schema.AddVertexLabel("City", {DataTypeId::kVarchar}, {"name"},
                         VPk(DataTypeId::kVarchar, "name", 0),
                         /*max_vnum*/ 100, "");
-  EXPECT_TRUE(schema.contains_vertex_label("City"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("City"));
   EXPECT_EQ(schema.get_vertex_property_names("City")[0], "name");
 }
 
@@ -211,15 +217,15 @@ TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   schema.AddVertexLabel("Project", t, {n.begin(), n.end()}, pk, 100, "");
-  ASSERT_TRUE(schema.contains_vertex_label("Project"));
+  ASSERT_TRUE(schema.is_vertex_label_valid("Project"));
 
   schema.DeleteVertexLabel("Project");
-  EXPECT_FALSE(schema.contains_vertex_label("Project"));
+  EXPECT_FALSE(schema.is_vertex_label_valid("Project"));
 
   schema.AddVertexLabel("Project", {DataTypeId::kVarchar}, {"name"},
                         VPk(DataTypeId::kVarchar, "name", 0),
                         /*max_vnum*/ 100, "");
-  EXPECT_TRUE(schema.contains_vertex_label("Project"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("Project"));
 }
 
 TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
@@ -234,32 +240,32 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
 
-  ASSERT_TRUE(schema.exist("A", "B", "Link"));
+  ASSERT_TRUE(schema.is_edge_triplet_valid("A", "B", "Link"));
   auto src = schema.get_vertex_label_id("A");
   auto dst = schema.get_vertex_label_id("B");
   auto el = schema.get_edge_label_id("Link");
 
   schema.DeleteEdgeLabel(src, dst, el, true);
-  EXPECT_FALSE(schema.exist(src, dst, el));
-  EXPECT_FALSE(schema.exist(src, dst, el));
+  EXPECT_FALSE(schema.is_edge_triplet_valid(src, dst, el));
+  EXPECT_FALSE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
-  EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
+                      true, std::nullopt, "");
+  EXPECT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.DeleteEdgeLabel(src, dst, el);
-  EXPECT_FALSE(schema.exist(src, dst, el));
+  EXPECT_FALSE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
-  EXPECT_TRUE(schema.exist(src, dst, el));
+                      true, std::nullopt, "");
+  EXPECT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.DeleteEdgeLabel("Link");
-  EXPECT_FALSE(schema.contains_edge_label("Link"));
+  EXPECT_FALSE(schema.is_edge_label_valid("Link"));
 }
 
 TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
@@ -299,7 +305,7 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   std::vector<std::string> e_names = {"w", "tag"};
   schema.AddEdgeLabel("A", "B", "Link", e_types, e_names,
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
 
   ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "w"));
   ASSERT_TRUE(schema.edge_has_property("A", "B", "Link", "tag"));
@@ -319,14 +325,14 @@ TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk, 100, "");
-  ASSERT_TRUE(schema.contains_vertex_label("City"));
+  ASSERT_TRUE(schema.is_vertex_label_valid("City"));
 
   schema.DeleteVertexLabel("City", true);
-  EXPECT_FALSE(schema.contains_vertex_label("City"));
+  EXPECT_FALSE(schema.is_vertex_label_valid("City"));
 
   // When implemented, this should restore visibility
   schema.RevertDeleteVertexLabel("City");
-  EXPECT_TRUE(schema.contains_vertex_label("City"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("City"));
 }
 
 TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
@@ -339,15 +345,15 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
-  ASSERT_TRUE(schema.contains_edge_label("Link"));
+                      true, std::nullopt, "");
+  ASSERT_TRUE(schema.is_edge_label_valid("Link"));
   auto e_label = schema.get_edge_label_id("Link");
 
   schema.DeleteEdgeLabel("Link", true);
-  EXPECT_FALSE(schema.contains_edge_label("Link"));
+  EXPECT_FALSE(schema.is_edge_label_valid("Link"));
 
   schema.RevertDeleteEdgeLabel(e_label);
-  EXPECT_TRUE(schema.contains_edge_label("Link"));
+  EXPECT_TRUE(schema.is_edge_label_valid("Link"));
 }
 
 TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
@@ -360,17 +366,17 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
 
   schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, false, "");
+                      true, std::nullopt, "");
   auto src = schema.get_vertex_label_id("A");
   auto dst = schema.get_vertex_label_id("B");
   auto el = schema.get_edge_label_id("Link");
-  ASSERT_TRUE(schema.edge_triplet_valid(src, dst, el));
+  ASSERT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.DeleteEdgeLabel(src, dst, el, true);
-  EXPECT_FALSE(schema.edge_triplet_valid(src, dst, el));
+  EXPECT_FALSE(schema.is_edge_triplet_valid(src, dst, el));
 
   schema.RevertDeleteEdgeLabel("A", "B", "Link");
-  EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
+  EXPECT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
 }
 
 TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
@@ -401,12 +407,14 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
 
   schema.AddEdgeLabel("person", "person", "knows", edge_property_types_,
                       edge_property_names_, EdgeStrategy::kMultiple,
-                      EdgeStrategy::kMultiple, true, true, false, "knows edge");
+                      EdgeStrategy::kMultiple, true, true, std::nullopt,
+                      "knows edge");
 
   // Add edge label "worksAt"
   schema.AddEdgeLabel("person", "company", "knows", edge_property_types_,
                       edge_property_names_, EdgeStrategy::kMultiple,
-                      EdgeStrategy::kMultiple, true, true, false, "knows edge");
+                      EdgeStrategy::kMultiple, true, true, std::nullopt,
+                      "knows edge");
 
   auto yaml = neug::Schema::DumpToYaml(schema);
   EXPECT_TRUE(yaml);
@@ -447,14 +455,14 @@ class SchemaDeleteTest : public ::testing::Test {
 
     schema_->AddEdgeLabel("person", "person", "knows", edge_property_types_,
                           edge_property_names_, neug::EdgeStrategy::kMultiple,
-                          neug::EdgeStrategy::kMultiple, true, true, false,
-                          "knows edge");
+                          neug::EdgeStrategy::kMultiple, true, true,
+                          std::nullopt, "knows edge");
 
     // Add edge label "worksAt"
     schema_->AddEdgeLabel("person", "company", "worksAt", edge_property_types_,
                           edge_property_names_, neug::EdgeStrategy::kMultiple,
-                          neug::EdgeStrategy::kMultiple, true, true, false,
-                          "worksAt edge");
+                          neug::EdgeStrategy::kMultiple, true, true,
+                          std::nullopt, "worksAt edge");
   }
 
   void TearDown() override { schema_.reset(); }
@@ -557,96 +565,99 @@ TEST_F(SchemaDeleteTest, EdgeSchemaPropertySoftDelete) {
   EXPECT_EQ(e_prop_names.size(), 1);
 }
 
-// Test Schema::IsVertexLabelSoftDeleted
+// Test Schema::is_vertex_label_soft_deleted
 TEST_F(SchemaDeleteTest, VertexLabelLogicalDelete) {
   // Initially, vertex label should not be deleted
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("person"));
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("company"));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("person"));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("company"));
 
   auto person_label = schema_->get_vertex_label_id("person");
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted(person_label));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted(person_label));
 
   // Logically delete "person" vertex label
   schema_->DeleteVertexLabel("person", true);
 
   // Check that "person" is now logically deleted
-  EXPECT_TRUE(schema_->IsVertexLabelSoftDeleted("person"));
-  EXPECT_TRUE(schema_->IsVertexLabelSoftDeleted(person_label));
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("company"));
+  EXPECT_TRUE(schema_->is_vertex_label_soft_deleted("person"));
+  EXPECT_TRUE(schema_->is_vertex_label_soft_deleted(person_label));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("company"));
 
   // Revert the deletion
   schema_->RevertDeleteVertexLabel("person");
 
   // Check that "person" is no longer logically deleted
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("person"));
-  EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted(person_label));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("person"));
+  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted(person_label));
 }
 
-// Test Schema::IsEdgeLabelSoftDeleted
+// Test Schema::is_edge_label_soft_deleted
 TEST_F(SchemaDeleteTest, EdgeLabelLogicalDelete) {
   auto person_label = schema_->get_vertex_label_id("person");
   auto knows_label = schema_->get_edge_label_id("knows");
 
   // Initially, edge labels should not be deleted
-  EXPECT_FALSE(schema_->IsEdgeLabelSoftDeleted("person", "person", "knows"));
   EXPECT_FALSE(
-      schema_->IsEdgeLabelSoftDeleted(person_label, person_label, knows_label));
+      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
+  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                   knows_label));
 
   // Logically delete "knows" edge label
   schema_->DeleteEdgeLabel("person", "person", "knows", true);
 
   // Check that "knows" is now logically deleted
-  EXPECT_TRUE(schema_->IsEdgeLabelSoftDeleted("person", "person", "knows"));
-  EXPECT_TRUE(
-      schema_->IsEdgeLabelSoftDeleted(person_label, person_label, knows_label));
-  EXPECT_FALSE(schema_->IsEdgeLabelSoftDeleted("person", "company", "worksAt"));
+  EXPECT_TRUE(schema_->is_edge_label_soft_deleted("person", "person", "knows"));
+  EXPECT_TRUE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                  knows_label));
+  EXPECT_FALSE(
+      schema_->is_edge_label_soft_deleted("person", "company", "worksAt"));
 
   // Revert the deletion
   schema_->RevertDeleteEdgeLabel("person", "person", "knows");
 
   // Check that "knows" is no longer logically deleted
-  EXPECT_FALSE(schema_->IsEdgeLabelSoftDeleted("person", "person", "knows"));
   EXPECT_FALSE(
-      schema_->IsEdgeLabelSoftDeleted(person_label, person_label, knows_label));
+      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
+  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
+                                                   knows_label));
 }
 
-// Test Schema::IsVertexPropertySoftDeleted
+// Test Schema::is_vertex_property_soft_deleted
 TEST_F(SchemaDeleteTest, VertexPropertyLogicalDelete) {
   auto person_label = schema_->get_vertex_label_id("person");
 
   // Initially, no properties should be logically deleted
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "name"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "age"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted(person_label, "score"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted(person_label, "score"));
 
   // Logically delete "age" property
   std::vector<std::string> props_to_delete = {"age"};
   schema_->DeleteVertexProperties("person", props_to_delete, true);
 
   // Check that "age" is now logically deleted
-  EXPECT_TRUE(schema_->IsVertexPropertySoftDeleted("person", "age"));
-  EXPECT_TRUE(schema_->IsVertexPropertySoftDeleted(person_label, "age"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "name"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "score"));
+  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "age"));
+  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted(person_label, "age"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "score"));
 
   // Revert the deletion
   schema_->RevertDeleteVertexProperties("person", props_to_delete);
 
   // Check that "age" is no longer logically deleted
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "age"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted(person_label, "age"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted(person_label, "age"));
 }
 
-// Test Schema::IsEdgePropertySoftDeleted
+// Test Schema::is_edge_property_soft_deleted
 TEST_F(SchemaDeleteTest, EdgePropertyLogicalDelete) {
   auto person_label = schema_->get_vertex_label_id("person");
   auto knows_label = schema_->get_edge_label_id("knows");
 
   // Initially, no properties should be logically deleted
-  EXPECT_FALSE(
-      schema_->IsEdgePropertySoftDeleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->IsEdgePropertySoftDeleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 
   // Soft delete "since" property
   std::vector<std::string> props_to_delete = {"since"};
@@ -654,20 +665,20 @@ TEST_F(SchemaDeleteTest, EdgePropertyLogicalDelete) {
                                 true);
 
   // Check that "since" is now logically deleted
-  EXPECT_TRUE(
-      schema_->IsEdgePropertySoftDeleted("person", "person", "knows", "since"));
-  EXPECT_TRUE(schema_->IsEdgePropertySoftDeleted(person_label, person_label,
-                                                 knows_label, "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                     "knows", "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
+                                                     knows_label, "since"));
 
   // Revert the deletion
   schema_->RevertDeleteEdgeProperties("person", "person", "knows",
                                       props_to_delete);
 
   // Check that "since" is no longer soft deleted
-  EXPECT_FALSE(
-      schema_->IsEdgePropertySoftDeleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->IsEdgePropertySoftDeleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 }
 
 // Test multiple vertex properties deletion and revert
@@ -677,25 +688,25 @@ TEST_F(SchemaDeleteTest, MultipleVertexPropertiesDeletionAndRevert) {
   schema_->DeleteVertexProperties("person", props_to_delete, true);
 
   // Verify all are deleted
-  EXPECT_TRUE(schema_->IsVertexPropertySoftDeleted("person", "name"));
-  EXPECT_TRUE(schema_->IsVertexPropertySoftDeleted("person", "score"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "age"));
+  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "name"));
+  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "score"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
 
   // Revert one property
   std::vector<std::string> props_to_revert = {"name"};
   schema_->RevertDeleteVertexProperties("person", props_to_revert);
 
   // Verify only "name" is reverted
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "name"));
-  EXPECT_TRUE(schema_->IsVertexPropertySoftDeleted("person", "score"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
+  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "score"));
 
   // Revert the other property
   std::vector<std::string> props_to_revert2 = {"score"};
   schema_->RevertDeleteVertexProperties("person", props_to_revert2);
 
   // Verify both are reverted
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "name"));
-  EXPECT_FALSE(schema_->IsVertexPropertySoftDeleted("person", "score"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
+  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "score"));
 }
 
 // Test edge property operations with label_t overloads
@@ -709,20 +720,20 @@ TEST_F(SchemaDeleteTest, EdgePropertyOperationsWithLabelId) {
                                 true);
 
   // Verify using both string and label_t overloads
-  EXPECT_TRUE(
-      schema_->IsEdgePropertySoftDeleted("person", "person", "knows", "since"));
-  EXPECT_TRUE(schema_->IsEdgePropertySoftDeleted(person_label, person_label,
-                                                 knows_label, "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                     "knows", "since"));
+  EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
+                                                     knows_label, "since"));
 
   // Revert using label_t overload
   schema_->RevertDeleteEdgeProperties(person_label, person_label, knows_label,
                                       props_to_delete);
 
   // Verify property is reverted
-  EXPECT_FALSE(
-      schema_->IsEdgePropertySoftDeleted("person", "person", "knows", "since"));
-  EXPECT_FALSE(schema_->IsEdgePropertySoftDeleted(person_label, person_label,
-                                                  knows_label, "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
+                                                      "knows", "since"));
+  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
+      person_label, person_label, knows_label, "since"));
 }
 
 // Test has_property behavior with soft-deleted properties
@@ -850,9 +861,112 @@ TEST(SchemaTest, TestSchemaEqual) {
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
                       /*oe_mutable*/ true, /*ie_mutable*/ false,
-                      /*sort_on_compaction*/ true, /*desc*/ "employment");
+                      /*sort_key_for_nbr*/ e_names[0], /*desc*/ "employment");
 
   // 2) Copy schema and test equal
   neug::Schema other_schema = schema;
   EXPECT_TRUE(schema.Equals(other_schema));
+}
+
+namespace {
+
+constexpr size_t kMaxVNum = static_cast<size_t>(1) << 32;
+
+neug::Schema BuildComplexSchema() {
+  neug::Schema schema;
+  schema.SetGraphName("complex_graph");
+  schema.SetGraphId("g-42");
+  schema.SetDescription("complex schema");
+
+  schema.AddVertexLabel(
+      "Person",
+      {DataType::Varchar(256), DataTypeId::kInt32, DataTypeId::kInt64,
+       DataTypeId::kDouble, DataTypeId::kBoolean, DataTypeId::kUInt32},
+      {"name", "age", "salary", "height", "active", "badge"},
+      VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "person");
+
+  schema.AddVertexLabel("Company",
+                        {DataTypeId::kVarchar, DataTypeId::kDouble,
+                         DataTypeId::kUInt64, DataTypeId::kBoolean},
+                        {"company_name", "revenue", "employees", "listed"},
+                        VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "company");
+
+  schema.AddVertexLabel(
+      "Movie", {DataTypeId::kInt32, DataTypeId::kFloat}, {"year", "rating"},
+      VPk(DataType::Varchar(128), "title", 0), kMaxVNum, "movie");
+
+  schema.AddEdgeLabel("Person", "Person", "KNOWS",
+                      {DataTypeId::kInt64, DataTypeId::kFloat},
+                      {"since", "weight"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kSingle, true, true, std::nullopt, "knows");
+
+  schema.AddEdgeLabel("Person", "Company", "WORKS_AT", {}, {},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, std::nullopt, "employment");
+
+  schema.AddEdgeLabel("Person", "Movie", "ACTED_IN", {DataTypeId::kInt32},
+                      {"role_count"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kMultiple, true, true, std::nullopt, "");
+  schema.AddEdgeLabel("Movie", "Movie", "ACTED_IN", {DataTypeId::kInt32},
+                      {"role_count"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kMultiple, true, true, std::nullopt, "");
+
+  return schema;
+}
+
+std::string DocToString(const rapidjson::Document& doc) {
+  rapidjson::StringBuffer buf;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
+  doc.Accept(writer);
+  return std::string(buf.GetString(), buf.GetSize());
+}
+
+}  // namespace
+
+TEST(SchemaJsonRoundTrip, ComplexSchemaRoundTripIsStable) {
+  auto original = BuildComplexSchema();
+
+  auto json_result = original.ToJson();
+  ASSERT_TRUE(json_result);
+  const std::string json_str = DocToString(json_result.value());
+
+  rapidjson::Document parsed;
+  parsed.Parse(json_str.c_str(), json_str.size());
+  ASSERT_FALSE(parsed.HasParseError());
+
+  neug::Schema reconstituted;
+  reconstituted.FromJson(parsed);
+
+  EXPECT_TRUE(original.Equals(reconstituted));
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Person", "Movie", "ACTED_IN"));
+  EXPECT_TRUE(
+      reconstituted.is_edge_triplet_valid("Movie", "Movie", "ACTED_IN"));
+  EXPECT_EQ(
+      reconstituted.get_edge_properties("Person", "Company", "WORKS_AT").size(),
+      0u);
+
+  auto json_result2 = reconstituted.ToJson();
+  ASSERT_TRUE(json_result2);
+  EXPECT_EQ(DocToString(json_result2.value()), json_str);
+}
+
+TEST(SchemaCloneTest, CloneIsDeepCopyAndIndependent) {
+  auto original = BuildComplexSchema();
+  auto cloned = original.Clone();
+
+  EXPECT_TRUE(original.Equals(cloned));
+  EXPECT_EQ(cloned.GetGraphName(), original.GetGraphName());
+  EXPECT_EQ(cloned.GetGraphId(), original.GetGraphId());
+  EXPECT_EQ(cloned.GetDescription(), original.GetDescription());
+
+  cloned.AddVertexLabel("City", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), kMaxVNum, "");
+  EXPECT_TRUE(cloned.is_vertex_label_valid("City"));
+  EXPECT_FALSE(original.is_vertex_label_valid("City"));
+
+  auto snapshot = original.Clone();
+  original.DeleteEdgeLabel("KNOWS");
+  EXPECT_FALSE(original.is_edge_label_valid("KNOWS"));
+  EXPECT_TRUE(snapshot.is_edge_label_valid("KNOWS"));
 }

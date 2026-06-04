@@ -37,7 +37,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
 
   explicit PyDatabase(const std::string& data_dir, int32_t max_thread_num,
                       const std::string& mode, const std::string& planner,
-                      bool checkpoint_on_close = true) {
+                      bool checkpoint_on_close = true,
+                      const std::string& buffer_strategy = "InMemory") {
     db_dir_ = data_dir;
     neug::DBMode mode_;
     if (mode == "read" || mode == "r" || mode == "read-only" ||
@@ -55,6 +56,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
     config.mode = mode_;
     config.planner_kind = planner;
     config.checkpoint_on_close = checkpoint_on_close;
+    config.memory_level = parse_buffer_strategy(buffer_strategy);
     database->Open(config);
   }
 
@@ -84,6 +86,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   void close();
 
  private:
+  MemoryLevel parse_buffer_strategy(const std::string& level);
   std::recursive_mutex mtx_;
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;

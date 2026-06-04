@@ -16,6 +16,7 @@
 #include "neug/storages/loader/abstract_property_graph_loader.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -39,9 +40,9 @@ void AbstractPropertyGraphLoader::addVertices(
     label_t v_label_id, const std::vector<std::string>& v_files) {
   auto pks = schema_.get_vertex_primary_key(v_label_id);
   if (pks.size() != 1) {
-    LOG(FATAL) << "Only support one primary key for vertex label: "
-               << schema_.get_vertex_label_name(v_label_id);
-    return;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Only support one primary key for vertex label: " +
+        schema_.get_vertex_label_name(v_label_id));
   }
   auto primary_key = pks[0];
   auto pk_type = std::get<0>(primary_key);
@@ -51,10 +52,9 @@ void AbstractPropertyGraphLoader::addVertices(
   if (pk_type_id != DataTypeId::kInt64 && pk_type_id != DataTypeId::kVarchar &&
       pk_type_id != DataTypeId::kInt32 && pk_type_id != DataTypeId::kUInt32 &&
       pk_type_id != DataTypeId::kUInt64) {
-    LOG(FATAL)
-        << "Only support int64_t, uint64_t, int32_t, uint32_t and string "
-           "primary key for vertex.";
-    return;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Only support int64_t, uint64_t, int32_t, uint32_t and string "
+        "primary key for vertex.");
   }
 
   return addVerticesToVertexTable(v_label_id,

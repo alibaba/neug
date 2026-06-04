@@ -217,7 +217,7 @@ class ReaderTest : public ::testing::Test {
       const std::string& csvFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
       const common::case_insensitive_map_t<std::string>& options = {},
-      const std::vector<std::string>& skipColumns = {},
+      const std::vector<std::string>& projectColumns = {},
       std::shared_ptr<::common::Expression> skipRows = nullptr) {
     auto sharedState = std::make_shared<reader::ReadSharedState>();
 
@@ -237,7 +237,7 @@ class ReaderTest : public ::testing::Test {
     externalSchema.file = fileSchema;
 
     sharedState->schema = std::move(externalSchema);
-    sharedState->skipColumns = skipColumns;
+    sharedState->projectColumns = projectColumns;
     sharedState->skipRows = skipRows;
 
     return sharedState;

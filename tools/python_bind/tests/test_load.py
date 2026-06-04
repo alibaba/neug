@@ -22,8 +22,6 @@ import sys
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug import Database
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
@@ -788,15 +786,11 @@ class TestLoadFrom:
             assert isinstance(record[1], float), "age_double should be float"
             assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
 
-    @extension_test
     def test_load_from_json_basic_return_all(self):
         """Test basic LOAD FROM JSON with RETURN *."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        # json should be loaded as extension first
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -813,14 +807,11 @@ class TestLoadFrom:
         first_record = records[0]
         assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
 
-    @extension_test
     def test_load_from_json_return_specific_columns(self):
         """Test LOAD FROM JSON Array with column projection."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -836,7 +827,6 @@ class TestLoadFrom:
         assert isinstance(first_record[0], str), "fName should be string"
         assert isinstance(first_record[1], int), "age should be integer"
 
-    @extension_test
     def test_load_from_json_with_column_alias(self):
         """Test LOAD FROM JSON Array with column aliases in RETURN.
 
@@ -847,8 +837,6 @@ class TestLoadFrom:
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -867,14 +855,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_with_column_alias(self):
         """Test LOAD FROM JSONL with column aliases in RETURN."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -892,14 +877,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_return_specific_columns(self):
         """Test LOAD FROM JSONL with column projection."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -917,14 +899,11 @@ class TestLoadFrom:
         assert isinstance(first_record[1], int), "age should be integer"
         print(first_record)
 
-    @extension_test
     def test_load_from_jsonl_with_multiple_where_conditions(self):
         """Test LOAD FROM JSONL with multiple WHERE conditions."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
@@ -945,14 +924,11 @@ class TestLoadFrom:
             assert isinstance(fname, str), "fName should be string"
             assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
 
-    @extension_test
     def test_load_from_jsonl_with_complex_where_conditions(self):
         """Test LOAD FROM JSONL with complex WHERE conditions (age, eyeSight, height)."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
@@ -1282,6 +1258,172 @@ class TestLoadFrom:
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
 
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_on_httpfs_oss(self):
+        """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
+        # Load required extensions
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+
+        # OSS file path - use inline options to specify anonymous access
+        vertex_oss_path = "oss://graphscope/neug/vPerson.parquet"
+
+        # Execute LOAD FROM query with inline httpfs options
+        # This is the CORRECT way: pass options inline, not via environment variables
+        vertex_query = f"""
+        LOAD FROM "{vertex_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_oss_path = "oss://graphscope/neug/eMeets.parquet"
+
+        edge_query = f"""
+        LOAD FROM "{edge_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_http(self):
+        """Test LOAD FROM Parquet file via HTTP."""
+        vertex_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_https(self):
+        """Test LOAD FROM Parquet file via HTTPS."""
+        vertex_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # eMeets.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_from_parquet_on_public_httpfs_aws(self):
+        """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
+
+        Dataset: s3://ookla-open-data (Speedtest by Ookla, fixed tiles, Q1 2019)
+        Schema (2019 Q1): avg_d_kbps, avg_u_kbps, avg_lat_ms, tests, devices, quadkey, tile
+        Access: anonymous (--no-sign-request equivalent)
+        """
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+
+        s3_path = (
+            "s3://ookla-open-data/parquet/performance/type=fixed/year=2019/quarter=1/"
+            "2019-01-01_performance_fixed_tiles.parquet"
+        )
+
+        query = f"""
+        LOAD FROM "{s3_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            AWS_DEFAULT_REGION='us-west-2'
+        )
+        RETURN avg_d_kbps, avg_u_kbps, tests
+        LIMIT 5
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) == 5, f"Expected 5 records (LIMIT 5), got {len(records)}"
+        for record in records:
+            avg_d, avg_u, tests = record
+            assert (
+                isinstance(avg_d, int) and avg_d > 0
+            ), f"avg_d_kbps should be positive int, got {avg_d}"
+            assert (
+                isinstance(avg_u, int) and avg_u > 0
+            ), f"avg_u_kbps should be positive int, got {avg_u}"
+            assert (
+                isinstance(tests, int) and tests > 0
+            ), f"tests should be positive int, got {tests}"
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
@@ -1388,7 +1530,6 @@ class TestCopyFrom:
         assert records[0][2] == "Alice", "First person name should be Alice"
         assert records[0][3] == 1, "Alice's gender should be 1"
 
-    @extension_test
     def test_copy_from_node_jsonl_with_column_remapping(self):
         """Test COPY FROM for node table with column remapping using JSONL file."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
@@ -1410,8 +1551,6 @@ class TestCopyFrom:
         )
         """
         self.conn.execute(create_schema)
-
-        self.conn.execute("LOAD JSON")
 
         # Copy data with column remapping using LOAD FROM subquery
         # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...
