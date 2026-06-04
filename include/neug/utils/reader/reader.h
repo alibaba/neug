@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
+#include "neug/utils/reader/arrow_type_cast.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/schema.h"
 
@@ -191,14 +192,16 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
                        std::shared_ptr<arrow::fs::FileSystem> fileSystem)
       : Reader(std::move(sharedState), std::move(fileSystem)),
         optionsBuilder(std::move(optionsBuilder)),
-        datasetBuilder(std::make_shared<DatasetBuilder>()) {}
+        datasetBuilder(std::make_shared<DatasetBuilder>()),
+        typeCaster_(ArrowTypeCaster::createDefault()) {}
   explicit ArrowReader(std::shared_ptr<ReadSharedState> sharedState,
                        std::unique_ptr<ArrowOptionsBuilder> optionsBuilder,
                        std::shared_ptr<arrow::fs::FileSystem> fileSystem,
                        std::shared_ptr<DatasetBuilder> datasetBuilder)
       : Reader(std::move(sharedState), std::move(fileSystem)),
         optionsBuilder(std::move(optionsBuilder)),
-        datasetBuilder(datasetBuilder) {}
+        datasetBuilder(datasetBuilder),
+        typeCaster_(ArrowTypeCaster::createDefault()) {}
   virtual ~ArrowReader() override = default;
 
   void read(std::shared_ptr<ReadLocalState> localState,
@@ -241,8 +244,11 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
                   execution::Context& output);
 
  protected:
+  std::shared_ptr<arrow::Schema> computeExpectedSchema() const;
+
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
   std::shared_ptr<DatasetBuilder> datasetBuilder;
+  std::shared_ptr<ArrowTypeCaster> typeCaster_;
 };
 
 }  // namespace reader

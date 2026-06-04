@@ -309,6 +309,8 @@ class ArrowCsvOptionsBuilder : public ArrowOptionsBuilder {
 
   virtual ArrowOptions build() const override;
 
+  bool projectColumns(ArrowOptions& options) override;
+
  protected:
   /**
    * @brief Builds CSV-specific fragment scan options

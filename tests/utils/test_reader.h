@@ -164,6 +164,48 @@ class ReaderTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createFloatType() {
+    auto type = std::make_shared<::common::DataType>();
+    type->set_primitive_type(::common::PrimitiveType::DT_FLOAT);
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createDate32Type() {
+    auto type = std::make_shared<::common::DataType>();
+    type->mutable_temporal()->mutable_date32();
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createDateType() {
+    auto type = std::make_shared<::common::DataType>();
+    type->mutable_temporal()->mutable_date();
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createTimestampType() {
+    auto type = std::make_shared<::common::DataType>();
+    type->mutable_temporal()->mutable_timestamp();
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createIntervalType() {
+    auto type = std::make_shared<::common::DataType>();
+    type->mutable_temporal()->mutable_interval();
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createArrayType(
+      std::shared_ptr<::common::DataType> componentType,
+      int64_t maxLength = -1) {
+    auto type = std::make_shared<::common::DataType>();
+    auto* array = type->mutable_array();
+    *array->mutable_component_type() = *componentType;
+    if (maxLength > 0) {
+      array->set_max_length(maxLength);
+    }
+    return type;
+  }
+
   // Helper function to create a simple expression: column > value
   // Expression in natural order: [var, GT, const]
   std::shared_ptr<::common::Expression> createFilterExpression(

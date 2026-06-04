@@ -42,10 +42,43 @@
 #include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/reader/arrow_type_cast.h"
 #include "neug/utils/reader/options.h"
 
 namespace neug {
 namespace reader {
+
+namespace {
+
+class TypeCastingRecordBatchSupplier : public IRecordBatchSupplier {
+ public:
+  TypeCastingRecordBatchSupplier(std::shared_ptr<IRecordBatchSupplier> inner,
+                                 std::shared_ptr<ArrowTypeCaster> caster,
+                                 std::shared_ptr<arrow::Schema> expectedSchema)
+      : inner_(std::move(inner)),
+        caster_(std::move(caster)),
+        expectedSchema_(std::move(expectedSchema)) {}
+
+  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
+    auto batch = inner_->GetNextBatch();
+    if (!batch) {
+      return nullptr;
+    }
+    // Return a lazy batch that defers type conversion until column(i) is
+    // accessed, preserving the lazy evaluation design of batch_read.
+    return std::make_shared<LazyTypeCastRecordBatch>(std::move(batch), caster_,
+                                                     expectedSchema_);
+  }
+
+  int64_t RowNum() const override { return inner_->RowNum(); }
+
+ private:
+  std::shared_ptr<IRecordBatchSupplier> inner_;
+  std::shared_ptr<ArrowTypeCaster> caster_;
+  std::shared_ptr<arrow::Schema> expectedSchema_;
+};
+
+}  // namespace
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
                        execution::Context& ctx) {
@@ -140,6 +173,26 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
   return scanner_result.ValueOrDie();
 }
 
+std::shared_ptr<arrow::Schema> ArrowReader::computeExpectedSchema() const {
+  if (!sharedState || !sharedState->schema.entry) {
+    return nullptr;
+  }
+  const auto& entrySchema = *sharedState->schema.entry;
+  auto fullSchema = createSchema(entrySchema);
+  if (sharedState->projectColumns.empty()) {
+    return fullSchema;
+  }
+  // Build projected schema from projected column names
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  for (const auto& col : sharedState->projectColumns) {
+    auto field = fullSchema->GetFieldByName(col);
+    if (field) {
+      fields.push_back(field);
+    }
+  }
+  return std::make_shared<arrow::Schema>(fields);
+}
+
 void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
                             execution::Context& output) {
   if (!sharedState) {
@@ -157,6 +210,14 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
                        table_result.status().message());
   }
   auto table = table_result.ValueOrDie();
+
+  // Post-processing type cast (e.g. string -> list for CSV array columns)
+  if (typeCaster_) {
+    auto expectedSchema = computeExpectedSchema();
+    if (expectedSchema) {
+      table = typeCaster_->castTable(table, expectedSchema);
+    }
+  }
 
   int num_cols = sharedState->columnNum();
   if (num_cols != table->num_columns()) {
@@ -206,8 +267,18 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
   auto batch_reader = batch_reader_result.ValueOrDie();
 
-  auto batch_supplier = std::make_shared<neug::ArrowRecordBatchStreamSupplier>(
-      batch_reader, row_num);
+  std::shared_ptr<IRecordBatchSupplier> batch_supplier =
+      std::make_shared<neug::ArrowRecordBatchStreamSupplier>(batch_reader,
+                                                             row_num);
+
+  // Wrap with type casting if needed (e.g. string -> list for CSV arrays)
+  if (typeCaster_) {
+    auto expectedSchema = computeExpectedSchema();
+    if (expectedSchema) {
+      batch_supplier = std::make_shared<TypeCastingRecordBatchSupplier>(
+          std::move(batch_supplier), typeCaster_, expectedSchema);
+    }
+  }
 
   int num_cols = sharedState->columnNum();
   output.clear();

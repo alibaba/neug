@@ -16,12 +16,14 @@
 #include "neug/execution/common/columns/arrow_context_column.h"
 
 #include <arrow/array/array_binary.h>
+#include <arrow/array/array_nested.h>
 #include <arrow/array/builder_binary.h>
 #include <arrow/array/builder_primitive.h>
 #include <arrow/array/builder_time.h>
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <unordered_map>
+#include "neug/common/extra_type_info.h"
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/utils/exception/exception.h"
 
@@ -75,6 +77,13 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     return DataType(DataTypeId::kTimestampMs);
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
     return DataType(DataTypeId::kTimestampMs);
+  } else if (type->id() == arrow::Type::LIST ||
+             type->id() == arrow::Type::LARGE_LIST ||
+             type->id() == arrow::Type::FIXED_SIZE_LIST) {
+    auto valueType = type->field(0)->type();
+    auto childType = arrow_type_to_rt_type(valueType);
+    auto typeInfo = std::make_shared<ListTypeInfo>(childType);
+    return DataType(DataTypeId::kList, typeInfo);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected arrow type: " + type->ToString());
   }
@@ -312,60 +321,83 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
   return col_builder.finish();
 }
 
-Value ArrowArrayContextColumn::get_elem(size_t idx) const {
-  CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
-
-  // Locate the array and offset for the given index.
-  auto [array_idx, offset] = locate_array_and_offset(columns_, size_, idx);
-  const auto& array = columns_[array_idx];
-
-  // Get value according to arrow type and convert to RTAny.
+static Value get_arrow_scalar_value(const std::shared_ptr<arrow::Array>& array,
+                                    int64_t idx) {
   auto arrow_type = array->type();
-
   if (arrow_type->Equals(arrow::int64())) {
-    auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-    return Value::INT64(casted->Value(offset));
+    return Value::INT64(
+        std::static_pointer_cast<arrow::Int64Array>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::int32())) {
-    auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-    return Value::INT32(casted->Value(offset));
+    return Value::INT32(
+        std::static_pointer_cast<arrow::Int32Array>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::uint32())) {
-    auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-    return Value::UINT32(casted->Value(offset));
+    return Value::UINT32(
+        std::static_pointer_cast<arrow::UInt32Array>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::uint64())) {
-    auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-    return Value::UINT64(casted->Value(offset));
+    return Value::UINT64(
+        std::static_pointer_cast<arrow::UInt64Array>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::float32())) {
-    auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-    return Value::FLOAT(casted->Value(offset));
+    return Value::FLOAT(
+        std::static_pointer_cast<arrow::FloatArray>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::float64())) {
-    auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-    return Value::DOUBLE(casted->Value(offset));
+    return Value::DOUBLE(
+        std::static_pointer_cast<arrow::DoubleArray>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::boolean())) {
-    auto casted = std::static_pointer_cast<arrow::BooleanArray>(array);
-    return Value::BOOLEAN(casted->Value(offset));
+    return Value::BOOLEAN(
+        std::static_pointer_cast<arrow::BooleanArray>(array)->Value(idx));
   } else if (arrow_type->Equals(arrow::utf8())) {
-    auto casted = std::static_pointer_cast<arrow::StringArray>(array);
-    auto str_view = casted->GetView(offset);
+    auto str_view =
+        std::static_pointer_cast<arrow::StringArray>(array)->GetView(idx);
     return Value::STRING(std::string(str_view));
   } else if (arrow_type->Equals(arrow::large_utf8())) {
-    auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-    auto str_view = casted->GetView(offset);
+    auto str_view =
+        std::static_pointer_cast<arrow::LargeStringArray>(array)->GetView(idx);
     return Value::STRING(std::string(str_view));
   } else if (arrow_type->Equals(arrow::date32())) {
-    auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
     Date d;
-    d.from_num_days(casted->Value(offset));
+    d.from_num_days(
+        std::static_pointer_cast<arrow::Date32Array>(array)->Value(idx));
     return Value::DATE(d);
   } else if (arrow_type->Equals(arrow::date64())) {
-    auto casted = std::static_pointer_cast<arrow::Date64Array>(array);
-    return Value::DATE(Date(casted->Value(offset)));
+    return Value::DATE(
+        Date(std::static_pointer_cast<arrow::Date64Array>(array)->Value(idx)));
   } else if (arrow_type->id() == arrow::Type::TIMESTAMP) {
-    auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-    return Value::TIMESTAMPMS(DateTime(casted->Value(offset)));
-  } else {  // todo: support interval type
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
+    return Value::TIMESTAMPMS(DateTime(
+        std::static_pointer_cast<arrow::TimestampArray>(array)->Value(idx)));
+  } else if (arrow_type->id() == arrow::Type::LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::ListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(idx);
+    int32_t length = list_arr->value_length(idx);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else if (arrow_type->id() == arrow::Type::FIXED_SIZE_LIST) {
+    auto list_arr = std::static_pointer_cast<arrow::FixedSizeListArray>(array);
+    auto child_type = arrow_type_to_rt_type(list_arr->value_type());
+    auto values_arr = list_arr->values();
+    int32_t start = list_arr->value_offset(idx);
+    int32_t length = list_arr->value_length(idx);
+    std::vector<Value> list_values;
+    list_values.reserve(length);
+    for (int32_t j = start; j < start + length; ++j) {
+      list_values.push_back(get_arrow_scalar_value(values_arr, j));
+    }
+    return Value::LIST(child_type, std::move(list_values));
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type in list element: " +
                                   arrow_type->ToString());
   }
+}
+
+Value ArrowArrayContextColumn::get_elem(size_t idx) const {
+  CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
+  auto [array_idx, offset] = locate_array_and_offset(columns_, size_, idx);
+  return get_arrow_scalar_value(columns_[array_idx], offset);
 }
 
 std::shared_ptr<IContextColumn> ArrowArrayContextColumn::cast_to_value_column()
