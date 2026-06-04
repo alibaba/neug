@@ -114,6 +114,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         pip3 install -r requirements.txt
         pip3 install -r requirements_dev.txt
+        python3 -m pip install pyarrow==24.0.0
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph

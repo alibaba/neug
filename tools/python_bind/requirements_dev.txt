@@ -13,4 +13,3 @@ importlib-metadata>=5.0.0
 pyyaml>=6.0.0
 pytest-asyncio>=1.0.0
 networkx>=3.4.2
-pyarrow==18.0.0
