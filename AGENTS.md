@@ -8,37 +8,67 @@ This file provides guidance to LLM tools when working with code in this reposito
 
 ## Build & Test
 
+All bindings (Python, future Node/Rust) share a single root build tree at
+`<repo>/build/`. The core library `libneug.dylib`/`libneug.so` is built once;
+each binding produces its own `.so` that dynamically links to it.
+
 ### Quick Start
 
 ```bash
-# Python development (recommended)
-cd tools/python_bind
-make requirements && make build
+# One-shot from repo root: configures root build, compiles core +
+# neug_py_bind, installs Python deps. Idempotent — also serves as the
+# incremental rebuild entry point.
+make python-dev
+```
 
-# C++ only
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TEST=ON
-make -j$(nproc) && ctest
+Or directly from `tools/python_bind/`:
+```bash
+make requirements    # one-time: install Python deps
+make dev             # incremental rebuild; auto-bootstraps if root build
+                     # is missing or wasn't configured with BUILD_PYTHON=ON
+```
+
+For **C++ only** (no Python):
+```bash
+make cpp-build                     # core + executables, Release
+make cpp-test                      # adds -DBUILD_TEST=ON and runs ctest
+BUILD_TYPE=Debug make cpp-build    # override build type
+EXTRA_CMAKE_FLAGS="-DBUILD_HTTP_SERVER=ON" make cpp-build   # extra flags
 ```
 
 ### Common Build Variables
 
 - `BUILD_TYPE=DEBUG|RELEASE` — default Release
 - `BUILD_TEST=ON` — build test suites
+- `BUILD_PYTHON=ON` — build `neug_py_bind` target (off by default in pure C++ builds)
+- `NEUG_BUILD_DIR=<path>` — override the root build dir consumed by `setup.py`
+  and the Python loader (default `<repo>/build`)
 - `DEBUG=ON` + `GLOG_v=10` — enable verbose C++ logging
 
 ### Running Tests
 
 ```bash
-# Python tests (from tools/python_bind/)
+# Python tests — loader auto-finds neug_py_bind*.so in the root build dir
+cd tools/python_bind
 python3 -m pytest -s tests/test_db_query.py
 
-# C++ tests (from build dir)
-ctest
+# C++ tests
+ctest --test-dir build
 
 # Debugging with verbose logging
 GLOG_v=10 lldb -- python3 -m pytest -sv tests/test_db_query.py
 ```
+
+### Building a Wheel
+
+```bash
+cd tools/python_bind
+make wheel    # reuses root build; produces dist/neug-*.whl with libneug bundled
+```
+
+The wheel ships `neug_py_bind*.so` and `libneug.{dylib,so}` together; they find
+each other at runtime via `@loader_path` / `$ORIGIN` RPATH set in
+`tools/python_bind/CMakeLists.txt`.
 
 ### Pre-commit
 

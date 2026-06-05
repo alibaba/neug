@@ -33,6 +33,13 @@ function(build_arrow_as_third_party)
     check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
     check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
     check_cxx_compiler_flag("-Wno-error=uninitialized" COMPILER_SUPPORTS_NO_ERROR_UNINITIALIZED_FLAG)
+    # stringop-truncation is GCC-only; Clang errors on it under -Werror (which
+    # AWS SDK enables in its own compiler_settings.cmake). Probe under -Werror
+    # so the check matches how nested sub-builds will see the flag.
+    set(_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+    check_cxx_compiler_flag("-Wno-error=stringop-truncation" COMPILER_SUPPORTS_STRINGOP_TRUNCATION_FLAG)
+    set(CMAKE_REQUIRED_FLAGS "${_saved_required_flags}")
     if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
     endif()
@@ -54,7 +61,9 @@ function(build_arrow_as_third_party)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     # Thrift (Arrow-parquet dependency) emits these warnings
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-function")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-truncation")
+    if (COMPILER_SUPPORTS_STRINGOP_TRUNCATION_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-truncation")
+    endif()
 
     set(ARROW_BUILD_SHARED OFF CACHE BOOL "" FORCE)
     set(ARROW_BUILD_STATIC ON CACHE BOOL "" FORCE)

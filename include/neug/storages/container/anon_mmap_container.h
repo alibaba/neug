@@ -27,7 +27,7 @@ namespace neug {
 class AnonMMap : public MMapContainer {
  public:
   AnonMMap();
-  ~AnonMMap() override;
+  ~AnonMMap() override { Close(); }
   ContainerType GetContainerType() const override {
     return ContainerType::kAnonMMap;
   }
@@ -51,7 +51,7 @@ class AnonMMap : public MMapContainer {
 class AnonHugeMMap : public MMapContainer {
  public:
   AnonHugeMMap();
-  ~AnonHugeMMap() override;
+  ~AnonHugeMMap() override { Close(); }
   ContainerType GetContainerType() const override {
     return ContainerType::kAnonHugeMMap;
   }
