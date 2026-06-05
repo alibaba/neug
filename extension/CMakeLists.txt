@@ -107,6 +107,7 @@ function(add_extension_test)
         neug
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}
+        ${Protobuf_LIBRARIES}
         ${ARG_EXTRA_LINK_LIBS}
         ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB})
