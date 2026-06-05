@@ -171,6 +171,11 @@ jobs:
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
+    - name: Install Node.js dependencies
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
+        npm install
+
     - name: Build NeuG
       run: |
         . /home/neug/.neug_env
