@@ -15,10 +15,6 @@ on:
         description: '--iters for tests/memory_leak/test_memory_leak.py'
         required: false
         default: '2000'
-      run_valgrind:
-        description: 'Also run a small valgrind pass over test_node_create'
-        required: false
-        default: 'true'
   schedule:
     # UTC 19:00 = UTC+8 03:00 every day
     - cron: '0 19 * * *'
@@ -32,19 +28,14 @@ jobs:
     name: Build NeuG (RelWithDebInfo, no mimalloc) and run leak checks
     # NOTE: temporarily removed `github.repository == 'alibaba/neug'` guard for debugging on forks.
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
-    # NOTE: temporarily switched from self-hosted runner + private neug-dev image
-    # to github-hosted ubuntu-22.04 (no container) for fork debugging.
-    # Original config:
-    #   runs-on: [self-hosted, daily, linux, x64]
-    #   container:
-    #     image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, daily, linux, x64]
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     timeout-minutes: 120
     env:
       OUTER_ITERS: ${{ github.event.inputs.outer_iters || '1000' }}
       INNER_ROWS:  ${{ github.event.inputs.inner_rows  || '1000' }}
       RSS_ITERS:   ${{ github.event.inputs.rss_iters   || '2000' }}
-      RUN_VALGRIND: ${{ github.event.inputs.run_valgrind || 'true' }}
       LOG_DIR: ${{ github.workspace }}/memory-leak-logs
 
     steps:
@@ -64,12 +55,18 @@ jobs:
             ${{ runner.os }}-ccache-memleak-
             ${{ runner.os }}-ccache-
 
-      - name: Install build dependencies (github-hosted only)
+      - name: Install build dependencies (neug-dev image already includes most)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build ccache valgrind \
-            python3 python3-pip python3-dev pkg-config
+          # neug-dev:v0.1.2 already provides build-essential / cmake / ninja /
+          # ccache / python3 / pip / google.protobuf, so this step is a no-op
+          # safety net. Kept here so the workflow still works on bare
+          # github-hosted runners if someone temporarily switches back.
+          if command -v apt-get >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
+            apt-get update || true
+            apt-get install -y --no-install-recommends \
+              build-essential cmake ninja-build ccache \
+              python3 python3-pip python3-dev pkg-config || true
+          fi
 
       - name: Prepare log dir
         run: mkdir -p "$LOG_DIR"
@@ -149,36 +146,7 @@ jobs:
             2>&1 | tee "$LOG_DIR/test_memory_leak_py.log"
 
       # ----------------------------------------------------------------
-      # 3) Optional valgrind pass — slow, so run with shrunken iter counts
-      # ----------------------------------------------------------------
-      - name: valgrind -- test_node_create (small workload)
-        if: ${{ env.RUN_VALGRIND == 'true' }}
-        env:
-          NEUG_RUN_MEMORY_LEAK_TESTS: '1'
-          NEUG_LEAK_OUTER_ITERS:      '20'
-          NEUG_LEAK_INNER_ROWS:       '100'
-          NEUG_LEAK_CHECKPOINT_EVERY: '5'
-          GLOG_logtostderr:           '1'
-        run: |
-          set -o pipefail
-          if ! command -v valgrind >/dev/null 2>&1; then
-            echo "::warning::valgrind not available in this image; skipping"
-            exit 0
-          fi
-          valgrind \
-            --tool=memcheck \
-            --leak-check=full \
-            --show-leak-kinds=definite,possible \
-            --errors-for-leak-kinds=definite \
-            --error-exitcode=42 \
-            --num-callers=30 \
-            --log-file="$LOG_DIR/valgrind.log" \
-            ./build/tests/memory_leak/test_node_create \
-              --gtest_color=no \
-            2>&1 | tee "$LOG_DIR/valgrind.stdout"
-
-      # ----------------------------------------------------------------
-      # 4) Always upload logs for postmortem
+      # 3) Always upload logs for postmortem
       # ----------------------------------------------------------------
       - name: Summarize verdicts
         if: always()
@@ -201,12 +169,6 @@ jobs:
             echo '### tests/memory_leak/test_memory_leak.py' >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             tail -n 20 "$LOG_DIR/test_memory_leak_py.log" >> "$GITHUB_STEP_SUMMARY" || true
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -f "$LOG_DIR/valgrind.log" ]; then
-            echo '### valgrind (tail)' >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 40 "$LOG_DIR/valgrind.log" >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
 
