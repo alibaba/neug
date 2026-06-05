@@ -92,6 +92,8 @@ std::unique_ptr<IDataContainer> OpenContainer(const std::string& snapshot_file,
                                               MemoryLevel memory_level) {
   if (memory_level == MemoryLevel::kSyncToFile) {
     if (tmp_file.empty()) {
+      LOG(ERROR)
+          << "Temporary file path is required for disk-backed containers";
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Temporary file path is required for disk-backed containers");
     }
