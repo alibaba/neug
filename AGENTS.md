@@ -8,9 +8,9 @@ This file provides guidance to LLM tools when working with code in this reposito
 
 ## Build & Test
 
-All bindings (Python, future Node/Rust) share a single root build tree at
-`<repo>/build/`. The core library `libneug.dylib`/`libneug.so` is built once;
-each binding produces its own `.so` that dynamically links to it.
+**Parallelism limit**: Always cap `-j` to the number of physical cores. Use `cmake --build build -j$(sysctl -n hw.ncpu)` (macOS) or `cmake --build build -j$(nproc)` (Linux). **Never use bare `-j`** (unlimited parallelism) — it exhausts memory and freezes the machine on this codebase.
+
+All bindings (Python, future Node/Rust) share a single root build tree at `<repo>/build/`. The core library `libneug.dylib`/`libneug.so` is built once; each binding produces its own `.so` that dynamically links to it.
 
 ### Quick Start
 
@@ -41,8 +41,7 @@ EXTRA_CMAKE_FLAGS="-DBUILD_HTTP_SERVER=ON" make cpp-build   # extra flags
 - `BUILD_TYPE=DEBUG|RELEASE` — default Release
 - `BUILD_TEST=ON` — build test suites
 - `BUILD_PYTHON=ON` — build `neug_py_bind` target (off by default in pure C++ builds)
-- `NEUG_BUILD_DIR=<path>` — override the root build dir consumed by `setup.py`
-  and the Python loader (default `<repo>/build`)
+- `NEUG_BUILD_DIR=<path>` — override the root build dir consumed by `setup.py` and the Python loader (default `<repo>/build`)
 - `DEBUG=ON` + `GLOG_v=10` — enable verbose C++ logging
 
 ### Running Tests
@@ -66,9 +65,7 @@ cd tools/python_bind
 make wheel    # reuses root build; produces dist/neug-*.whl with libneug bundled
 ```
 
-The wheel ships `neug_py_bind*.so` and `libneug.{dylib,so}` together; they find
-each other at runtime via `@loader_path` / `$ORIGIN` RPATH set in
-`tools/python_bind/CMakeLists.txt`.
+The wheel ships `neug_py_bind*.so` and `libneug.{dylib,so}` together; they find each other at runtime via `@loader_path` / `$ORIGIN` RPATH set in `tools/python_bind/CMakeLists.txt`.
 
 ### Pre-commit
 
