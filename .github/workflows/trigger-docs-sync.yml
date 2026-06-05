@@ -1,0 +1,19 @@
+name: Trigger Doc Site Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'doc/**'
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger graphscope/web NeuG site build
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GRAPHSCOPE_WEB_TOKEN }}
+          repository: graphscope/web
+          event-type: neug-docs-updated
