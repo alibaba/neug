@@ -93,8 +93,6 @@ class TypedColumn : public ColumnBase {
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
-  void Close() { buffer_.reset(); }
-
   ModuleDescriptor Dump(Checkpoint& ckp) override {
     ModuleDescriptor desc;
     desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
@@ -259,11 +257,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     pos_.store(std::stoull(desc.get("pos").value_or("0")));
     assert(pos_.load() <= data_buffer_->GetDataSize());
-  }
-
-  void Close() {
-    items_buffer_.reset();
-    data_buffer_.reset();
   }
 
   bool is_data_unmodified() const {

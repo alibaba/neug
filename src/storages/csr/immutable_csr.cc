@@ -147,13 +147,6 @@ size_t ImmutableCsr<EDATA_T>::capacity() const {
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::Close() {
-  adj_list_buffer_.reset();
-  degree_list_buffer_.reset();
-  nbr_list_buffer_.reset();
-}
-
-template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (!degree_list_buffer_) {
     unsorted_since_ = ts;
@@ -404,11 +397,6 @@ void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
 template <typename EDATA_T>
 size_t SingleImmutableCsr<EDATA_T>::capacity() const {
   return size();
-}
-
-template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::Close() {
-  nbr_list_buffer_.reset();
 }
 
 template <typename EDATA_T>

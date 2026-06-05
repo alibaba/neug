@@ -54,8 +54,6 @@ class VertexTimestamp : public Module {
 
   void Reset();
 
-  void Clear();
-
   inline void InsertVertex(vid_t v, timestamp_t ts) {
     if (v < init_vertex_num_) {
       if (ts == 0) {
@@ -163,8 +161,6 @@ class VertexTimestamp : public Module {
   void ResetTimestamps();
 
   const vid_t InitVertexNum() const { return init_vertex_num_; }
-
-  void Close();
 
  private:
   void load_ts(const std::string& ts_filename);

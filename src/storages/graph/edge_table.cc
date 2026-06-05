@@ -553,13 +553,6 @@ void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
   meta_ = meta;
 }
 
-void EdgeTable::Close() {
-  out_csr_.reset();
-  in_csr_.reset();
-  if (table_) {
-    table_->close();
-  }
-}
 
 void EdgeTable::SortByEdgeData(timestamp_t ts) {
   // TODO
@@ -1007,7 +1000,6 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                    new_in_csr.get());
   }
 
-  table_->close();
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);

@@ -160,8 +160,6 @@ class VertexTable {
     return std::move(v_ts_);
   }
 
-  void Close();
-
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
   std::shared_ptr<const VertexSchema> get_vertex_schema_ptr() const {

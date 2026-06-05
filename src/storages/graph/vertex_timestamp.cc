@@ -113,7 +113,6 @@ void VertexTimestamp::Reset() {
   }
 }
 
-void VertexTimestamp::Clear() { Reset(); }
 
 timestamp_t VertexTimestamp::RemoveVertex(vid_t v) {
   if (v >= max_vertex_num_) {
@@ -290,7 +289,6 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   inserted_vertices_.swap(new_inserted_vertices);
 }
 
-void VertexTimestamp::Close() { Reset(); }
 
 NEUG_REGISTER_MODULE(VertexTimestamp);
 

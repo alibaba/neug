@@ -62,15 +62,6 @@ void VertexTable::insert_vertices(
   }
 }
 
-void VertexTable::Close() {
-  indexer_.reset();
-  if (table_) {
-    table_->close();
-  }
-  if (v_ts_) {
-    v_ts_->Clear();
-  }
-}
 
 void VertexTable::SetVertexSchema(
     std::shared_ptr<const VertexSchema> vertex_schema) {
