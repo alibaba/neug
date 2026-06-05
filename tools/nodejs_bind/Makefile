@@ -60,7 +60,7 @@ dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	    $(EXTRA_CMAKE_FLAGS)
-	cmake --build $(ROOT_BUILD) --target neug_node_bind -j$(JOBS)
+	cmake --build $(ROOT_BUILD) --target neug_node_bind bulk_loader -j$(JOBS)
 	@$(MAKE) stage
 
 build: dev  ## Alias for dev

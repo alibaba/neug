@@ -83,6 +83,20 @@ jobs:
             make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
+      - name: Prepare test data
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+            export FLEX_DATA_DIR=/project/example_dataset/modern_graph
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+            export FLEX_DATA_DIR=/project/example_dataset/tinysnb
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+            export FLEX_DATA_DIR=/project/example_dataset/ldbc
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
+          '
+
       - name: Test
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
@@ -154,6 +168,20 @@ jobs:
             make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
+      - name: Prepare test data
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+            export FLEX_DATA_DIR=/project/example_dataset/modern_graph
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+            export FLEX_DATA_DIR=/project/example_dataset/tinysnb
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+            export FLEX_DATA_DIR=/project/example_dataset/ldbc
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
+          '
+
       - name: Test
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
@@ -204,6 +232,17 @@ jobs:
           source ~/.neug_env
           cd tools/nodejs_bind
           make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+
+      - name: Prepare test data
+        run: |
+          source ~/.neug_env
+          rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/modern_graph/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/ldbc
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/ldbc/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/ldbc/import.yaml -d /tmp/ldbc
 
       - name: Test
         run: |
