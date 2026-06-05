@@ -171,11 +171,6 @@ jobs:
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
-    - name: Install Node.js dependencies
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        npm install
-
     - name: Build NeuG
       run: |
         . /home/neug/.neug_env
@@ -202,7 +197,6 @@ jobs:
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
         export CXX="ccache g++"
-        export CMAKE_ARGS="-DBUILD_NODEJS=ON"
         cd tools/python_bind
         make clean
         make requirements
@@ -408,7 +402,7 @@ jobs:
       if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        make stage
+        make build
 
     - name: Run Node.js DB Init Test
       if: steps.scope.outputs.extension_only != 'true'
