@@ -23,10 +23,10 @@
     "url": "https://github.com/alibaba/neug"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
   },
   "dependencies": {
-    "node-addon-api": "^8.0.0"
+    "node-addon-api": "^7.0.0"
   },
   "files": [
     "lib/",
