@@ -88,12 +88,13 @@ jobs:
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
+            git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
             rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
             export FLEX_DATA_DIR=/project/example_dataset/modern_graph
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
             export FLEX_DATA_DIR=/project/example_dataset/tinysnb
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-            export FLEX_DATA_DIR=/project/example_dataset/ldbc
+            export FLEX_DATA_DIR=/project/gstest/flex/ldbc-sf01-long-date
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
           '
 
@@ -173,12 +174,13 @@ jobs:
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
+            git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
             rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
             export FLEX_DATA_DIR=/project/example_dataset/modern_graph
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
             export FLEX_DATA_DIR=/project/example_dataset/tinysnb
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-            export FLEX_DATA_DIR=/project/example_dataset/ldbc
+            export FLEX_DATA_DIR=/project/gstest/flex/ldbc-sf01-long-date
             /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
           '
 
@@ -236,12 +238,13 @@ jobs:
       - name: Prepare test data
         run: |
           source ~/.neug_env
+          git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GITHUB_WORKSPACE}/gstest
           rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
           export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
           ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/modern_graph/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
           export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
           ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/ldbc
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/gstest/flex/ldbc-sf01-long-date
           ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/ldbc/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/ldbc/import.yaml -d /tmp/ldbc
 
       - name: Test
