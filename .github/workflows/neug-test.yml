@@ -187,6 +187,8 @@ jobs:
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd tools/python_bind
         make clean
         make requirements
