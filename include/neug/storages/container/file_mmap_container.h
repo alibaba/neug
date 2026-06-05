@@ -30,7 +30,7 @@ namespace neug {
 class FilePrivateMMap : public MMapContainer {
  public:
   FilePrivateMMap();
-  ~FilePrivateMMap() override;
+  ~FilePrivateMMap() override { Close(); }
   ContainerType GetContainerType() const override {
     return ContainerType::kFilePrivateMMap;
   }
@@ -54,7 +54,7 @@ class FilePrivateMMap : public MMapContainer {
 class FileSharedMMap : public MMapContainer {
  public:
   FileSharedMMap();
-  ~FileSharedMMap() override;
+  ~FileSharedMMap() override { Close(); }
   ContainerType GetContainerType() const override {
     return ContainerType::kFileSharedMMap;
   }

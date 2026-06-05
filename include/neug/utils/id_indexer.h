@@ -199,75 +199,100 @@ class LFIndexer {
   static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
 
  public:
-  LFIndexer()
+  explicit LFIndexer(DataType pk_type = DataTypeId::kUnknown)
       : indices_(nullptr),
-        indices_size_(0),
         num_elements_(0),
         num_slots_minus_one_(0),
         keys_(nullptr),
+        pk_type_(pk_type),
         hasher_() {}
   LFIndexer(LFIndexer&& rhs)
       : indices_(std::move(rhs.indices_)),
-        indices_size_(rhs.indices_size_),
         num_elements_(rhs.num_elements_.load()),
         num_slots_minus_one_(rhs.num_slots_minus_one_),
+        keys_(std::move(rhs.keys_)),
+        pk_type_(rhs.pk_type_),
         hasher_(rhs.hasher_) {
-    if (keys_ != rhs.keys_) {
-      keys_ = rhs.keys_;
-    }
     hash_policy_.set_mod_function_by_index(
         rhs.hash_policy_.get_mod_function_index());
   }
 
   ~LFIndexer() {}
 
-  static std::string prefix() { return "indexer"; }
+  void SetKeys(std::unique_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
+
+  void SetIndices(std::unique_ptr<TypedColumn<INDEX_T>> indices) {
+    indices_ = std::move(indices);
+  }
+
+  void SetNumElements(size_t n) { num_elements_.store(n); }
+
+  void SetNumSlotsMinusOne(size_t n) { num_slots_minus_one_ = n; }
+
+  void SetHashPolicyIndex(size_t idx) {
+    hash_policy_.set_mod_function_by_index(idx);
+  }
+
+  /// Restore indexer state from a ModuleDescriptor produced by Dump().
+  /// The descriptor's extra map holds the three scalar fields; its paths
+  /// map holds the indices data path; and @p keys is the deserialized
+  /// primary-key column (already opened by the caller / ModuleBroker).
+  /// Restore indexer state from a ModuleDescriptor produced by Dump().
+  /// When @p descriptor is empty (no paths/extras), creates a fresh empty
+  /// indexer — making this the single entry point for both Init and restore.
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level, std::unique_ptr<ColumnBase> keys,
+            std::unique_ptr<TypedColumn<INDEX_T>> indices) {
+    keys_ = std::move(keys);
+    indices_ = std::move(indices);
+    auto parse = [](const ModuleDescriptor& d, const char* key) -> size_t {
+      auto val = d.get(key);
+      return val.has_value() ? std::stoull(val.value()) : 0;
+    };
+    SetNumElements(parse(descriptor, "num_elements"));
+    SetNumSlotsMinusOne(parse(descriptor, "num_slots_minus_one"));
+    SetHashPolicyIndex(parse(descriptor, "hash_policy"));
+  }
+
+  /// Persist indexer state into a ModuleDescriptor.  The keys column is
+  /// transferred out via @p keys_out for the caller to store separately
+  /// (since ColumnBase is itself a Module with its own Dump path).
+  /// The indices buffer is committed to the checkpoint and its path is
+  /// recorded in the returned descriptor.
+  ModuleDescriptor Dump(Checkpoint& ckp, std::unique_ptr<ColumnBase>& keys_out,
+                        std::unique_ptr<TypedColumn<INDEX_T>>& indices_out) {
+    ModuleDescriptor descriptor;
+    descriptor.set("num_elements", std::to_string(GetNumElements()));
+    descriptor.set("num_slots_minus_one",
+                   std::to_string(GetNumSlotsMinusOne()));
+    descriptor.set("hash_policy", std::to_string(GetHashPolicyIndex()));
+
+    keys_out = TakeKeys();
+    indices_out = TakeIndices();
+    return descriptor;
+  }
+
+  std::unique_ptr<ColumnBase> TakeKeys() { return std::move(keys_); }
+  std::unique_ptr<TypedColumn<INDEX_T>> TakeIndices() {
+    return std::move(indices_);
+  }
+
+  size_t GetNumElements() const { return num_elements_.load(); }
+  size_t GetNumSlotsMinusOne() const { return num_slots_minus_one_; }
+  size_t GetHashPolicyIndex() const {
+    return hash_policy_.get_mod_function_index();
+  }
 
   void swap(LFIndexer& other) {
     indices_.swap(other.indices_);
-    std::swap(indices_size_, other.indices_size_);
     size_t temp_num = num_elements_.load();
     num_elements_.store(other.num_elements_.load());
     other.num_elements_.store(temp_num);
     std::swap(num_slots_minus_one_, other.num_slots_minus_one_);
     std::swap(keys_, other.keys_);
+    std::swap(pk_type_, other.pk_type_);
     hash_policy_.swap(other.hash_policy_);
     std::swap(hasher_, other.hasher_);
-  }
-
-  void init(const DataType& type) {
-    keys_ = nullptr;
-    switch (type.id()) {
-#define TYPE_DISPATCHER(enum_val, T)            \
-  case DataTypeId::enum_val: {                  \
-    keys_ = std::make_shared<TypedColumn<T>>(); \
-    break;                                      \
-  }
-      TYPE_DISPATCHER(kInt64, int64_t)
-      TYPE_DISPATCHER(kInt32, int32_t)
-      TYPE_DISPATCHER(kUInt64, uint64_t)
-      TYPE_DISPATCHER(kUInt32, uint32_t)
-#undef TYPE_DISPATCHER
-    case DataTypeId::kVarchar: {
-      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
-      auto extra_type_info = type.RawExtraTypeInfo();
-      if (extra_type_info) {
-        auto str_type_info =
-            dynamic_cast<const StringTypeInfo*>(extra_type_info);
-        if (str_type_info) {
-          max_length = str_type_info->max_length;
-        }
-      }
-      keys_ = std::make_shared<StringColumn>(max_length);
-      break;
-    }
-    default: {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "Only (u)int64/32 and string_view types for pk are supported, but "
-          "got: " +
-          type.ToString());
-    }
-    }
   }
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
@@ -277,7 +302,7 @@ class LFIndexer {
     keys_->resize(size);
     size =
         static_cast<size_t>(std::ceil(size / id_indexer_impl::max_load_factor));
-    if (size == indices_size_) {
+    if (size == indices_->size()) {
       return;
     }
 
@@ -291,11 +316,9 @@ class LFIndexer {
     }
     auto new_prime_index = hash_policy_.next_size_over(size);
     hash_policy_.commit(new_prime_index);
-    indices_->Resize(size * sizeof(INDEX_T));
-    auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
-    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
-    CHECK(indices_size_ * sizeof(INDEX_T) == indices_->GetDataSize());
-    for (size_t k = 0; k != indices_size_; ++k) {
+    indices_->resize(size);
+    auto* indices_ptr = indices_->mutable_data();
+    for (size_t k = 0; k != size; ++k) {
       indices_ptr[k] = LFIndexer<INDEX_T>::sentinel;
     }
     num_slots_minus_one_ = size - 1;
@@ -339,7 +362,7 @@ class LFIndexer {
     }
     // may throw if insert_safe is false and reserved size is not enough
     keys_->set_any(ind, oid, insert_safe);
-    auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->mutable_data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -354,7 +377,7 @@ class LFIndexer {
 
   INDEX_T get_index(const Property& oid) const {
     assert(oid.type() == get_type());
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -371,13 +394,13 @@ class LFIndexer {
   }
 
   bool get_index(const Property& oid, INDEX_T& ret) const {
-    if (indices_size_ <= 0) {
+    if (indices_->size() == 0) {
       return false;
     }
     if (oid.type() != get_type()) {
       return false;
     }
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -396,7 +419,7 @@ class LFIndexer {
 
   bool contains(const Property& oid) const {
     assert(oid.type() == get_type());
-    auto* indices_ptr = reinterpret_cast<const INDEX_T*>(indices_->GetData());
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -415,95 +438,22 @@ class LFIndexer {
     return keys_->get_prop(index);
   }
 
-  void open(const std::string& name, const std::string& checkpoint_dir,
-            const std::string& work_dir) {
-    std::filesystem::create_directories(tmp_dir(work_dir));
-    load_meta(checkpoint_dir + "/" + name + ".meta");
-    keys_->open(name + ".keys", checkpoint_dir, tmp_dir(work_dir));
-    indices_ = OpenContainer(checkpoint_dir + "/" + name + ".indices",
-                             tmp_dir(work_dir) + "/" + name + ".indices",
-                             MemoryLevel::kSyncToFile);
-    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
-  }
-
-  void open_in_memory(const std::string& name) {
-    load_meta(name + ".meta");
-    keys_->open_in_memory(name + ".keys");
-    indices_ = OpenContainer(name + ".indices", "", MemoryLevel::kInMemory);
-    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
-  }
-
-  void open_with_hugepages(const std::string& name) {
-    load_meta(name + ".meta");
-    keys_->open_with_hugepages(name + ".keys");
-    indices_ =
-        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePreferred);
-    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
-  }
-
-  void dump(const std::string& name, const std::string& snapshot_dir) {
-    keys_->dump(snapshot_dir + "/" + name + ".keys");
-    indices_->Dump(snapshot_dir + "/" + name + ".indices");
-    dump_meta(snapshot_dir + "/" + name + ".meta");
-    close();
-  }
-
-  void close() {
-    if (keys_) {
-      keys_->close();
-    }
-    if (indices_) {
-      indices_->Close();
-    }
-    indices_size_ = 0;
-  }
-
-  void dump_meta(const std::string& filename) const {
-    InArchive arc;
-    arc << get_type() << num_elements_.load() << num_slots_minus_one_
-        << hash_policy_.get_mod_function_index();
-    FILE* fout = fopen(filename.c_str(), "wb");
-    fwrite(arc.GetBuffer(), sizeof(char), arc.GetSize(), fout);
-    fflush(fout);
-    fclose(fout);
-  }
-
-  void load_meta(const std::string& filename) {
-    if (!std::filesystem::exists(filename)) {
-      num_elements_.store(0);
-      return;
-    }
-    OutArchive arc;
-    FILE* fin = fopen(filename.c_str(), "r");
-    size_t meta_file_size = std::filesystem::file_size(filename);
-    std::vector<char> buf(meta_file_size);
-    CHECK_EQ(fread(buf.data(), sizeof(char), meta_file_size, fin),
-             meta_file_size);
-    arc.SetSlice(buf.data(), meta_file_size);
-    size_t mod_function_index;
-    DataTypeId type;
-    arc >> type;
-    size_t num_elements;
-    arc >> num_elements;
-
-    num_elements_.store(num_elements);
-    arc >> num_slots_minus_one_ >> mod_function_index;
-    init(type);
-    hash_policy_.set_mod_function_by_index(mod_function_index);
-    fclose(fin);
+  void Close() {
+    keys_.reset();
+    indices_.reset();
   }
 
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
 
  private:
-  std::unique_ptr<IDataContainer> indices_;
-  // size() == indices_size_ == num_slots_minus_one_ +
-  // log(num_slots_minus_one_)
-  size_t indices_size_;
+  std::unique_ptr<TypedColumn<INDEX_T>> indices_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
-  std::shared_ptr<ColumnBase> keys_;
+  std::unique_ptr<ColumnBase> keys_;
+  /// PK type captured at construction.  Used by Init to size keys_;
+  /// runtime queries still go through keys_->type() once SetKeys has run.
+  DataType pk_type_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
   GHash<Property> hasher_;
