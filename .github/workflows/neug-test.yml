@@ -401,6 +401,8 @@ jobs:
     - name: Build Node.js binding
       if: steps.scope.outputs.extension_only != 'true'
       run: |
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
         make build
 
