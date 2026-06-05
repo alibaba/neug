@@ -13,7 +13,6 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
-      - 'tools/nodejs_bind/**'
       - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
@@ -28,7 +27,6 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
-      - 'tools/nodejs_bind/**'
       - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
@@ -88,7 +86,6 @@ jobs:
             - 'proto/**'
             - 'third_party/**'
             - 'tools/python_bind/**'
-            - 'tools/nodejs_bind/**'
             - 'tools/java_driver/**'
             - 'tests/**'
             - '!tests/extension/**'
@@ -130,9 +127,6 @@ jobs:
           echo "CCACHE_COMPRESS=true"
           echo "CCACHE_COMPRESSLEVEL=6"
           echo "CCACHE_MAXSIZE=5G"
-          echo "CMAKE_C_COMPILER_LAUNCHER=ccache"
-          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache"
-          echo "PATH=/usr/lib/ccache:$PATH"
         } >> "$GITHUB_ENV"
         ccache --set-config=base_dir=${GITHUB_WORKSPACE}
         ccache --set-config=compiler_check=content
@@ -160,11 +154,6 @@ jobs:
       with:
         java-version: '17'
         maven-version: '3.9.6'
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '16'
 
     - name: Set ENABLE_GCOV for main branch
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
@@ -395,45 +384,6 @@ jobs:
         mvn test
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest -sv tests/test_java_driver.py
-
-    # ========================================
-    # Phase 3b: Node.js Tests
-    # ========================================
-    - name: Build Node.js binding
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        make build
-
-    - name: Run Node.js DB Init Test
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        node --test tests/test_db_init.js
-
-    - name: Run Node.js DB Connection Test
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        node --test tests/test_db_connection.js
-
-    - name: Run Node.js DB Query Test
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        node --test tests/test_db_query.js
-
-    - name: Run Node.js DB Transaction Test
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        node --test tests/test_db_transaction.js
-
-    - name: Run Node.js DB Import/Export Test
-      if: steps.scope.outputs.extension_only != 'true'
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        node --test tests/test_db_import_export.js
 
     # ========================================
     # Phase 4: E2E Tests
