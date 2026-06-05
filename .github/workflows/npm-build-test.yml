@@ -14,7 +14,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/nodejs_bind/**'
-      - '.github/workflows/npm-common.yml'
+      - '.github/workflows/npm-build-test.yml'
       - 'scripts/install_deps.sh'
       - 'CMakeLists.txt'
       - 'NEUG_VERSION'
@@ -28,7 +28,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format_check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/format-check.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
+
   build_npm_linux_x86_64:
+    needs: format_check
     runs-on: [self-hosted, daily, linux, x64]
     env:
       CONTAINER_NAME: neug-npm-x86_64-${{ github.run_id }}
@@ -90,6 +97,7 @@ jobs:
           if-no-files-found: error
 
   build_npm_linux_arm64:
+    needs: format_check
     runs-on: [self-hosted, daily, linux, arm64]
     if: github.event_name != 'pull_request'
     env:
@@ -152,6 +160,7 @@ jobs:
           if-no-files-found: error
 
   build_npm_macos_aarch64:
+    needs: format_check
     runs-on: macos-15
     steps:
       - name: checkout
