@@ -91,6 +91,9 @@ jobs:
         delete: true
 
     - name: Set up Python
+      # Skip on self-hosted ARM runners (Python is preinstalled there);
+      # all other runners (github-hosted, self-hosted x64, etc.) still run setup.
+      if: ${{ !(runner.environment == 'self-hosted' && (runner.arch == 'ARM64' || runner.arch == 'ARM')) }}
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
