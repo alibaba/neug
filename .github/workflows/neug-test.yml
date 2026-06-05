@@ -171,11 +171,6 @@ jobs:
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
-    - name: Install Node.js dependencies
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        npm install
-
     - name: Build NeuG
       run: |
         . /home/neug/.neug_env
@@ -408,19 +403,7 @@ jobs:
       if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/nodejs_bind
-        # neug_node_bind.node was already compiled in the main Build NeuG step (via CMAKE_ARGS).
-        # Copy it along with libneug.so to build/Release/<platform>/ to match
-        # the path expected by lib/binding.js (RPATH=$ORIGIN resolves libneug.so).
-        ARCH=$(uname -m)
-        case "$ARCH" in
-          x86_64|amd64) PLATFORM_TAG=linux_x86_64 ;;
-          aarch64|arm64) PLATFORM_TAG=linux_arm64 ;;
-          *) echo "Unsupported arch: $ARCH"; exit 1 ;;
-        esac
-        PLATFORM_DIR="build/Release/${PLATFORM_TAG}"
-        mkdir -p "$PLATFORM_DIR"
-        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "neug_node_bind.node" -exec cp {} "$PLATFORM_DIR/" \;
-        find ${GITHUB_WORKSPACE}/tools/python_bind/build -name "libneug.so" -exec cp {} "$PLATFORM_DIR/" \;
+        make stage
 
     - name: Run Node.js DB Init Test
       if: steps.scope.outputs.extension_only != 'true'
