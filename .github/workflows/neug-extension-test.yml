@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/neug-extension-test.yml'
+      - 'extension/'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:
