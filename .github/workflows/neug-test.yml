@@ -130,6 +130,8 @@ jobs:
           echo "CCACHE_COMPRESS=true"
           echo "CCACHE_COMPRESSLEVEL=6"
           echo "CCACHE_MAXSIZE=5G"
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache"
           echo "PATH=/usr/lib/ccache:$PATH"
         } >> "$GITHUB_ENV"
         ccache --set-config=base_dir=${GITHUB_WORKSPACE}
