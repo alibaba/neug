@@ -23,6 +23,7 @@
 const _beforeHooks = [];
 const _afterHooks = [];
 const _tests = [];
+const _failures = [];
 let _running = false;
 
 function before(fn) {
@@ -44,7 +45,13 @@ function test(name, optsOrFn, maybeFn) {
     fn = maybeFn;
   }
 
-  _tests.push({ name, fn, opts });
+  // Capture caller file from stack trace
+  const stack = new Error().stack;
+  const callerLine = stack.split('\n').find((line, i) => i > 0 && !line.includes('test-shim.js'));
+  const fileMatch = callerLine && callerLine.match(/\((.+?):\d+:\d+\)|at (.+?):\d+:\d+/);
+  const file = fileMatch ? (fileMatch[1] || fileMatch[2]) : '<unknown>';
+
+  _tests.push({ name, fn, opts, file });
 
   // Auto-schedule the runner on next tick if not already scheduled
   if (!_running) {
@@ -68,7 +75,7 @@ async function _run() {
   let failed = 0;
   let skipped = 0;
 
-  for (const { name, fn, opts } of _tests) {
+  for (const { name, fn, opts, file } of _tests) {
     if (opts.skip) {
       console.log(`# skip - ${name}: ${opts.skip}`);
       skipped++;
@@ -82,6 +89,7 @@ async function _run() {
     } catch (err) {
       console.error(`not ok - ${name}`);
       console.error(`  ${err.stack || err.message || err}`);
+      _failures.push({ name, file, error: err.stack || err.message || String(err) });
       failed++;
       process.exitCode = 1;
     }
@@ -102,6 +110,18 @@ async function _run() {
   console.log(`# pass  ${passed}`);
   console.log(`# fail  ${failed}`);
   console.log(`# skip  ${skipped}`);
+
+  if (_failures.length > 0) {
+    console.log('');
+    console.log('# --- Failed Tests Summary ---');
+    for (const { name, file, error } of _failures) {
+      console.log(`# FAIL: ${name}`);
+      console.log(`#   file:  ${file}`);
+      const errMsg = error.split('\n')[0];
+      console.log(`#   error: ${errMsg}`);
+      console.log('#');
+    }
+  }
 }
 
 module.exports = { test, before, after };
