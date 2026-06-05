@@ -48,23 +48,28 @@ jobs:
       - name: Start container
         run: |
           docker run -d --name ${{ env.CONTAINER_NAME }} \
+            -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-x86_64 \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-x64.tar.xz \
-              | tar -xJ -C /usr/local --strip-components=1
+              | tar -xJ -C /home/neug/.local --strip-components=1
+            export PATH=/home/neug/.local/bin:$PATH
+            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
-            . /root/.neug_env
+            . /home/neug/.neug_env
             git submodule update --init --recursive
           '
 
       - name: Build
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
@@ -72,7 +77,8 @@ jobs:
       - name: Pack
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
@@ -80,7 +86,8 @@ jobs:
       - name: Test
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             for f in tests/test_*.js; do echo "=== $f ===" && node "$f"; done
           '
@@ -112,23 +119,28 @@ jobs:
       - name: Start container
         run: |
           docker run -d --name ${{ env.CONTAINER_NAME }} \
+            -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-arm64 \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-arm64.tar.xz \
-              | tar -xJ -C /usr/local --strip-components=1
+              | tar -xJ -C /home/neug/.local --strip-components=1
+            export PATH=/home/neug/.local/bin:$PATH
+            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
-            . /root/.neug_env
+            . /home/neug/.neug_env
             git submodule update --init --recursive
           '
 
       - name: Build
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
@@ -136,7 +148,8 @@ jobs:
       - name: Pack
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
@@ -144,7 +157,8 @@ jobs:
       - name: Test
         run: |
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
-            . /root/.neug_env
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             for f in tests/test_*.js; do echo "=== $f ===" && node "$f"; done
           '
