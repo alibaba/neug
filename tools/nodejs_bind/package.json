@@ -4,7 +4,7 @@
   "description": "NeuG Graph Database Node.js bindings - high performance embedded graph database with Cypher query support",
   "main": "lib/index.js",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "for f in tests/test_*.js; do echo \"Running $f\"; node \"$f\" || exit 1; done"
   },
   "keywords": [
     "graph",
@@ -23,7 +23,7 @@
     "url": "https://github.com/alibaba/neug"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "16.0.0"
   },
   "dependencies": {
     "node-addon-api": "^7.0.0"
