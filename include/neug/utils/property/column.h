@@ -305,7 +305,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (!data_out) {
       THROW_IO_EXCEPTION("Failed to open file for dumping: " + data_file);
     }
-    FileHeader header;
+    FileHeader header{};
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
     auto item_uuid = ckp.CreateRuntimeObject();
