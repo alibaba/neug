@@ -15,12 +15,28 @@
 #ifndef NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_
 #define NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_
 
+#include <gtest/gtest.h>
+
+#include <cstdlib>
+#include <filesystem>
 #include <random>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "neug/main/connection.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/vertex_table.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module/module_broker.h"
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/id_indexer.h"
+#include "neug/utils/property/column.h"
+#include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
 class GeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
@@ -298,6 +314,214 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
     }
   }
   return edges;
+}
+
+// Allocates a fresh checkpoint on `ws` and returns a shared_ptr to it.
+// Replaces the boilerplate `auto id = ws.CreateCheckpoint(); auto ckp =
+// ws.GetCheckpoint(id);` pair that recurs across the storage tests.
+inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
+    neug::CheckpointManager& ws) {
+  return ws.GetCheckpoint(ws.CreateCheckpoint());
+}
+
+// Test fixtures used to round-trip storage objects through encoded paths in a
+// single ModuleDescriptor.  The current production path uses ModuleBroker +
+// CheckpointManifest: each leaf Module lives as its own entry in
+// CheckpointManifest::modules() (keyed by a flat string), scalars live in
+// CheckpointManifest::scalars().  The helpers below mirror that flow so test
+// code can simulate Dump / Open cycles without spinning up a full
+// PropertyGraph.
+//
+// API contract:
+//   * `Dump*Legacy` returns a fresh CheckpointManifest carrying the modules +
+//   scalars
+//     for that one object.  The source object's leaf shared_ptrs are *shared*
+//     into a temporary ModuleBroker and remain usable after Dump returns.
+//   * `Open*Legacy` accepts either an empty CheckpointManifest (treated as
+//   fresh
+//     init — equivalent to the production *::Init flow) or a previously
+//     returned CheckpointManifest (restoration via ModuleBroker::Open).
+//
+// Each helper namespaces its module / scalar keys with a fixed prefix so a
+// single CheckpointManifest could in principle host several objects, but the
+// tests only ever round-trip one object per meta.
+
+inline constexpr const char* kIndexerKeys = "indexer/keys";
+inline constexpr const char* kIndexerIndices = "indexer/indices";
+inline constexpr const char* kIndexerNumElements = "indexer/num_elements";
+inline constexpr const char* kIndexerNumSlotsMinusOne =
+    "indexer/num_slots_minus_one";
+inline constexpr const char* kIndexerHashPolicy = "indexer/hash_policy";
+
+template <typename INDEX_T>
+inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
+                              neug::Checkpoint& ckp,
+                              const neug::DataType& key_type,
+                              const neug::CheckpointManifest& meta,
+                              neug::MemoryLevel level) {
+  {
+    neug::LFIndexer<INDEX_T> fresh(key_type);
+    idx.swap(fresh);
+  }
+  if (!meta.has_module(kIndexerKeys)) {
+    auto keys = CreateColumn(key_type);
+    keys->Open(ckp, neug::ModuleDescriptor{}, level);
+    auto indices = std::make_unique<neug::TypedColumn<INDEX_T>>();
+    indices->Open(ckp, neug::ModuleDescriptor{}, level);
+    idx.Open(ckp, neug::ModuleDescriptor{}, level, std::move(keys),
+             std::move(indices));
+    return;
+  }
+  neug::ModuleBroker store;
+  store.Open(ckp, meta, level);
+  idx.SetKeys(store.TakeModule<neug::ColumnBase>(kIndexerKeys));
+  idx.SetIndices(store.TakeModule<neug::TypedColumn<INDEX_T>>(kIndexerIndices));
+  idx.SetNumElements(meta.GetScalarAs<size_t>(kIndexerNumElements).value_or(0));
+  idx.SetNumSlotsMinusOne(
+      meta.GetScalarAs<size_t>(kIndexerNumSlotsMinusOne).value_or(0));
+  idx.SetHashPolicyIndex(
+      meta.GetScalarAs<size_t>(kIndexerHashPolicy).value_or(0));
+}
+
+template <typename INDEX_T>
+inline neug::CheckpointManifest DumpIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
+                                                  neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
+  // Capture scalars before TakeXxx empties the indexer.
+  meta.SetScalar(kIndexerNumElements, std::to_string(idx.GetNumElements()));
+  meta.SetScalar(kIndexerNumSlotsMinusOne,
+                 std::to_string(idx.GetNumSlotsMinusOne()));
+  meta.SetScalar(kIndexerHashPolicy, std::to_string(idx.GetHashPolicyIndex()));
+  // Move the indexer's leaves into a transient store, which Dumps and then
+  // destroys them when it goes out of scope.  The indexer is empty after
+  // this helper returns.
+  neug::ModuleBroker store;
+  store.SetModule(kIndexerKeys, idx.TakeKeys());
+  store.SetModule(kIndexerIndices, idx.TakeIndices());
+  store.Dump(ckp, meta);
+  return meta;
+}
+
+// VertexTable round-trip via ModuleBroker.  Keys: nested under "vertex/".
+inline constexpr const char* kVertexIndexerKeys = "vertex/indexer/keys";
+inline constexpr const char* kVertexIndexerIndices = "vertex/indexer/indices";
+inline constexpr const char* kVertexVTs = "vertex/v_ts";
+inline std::string VertexPropKey(size_t i) {
+  return "vertex/prop_" + std::to_string(i);
+}
+inline constexpr const char* kVertexNumElements = "vertex/num_elements";
+inline constexpr const char* kVertexNumSlotsMinusOne =
+    "vertex/num_slots_minus_one";
+inline constexpr const char* kVertexHashPolicy = "vertex/hash_policy";
+
+inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
+                                  const neug::CheckpointManifest& meta,
+                                  neug::MemoryLevel level) {
+  vt.SetMemoryLevel(level);
+  if (!meta.has_module(kVertexIndexerKeys)) {
+    vt.Init(ckp, level);
+    return;
+  }
+  auto vs = vt.get_vertex_schema_ptr();
+  neug::ModuleBroker store;
+  store.Open(ckp, meta, level);
+  auto& idx = vt.get_indexer();
+  idx.SetKeys(store.TakeModule<neug::ColumnBase>(kVertexIndexerKeys));
+  idx.SetIndices(
+      store.TakeModule<neug::TypedColumn<neug::vid_t>>(kVertexIndexerIndices));
+  idx.SetNumElements(meta.GetScalarAs<size_t>(kVertexNumElements).value_or(0));
+  idx.SetNumSlotsMinusOne(
+      meta.GetScalarAs<size_t>(kVertexNumSlotsMinusOne).value_or(0));
+  idx.SetHashPolicyIndex(
+      meta.GetScalarAs<size_t>(kVertexHashPolicy).value_or(0));
+
+  auto table =
+      std::make_unique<neug::Table>(vs->property_names, vs->property_types);
+  for (size_t i = 0; i < vs->property_types.size(); ++i) {
+    table->SetColumn(static_cast<int>(i),
+                     std::shared_ptr<neug::ColumnBase>(
+                         store.TakeModule<neug::ColumnBase>(VertexPropKey(i))));
+  }
+  vt.SetTable(std::move(table));
+  vt.SetVertexTimestamp(store.TakeModule<neug::VertexTimestamp>(kVertexVTs));
+}
+
+inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
+                                                      neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
+  auto& idx = vt.get_indexer();
+  // Capture scalars before TakeXxx empties the indexer.
+  meta.SetScalar(kVertexNumElements, std::to_string(idx.GetNumElements()));
+  meta.SetScalar(kVertexNumSlotsMinusOne,
+                 std::to_string(idx.GetNumSlotsMinusOne()));
+  meta.SetScalar(kVertexHashPolicy, std::to_string(idx.GetHashPolicyIndex()));
+  // Table columns are shared_ptr, so they're dumped inline; the unique_ptr
+  // leaves transfer ownership into a transient store that Dumps + cleans up.
+  auto table = vt.TakeTable();
+  for (size_t i = 0; i < table->col_num(); ++i) {
+    meta.set_module(VertexPropKey(i), table->get_column_by_id(i)->Dump(ckp));
+  }
+  neug::ModuleBroker store;
+  store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
+  store.SetModule(kVertexIndexerIndices, idx.TakeIndices());
+  store.SetModule(kVertexVTs, vt.TakeVertexTimestamp());
+  store.Dump(ckp, meta);
+  return meta;
+}
+
+// EdgeTable round-trip via ModuleBroker.
+inline constexpr const char* kEdgeInCsr = "edge/in_csr";
+inline constexpr const char* kEdgeOutCsr = "edge/out_csr";
+inline std::string EdgePropKey(size_t i) {
+  return "edge/prop_" + std::to_string(i);
+}
+inline constexpr const char* kEdgeTableIdx = "edge/table_idx";
+inline constexpr const char* kEdgeCapacity = "edge/capacity";
+
+inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
+                                const neug::CheckpointManifest& meta,
+                                neug::MemoryLevel level) {
+  et.SetMemoryLevel(level);
+  if (!meta.has_module(kEdgeOutCsr)) {
+    et.Init(ckp, level);
+    return;
+  }
+  auto es = et.get_edge_schema_ptr();
+  neug::ModuleBroker store;
+  store.Open(ckp, meta, level);
+  et.SetInCsr(store.TakeModule<neug::CsrBase>(kEdgeInCsr));
+  et.SetOutCsr(store.TakeModule<neug::CsrBase>(kEdgeOutCsr));
+  if (es && !es->is_bundled()) {
+    auto table =
+        std::make_unique<neug::Table>(es->property_names, es->properties);
+    for (size_t i = 0; i < es->properties.size(); ++i) {
+      table->SetColumn(static_cast<int>(i),
+                       std::shared_ptr<neug::ColumnBase>(
+                           store.TakeModule<neug::ColumnBase>(EdgePropKey(i))));
+    }
+    et.SetTable(std::move(table));
+    et.SetTableIdx(meta.GetScalarAs<uint64_t>(kEdgeTableIdx).value_or(0));
+  }
+  et.SetCapacity(meta.GetScalarAs<uint64_t>(kEdgeCapacity).value_or(0));
+}
+
+inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
+                                                    neug::Checkpoint& ckp) {
+  neug::CheckpointManifest meta;
+  meta.SetScalar(kEdgeCapacity, std::to_string(et.GetCapacity()));
+  auto es = et.get_edge_schema_ptr();
+  if (es && !es->is_bundled()) {
+    meta.SetScalar(kEdgeTableIdx, std::to_string(et.GetTableIdx()));
+    auto table = et.TakeTable();
+    for (size_t i = 0; i < table->col_num(); ++i) {
+      meta.set_module(EdgePropKey(i), table->get_column_by_id(i)->Dump(ckp));
+    }
+  }
+  neug::ModuleBroker store;
+  store.SetModule(kEdgeOutCsr, et.TakeOutCsr());
+  store.SetModule(kEdgeInCsr, et.TakeInCsr());
+  store.Dump(ckp, meta);
+  return meta;
 }
 
 namespace neug {

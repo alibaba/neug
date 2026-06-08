@@ -1,0 +1,68 @@
+# ============================================================================
+# This file should be placed in the NeuG repository:
+# https://github.com/alibaba/neug/.github/workflows/trigger-docs-sync.yml
+# ============================================================================
+
+name: Trigger Docs Sync to Website
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to sync (leave empty for latest)'
+        required: false
+        default: ''
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ github.event.release.tag_name }}" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION=$(cat NEUG_VERSION 2>/dev/null || cat tools/python_bind/VERSION 2>/dev/null || echo "unknown")
+            VERSION=$(echo "$VERSION" | tr -d '[:space:]')
+            [[ "$VERSION" =~ ^v ]] || VERSION="v${VERSION}"
+          fi
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Version to sync: ${VERSION}"
+
+      - name: Trigger gs-web sync workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GS_WEB_DISPATCH_TOKEN }}
+          repository: GraphScope/web
+          event-type: neug-docs-update
+          client-payload: |
+            {
+              "version": "${{ steps.version.outputs.version }}",
+              "sha": "${{ github.sha }}",
+              "ref": "${{ github.ref }}",
+              "triggered_by": "${{ github.actor }}"
+            }
+
+      - name: Summary
+        run: |
+          echo "## 🔄 Docs Sync Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Repo** | GraphScope/web |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY

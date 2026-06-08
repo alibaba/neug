@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   pr-completeness:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "Linux", "X64"]') || 'ubuntu-latest' }}
     steps:
       - name: Check PR completeness
         env:
@@ -19,14 +19,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          # --- helpers ---
+          # --- helpers (pure curl, no gh CLI needed) ---
+          api() { curl -sfL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+
           get_labels() {
-            gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-              --json labels --jq '.labels[].name'
+            api "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+              | python3 -c "import sys,json; [print(l['name']) for l in json.load(sys.stdin).get('labels',[])]"
           }
 
           get_changed_files() {
-            gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only
+            page=1
+            while :; do
+              resp=$(api "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100&page=$page")
+              files=$(echo "$resp" | python3 -c "import sys,json; [print(f['filename']) for f in json.load(sys.stdin)]" 2>/dev/null)
+              [[ -z "$files" ]] && break
+              echo "$files"
+              page=$((page+1))
+            done
           }
 
           # --- extract prefix (feat, fix, etc.) ---
