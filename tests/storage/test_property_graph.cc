@@ -16,7 +16,9 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/property_graph.h"
+#include "unittest/utils.h"
 
 namespace neug {
 
@@ -24,6 +26,7 @@ class PropertyGraphTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
+  CheckpointManager ws_;
 
   void SetUp() override {
     work_dir_ = std::string("/tmp/test_property_graph") +
@@ -33,7 +36,9 @@ class PropertyGraphTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(work_dir_, MemoryLevel::kInMemory);
+    ws_.Open(work_dir_);
+    auto ckp = make_checkpoint(ws_);
+    graph_->Open(ckp, MemoryLevel::kInMemory);
   }
 
   void TearDown() override {
@@ -132,13 +137,21 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
 
   Allocator allocator(MemoryLevel::kInMemory, "");
   for (vid_t i = 0; i < 4094; ++i) {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
     graph_->AddEdge(person_label, i, person_label, i + 1, knows_label,
-                    {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator);
+                    {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator,
+                    oe_offset, prop);
   }
-  EXPECT_THROW(
-      graph_->AddEdge(person_label, 4095, person_label, 4096, knows_label,
-                      {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator),
-      exception::Exception);
+  {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
+    EXPECT_FALSE(graph_
+                     ->AddEdge(person_label, 4095, person_label, 4096,
+                               knows_label, {Property::from_double(1.0)},
+                               MAX_TIMESTAMP, allocator, oe_offset, prop)
+                     .ok());
+  }
 }
 
 }  // namespace neug

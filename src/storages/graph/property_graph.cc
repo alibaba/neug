@@ -27,17 +27,22 @@
 #include <tl/expected.hpp>
 #include <utility>
 
-#include "neug/storages/file_names.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
+#include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
 
 PropertyGraph::PropertyGraph()
-    : vertex_label_total_count_(0),
+    : ckp_(nullptr),
+      vertex_label_total_count_(0),
       edge_label_total_count_(0),
       memory_level_(MemoryLevel::kInMemory) {}
 
@@ -54,10 +59,11 @@ void PropertyGraph::Clear() {
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
+  ckp_.reset();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
-  if (schema_.vertex_label_valid(v_label)) {
+  if (schema_.is_vertex_label_valid(v_label)) {
     auto old_cap = vertex_tables_[v_label].Capacity();
     if (capacity <= old_cap) {
       return neug::Status::OK();
@@ -65,7 +71,7 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
     auto v_new_cap = vertex_tables_[v_label].EnsureCapacity(capacity);
     for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
          ++dst_label) {
-      if (!schema_.vertex_label_valid(dst_label)) {
+      if (!schema_.is_vertex_label_valid(dst_label)) {
         continue;
       }
       for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
@@ -92,7 +98,7 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
 
 Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
                                      label_t edge_label, size_t capacity) {
-  if (!schema_.exist(src_label, dst_label, edge_label)) {
+  if (!schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge label does not exist for the given source and "
                   "destination vertex labels.");
@@ -114,7 +120,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
                                      label_t edge_label, size_t src_v_cap,
                                      size_t dst_v_cap, size_t capacity) {
-  if (!schema_.exist(src_label, dst_label, edge_label)) {
+  if (!schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge label does not exist for the given source and "
                   "destination vertex labels.");
@@ -131,7 +137,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 
 Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
-  assert(v_label < vertex_tables_.size());
+  RETURN_IF_NOT_OK(vertex_label_check(v_label));
   vertex_tables_[v_label].insert_vertices(supplier);
   return neug::Status::OK();
 }
@@ -139,9 +145,7 @@ Status PropertyGraph::BatchAddVertices(
 Status PropertyGraph::BatchAddEdges(
     label_t src_v_label, label_t dst_v_label, label_t e_label,
     std::shared_ptr<IRecordBatchSupplier> supplier) {
-  schema_.ensure_vertex_label_valid(src_v_label);
-  schema_.ensure_vertex_label_valid(dst_v_label);
-  schema_.ensure_edge_triplet_valid(src_v_label, dst_v_label, e_label);
+  RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   assert(edge_tables_.count(index) > 0);
   edge_tables_.at(index).BatchAddEdges(
@@ -151,7 +155,7 @@ Status PropertyGraph::BatchAddEdges(
 }
 
 Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
-  if (schema_.contains_vertex_label(config.GetVertexLabel())) {
+  if (schema_.is_vertex_label_valid(config.GetVertexLabel())) {
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Vertex label already exists.");
   }
@@ -216,24 +220,14 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
                          primary_keys, Schema::MAX_VNUM, description,
                          default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
+  VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
+  fresh_vt.Init(*ckp_, memory_level_);
   if (vertex_label_id < vertex_tables_.size()) {
-    auto& vtable = vertex_tables_[vertex_label_id];
-    if (vtable.is_dropped()) {
-      // Reuse a dropped vertex table
-      auto new_v_table =
-          VertexTable(schema_.get_vertex_schema(vertex_label_id));
-
-      vtable.Swap(new_v_table);
-    } else {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "Vertex label id conflict.");
-    }
+    vertex_tables_[vertex_label_id].Swap(fresh_vt);
   } else {
-    vertex_tables_.emplace_back(schema_.get_vertex_schema(vertex_label_id));
+    vertex_tables_.emplace_back(std::move(fresh_vt));
   }
-
   auto& vtable = vertex_tables_[vertex_label_id];
-  vtable.Open(work_dir_, memory_level_);
   vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
@@ -257,22 +251,22 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   LOG(INFO) << "CreateEdgeType: src_vertex_type: " << src_vertex_type
             << ", dst_vertex_type: " << dst_vertex_type
             << ", edge_type_name: " << edge_type_name;
-  if (!schema_.contains_vertex_label(src_vertex_type)) {
+  if (!schema_.is_vertex_label_valid(src_vertex_type)) {
     LOG(ERROR) << "Source_vertex [" << src_vertex_type
                << "] does not exist in the graph.";
     return Status(
         StatusCode::ERR_INVALID_ARGUMENT,
         "Source_vertex [" + src_vertex_type + "] does not exist in the graph.");
   }
-  if (!schema_.contains_vertex_label(dst_vertex_type)) {
+  if (!schema_.is_vertex_label_valid(dst_vertex_type)) {
     LOG(ERROR) << "Destination_vertex [" << dst_vertex_type
                << "] does not exist in the graph.";
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Destination_vertex [" + dst_vertex_type +
                       "] does not exist in the graph.");
   }
-  if (schema_.has_edge_label(src_vertex_type, dst_vertex_type,
-                             edge_type_name)) {
+  if (schema_.has_edge_triplet(src_vertex_type, dst_vertex_type,
+                               edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -309,14 +303,15 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   if (edge_tables_.count(index) > 0) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Edge label id conflict.");
   }
-  EdgeTable edge_table(
-      schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-  edge_tables_.emplace(index, std::move(edge_table));
+  auto edge_schema =
+      schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i);
+  EdgeTable fresh_et(edge_schema);
+  fresh_et.Init(*ckp_, memory_level_);  // see CreateVertexType for rationale
+  edge_tables_.emplace(index, std::move(fresh_et));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Open(work_dir_, memory_level_);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
@@ -353,8 +348,8 @@ Status PropertyGraph::AddVertexProperties(
     add_default_props.emplace_back(execution::value_to_property(val));
   }
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
-                                        add_default_props);
+  vertex_tables_[v_label].AddProperties(*ckp_, add_property_names,
+                                        add_property_types, add_default_props);
   return neug::Status::OK();
 }
 
@@ -410,7 +405,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
     add_default_props.emplace_back(execution::value_to_property(val));
   }
   auto& edge_table = edge_tables_.at(index);
-  edge_table.AddProperties(add_property_names, add_property_types,
+  edge_table.AddProperties(*ckp_, add_property_names, add_property_types,
                            add_default_props);
 
   return neug::Status::OK();
@@ -571,7 +566,7 @@ Status PropertyGraph::DeleteEdgeProperties(
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
   }
-  edge_tables_.at(index).DeleteProperties(delete_property_names);
+  edge_tables_.at(index).DeleteProperties(*ckp_, delete_property_names);
   schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                                delete_property_names);
   return neug::Status::OK();
@@ -584,28 +579,32 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name) {
 
 Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
   schema_.DeleteVertexLabel(v_label_id, false);
-  vertex_tables_[v_label_id].Drop();
+  vertex_tables_[v_label_id].Close();
 
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
+    if (!schema_.is_vertex_label_valid(i)) {
       continue;
     }
     for (label_t j = 0; j < edge_label_total_count_; j++) {
-      if (!schema_.edge_label_valid(j)) {
+      if (!schema_.is_edge_label_valid(j)) {
         continue;
       }
-      if (schema_.exist(v_label_id, i, j)) {
+      if (schema_.is_edge_triplet_valid(v_label_id, i, j)) {
         schema_.DeleteEdgeLabel(v_label_id, i, j);
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.erase(index);
+        auto it = edge_tables_.find(index);
+        if (it != edge_tables_.end()) {
+          it->second.Close();
+          edge_tables_.erase(it);
         }
       }
-      if (schema_.exist(i, v_label_id, j)) {
+      if (schema_.is_edge_triplet_valid(i, v_label_id, j)) {
         schema_.DeleteEdgeLabel(i, v_label_id, j);
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.erase(index);
+        auto it = edge_tables_.find(index);
+        if (it != edge_tables_.end()) {
+          it->second.Close();
+          edge_tables_.erase(it);
         }
       }
     }
@@ -627,28 +626,31 @@ Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label, false);
-  if (edge_tables_.count(index) > 0) {
-    edge_tables_.erase(index);
+  auto it = edge_tables_.find(index);
+  if (it != edge_tables_.end()) {
+    it->second.Close();
+    edge_tables_.erase(it);
   }
   return neug::Status::OK();
 }
 
 Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
                                           const std::vector<vid_t>& vids) {
+  RETURN_IF_NOT_OK(vertex_label_check(v_label_id));
   vertex_tables_[v_label_id].BatchDeleteVertices(vids);
 
   std::set<vid_t> vids_set(vids.begin(), vids.end());
 
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
+    if (!schema_.is_vertex_label_valid(i)) {
       continue;
     }
     for (label_t j = 0; j < edge_label_total_count_; j++) {
-      if (schema_.has_edge_label(i, v_label_id, j)) {
+      if (schema_.has_edge_triplet(i, v_label_id, j)) {
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
         edge_tables_.at(index).BatchDeleteVertices({}, vids_set);
       }
-      if (schema_.has_edge_label(v_label_id, i, j)) {
+      if (schema_.has_edge_triplet(v_label_id, i, j)) {
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
         edge_tables_.at(index).BatchDeleteVertices(vids_set, {});
       }
@@ -660,6 +662,7 @@ Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
 
 Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
                                    timestamp_t ts) {
+  RETURN_IF_NOT_OK(vertex_label_check(label));
   vid_t lid;
   if (!vertex_tables_.at(label).get_index(oid, lid, ts)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -669,17 +672,18 @@ Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
 }
 
 Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
+  RETURN_IF_NOT_OK(vertex_label_check(label));
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
+    if (!schema_.is_vertex_label_valid(i)) {
       continue;
     }
     for (label_t j = 0; j < edge_label_total_count_; j++) {
-      if (schema_.has_edge_label(i, label, j)) {
+      if (schema_.has_edge_triplet(i, label, j)) {
         size_t index = schema_.generate_edge_label(i, label, j);
         assert(edge_tables_.count(index) > 0);
         edge_tables_.at(index).DeleteVertex(true, lid, ts);
       }
-      if (schema_.has_edge_label(label, i, j)) {
+      if (schema_.has_edge_triplet(label, i, j)) {
         size_t index = schema_.generate_edge_label(label, i, j);
         assert(edge_tables_.count(index) > 0);
         edge_tables_.at(index).DeleteVertex(false, lid, ts);
@@ -694,6 +698,7 @@ Status PropertyGraph::DeleteEdge(label_t src_label, vid_t src_lid,
                                  label_t dst_label, vid_t dst_lid,
                                  label_t edge_label, int32_t oe_offset,
                                  int32_t ie_offset, timestamp_t ts) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_label, dst_label, edge_label));
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -706,6 +711,7 @@ Status PropertyGraph::DeleteEdge(label_t src_label, vid_t src_lid,
 Status PropertyGraph::BatchDeleteEdges(
     label_t src_v_label, label_t dst_v_label, label_t edge_label,
     const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, edge_label));
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   std::vector<vid_t> src_vids, dst_vids;
@@ -721,108 +727,58 @@ Status PropertyGraph::BatchDeleteEdges(
     label_t src_v_label, label_t dst_v_label, label_t edge_label,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, edge_label));
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   edge_tables_.at(index).BatchDeleteEdges(oe_edges, ie_edges);
   return Status::OK();
 }
 
-void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
+void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
                          MemoryLevel memory_level) {
-  schema_ = schema;
-  Open(work_dir, memory_level);
-}
-
-void PropertyGraph::Open(const std::string& work_dir,
-                         MemoryLevel memory_level) {
-  // copy work_dir to work_dir_
+  Clear();
   memory_level_ = memory_level;
-  work_dir_.assign(work_dir);
-  std::string schema_file = schema_path(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
-  if (std::filesystem::exists(schema_file)) {
-    loadSchema(schema_file);
-  } else {
-    LOG(INFO) << "Schema file not found, build empty graph";
-    std::filesystem::create_directories(checkpoint_dir_path);
-  }
+
+  const CheckpointManifest& meta = ckp->GetMeta();
+  schema_ = meta.GetSchema();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
-  for (size_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
-      THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " + std::to_string(i));
-    }
-    vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
-  }
 
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-
-  if (std::filesystem::exists(tmp_dir_path)) {
-    remove_directory(tmp_dir_path);
-  }
-
-  std::filesystem::create_directories(tmp_dir_path);
+  ModuleBroker store;
+  store.Open(*ckp, memory_level_);
 
   std::vector<size_t> vertex_capacities(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (!schema_.vertex_label_valid(i)) {
+    if (!schema_.is_vertex_label_valid(i)) {
+      vertex_tables_.emplace_back();
       continue;
     }
-    std::string v_label_name = schema_.get_vertex_label_name(i);
-
-    vertex_tables_[i].Open(work_dir_, memory_level);
-    // Case 1: Open from checkpoint, the capacity should be already reserved and
-    // satisfied.
-    // Case 2: Open from empty, Capacity should be the default minimum
-    // capacity(4096)
+    vertex_tables_.emplace_back(VertexTable::OpenFrom(
+        *ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
     auto v_size = vertex_tables_[i].Size();
     vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
                                                    : v_size + v_size / 4);
     vertex_capacities[i] = vertex_tables_[i].Capacity();
   }
 
-  for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
-       ++src_label_i) {
-    if (!schema_.vertex_label_valid(src_label_i)) {
-      continue;
-    }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
-    for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
-         ++dst_label_i) {
-      if (!schema_.vertex_label_valid(dst_label_i)) {
-        continue;
-      }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
-      for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
-           ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label)) {
-          continue;
-        }
-        size_t index =
-            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-
-        EdgeTable edge_table(
-            schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-        edge_table.Open(work_dir_, memory_level_);
-        auto e_size = edge_table.PropTableSize();
-        size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
-        edge_table.EnsureCapacity(vertex_capacities[src_label_i],
-                                  vertex_capacities[dst_label_i], e_capacity);
-        edge_tables_.emplace(index, std::move(edge_table));
-      }
-    }
+  for (const auto& [index, edge_schema] : schema_.get_all_edge_schemas()) {
+    auto [src_label_i, dst_label_i, e_label_i] =
+        schema_.parse_edge_label(index);
+    EdgeTable et =
+        EdgeTable::OpenFrom(*ckp, edge_schema, store, meta, memory_level_);
+    auto e_size = et.PropTableSize();
+    size_t e_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+    et.EnsureCapacity(vertex_capacities[src_label_i],
+                      vertex_capacities[dst_label_i], e_cap);
+    edge_tables_.emplace(index, std::move(et));
   }
+
   v_mutex_.resize(vertex_label_total_count_);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
     v_mutex_[i] = std::make_shared<std::mutex>();
   }
+
+  ckp_ = std::move(ckp);
 }
 
 void PropertyGraph::compact_schema() {
@@ -832,7 +788,7 @@ void PropertyGraph::compact_schema() {
 
   for (size_t old_v_label = 0; old_v_label != vertex_label_total_count_;
        ++old_v_label) {
-    if (schema_.vertex_label_valid(old_v_label)) {
+    if (schema_.is_vertex_label_valid(old_v_label)) {
       auto src_name = schema_.get_vertex_label_name(old_v_label);
       size_t cur_new_label_id =
           new_schema.get_vertex_label_id_internal(src_name);
@@ -848,20 +804,21 @@ void PropertyGraph::compact_schema() {
   assert(new_vertex_tables.size() == new_schema.vertex_label_frontier());
   for (size_t old_src_label = 0; old_src_label != vertex_label_total_count_;
        ++old_src_label) {
-    if (!schema_.vertex_label_valid(old_src_label)) {
+    if (!schema_.is_vertex_label_valid(old_src_label)) {
       continue;
     }
     auto src_name = schema_.get_vertex_label_name(old_src_label);
     for (size_t old_dst_label = 0; old_dst_label != vertex_label_total_count_;
          ++old_dst_label) {
-      if (!schema_.vertex_label_valid(old_dst_label)) {
+      if (!schema_.is_vertex_label_valid(old_dst_label)) {
         continue;
       }
       auto dst_name = schema_.get_vertex_label_name(old_dst_label);
       for (size_t old_e_label = 0; old_e_label != edge_label_total_count_;
            ++old_e_label) {
-        if (!schema_.edge_label_valid(old_e_label) ||
-            !schema_.exist(old_src_label, old_dst_label, old_e_label)) {
+        if (!schema_.is_edge_label_valid(old_e_label) ||
+            !schema_.is_edge_triplet_valid(old_src_label, old_dst_label,
+                                           old_e_label)) {
           continue;
         }
         auto e_name = schema_.get_edge_label_name(old_e_label);
@@ -906,20 +863,21 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   compact_schema();
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
-    if (schema_.vertex_label_valid(src_label_i)) {
+    if (schema_.is_vertex_label_valid(src_label_i)) {
       vertex_tables_[src_label_i].Compact(ts);
     } else {
       continue;
     }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
-      if (!schema_.vertex_label_valid(dst_label_i)) {
+      if (!schema_.is_vertex_label_valid(dst_label_i)) {
         continue;
       }
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (schema_.edge_label_valid(e_label_i) &&
-            schema_.exist(src_label_i, dst_label_i, e_label_i)) {
+        if (schema_.is_edge_label_valid(e_label_i) &&
+            schema_.is_edge_triplet_valid(src_label_i, dst_label_i,
+                                          e_label_i)) {
           size_t index =
               schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
           const auto& sort_key_for_nbr =
@@ -935,50 +893,46 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   LOG(INFO) << "Compaction completed.";
 }
 
-void PropertyGraph::Dump(bool reopen) {
-  // First dump to the  temp dir, then move to the checkpoint dir
-  std::string target_dir = temp_checkpoint_dir(work_dir_);
-  if (std::filesystem::exists(target_dir)) {
-    remove_directory(target_dir);
-  } else {
-    std::filesystem::create_directories(target_dir);
+void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
+  LOG(INFO) << "Creating checkpoint at " << ckp->path();
+
+  std::string obsolete_wal_dir;
+  if (ckp_ != nullptr && ckp_ != ckp) {
+    obsolete_wal_dir = ckp_->wal_dir();
   }
 
-  std::error_code errorCode;
-  std::filesystem::create_directories(target_dir, errorCode);
-  if (errorCode) {
-    std::stringstream ss;
-    ss << "Failed to create snapshot directory: " << target_dir << ", "
-       << errorCode.message();
-    LOG(ERROR) << ss.str();
-    THROW_RUNTIME_ERROR(ss.str());
-  }
-  std::vector<size_t> vertex_num(vertex_label_total_count_, 0);
+  CheckpointManifest meta;
+  ModuleBroker store;
+
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (!vertex_tables_[i].is_dropped()) {
-      vertex_num[i] = vertex_tables_[i].LidNum();
-      EnsureCapacity(
-          i, vertex_num[i] < 4096 ? 4096 : vertex_num[i] + vertex_num[i] / 4);
+    if (schema_.is_vertex_label_valid(i)) {
+      auto v_size = vertex_tables_[i].LidNum();
+      EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
       vertex_capacity[i] = vertex_tables_[i].Capacity();
-      vertex_tables_[i].Dump(target_dir);
+    }
+  }
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (schema_.is_vertex_label_valid(i)) {
+      vertex_tables_[i].DisassembleTo(store, meta, *ckp);
     }
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
-    if (!schema_.vertex_label_valid(src_label_i)) {
+    if (!schema_.is_vertex_label_valid(src_label_i)) {
       continue;
     }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
-      if (!schema_.vertex_label_valid(dst_label_i)) {
+      if (!schema_.is_vertex_label_valid(dst_label_i)) {
         continue;
       }
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i) ||
-            !schema_.exist(src_label_i, dst_label_i, e_label_i)) {
+        if (!schema_.is_edge_label_valid(e_label_i) ||
+            !schema_.is_edge_triplet_valid(src_label_i, dst_label_i,
+                                           e_label_i)) {
           continue;
         }
         size_t index =
@@ -990,41 +944,27 @@ void PropertyGraph::Dump(bool reopen) {
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
                          vertex_capacity[src_label_i],
                          vertex_capacity[dst_label_i], new_cap);
-          edge_table.Dump(target_dir);
+          edge_table.DisassembleTo(store, meta, *ckp);
         }
       }
     }
   }
-  DumpSchema();
-  copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
-  remove_directory(target_dir);
-  remove_directory(tmp_dir(work_dir_));
-  remove_directory(wal_dir(work_dir_));
-  LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
+
+  store.Dump(*ckp, meta);
+  meta.SetSchema(schema_);
+  ckp->UpdateMeta(
+      std::move(meta));  // Persist meta and set checkpoint to use this meta.
+  LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
+
+  // Drop the previous checkpoint's WAL now that the new snapshot is durable.
+  if (!obsolete_wal_dir.empty() && std::filesystem::exists(obsolete_wal_dir)) {
+    remove_directory(obsolete_wal_dir);
+  }
+
   Clear();
   if (reopen) {
-    Open(work_dir_, memory_level_);
+    Open(ckp, memory_level_);
   }
-}
-
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  if (!write_yaml_file(schema_res.value(), filename)) {
-    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
-  }
-  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
@@ -1032,15 +972,18 @@ const Schema& PropertyGraph::schema() const { return schema_; }
 Schema& PropertyGraph::mutable_schema() { return schema_; }
 
 vid_t PropertyGraph::LidNum(label_t vertex_label) const {
+  schema_.ensure_vertex_label_valid(vertex_label);
   return vertex_tables_[vertex_label].LidNum();
 }
 
 vid_t PropertyGraph::VertexNum(label_t vertex_label, timestamp_t ts) const {
+  schema_.ensure_vertex_label_valid(vertex_label);
   return vertex_tables_[vertex_label].VertexNum(ts);
 }
 
 bool PropertyGraph::IsValidLid(label_t vertex_label, vid_t lid,
                                timestamp_t ts) const {
+  schema_.ensure_vertex_label_valid(vertex_label);
   return vertex_tables_[vertex_label].IsValidLid(lid, ts);
 }
 
@@ -1056,38 +999,48 @@ size_t PropertyGraph::EdgeNum(label_t src_label, label_t edge_label,
 
 bool PropertyGraph::get_lid(label_t label, const Property& oid, vid_t& lid,
                             timestamp_t ts) const {
+  schema_.ensure_vertex_label_valid(label);
   return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
 Property PropertyGraph::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
+  schema_.ensure_vertex_label_valid(label);
   return vertex_tables_[label].GetOid(lid, ts);
 }
 
 Status PropertyGraph::AddVertex(label_t label, const Property& id,
                                 const std::vector<Property>& props, vid_t& ret,
                                 timestamp_t ts, bool insert_safe) {
+  RETURN_IF_NOT_OK(vertex_label_check(label));
   if (!vertex_tables_[label].AddVertex(id, props, ret, ts, insert_safe)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
   }
   return Status::OK();
 }
 
-int32_t PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
-                               label_t dst_label, vid_t dst_lid,
-                               label_t edge_label,
-                               const std::vector<Property>& properties,
-                               timestamp_t ts, Allocator& alloc,
-                               bool insert_safe) {
+Status PropertyGraph::AddEdge(
+    label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
+    label_t edge_label, const std::vector<Property>& properties, timestamp_t ts,
+    Allocator& alloc, int32_t& oe_offset, const void*& prop, bool insert_safe) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
-    THROW_INVALID_ARGUMENT_EXCEPTION("Edge table does not exist for label <" +
-                                     std::to_string(src_label) + ", " +
-                                     std::to_string(dst_label) + ", " +
-                                     std::to_string(edge_label) + ">");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table does not exist for label <" +
+                      std::to_string(src_label) + ", " +
+                      std::to_string(dst_label) + ", " +
+                      std::to_string(edge_label) + ">");
   }
-  return edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts, alloc,
-                                        insert_safe);
+  try {
+    auto ret = edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts,
+                                              alloc, insert_safe);
+    oe_offset = ret.first;
+    prop = ret.second;
+  } catch (const std::exception& e) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  std::string("Failed to add edge: ") + e.what());
+  }
+  return Status::OK();
 }
 
 Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
@@ -1095,7 +1048,7 @@ Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
                                            const Property& value,
                                            timestamp_t ts) {
   assert(prop_id >= 0);
-  assert(schema_.vertex_label_valid(v_label));
+  RETURN_IF_NOT_OK(vertex_label_check(v_label));
   if (!vertex_tables_[v_label].UpdateProperty(vid, prop_id, value, ts)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Fail to update vertex property.");
@@ -1110,7 +1063,7 @@ Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
                                          const Property& value,
                                          timestamp_t ts) {
   assert(prop_id >= 0);
-  assert(schema_.edge_label_valid(e_label));
+  RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << e_label;
@@ -1157,7 +1110,7 @@ std::string PropertyGraph::get_statistics_json() const {
   }
   for (label_t edge_label = 0; edge_label < edge_label_total_count_;
        ++edge_label) {
-    if (!schema_.edge_label_valid(edge_label)) {
+    if (!schema_.is_edge_label_valid(edge_label)) {
       continue;
     }
     auto edge_label_name = schema_.get_edge_label_name(edge_label);
@@ -1171,16 +1124,16 @@ std::string PropertyGraph::get_statistics_json() const {
     rapidjson::Value vertex_type_pair_statistics(rapidjson::kArrayType);
     for (label_t src_label = 0; src_label < vertex_label_total_count_;
          ++src_label) {
-      if (!schema_.vertex_label_valid(src_label)) {
+      if (!schema_.is_vertex_label_valid(src_label)) {
         continue;
       }
       auto src_label_name = schema_.get_vertex_label_name(src_label);
       for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
            ++dst_label) {
-        if (!schema_.vertex_label_valid(dst_label)) {
+        if (!schema_.is_vertex_label_valid(dst_label)) {
           continue;
         }
-        if (!schema_.exist(src_label, dst_label, edge_label)) {
+        if (!schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
           continue;
         }
         auto dst_label_name = schema_.get_vertex_label_name(dst_label);
@@ -1224,41 +1177,52 @@ std::string PropertyGraph::get_statistics_json() const {
   return buffer.GetString();
 }
 
-Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
-                                         const std::string& dst_type_name,
-                                         const std::string& edge_type_name) {
-  if (!schema_.exist(src_type_name, dst_type_name, edge_type_name)) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name << "] does not exist";
+Status PropertyGraph::vertex_label_check(
+    const std::string& vertex_type_name) const {
+  if (!schema_.is_vertex_label_valid(vertex_type_name)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name + "] does not exist");
+                  "Vertex label '" + vertex_type_name + "' is not valid");
   }
-  return neug::Status::OK();
+  return Status::OK();
 }
 
-Status PropertyGraph::edge_triplet_exist(const std::string& src_type_name,
-                                         const std::string& dst_type_name,
-                                         const std::string& edge_type_name) {
-  auto ret =
-      schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name);
-  if (!ret) {
-    LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
-               << "] to [" << dst_type_name << "] does not exist";
+Status PropertyGraph::vertex_label_check(label_t label) const {
+  if (!schema_.is_vertex_label_valid(label)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name + "] does not exist");
+                  "Vertex label id " + std::to_string(label) + " is not valid");
   }
-  return neug::Status::OK();
+  return Status::OK();
 }
 
-Status PropertyGraph::vertex_label_check(const std::string& vertex_type_name) {
-  if (!schema_.contains_vertex_label(vertex_type_name)) {
-    LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
+Status PropertyGraph::edge_triplet_check(
+    const std::string& src_type_name, const std::string& dst_type_name,
+    const std::string& edge_type_name) const {
+  RETURN_IF_NOT_OK(vertex_label_check(src_type_name));
+  RETURN_IF_NOT_OK(vertex_label_check(dst_type_name));
+  if (!schema_.is_edge_label_valid(edge_type_name)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Vertex label[" + vertex_type_name + "] does not exists.");
+                  "Edge label '" + edge_type_name + "' is not valid");
   }
-  return neug::Status::OK();
+  if (!schema_.is_edge_triplet_valid(src_type_name, dst_type_name,
+                                     edge_type_name)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge triplet <" + src_type_name + ", " + dst_type_name +
+                      ", " + edge_type_name + "> is not valid");
+  }
+  return Status::OK();
+}
+
+Status PropertyGraph::edge_triplet_check(label_t src_label, label_t dst_label,
+                                         label_t edge_label) const {
+  RETURN_IF_NOT_OK(vertex_label_check(src_label));
+  RETURN_IF_NOT_OK(vertex_label_check(dst_label));
+  if (!schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge triplet <" + std::to_string(src_label) + ", " +
+                      std::to_string(dst_label) + ", " +
+                      std::to_string(edge_label) + "> is not valid");
+  }
+  return Status::OK();
 }
 
 }  // namespace neug

@@ -114,9 +114,8 @@ class BindedBinaryLogicalExpr : public VertexExprBase,
       return Value::BOOLEAN(std::regex_match(lhs_str, std::regex(rhs_str)));
     }
     default:
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "Unsupported binary logical operation: " +
-          std::to_string(static_cast<int>(logical_)));
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported binary logical operation: " +
+                                    std::to_string(static_cast<int>(logical_)));
       return Value(type_);
     }
   }

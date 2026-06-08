@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEUG_VERSION NEUG_VERSION)
 # Strip trailing newline
@@ -279,8 +279,14 @@ macro(install_neug_target target)
         set(_neug_install_target ${target})
     endif()
 
-    get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
-    get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    get_target_property(_neug_target_type ${_neug_install_target} TYPE)
+    if(_neug_target_type STREQUAL "INTERFACE_LIBRARY")
+        set(_neug_public_headers "_neug_public_headers-NOTFOUND")
+        set(_neug_target_source_dir "")
+    else()
+        get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
+        get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    endif()
     if(_neug_public_headers AND NOT _neug_public_headers STREQUAL "_neug_public_headers-NOTFOUND" AND NOT _neug_public_headers STREQUAL "NOTFOUND")
         set(_neug_public_header_abs)
         foreach(_hdr IN LISTS _neug_public_headers)
@@ -592,6 +598,12 @@ message(STATUS "Arrow JSON support enabled (built-in)")
 if(BUILD_EXTENSIONS AND "parquet" IN_LIST BUILD_EXTENSIONS)
     set(ARROW_ENABLE_PARQUET ON CACHE BOOL "" FORCE)
     message(STATUS "Arrow Parquet support enabled for parquet extension")
+endif()
+
+# Configure Arrow S3 support if httpfs extension is enabled
+if(BUILD_EXTENSIONS AND "httpfs" IN_LIST BUILD_EXTENSIONS)
+    set(ARROW_ENABLE_S3 ON CACHE BOOL "" FORCE)
+    message(STATUS "Arrow S3 support enabled for httpfs extension")
 endif()
 
 set(NEUG_USE_SYSTEM_ARROW OFF)
@@ -940,7 +952,7 @@ list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.clang-format$")
 
 add_custom_target(neug_clformat
     COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}
-    COMMENT "Running clang-format, using clang-format-8 from https://github.com/muttleyxd/clang-tools-static-binaries/releases"
+    COMMENT "Running clang-format (pin: clang-format==10.0.1; install via 'python3 -m pip install clang-format==10.0.1')"
     VERBATIM)
 
 file(GLOB_RECURSE FILES_NEED_FORMAT

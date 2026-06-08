@@ -24,10 +24,12 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
@@ -117,21 +119,13 @@ class PropertyGraph {
   ~PropertyGraph();
 
   /**
-   * @brief Open the property graph from persistent storage.
+   * @brief Open the graph from the given Checkpoint using the Module interface.
    *
-   * @param work_dir Working directory containing graph data files
-   * @param memory_level Memory usage level (controls performance vs memory
-   * tradeoff)
-   *
-   * Implementation: Sets work_dir_ and memory_level_, loads schema from
-   * work_dir, then loads vertex and edge data from snapshot files.
-   *
-   * @since v0.1.0
+   * Reads a CheckpointManifest from @p ckp, then opens each module (Schema,
+   * VertexTable, EdgeTable) via Module::Open.  If the checkpoint contains no
+   * meta the graph starts empty.
    */
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
-
-  void Open(const Schema& schema, const std::string& work_dir,
-            MemoryLevel memory_level);
+  void Open(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
   void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
@@ -139,14 +133,30 @@ class PropertyGraph {
    * @brief Dump the current graph state to persistent storage.
    * @param reopen If true, reopens the graph after dumping (default: true)
    */
-  void Dump(bool reopen = true);
+  void Dump(std::shared_ptr<Checkpoint> ckp, bool reopen = true);
 
   /**
-   * @brief Dump schema information to a file.
-   *
-   * @since v0.1.0
+   * @brief Dump using the graph's own internal Checkpoint.
+   * Convenience overload for callers that don't hold a Checkpoint reference.
    */
-  void DumpSchema();
+  void Dump(bool reopen = true) {
+    assert(ckp_ && "ckp_ must be set before calling Dump()");
+    Dump(ckp_, reopen);
+  }
+
+  Checkpoint& checkpoint() {
+    assert(ckp_);
+    return *ckp_;
+  }
+
+  const Checkpoint& checkpoint() const {
+    assert(ckp_);
+    return *ckp_;
+  }
+
+  std::shared_ptr<Checkpoint> checkpoint_ptr() const { return ckp_; }
+
+  MemoryLevel memory_level() const { return memory_level_; }
 
   /**
    * @brief Get read-only access to the schema.
@@ -328,10 +338,12 @@ class PropertyGraph {
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
 
   inline VertexTable& get_vertex_table(label_t vertex_label) {
+    schema_.ensure_vertex_label_valid(vertex_label);
     return vertex_tables_[vertex_label];
   }
 
   inline const VertexTable& get_vertex_table(label_t vertex_label) const {
+    schema_.ensure_vertex_label_valid(vertex_label);
     return vertex_tables_[vertex_label];
   }
 
@@ -375,10 +387,11 @@ class PropertyGraph {
                    const std::vector<Property>& props, vid_t& vid,
                    timestamp_t ts, bool insert_safe = false);
 
-  int32_t AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                  vid_t dst_lid, label_t edge_label,
-                  const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc, bool insert_safe = false);
+  Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
+                 vid_t dst_lid, label_t edge_label,
+                 const std::vector<Property>& properties, timestamp_t ts,
+                 Allocator& alloc, int32_t& oe_offset, const void*& prop,
+                 bool insert_safe = false);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);
@@ -391,7 +404,7 @@ class PropertyGraph {
   /**
    * @brief Get a view for traversing outgoing edges.
    *
-   * Returns a GenericView for efficiently iterating over outgoing edges
+   * Returns a CsrView for efficiently iterating over outgoing edges
    * from vertices of type v_label to vertices of type neighbor_label.
    *
    * **Usage Example:**
@@ -400,7 +413,7 @@ class PropertyGraph {
    * label_t person = schema.get_vertex_label_id("Person");
    * label_t knows = schema.get_edge_label_id("KNOWS");
    *
-   * GenericView view = graph.GetGenericOutgoingGraphView(
+   * CsrView view = graph.GetGenericOutgoingGraphView(
    *     person, person, knows, read_ts);
    *
    * // Traverse from vertex v
@@ -416,16 +429,16 @@ class PropertyGraph {
    * @param edge_label Edge label connecting them
    * @param ts Read timestamp for MVCC (default: latest)
    *
-   * @return GenericView for outgoing edge traversal
+   * @return CsrView for outgoing edge traversal
    *
    * @throws std::invalid_argument if edge triplet doesn't exist
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    * @see GetGenericIncomingGraphView For reverse traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericOutgoingGraphView(
+  CsrView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
@@ -440,13 +453,13 @@ class PropertyGraph {
   /**
    * @brief Get a view for traversing incoming edges.
    *
-   * Returns a GenericView for efficiently iterating over incoming edges
+   * Returns a CsrView for efficiently iterating over incoming edges
    * to vertices of type v_label from vertices of type neighbor_label.
    *
    * **Usage Example:**
    * @code{.cpp}
    * // Get view for Person <-[KNOWS]- Person edges (reverse direction)
-   * GenericView view = graph.GetGenericIncomingGraphView(
+   * CsrView view = graph.GetGenericIncomingGraphView(
    *     person, person, knows, read_ts);
    *
    * // Find who follows vertex v (incoming edges)
@@ -461,16 +474,16 @@ class PropertyGraph {
    * @param edge_label Edge label connecting them
    * @param ts Read timestamp for MVCC (default: latest)
    *
-   * @return GenericView for incoming edge traversal
+   * @return CsrView for incoming edge traversal
    *
    * @throws std::invalid_argument if edge triplet doesn't exist
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    * @see GetGenericOutgoingGraphView For forward traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericIncomingGraphView(
+  CsrView GetGenericIncomingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
@@ -521,7 +534,7 @@ class PropertyGraph {
    *     person, person, knows, "weight");
    *
    * // Use with edge iteration
-   * GenericView view = graph.GetGenericOutgoingGraphView(...);
+   * CsrView view = graph.GetGenericOutgoingGraphView(...);
    * for (auto it = view.get_edges(v).begin(); ...; ++it) {
    *     double weight = weight_accessor.get_typed_data<double>(it);
    * }
@@ -554,26 +567,31 @@ class PropertyGraph {
   void loadSchema(const std::string& filename);
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, int32_t col_id) const {
+    schema_.ensure_vertex_label_valid(label);
+    auto props = schema_.get_vertex_properties(label);
+    if (col_id < 0 || static_cast<size_t>(col_id) >= props.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Vertex property column id out of range: " + std::to_string(col_id) +
+          " (label has " + std::to_string(props.size()) + " properties)");
+    }
     return vertex_tables_[label].GetPropertyColumn(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
+    schema_.ensure_vertex_label_valid(label);
     return vertex_tables_[label].GetPropertyColumn(prop);
   }
 
   inline VertexSet GetVertexSet(label_t label,
                                 timestamp_t ts = MAX_TIMESTAMP) const {
+    schema_.ensure_vertex_label_valid(label);
     return vertex_tables_[label].GetVertexSet(ts);
   }
 
   std::string get_statistics_json() const;
 
-  inline std::string get_schema_yaml_path() const {
-    return work_dir_ + "/graph.yaml";
-  }
-
-  inline std::string work_dir() const { return work_dir_; }
+  inline std::string work_dir() const { return ckp_->path(); }
 
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,
@@ -585,20 +603,18 @@ class PropertyGraph {
                                       const std::vector<std::string>& props,
                                       std::vector<std::string>& valid_props);
 
+  Status vertex_label_check(const std::string& vertex_type_name) const;
+  Status vertex_label_check(label_t label) const;
+
   Status edge_triplet_check(const std::string& src_type_name,
                             const std::string& dst_type_name,
-                            const std::string& edge_type_name);
-
-  // Check whether the edge triplet exists, maybe marked as deleted
-  Status edge_triplet_exist(const std::string& src_type_name,
-                            const std::string& dst_type_name,
-                            const std::string& edge_type_name);
-
-  Status vertex_label_check(const std::string& vertex_type_name);
+                            const std::string& edge_type_name) const;
+  Status edge_triplet_check(label_t src_label, label_t dst_label,
+                            label_t edge_label) const;
 
   void compact_schema();
 
-  std::string work_dir_;
+  std::shared_ptr<Checkpoint> ckp_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
   std::vector<VertexTable> vertex_tables_;

@@ -179,8 +179,8 @@ class UpdateTransaction {
                         const std::string& dst_type,
                         const std::string& edge_type);
 
-  bool AddVertex(label_t label, const Property& oid,
-                 const std::vector<Property>& props, vid_t& vid);
+  Status AddVertex(label_t label, const Property& oid,
+                   const std::vector<Property>& props, vid_t& vid);
 
   /**
    * @brief Delete vertex and its associated edges.
@@ -191,8 +191,9 @@ class UpdateTransaction {
    */
   bool DeleteVertex(label_t label, vid_t lid);
 
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop);
 
   bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                    label_t edge_label);
@@ -221,9 +222,8 @@ class UpdateTransaction {
                           int32_t ie_offset, int32_t col_id,
                           const Property& value);
 
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
@@ -231,9 +231,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
@@ -353,33 +352,32 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       : StorageUpdateInterface(txn.graph(), txn.timestamp()), txn_(txn) {}
   ~StorageTPUpdateInterface() {}
 
-  inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                   const Property& value) override {
+  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                            const Property& value) override {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
-  inline void UpdateEdgeProperty(label_t src_label, vid_t src,
-                                 label_t dst_label, vid_t dst,
-                                 label_t edge_label, int32_t oe_offset,
-                                 int32_t ie_offset, int32_t col_id,
-                                 const Property& value) override {
+  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const Property& value) override {
     txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                             oe_offset, ie_offset, col_id, value);
   }
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Property>& properties,
+                 const void*& prop) override {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                        prop);
   }
   void CreateCheckpoint() override;
-  inline UpdateTransaction& GetTransaction() { return txn_; }
+
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;

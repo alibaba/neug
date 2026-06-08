@@ -19,6 +19,16 @@ function (build_glog_as_third_party)
     set(WITH_GFLAGS OFF CACHE BOOL "Build glog without gflags" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static library" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
+
+    # Disable libunwind in glog to prevent _Unwind_* symbol conflict with
+    # libgcc_s.so.1. When both libunwind.so.8 and libgcc_s.so.1 are loaded,
+    # the dynamic linker may resolve _Unwind_RaiseException to libunwind's
+    # version which cannot dispatch C++ exceptions, causing abort() instead
+    # of reaching catch blocks. With WITH_UNWIND=OFF, glog falls back to
+    # _Unwind_Backtrace from <unwind.h> (provided by libgcc_s) for stack
+    # traces in LOG(FATAL) / signal handlers — same quality, no conflict.
+    set(WITH_UNWIND OFF CACHE BOOL "Disable libunwind to avoid symbol conflict with libgcc_s" FORCE)
+
     add_subdirectory(third_party/glog)
     include_directories(third_party/glog/src)
     include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers

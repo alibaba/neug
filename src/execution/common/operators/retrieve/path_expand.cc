@@ -919,7 +919,7 @@ neug::result<Context> PathExpand::single_source_single_dest_shortest_path(
 }
 
 static void dfs(
-    const GenericView& oview, const GenericView& iview, vid_t src, vid_t dst,
+    const CsrView& oview, const CsrView& iview, vid_t src, vid_t dst,
     const StorageReadInterface::vertex_array_t<bool>& visited,
     const StorageReadInterface::vertex_array_t<int8_t>& dist,
     const ShortestPathParams& params, std::vector<std::vector<vid_t>>& paths,

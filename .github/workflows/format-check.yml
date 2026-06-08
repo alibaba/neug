@@ -17,7 +17,12 @@ concurrency:
 
 jobs:
   check-format:
-    runs-on: ubuntu-22.04
+    # Run on the self-hosted pool whenever the workflow is executing in
+    # alibaba/neug (push, workflow_dispatch, and any pull_request including
+    # those from forks). Fork PRs are intentionally included to avoid the
+    # GitHub-hosted runner queue. Other repositories (e.g. user forks running
+    # this workflow on their own branches) fall back to ubuntu-22.04.
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -86,11 +91,15 @@ jobs:
         delete: true
 
     - name: Set up Python
+      # Skip on self-hosted ARM runners (Python is preinstalled there);
+      # all other runners (github-hosted, self-hosted x64, etc.) still run setup.
+      if: ${{ !(runner.environment == 'self-hosted' && (runner.arch == 'ARM64' || runner.arch == 'ARM')) }}
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
     - name: Setup Java and Maven
+      if: ${{ runner.environment != 'self-hosted' }}
       uses: s4u/setup-maven-action@v1.19.0
       with:
         java-version: '17'
@@ -106,9 +115,8 @@ jobs:
 
     - name: Cpp Format and Lint Check
       run: |
-        # install clang-format
-        sudo curl -L https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 --output /usr/local/bin/clang-format
-        sudo chmod +x /usr/local/bin/clang-format
+        # Install pinned clang-format from PyPI (cross-platform: Linux, macOS, Windows)
+        python3 -m pip install 'clang-format==10.0.1'
 
         # validate format
         function prepend() { while read line; do echo "${1}${line}"; done; }
@@ -129,9 +137,8 @@ jobs:
             echo "|"
             echo "| to fix this error."
             echo "|"
-            echo "| Ensure you are working with clang-format-8, which can be obtained from"
-            echo "| sudo curl -L https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 --output /usr/local/bin/clang-format"
-            echo "| sudo chmod +x /usr/local/bin/clang-format"
+            echo "| Ensure you are working with clang-format 10.0.1, install with:"
+            echo "|     python3 -m pip install 'clang-format==10.0.1'"
             echo "|"
             echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             exit 1

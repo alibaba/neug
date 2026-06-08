@@ -2,7 +2,7 @@ if (BUILD_HTTP_SERVER)
         add_executable(rt_server rt_server.cc)
         message(STATUS "openssl library: ${OPENSSL_LIBRARIES}")
         target_link_libraries(rt_server PRIVATE neug)
-        target_link_libraries(rt_server PRIVATE ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+        target_link_libraries(rt_server PRIVATE ${GLOG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
         target_link_libraries(rt_server PRIVATE ${ARROW_LIB})
         install_without_export_neug_target(rt_server)
 

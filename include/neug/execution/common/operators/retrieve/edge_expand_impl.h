@@ -73,8 +73,8 @@ get_label_dirs(label_t input_label, const Schema& schema,
                const std::vector<LabelTriplet>& labels, Direction dir) {
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
-    if (!schema.exist(triplet.src_label, triplet.dst_label,
-                      triplet.edge_label)) {
+    if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
+                                      triplet.edge_label)) {
       continue;
     }
     if (triplet.src_label == input_label &&
@@ -103,8 +103,8 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs(
       label_num);
   for (auto& triplet : labels) {
-    if (!schema.exist(triplet.src_label, triplet.dst_label,
-                      triplet.edge_label)) {
+    if (!schema.is_edge_triplet_valid(triplet.src_label, triplet.dst_label,
+                                      triplet.edge_label)) {
       continue;
     }
     if ((input_labels.find(triplet.src_label) != input_labels.end()) &&
@@ -229,7 +229,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
   std::set<label_t> nbr_labels;
   bool single_view_per_label = true;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {
@@ -322,7 +322,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     MSVertexColumnBuilder builder(nbr_label);
     std::vector<size_t> offsets;
     if (single_view_per_label) {
-      std::vector<GenericView> single_views(label_num);
+      std::vector<CsrView> single_views(label_num);
       std::vector<label_t> single_edge_labels(
           label_num, std::numeric_limits<label_t>::max());
       std::vector<Direction> single_dirs(label_num);
@@ -387,7 +387,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         });
       }
     } else {
-      std::vector<std::vector<GenericView>> views(label_num);
+      std::vector<std::vector<CsrView>> views(label_num);
       for (label_t v_label = 0; v_label < label_num; ++v_label) {
         for (auto& t : label_dirs[v_label]) {
           label_t edge_label = std::get<1>(t);
@@ -470,7 +470,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     MLVertexColumnBuilderOpt builder(nbr_labels);
     std::vector<size_t> offsets;
     if (single_view_per_label) {
-      std::vector<GenericView> single_views(label_num);
+      std::vector<CsrView> single_views(label_num);
       std::vector<label_t> single_nbr_labels(
           label_num, std::numeric_limits<label_t>::max());
       std::vector<label_t> single_edge_labels(
@@ -545,7 +545,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
         });
       }
     } else {
-      std::vector<std::vector<GenericView>> views(label_num);
+      std::vector<std::vector<CsrView>> views(label_num);
       for (label_t v_label = 0; v_label < label_num; ++v_label) {
         for (auto& t : label_dirs[v_label]) {
           label_t nbr_label = std::get<0>(t);
@@ -636,7 +636,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::set<label_t> nbr_labels;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {
@@ -648,7 +648,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     MLVertexColumnBuilder builder;
     return std::make_pair(builder.finish(), std::vector<size_t>());
   }
-  std::vector<std::vector<GenericView>> views(label_num);
+  std::vector<std::vector<CsrView>> views(label_num);
   for (auto v_label : input_labels) {
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
@@ -1014,10 +1014,10 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
   label_t label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
-  std::vector<std::vector<GenericView>> views(label_num);
+  std::vector<std::vector<CsrView>> views(label_num);
   std::vector<LabelTriplet> all_triplets;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
-    if (!graph.schema().vertex_label_valid(v_label)) {
+    if (!graph.schema().is_vertex_label_valid(v_label)) {
       continue;
     }
     for (auto& t : label_dirs[v_label]) {

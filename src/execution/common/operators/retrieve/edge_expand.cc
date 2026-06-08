@@ -45,7 +45,7 @@ neug::result<Context> EdgeExpand::expand_degree(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<GenericView>> mps;
+  std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -97,7 +97,7 @@ neug::result<Context> EdgeExpand::expand_count(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<GenericView>> mps;
+  std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -355,8 +355,8 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     label_t input_label = casted_input_vertex_list->label();
     std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
     for (auto& triplet : params.labels) {
-      if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
-                                triplet.edge_label)) {
+      if (!graph.schema().is_edge_triplet_valid(
+              triplet.src_label, triplet.dst_label, triplet.edge_label)) {
         continue;
       }
       if (triplet.src_label == input_label &&

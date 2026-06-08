@@ -27,16 +27,17 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
     label_t edge_label_num = graph.schema().edge_label_frontier();
     label_t vertex_label_num = graph.schema().vertex_label_frontier();
     for (label_t src_label = 0; src_label < vertex_label_num; ++src_label) {
-      if (!graph.schema().vertex_label_valid(src_label)) {
+      if (!graph.schema().is_vertex_label_valid(src_label)) {
         continue;
       }
       for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-        if (!graph.schema().vertex_label_valid(dst_label)) {
+        if (!graph.schema().is_vertex_label_valid(dst_label)) {
           continue;
         }
         for (label_t edge_label = 0; edge_label < edge_label_num;
              ++edge_label) {
-          if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+          if (!graph.schema().is_edge_triplet_valid(src_label, dst_label,
+                                                    edge_label)) {
             continue;
           }
           const std::vector<std::string>& names =
@@ -147,8 +148,9 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
     return std::make_unique<BindedEdgeIdentityAccessor>();
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unknown GraphAccessorType: " +
-                                  std::to_string(static_cast<int>(access_type_)));
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessorType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
