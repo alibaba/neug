@@ -15,6 +15,8 @@
 
 #include "node_database.h"
 
+#include <unistd.h>
+
 #include <string>
 
 #include "neug/config.h"
@@ -32,6 +34,7 @@ Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
           InstanceMethod("close", &NodeDatabase::Close),
           InstanceMethod("serve", &NodeDatabase::Serve),
           InstanceMethod("stopServing", &NodeDatabase::StopServing),
+          StaticMethod("cpuCount", &NodeDatabase::GetCpuCount),
       });
   constructor = Napi::Persistent(func);
   constructor.SuppressDestruct();
@@ -234,6 +237,14 @@ Napi::Value NodeDatabase::StopServing(const Napi::CallbackInfo& info) {
   }
 #endif
   return info.Env().Undefined();
+}
+
+Napi::Value NodeDatabase::GetCpuCount(const Napi::CallbackInfo& info) {
+  long n = sysconf(_SC_NPROCESSORS_ONLN);
+  if (n < 1) {
+    n = 1;
+  }
+  return Napi::Number::New(info.Env(), static_cast<int32_t>(n));
 }
 
 MemoryLevel NodeDatabase::ParseBufferStrategy(const std::string& level) {

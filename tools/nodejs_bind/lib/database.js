@@ -15,7 +15,6 @@
 
 'use strict';
 
-const os = require('os');
 const { Connection } = require('./connection');
 const { AsyncConnection } = require('./async-connection');
 const { readable } = require('./utils');
@@ -58,6 +57,16 @@ const VALID_MODES = [
  * db.close();
  */
 class Database {
+  /**
+   * Return the number of online CPUs, using the same system call as
+   * Python's os.cpu_count() (sysconf(_SC_NPROCESSORS_ONLN)).
+   * This is more reliable than os.cpus().length on arm64 Linux.
+   * @returns {number}
+   */
+  static cpuCount() {
+    return nativeBinding.NodeDatabase.cpuCount();
+  }
+
   /**
    * Open a NeuG database.
    *
@@ -113,7 +122,9 @@ class Database {
       );
     }
 
-    const cpuCount = os.cpus().length;
+    // Use sysconf(_SC_NPROCESSORS_ONLN) via native binding to match
+    // Python's os.cpu_count() behaviour (especially on arm64 Linux).
+    const cpuCount = Database.cpuCount();
     if (maxThreadNum > cpuCount) {
       throw new Error(
         `Invalid argument: maxThreadNum: ${maxThreadNum}. ` +

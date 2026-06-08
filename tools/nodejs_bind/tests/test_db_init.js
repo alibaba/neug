@@ -230,7 +230,7 @@ test('test_config_param', () => {
   const db7 = new Database({ databasePath: dbDir, mode: 'r', maxThreadNum: 0 });
   assert.ok(db7);
   db7.close();
-  const maxThreadNum = os.cpus().length || 1;
+  const maxThreadNum = Database.cpuCount() || 1;
   const db8 = new Database({ databasePath: dbDir, mode: 'r', maxThreadNum });
   assert.ok(db8);
   db8.close();
@@ -262,7 +262,7 @@ test('test_config_param_boundary', () => {
   const dbDir = makeTmpDir('conn_param_boundary_db');
   // test with more than maximum cores
   assert.throws(() => {
-    const maxCores = os.cpus().length || 1;
+    const maxCores = Database.cpuCount() || 1;
     // max_thread_num should not exceed the number of cores
     new Database({ databasePath: dbDir, mode: 'w', maxThreadNum: maxCores + 1 });
   }, (err) => {

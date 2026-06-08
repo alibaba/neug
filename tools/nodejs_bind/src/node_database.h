@@ -33,6 +33,7 @@ namespace neug {
 class NodeDatabase : public Napi::ObjectWrap<NodeDatabase> {
  public:
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
+  static Napi::Value GetCpuCount(const Napi::CallbackInfo& info);
 
   NodeDatabase(const Napi::CallbackInfo& info);
   ~NodeDatabase();
