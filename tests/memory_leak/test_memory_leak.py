@@ -147,7 +147,7 @@ def scenario_steady(iters: int, sample: int) -> ScenarioResult:
     with isolated_dbdir("steady") as db_path:
         db = Database(db_path=db_path, mode="w")
         conn = db.connect()
-        conn.execute("CREATE TABLE n(id INT64 PRIMARY KEY, name STRING);")
+        conn.execute("CREATE NODE TABLE n(id INT64 PRIMARY KEY, name STRING);")
         conn.execute("CREATE (a:n {id: 1, name: 'a'});", access_mode="i")
 
         gc.collect()
@@ -180,7 +180,7 @@ def scenario_lifecycle(iters: int, sample: int) -> ScenarioResult:
         # Pre-create the schema once so each open does not perform DDL.
         seed = Database(db_path=db_path, mode="w")
         seed_conn = seed.connect()
-        seed_conn.execute("CREATE TABLE n(id INT64 PRIMARY KEY, name STRING);")
+        seed_conn.execute("CREATE NODE TABLE n(id INT64 PRIMARY KEY, name STRING);")
         seed_conn.close()
         seed.close()
         del seed_conn, seed
@@ -211,7 +211,7 @@ def scenario_lifecycle(iters: int, sample: int) -> ScenarioResult:
 
 
 def scenario_ddl(iters: int, sample: int) -> ScenarioResult:
-    """C. CREATE TABLE / DROP TABLE alternating cycles."""
+    """C. CREATE NODE TABLE / DROP TABLE alternating cycles."""
     from neug import Database
 
     res = ScenarioResult("ddl", iters, sample)
@@ -226,7 +226,7 @@ def scenario_ddl(iters: int, sample: int) -> ScenarioResult:
         for i in range(1, iters + 1):
             tname = f"t_{i}"
             conn.execute(
-                f"CREATE TABLE {tname}(id INT64 PRIMARY KEY, name STRING);",
+                f"CREATE NODE TABLE {tname}(id INT64 PRIMARY KEY, name STRING);",
                 access_mode="s",
             )
             conn.execute(f"DROP TABLE {tname};", access_mode="s")
@@ -253,7 +253,7 @@ def scenario_cache(iters: int, sample: int) -> ScenarioResult:
     with isolated_dbdir("cache") as db_path:
         db = Database(db_path=db_path, mode="w")
         conn = db.connect()
-        conn.execute("CREATE TABLE n(id INT64 PRIMARY KEY, name STRING);")
+        conn.execute("CREATE NODE TABLE n(id INT64 PRIMARY KEY, name STRING);")
 
         gc.collect()
         res.base = get_rss_mb()
