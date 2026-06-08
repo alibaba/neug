@@ -925,6 +925,8 @@ void EdgeTable::Compact(bool compact_csr,
     out_csr_->compact();
     in_csr_->compact();
   }
+  // must reset timestamp before sorting, otherwise the unsorted_since_ may not
+  // be properly setted
   out_csr_->reset_timestamp();
   in_csr_->reset_timestamp();
   if (sort_key_for_nbr.has_value()) {
