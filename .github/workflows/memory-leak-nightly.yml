@@ -55,20 +55,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
-          key: ${{ runner.os }}-ccache-memleak-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/memory-leak-nightly.yml') }}
+          key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/neug-test.yml') }}
           restore-keys: |
-            ${{ runner.os }}-ccache-memleak-${{ github.ref_name }}-
-            ${{ runner.os }}-ccache-memleak-
             ${{ runner.os }}-ccache-${{ github.ref_name }}-
+            ${{ runner.os }}-ccache-main-
             ${{ runner.os }}-ccache-
 
-      - name: Setup CCache (mirrors neug-test.yml)
+      - name: Setup CCache
         run: |
-          set -o pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build ccache \
-            python3 python3-pip python3-dev pkg-config
+          sudo apt-get update && sudo apt-get install -y ccache
           mkdir -p ~/.cache/ccache
           {
             echo "CCACHE_DIR=$HOME/.cache/ccache"
