@@ -2,6 +2,9 @@ name: NPM Test
 
 on:
   workflow_dispatch: {}
+  schedule:
+    # Trigger at 03:00 CST (19:00 UTC) every day
+    - cron: '00 19 * * *'
   push:
     branches:
       - main
@@ -29,14 +32,20 @@ concurrency:
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
 
   build_npm_linux_x86_64:
     needs: format_check
-    runs-on: [self-hosted, daily, linux, x64]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
+    runs-on: ${{ matrix.runner }}
     env:
       CONTAINER_NAME: neug-npm-x86_64-${{ github.run_id }}
     steps:
@@ -121,8 +130,14 @@ jobs:
 
   build_npm_linux_arm64:
     needs: format_check
-    runs-on: [self-hosted, daily, linux, arm64]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
+    runs-on: ${{ matrix.runner }}
     env:
       CONTAINER_NAME: neug-npm-arm64-${{ github.run_id }}
     steps:
@@ -207,6 +222,7 @@ jobs:
 
   build_npm_macos_aarch64:
     needs: format_check
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
     runs-on: macos-15
     steps:
       - name: checkout
