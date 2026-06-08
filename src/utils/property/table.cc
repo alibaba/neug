@@ -28,7 +28,7 @@
 namespace neug {
 
 Table::Table() {}
-Table::~Table() { close(); }
+Table::~Table() = default;
 
 Table::Table(const std::vector<std::string>& col_names,
              const std::vector<DataType>& property_types) {
@@ -265,6 +265,5 @@ void Table::ingest(uint32_t index, OutArchive& arc) {
   }
 }
 
-void Table::close() { columns_.clear(); }
 
 }  // namespace neug

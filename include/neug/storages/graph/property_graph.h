@@ -339,12 +339,12 @@ class PropertyGraph {
 
   inline VertexTable& get_vertex_table(label_t vertex_label) {
     schema_.ensure_vertex_label_valid(vertex_label);
-    return vertex_tables_[vertex_label];
+    return *vertex_tables_[vertex_label];
   }
 
   inline const VertexTable& get_vertex_table(label_t vertex_label) const {
     schema_.ensure_vertex_label_valid(vertex_label);
-    return vertex_tables_[vertex_label];
+    return *vertex_tables_[vertex_label];
   }
 
   inline EdgeTable& get_edge_table(label_t src_label, label_t dst_label,
@@ -355,7 +355,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_tables_.at(index);
+    return *edge_tables_.at(index);
   }
 
   inline const EdgeTable& get_edge_table(label_t src_label, label_t dst_label,
@@ -366,7 +366,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_tables_.at(index);
+    return *edge_tables_.at(index);
   }
 
   vid_t LidNum(label_t vertex_label) const;
@@ -447,7 +447,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_tables_.at(index).get_outgoing_view(ts);
+    return edge_tables_.at(index)->get_outgoing_view(ts);
   }
 
   /**
@@ -492,7 +492,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_tables_.at(index).get_incoming_view(ts);
+    return edge_tables_.at(index)->get_incoming_view(ts);
   }
 
   /**
@@ -521,7 +521,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_tables_.at(index).get_edge_data_accessor(prop_id);
+    return edge_tables_.at(index)->get_edge_data_accessor(prop_id);
   }
 
   /**
@@ -561,7 +561,7 @@ class PropertyGraph {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Edge table for edge label triplet not found");
     }
-    return edge_table_it->second.get_edge_data_accessor(prop);
+    return edge_table_it->second->get_edge_data_accessor(prop);
   }
 
   void loadSchema(const std::string& filename);
@@ -574,19 +574,19 @@ class PropertyGraph {
           "Vertex property column id out of range: " + std::to_string(col_id) +
           " (label has " + std::to_string(props.size()) + " properties)");
     }
-    return vertex_tables_[label].GetPropertyColumn(col_id);
+    return vertex_tables_[label]->GetPropertyColumn(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
     schema_.ensure_vertex_label_valid(label);
-    return vertex_tables_[label].GetPropertyColumn(prop);
+    return vertex_tables_[label]->GetPropertyColumn(prop);
   }
 
   inline VertexSet GetVertexSet(label_t label,
                                 timestamp_t ts = MAX_TIMESTAMP) const {
     schema_.ensure_vertex_label_valid(label);
-    return vertex_tables_[label].GetVertexSet(ts);
+    return vertex_tables_[label]->GetVertexSet(ts);
   }
 
   std::string get_statistics_json() const;
@@ -617,8 +617,8 @@ class PropertyGraph {
   std::shared_ptr<Checkpoint> ckp_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
-  std::vector<VertexTable> vertex_tables_;
-  std::unordered_map<uint32_t, EdgeTable> edge_tables_;
+  std::vector<std::unique_ptr<VertexTable>> vertex_tables_;
+  std::unordered_map<uint32_t, std::unique_ptr<EdgeTable>> edge_tables_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;

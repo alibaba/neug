@@ -94,8 +94,6 @@ class EdgeTable {
     return meta_;
   }
 
-  void Close();
-
   void SortByEdgeData(timestamp_t ts);
 
   void BatchDeleteVertices(const std::set<vid_t>& src_set,

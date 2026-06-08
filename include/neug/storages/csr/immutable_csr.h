@@ -75,8 +75,6 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void Close();
-
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
   void batch_delete_vertices(const std::set<vid_t>& src_set,
@@ -162,8 +160,6 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   void resize(vid_t vnum) override;
 
   size_t capacity() const override;
-
-  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 

@@ -235,15 +235,6 @@ size_t MutableCsr<EDATA_T>::capacity() const {
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::Close() {
-  locks_.reset();
-  adj_list_buffer_.reset();
-  degree_list_.reset();
-  cap_list_.reset();
-  nbr_list_.reset();
-}
-
-template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (adj_list_buffer_ != nullptr) {
     size_t vnum = vertex_capacity();
@@ -556,11 +547,6 @@ void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
 template <typename EDATA_T>
 size_t SingleMutableCsr<EDATA_T>::capacity() const {
   return vertex_capacity();
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::Close() {
-  nbr_list_.reset();
 }
 
 template <typename EDATA_T>

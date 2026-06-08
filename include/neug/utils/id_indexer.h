@@ -438,11 +438,6 @@ class LFIndexer {
     return keys_->get_prop(index);
   }
 
-  void Close() {
-    keys_.reset();
-    indices_.reset();
-  }
-
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
 

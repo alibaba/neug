@@ -95,8 +95,6 @@ class Table {
 
   void ingest(uint32_t index, OutArchive& arc);
 
-  void close();
-
  private:
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
