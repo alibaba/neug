@@ -62,27 +62,15 @@ static void tune_mimalloc_for_pybind() {
   //   allow_decommit = 1      → allow decommit, BUT only after a delay…
   //   *_decommit_delay = 30s  → …so steady-state hot path never sees it; only
   //                              idle/quiescent segments are returned to OS.
-  if (std::getenv("MIMALLOC_PAGE_RESET") == nullptr) {
-    mi_option_set(mi_option_page_reset, 0);  // keep pages resident on free
-  }
-  if (std::getenv("MIMALLOC_EAGER_COMMIT") == nullptr) {
-    mi_option_set(mi_option_eager_commit, 1);  // commit segment up front
-  }
+  mi_option_set(mi_option_page_reset, 0);  // keep pages resident on free
+  mi_option_set(mi_option_eager_commit, 1);  // commit segment up front
   // Auto-decommit idle segments after 30s of inactivity. This makes RSS
   // self-trim without any application-side calls.
-  if (std::getenv("MIMALLOC_ALLOW_DECOMMIT") == nullptr) {
-    mi_option_set(mi_option_allow_decommit, 1);
-  }
-  if (std::getenv("MIMALLOC_DECOMMIT_DELAY") == nullptr) {
-    mi_option_set(mi_option_decommit_delay, 30000);  // ms
-  }
-  if (std::getenv("MIMALLOC_SEGMENT_DECOMMIT_DELAY") == nullptr) {
-    mi_option_set(mi_option_segment_decommit_delay, 30000);  // ms
-  }
+  mi_option_set(mi_option_allow_decommit, 1);
+  mi_option_set(mi_option_decommit_delay, 30000);  // ms
+  mi_option_set(mi_option_segment_decommit_delay, 30000);  // ms
   // Try to use 2 MiB *explicit* hugetlb OS pages (MAP_HUGETLB on Linux)
-  if (std::getenv("MIMALLOC_LARGE_OS_PAGES") == nullptr) {
-    mi_option_set(mi_option_large_os_pages, 1);
-  }
+  mi_option_set(mi_option_large_os_pages, 1);
 }
 
 #endif  // NEUG_WITH_MIMALLOC
