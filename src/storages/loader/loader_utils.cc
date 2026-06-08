@@ -697,7 +697,7 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
         continue;
       }
       col->set_any(vids[k],
-                   std::move(PropUtils<COL_T>::to_prop(casted->Value(k))),
+                   execution::Value::CreateValue<COL_T>(casted->Value(k)),
                    false);
     }
   }
@@ -719,7 +719,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
+            execution::Value::CreateValue<Date>(Date(casted->Value(k))), false);
       }
     }
   } else if (type->Equals(arrow::date64())) {
@@ -732,7 +732,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
+            execution::Value::CreateValue<Date>(Date(casted->Value(k))), false);
       }
     }
   } else {
@@ -759,7 +759,7 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
         }
         col->set_any(
             vids[k],
-            std::move(PropUtils<COL_T>::to_prop(COL_T(casted->Value(k)))),
+            execution::Value::CreateValue<COL_T>(COL_T(casted->Value(k))),
             false);
       }
     }
@@ -788,8 +788,8 @@ void set_interval_column_from_string_array(
           continue;                                                          \
         }                                                                    \
         col->set_any(vids[k],                                                \
-                     std::move(PropUtils<Interval>::to_prop(                 \
-                         Interval(casted->GetView(k)))),                     \
+                     execution::Value::CreateValue<Interval>(                \
+                         Interval(casted->GetView(k))),                      \
                      false);                                                 \
       }                                                                      \
     }                                                                        \
@@ -836,7 +836,8 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           sw = std::string_view(str.data(), str.size());
         }
         if (!enable_resize) {
-          Property any_val = Property::From(sw);
+          execution::Value any_val =
+              execution::Value::CreateValue<std::string_view>(sw);
           col->set_any(vids[k], any_val, false);
         } else {
           std::shared_lock<std::shared_mutex> lock(rw_mutex);
@@ -863,7 +864,8 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
         std::string_view sw(str.data(), str.size());
 
         if (!enable_resize) {
-          Property any_val = Property::From(sw);
+          execution::Value any_val =
+              execution::Value::CreateValue<std::string_view>(sw);
           col->set_any(vids[k], std::move(any_val), false);
         } else {
           std::shared_lock<std::shared_mutex> lock(rw_mutex);

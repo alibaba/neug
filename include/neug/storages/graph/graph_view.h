@@ -45,9 +45,9 @@ class GraphView {
 
   // Vertex-side read API (keyed by label).
   VertexSet GetVertexSet(label_t label, timestamp_t ts) const;
-  bool get_lid(label_t label, const Property& oid, vid_t& lid,
+  bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
                timestamp_t ts) const;
-  Property GetOid(label_t label, vid_t lid) const;
+  execution::Value GetOid(label_t label, vid_t lid) const;
   bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const;
   std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
       label_t label, const std::string& prop) const;
@@ -66,14 +66,15 @@ class GraphView {
                                        const std::string& prop_name) const;
 
   // Mutators.
-  Status AddVertex(label_t label, const Property& id,
-                   const std::vector<Property>& props, vid_t& vid,
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props, vid_t& vid,
                    timestamp_t ts);
 
   Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                  vid_t dst_lid, label_t edge_label,
-                 const std::vector<Property>& properties, timestamp_t ts,
-                 Allocator& alloc, int32_t& oe_offset, const void*& prop);
+                 const std::vector<execution::Value>& properties,
+                 timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
+                 const void*& prop);
 
  private:
   PropertyGraph* pg_{nullptr};

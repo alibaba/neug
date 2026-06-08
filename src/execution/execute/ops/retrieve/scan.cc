@@ -45,21 +45,22 @@ class FilterOidsGPredOpr : public IOperator {
         std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
             .id();
 
-    std::vector<Property> oids =
+    std::vector<Value> oid_values =
         ScanUtils::parse_ids_with_type(type, oids_, params);
 
     if (pred_ == nullptr) {
-      if (params_.tables.size() == 1 && oids.size() == 1) {
-        return Scan::find_vertex_with_oid(
-            std::move(ctx), graph, params_.tables[0], oids[0], params_.alias);
+      if (params_.tables.size() == 1 && oid_values.size() == 1) {
+        return Scan::find_vertex_with_oid(std::move(ctx), graph,
+                                          params_.tables[0], oid_values[0],
+                                          params_.alias);
       }
       return Scan::filter_oids(std::move(ctx), graph, params_, DummyPred(),
-                               oids);
+                               oid_values);
     } else {
       auto pred = pred_->bind(&graph, params);
       GeneralPred predicate_wrapper(std::move(pred));
       return Scan::filter_oids(std::move(ctx), graph, params_,
-                               predicate_wrapper, oids);
+                               predicate_wrapper, oid_values);
     }
   }
 

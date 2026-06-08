@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/utils/property/types.h"
 
@@ -35,7 +36,7 @@ namespace ops {
 
 class ScanUtils {
  public:
-  static std::vector<Property> parse_ids_with_type(
+  static std::vector<Value> parse_ids_with_type(
       DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
       const ParamsMap& params);
 

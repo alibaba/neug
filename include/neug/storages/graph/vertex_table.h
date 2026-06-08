@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
@@ -133,16 +134,17 @@ class VertexTable {
 
   size_t EnsureCapacity(size_t capacity);
 
-  bool get_index(const Property& oid, vid_t& lid,
+  bool get_index(const execution::Value& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
 
-  Property GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
+  execution::Value GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
   // Return false if the reserved space is not enough.
-  bool AddVertex(const Property& id, const std::vector<Property>& props,
-                 vid_t& vid, timestamp_t ts, bool insert_safe);
+  bool AddVertex(const execution::Value& id,
+                 const std::vector<execution::Value>& props, vid_t& vid,
+                 timestamp_t ts, bool insert_safe);
 
-  bool UpdateProperty(vid_t vid, int32_t prop_id, const Property& value,
+  bool UpdateProperty(vid_t vid, int32_t prop_id, const execution::Value& value,
                       timestamp_t ts);
 
   size_t VertexNum(timestamp_t ts = MAX_TIMESTAMP) const;
@@ -188,15 +190,16 @@ class VertexTable {
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
-  void DeleteVertex(const Property& id, timestamp_t ts);
+  void DeleteVertex(const execution::Value& id, timestamp_t ts);
 
   void DeleteVertex(vid_t lid, timestamp_t ts);
 
   void RevertDeleteVertex(vid_t lid, timestamp_t ts);
 
-  void AddProperties(const std::vector<std::string>& property_names,
-                     const std::vector<DataType>& property_types,
-                     const std::vector<Property>& default_property_values);
+  void AddProperties(
+      const std::vector<std::string>& property_names,
+      const std::vector<DataType>& property_types,
+      const std::vector<execution::Value>& default_property_values);
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -217,7 +220,8 @@ class VertexTable {
   void openImpl(const std::string& work_dir, MemoryLevel memory_level,
                 const std::string& checkpoint_dir_path);
 
-  vid_t insert_vertex_pk(const Property& id, timestamp_t ts, bool insert_safe);
+  vid_t insert_vertex_pk(const execution::Value& id, timestamp_t ts,
+                         bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -237,7 +241,7 @@ class VertexTable {
           std::static_pointer_cast<arrow_array_t>(primary_key_column);
 
       for (size_t j = 0; j < row_num; ++j) {
-        auto oid = PropUtils<PK_T>::to_prop(casted_array->Value(j));
+        auto oid = execution::Value::CreateValue<PK_T>(casted_array->Value(j));
         if (NEUG_UNLIKELY(indexer_->get_index(oid, vids[j]))) {
           if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
             vids[j] = std::numeric_limits<vid_t>::max();
@@ -253,7 +257,8 @@ class VertexTable {
         auto casted_array =
             std::static_pointer_cast<arrow::StringArray>(primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid = Property::from_string_view(casted_array->GetView(j));
+          auto oid =
+              execution::Value::STRING(std::string(casted_array->GetView(j)));
           if (indexer_->get_index(oid, vids[j])) {
             if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();
@@ -268,7 +273,8 @@ class VertexTable {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
             primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid = Property::from_string_view(casted_array->GetView(j));
+          auto oid =
+              execution::Value::STRING(std::string(casted_array->GetView(j)));
           if (indexer_->get_index(oid, vids[j])) {
             if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();

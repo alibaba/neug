@@ -49,14 +49,12 @@ class VertexTableTest : public ::testing::Test {
     property_names_ = {"name", "age", "score"};
     property_types_ = {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32,
                        neug::DataTypeId::kDouble};
-    property_values_ = {neug::Property::from_string_view("Alice"),
-                        neug::Property::from_int32(30),
-                        neug::Property::from_double(88.5)};
-    default_prop_values_ = {
-        neug::execution::property_to_value(
-            neug::Property::from_string_view("")),
-        neug::execution::property_to_value(neug::Property::from_int32(0)),
-        neug::execution::property_to_value(neug::Property::from_double(0.0))};
+    property_values_ = {neug::execution::Value::STRING("Alice"),
+                        neug::execution::Value::INT32(30),
+                        neug::execution::Value::DOUBLE(88.5)};
+    default_prop_values_ = {neug::execution::Value::STRING(""),
+                            neug::execution::Value::INT32(0),
+                            neug::execution::Value::DOUBLE(0.0)};
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
                            {std::make_tuple(pk_type_, "id", 0)}, 4096, "",
@@ -101,7 +99,7 @@ class VertexTableTest : public ::testing::Test {
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
-  std::vector<neug::Property> property_values_;
+  std::vector<neug::execution::Value> property_values_;
   std::vector<neug::execution::Value> default_prop_values_;
   std::mt19937 generator_;
   neug::Schema schema_;
@@ -116,17 +114,16 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   table.EnsureCapacity(vertex_count_);
 
   neug::vid_t lid1, lid2, lid3;
-  neug::Property oid1, oid2, oid3;
-  oid1.set_int64(1);
-  oid2.set_int64(2);
-  oid3.set_int64(3);
+  auto oid1 = neug::execution::Value::INT64(1);
+  auto oid2 = neug::execution::Value::INT64(2);
+  auto oid3 = neug::execution::Value::INT64(3);
   EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1, false));
   EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2, false));
   EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3, false));
   LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
             << lid3;
-  LOG(INFO) << "and oids: " << oid1.as_int64() << ", " << oid2.as_int64()
-            << ", " << oid3.as_int64();
+  LOG(INFO) << "and oids: " << oid1.GetValue<int64_t>() << ", "
+            << oid2.GetValue<int64_t>() << ", " << oid3.GetValue<int64_t>();
 
   EXPECT_EQ(table.VertexNum(), 3);
   EXPECT_EQ(table.LidNum(), 3);
@@ -139,9 +136,9 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   EXPECT_FALSE(table.IsValidLid(4));
   EXPECT_TRUE(table.IsValidLid(lid3, 3));
 
-  EXPECT_EQ(oid1, table.GetOid(lid1));
-  EXPECT_EQ(oid2, table.GetOid(lid2));
-  EXPECT_EQ(oid3, table.GetOid(lid3));
+  EXPECT_EQ(oid1, table.GetOidValue(lid1));
+  EXPECT_EQ(oid2, table.GetOidValue(lid2));
+  EXPECT_EQ(oid3, table.GetOidValue(lid3));
 
   try {
     auto ret = table.GetOid(3, 2);
@@ -169,10 +166,9 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     table.EnsureCapacity(vertex_count_);
 
     neug::vid_t lid1, lid2, lid3;
-    neug::Property oid1, oid2, oid3;
-    oid1.set_int64(1);
-    oid2.set_int64(2);
-    oid3.set_int64(3);
+    auto oid1 = neug::execution::Value::INT64(1);
+    auto oid2 = neug::execution::Value::INT64(2);
+    auto oid3 = neug::execution::Value::INT64(3);
     EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1, false));
     EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2, false));
     EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3, false));
@@ -205,15 +201,15 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
   neug::vid_t lid1, lid2, lid3;
-  neug::Property oid1, oid2, oid3;
+  neug::execution::Value oid1, oid2, oid3;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_);
     table.EnsureCapacity(vertex_count_);
 
-    oid1.set_int64(1);
-    oid2.set_int64(2);
-    oid3.set_int64(3);
+    oid1 = neug::execution::Value::INT64(1);
+    oid2 = neug::execution::Value::INT64(2);
+    oid3 = neug::execution::Value::INT64(3);
     EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1, false));
     EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2, false));
     EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3, false));
@@ -272,10 +268,9 @@ TEST_F(VertexTableTest, AddVertexBasic) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid1, oid2, oid3;
-  oid1.set_int64(100);
-  oid2.set_int64(200);
-  oid3.set_int64(300);
+  auto oid1 = neug::execution::Value::INT64(100);
+  auto oid2 = neug::execution::Value::INT64(200);
+  auto oid3 = neug::execution::Value::INT64(300);
   neug::vid_t lid1, lid2, lid3;
   EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 0, false));
   EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 1, false));
@@ -292,9 +287,9 @@ TEST_F(VertexTableTest, AddVertexBasic) {
   EXPECT_EQ(table.VertexNum(1), 2);  // lid1 and lid2 visible at ts=1
   EXPECT_EQ(table.VertexNum(2), 3);  // All visible at ts=2
 
-  EXPECT_EQ(table.GetOid(lid1), oid1);
-  EXPECT_EQ(table.GetOid(lid2), oid2);
-  EXPECT_EQ(table.GetOid(lid3), oid3);
+  EXPECT_EQ(table.GetOidValue(lid1), oid1);
+  EXPECT_EQ(table.GetOidValue(lid2), oid2);
+  EXPECT_EQ(table.GetOidValue(lid3), oid3);
 
   neug::vid_t tmp_vid;
   EXPECT_TRUE(table.get_index(oid1, tmp_vid));
@@ -310,17 +305,16 @@ TEST_F(VertexTableTest, AddVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
   neug::vid_t tmp_vid;
-  EXPECT_FALSE(table.AddVertex(neug::Property::from_int64(1), property_values_,
-                               tmp_vid, 0, false));
+  EXPECT_FALSE(table.AddVertex(neug::execution::Value::INT64(1),
+                               property_values_, tmp_vid, 0, false));
 
-  std::vector<neug::Property> oids;
+  std::vector<neug::execution::Value> oids;
   std::vector<neug::vid_t> lids;
   table.EnsureCapacity(100);
   lids.resize(100);
 
   for (int64_t i = 0; i < 100; ++i) {
-    neug::Property oid;
-    oid.set_int64(i);
+    auto oid = neug::execution::Value::INT64(i);
     oids.push_back(oid);
     EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i % 10, false));
   }
@@ -342,10 +336,9 @@ TEST_F(VertexTableTest, DeleteVertexBasic) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid1, oid2, oid3;
-  oid1.set_int64(1);
-  oid2.set_int64(2);
-  oid3.set_int64(3);
+  auto oid1 = neug::execution::Value::INT64(1);
+  auto oid2 = neug::execution::Value::INT64(2);
+  auto oid3 = neug::execution::Value::INT64(3);
   neug::vid_t lid1, lid2, lid3;
 
   EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1, false));
@@ -375,8 +368,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid1;
-  oid1.set_int64(1);
+  auto oid1 = neug::execution::Value::INT64(1);
   neug::vid_t lid1;
   EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1, false));
 
@@ -396,7 +388,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   neug::vid_t tmp_vid;
   EXPECT_TRUE(table.get_index(oid1, tmp_vid));
   EXPECT_EQ(tmp_vid, lid1);
-  EXPECT_EQ(table.GetOid(lid1), oid1);
+  EXPECT_EQ(table.GetOidValue(lid1), oid1);
 }
 
 // Test complex combination: Add -> Delete -> Revert
@@ -405,13 +397,12 @@ TEST_F(VertexTableTest, AddDeleteRevertCombination) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  std::vector<neug::Property> oids;
+  std::vector<neug::execution::Value> oids;
   std::vector<neug::vid_t> lids;
   lids.resize(10);
 
   for (int64_t i = 0; i < 10; ++i) {
-    neug::Property oid;
-    oid.set_int64(i);
+    auto oid = neug::execution::Value::INT64(i);
     oids.push_back(oid);
     EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i, false));
   }
@@ -450,8 +441,7 @@ TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid;
-  oid.set_int64(42);
+  auto oid = neug::execution::Value::INT64(42);
   neug::vid_t lid;
   EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1, false));
 
@@ -490,8 +480,7 @@ TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
 
   // Add using both methods alternately
   for (int64_t i = 0; i < 20; ++i) {
-    neug::Property oid;
-    oid.set_int64(i);
+    auto oid = neug::execution::Value::INT64(i);
     EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i, false));
   }
 
@@ -509,10 +498,9 @@ TEST_F(VertexTableTest, TemporalVisibilityComplex) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid1, oid2, oid3;
-  oid1.set_int64(1);
-  oid2.set_int64(2);
-  oid3.set_int64(3);
+  auto oid1 = neug::execution::Value::INT64(1);
+  auto oid2 = neug::execution::Value::INT64(2);
+  auto oid3 = neug::execution::Value::INT64(3);
 
   EXPECT_EQ(table.VertexNum(0), 0);
   neug::vid_t lid1;
@@ -552,8 +540,7 @@ TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid;
-  oid.set_int64(1);
+  auto oid = neug::execution::Value::INT64(1);
   neug::vid_t lid;
   EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1, false));
 
@@ -575,8 +562,7 @@ TEST_F(VertexTableTest, RevertNonDeletedVertex) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  neug::Property oid;
-  oid.set_int64(1);
+  auto oid = neug::execution::Value::INT64(1);
   neug::vid_t lid;
   EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1, false));
 
@@ -598,7 +584,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
   std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
 
-  std::vector<neug::Property> oids;
+  std::vector<neug::execution::Value> oids;
   std::vector<neug::vid_t> lids;
   lids.resize(20);
 
@@ -609,8 +595,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
     table.EnsureCapacity(100);
 
     for (int64_t i = 0; i < 20; ++i) {
-      neug::Property oid;
-      oid.set_int64(i);
+      auto oid = neug::execution::Value::INT64(i);
       oids.push_back(oid);
       EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i, false));
     }
@@ -669,13 +654,12 @@ TEST_F(VertexTableTest, StressAddDeleteRevert) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(1000);
 
-  std::vector<neug::Property> oids;
+  std::vector<neug::execution::Value> oids;
   std::vector<neug::vid_t> lids;
   lids.resize(100);
 
   for (int64_t i = 0; i < 100; ++i) {
-    neug::Property oid;
-    oid.set_int64(i);
+    auto oid = neug::execution::Value::INT64(i);
     oids.push_back(oid);
     EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], 1, false));
   }
@@ -791,13 +775,12 @@ TEST_F(VertexTableTest, VertexSetForeachVertex) {
   table.Open(dir_, memory_level_);
   table.EnsureCapacity(100);
 
-  std::vector<neug::Property> oids;
+  std::vector<neug::execution::Value> oids;
   std::vector<neug::vid_t> lids;
   lids.resize(10);
 
   for (int64_t i = 0; i < 10; ++i) {
-    neug::Property oid;
-    oid.set_int64(i);
+    auto oid = neug::execution::Value::INT64(i);
     oids.push_back(oid);
     EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i, false));
   }

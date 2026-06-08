@@ -108,10 +108,11 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_map_.swap(new_col_id_map);
 }
 
-void Table::add_columns(const std::vector<std::string>& col_names,
-                        const std::vector<DataType>& col_types,
-                        const std::vector<Property>& default_property_values,
-                        size_t capacity, MemoryLevel memory_level) {
+void Table::add_columns(
+    const std::vector<std::string>& col_names,
+    const std::vector<DataType>& col_types,
+    const std::vector<execution::Value>& default_property_values,
+    size_t capacity, MemoryLevel memory_level) {
   if (default_property_values.size() != col_names.size()) {
     THROW_RUNTIME_ERROR("default_property_values size mismatch: expected " +
                         std::to_string(col_names.size()) + " but got " +
@@ -234,10 +235,10 @@ const std::shared_ptr<ColumnBase> Table::get_column(
   return nullptr;
 }
 
-std::vector<Property> Table::get_row(size_t row_id) const {
-  std::vector<Property> ret;
+std::vector<execution::Value> Table::get_row_values(size_t row_id) const {
+  std::vector<execution::Value> ret;
   for (auto ptr : columns_) {
-    ret.push_back(ptr->get_prop(row_id));
+    ret.push_back(ptr->get_any(row_id));
   }
   return ret;
 }
@@ -261,7 +262,7 @@ const std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) const {
 size_t Table::col_num() const { return columns_.size(); }
 std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 
-void Table::insert(size_t index, const std::vector<Property>& values,
+void Table::insert(size_t index, const std::vector<execution::Value>& values,
                    bool insert_safe) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
@@ -278,7 +279,7 @@ void Table::resize(size_t row_num) {
 }
 
 void Table::resize(size_t row_num,
-                   const std::vector<Property>& default_values) {
+                   const std::vector<execution::Value>& default_values) {
   if (default_values.size() != columns_.size()) {
     THROW_RUNTIME_ERROR("default_values size mismatch: expected " +
                         std::to_string(columns_.size()) + " but got " +

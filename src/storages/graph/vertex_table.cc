@@ -121,7 +121,7 @@ void VertexTable::SetVertexSchema(
   vertex_schema_ = vertex_schema;
 }
 
-bool VertexTable::get_index(const Property& oid, vid_t& lid,
+bool VertexTable::get_index(const execution::Value& oid, vid_t& lid,
                             timestamp_t ts) const {
   auto res = indexer_->get_index(oid, lid);
   if (NEUG_UNLIKELY(res && !v_ts_->IsVertexValid(lid, ts))) {
@@ -136,9 +136,9 @@ size_t VertexTable::VertexNum(timestamp_t ts) const {
 
 size_t VertexTable::LidNum() const { return indexer_->size(); }
 
-bool VertexTable::AddVertex(const Property& id,
-                            const std::vector<Property>& props, vid_t& vid,
-                            timestamp_t ts, bool insert_safe) {
+bool VertexTable::AddVertex(const execution::Value& id,
+                            const std::vector<execution::Value>& props,
+                            vid_t& vid, timestamp_t ts, bool insert_safe) {
   if (indexer_->capacity() <= indexer_->size()) {
     return false;
   }
@@ -155,7 +155,8 @@ bool VertexTable::AddVertex(const Property& id,
 }
 
 bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
-                                 const Property& value, timestamp_t ts) {
+                                 const execution::Value& value,
+                                 timestamp_t ts) {
   if (NEUG_UNLIKELY(vid >= indexer_->size())) {
     LOG(ERROR) << "Lid " << vid << " is out of range.";
     return false;
@@ -173,7 +174,7 @@ bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
   return true;
 }
 
-Property VertexTable::GetOid(vid_t lid, timestamp_t ts) const {
+execution::Value VertexTable::GetOid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(lid >= indexer_->size())) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
                                      " is out of range.");
@@ -198,7 +199,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     indexer_->reserve(capacity);
   }
   if (table_ && table_->size() < capacity) {
-    table_->resize(capacity, vertex_schema_->get_default_properties());
+    table_->resize(capacity, vertex_schema_->get_default_property_values());
   }
   v_ts_->Reserve(capacity);
   return indexer_->capacity();
@@ -215,7 +216,7 @@ void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
   VLOG(10) << "Deleted " << delete_cnt << " vertices in batch.";
 }
 
-void VertexTable::DeleteVertex(const Property& id, timestamp_t ts) {
+void VertexTable::DeleteVertex(const execution::Value& id, timestamp_t ts) {
   vid_t vid;
   if (!get_index(id, vid, ts)) {
     LOG(WARNING) << "Vertex with id " << id.to_string() << " not found.";
@@ -251,9 +252,10 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   }
 }
 
-void VertexTable::AddProperties(const std::vector<std::string>& properties,
-                                const std::vector<DataType>& types,
-                                const std::vector<Property>& default_values) {
+void VertexTable::AddProperties(
+    const std::vector<std::string>& properties,
+    const std::vector<DataType>& types,
+    const std::vector<execution::Value>& default_values) {
   table_->add_columns(properties, types, default_values, indexer_->capacity(),
                       memory_level_);
 }
@@ -271,7 +273,7 @@ void VertexTable::Compact(timestamp_t ts) {
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
 
-vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts,
+vid_t VertexTable::insert_vertex_pk(const execution::Value& id, timestamp_t ts,
                                     bool insert_safe) {
   vid_t vid;
   if (NEUG_UNLIKELY(indexer_->get_index(id, vid))) {

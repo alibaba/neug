@@ -27,10 +27,10 @@
 #include <vector>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/id_indexer.h"
-#include "neug/utils/property/property.h"
 
 namespace neug {
 namespace {
@@ -74,14 +74,14 @@ class LFIndexerTest : public ::testing::Test {
     ASSERT_EQ(indexer.size(), values.size());
     for (size_t i = 0; i < values.size(); ++i) {
       INDEX_T lid;
-      ASSERT_TRUE(indexer.get_index(Property::from_int64(values[i]), lid));
+      ASSERT_TRUE(indexer.get_index(execution::Value::INT64(values[i]), lid));
       EXPECT_EQ(lid, static_cast<INDEX_T>(i));
 
-      auto key = indexer.get_key(static_cast<INDEX_T>(i));
-      EXPECT_EQ(key.type(), DataTypeId::kInt64);
-      EXPECT_EQ(key.as_int64(), values[i])
+      auto key = indexer.get_key_value(static_cast<INDEX_T>(i));
+      EXPECT_EQ(key.type().id(), DataTypeId::kInt64);
+      EXPECT_EQ(key.GetValue<int64_t>(), values[i])
           << " at index " << i << " with lid " << static_cast<INDEX_T>(i)
-          << " and key " << key.as_int64();
+          << " and key " << key.GetValue<int64_t>();
     }
   }
 
@@ -91,13 +91,12 @@ class LFIndexerTest : public ::testing::Test {
     ASSERT_EQ(indexer.size(), values.size());
     for (size_t i = 0; i < values.size(); ++i) {
       INDEX_T lid;
-      ASSERT_TRUE(
-          indexer.get_index(Property::from_string_view(values[i]), lid));
+      ASSERT_TRUE(indexer.get_index(execution::Value::STRING(values[i]), lid));
       EXPECT_EQ(lid, static_cast<INDEX_T>(i));
 
-      auto key = indexer.get_key(static_cast<INDEX_T>(i));
-      EXPECT_EQ(key.type(), DataTypeId::kVarchar);
-      EXPECT_EQ(key.as_string_view(), values[i]);
+      auto key = indexer.get_key_value(static_cast<INDEX_T>(i));
+      EXPECT_EQ(key.type().id(), DataTypeId::kVarchar);
+      EXPECT_EQ(key.GetValue<std::string>(), values[i]);
     }
   }
 
@@ -126,9 +125,9 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   EXPECT_GE(indexer.capacity(), 8U);
 
   std::vector<int64_t> values = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41};
-  EXPECT_EQ(indexer.insert(Property::from_int64(values[0]), false), 0U);
+  EXPECT_EQ(indexer.insert(execution::Value::INT64(values[0]), false), 0U);
   for (size_t i = 1; i < values.size(); ++i) {
-    EXPECT_EQ(indexer.insert(Property::from_int64(values[i]), true),
+    EXPECT_EQ(indexer.insert(execution::Value::INT64(values[i]), true),
               static_cast<uint32_t>(i));
   }
 
@@ -137,12 +136,12 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   ExpectInt64Values(indexer, values);
 
   uint32_t lid = std::numeric_limits<uint32_t>::max();
-  EXPECT_TRUE(indexer.get_index(Property::from_int64(23), lid));
+  EXPECT_TRUE(indexer.get_index(execution::Value::INT64(23), lid));
   EXPECT_EQ(lid, 5U);
-  EXPECT_FALSE(indexer.get_index(Property::from_int32(23), lid));
-  EXPECT_TRUE(indexer.contains(Property::from_int64(37)));
-  EXPECT_FALSE(indexer.contains(Property::from_int64(1001)));
-  EXPECT_EQ(indexer.get_index(Property::from_int64(1001)),
+  EXPECT_FALSE(indexer.get_index(execution::Value::INT32(23), lid));
+  EXPECT_TRUE(indexer.contains(execution::Value::INT64(37)));
+  EXPECT_FALSE(indexer.contains(execution::Value::INT64(1001)));
+  EXPECT_EQ(indexer.get_index(execution::Value::INT64(1001)),
             std::numeric_limits<uint32_t>::max());
 
   indexer.rehash(64);
@@ -163,7 +162,7 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
 
   std::vector<int64_t> values = {5, 10, 15, 20};
   for (const auto& value : values) {
-    writable.insert(Property::from_int64(value), true);
+    writable.insert(execution::Value::INT64(value), true);
   }
 
   writable.dump(name, snapshot_dir_);
@@ -215,10 +214,10 @@ TEST_F(LFIndexerTest, SupportsSwapAndVarcharKeys) {
   std::vector<std::string> lhs_values = {"alice", "bob"};
   std::vector<std::string> rhs_values = {"carol", "dave", "erin"};
   for (const auto& value : lhs_values) {
-    lhs.insert(Property::from_string_view(value), true);
+    lhs.insert(execution::Value::STRING(value), true);
   }
   for (const auto& value : rhs_values) {
-    rhs.insert(Property::from_string_view(value), true);
+    rhs.insert(execution::Value::STRING(value), true);
   }
 
   EXPECT_EQ(lhs.get_type(), DataTypeId::kVarchar);
@@ -268,7 +267,7 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
   std::vector<std::string> values = {"alpha",   "beta", "gamma", "delta",
                                      "epsilon", "zeta", "eta",   "theta"};
   for (const auto& v : values) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(execution::Value::STRING(v), false);
   }
   ExpectStringValues(indexer, values);
   indexer.close();
@@ -298,7 +297,7 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
     values.push_back(std::string(kMaxWidth - 1, static_cast<char>('a' + i)));
   }
   for (const auto& v : values) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(execution::Value::STRING(v), false);
   }
   ExpectStringValues(indexer, values);
   indexer.close();
@@ -320,7 +319,7 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   indexer.reserve(4);
   std::vector<std::string> batch1 = {"alice", "bob", "carol", "dave"};
   for (const auto& v : batch1) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(execution::Value::STRING(v), false);
   }
   ExpectStringValues(indexer, batch1);
 
@@ -330,7 +329,7 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   indexer.reserve(8);
   std::vector<std::string> batch2 = {"erin", "frank", "grace", "heidi"};
   for (const auto& v : batch2) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(execution::Value::STRING(v), false);
   }
 
   std::vector<std::string> all = {"alice", "bob",   "carol", "dave",
@@ -354,10 +353,10 @@ TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
   indexer.reserve(16);
   EXPECT_GE(indexer.capacity(), 16U);
   size_t size_before = indexer.size();
-  indexer.insert(Property::from_string_view("foo"), false);
-  indexer.insert(Property::from_string_view("bar"), false);
-  indexer.insert(Property::from_string_view("baz"), false);
-  indexer.insert(Property::from_string_view("qux"), false);
+  indexer.insert(execution::Value::STRING(std::string("foo")), false);
+  indexer.insert(execution::Value::STRING(std::string("bar")), false);
+  indexer.insert(execution::Value::STRING(std::string("baz")), false);
+  indexer.insert(execution::Value::STRING(std::string("qux")), false);
 
   // Shrinking reserve must not corrupt state.
   indexer.reserve(4);
@@ -380,7 +379,7 @@ TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
   std::vector<std::string> values = {"foo",  "bar",   "baz",   "qux",
                                      "quux", "corge", "grault"};
   for (const auto& v : values) {
-    indexer.insert(Property::from_string_view(v), true);
+    indexer.insert(execution::Value::STRING(v), true);
   }
   ExpectStringValues(indexer, values);
 
@@ -410,7 +409,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 
   std::vector<std::string> values = {"one", "two", "three", "four", "five"};
   for (const auto& v : values) {
-    writable.insert(Property::from_string_view(v), false);
+    writable.insert(execution::Value::STRING(v), false);
   }
   ExpectStringValues(writable, values);
 
@@ -455,7 +454,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
     writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
-      writer.insert(Property::from_string_view(v), true);
+      writer.insert(execution::Value::STRING(v), true);
     }
     writer.dump(name, snapshot_dir_);
   }
@@ -478,7 +477,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
     long_values.push_back(std::string(60, static_cast<char>('d' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v), true);
+    indexer.insert(execution::Value::STRING(v), true);
   }
 
   std::vector<std::string> all = short_values;
@@ -507,7 +506,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
     writer.open_in_memory(base);
     writer.reserve(short_values.size());
     for (const auto& v : short_values) {
-      writer.insert(Property::from_string_view(v), false);
+      writer.insert(execution::Value::STRING(v), false);
     }
     writer.dump(name, snapshot_dir_);
   }
@@ -525,7 +524,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
     long_values.push_back(std::string(45, static_cast<char>('A' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v), true);
+    indexer.insert(execution::Value::STRING(v), true);
   }
 
   std::vector<std::string> all = short_values;
@@ -553,7 +552,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
     writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
-      writer.insert(Property::from_string_view(v), true);
+      writer.insert(execution::Value::STRING(v), true);
     }
     writer.dump(name, snapshot_dir_);
   }
@@ -575,7 +574,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
     long_values.push_back(std::string(30, static_cast<char>('p' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v), true);
+    indexer.insert(execution::Value::STRING(v), true);
   }
 
   std::vector<std::string> all = short_values;
@@ -605,7 +604,7 @@ TEST_F(LFIndexerTest, VarcharStringOverflow) {
   };
 
   for (const auto& v : valid_strings) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(execution::Value::STRING(v), false);
   }
   ExpectStringValues(indexer, valid_strings);
   indexer.reserve(8);
@@ -615,14 +614,13 @@ TEST_F(LFIndexerTest, VarcharStringOverflow) {
   for (size_t i = 0; i < 2; ++i) {
     std::string test_string =
         overflow_string + std::to_string(i);  // 31 chars + 1 char = 32 chars
-    indexer.insert(Property::from_string_view(test_string), false);
+    indexer.insert(execution::Value::STRING(test_string), false);
     valid_strings.push_back(test_string);
   }
   ExpectStringValues(indexer, valid_strings);
 
-  EXPECT_THROW(
-      indexer.insert(Property::from_string_view(overflow_string), false),
-      neug::exception::StorageException);
+  EXPECT_THROW(indexer.insert(execution::Value::STRING(overflow_string), false),
+               neug::exception::StorageException);
 
   indexer.close();
 }

@@ -47,9 +47,9 @@ class VertexTableBenchmark : public ::testing::Test {
     property_names_ = {"name", "age", "score"};
     property_types_ = {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32,
                        neug::DataTypeId::kDouble};
-    property_values_ = {neug::Property::from_string_view("Alice"),
-                        neug::Property::from_int32(30),
-                        neug::Property::from_double(88.5)};
+    property_values_ = {neug::execution::Value::STRING("Alice"),
+                        neug::execution::Value::INT32(30),
+                        neug::execution::Value::DOUBLE(88.5)};
     pk_types_ = {{neug::DataTypeId::kVarchar, "name", 0}};
     description = "Person vertex label";
     v_schema_ = std::make_shared<neug::VertexSchema>(
@@ -78,8 +78,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
     for (size_t i = 0; i < count; ++i) {
       // Add vertex with integer ID
-      neug::Property vertex_id;
-      vertex_id.set_int64(static_cast<int64_t>(i));
+      auto vertex_id = neug::execution::Value::INT64(static_cast<int64_t>(i));
 
       neug::vid_t vid;
       EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
@@ -132,16 +131,15 @@ class VertexTableBenchmark : public ::testing::Test {
     return ids;
   }
 
-  std::vector<neug::Property> GenerateRandomOids(
+  std::vector<neug::execution::Value> GenerateRandomOids(
       const neug::VertexTable& vertex_table, size_t count, size_t max_id) {
-    std::vector<neug::Property> oids;
+    std::vector<neug::execution::Value> oids;
     std::uniform_int_distribution<int64_t> oid_dist(0, max_id - 1);
 
     neug::vid_t lid;
     while (oids.size() < count) {
-      neug::Property oid;
       auto oid_value = oid_dist(generator_);
-      oid.set_int64(oid_value);
+      auto oid = neug::execution::Value::INT64(oid_value);
       if (vertex_table.get_index(oid, lid)) {
         oids.push_back(oid);
         (void) lid;  // Avoid unused variable warning
@@ -160,7 +158,7 @@ class VertexTableBenchmark : public ::testing::Test {
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
-  std::vector<neug::Property> property_values_;
+  std::vector<neug::execution::Value> property_values_;
   std::vector<neug::execution::Value> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
   std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;
@@ -180,8 +178,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
 
   // Add vertices
   for (size_t i = 0; i < vertex_count; ++i) {
-    neug::Property vertex_id;
-    vertex_id.set_int64(static_cast<int64_t>(i));
+    auto vertex_id = neug::execution::Value::INT64(static_cast<int64_t>(i));
     neug::vid_t vid;
     EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i, false));
   }
@@ -223,7 +220,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Warm up
   for (auto vid : random_vids) {
-    neug::Property oid = table.GetOid(vid, neug::MAX_TIMESTAMP);
+    auto oid = table.GetOidValue(vid, neug::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
   LOG(INFO) << "Warm-up completed";
@@ -232,7 +229,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Perform GetOid operations
   for (auto vid : random_vids) {
-    neug::Property oid = table.GetOid(vid);
+    auto oid = table.GetOidValue(vid);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -249,7 +246,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (auto vid : random_vids_after_delete) {
-    neug::Property oid = table.GetOid(vid);
+    auto oid = table.GetOidValue(vid);
     (void) oid;  // Avoid unused variable warning
   }
   auto end2 = std::chrono::high_resolution_clock::now();
@@ -410,7 +407,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
     switch (op) {
     case 0: {
       // GetOid operation
-      neug::Property oid = table.GetOid(random_vids[i]);
+      auto oid = table.GetOidValue(random_vids[i]);
       (void) oid;
       break;
     }
