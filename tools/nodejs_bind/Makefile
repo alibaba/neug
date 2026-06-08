@@ -48,7 +48,7 @@ endif
 # Local staging directory for .node + libneug artifacts
 PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 
-.PHONY: help dev build stage pack clean
+.PHONY: help dev build stage pack proto clean
 
 .DEFAULT_GOAL := help
 
@@ -72,6 +72,9 @@ stage:
 	@cp $(ROOT_BUILD)/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
 	@echo "Artifacts staged in $(PLATFORM_DIR):"
 	@ls -lh $(PLATFORM_DIR)/
+
+proto:  ## Regenerate lib/proto/error_pb.js from proto/error.proto
+	node scripts/generate_proto.js
 
 pack: build  ## Create per-platform npm tarball
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
