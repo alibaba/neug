@@ -35,6 +35,8 @@ jobs:
     #   container:
     #     image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     runs-on: ubuntu-22.04
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     timeout-minutes: 180
     env:
       OUTER_ITERS: ${{ github.event.inputs.outer_iters || '1000' }}
