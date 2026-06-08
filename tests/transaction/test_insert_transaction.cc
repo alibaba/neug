@@ -173,7 +173,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
           edge_count++;

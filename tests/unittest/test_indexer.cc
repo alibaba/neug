@@ -77,11 +77,11 @@ class LFIndexerTest : public ::testing::Test {
       ASSERT_TRUE(indexer.get_index(execution::Value::INT64(values[i]), lid));
       EXPECT_EQ(lid, static_cast<INDEX_T>(i));
 
-      auto key = indexer.get_key_value(static_cast<INDEX_T>(i));
+      const auto& key = indexer.get_key(static_cast<INDEX_T>(i));
       EXPECT_EQ(key.type().id(), DataTypeId::kInt64);
-      EXPECT_EQ(key.GetValue<int64_t>(), values[i])
+      EXPECT_EQ(key.template GetValue<int64_t>(), values[i])
           << " at index " << i << " with lid " << static_cast<INDEX_T>(i)
-          << " and key " << key.GetValue<int64_t>();
+          << " and key " << key.template GetValue<int64_t>();
     }
   }
 
@@ -94,9 +94,9 @@ class LFIndexerTest : public ::testing::Test {
       ASSERT_TRUE(indexer.get_index(execution::Value::STRING(values[i]), lid));
       EXPECT_EQ(lid, static_cast<INDEX_T>(i));
 
-      auto key = indexer.get_key_value(static_cast<INDEX_T>(i));
+      const auto& key = indexer.get_key(static_cast<INDEX_T>(i));
       EXPECT_EQ(key.type().id(), DataTypeId::kVarchar);
-      EXPECT_EQ(key.GetValue<std::string>(), values[i]);
+      EXPECT_EQ(key.template GetValue<std::string>(), values[i]);
     }
   }
 

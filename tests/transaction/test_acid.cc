@@ -185,8 +185,8 @@ auto neug_get_random_vertex(StorageTPUpdateInterface& gi, label_t label_id) {
 void neug_append_string_to_field(StorageTPUpdateInterface& gui, label_t label,
                                  neug::vid_t vit, int col_id,
                                  const std::string& str) {
-  std::string cur_str =
-      std::string(gui.GetVertexProperty(label, vit, col_id).as_string_view());
+  std::string cur_str = std::string(
+      gui.GetVertexProperty(label, vit, col_id).GetValue<std::string>());
   if (cur_str.empty())
     cur_str = str;
   else {
@@ -392,7 +392,8 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person1_id) {
       vit1 = v;
       flag = true;
@@ -406,7 +407,8 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug::vid_t vit2;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person2_id) {
       vit2 = v;
       flag = true;
@@ -439,8 +441,7 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     cur_str += ";";
     cur_str += std::to_string(txn_id);
   }
-  Property new_value;
-  new_value.set_string_view(cur_str);
+  neug::execution::Value new_value = neug::execution::Value::STRING(cur_str);
 
   ed_accessor.set_data(oeit, new_value, txn.timestamp());
 
@@ -566,7 +567,7 @@ int64_t G1B2(neug::NeugDBSession& db) {
       std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
           gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
-  return vprop_col->get(vid).as_int64();
+  return vprop_col->get_any(vid).GetValue<int64_t>();
 }
 
 // Circular Information Flow
@@ -612,7 +613,8 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   bool flag = false;
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person2_id) {
       person1_vid = v;
       flag = true;
@@ -626,15 +628,16 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug::vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person1_id) {
       person2_vid = v;
       flag = true;
       break;
     }
   }
-  int64_t ret =
-      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+  int64_t ret = gui.GetVertexProperty(person_label_id, person2_vid, 1)
+                    .GetValue<int64_t>();
 
   txn.Commit();
 
@@ -700,7 +703,7 @@ int64_t G1A2(neug::NeugDBSession& db) {
       std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
           gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
-  return vprop_col->get(vid).as_int64();
+  return vprop_col->get_any(vid).GetValue<int64_t>();
 }
 
 // Item-Many-Preceders
@@ -740,7 +743,7 @@ void IMP1(neug::NeugDBSession& db) {
   StorageTPUpdateInterface gui(txn);
   auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
-      gui.GetVertexProperty(person_label_id, vit, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, vit, 1).GetValue<int64_t>();
   gui.UpdateVertexProperty(person_label_id, vit, 1,
                            neug::execution::Value::INT64(old_version + 1));
   txn.Commit();
@@ -761,7 +764,7 @@ std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   auto vertex_set = gi.GetVertexSet(person_label_id);
   bool found = false;
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == person1_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == person1_id) {
       vit0_index = lid;
       found = true;
       break;
@@ -769,19 +772,19 @@ std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   }
   CHECK(found);
 
-  int64_t v1 = v_prop_col1->get(vit0_index).as_int64();
+  int64_t v1 = v_prop_col1->get_any(vit0_index).GetValue<int64_t>();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
   vid_t vit1_index = 0;
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == person1_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == person1_id) {
       vit1_index = lid;
       break;
     }
   }
 
-  int64_t v2 = v_prop_col1->get(vit1_index).as_int64();
+  int64_t v2 = v_prop_col1->get_any(vit1_index).GetValue<int64_t>();
 
   return std::make_tuple(v1, v2);
 }
@@ -832,7 +835,8 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   bool found = false;
   auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       person_vid = v;
       found = true;
@@ -844,7 +848,8 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   found = false;
   auto post_vertex_set = gui.GetVertexSet(post_label_id);
   for (auto v : post_vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(post_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(post_label_id, v, 0).GetValue<int64_t>();
     if (v_id == post_id) {
       post_vid = v;
       found = true;
@@ -876,7 +881,7 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   CHECK(v_prop_col0 != nullptr);
   auto vertex_set = gi.GetVertexSet(post_label_id);
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == post_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == post_id) {
       vit0_index = lid;
       break;
     }
@@ -896,7 +901,7 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   vid_t vit1_index = 0;
   auto vertex_set1 = gi.GetVertexSet(post_label_id);
   for (vid_t lid : vertex_set1) {
-    if (v_prop_col->get(lid).as_int64() == post_id) {
+    if (v_prop_col->get_any(lid).GetValue<int64_t>() == post_id) {
       vit1_index = lid;
       break;
     }
@@ -970,7 +975,8 @@ void OTV1(neug::NeugDBSession& db, int64_t person_id) {
   bool found = false;
   auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       vid1 = v;
       found = true;
@@ -996,25 +1002,29 @@ void OTV1(neug::NeugDBSession& db, int64_t person_id) {
             txn.UpdateVertexProperty(
                 person_label_id, vid1, 2,
                 neug::execution::Value::INT64(
-                    txn.GetVertexProperty(person_label_id, vid1, 2).as_int64() +
+                    txn.GetVertexProperty(person_label_id, vid1, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid2, 2,
                 neug::execution::Value::INT64(
-                    gui.GetVertexProperty(person_label_id, vid2, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid2, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid3, 2,
                 neug::execution::Value::INT64(
-                    gui.GetVertexProperty(person_label_id, vid3, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid3, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid4, 2,
                 neug::execution::Value::INT64(
-                    gui.GetVertexProperty(person_label_id, vid4, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid4, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             txn.Commit();
@@ -1058,10 +1068,14 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
             auto edges4 = view.get_edges(vid4);
             for (auto it4 = edges4.begin(); it4 != edges4.end(); ++it4) {
               if (it4.get_vertex() == lid) {
-                int64_t v1_version = vprop_col->get(lid).as_int64();
-                int64_t v2_version = vprop_col->get(vid2).as_int64();
-                int64_t v3_version = vprop_col->get(vid3).as_int64();
-                int64_t v4_version = vprop_col->get(vid4).as_int64();
+                int64_t v1_version =
+                    vprop_col->get_any(lid).GetValue<int64_t>();
+                int64_t v2_version =
+                    vprop_col->get_any(vid2).GetValue<int64_t>();
+                int64_t v3_version =
+                    vprop_col->get_any(vid3).GetValue<int64_t>();
+                int64_t v4_version =
+                    vprop_col->get_any(vid4).GetValue<int64_t>();
                 return std::make_tuple(v1_version, v2_version, v3_version,
                                        v4_version);
               }
@@ -1077,7 +1091,7 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
     bool found = false;
 
     for (vid_t lid : vertex_set) {
-      if (prop0_col->get(lid).as_int64() == person_id) {
+      if (prop0_col->get_any(lid).GetValue<int64_t>() == person_id) {
         found = true;
         break;
       }
@@ -1093,7 +1107,7 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
     auto vertex_set = gi.GetVertexSet(person_label_id);
     bool found = false;
     for (vid_t lid : vertex_set) {
-      if (prop0_col->get(lid).as_int64() == person_id) {
+      if (prop0_col->get_any(lid).GetValue<int64_t>() == person_id) {
         found = true;
         break;
       }
@@ -1164,7 +1178,8 @@ bool LU1(neug::NeugDBSession& db, int64_t person_id) {
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       person_vid = v;
       flag = true;
@@ -1174,7 +1189,7 @@ bool LU1(neug::NeugDBSession& db, int64_t person_id) {
   CHECK(flag);
 
   int64_t num_friends =
-      gui.GetVertexProperty(person_label_id, person_vid, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, person_vid, 1).GetValue<int64_t>();
   gui.UpdateVertexProperty(person_label_id, person_vid, 1,
                            neug::execution::Value::INT64(num_friends + 1));
 
@@ -1195,8 +1210,8 @@ std::map<int64_t, int64_t> LU2(neug::NeugDBSession& db) {
           gi.GetVertexPropColumn(person_label_id, "num_friends"));
   auto vertex_set = gi.GetVertexSet(person_label_id);
   for (vid_t lid : vertex_set) {
-    int64_t person_id = prop_col->get(lid).as_int64();
-    int64_t num_friends = num_friends_col->get(lid).as_int64();
+    int64_t person_id = prop_col->get_any(lid).GetValue<int64_t>();
+    int64_t num_friends = num_friends_col->get_any(lid).GetValue<int64_t>();
     numFriends.emplace(person_id, num_friends);
   }
 
@@ -1275,8 +1290,8 @@ void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   CHECK(flag);
-  int64_t p2_value =
-      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+  int64_t p2_value = gui.GetVertexProperty(person_label_id, person2_vid, 1)
+                         .GetValue<int64_t>();
 
   if (p1_value + p2_value - 100 < 0) {
     txn.Abort();

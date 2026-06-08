@@ -220,7 +220,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Warm up
   for (auto vid : random_vids) {
-    auto oid = table.GetOidValue(vid, neug::MAX_TIMESTAMP);
+    auto oid = table.GetOid(vid, neug::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
   LOG(INFO) << "Warm-up completed";
@@ -229,7 +229,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Perform GetOid operations
   for (auto vid : random_vids) {
-    auto oid = table.GetOidValue(vid);
+    auto oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -246,7 +246,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (auto vid : random_vids_after_delete) {
-    auto oid = table.GetOidValue(vid);
+    auto oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
   auto end2 = std::chrono::high_resolution_clock::now();
@@ -407,7 +407,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
     switch (op) {
     case 0: {
       // GetOid operation
-      auto oid = table.GetOidValue(random_vids[i]);
+      auto oid = table.GetOid(random_vids[i]);
       (void) oid;
       break;
     }

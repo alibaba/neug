@@ -514,13 +514,11 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Location", v_props, pk_names));
   std::vector<std::pair<std::string, execution::Value>> e_props_workat = {
-    {"years", execution::Value::INT32(0)},
-    {"position",
-     execution::Value::STRING(std::string("string"))
-         std::vector<std::pair<std::string, execution::Value>>
-             e_props_locatedat = {
-                 {"since", execution::Value::INT32(0)},
-                 {"city", execution::Value::STRING(std::string("string"))}};
+      {"years", execution::Value::INT32(0)},
+      {"position", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, execution::Value>> e_props_locatedat = {
+      {"since", execution::Value::INT32(0)},
+      {"city", execution::Value::STRING(std::string("string"))}};
   graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props_workat));
   graph_.CreateEdgeType(BuildCreateEdgeTypeParam(

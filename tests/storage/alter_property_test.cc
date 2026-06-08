@@ -351,7 +351,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
       auto adj_list = generic_view.get_edges(i);
       for (auto nbr = adj_list.begin(); nbr != adj_list.end(); ++nbr) {
         LOG(INFO) << "edge " << i << " " << nbr.get_vertex()
-                  << ", data: " << ed_accessor.get_value(nbr).to_string();
+                  << ", data: " << ed_accessor.get_data(nbr).to_string();
       }
     }
   }
@@ -384,7 +384,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
       auto adj_list = generic_view.get_edges(i);
       for (auto nbr = adj_list.begin(); nbr != adj_list.end(); ++nbr) {
         LOG(INFO) << "edge " << i << " " << nbr.get_vertex()
-                  << ", data: " << ed_accessor.get_value(nbr).to_string();
+                  << ", data: " << ed_accessor.get_data(nbr).to_string();
       }
     }
   }

@@ -240,7 +240,7 @@ class UpdateTransactionTest : public ::testing::Test {
     for (neug::vid_t vid : vertex_set) {
       auto edges = view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
-        auto prop = ed_accessor.get_value(it);
+        auto prop = ed_accessor.get_data(it);
         fetched_views.push_back(prop.GetValue<std::string>());
       }
     }
@@ -453,7 +453,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
           edge_count++;
@@ -623,7 +623,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 26);
       }
     }
@@ -670,10 +670,10 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.99);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.99);
         }
       }
     }
@@ -753,7 +753,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
           edge_count++;
@@ -793,7 +793,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 25);
       }
     }
@@ -856,11 +856,11 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.8);
-          EXPECT_EQ(since_accessor.get_value(it).GetValue<int64_t>(), 2021);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.8);
+          EXPECT_EQ(since_accessor.get_data(it).GetValue<int64_t>(), 2021);
         }
       }
     }
@@ -922,10 +922,10 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.9);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.9);
         }
       }
     }
@@ -1001,11 +1001,11 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          if (ed_accessor.get_value(it).GetValue<double>() == 0.9 ||
-              ed_accessor.get_value(it).GetValue<double>() == 0.85) {
+          if (ed_accessor.get_data(it).GetValue<double>() == 0.9 ||
+              ed_accessor.get_data(it).GetValue<double>() == 0.85) {
             ADD_FAILURE() << "Found aborted edge update or addition.";
           } else {
             edge_count++;
@@ -1387,10 +1387,11 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     neug::vid_t vid;
     CHECK(
         gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1), vid));
-    EXPECT_EQ(email_accessor->get(vid).as_string_view(), "eve@example.com");
+    EXPECT_EQ(email_accessor->get_any(vid).GetValue<std::string>(),
+              "eve@example.com");
     CHECK(
         gi.GetVertexIndex(person_label, neug::execution::Value::INT64(2), vid));
-    EXPECT_EQ(height_accessor->get(vid).as_double(), 0.0);
+    EXPECT_EQ(height_accessor->get_any(vid).GetValue<double>(), 0.0);
   }
   db.Close();
 }
@@ -1608,7 +1609,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     for (neug::vid_t vid : vertex_set) {
       auto edges = view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
-        EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.0);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.0);
       }
     }
     EXPECT_THROW(gi.GetEdgeDataAccessor(person_label, software_label,
@@ -1729,7 +1730,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<int64_t>>(
         gi.GetVertexPropColumn(person_label, "age"));
-    EXPECT_EQ(vprop_accessor->get(src_p).as_int64(), 29);
+    EXPECT_EQ(vprop_accessor->get_any(src_p).GetValue<int64_t>(), 29);
     auto knows_label = gi.schema().get_edge_label_id("knows");
     auto ed_accessor =
         gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
@@ -1739,7 +1740,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     bool found = false;
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
       if (it.get_vertex() == dst_p) {
-        EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.5);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.5);
         found = true;
       }
     }
@@ -1774,7 +1775,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     auto edge_iter = view.get_edges(src_p);
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
       if (it.get_vertex() == dst_p) {
-        EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.5);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.5);
       }
     }
   }
@@ -2354,16 +2355,16 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
         person_label, p1_vid, 0,
         neug::execution::Value::STRING(std::string(long_name)));
     auto prop = interface.GetVertexProperty(person_label, p1_vid, 0);
-    EXPECT_EQ(prop.as_string_view(),
+    EXPECT_EQ(prop.GetValue<std::string>(),
               std::string(neug::STRING_DEFAULT_MAX_LENGTH, 'a'));  // truncated
     std::string valid_name(neug::STRING_DEFAULT_MAX_LENGTH - 10, 'b');
     EXPECT_NO_THROW(interface.UpdateVertexProperty(
         person_label, p1_vid, 0,
         neug::execution::Value::STRING(std::string(valid_name))));
     prop = interface.GetVertexProperty(person_label, p1_vid, 0);
-    EXPECT_EQ(prop.as_string_view(), valid_name);
+    EXPECT_EQ(prop.GetValue<std::string>(), valid_name);
     auto p2_prop = interface.GetVertexProperty(person_label, p2_vid, 0);
-    EXPECT_EQ(p2_prop.as_string_view(), "Bob");  // unchanged
+    EXPECT_EQ(p2_prop.GetValue<std::string>(), "Bob");  // unchanged
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -2377,7 +2378,7 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<std::string_view>>(
         gi.GetVertexPropColumn(person_label, "name"));
-    EXPECT_EQ(vprop_accessor->get(p1_vid).as_string_view(),
+    EXPECT_EQ(vprop_accessor->get_any(p1_vid).GetValue<std::string>(),
               std::string(neug::STRING_DEFAULT_MAX_LENGTH - 10, 'b'));
     EXPECT_TRUE(txn.Commit());
   }
@@ -2442,7 +2443,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
                              edges.cfg.stride;
         auto ie_offset = neug::search_other_offset_with_cur_offset(
             oe_view, ie_view, vid, it.get_vertex(), oe_offset, e_prop_types);
-        auto prop = ed_accessor.get_value(it).GetValue<std::string>();
+        auto prop = ed_accessor.get_data(it).GetValue<std::string>();
         std::string updated_review;
         if (prop.size() % 2 == 0) {
           updated_review = std::string(prop) + "_updated";
@@ -2549,11 +2550,11 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_value(it).GetValue<double>(), 0.8);
-          EXPECT_EQ(since_accessor.get_value(it).GetValue<int64_t>(), 2021);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.8);
+          EXPECT_EQ(since_accessor.get_data(it).GetValue<int64_t>(), 2021);
         }
       }
     }

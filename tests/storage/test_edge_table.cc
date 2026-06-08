@@ -100,7 +100,7 @@ class EdgeTableTest : public ::testing::Test {
     indexer.open(name, snapshot_dir, work_dir);
     indexer.reserve(num);
     for (neug::vid_t i = 0; i < num; ++i) {
-      indexer.insert(PropUtils<int64_t>::to_prop(i), i);
+      indexer.insert(neug::execution::Value::INT64(i), i);
     }
   }
 
@@ -163,10 +163,10 @@ class EdgeTableTest : public ::testing::Test {
     neug::vid_t vnum = src_indexer.size();
     for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
-      int64_t src_oid = src_indexer.get_key_value(i).GetValue<int64_t>();
+      int64_t src_oid = src_indexer.get_key(i).GetValue<int64_t>();
       for (auto it = es.begin(); it != es.end(); ++it) {
         int64_t dst_oid =
-            dst_indexer.get_key_value(it.get_vertex()).GetValue<int64_t>();
+            dst_indexer.get_key(it.get_vertex()).GetValue<int64_t>();
         srcs.push_back(src_oid);
         dsts.push_back(dst_oid);
       }
@@ -180,10 +180,10 @@ class EdgeTableTest : public ::testing::Test {
     neug::vid_t vnum = dst_indexer.size();
     for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
-      int64_t dst_oid = dst_indexer.get_key_value(i).GetValue<int64_t>();
+      int64_t dst_oid = dst_indexer.get_key(i).GetValue<int64_t>();
       for (auto it = es.begin(); it != es.end(); ++it) {
         int64_t src_oid =
-            src_indexer.get_key_value(it.get_vertex()).GetValue<int64_t>();
+            src_indexer.get_key(it.get_vertex()).GetValue<int64_t>();
         srcs.push_back(src_oid);
         dsts.push_back(dst_oid);
       }
@@ -1151,8 +1151,8 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   for (size_t i = 0; i < src_lids.size(); ++i) {
     auto oe_edges = oe_view.get_edges(src_lids[i]);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-      auto str_data = ed_accessor_0.get_value(it);
-      auto int_data = ed_accessor_1.get_value(it);
+      auto str_data = ed_accessor_0.get_data(it);
+      auto int_data = ed_accessor_1.get_data(it);
       CHECK_EQ(int_data.GetValue<int32_t>(), 1);
       CHECK_EQ(str_data.GetValue<std::string>(),
                new_data[0].GetValue<std::string>());

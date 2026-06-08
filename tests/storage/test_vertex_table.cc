@@ -136,9 +136,9 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   EXPECT_FALSE(table.IsValidLid(4));
   EXPECT_TRUE(table.IsValidLid(lid3, 3));
 
-  EXPECT_EQ(oid1, table.GetOidValue(lid1));
-  EXPECT_EQ(oid2, table.GetOidValue(lid2));
-  EXPECT_EQ(oid3, table.GetOidValue(lid3));
+  EXPECT_EQ(oid1, table.GetOid(lid1, 1));
+  EXPECT_EQ(oid2, table.GetOid(lid2, 2));
+  EXPECT_EQ(oid3, table.GetOid(lid3, 3));
 
   try {
     auto ret = table.GetOid(3, 2);
@@ -287,9 +287,9 @@ TEST_F(VertexTableTest, AddVertexBasic) {
   EXPECT_EQ(table.VertexNum(1), 2);  // lid1 and lid2 visible at ts=1
   EXPECT_EQ(table.VertexNum(2), 3);  // All visible at ts=2
 
-  EXPECT_EQ(table.GetOidValue(lid1), oid1);
-  EXPECT_EQ(table.GetOidValue(lid2), oid2);
-  EXPECT_EQ(table.GetOidValue(lid3), oid3);
+  EXPECT_EQ(table.GetOid(lid1), oid1);
+  EXPECT_EQ(table.GetOid(lid2), oid2);
+  EXPECT_EQ(table.GetOid(lid3), oid3);
 
   neug::vid_t tmp_vid;
   EXPECT_TRUE(table.get_index(oid1, tmp_vid));
@@ -388,7 +388,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   neug::vid_t tmp_vid;
   EXPECT_TRUE(table.get_index(oid1, tmp_vid));
   EXPECT_EQ(tmp_vid, lid1);
-  EXPECT_EQ(table.GetOidValue(lid1), oid1);
+  EXPECT_EQ(table.GetOid(lid1), oid1);
 }
 
 // Test complex combination: Add -> Delete -> Revert

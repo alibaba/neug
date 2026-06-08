@@ -99,8 +99,8 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                   .ok());
   auto id_column = graph_->GetVertexPropertyColumn(person_label, "id");
   EXPECT_TRUE(id_column);
-  EXPECT_EQ(id_column->get_value(vid1).GetValue<int64_t>(), 1);
-  EXPECT_EQ(id_column->get_value(vid2).GetValue<int64_t>(), 2);
+  EXPECT_EQ(id_column->get_any(vid1).GetValue<int64_t>(), 1);
+  EXPECT_EQ(id_column->get_any(vid2).GetValue<int64_t>(), 2);
 
   // By default, we will reserve 4096 slots for each vertex label.
   for (size_t i = 3; i <= 4096; ++i) {
