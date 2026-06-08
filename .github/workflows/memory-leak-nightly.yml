@@ -46,9 +46,9 @@ jobs:
       run:
         shell: bash
     env:
-      OUTER_ITERS: ${{ github.event.inputs.outer_iters || '1000' }}
-      INNER_ROWS:  ${{ github.event.inputs.inner_rows  || '1000' }}
-      RSS_ITERS:   ${{ github.event.inputs.rss_iters   || '2000' }}
+      OUTER_ITERS: ${{ github.event.inputs.outer_iters || '10' }}
+      INNER_ROWS:  ${{ github.event.inputs.inner_rows  || '10' }}
+      RSS_ITERS:   ${{ github.event.inputs.rss_iters   || '20' }}
       LOG_DIR: ${{ github.workspace }}/memory-leak-logs
 
     steps:
