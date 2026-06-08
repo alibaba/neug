@@ -14,7 +14,8 @@ concurrency:
 
 jobs:
   triage:
-    runs-on: [self-hosted, Linux, X64]
+    # runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     if: github.event.issue.state == 'open'
     steps:
       - uses: actions/checkout@v4
