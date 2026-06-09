@@ -57,14 +57,14 @@ neug::result<Context> CreateVertex::insert_vertex(
                           std::to_string(properties_name.size() + 1));
     }
 
-    Property pk_value;
-    std::vector<Property> property_values(properties.size() - 1);
+    Value pk_value;
+    std::vector<execution::Value> property_values(properties.size() - 1);
     for (size_t i = 0; i < ctx.row_num(); ++i) {
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
         if (prop_name == std::get<1>(pk)) {
-          pk_value = value_to_property(value);
+          pk_value = value;
         } else {
           auto it = std::find(properties_name.begin(), properties_name.end(),
                               prop_name);
@@ -75,9 +75,9 @@ neug::result<Context> CreateVertex::insert_vertex(
           }
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = value_to_property(v_default_values[index]);
+            property_values[index] = v_default_values[index];
           } else {
-            property_values[index] = value_to_property(value);
+            property_values[index] = value;
           }
         }
       }

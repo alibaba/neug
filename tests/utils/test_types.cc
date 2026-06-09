@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -241,280 +242,135 @@ TEST(TestType, TestArchive) {
   EXPECT_EQ(interval_value, out_interval);
 }
 
-class PropertyTest : public ::testing::Test {
+class ValueTest : public ::testing::Test {
  protected:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-TEST_F(PropertyTest, DefaultConstructor) {
-  Property p;
-  EXPECT_EQ(p.type(), DataTypeId::kEmpty);
+TEST_F(ValueTest, DefaultConstructor) {
+  execution::Value v;
+  EXPECT_TRUE(v.IsNull());
 }
 
-TEST_F(PropertyTest, BoolProperty) {
-  auto p1 = Property::from_bool(true);
-  EXPECT_EQ(p1.type(), DataTypeId::kBoolean);
-  EXPECT_TRUE(p1.as_bool());
+TEST_F(ValueTest, BoolValue) {
+  auto v1 = execution::Value::BOOLEAN(true);
+  EXPECT_EQ(v1.type().id(), DataTypeId::kBoolean);
+  EXPECT_TRUE(v1.GetValue<bool>());
 
-  Property p2;
-  p2.set_bool(false);
-  EXPECT_FALSE(p2.as_bool());
+  auto v2 = execution::Value::BOOLEAN(false);
+  EXPECT_FALSE(v2.GetValue<bool>());
 }
 
-TEST_F(PropertyTest, IntegerProperties) {
+TEST_F(ValueTest, IntegerValues) {
   {
-    auto p = Property::from_int32(42);
-    EXPECT_EQ(p.type(), DataTypeId::kInt32);
-    EXPECT_EQ(p.as_int32(), 42);
+    auto v = execution::Value::INT32(42);
+    EXPECT_EQ(v.type().id(), DataTypeId::kInt32);
+    EXPECT_EQ(v.GetValue<int32_t>(), 42);
   }
   {
-    auto p = Property::from_uint32(100U);
-    EXPECT_EQ(p.type(), DataTypeId::kUInt32);
-    EXPECT_EQ(p.as_uint32(), 100U);
+    auto v = execution::Value::UINT32(100U);
+    EXPECT_EQ(v.type().id(), DataTypeId::kUInt32);
+    EXPECT_EQ(v.GetValue<uint32_t>(), 100U);
   }
   {
-    auto p = Property::from_int64(-1234567890123LL);
-    EXPECT_EQ(p.type(), DataTypeId::kInt64);
-    EXPECT_EQ(p.as_int64(), -1234567890123LL);
+    auto v = execution::Value::INT64(-1234567890123LL);
+    EXPECT_EQ(v.type().id(), DataTypeId::kInt64);
+    EXPECT_EQ(v.GetValue<int64_t>(), -1234567890123LL);
   }
   {
-    auto p = Property::from_uint64(9876543210ULL);
-    EXPECT_EQ(p.type(), DataTypeId::kUInt64);
-    EXPECT_EQ(p.as_uint64(), 9876543210ULL);
-  }
-}
-
-TEST_F(PropertyTest, FloatProperties) {
-  {
-    auto p = Property::from_float(3.14f);
-    EXPECT_EQ(p.type(), DataTypeId::kFloat);
-    EXPECT_FLOAT_EQ(p.as_float(), 3.14f);
-  }
-  {
-    auto p = Property::from_double(2.718281828);
-    EXPECT_EQ(p.type(), DataTypeId::kDouble);
-    EXPECT_DOUBLE_EQ(p.as_double(), 2.718281828);
+    auto v = execution::Value::UINT64(9876543210ULL);
+    EXPECT_EQ(v.type().id(), DataTypeId::kUInt64);
+    EXPECT_EQ(v.GetValue<uint64_t>(), 9876543210ULL);
   }
 }
 
-TEST_F(PropertyTest, StringViewProperty) {
+TEST_F(ValueTest, FloatValues) {
+  {
+    auto v = execution::Value::FLOAT(3.14f);
+    EXPECT_EQ(v.type().id(), DataTypeId::kFloat);
+    EXPECT_FLOAT_EQ(v.GetValue<float>(), 3.14f);
+  }
+  {
+    auto v = execution::Value::DOUBLE(2.718281828);
+    EXPECT_EQ(v.type().id(), DataTypeId::kDouble);
+    EXPECT_DOUBLE_EQ(v.GetValue<double>(), 2.718281828);
+  }
+}
+
+TEST_F(ValueTest, StringValue) {
   std::string str = "hello world";
-  std::string_view sv = str;
-
-  auto p = Property::from_string_view(sv);
-  EXPECT_EQ(p.type(), DataTypeId::kVarchar);
-  EXPECT_EQ(p.as_string_view(), sv);
-  EXPECT_EQ(p.to_string(), "hello world");
+  auto v = execution::Value::STRING(str);
+  EXPECT_EQ(v.type().id(), DataTypeId::kVarchar);
+  EXPECT_EQ(v.GetValue<std::string>(), str);
 }
 
-TEST_F(PropertyTest, TemplateConstructor) {
-  Property p1 = Property::from_int32(100);
-  Property p2 = Property::from_int32(100);
+TEST_F(ValueTest, TemplateConstructor) {
+  auto v1 = execution::Value::INT32(100);
+  auto v2 = execution::Value::INT32(100);
 
-  EXPECT_EQ(p1.type(), p2.type());
-  EXPECT_EQ(p1.as_int32(), p2.as_int32());
+  EXPECT_EQ(v1.type().id(), v2.type().id());
+  EXPECT_EQ(v1.GetValue<int32_t>(), v2.GetValue<int32_t>());
 }
 
-TEST_F(PropertyTest, ToString) {
-  EXPECT_EQ(Property::from_bool(true).to_string(), "true");
-  EXPECT_EQ(Property::from_bool(false).to_string(), "false");
-  EXPECT_EQ(Property::from_int32(-42).to_string(), "-42");
-  EXPECT_EQ(Property::from_uint64(123ULL).to_string(), "123");
-  EXPECT_EQ(Property::from_double(1.5).to_string(), "1.500000");
-  EXPECT_EQ(Property::from_string_view("abc").to_string(), "abc");
-  EXPECT_EQ(Property::from_string_view(std::string_view("xyz")).to_string(),
-            "xyz");
-  EXPECT_EQ(Property::empty().to_string(), "EMPTY");
-}
-
-TEST_F(PropertyTest, AsStringViewUnified) {
+TEST_F(ValueTest, GetStringValueUnified) {
   {
-    auto p = Property::from_string_view("hello");
-    EXPECT_EQ(p.as_string_view(), "hello");
+    auto v = execution::Value::STRING(std::string("hello"));
+    EXPECT_EQ(v.GetValue<std::string>(), "hello");
   }
   {
-    auto p = Property::from_string_view(std::string_view("world"));
-    EXPECT_EQ(p.as_string_view(), "world");
+    auto v = execution::Value::STRING(std::string("world"));
+    EXPECT_EQ(v.GetValue<std::string>(), "world");
   }
 }
 
-TEST_F(PropertyTest, LessThan) {
-  auto p1 = Property::from_int32(10);
-  auto p2 = Property::from_int32(20);
-  EXPECT_TRUE(p1 < p2);
-  EXPECT_FALSE(p2 < p1);
+TEST_F(ValueTest, LessThan) {
+  auto v1 = execution::Value::INT32(10);
+  auto v2 = execution::Value::INT32(20);
+  EXPECT_TRUE(v1 < v2);
+  EXPECT_FALSE(v2 < v1);
 }
 
-TEST_F(PropertyTest, DateProperty) {
-  Property p;
-  p.set_date(uint32_t{33189664});
-  auto d = p.as_date();
-  EXPECT_EQ(d.to_u32(), 33189664U);
-  EXPECT_EQ(p.to_string(), "2025-11-25");
+TEST_F(ValueTest, DateAndTimeValues) {
+  Date d;
+  d.from_u32(33189664);
+  auto v_date = execution::Value::DATE(d);
+  EXPECT_EQ(v_date.type().id(), DataTypeId::kDate);
+  EXPECT_EQ(v_date.GetValue<Date>().to_u32(), 33189664U);
 
-  p.set_datetime(int64_t{1763365457000});
-  EXPECT_EQ(p.as_datetime().to_string(), "2025-11-17 07:44:17.000");
+  auto v_dt = execution::Value::TIMESTAMPMS(DateTime(int64_t{1763365457000}));
+  EXPECT_EQ(v_dt.type().id(), DataTypeId::kTimestampMs);
+  EXPECT_EQ(v_dt.GetValue<DateTime>().to_string(), "2025-11-17 07:44:17.000");
 
-  p.set_interval(Interval(std::string(
-      "4years3months2days20hours3minutes12seconds200milliseconds")));
+  Interval iv(
+      std::string("4years3months2days20hours3minutes12seconds200milliseconds"));
+  auto v_iv = execution::Value::INTERVAL(iv);
+  EXPECT_EQ(v_iv.type().id(), DataTypeId::kInterval);
   EXPECT_EQ(
-      p.as_interval().to_string(),
+      v_iv.GetValue<Interval>().to_string(),
       "4 years 3 months 2 days 20 hours 3 minutes 12 seconds 200 milliseconds");
 }
 
-TEST_F(PropertyTest, AssignmentOperator) {
-  auto p1 = Property::from_int32(42);
-  auto p2 = p1;
+TEST_F(ValueTest, AssignmentOperator) {
+  auto v1 = execution::Value::INT32(42);
+  auto v2 = v1;
 
-  EXPECT_TRUE(p1 == p2);
+  EXPECT_TRUE(v1 == v2);
 }
 
-TEST_F(PropertyTest, EqualityOperator) {
-  auto p1 = Property::from_int32(42);
-  auto p2 = Property::from_int32(42);
-  auto p3 = Property::from_int32(43);
-  auto p4 = Property::from_string_view("same");
-  auto p5 = Property::from_string_view("same");
-  auto p6 = Property::from_string_view("diff");
+TEST_F(ValueTest, EqualityOperator) {
+  auto v1 = execution::Value::INT32(42);
+  auto v2 = execution::Value::INT32(42);
+  auto v3 = execution::Value::INT32(43);
+  auto v4 = execution::Value::STRING(std::string("same"));
+  auto v5 = execution::Value::STRING(std::string("same"));
+  auto v6 = execution::Value::STRING(std::string("diff"));
 
-  EXPECT_TRUE(p1 == p2);
-  EXPECT_FALSE(p1 == p3);
-  EXPECT_TRUE(p4 == p5);
-  EXPECT_FALSE(p4 == p6);
-  EXPECT_FALSE(p1 == p4);
-}
-
-TEST_F(PropertyTest, TestArchive) {
-  Property p = Property::from_bool(true);
-  InArchive in;
-  in << p;
-  Property p2;
-  OutArchive out;
-  out.SetSlice(in.GetBuffer(), in.GetSize());
-  out >> p2;
-  EXPECT_EQ(p, p2);
-}
-
-TEST_F(PropertyTest, ParsePropertyFromString) {
-  // bool
-  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "true").as_bool(),
-            true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "1").as_bool(),
-            true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "TRUE").as_bool(),
-            true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "false").as_bool(),
-            false);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "0").as_bool(),
-            false);
-
-  // int32
-  auto p_int32 = parse_property_from_string(DataTypeId::kInt32, "-42");
-  EXPECT_EQ(p_int32.type(), DataTypeId::kInt32);
-  EXPECT_EQ(p_int32.as_int32(), -42);
-
-  // uint64
-  auto p_uint64 =
-      parse_property_from_string(DataTypeId::kUInt64, "18446744073709551615");
-  EXPECT_EQ(p_uint64.type(), DataTypeId::kUInt64);
-  EXPECT_EQ(p_uint64.as_uint64(), UINT64_MAX);
-
-  // string_view
-  auto p_sv = parse_property_from_string(DataTypeId{DataTypeId::kVarchar},
-                                         "hello world");
-  EXPECT_EQ(p_sv.type(), DataTypeId::kVarchar);
-  EXPECT_EQ(p_sv.as_string_view(), "hello world");
-
-  // float/double
-  auto p_f = parse_property_from_string(DataTypeId::kFloat, "3.14");
-  EXPECT_FLOAT_EQ(p_f.as_float(), 3.14f);
-
-  auto p_d = parse_property_from_string(DataTypeId::kDouble, "2.71828");
-  EXPECT_DOUBLE_EQ(p_d.as_double(), 2.71828);
-
-  // empty
-  auto p_empty = parse_property_from_string(DataTypeId::kEmpty, "");
-  EXPECT_EQ(p_empty.type(), DataTypeId::kEmpty);
-}
-
-Property round_trip_property(const Property& input, InArchive& arc) {
-  arc.Clear();
-  serialize_property(arc, input);
-
-  Property output;
-  OutArchive oarc;
-  oarc.SetSlice(arc.GetBuffer(), arc.GetSize());
-  deserialize_property(oarc, input.type(), output);
-  return output;
-}
-
-TEST_F(PropertyTest, SerializeDeserializePropertyRoundTrip) {
-  InArchive arc;
-
-  // bool
-  {
-    auto p = Property::from_bool(true);
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p, restored);
-  }
-
-  // int64
-  {
-    auto p = Property::from_int64(-123456789012345LL);
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p, restored);
-  }
-
-  // uint32
-  {
-    auto p = Property::from_uint32(4294967295U);
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p, restored);
-  }
-
-  // string_view (VARCHAR)
-  {
-    auto p = Property::from_string_view("view only");
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(restored.type(), DataTypeId::kVarchar);
-    EXPECT_EQ(restored.as_string_view(), p.as_string_view());
-  }
-
-  // Date
-  {
-    Property p;
-    p.set_date(uint32_t{20230101});
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p.as_date().to_u32(), restored.as_date().to_u32());
-  }
-
-  // DateTime
-  {
-    auto p =
-        Property::from_datetime(DateTime(1672531200000LL));  // 2023-01-01 UTC
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p.as_datetime().milli_second,
-              restored.as_datetime().milli_second);
-  }
-
-  // Interval
-  {
-    Interval iv;
-    iv.from_mill_seconds(3600000);  // 1 hour
-    auto p = Property::from_interval(iv);
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p.as_interval().to_mill_seconds(),
-              restored.as_interval().to_mill_seconds());
-  }
-
-  // empty
-  {
-    auto p = Property::empty();
-    auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p.type(), DataTypeId::kEmpty);
-    EXPECT_EQ(restored.type(), DataTypeId::kEmpty);
-  }
+  EXPECT_TRUE(v1 == v2);
+  EXPECT_FALSE(v1 == v3);
+  EXPECT_TRUE(v4 == v5);
+  EXPECT_FALSE(v4 == v6);
+  EXPECT_FALSE(v1 == v4);
 }
 
 }  // namespace test

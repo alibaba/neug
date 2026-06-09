@@ -22,7 +22,8 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/property.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 namespace execution {
@@ -386,6 +387,11 @@ Value Value::CreateValue(
 }
 
 template <>
+Value Value::CreateValue(std::string_view value) {
+  return Value::STRING(std::string(value));
+}
+
+template <>
 Value Value::CreateValue(float value) {
   return Value::FLOAT(value);
 }
@@ -443,6 +449,16 @@ uint64_t Value::GetValue() const {
 template <>
 std::string Value::GetValue() const {
   return value_info_->Get<StringValueInfo>().GetString();
+}
+
+template <>
+std::string_view Value::GetValue() const {
+  return value_info_->Get<StringValueInfo>().GetString();
+}
+
+template <>
+EmptyType Value::GetValue() const {
+  return EmptyType();
 }
 
 template <>
@@ -741,69 +757,6 @@ rapidjson::Value Value::ToJson(const Value& value,
   return rapidjson::Value();  // unreachable
 }
 
-Property value_to_property(const Value& value) {
-  switch (value.type().id()) {
-  case DataTypeId::kBoolean:
-    return Property::from_bool(value.GetValue<bool>());
-  case DataTypeId::kInt64:
-    return Property::from_int64(value.GetValue<int64_t>());
-  case DataTypeId::kUInt64:
-    return Property::from_uint64(value.GetValue<uint64_t>());
-  case DataTypeId::kInt32:
-    return Property::from_int32(value.GetValue<int32_t>());
-  case DataTypeId::kUInt32:
-    return Property::from_uint32(value.GetValue<uint32_t>());
-  case DataTypeId::kFloat:
-    return Property::from_float(value.GetValue<float>());
-  case DataTypeId::kDouble:
-    return Property::from_double(value.GetValue<double>());
-  case DataTypeId::kVarchar:
-    return Property::from_string_view(StringValue::Get(value));
-  case DataTypeId::kDate:
-    return Property::from_date(value.GetValue<date_t>());
-  case DataTypeId::kTimestampMs:
-    return Property::from_datetime(value.GetValue<timestamp_ms_t>());
-  case DataTypeId::kInterval:
-    return Property::from_interval(value.GetValue<interval_t>());
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected type: " +
-        std::to_string(static_cast<int>(value.type().id())));
-  }
-}
-
-Value property_to_value(const Property& property) {
-  switch (property.type()) {
-  case DataTypeId::kBoolean:
-    return Value::BOOLEAN(property.as_bool());
-  case DataTypeId::kInt64:
-    return Value::INT64(property.as_int64());
-  case DataTypeId::kUInt64:
-    return Value::UINT64(property.as_uint64());
-  case DataTypeId::kInt32:
-    return Value::INT32(property.as_int32());
-  case DataTypeId::kUInt32:
-    return Value::UINT32(property.as_uint32());
-  case DataTypeId::kFloat:
-    return Value::FLOAT(property.as_float());
-  case DataTypeId::kDouble:
-    return Value::DOUBLE(property.as_double());
-  case DataTypeId::kVarchar: {
-    return Value::STRING(std::string(property.as_string_view()));
-  }
-  case DataTypeId::kDate:
-    return Value::DATE(property.as_date());
-  case DataTypeId::kTimestampMs:
-    return Value::TIMESTAMPMS(property.as_datetime());
-  case DataTypeId::kInterval:
-    return Value::INTERVAL(property.as_interval());
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected property type: " + std::to_string(property.type()) +
-        "value: " + property.to_string());
-  }
-}
-
 void encode_value(const Value& val, Encoder& encoder) {
   const auto& type = val.type();
   if (val.IsNull()) {
@@ -907,4 +860,101 @@ Value performCastToString(const Value& input) {
 }
 
 }  // namespace execution
+
+InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
+  auto type_id = value.type().id();
+  if (value.IsNull()) {
+    in_archive << DataTypeId::kEmpty;
+  } else if (type_id == DataTypeId::kBoolean) {
+    in_archive << type_id << value.GetValue<bool>();
+  } else if (type_id == DataTypeId::kInt32) {
+    in_archive << type_id << value.GetValue<int32_t>();
+  } else if (type_id == DataTypeId::kUInt32) {
+    in_archive << type_id << value.GetValue<uint32_t>();
+  } else if (type_id == DataTypeId::kInt64) {
+    in_archive << type_id << value.GetValue<int64_t>();
+  } else if (type_id == DataTypeId::kUInt64) {
+    in_archive << type_id << value.GetValue<uint64_t>();
+  } else if (type_id == DataTypeId::kFloat) {
+    in_archive << type_id << value.GetValue<float>();
+  } else if (type_id == DataTypeId::kDouble) {
+    in_archive << type_id << value.GetValue<double>();
+  } else if (type_id == DataTypeId::kVarchar) {
+    in_archive << type_id << execution::StringValue::Get(value);
+  } else if (type_id == DataTypeId::kDate) {
+    in_archive << type_id << value.GetValue<execution::date_t>().to_u32();
+  } else if (type_id == DataTypeId::kTimestampMs) {
+    in_archive << type_id
+               << value.GetValue<execution::timestamp_ms_t>().milli_second;
+  } else if (type_id == DataTypeId::kInterval) {
+    auto interval = value.GetValue<execution::interval_t>();
+    in_archive << type_id << interval.months << interval.days
+               << interval.micros;
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        std::string("Value serialization not supported for type: ") +
+        std::to_string(static_cast<int>(type_id)));
+  }
+  return in_archive;
+}
+
+OutArchive& operator>>(OutArchive& out_archive, execution::Value& value) {
+  DataTypeId type_id;
+  out_archive >> type_id;
+  if (type_id == DataTypeId::kEmpty) {
+    value = execution::Value();
+  } else if (type_id == DataTypeId::kBoolean) {
+    bool tmp;
+    out_archive >> tmp;
+    value = execution::Value::BOOLEAN(tmp);
+  } else if (type_id == DataTypeId::kInt32) {
+    int32_t tmp;
+    out_archive >> tmp;
+    value = execution::Value::INT32(tmp);
+  } else if (type_id == DataTypeId::kUInt32) {
+    uint32_t tmp;
+    out_archive >> tmp;
+    value = execution::Value::UINT32(tmp);
+  } else if (type_id == DataTypeId::kInt64) {
+    int64_t tmp;
+    out_archive >> tmp;
+    value = execution::Value::INT64(tmp);
+  } else if (type_id == DataTypeId::kUInt64) {
+    uint64_t tmp;
+    out_archive >> tmp;
+    value = execution::Value::UINT64(tmp);
+  } else if (type_id == DataTypeId::kFloat) {
+    float tmp;
+    out_archive >> tmp;
+    value = execution::Value::FLOAT(tmp);
+  } else if (type_id == DataTypeId::kDouble) {
+    double tmp;
+    out_archive >> tmp;
+    value = execution::Value::DOUBLE(tmp);
+  } else if (type_id == DataTypeId::kVarchar) {
+    std::string_view tmp;
+    out_archive >> tmp;
+    value = execution::Value::STRING(std::string(tmp));
+  } else if (type_id == DataTypeId::kDate) {
+    uint32_t date_val;
+    out_archive >> date_val;
+    Date d;
+    d.from_u32(date_val);
+    value = execution::Value::DATE(d);
+  } else if (type_id == DataTypeId::kTimestampMs) {
+    int64_t dt_val;
+    out_archive >> dt_val;
+    value = execution::Value::TIMESTAMPMS(DateTime(dt_val));
+  } else if (type_id == DataTypeId::kInterval) {
+    Interval interval;
+    out_archive >> interval.months >> interval.days >> interval.micros;
+    value = execution::Value::INTERVAL(interval);
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        std::string("Value deserialization not supported for type: ") +
+        std::to_string(static_cast<int>(type_id)));
+  }
+  return out_archive;
+}
+
 }  // namespace neug
