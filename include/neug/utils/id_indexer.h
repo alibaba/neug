@@ -374,7 +374,7 @@ class LFIndexer {
 
   INDEX_T get_index(const execution::Value& oid) const {
     assert(oid.type().id() == get_type());
-    auto* indices_ptr = indices_->GetData();
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
@@ -416,7 +416,7 @@ class LFIndexer {
 
   bool contains(const execution::Value& oid) const {
     assert(oid.type().id() == get_type());
-    auto* indices_ptr = indices_->GetData();
+    auto* indices_ptr = indices_->data();
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {

@@ -356,7 +356,7 @@ TEST_F(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.column_names().size(), 11);
     EXPECT_EQ(disk_table.column_types().size(), 11);
     EXPECT_EQ(disk_table.column_name(0), "bool_column");
-    EXPECT_EQ(disk_table.get_row_values(0).size(), 11);
+    EXPECT_EQ(disk_table.get_row(0).size(), 11);
     EXPECT_EQ(disk_table.get_column("bool_column")->type(),
               DataTypeId::kBoolean);
     const auto& properties = disk_table.get_row(9);

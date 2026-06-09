@@ -343,7 +343,8 @@ Status PropertyGraph::AddVertexProperties(
                               add_property_types, add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(*ckp_, add_property_names,
-                                        add_property_types, add_default_props);
+                                        add_property_types,
+                                        add_default_property_values);
   return neug::Status::OK();
 }
 
@@ -356,7 +357,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<execution::Value> add_default_property_values;
+  std::vector<execution::Value> add_default_props;
   for (size_t i = 0; i < add_properties.size(); i++) {
     const auto& [property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
@@ -372,7 +373,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(default_value.type());
-    add_default_property_values.emplace_back(default_value);
+    add_default_props.emplace_back(default_value);
   }
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
@@ -380,7 +381,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
 
   schema_.AddEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                             add_property_names, add_property_types,
-                            add_default_property_values);
+                            add_default_props);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   if (!edge_tables_.count(index)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name

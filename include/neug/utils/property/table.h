@@ -62,7 +62,7 @@ class Table {
 
   const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
 
-  std::vector<execution::Value> get_row_values(size_t row_id) const;
+  std::vector<execution::Value> get_row(size_t row_id) const;
 
   std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
 

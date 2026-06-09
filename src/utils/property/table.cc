@@ -189,7 +189,7 @@ const std::shared_ptr<ColumnBase> Table::get_column(
   return nullptr;
 }
 
-std::vector<execution::Value> Table::get_row_values(size_t row_id) const {
+std::vector<execution::Value> Table::get_row(size_t row_id) const {
   std::vector<execution::Value> ret;
   for (auto ptr : columns_) {
     ret.push_back(ptr->get_any(row_id));

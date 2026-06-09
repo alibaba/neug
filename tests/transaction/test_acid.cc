@@ -528,8 +528,8 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
   for (int i = 0; i < 100; ++i) {
     vid_t vid;
     CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
-                        {neug::execution::Value::INT64(vertex_id_property),
-                         neug::execution::Value::INT64(value)},
+                        {neug::execution::Value::INT64(i + 1),
+                         neug::execution::Value::INT64(initial_version)},
                         vid));
   }
   txn.Commit();

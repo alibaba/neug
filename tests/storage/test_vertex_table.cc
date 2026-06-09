@@ -195,6 +195,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 
   neug::vid_t lid1, lid2, lid3;
   neug::execution::Value oid1, oid2, oid3;
+  neug::CheckpointManifest desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(),

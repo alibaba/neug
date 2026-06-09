@@ -697,7 +697,7 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
       if (vids[k] >= std::numeric_limits<vid_t>::max()) {
         continue;
       }
-      col->set_value(vids[k], casted->Value(k));
+      typed_col->set_value(vids[k], casted->Value(k));
     }
   }
 }
