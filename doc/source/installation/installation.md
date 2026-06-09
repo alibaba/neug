@@ -39,7 +39,7 @@ print("✅ NeuG is ready!")
 
 ### Option 1: Install from npm
 ```bash
-npm i @graphscope-neug/neug
+npm install @graphscope-neug/neug
 ```
 
 ### Option 2: Install from Tarball
@@ -49,7 +49,11 @@ npm install /path/to/neug-0.1.2.tgz
 
 ### Verify Installation
 ```javascript
+// installed from npm package
+const { Database } = require('@graphscope-neug/neug');
+// installed from local package
 const { Database } = require('neug');
+
 
 // Test with in-memory database
 const db = new Database({ databasePath: '', mode: 'w' });
