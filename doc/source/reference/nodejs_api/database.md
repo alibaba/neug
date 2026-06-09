@@ -71,11 +71,12 @@ Open a database.
   - `options` (Object)
     Database configuration options.
   - `options.databasePath` (string | null)
-    Path to the database file. Default is `null`. If it is set to empty string or null, the database will be opened in memory mode.
+    Path to the database file. Default is `null`. If it is set to empty string (`''`) or `null`, the database will be opened in memory mode.
     Note that in memory mode, the database will not be persisted to disk, and all data will be
     lost when the program exits.
+    **Note**: `null` cannot be combined with read-only mode; `''` (empty string) can.
   - `options.mode` (string)
-    Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write', 'read-write', 'read-only'. Default is 'read-write'.
+    Mode to open the database. Supported values: 'r', 'read', 'read-only', 'read_only', 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
   - `options.maxThreadNum` (number)
     Maximum number of threads to use. Default is 0, which means no limit.
   - `options.checkpointOnClose` (boolean)

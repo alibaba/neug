@@ -88,7 +88,7 @@ Get the result at the specified index.
 
 - **Parameters:**
   - `index` (number)
-    The index of the result to retrieve.
+    The index of the result to retrieve. Supports negative indexing (e.g., `-1` for the last row).
 
 - **Returns:**
   - **Array**
@@ -96,7 +96,7 @@ Get the result at the specified index.
 
 - **Throws:**
   - **RangeError**
-    If the index is out of range.
+    If the index is out of range (after resolving negative indices).
 
 <a id="neug.query_result.QueryResult.length"></a>
 
@@ -173,3 +173,24 @@ close()
 ```
 
 Close the query result and release resources.
+
+<a id="neug.query_result.QueryResult.Symbol.iterator"></a>
+
+### \[Symbol.iterator\]
+
+```javascript
+[Symbol.iterator]() -> Iterator
+```
+
+Makes QueryResult iterable with `for...of` loops. Each iteration yields a row as an array of values.
+
+```javascript
+const result = conn.execute('MATCH (p:person) RETURN p.name, p.age');
+for (const row of result) {
+  console.log(`${row[0]}: ${row[1]}`);
+}
+```
+
+- **Yields:**
+  - **Array**
+    Each row as an array of column values.

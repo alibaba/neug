@@ -85,7 +85,7 @@ const result = conn.execute(
 );
 ```
 
-Supported modes: `'read'`/`'r'`, `'insert'`/`'i'`, `'update'`/`'u'`.
+Supported modes: `'read'`/`'r'`, `'insert'`/`'i'`, `'update'`/`'u'`, `'schema'`/`'s'`.
 
 ### Parameterized Queries
 

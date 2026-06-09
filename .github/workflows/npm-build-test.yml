@@ -65,7 +65,7 @@ jobs:
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-x64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v18.20.8/node-v18.20.8-linux-x64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -157,7 +157,7 @@ jobs:
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-arm64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v18.20.8/node-v18.20.8-linux-arm64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -233,7 +233,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '16.0.0'
+          node-version: '18.20.8'
 
       - name: Install dependencies
         run: |
