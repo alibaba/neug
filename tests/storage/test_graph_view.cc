@@ -21,10 +21,12 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/exception/exception.h"
+#include "unittest/utils.h"
 
 namespace neug {
 
@@ -32,7 +34,10 @@ class GraphViewTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
-  // Allocator backs the SetUp edges' adjacency lists and must outlive graph_.
+  CheckpointManager ws_;
+  // Owns the buffers backing the SetUp edges' adjacency lists. Must outlive
+  // graph_; tests that need to mutate the graph reuse this allocator so the
+  // SetUp buffers stay live alongside any new ones they add.
   std::unique_ptr<Allocator> alloc_;
 
   void SetUp() override {
@@ -43,8 +48,11 @@ class GraphViewTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(work_dir_, MemoryLevel::kInMemory);
+    ws_.Open(work_dir_);
+    auto ckp = make_checkpoint(ws_);
+    graph_->Open(ckp, MemoryLevel::kInMemory);
 
+    // Create vertex type: person with id as primary key and name as property
     CreateVertexTypeParamBuilder person_builder;
     ASSERT_TRUE(graph_
                     ->CreateVertexType(
@@ -55,6 +63,7 @@ class GraphViewTest : public ::testing::Test {
                             .Build())
                     .ok());
 
+    // Create edge type: knows
     CreateEdgeTypeParamBuilder knows_builder;
     ASSERT_TRUE(
         graph_
@@ -66,12 +75,8 @@ class GraphViewTest : public ::testing::Test {
                     .Build())
             .ok());
 
+    // Add vertices
     label_t person_label = graph_->schema().get_vertex_label_id("person");
-    label_t knows_label = graph_->schema().get_edge_label_id("knows");
-    ASSERT_TRUE(graph_->EnsureCapacity(person_label, 16).ok());
-    ASSERT_TRUE(
-        graph_->EnsureCapacity(person_label, person_label, knows_label, 16)
-            .ok());
     vid_t vid1, vid2, vid3;
     ASSERT_TRUE(graph_
                     ->AddVertex(person_label, execution::Value::INT64(1),
@@ -89,6 +94,7 @@ class GraphViewTest : public ::testing::Test {
                                 false)
                     .ok());
 
+    label_t knows_label = graph_->schema().get_edge_label_id("knows");
     alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, work_dir_);
     int32_t oe_offset = 0;
     const void* edge_prop = nullptr;
@@ -187,9 +193,6 @@ TEST_F(GraphViewTest, GetVertexPropertyColumnByIdSkipsPk) {
   GraphView view(*graph_);
   label_t person_label = view.schema().get_vertex_label_id("person");
 
-  // Intentional asymmetry mirrored from VertexTable: PK is not a Table
-  // column, so GetVertexPropertyColumn(int) only sees non-PK properties.
-  // Column 0 here is "name", not "id".
   auto col0 = view.GetVertexPropertyColumn(person_label, 0);
   ASSERT_NE(col0, nullptr);
 

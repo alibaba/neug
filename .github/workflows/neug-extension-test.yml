@@ -25,7 +25,8 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   extension_tests_default:
-    runs-on: [self-hosted, daily, linux]
+    # runs-on: [self-hosted, daily, linux]
+    runs-on: ubuntu-22.04
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
@@ -99,12 +100,11 @@ jobs:
 
     - name: Run Extension C++ Test
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export COMPREHENSIVE_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
-        cd build/neug_py_bind
+        cd ${GITHUB_WORKSPACE}/build
         ctest -R parquet_extension_test -V
         ctest -R httpfs_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
@@ -115,10 +115,11 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         pip3 install -r requirements.txt
         pip3 install -r requirements_dev.txt
+        python3 -m pip install pyarrow==24.0.0
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
@@ -127,7 +128,8 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "httpfs"
 
   extension_tests_wheel_linux_x86_64:
-    runs-on: [self-hosted, daily, linux, x64]
+    # runs-on: [self-hosted, daily, linux, x64]
+    runs-on: ubuntu-22.04
     steps:
       - name: checkout
         id: checkout
@@ -205,7 +207,8 @@ jobs:
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
 
   extension_tests_wheel_linux_arm64:
-    runs-on: [self-hosted, daily, linux, arm64]
+    # runs-on: [self-hosted, daily, linux, arm64]
+    runs-on: ubuntu-22.04-arm
     steps:
       - name: checkout
         id: checkout

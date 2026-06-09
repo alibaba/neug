@@ -24,7 +24,6 @@
 #include <utility>
 
 #include "neug/execution/common/types/value.h"
-#include "neug/storages/file_names.h"
 #include "neug/transaction/wal/dummy_wal_writer.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -402,7 +401,8 @@ InArchive& operator<<(InArchive& in_archive, const RemoveEdgeRedo& value) {
   return in_archive;
 }
 
-////////////////////////// Deserialization operators //////////////////////////
+////////////////////////// Deserialization operators
+/////////////////////////////
 
 OutArchive& operator>>(OutArchive& out_archive, DeleteVertexTypeRedo& value) {
   DeleteVertexTypeRedo::Deserialize(out_archive, value);

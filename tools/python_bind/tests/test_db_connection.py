@@ -23,7 +23,6 @@ import time
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_CONFIG_INVALID
 from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
