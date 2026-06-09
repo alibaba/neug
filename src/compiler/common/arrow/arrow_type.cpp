@@ -29,9 +29,10 @@ namespace common {
 // Pyarrow format string specifications can be found here
 // https://arrow.apache.org/docs/format/CDataInterface.html#data-type-description-format-strings
 
-LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
+DataType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
   const char* arrowType = schema->format;
-  std::vector<StructField> structFields;
+  std::vector<std::string> structFieldNames;
+  std::vector<DataType> structFieldTypes;
   // If we have a dictionary, then the logical type of the column is dependent
   // upon the logical type of the dict
   if (schema->dictionary != nullptr) {
@@ -39,38 +40,38 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
   }
   switch (arrowType[0]) {
   case 'n':
-    return LogicalType(LogicalTypeID::ANY);
+    return DataType(DataTypeId::kUnknown);
   case 'b':
-    return LogicalType(LogicalTypeID::BOOL);
+    return DataType(DataTypeId::kBoolean);
   case 'c':
-    return LogicalType(LogicalTypeID::INT8);
+    return DataType(DataTypeId::kInt8);
   case 'C':
-    return LogicalType(LogicalTypeID::UINT8);
+    return DataType(DataTypeId::kUInt8);
   case 's':
-    return LogicalType(LogicalTypeID::INT16);
+    return DataType(DataTypeId::kInt16);
   case 'S':
-    return LogicalType(LogicalTypeID::UINT16);
+    return DataType(DataTypeId::kUInt16);
   case 'i':
-    return LogicalType(LogicalTypeID::INT32);
+    return DataType(DataTypeId::kInt32);
   case 'I':
-    return LogicalType(LogicalTypeID::UINT32);
+    return DataType(DataTypeId::kUInt32);
   case 'l':
-    return LogicalType(LogicalTypeID::INT64);
+    return DataType(DataTypeId::kInt64);
   case 'L':
-    return LogicalType(LogicalTypeID::UINT64);
+    return DataType(DataTypeId::kUInt64);
   case 'e':
     THROW_NOT_IMPLEMENTED_EXCEPTION("16 bit floats are not supported");
   case 'f':
-    return LogicalType(LogicalTypeID::FLOAT);
+    return DataType(DataTypeId::kFloat);
   case 'g':
-    return LogicalType(LogicalTypeID::DOUBLE);
+    return DataType(DataTypeId::kDouble);
   case 'u':
   case 'U':
-    return LogicalType(LogicalTypeID::STRING);
+    return DataType(DataTypeId::kVarchar);
   case 'v':
     switch (arrowType[1]) {
     case 'u':
-      return LogicalType(LogicalTypeID::STRING);
+      return DataType(DataTypeId::kVarchar);
     default:
       NEUG_UNREACHABLE;
     }
@@ -78,9 +79,9 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
     switch (arrowType[1]) {
     case 'd':
       if (arrowType[2] == 'D') {
-        return LogicalType(LogicalTypeID::DATE);
+        return DataType(DataTypeId::kDate);
       } else {
-        return LogicalType(LogicalTypeID::TIMESTAMP_MS);
+        return DataType(DataTypeId::kTimestampMs);
       }
     case 't':
       // TODO implement pure time type
@@ -89,9 +90,9 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       // TODO maxwell: timezone support
       switch (arrowType[2]) {
       case 'm':
-        return LogicalType(LogicalTypeID::TIMESTAMP_MS);
+        return DataType(DataTypeId::kTimestampMs);
       case 'u':
-        return LogicalType(LogicalTypeID::TIMESTAMP);
+        return DataType(DataTypeId::kTimestampMs);
       default:
         NEUG_UNREACHABLE;
       }
@@ -99,7 +100,7 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       // duration
     case 'i':
       // interval
-      return LogicalType(LogicalTypeID::INTERVAL);
+      return DataType(DataTypeId::kInterval);
     default:
       NEUG_UNREACHABLE;
     }
@@ -109,29 +110,28 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
     // complex types need a complementary ExtraTypeInfo object
     case 'l':
     case 'L':
-      return LogicalType::LIST(
-          LogicalType(fromArrowSchema(schema->children[0])));
+      return DataType::List(
+          DataType(fromArrowSchema(schema->children[0])));
     case 'w':
-      return LogicalType::ARRAY(
-          LogicalType(fromArrowSchema(schema->children[0])),
+      return DataType::Array(
+          DataType(fromArrowSchema(schema->children[0])),
           std::stoul(arrowType + 3));
     case 's':
       for (int64_t i = 0; i < schema->n_children; i++) {
-        structFields.emplace_back(
-            std::string(schema->children[i]->name),
-            LogicalType(fromArrowSchema(schema->children[i])));
+        structFieldNames.push_back(std::string(schema->children[i]->name));
+        structFieldTypes.push_back(DataType(fromArrowSchema(schema->children[i])));
       }
-      return LogicalType::STRUCT(std::move(structFields));
+      return DataType::Struct(std::move(structFieldNames), std::move(structFieldTypes));
     case 'm':
-      return LogicalType::MAP(
-          LogicalType(fromArrowSchema(schema->children[0]->children[0])),
-          LogicalType(fromArrowSchema(schema->children[0]->children[1])));
+      return DataType::Map(
+          DataType(fromArrowSchema(schema->children[0]->children[0])),
+          DataType(fromArrowSchema(schema->children[0]->children[1])));
     case 'v':
       switch (arrowType[2]) {
       case 'l':
       case 'L':
-        return LogicalType::LIST(
-            LogicalType(fromArrowSchema(schema->children[0])));
+        return DataType::List(
+            DataType(fromArrowSchema(schema->children[0])));
       default:
         NEUG_UNREACHABLE;
       }

@@ -51,7 +51,7 @@ struct NEUG_API CastString {
                                const CSVOption* /*option*/ = nullptr) {
     // base case: int64
     simpleIntegerCast<T, true>(reinterpret_cast<const char*>(input.getData()),
-                               input.len, result, LogicalTypeID::INT64);
+                               input.len, result, DataTypeId::kInt64);
   }
 };
 
@@ -70,7 +70,7 @@ inline void CastString::operation(const neug_string_t& input, int32_t& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<int32_t>(reinterpret_cast<const char*>(input.getData()),
-                             input.len, result, LogicalTypeID::INT32);
+                             input.len, result, DataTypeId::kInt32);
 }
 
 template <>
@@ -79,7 +79,7 @@ inline void CastString::operation(const neug_string_t& input, int16_t& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<int16_t>(reinterpret_cast<const char*>(input.getData()),
-                             input.len, result, LogicalTypeID::INT16);
+                             input.len, result, DataTypeId::kInt16);
 }
 
 template <>
@@ -88,7 +88,7 @@ inline void CastString::operation(const neug_string_t& input, int8_t& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<int8_t>(reinterpret_cast<const char*>(input.getData()),
-                            input.len, result, LogicalTypeID::INT8);
+                            input.len, result, DataTypeId::kInt8);
 }
 
 template <>
@@ -98,7 +98,7 @@ inline void CastString::operation(const neug_string_t& input, uint64_t& result,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<uint64_t, false>(
       reinterpret_cast<const char*>(input.getData()), input.len, result,
-      LogicalTypeID::UINT64);
+      DataTypeId::kUInt64);
 }
 
 template <>
@@ -108,7 +108,7 @@ inline void CastString::operation(const neug_string_t& input, uint32_t& result,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<uint32_t, false>(
       reinterpret_cast<const char*>(input.getData()), input.len, result,
-      LogicalTypeID::UINT32);
+      DataTypeId::kUInt32);
 }
 
 template <>
@@ -118,7 +118,7 @@ inline void CastString::operation(const neug_string_t& input, uint16_t& result,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<uint16_t, false>(
       reinterpret_cast<const char*>(input.getData()), input.len, result,
-      LogicalTypeID::UINT16);
+      DataTypeId::kUInt16);
 }
 
 template <>
@@ -128,7 +128,7 @@ inline void CastString::operation(const neug_string_t& input, uint8_t& result,
                                   const CSVOption* /*option*/) {
   simpleIntegerCast<uint8_t, false>(
       reinterpret_cast<const char*>(input.getData()), input.len, result,
-      LogicalTypeID::UINT8);
+      DataTypeId::kUInt8);
 }
 
 template <>
@@ -137,7 +137,7 @@ inline void CastString::operation(const neug_string_t& input, float& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   doubleCast<float>(reinterpret_cast<const char*>(input.getData()), input.len,
-                    result, LogicalTypeID::FLOAT);
+                    result, DataTypeId::kFloat);
 }
 
 template <>
@@ -146,7 +146,7 @@ inline void CastString::operation(const neug_string_t& input, double& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   doubleCast<double>(reinterpret_cast<const char*>(input.getData()), input.len,
-                     result, LogicalTypeID::DOUBLE);
+                     result, DataTypeId::kDouble);
 }
 
 template <>
@@ -175,7 +175,7 @@ inline void CastString::operation(const neug_string_t& input,
                                   const CSVOption* /*option*/) {
   TryCastStringToTimestamp::cast<timestamp_ms_t>((const char*) input.getData(),
                                                  input.len, result,
-                                                 LogicalTypeID::TIMESTAMP_MS);
+                                                 DataTypeId::kTimestampMs);
 }
 
 template <>

@@ -38,7 +38,7 @@ struct CastStringHelper {
   static void cast(const char* input, uint64_t len, T& result,
                    ValueVector* /*vector*/ = nullptr, uint64_t /*rowToAdd*/ = 0,
                    const CSVOption* /*option*/ = nullptr) {
-    simpleIntegerCast<int64_t>(input, len, result, LogicalTypeID::INT64);
+    simpleIntegerCast<int64_t>(input, len, result, DataTypeId::kInt64);
   }
 };
 
@@ -55,7 +55,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    int32_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<int32_t>(input, len, result, LogicalTypeID::INT32);
+  simpleIntegerCast<int32_t>(input, len, result, DataTypeId::kInt32);
 }
 
 template <>
@@ -63,7 +63,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    int16_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<int16_t>(input, len, result, LogicalTypeID::INT16);
+  simpleIntegerCast<int16_t>(input, len, result, DataTypeId::kInt16);
 }
 
 template <>
@@ -71,7 +71,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    int8_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<int8_t>(input, len, result, LogicalTypeID::INT8);
+  simpleIntegerCast<int8_t>(input, len, result, DataTypeId::kInt8);
 }
 
 template <>
@@ -79,7 +79,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    uint64_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<uint64_t, false>(input, len, result, LogicalTypeID::UINT64);
+  simpleIntegerCast<uint64_t, false>(input, len, result, DataTypeId::kUInt64);
 }
 
 template <>
@@ -87,7 +87,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    uint32_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<uint32_t, false>(input, len, result, LogicalTypeID::UINT32);
+  simpleIntegerCast<uint32_t, false>(input, len, result, DataTypeId::kUInt32);
 }
 
 template <>
@@ -95,7 +95,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    uint16_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<uint16_t, false>(input, len, result, LogicalTypeID::UINT16);
+  simpleIntegerCast<uint16_t, false>(input, len, result, DataTypeId::kUInt16);
 }
 
 template <>
@@ -103,7 +103,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    uint8_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  simpleIntegerCast<uint8_t, false>(input, len, result, LogicalTypeID::UINT8);
+  simpleIntegerCast<uint8_t, false>(input, len, result, DataTypeId::kUInt8);
 }
 
 template <>
@@ -111,7 +111,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    float& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  doubleCast<float>(input, len, result, LogicalTypeID::FLOAT);
+  doubleCast<float>(input, len, result, DataTypeId::kFloat);
 }
 
 template <>
@@ -119,7 +119,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    double& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  doubleCast<double>(input, len, result, LogicalTypeID::DOUBLE);
+  doubleCast<double>(input, len, result, DataTypeId::kDouble);
 }
 
 template <>
@@ -145,7 +145,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
   TryCastStringToTimestamp::cast<timestamp_ms_t>(input, len, result,
-                                                 LogicalTypeID::TIMESTAMP_MS);
+                                                 DataTypeId::kTimestampMs);
 }
 
 template <>
@@ -374,8 +374,8 @@ static inline void startListCast(const char* input, uint64_t len, T split,
 // ---------------------- cast String to Array Helper
 // ------------------------------ //
 static void validateNumElementsInArray(uint64_t numElementsRead,
-                                       const LogicalType& type) {
-  auto numElementsInArray = ArrayType::getNumElements(type);
+                                       const DataType& type) {
+  auto numElementsInArray = ArrayType::GetNumElements(type);
   if (numElementsRead != numElementsInArray) {
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Each array should have fixed number of elements. "
@@ -390,7 +390,7 @@ template <>
 void CastStringHelper::cast(const char* input, uint64_t len,
                             list_entry_t& /*result*/, ValueVector* vector,
                             uint64_t rowToAdd, const CSVOption* option) {
-  auto logicalTypeID = vector->dataType.getLogicalTypeID();
+  auto logicalTypeID = vector->dataType.id();
 
   // calculate the number of elements in array
   CountPartOperation state;
@@ -399,7 +399,7 @@ void CastStringHelper::cast(const char* input, uint64_t len,
   } else {
     splitCStringList(input, len, state, option);
   }
-  if (logicalTypeID == LogicalTypeID::ARRAY) {
+  if (logicalTypeID == DataTypeId::kArray) {
     validateNumElementsInArray(state.count, vector->dataType);
   }
 
@@ -638,7 +638,7 @@ static bool tryCastStringToStruct(const char* input, uint64_t len,
     trimRightWhitespace(keyStart, keyEnd);
     trimQuotes(keyStart, keyEnd);
     auto fieldIdx =
-        StructType::getFieldIdx(type, std::string{keyStart, keyEnd});
+        StructType::GetFieldIdx(type, std::string{keyStart, keyEnd});
     if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
       THROW_PARSER_EXCEPTION("Invalid struct field name: " +
                              (std::string{keyStart, keyEnd}));
@@ -696,105 +696,97 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
     return;
   }
   vector->setNull(vectorPos, false /* isNull */);
-  switch (type.getLogicalTypeID()) {
-  case LogicalTypeID::INT128: {
-    int128_t val = 0;
-    CastStringHelper::cast(strVal.data(), strVal.length(), val);
-    vector->setValue(vectorPos, val);
-  } break;
-  case LogicalTypeID::INT64: {
+  switch (type.id()) {
+  // INT128 removed — no engine equivalent
+  case DataTypeId::kInt64: {
     int64_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::INT32: {
+  case DataTypeId::kInt32: {
     int32_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::INT16: {
+  case DataTypeId::kInt16: {
     int16_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::INT8: {
+  case DataTypeId::kInt8: {
     int8_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::UINT64: {
+  case DataTypeId::kUInt64: {
     uint64_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::UINT32: {
+  case DataTypeId::kUInt32: {
     uint32_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::UINT16: {
+  case DataTypeId::kUInt16: {
     uint16_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::UINT8: {
+  case DataTypeId::kUInt8: {
     uint8_t val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::FLOAT: {
+  case DataTypeId::kFloat: {
     float val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::DOUBLE: {
+  case DataTypeId::kDouble: {
     double val = 0;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::BOOL: {
+  case DataTypeId::kBoolean: {
     bool val = false;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::STRING: {
+  case DataTypeId::kVarchar: {
     if (!utf8proc::Utf8Proc::isValid(strVal.data(), strVal.length())) {
       THROW_CONVERSION_EXCEPTION("Invalid UTF8-encoded string.");
     }
     StringVector::addString(vector, vectorPos, strVal.data(), strVal.length());
   } break;
-  case LogicalTypeID::DATE: {
+  case DataTypeId::kDate: {
     date_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::TIMESTAMP_MS: {
+  case DataTypeId::kTimestampMs: {
     timestamp_ms_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::TIMESTAMP: {
-    neug::common::timestamp_t val;
-    CastStringHelper::cast(strVal.data(), strVal.length(), val);
-    vector->setValue(vectorPos, val);
-  } break;
-  case LogicalTypeID::INTERVAL: {
+  // TIMESTAMP removed — merged into kTimestampMs
+  case DataTypeId::kInterval: {
     interval_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
-  case LogicalTypeID::MAP: {
+  case DataTypeId::kMap: {
     map_entry_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val, vector,
                            vectorPos, option);
   } break;
-  case LogicalTypeID::ARRAY:
-  case LogicalTypeID::LIST: {
+  case DataTypeId::kArray:
+  case DataTypeId::kList: {
     list_entry_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val, vector,
                            vectorPos, option);
   } break;
-  case LogicalTypeID::STRUCT: {
+  case DataTypeId::kStruct: {
     struct_entry_t val{};
     CastStringHelper::cast(strVal.data(), strVal.length(), val, vector,
                            vectorPos, option);

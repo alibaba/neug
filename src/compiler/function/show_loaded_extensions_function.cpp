@@ -27,10 +27,10 @@ namespace function {
 function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowLoadedExtensionsFunction::name,
-      std::vector<neug::common::LogicalTypeID>{},
-      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
-          {"name", neug::common::LogicalTypeID::STRING},
-          {"description", common::LogicalTypeID::STRING}});
+      std::vector<neug::common::DataTypeId>{},
+      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
+          {"name", neug::common::DataTypeId::kVarchar},
+          {"description", common::DataTypeId::kVarchar}});
 
   function->bindFunc = [](const neug::Schema& schema,
     const neug::execution::ContextMeta& ctx_meta,

@@ -33,10 +33,10 @@ struct neug_list_t {
   neug_list_t(uint64_t size, uint64_t overflowPtr)
       : size{size}, overflowPtr{overflowPtr} {}
 
-  void set(const uint8_t* values, const LogicalType& dataType) const;
+  void set(const uint8_t* values, const DataType& dataType) const;
 
  private:
-  void set(const std::vector<uint8_t*>& parameters, LogicalTypeID childTypeId);
+  void set(const std::vector<uint8_t*>& parameters, DataTypeId childTypeId);
 
  public:
   uint64_t size;

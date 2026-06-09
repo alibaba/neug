@@ -39,8 +39,8 @@ namespace function {
 
 bool isAnyType(std::string_view cpy);
 
-LogicalType NEUG_API inferMinimalTypeFromString(const std::string& str);
-LogicalType NEUG_API inferMinimalTypeFromString(std::string_view str);
+DataType NEUG_API inferMinimalTypeFromString(const std::string& str);
+DataType NEUG_API inferMinimalTypeFromString(std::string_view str);
 // Infer the type that the string represents.
 // Note: minimal integer width is int64
 // Used for sniffing
@@ -231,7 +231,7 @@ NEUG_API inline bool trySimpleIntegerCast(const char* input, uint64_t len,
 template <class T, bool IS_SIGNED = true>
 NEUG_API inline void simpleIntegerCast(
     const char* input, uint64_t len, T& result,
-    LogicalTypeID typeID = LogicalTypeID::ANY) {
+    DataTypeId typeID = DataTypeId::kUnknown) {
   if (!trySimpleIntegerCast<T, IS_SIGNED>(input, len, result)) {
     THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. Could not convert \"{}\" to {}.",
@@ -261,7 +261,7 @@ inline bool tryDoubleCast(const char* input, uint64_t len, T& result) {
 
 template <class T>
 inline void doubleCast(const char* input, uint64_t len, T& result,
-                       LogicalTypeID typeID = LogicalTypeID::ANY) {
+                       DataTypeId typeID = DataTypeId::kUnknown) {
   if (!tryDoubleCast<T>(input, len, result)) {
     THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. {} is not in {} range.", std::string{input, (size_t) len},
@@ -277,7 +277,7 @@ struct TryCastStringToTimestamp {
 
   template <typename T>
   static void cast(const char* input, uint64_t len,
-                   neug::common::timestamp_t& result, LogicalTypeID typeID) {
+                   neug::common::timestamp_t& result, DataTypeId typeID) {
     if (!tryCast<T>(input, len, result)) {
       THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
           input, len, LogicalTypeUtils::toString(typeID)));

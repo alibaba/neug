@@ -79,7 +79,7 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
     const std::string& tableName) {
   std::vector<PropertyDefinition> definitions;
   for (auto& def : parsedDefinitions) {
-    auto type = LogicalType::convertFromString(def.getType(), clientContext);
+    auto type = convertFromString(def.getType(), clientContext);
     auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
                                               tableName, def.getName());
     auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
@@ -95,7 +95,7 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
 }
 
 std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
-    ParsedExpression* parsedDefault, const common::LogicalType& type,
+    ParsedExpression* parsedDefault, const common::DataType& type,
     const std::string& tableName, const std::string& propertyName) {
   if (parsedDefault == nullptr) {  // No default provided.
     // set system default value if query default value is not set
@@ -124,7 +124,7 @@ static void validatePrimaryKey(
   if (!pkType.isInternalType()) {
     THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.toString()));
   }
-  switch (pkType.getPhysicalType()) {
+  switch (getPhysicalType(pkType.id())) {
   case PhysicalTypeID::UINT8:
   case PhysicalTypeID::UINT16:
   case PhysicalTypeID::UINT32:
@@ -244,7 +244,7 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
     const CreateTableInfo* info, const options_t& parsedOptions) {
   std::vector<PropertyDefinition> propertyDefinitions;
   propertyDefinitions.emplace_back(
-      ColumnDefinition(InternalKeyword::ID, LogicalType::INTERNAL_ID()));
+      ColumnDefinition(InternalKeyword::ID, DataType(DataTypeId::kInternalId)));
   for (auto& definition :
        bindPropertyDefinitions(info->propertyDefinitions, info->tableName)) {
     propertyDefinitions.push_back(definition.copy());
@@ -321,8 +321,8 @@ std::unique_ptr<BoundStatement> Binder::bindCreateType(
     const Statement& statement) const {
   auto createType = statement.constPtrCast<CreateType>();
   auto name = createType->getName();
-  LogicalType type =
-      LogicalType::convertFromString(createType->getDataType(), clientContext);
+  DataType type =
+      convertFromString(createType->getDataType(), clientContext);
   if (clientContext->getCatalog()->containsType(clientContext->getTransaction(),
                                                 name)) {
     THROW_BINDER_EXCEPTION(stringFormat("Duplicated type name: {}.", name));
@@ -452,7 +452,7 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   auto tableName = info->tableName;
   auto propertyName = extraInfo->propertyName;
   auto type =
-      LogicalType::convertFromString(extraInfo->dataType, clientContext);
+      convertFromString(extraInfo->dataType, clientContext);
   auto columnDefinition = ColumnDefinition(propertyName, type.copy());
   auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(), type,
                                             tableName, propertyName);

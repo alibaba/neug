@@ -30,7 +30,7 @@ namespace binder {
 
 struct NEUG_API ExpressionUtil {
   static expression_vector getExpressionsWithDataType(
-      const expression_vector& expressions, common::LogicalTypeID dataTypeID);
+      const expression_vector& expressions, common::DataTypeId dataTypeID);
 
   static uint32_t find(const Expression* target,
                        const expression_vector& expressions);
@@ -51,7 +51,7 @@ struct NEUG_API ExpressionUtil {
       const expression_vector& expressions,
       const expression_vector& expressionsToExclude);
 
-  static common::logical_type_vec_t getDataTypes(
+  static std::vector<DataType> getDataTypes(
       const expression_vector& expressions);
 
   static expression_vector removeDuplication(
@@ -73,25 +73,25 @@ struct NEUG_API ExpressionUtil {
 
   // Validate data type.
   static void validateDataType(const Expression& expr,
-                               const common::LogicalType& expectedType);
+                               const common::DataType& expectedType);
   // Validate recursive data type top level (used when child type is unknown).
   static void validateDataType(const Expression& expr,
-                               common::LogicalTypeID expectedTypeID);
+                               common::DataTypeId expectedTypeID);
   static void validateDataType(
       const Expression& expr,
-      const std::vector<common::LogicalTypeID>& expectedTypeIDs);
+      const std::vector<common::DataTypeId>& expectedTypeIDs);
   template <typename T>
   static T getLiteralValue(const Expression& expr);
 
   static bool tryCombineDataType(const expression_vector& expressions,
-                                 common::LogicalType& result);
+                                 common::DataType& result);
 
   // Check If we can directly assign a new data type to an expression.
   // This mostly happen when a literal is an empty list. By default, we assign
   // its data type to INT64[] but it can be cast to any other list type at
   // compile time.
   static bool canCastStatically(const Expression& expr,
-                                const common::LogicalType& targetType);
+                                const common::DataType& targetType);
 
   static bool canEvaluateAsLiteral(const Expression& expr);
 
@@ -102,7 +102,7 @@ struct NEUG_API ExpressionUtil {
 
   template <typename T>
   static T evaluateLiteral(const Expression& expression,
-                           const common::LogicalType& type,
+                           const common::DataType& type,
                            validate_param_func<T> validateParamFunc = nullptr);
 };
 

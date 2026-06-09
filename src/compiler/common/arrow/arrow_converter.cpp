@@ -68,10 +68,10 @@ void ArrowConverter::initializeChild(ArrowSchema& child,
 
 void ArrowConverter::setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
                                              ArrowSchema& child,
-                                             const LogicalType& dataType) {
+                                             const DataType& dataType) {
   child.format = "+s";
   // name is set by parent.
-  child.n_children = (std::int64_t) StructType::getNumFields(dataType);
+  child.n_children = (std::int64_t) StructType::GetNumFields(dataType);
   rootHolder.nestedChildren.emplace_back();
   rootHolder.nestedChildren.back().resize(child.n_children);
   rootHolder.nestedChildrenPtr.emplace_back();
@@ -83,15 +83,14 @@ void ArrowConverter::setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
   child.children = &rootHolder.nestedChildrenPtr.back()[0];
   for (auto i = 0u; i < child.n_children; i++) {
     initializeChild(*child.children[i]);
-    const auto& structField = StructType::getField(dataType, i);
-    child.children[i]->name = copyName(rootHolder, structField.getName());
-    setArrowFormat(rootHolder, *child.children[i], structField.getType());
+    child.children[i]->name = copyName(rootHolder, StructType::GetChildName(dataType, i));
+    setArrowFormat(rootHolder, *child.children[i], StructType::GetChildType(dataType, i));
   }
 }
 
 void ArrowConverter::setArrowFormatForInternalID(
     ArrowSchemaHolder& rootHolder, ArrowSchema& child,
-    const LogicalType& /*dataType*/) {
+    const DataType& /*dataType*/) {
   child.format = "+s";
   // name is set by parent.
   child.n_children = 2;
@@ -106,68 +105,62 @@ void ArrowConverter::setArrowFormatForInternalID(
   child.children = &rootHolder.nestedChildrenPtr.back()[0];
   initializeChild(*child.children[0]);
   child.children[0]->name = copyName(rootHolder, "offset");
-  setArrowFormat(rootHolder, *child.children[0], LogicalType::INT64());
+  setArrowFormat(rootHolder, *child.children[0], DataType(DataTypeId::kInt64));
   initializeChild(*child.children[1]);
   child.children[1]->name = copyName(rootHolder, "table");
-  setArrowFormat(rootHolder, *child.children[1], LogicalType::INT64());
+  setArrowFormat(rootHolder, *child.children[1], DataType(DataTypeId::kInt64));
 }
 
 void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
                                     ArrowSchema& child,
-                                    const LogicalType& dataType) {
-  switch (dataType.getLogicalTypeID()) {
-  case LogicalTypeID::BOOL: {
+                                    const DataType& dataType) {
+  switch (dataType.id()) {
+  case DataTypeId::kBoolean: {
     child.format = "b";
   } break;
-  case LogicalTypeID::INT128: {
+  case DataTypeId::kInt64: {
     child.format = "d:38,0";
   } break;
-  case LogicalTypeID::INT64: {
-    child.format = "l";
-  } break;
-  case LogicalTypeID::INT32: {
+  case DataTypeId::kInt32: {
     child.format = "i";
   } break;
-  case LogicalTypeID::INT16: {
+  case DataTypeId::kInt16: {
     child.format = "s";
   } break;
-  case LogicalTypeID::INT8: {
+  case DataTypeId::kInt8: {
     child.format = "c";
   } break;
-  case LogicalTypeID::UINT64: {
+  case DataTypeId::kUInt64: {
     child.format = "L";
   } break;
-  case LogicalTypeID::UINT32: {
+  case DataTypeId::kUInt32: {
     child.format = "I";
   } break;
-  case LogicalTypeID::UINT16: {
+  case DataTypeId::kUInt16: {
     child.format = "S";
   } break;
-  case LogicalTypeID::UINT8: {
+  case DataTypeId::kUInt8: {
     child.format = "C";
   } break;
-  case LogicalTypeID::DOUBLE: {
+  case DataTypeId::kDouble: {
     child.format = "g";
   } break;
-  case LogicalTypeID::FLOAT: {
+  case DataTypeId::kFloat: {
     child.format = "f";
   } break;
-  case LogicalTypeID::DATE: {
+  case DataTypeId::kDate: {
     child.format = "tdD";
   } break;
-  case LogicalTypeID::TIMESTAMP_MS: {
+  case DataTypeId::kTimestampMs: {
     child.format = "tsm:";
   } break;
-  case LogicalTypeID::TIMESTAMP: {
-    child.format = "tsu:";
-  } break;
-  case LogicalTypeID::INTERVAL: {
+  case DataTypeId::kInterval: {
     child.format = "tDu";
   } break;
-  case LogicalTypeID::STRING: {
+  case DataTypeId::kVarchar: {
     child.format = "u";
   } break;
-  case LogicalTypeID::LIST: {
+  case DataTypeId::kList: {
     child.format = "+l";
     child.n_children = 1;
     rootHolder.nestedChildren.emplace_back();
@@ -179,11 +172,11 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     child.children = &rootHolder.nestedChildrenPtr.back()[0];
     child.children[0]->name = "l";
     setArrowFormat(rootHolder, **child.children,
-                   ListType::getChildType(dataType));
+                   ListType::GetChildType(dataType));
   } break;
-  case LogicalTypeID::ARRAY: {
+  case DataTypeId::kArray: {
     auto numValuesPerArray =
-        "+w:" + std::to_string(ArrayType::getNumElements(dataType));
+        "+w:" + std::to_string(ArrayType::GetNumElements(dataType));
     child.format = copyName(rootHolder, numValuesPerArray);
     child.n_children = 1;
     rootHolder.nestedChildren.emplace_back();
@@ -195,9 +188,9 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     child.children = &rootHolder.nestedChildrenPtr.back()[0];
     child.children[0]->name = "l";
     setArrowFormat(rootHolder, **child.children,
-                   ArrayType::getChildType(dataType));
+                   ArrayType::GetChildType(dataType));
   } break;
-  case LogicalTypeID::MAP: {
+  case DataTypeId::kMap: {
     child.format = "+m";
     child.n_children = 1;
     rootHolder.nestedChildren.emplace_back();
@@ -209,15 +202,15 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     child.children = &rootHolder.nestedChildrenPtr.back()[0];
     child.children[0]->name = "l";
     setArrowFormat(rootHolder, **child.children,
-                   ListType::getChildType(dataType));
+                   ListType::GetChildType(dataType));
   } break;
-  case LogicalTypeID::STRUCT:
-  case LogicalTypeID::NODE:
-  case LogicalTypeID::REL:
-  case LogicalTypeID::RECURSIVE_REL:
+  case DataTypeId::kStruct:
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
     setArrowFormatForStruct(rootHolder, child, dataType);
     break;
-  case LogicalTypeID::INTERNAL_ID:
+  case DataTypeId::kInternalId:
     setArrowFormatForInternalID(rootHolder, child, dataType);
     break;
   default:
@@ -227,7 +220,7 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
 }
 
 std::unique_ptr<ArrowSchema> ArrowConverter::toArrowSchema(
-    const std::vector<LogicalType>& dataTypes,
+    const std::vector<DataType>& dataTypes,
     const std::vector<std::string>& columnNames) {
   auto outSchema = std::make_unique<ArrowSchema>();
   auto rootHolder = std::make_unique<ArrowSchemaHolder>();

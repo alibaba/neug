@@ -121,16 +121,16 @@ static std::string unsupportedImplicitCastException(
       expression.toString(), expression.dataType.toString(), targetTypeStr);
 }
 
-static bool checkUDTCast(const LogicalType& type, const LogicalType& target) {
+static bool checkUDTCast(const DataType& type, const DataType& target) {
   if (type.isInternalType() && target.isInternalType()) {
     return false;
   }
-  return type.getLogicalTypeID() == target.getLogicalTypeID();
+  return type.id() == target.id();
 }
 
 std::shared_ptr<Expression> ExpressionBinder::implicitCastIfNecessary(
     const std::shared_ptr<Expression>& expression,
-    const LogicalType& targetType) {
+    const DataType& targetType) {
   auto& type = expression->dataType;
   if (checkUDTCast(type, targetType)) {
     return expression;
@@ -147,7 +147,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCastIfNecessary(
 
 std::shared_ptr<Expression> ExpressionBinder::implicitCast(
     const std::shared_ptr<Expression>& expression,
-    const LogicalType& targetType) {
+    const DataType& targetType) {
   if (CastFunction::hasImplicitCast(expression->dataType, targetType)) {
     return forceCast(expression, targetType);
   } else {
@@ -158,10 +158,10 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCast(
 
 std::shared_ptr<Expression> ExpressionBinder::forceCast(
     const std::shared_ptr<Expression>& expression,
-    const LogicalType& targetType) {
+    const DataType& targetType) {
   auto functionName = "CAST";
   // we suppose INTERNAL_ID can be converted from other types without cast
-  if (targetType == common::LogicalType::INTERNAL_ID()) {
+  if (targetType == common::DataType(DataTypeId::kInternalId)) {
     return expression;
   }
   auto children = expression_vector{

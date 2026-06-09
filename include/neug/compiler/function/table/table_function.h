@@ -167,7 +167,7 @@ using table_func_get_logical_plan_t =
                        std::vector<std::shared_ptr<binder::Expression>>,
                        std::vector<std::unique_ptr<planner::LogicalPlan>>&)>;
 using table_func_infer_input_types =
-    std::function<std::vector<common::LogicalType>(
+    std::function<std::vector<common::DataType>(
         const binder::expression_vector&)>;
 
 struct NEUG_API TableFunction : Function {
@@ -186,7 +186,7 @@ struct NEUG_API TableFunction : Function {
   table_func_infer_input_types inferInputTypes = nullptr;
 
   TableFunction() {}
-  TableFunction(std::string name, std::vector<common::LogicalTypeID> inputTypes)
+  TableFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
       : Function{std::move(name), std::move(inputTypes)} {}
   ~TableFunction() override;
   TableFunction(const TableFunction&) = default;

@@ -331,7 +331,7 @@ void Catalog::dropSequence(Transaction* transaction, sequence_id_t sequenceID) {
 }
 
 void Catalog::createType(Transaction* transaction, std::string name,
-                         LogicalType type) {
+                         DataType type) {
   if (types->containsEntry(transaction, name)) {
     return;
   }
@@ -355,7 +355,7 @@ static std::string getTypeDoesNotExistMessage(std::string_view entryName) {
   return message;
 }
 
-LogicalType Catalog::getType(const Transaction* transaction,
+DataType Catalog::getType(const Transaction* transaction,
                              const std::string& name) const {
   if (!types->containsEntry(transaction, name)) {
     THROW_CATALOG_EXCEPTION(getTypeDoesNotExistMessage(name));

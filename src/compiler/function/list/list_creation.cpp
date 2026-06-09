@@ -55,7 +55,7 @@ void ListCreationFunction::execFunc(
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  LogicalType combinedType(LogicalTypeID::ANY);
+  DataType combinedType(DataTypeId::kUnknown);
   // check if all arguments have the same type, if not, set to ANY.
   auto& args = input.arguments;
   // if all arguments have the same type, set sameType to true and
@@ -64,28 +64,30 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   // if any argument is ANY, set anyType to true
   bool anyType = false;
   for (auto& arg : args) {
-    if (arg->getDataType() == LogicalType::ANY()) {
-      combinedType = LogicalType::ANY();
+    if (arg->getDataType() == DataType(DataTypeId::kUnknown)) {
+      combinedType = DataType(DataTypeId::kUnknown);
       anyType = true;
       break;
     }
-    if (combinedType == LogicalType::ANY()) {
+    if (combinedType == DataType(DataTypeId::kUnknown)) {
       combinedType = arg->getDataType().copy();
     } else if (combinedType != arg->getDataType()) {
       sameType = false;
       break;
     }
   }
-  LogicalType resultType;
+  DataType resultType;
   // convert to struct type
   if (!anyType && !sameType) {
-    std::vector<StructField> fields;
+    std::vector<std::string> fieldNames;
+    std::vector<DataType> fieldTypes;
     for (auto& arg : args) {
-      fields.emplace_back("", arg->getDataType().copy());
+      fieldNames.push_back("");
+      fieldTypes.push_back(arg->getDataType().copy());
     }
-    resultType = LogicalType::STRUCT(std::move(fields));
+    resultType = DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
   } else {
-    resultType = LogicalType::LIST(combinedType.copy());
+    resultType = DataType::List(combinedType.copy());
   }
   auto bindData = std::make_unique<FunctionBindData>(std::move(resultType));
   for (auto& arg : input.arguments) {
@@ -97,7 +99,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 function_set ListCreationFunction::getFunctionSet() {
   function_set result;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::ANY}, LogicalTypeID::LIST,
+      name, std::vector<DataTypeId>{DataTypeId::kUnknown}, DataTypeId::kList,
       execFunc);
   function->bindFunc = bindFunc;
   function->isVarLength = true;

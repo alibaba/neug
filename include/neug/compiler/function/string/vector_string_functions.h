@@ -34,8 +34,8 @@ struct VectorStringFunction {
     function_set functionSet;
     functionSet.emplace_back(std::make_unique<ScalarFunction>(
         funcName,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING},
-        common::LogicalTypeID::STRING,
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
+        common::DataTypeId::kVarchar,
         ScalarFunction::UnaryStringExecFunction<
             common::neug_string_t, common::neug_string_t, OPERATION>));
     return functionSet;

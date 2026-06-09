@@ -32,7 +32,7 @@ class VariableExpression final : public Expression {
       common::ExpressionType::VARIABLE;
 
  public:
-  VariableExpression(common::LogicalType dataType, std::string uniqueName,
+  VariableExpression(common::DataType dataType, std::string uniqueName,
                      std::string variableName)
       : Expression{expressionType_, std::move(dataType), std::move(uniqueName)},
         variableName{std::move(variableName)},
@@ -40,7 +40,7 @@ class VariableExpression final : public Expression {
 
   std::string getVariableName() const { return variableName; }
 
-  void cast(const common::LogicalType& type) override;
+  void cast(const common::DataType& type) override;
 
   std::string toStringInternal() const override { return variableName; }
 

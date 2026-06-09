@@ -48,50 +48,50 @@ namespace function {
 
 template <typename FUNC>
 static std::unique_ptr<ScalarFunction> getUnaryFunction(
-    std::string name, LogicalTypeID operandTypeID) {
+    std::string name, DataTypeId operandTypeID) {
   function::scalar_func_exec_t execFunc;
   common::TypeUtils::visit(
-      LogicalType(operandTypeID),
+      DataType(operandTypeID),
       [&]<NumericTypes T>(T) {
         execFunc = ScalarFunction::UnaryExecFunction<T, T, FUNC>;
       },
       [](auto) { NEUG_UNREACHABLE; });
   return std::make_unique<ScalarFunction>(
-      std::move(name), std::vector<LogicalTypeID>{operandTypeID}, operandTypeID,
+      std::move(name), std::vector<DataTypeId>{operandTypeID}, operandTypeID,
       execFunc);
 }
 
 template <typename FUNC, typename OPERAND_TYPE,
           typename RETURN_TYPE = OPERAND_TYPE>
 static std::unique_ptr<ScalarFunction> getUnaryFunction(
-    std::string name, LogicalTypeID operandTypeID, LogicalTypeID resultTypeID) {
+    std::string name, DataTypeId operandTypeID, DataTypeId resultTypeID) {
   return std::make_unique<ScalarFunction>(
-      std::move(name), std::vector<LogicalTypeID>{operandTypeID}, resultTypeID,
+      std::move(name), std::vector<DataTypeId>{operandTypeID}, resultTypeID,
       ScalarFunction::UnaryExecFunction<OPERAND_TYPE, RETURN_TYPE, FUNC>);
 }
 
 template <typename FUNC>
 static std::unique_ptr<ScalarFunction> getBinaryFunction(
-    std::string name, common::LogicalTypeID operandTypeID) {
+    std::string name, common::DataTypeId operandTypeID) {
   function::scalar_func_exec_t execFunc;
   common::TypeUtils::visit(
-      common::LogicalType(operandTypeID),
+      common::DataType(operandTypeID),
       [&]<common::NumericTypes T>(T) {
         execFunc = ScalarFunction::BinaryExecFunction<T, T, T, FUNC>;
       },
       [](auto) { NEUG_UNREACHABLE; });
   return std::make_unique<ScalarFunction>(
       std::move(name),
-      std::vector<common::LogicalTypeID>{operandTypeID, operandTypeID},
+      std::vector<common::DataTypeId>{operandTypeID, operandTypeID},
       operandTypeID, execFunc);
 }
 
 template <typename FUNC, typename OPERAND_TYPE,
           typename RETURN_TYPE = OPERAND_TYPE>
 static std::unique_ptr<ScalarFunction> getBinaryFunction(
-    std::string name, LogicalTypeID operandTypeID, LogicalTypeID resultTypeID) {
+    std::string name, DataTypeId operandTypeID, DataTypeId resultTypeID) {
   return std::make_unique<ScalarFunction>(
-      std::move(name), std::vector<LogicalTypeID>{operandTypeID, operandTypeID},
+      std::move(name), std::vector<DataTypeId>{operandTypeID, operandTypeID},
       resultTypeID,
       ScalarFunction::BinaryExecFunction<OPERAND_TYPE, OPERAND_TYPE,
                                          RETURN_TYPE, FUNC>);
@@ -99,58 +99,58 @@ static std::unique_ptr<ScalarFunction> getBinaryFunction(
 
 function_set AddFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getBinaryFunction<Add>(name, typeID));
   }
 
   // list + list -> list
   auto func = std::make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::LIST},
-      LogicalTypeID::LIST,
+      std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kList},
+      DataTypeId::kList,
       ScalarFunction::BinaryExecListStructFunction<list_entry_t, list_entry_t,
                                                    list_entry_t, ListConcat>);
   // interval + interval → interval
   result.push_back(getBinaryFunction<Add, interval_t, interval_t>(
-      name, LogicalTypeID::INTERVAL, LogicalTypeID::INTERVAL));
+      name, DataTypeId::kInterval, DataTypeId::kInterval));
   // date + int → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::DATE, LogicalTypeID::INT64},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, int64_t, date_t, Add>));
   // int + date → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::INT64, LogicalTypeID::DATE},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kInt64, DataTypeId::kDate},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<int64_t, date_t, date_t, Add>));
   // date + interval → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::DATE, LogicalTypeID::INTERVAL},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, interval_t, date_t, Add>));
   // interval + date → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::INTERVAL, LogicalTypeID::DATE},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kDate},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<interval_t, date_t, date_t, Add>));
   // timestamp + interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
-                                 LogicalTypeID::INTERVAL},
-      LogicalTypeID::TIMESTAMP,
+      std::vector<DataTypeId>{DataTypeId::kTimestampMs,
+                                 DataTypeId::kInterval},
+      DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
                                          neug::common::timestamp_t, Add>));
   // interval + timestamp → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::INTERVAL,
-                                 LogicalTypeID::TIMESTAMP},
-      LogicalTypeID::TIMESTAMP,
+      std::vector<DataTypeId>{DataTypeId::kInterval,
+                                 DataTypeId::kTimestampMs},
+      DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<interval_t, neug::common::timestamp_t,
                                          neug::common::timestamp_t, Add>));
   return result;
@@ -158,46 +158,46 @@ function_set AddFunction::getFunctionSet() {
 
 function_set SubtractFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getBinaryFunction<Subtract>(name, typeID));
   }
   // date - date → interval
   result.push_back(getBinaryFunction<Subtract, date_t, int64_t>(
-      name, LogicalTypeID::DATE, LogicalTypeID::INTERVAL));
+      name, DataTypeId::kDate, DataTypeId::kInterval));
   // date - integer → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::DATE, LogicalTypeID::INT64},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, int64_t, date_t, Subtract>));
   // date - interval → date
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::DATE, LogicalTypeID::INTERVAL},
-      LogicalTypeID::DATE,
+      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
+      DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, interval_t, date_t,
                                          Subtract>));
   // timestamp - timestamp → interval
   result.push_back(
       getBinaryFunction<Subtract, neug::common::timestamp_t, interval_t>(
-          name, LogicalTypeID::TIMESTAMP, LogicalTypeID::INTERVAL));
+          name, DataTypeId::kTimestampMs, DataTypeId::kInterval));
   // timestamp - interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
-                                 LogicalTypeID::INTERVAL},
-      LogicalTypeID::TIMESTAMP,
+      std::vector<DataTypeId>{DataTypeId::kTimestampMs,
+                                 DataTypeId::kInterval},
+      DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
                                          neug::common::timestamp_t, Subtract>));
   // interval - interval → interval
   result.push_back(getBinaryFunction<Subtract, interval_t, interval_t>(
-      name, LogicalTypeID::INTERVAL, LogicalTypeID::INTERVAL));
+      name, DataTypeId::kInterval, DataTypeId::kInterval));
   return result;
 }
 
 function_set MultiplyFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getBinaryFunction<Multiply>(name, typeID));
   }
   return result;
@@ -205,14 +205,14 @@ function_set MultiplyFunction::getFunctionSet() {
 
 function_set DivideFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getBinaryFunction<Divide>(name, typeID));
   }
   // interval / int → interval
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::INTERVAL, LogicalTypeID::INT64},
-      LogicalTypeID::INTERVAL,
+      std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kInt64},
+      DataTypeId::kInterval,
       ScalarFunction::BinaryExecFunction<interval_t, int64_t, interval_t,
                                          Divide>));
   return result;
@@ -220,7 +220,7 @@ function_set DivideFunction::getFunctionSet() {
 
 function_set ModuloFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getBinaryFunction<Modulo>(name, typeID));
   }
   return result;
@@ -229,14 +229,14 @@ function_set ModuloFunction::getFunctionSet() {
 function_set PowerFunction::getFunctionSet() {
   function_set result;
   // double ^ double -> double
-  result.push_back(getBinaryFunction<Power, double>(name, LogicalTypeID::DOUBLE,
-                                                    LogicalTypeID::DOUBLE));
+  result.push_back(getBinaryFunction<Power, double>(name, DataTypeId::kDouble,
+                                                    DataTypeId::kDouble));
   return result;
 }
 
 function_set AbsFunction::getFunctionSet() {
   function_set result;
-  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto& typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getUnaryFunction<Abs>(name, typeID));
   }
   return result;
@@ -244,7 +244,7 @@ function_set AbsFunction::getFunctionSet() {
 
 function_set NegateFunction::getFunctionSet() {
   function_set result;
-  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto& typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     result.push_back(getUnaryFunction<Negate>(name, typeID));
   }
   return result;

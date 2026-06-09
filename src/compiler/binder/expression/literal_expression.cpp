@@ -29,7 +29,7 @@ using namespace neug::common;
 namespace neug {
 namespace binder {
 
-void LiteralExpression::cast(const LogicalType& type) {
+void LiteralExpression::cast(const DataType& type) {
   // The following is a safeguard to make sure we are not changing literal type
   // unexpectedly.
   if (!value.allowTypeChange()) {

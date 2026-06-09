@@ -29,7 +29,7 @@ using namespace common;
 
 namespace binder {
 
-void ParameterExpression::cast(const LogicalType& type) {
+void ParameterExpression::cast(const DataType& type) {
   if (!dataType.containsAny()) {
     // LCOV_EXCL_START
     THROW_BINDER_EXCEPTION(stringFormat(

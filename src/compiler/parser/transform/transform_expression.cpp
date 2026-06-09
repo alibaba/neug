@@ -434,7 +434,7 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
     return transformBooleanLiteral(*ctx.oC_BooleanLiteral());
   } else if (ctx.StringLiteral()) {
     return std::make_unique<ParsedLiteralExpression>(
-        Value(LogicalType::STRING(),
+        Value(DataType::Varchar(),
               transformStringLiteral(*ctx.StringLiteral())),
         ctx.getText());
   } else if (ctx.NULL_()) {

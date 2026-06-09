@@ -60,7 +60,7 @@ class TypeUtils {
                            std::forward<Types>(values)...);
   }
 
-  static std::string entryToString(const LogicalType& dataType,
+  static std::string entryToString(const DataType& dataType,
                                    const uint8_t* value, ValueVector* vector);
 
   template <typename T>
@@ -173,57 +173,53 @@ class TypeUtils {
    * https://en.cppreference.com/w/cpp/utility/variant/visit
    */
   template <typename... Fs>
-  static inline auto visit(const LogicalType& dataType, Fs... funcs) {
+  static inline auto visit(const DataType& dataType, Fs... funcs) {
     // Note: arguments are used only for type deduction and have no meaningful
     // value. They should be optimized out by the compiler
     auto func = overload(funcs...);
-    switch (dataType.getLogicalTypeID()) {
+    switch (dataType.id()) {
     /* NOLINTBEGIN(bugprone-branch-clone)*/
-    case LogicalTypeID::INT8:
+    case DataTypeId::kInt8:
       return func(int8_t());
-    case LogicalTypeID::UINT8:
+    case DataTypeId::kUInt8:
       return func(uint8_t());
-    case LogicalTypeID::INT16:
+    case DataTypeId::kInt16:
       return func(int16_t());
-    case LogicalTypeID::UINT16:
+    case DataTypeId::kUInt16:
       return func(uint16_t());
-    case LogicalTypeID::INT32:
+    case DataTypeId::kInt32:
       return func(int32_t());
-    case LogicalTypeID::UINT32:
+    case DataTypeId::kUInt32:
       return func(uint32_t());
-    case LogicalTypeID::INT64:
+    case DataTypeId::kInt64:
       return func(int64_t());
-    case LogicalTypeID::UINT64:
+    case DataTypeId::kUInt64:
       return func(uint64_t());
-    case LogicalTypeID::BOOL:
+    case DataTypeId::kBoolean:
       return func(bool());
-    case LogicalTypeID::INT128:
-      return func(int128_t());
-    case LogicalTypeID::DOUBLE:
+    case DataTypeId::kDouble:
       return func(double());
-    case LogicalTypeID::FLOAT:
+    case DataTypeId::kFloat:
       return func(float());
-    case LogicalTypeID::INTERVAL:
+    case DataTypeId::kInterval:
       return func(interval_t());
-    case LogicalTypeID::INTERNAL_ID:
+    case DataTypeId::kInternalId:
       return func(internalID_t());
-    case LogicalTypeID::STRING:
+    case DataTypeId::kVarchar:
       return func(neug_string_t());
-    case LogicalTypeID::DATE:
+    case DataTypeId::kDate:
       return func(date_t());
-    case LogicalTypeID::TIMESTAMP_MS:
+    case DataTypeId::kTimestampMs:
       return func(timestamp_ms_t());
-    case LogicalTypeID::TIMESTAMP:
-      return func(timestamp_t());
-    case LogicalTypeID::ARRAY:
-    case LogicalTypeID::LIST:
+    case DataTypeId::kArray:
+    case DataTypeId::kList:
       return func(list_entry_t());
-    case LogicalTypeID::MAP:
+    case DataTypeId::kMap:
       return func(map_entry_t());
-    case LogicalTypeID::NODE:
-    case LogicalTypeID::REL:
-    case LogicalTypeID::RECURSIVE_REL:
-    case LogicalTypeID::STRUCT:
+    case DataTypeId::kVertex:
+    case DataTypeId::kEdge:
+    case DataTypeId::kPath:
+    case DataTypeId::kStruct:
       return func(struct_entry_t());
     /* NOLINTEND(bugprone-branch-clone)*/
     default:

@@ -32,7 +32,7 @@ class BoundCreateType final : public BoundStatement {
       common::StatementType::CREATE_TYPE;
 
  public:
-  explicit BoundCreateType(std::string name, common::LogicalType type)
+  explicit BoundCreateType(std::string name, common::DataType type)
       : BoundStatement{type_,
                        BoundStatementResult::createSingleStringColumnResult()},
         name{std::move(name)},
@@ -40,11 +40,11 @@ class BoundCreateType final : public BoundStatement {
 
   std::string getName() const { return name; };
 
-  const common::LogicalType& getType() const { return type; }
+  const common::DataType& getType() const { return type; }
 
  private:
   std::string name;
-  common::LogicalType type;
+  common::DataType type;
 };
 
 }  // namespace binder

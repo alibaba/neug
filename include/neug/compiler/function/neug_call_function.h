@@ -43,7 +43,7 @@ using call_exec_func_t = std::function<execution::Context(
     const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
 
 using call_output_columns =
-    std::vector<std::pair<std::string, common::LogicalTypeID>>;
+    std::vector<std::pair<std::string, common::DataTypeId>>;
 
 struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
@@ -53,10 +53,10 @@ struct NeugCallFunction : public TableFunction {
   NeugCallFunction() = default;
 
   NeugCallFunction(std::string name,
-                   std::vector<common::LogicalTypeID> inputTypes)
+                   std::vector<common::DataTypeId> inputTypes)
       : TableFunction{std::move(name), std::move(inputTypes)} {}
   NeugCallFunction(std::string name,
-                   std::vector<common::LogicalTypeID> inputTypes,
+                   std::vector<common::DataTypeId> inputTypes,
                    call_output_columns outputColumns)
       : TableFunction{std::move(name), std::move(inputTypes)},
         outputColumns{std::move(outputColumns)} {}

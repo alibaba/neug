@@ -49,7 +49,7 @@ static std::shared_ptr<Expression> startRewriteFunc(
 function_set StartNodeFunction::getFunctionSet() {
   function_set set;
   auto function = std::make_unique<RewriteFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::REL}, startRewriteFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kEdge}, startRewriteFunc);
   set.push_back(std::move(function));
   return set;
 }
@@ -70,7 +70,7 @@ static std::shared_ptr<Expression> endRewriteFunc(
 function_set EndNodeFunction::getFunctionSet() {
   function_set set;
   auto function = std::make_unique<RewriteFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::REL}, endRewriteFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kEdge}, endRewriteFunc);
   set.push_back(std::move(function));
   return set;
 }

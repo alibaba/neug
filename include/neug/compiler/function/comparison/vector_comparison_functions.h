@@ -71,17 +71,17 @@ struct ComparisonFunction {
 
   template <typename FUNC>
   static std::unique_ptr<ScalarFunction> getFunction(
-      const std::string& name, common::LogicalTypeID leftType,
-      common::LogicalTypeID rightType) {
-    auto leftPhysical = common::LogicalType::getPhysicalType(leftType);
-    auto rightPhysical = common::LogicalType::getPhysicalType(rightType);
+      const std::string& name, common::DataTypeId leftType,
+      common::DataTypeId rightType) {
+    auto leftPhysical = common::getPhysicalType(leftType);
+    auto rightPhysical = common::getPhysicalType(rightType);
     scalar_func_exec_t execFunc;
     getExecFunc<FUNC>(leftPhysical, rightPhysical, execFunc);
     scalar_func_select_t selectFunc;
     getSelectFunc<FUNC>(leftPhysical, rightPhysical, selectFunc);
     return std::make_unique<ScalarFunction>(
-        name, std::vector<common::LogicalTypeID>{leftType, rightType},
-        common::LogicalTypeID::BOOL, execFunc, selectFunc);
+        name, std::vector<common::DataTypeId>{leftType, rightType},
+        common::DataTypeId::kBoolean, execFunc, selectFunc);
   }
 
   // When comparing two values, we guarantee that they must have the same

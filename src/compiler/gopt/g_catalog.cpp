@@ -340,22 +340,22 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
 std::vector<binder::ColumnDefinition> GCatalog::getBaseNodeStructFields() {
   std::vector<binder::ColumnDefinition> fields;
   fields.emplace_back(binder::ColumnDefinition(
-      common::InternalKeyword::ID, common::LogicalType::INTERNAL_ID()));
+      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
   fields.emplace_back(binder::ColumnDefinition(common::InternalKeyword::LABEL,
-                                               common::LogicalType::STRING()));
+                                               common::DataType::Varchar()));
   return fields;
 }
 
 std::vector<binder::ColumnDefinition> GCatalog::getBaseRelStructFields() {
   std::vector<binder::ColumnDefinition> fields;
   fields.emplace_back(binder::ColumnDefinition(
-      common::InternalKeyword::ID, common::LogicalType::INTERNAL_ID()));
+      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
   fields.emplace_back(binder::ColumnDefinition(
-      common::InternalKeyword::SRC, common::LogicalType::INTERNAL_ID()));
+      common::InternalKeyword::SRC, common::DataType(DataTypeId::kInternalId)));
   fields.emplace_back(binder::ColumnDefinition(
-      common::InternalKeyword::DST, common::LogicalType::INTERNAL_ID()));
+      common::InternalKeyword::DST, common::DataType(DataTypeId::kInternalId)));
   fields.emplace_back(binder::ColumnDefinition(common::InternalKeyword::LABEL,
-                                               common::LogicalType::STRING()));
+                                               common::DataType::Varchar()));
   return fields;
 }
 

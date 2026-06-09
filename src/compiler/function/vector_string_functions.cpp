@@ -36,8 +36,8 @@ function_set ContainsFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::BOOL, nullptr, nullptr));
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
+      DataTypeId::kBoolean, nullptr, nullptr));
   return functionSet;
 }
 
@@ -45,8 +45,8 @@ function_set EndsWithFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::BOOL, nullptr, nullptr));
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
+      DataTypeId::kBoolean, nullptr, nullptr));
   return functionSet;
 }
 
@@ -54,16 +54,16 @@ function_set StartsWithFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::BOOL, nullptr, nullptr));
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
+      DataTypeId::kBoolean, nullptr, nullptr));
   return functionSet;
 }
 
 function_set UpperFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING, UpperFunction::Exec));
+      name, std::vector<DataTypeId>{DataTypeId::kVarchar},
+      DataTypeId::kVarchar, UpperFunction::Exec));
   return functionSet;
 }
 
@@ -84,8 +84,8 @@ execution::Value UpperFunction::Exec(const std::vector<execution::Value>& args) 
 function_set LowerFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING, LowerFunction::Exec));
+      name, std::vector<DataTypeId>{DataTypeId::kVarchar},
+      DataTypeId::kVarchar, LowerFunction::Exec));
   return functionSet;
 }
 
@@ -106,8 +106,8 @@ execution::Value LowerFunction::Exec(const std::vector<execution::Value>& args) 
 function_set ReverseFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING, ReverseFunction::Exec));
+      name, std::vector<DataTypeId>{DataTypeId::kVarchar},
+      DataTypeId::kVarchar, ReverseFunction::Exec));
   return functionSet;
 }
 

@@ -56,7 +56,7 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
 
  public:
   Expression(common::ExpressionType expressionType,
-             common::LogicalType dataType, expression_vector children,
+             common::DataType dataType, expression_vector children,
              std::string uniqueName)
       : expressionType{expressionType},
         dataType{std::move(dataType)},
@@ -64,20 +64,20 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
         children{std::move(children)} {}
   // Create binary expression.
   Expression(common::ExpressionType expressionType,
-             common::LogicalType dataType,
+             common::DataType dataType,
              const std::shared_ptr<Expression>& left,
              const std::shared_ptr<Expression>& right, std::string uniqueName)
       : Expression{expressionType, std::move(dataType),
                    expression_vector{left, right}, std::move(uniqueName)} {}
   // Create unary expression.
   Expression(common::ExpressionType expressionType,
-             common::LogicalType dataType,
+             common::DataType dataType,
              const std::shared_ptr<Expression>& child, std::string uniqueName)
       : Expression{expressionType, std::move(dataType),
                    expression_vector{child}, std::move(uniqueName)} {}
   // Create leaf expression
   Expression(common::ExpressionType expressionType,
-             common::LogicalType dataType, std::string uniqueName)
+             common::DataType dataType, std::string uniqueName)
       : Expression{expressionType, std::move(dataType), expression_vector{},
                    std::move(uniqueName)} {}
   DELETE_COPY_DEFAULT_MOVE(Expression);
@@ -89,8 +89,8 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
     return uniqueName;
   }
 
-  virtual void cast(const common::LogicalType& type);
-  const common::LogicalType& getDataType() const { return dataType; }
+  virtual void cast(const common::DataType& type);
+  const common::DataType& getDataType() const { return dataType; }
 
   void setAlias(const std::string& newAlias) { alias = newAlias; }
   bool hasAlias() const { return !alias.empty(); }
@@ -147,7 +147,7 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
 
  public:
   common::ExpressionType expressionType;
-  common::LogicalType dataType;
+  common::DataType dataType;
 
  protected:
   // Name that serves as the unique identifier.

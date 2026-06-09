@@ -49,7 +49,7 @@ class PropertyExpression final : public Expression {
       common::ExpressionType::PROPERTY;
 
  public:
-  PropertyExpression(common::LogicalType dataType, std::string propertyName,
+  PropertyExpression(common::DataType dataType, std::string propertyName,
                      std::string uniqueVarName, std::string rawVariableName)
       : Expression{expressionType_, std::move(dataType),
                    uniqueVarName + "." + propertyName},
@@ -57,7 +57,7 @@ class PropertyExpression final : public Expression {
         uniqueVarName{std::move(uniqueVarName)},
         rawVariableName{std::move(rawVariableName)} {}
 
-  PropertyExpression(common::LogicalType dataType, std::string propertyName,
+  PropertyExpression(common::DataType dataType, std::string propertyName,
                      std::string uniqueVarName, std::string rawVariableName,
                      common::table_id_map_t<SingleLabelPropertyInfo> infos)
       : Expression{expressionType_, std::move(dataType),
@@ -76,7 +76,7 @@ class PropertyExpression final : public Expression {
 
   // Construct from a virtual property, i.e. no propertyID available.
   static std::unique_ptr<PropertyExpression> construct(
-      common::LogicalType type, const std::string& propertyName,
+      common::DataType type, const std::string& propertyName,
       const Expression& child);
 
   // If this property is primary key on all tables.

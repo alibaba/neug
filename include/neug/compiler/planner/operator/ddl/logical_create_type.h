@@ -28,7 +28,7 @@ class LogicalCreateType : public LogicalSimple {
   static constexpr LogicalOperatorType type_ = LogicalOperatorType::CREATE_TYPE;
 
  public:
-  LogicalCreateType(std::string typeName, common::LogicalType type,
+  LogicalCreateType(std::string typeName, common::DataType type,
                     std::shared_ptr<binder::Expression> outputExpression)
       : LogicalSimple{type_, std::move(outputExpression)},
         typeName{std::move(typeName)},
@@ -36,7 +36,7 @@ class LogicalCreateType : public LogicalSimple {
 
   std::string getExpressionsForPrinting() const override { return typeName; }
 
-  const common::LogicalType& getType() const { return type; }
+  const common::DataType& getType() const { return type; }
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalCreateTypePrintInfo>(typeName,
@@ -50,7 +50,7 @@ class LogicalCreateType : public LogicalSimple {
 
  private:
   std::string typeName;
-  common::LogicalType type;
+  common::DataType type;
 };
 
 }  // namespace planner

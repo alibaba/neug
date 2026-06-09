@@ -25,15 +25,12 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/stats/column_stats.h"
 
-namespace neug::common {
-class LogicalType;
-}
 namespace neug {
 namespace storage {
 
 class TableStats {
  public:
-  explicit TableStats(std::span<const common::LogicalType> dataTypes)
+  explicit TableStats(std::span<const common::DataType> dataTypes)
       : cardinality(0) {}
 
   EXPLICIT_COPY_DEFAULT_MOVE(TableStats);
@@ -75,7 +72,7 @@ class TableStats {
               const std::vector<common::ValueVector*>& vectors,
               size_t numColumns = std::numeric_limits<size_t>::max());
 
-  ColumnStats& addNewColumn(const common::LogicalType& dataType) {
+  ColumnStats& addNewColumn(const common::DataType& dataType) {
     columnStats.emplace_back(dataType);
     return columnStats.back();
   }
