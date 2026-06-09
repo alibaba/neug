@@ -690,6 +690,7 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
   using arrow_array_type = typename neug::TypeConverter<COL_T>::ArrowArrayType;
   auto array_type = array->type();
   auto arrow_type = neug::TypeConverter<COL_T>::ArrowTypeValue();
+  auto* typed_col = dynamic_cast<neug::TypedColumn<COL_T>*>(col.get());
   CHECK(array_type->Equals(arrow_type))
       << "Inconsistent data type, expect " << arrow_type->ToString()
       << ", but got " << array_type->ToString();
@@ -699,9 +700,7 @@ void set_column(std::shared_ptr<neug::ColumnBase> col,
       if (vids[k] >= std::numeric_limits<vid_t>::max()) {
         continue;
       }
-      col->set_any(vids[k],
-                   std::move(PropUtils<COL_T>::to_prop(casted->Value(k))),
-                   false);
+      typed_col->set_value(vids[k], casted->Value(k));
     }
   }
 }
@@ -712,6 +711,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
   auto type = array->type();
   auto col_type = col->type();
   auto col_data_type = DataType(col_type);
+  auto* typed_col = dynamic_cast<neug::TypedColumn<Date>*>(col.get());
   if (type->Equals(arrow::date32())) {
     for (auto j = 0; j < array->num_chunks(); ++j) {
       auto casted =
@@ -720,9 +720,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {
           continue;
         }
-        col->set_any(
-            vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
+        typed_col->set_value(vids[k], Date(casted->Value(k)));
       }
     }
   } else if (type->Equals(arrow::date64())) {
@@ -733,9 +731,7 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {
           continue;
         }
-        col->set_any(
-            vids[k],
-            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))), false);
+        typed_col->set_value(vids[k], Date(casted->Value(k)));
       }
     }
   } else {
@@ -752,6 +748,8 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
   auto type = array->type();
   auto col_type = col->type();
   auto col_data_type = DataType(col_type);
+  auto* typed_col = dynamic_cast<neug::TypedColumn<COL_T>*>(col.get());
+
   if (type->Equals(arrow::timestamp(arrow::TimeUnit::type::MILLI))) {
     for (auto j = 0; j < array->num_chunks(); ++j) {
       auto casted =
@@ -760,10 +758,7 @@ void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {
           continue;
         }
-        col->set_any(
-            vids[k],
-            std::move(PropUtils<COL_T>::to_prop(COL_T(casted->Value(k)))),
-            false);
+        typed_col->set_value(vids[k], COL_T(casted->Value(k)));
       }
     }
   } else {
@@ -779,6 +774,7 @@ void set_interval_column_from_string_array(
     const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
+  auto* typed_col = dynamic_cast<neug::TypedColumn<Interval>*>(col.get());
   auto col_data_type = DataType(col_type);
   switch (type->id()) {
 #define SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(ARROW_TYPE, ARROW_ARRAY_TYPE) \
@@ -790,10 +786,7 @@ void set_interval_column_from_string_array(
         if (vids[k] >= std::numeric_limits<vid_t>::max()) {                  \
           continue;                                                          \
         }                                                                    \
-        col->set_any(vids[k],                                                \
-                     std::move(PropUtils<Interval>::to_prop(                 \
-                         Interval(casted->GetView(k)))),                     \
-                     false);                                                 \
+        typed_col->set_value(vids[k], Interval(casted->GetView(k)));         \
       }                                                                      \
     }                                                                        \
     break;
@@ -839,8 +832,7 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           sw = std::string_view(str.data(), str.size());
         }
         if (!enable_resize) {
-          Property any_val = Property::From(sw);
-          col->set_any(vids[k], any_val, false);
+          typed_col->set_value(vids[k], sw);
         } else {
           std::shared_lock<std::shared_mutex> lock(rw_mutex);
           if (typed_col->available_space() <= sw.size()) {
@@ -866,8 +858,7 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
         std::string_view sw(str.data(), str.size());
 
         if (!enable_resize) {
-          Property any_val = Property::From(sw);
-          col->set_any(vids[k], std::move(any_val), false);
+          typed_col->set_value(vids[k], sw);
         } else {
           std::shared_lock<std::shared_mutex> lock(rw_mutex);
           if (typed_col->available_space() <= sw.size()) {

@@ -26,6 +26,7 @@
 
 #include <flat_hash_map.hpp>
 #include "neug/common/extra_type_info.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view_utils.h"
@@ -558,8 +559,8 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   return Status::OK();
 }
 
-Status UpdateTransaction::AddVertex(label_t label, const Property& oid,
-                                    const std::vector<Property>& props,
+Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
+                                    const std::vector<execution::Value>& props,
                                     vid_t& vid) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
@@ -570,7 +571,7 @@ Status UpdateTransaction::AddVertex(label_t label, const Property& oid,
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
-    if (props[col_i].type() != types[col_i].id()) {
+    if (props[col_i].type().id() != types[col_i].id()) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Property type mismatch at column " +
                         std::to_string(col_i) + " for vertex of label " +
@@ -630,11 +631,10 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   return true;
 }
 
-Status UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
-                                  label_t dst_label, vid_t dst_lid,
-                                  label_t edge_label,
-                                  const std::vector<Property>& properties,
-                                  const void*& prop) {
+Status UpdateTransaction::AddEdge(
+    label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
+    label_t edge_label, const std::vector<execution::Value>& properties,
+    const void*& prop) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
@@ -759,8 +759,8 @@ bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
   return true;
 }
 
-Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
-                                              int col_id) const {
+execution::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
+                                                      int col_id) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   auto prop_name =
       graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
@@ -773,15 +773,17 @@ Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
   if (col == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Fail to find property column");
   }
-  return col->get(lid);
+  return col->get_any(lid);
 }
 
-Property UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
+execution::Value UpdateTransaction::GetVertexId(label_t label,
+                                                vid_t lid) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   return graph_.GetOid(label, lid, timestamp_);
 }
 
-bool UpdateTransaction::GetVertexIndex(label_t label, const Property& id,
+bool UpdateTransaction::GetVertexIndex(label_t label,
+                                       const execution::Value& id,
                                        vid_t& index) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   return graph_.get_lid(label, id, index, timestamp_);
@@ -789,7 +791,7 @@ bool UpdateTransaction::GetVertexIndex(label_t label, const Property& id,
 
 bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
                                              int col_id,
-                                             const Property& value) {
+                                             const execution::Value& value) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
   auto prop_name =
       graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
@@ -804,7 +806,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   if (static_cast<size_t>(col_id) >= types.size()) {
     return false;
   }
-  if (types[col_id].id() != value.type()) {
+  if (types[col_id].id() != value.type().id()) {
     return false;
   }
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
@@ -826,7 +828,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
 bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
                                            label_t dst_label, vid_t dst,
                                            label_t edge_label, int32_t col_id,
-                                           const Property& value) {
+                                           const execution::Value& value) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
@@ -887,7 +889,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
                                            label_t edge_label,
                                            int32_t oe_offset, int32_t ie_offset,
                                            int32_t col_id,
-                                           const Property& value) {
+                                           const execution::Value& value) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
