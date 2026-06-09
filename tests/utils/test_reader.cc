@@ -357,9 +357,9 @@ TEST_F(ReaderTest, TestBasicJsonRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createJsonSharedState(
-      "test_json_basic.json", columnNames, columnTypes,
-      {{"batch_read", "false"}});
+  auto sharedState =
+      createJsonSharedState("test_json_basic.json", columnNames, columnTypes,
+                            {{"batch_read", "false"}});
   auto reader = createArrowJsonReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -379,9 +379,9 @@ TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createJsonSharedState(
-      "test_json_nonexist.json", columnNames, columnTypes,
-      {{"batch_read", "false"}});
+  auto sharedState =
+      createJsonSharedState("test_json_nonexist.json", columnNames, columnTypes,
+                            {{"batch_read", "false"}});
   auto reader = createArrowJsonReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();

@@ -554,7 +554,6 @@ int64_t G1B2(neug::NeugDBSession& db) {
 
 // Circular Information Flow
 
-
 int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
@@ -595,7 +594,6 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
 
 // Aborted Reads
 
-
 void G1A1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -626,7 +624,6 @@ int64_t G1A2(neug::NeugDBSession& db) {
 }
 
 // Item-Many-Preceders
-
 
 void IMP1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();

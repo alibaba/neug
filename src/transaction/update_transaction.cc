@@ -34,6 +34,7 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/likely.h"
@@ -943,10 +944,14 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     arc >> op_type;
     if (op_type == OpType::kCreateVertexType) {
       CreateVertexTypeParam redo = CreateVertexTypeRedo::Deserialize(arc);
-      graph.CreateVertexType(redo);
+      auto ret = graph.CreateVertexType(redo);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to create vertex type in redo: ",
+                                     ret);
     } else if (op_type == OpType::kCreateEdgeType) {
       const auto& redo = CreateEdgeTypeRedo::Deserialize(arc);
-      graph.CreateEdgeType(redo);
+      auto ret = graph.CreateEdgeType(redo);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to create edge type in redo: ",
+                                     ret);
     } else if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
@@ -962,10 +967,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
         }
         auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
                                    timestamp, true);
-        if (!ret.ok()) {
-          THROW_STORAGE_EXCEPTION(
-              "Failed to add vertex during WAL ingestion: " + ret.ToString());
-        }
+        THROW_STORAGE_EXCEPTION_STATUS("Failed to add vertex in redo: ", ret);
       }
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
@@ -975,66 +977,90 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                    redo.edge_label, redo.properties, timestamp, alloc,
-                    oe_offset_unused, prop_unused, true);
+      auto ret = graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
+                               redo.edge_label, redo.properties, timestamp,
+                               alloc, oe_offset_unused, prop_unused, true);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge in redo: ", ret);
     } else if (op_type == OpType::kUpdateVertexProp) {
       UpdateVertexPropRedo redo;
       arc >> redo;
       vid_t vid;
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.get_vertex_table(redo.label)
-          .UpdateProperty(vid, redo.prop_id, redo.value, timestamp);
+      auto ret = graph.UpdateVertexProperty(redo.label, vid, redo.prop_id,
+                                            redo.value, timestamp);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to update vertex property in redo: ", ret);
     } else if (op_type == OpType::kUpdateEdgeProp) {
       UpdateEdgePropRedo redo;
       arc >> redo;
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.UpdateEdgeProperty(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                               redo.edge_label, redo.oe_offset, redo.ie_offset,
-                               redo.prop_id, redo.value, timestamp);
+      auto ret = graph.UpdateEdgeProperty(
+          redo.src_label, src_vid, redo.dst_label, dst_vid, redo.edge_label,
+          redo.oe_offset, redo.ie_offset, redo.prop_id, redo.value, timestamp);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to update edge property in redo: ",
+                                     ret);
     } else if (op_type == OpType::kRemoveVertex) {
       RemoveVertexRedo redo;
       arc >> redo;
       vid_t vid;
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.DeleteVertex(redo.label, vid, timestamp);
+      auto ret = graph.DeleteVertex(redo.label, vid, timestamp);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex in redo: ", ret);
     } else if (op_type == OpType::kRemoveEdge) {
       RemoveEdgeRedo redo;
       arc >> redo;
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.DeleteEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                       redo.edge_label, redo.oe_offset, redo.ie_offset,
-                       timestamp);
+      auto ret = graph.DeleteEdge(redo.src_label, src_vid, redo.dst_label,
+                                  dst_vid, redo.edge_label, redo.oe_offset,
+                                  redo.ie_offset, timestamp);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge in redo: ", ret);
     } else if (op_type == OpType::kAddVertexProp) {
       auto config = AddVertexPropertiesRedo::Deserialize(arc);
-      graph.AddVertexProperties(config);
+      auto ret = graph.AddVertexProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to add vertex properties in redo: ", ret);
     } else if (op_type == OpType::kAddEdgeProp) {
       auto config = AddEdgePropertiesRedo::Deserialize(arc);
-      graph.AddEdgeProperties(config);
+      auto ret = graph.AddEdgeProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge properties in redo: ",
+                                     ret);
     } else if (op_type == OpType::kRenameVertexProp) {
       auto config = RenameVertexPropertiesRedo::Deserialize(arc);
-      graph.RenameVertexProperties(config);
+      auto ret = graph.RenameVertexProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to rename vertex properties in redo: ", ret);
     } else if (op_type == OpType::kRenameEdgeProp) {
       auto config = RenameEdgePropertiesRedo::Deserialize(arc);
-      graph.RenameEdgeProperties(config);
+      auto ret = graph.RenameEdgeProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to rename edge properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteVertexProp) {
       auto config = DeleteVertexPropertiesRedo::Deserialize(arc);
-      graph.DeleteVertexProperties(config);
+      auto ret = graph.DeleteVertexProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to delete vertex properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteEdgeProp) {
       auto config = DeleteEdgePropertiesRedo::Deserialize(arc);
-      graph.DeleteEdgeProperties(config);
+      auto ret = graph.DeleteEdgeProperties(config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to delete edge properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteVertexType) {
       DeleteVertexTypeRedo redo;
       arc >> redo;
-      graph.DeleteVertexType(redo.vertex_type);
+      auto ret = graph.DeleteVertexType(redo.vertex_type);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex type in redo: ",
+                                     ret);
     } else if (op_type == OpType::kDeleteEdgeType) {
       DeleteEdgeTypeRedo redo;
       arc >> redo;
-      graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
+      auto ret =
+          graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
+                                     ret);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));
