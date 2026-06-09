@@ -74,8 +74,7 @@ jobs:
   build_linux_x86_64:
     needs: prepare
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    # runs-on: [self-hosted, daily, X64]
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, daily, X64]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-x86_64
     steps:
@@ -158,8 +157,7 @@ jobs:
   build_linux_arm64:
     needs: prepare
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    # runs-on: [self-hosted, daily, ARM64]
-    runs-on: ubuntu-22.04-arm
+    runs-on: [self-hosted, daily, ARM64]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-arm64
     steps:
