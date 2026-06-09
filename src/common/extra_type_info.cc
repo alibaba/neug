@@ -80,7 +80,11 @@ StructTypeInfo::StructTypeInfo(std::vector<std::string> field_names_p,
 void StructTypeInfo::buildFieldNameIndex() {
   field_name_to_idx.clear();
   for (size_t i = 0; i < field_names.size(); ++i) {
-    field_name_to_idx[field_names[i]] = i;
+    // Use emplace to keep the first occurrence when there are duplicate names.
+    // This matches the old compiler StructTypeInfo behavior where base fields
+    // (e.g., _SRC with kVertex type) take precedence over property fields
+    // (e.g., _SRC with kInternalId type) added later.
+    field_name_to_idx.emplace(field_names[i], i);
   }
 }
 
@@ -90,7 +94,9 @@ bool StructTypeInfo::hasField(const std::string& name) const {
 
 size_t StructTypeInfo::getFieldIdx(const std::string& name) const {
   auto it = field_name_to_idx.find(name);
-  assert(it != field_name_to_idx.end());
+  if (it == field_name_to_idx.end()) {
+    return UINT8_MAX;  // INVALID_STRUCT_FIELD_IDX
+  }
   return it->second;
 }
 
@@ -121,8 +127,7 @@ bool ListTypeInfo::EqualsInternal(ExtraTypeInfo* other_p) const {
 // --- ArrayTypeInfo ---
 
 ArrayTypeInfo::ArrayTypeInfo(DataType child_type_p, uint64_t num_elements_p)
-    : ListTypeInfo(ExtraTypeInfoType::ARRAY_TYPE_INFO,
-                   std::move(child_type_p)),
+    : ListTypeInfo(ExtraTypeInfoType::ARRAY_TYPE_INFO, std::move(child_type_p)),
       num_elements(num_elements_p) {}
 
 bool ArrayTypeInfo::EqualsInternal(ExtraTypeInfo* other_p) const {
