@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   pr-completeness:
-    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "Linux", "X64"]') || 'ubuntu-latest' }}
+    # runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "Linux", "X64"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Check PR completeness
         env:
