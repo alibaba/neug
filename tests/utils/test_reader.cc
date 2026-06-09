@@ -346,6 +346,51 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
+// =============== JSON Reader ===============
+
+TEST_F(ReaderTest, TestBasicJsonRead) {
+  createJsonFile("test_json_basic.json",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
+                 "{\"id\":2,\"name\":\"Bob\",\"score\":87.0}\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  auto sharedState = createJsonSharedState(
+      "test_json_basic.json", columnNames, columnTypes,
+      {{"batch_read", "false"}});
+  auto reader = createArrowJsonReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 2);
+}
+
+TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
+  createJsonFile("test_json_nonexist.json",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "wrong_col"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  auto sharedState = createJsonSharedState(
+      "test_json_nonexist.json", columnNames, columnTypes,
+      {{"batch_read", "false"}});
+  auto reader = createArrowJsonReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_THROW(reader->read(localState, ctx),
+               exception::SchemaMismatchException);
+}
+
 // =============== Type Converter ===============
 class ArrowTypeConverterTest : public ::testing::Test {
  public:

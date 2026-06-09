@@ -33,8 +33,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <algorithm>
-#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -380,6 +379,197 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
 
   fallback_copy(src_path, dst_path, src_stat);
   return CopyResult::FallbackCopy;
+}
+
+// ---------------------------------------------------------------------------
+// AtomicFileWriter
+// ---------------------------------------------------------------------------
+
+AtomicFileWriter::AtomicFileWriter(const std::string& target_path)
+    : target_path_(target_path), tmp_path_(target_path + ".tmp") {
+  fd_ = ::open(tmp_path_.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd_ < 0) {
+    THROW_IO_EXCEPTION("AtomicFileWriter: cannot open " + tmp_path_ + ": " +
+                       std::strerror(errno));
+  }
+}
+
+AtomicFileWriter::~AtomicFileWriter() {
+  if (!committed_) {
+    Abort();
+  }
+}
+
+AtomicFileWriter::AtomicFileWriter(AtomicFileWriter&& other) noexcept
+    : target_path_(std::move(other.target_path_)),
+      tmp_path_(std::move(other.tmp_path_)),
+      fd_(other.fd_),
+      committed_(other.committed_),
+      file_(other.file_),
+      ostream_(std::move(other.ostream_)) {
+  other.fd_ = -1;
+  other.file_ = nullptr;
+  other.committed_ = true;  // prevent double-abort
+}
+
+AtomicFileWriter& AtomicFileWriter::operator=(
+    AtomicFileWriter&& other) noexcept {
+  if (this != &other) {
+    if (!committed_) {
+      Abort();
+    }
+    target_path_ = std::move(other.target_path_);
+    tmp_path_ = std::move(other.tmp_path_);
+    fd_ = other.fd_;
+    committed_ = other.committed_;
+    file_ = other.file_;
+    ostream_ = std::move(other.ostream_);
+    other.fd_ = -1;
+    other.file_ = nullptr;
+    other.committed_ = true;
+  }
+  return *this;
+}
+
+std::ostream& AtomicFileWriter::stream() {
+  if (!ostream_) {
+    // Wrap fd_ directly (no dup!) so that fflush(FILE*) pushes data to the
+    // same kernel fd that Commit() will fsync.  Because fclose() would close
+    // fd_ out from under us, we must NOT fclose the FILE* — instead we
+    // fflush in Commit/Abort and let the fd be closed by ::close(fd_).
+    file_ = ::fdopen(fd_, "wb");
+    if (!file_) {
+      THROW_IO_EXCEPTION("AtomicFileWriter::stream: fdopen failed: " +
+                         std::string(std::strerror(errno)));
+    }
+    // Simple FILE*-backed streambuf.  Overflow writes through the FILE*.
+    struct FileBuf : public std::streambuf {
+      FILE* fp;
+      explicit FileBuf(FILE* f) : fp(f) {}
+      int_type overflow(int_type ch) override {
+        if (ch != traits_type::eof()) {
+          if (std::fputc(ch, fp) == EOF) {
+            return traits_type::eof();
+          }
+        }
+        return ch;
+      }
+      std::streamsize xsputn(const char* s, std::streamsize n) override {
+        return static_cast<std::streamsize>(
+            std::fwrite(s, 1, static_cast<size_t>(n), fp));
+      }
+      int sync() override { return std::fflush(fp) == 0 ? 0 : -1; }
+    };
+    // The streambuf must live as long as the ostream, so we allocate a
+    // combined object.
+    struct OStreamWithBuf : public std::ostream {
+      FileBuf buf;
+      explicit OStreamWithBuf(FILE* f) : std::ostream(&buf), buf(f) {}
+    };
+    ostream_.reset(new OStreamWithBuf(file_));
+  }
+  return *ostream_;
+}
+
+void AtomicFileWriter::Commit() {
+  if (committed_) {
+    THROW_IO_EXCEPTION("AtomicFileWriter::Commit: already committed");
+  }
+  committed_ = true;
+
+  // Step 1: If an ostream was used, flush its user-space buffers through the
+  // FILE* and into the kernel page cache.
+  if (ostream_) {
+    ostream_->flush();
+    if (!ostream_->good()) {
+      Abort();
+      THROW_IO_EXCEPTION("AtomicFileWriter::Commit: stream write failed for " +
+                         tmp_path_);
+    }
+    ostream_.reset();
+  }
+  if (file_) {
+    std::fflush(file_);
+    // Do NOT fclose here yet — fclose would close fd_ (no dup), and we
+    // still need fd_ for fsync below.
+  }
+
+  // Step 2: fsync the data to durable storage.  Without this, a crash after
+  // rename could leave a zero-length or corrupt file.
+  if (::fsync(fd_) != 0) {
+    int err = errno;
+    // fclose will close the underlying fd_, so clear fd_ to prevent
+    // double-close in Abort.
+    if (file_) {
+      std::fclose(file_);
+      file_ = nullptr;
+    } else {
+      ::close(fd_);
+    }
+    fd_ = -1;
+    std::error_code ec;
+    std::filesystem::remove(tmp_path_, ec);
+    THROW_IO_EXCEPTION("AtomicFileWriter::Commit: fsync failed for " +
+                       tmp_path_ + ": " + std::strerror(err));
+  }
+
+  // Step 3: Close the fd.  If FILE* owns fd_, use fclose; otherwise close
+  // directly.  After this point fd_ is invalid.
+  if (file_) {
+    std::fclose(file_);  // closes fd_ internally
+    file_ = nullptr;
+  } else {
+    ::close(fd_);
+  }
+  fd_ = -1;
+
+  // Step 4: Atomic rename — POSIX guarantees this is atomic on the same FS.
+  std::error_code ec;
+  std::filesystem::rename(tmp_path_, target_path_, ec);
+  if (ec) {
+    std::filesystem::remove(tmp_path_, ec);
+    THROW_IO_EXCEPTION("AtomicFileWriter::Commit: rename " + tmp_path_ +
+                       " -> " + target_path_ + " failed: " + ec.message());
+  }
+
+  // Step 5: fsync the parent directory so the directory entry is durable.
+  auto parent_dir = std::filesystem::path(target_path_).parent_path().string();
+  int dir_fd = ::open(parent_dir.c_str(), O_RDONLY);
+  if (dir_fd >= 0) {
+    ::fsync(dir_fd);
+    ::close(dir_fd);
+  }
+}
+
+void AtomicFileWriter::Abort() noexcept {
+  ostream_.reset();
+  // fclose closes the underlying fd_ (no dup), so we must not ::close(fd_)
+  // again afterwards.
+  if (file_) {
+    std::fclose(file_);
+    file_ = nullptr;
+    fd_ = -1;  // already closed by fclose
+  }
+  if (fd_ >= 0) {
+    ::close(fd_);
+    fd_ = -1;
+  }
+  if (!tmp_path_.empty()) {
+    std::error_code ec;
+    std::filesystem::remove(tmp_path_, ec);
+  }
+  committed_ = true;
+}
+
+bool link_or_copy(const std::string& src, const std::string& dst) {
+  std::error_code ec;
+  std::filesystem::create_hard_link(src, dst, ec);
+  if (!ec) {
+    return true;
+  }
+  // Cross-device or unsupported FS – fall back to a regular file copy.
+  copy_file(src, dst, /*overwrite=*/false);
+  return false;
 }
 
 void create_file(const std::string& path, size_t size) {

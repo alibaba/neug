@@ -14,6 +14,7 @@
  */
 
 #include "neug/storages/graph/schema.h"
+
 #include <ctype.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>

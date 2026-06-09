@@ -29,6 +29,7 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/reader/expression_converter.h"
+#include "neug/utils/reader/json_options.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
@@ -248,6 +249,44 @@ class ReaderTest : public ::testing::Test {
     auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
     auto optionsBuilder =
         std::make_unique<reader::ArrowCsvOptionsBuilder>(sharedState);
+    return std::make_shared<reader::ArrowReader>(
+        sharedState, std::move(optionsBuilder), std::move(fileSystem));
+  }
+
+  void createJsonFile(const std::string& filename, const std::string& content) {
+    std::ofstream file(std::string(ARROW_READER_TEST_DIR) + "/" + filename);
+    file << content;
+    file.close();
+  }
+
+  std::shared_ptr<reader::ReadSharedState> createJsonSharedState(
+      const std::string& jsonFile, const std::vector<std::string>& columnNames,
+      const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
+      const common::case_insensitive_map_t<std::string>& options = {}) {
+    auto sharedState = std::make_shared<reader::ReadSharedState>();
+
+    auto entrySchema = std::make_shared<reader::TableEntrySchema>();
+    entrySchema->columnNames = columnNames;
+    entrySchema->columnTypes = columnTypes;
+
+    reader::FileSchema fileSchema;
+    fileSchema.paths = {std::string(ARROW_READER_TEST_DIR) + "/" + jsonFile};
+    fileSchema.format = "json";
+    fileSchema.options = options;
+
+    reader::ExternalSchema externalSchema;
+    externalSchema.entry = entrySchema;
+    externalSchema.file = fileSchema;
+
+    sharedState->schema = std::move(externalSchema);
+    return sharedState;
+  }
+
+  std::shared_ptr<reader::ArrowReader> createArrowJsonReader(
+      const std::shared_ptr<reader::ReadSharedState>& sharedState) {
+    auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
+    auto optionsBuilder =
+        std::make_unique<reader::ArrowJsonOptionsBuilder>(sharedState);
     return std::make_shared<reader::ArrowReader>(
         sharedState, std::move(optionsBuilder), std::move(fileSystem));
   }
