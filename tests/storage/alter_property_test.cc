@@ -281,14 +281,11 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(
-        std::make_pair(std::string("id"),
-                       execution::property_to_value(Property::from_int32(0))));
-    properties.emplace_back(std::make_pair(
-        std::string("name"),
-        execution::property_to_value(Property::from_string_view(""))));
+        std::make_pair(std::string("id"), execution::Value::INT32(0)));
     properties.emplace_back(
-        std::make_pair(std::string("age"),
-                       execution::property_to_value(Property::from_int32(0))));
+        std::make_pair(std::string("name"), execution::Value::STRING("")));
+    properties.emplace_back(
+        std::make_pair(std::string("age"), execution::Value::INT32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     CreateVertexTypeParamBuilder builder;
     auto status = graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
@@ -307,9 +304,8 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
     std::vector<std::pair<std::string, execution::Value>> edge_properties;
-    edge_properties.emplace_back(std::make_pair(
-        std::string("weight"),
-        execution::property_to_value(Property::from_float(0.0))));
+    edge_properties.emplace_back(
+        std::make_pair(std::string("weight"), execution::Value::FLOAT(0.0)));
     CreateEdgeTypeParamBuilder builder;
     auto status = graph.CreateEdgeType(builder.SrcLabel(src_vertex_label)
                                            .DstLabel(dst_vertex_label)
@@ -368,9 +364,9 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
     std::vector<std::pair<std::string, execution::Value>> add_properties;
-    add_properties.emplace_back(std::make_pair(
-        std::string("creationDate"),
-        execution::property_to_value(Property::from_datetime(DateTime(0)))));
+    add_properties.emplace_back(
+        std::make_pair(std::string("creationDate"),
+                       execution::Value::TIMESTAMPMS(DateTime(0))));
     AddEdgePropertiesParamBuilder builder;
     graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)
                                 .DstLabel(dst_vertex_type)

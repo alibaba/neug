@@ -34,6 +34,7 @@
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
@@ -91,46 +92,48 @@ bool check_csv_import_options(
 
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
-                const std::string& key, Property value) {
-  if (value.type() == DataTypeId::kBoolean) {
+                const std::string& key, const execution::Value& value) {
+  if (value.type().id() == DataTypeId::kBoolean) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_bool(), allocator);
-  } else if (value.type() == DataTypeId::kInt32) {
+                     value.GetValue<bool>(), allocator);
+  } else if (value.type().id() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_int32(), allocator);
-  } else if (value.type() == DataTypeId::kUInt32) {
+                     value.GetValue<int32_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_uint32(), allocator);
-  } else if (value.type() == DataTypeId::kInt64) {
+                     value.GetValue<uint32_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_int64(), allocator);
-  } else if (value.type() == DataTypeId::kUInt64) {
+                     value.GetValue<int64_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_uint64(), allocator);
-  } else if (value.type() == DataTypeId::kFloat) {
+                     value.GetValue<uint64_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_float(), allocator);
-  } else if (value.type() == DataTypeId::kDouble) {
+                     value.GetValue<float>(), allocator);
+  } else if (value.type().id() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_double(), allocator);
-  } else if (value.type() == DataTypeId::kDate) {
-    std::string date = value.as_date().to_string();
+                     value.GetValue<double>(), allocator);
+  } else if (value.type().id() == DataTypeId::kDate) {
+    std::string date = value.GetValue<execution::date_t>().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::kTimestampMs) {
-    std::string date_time = value.as_datetime().to_string();
+  } else if (value.type().id() == DataTypeId::kTimestampMs) {
+    std::string date_time =
+        value.GetValue<execution::timestamp_ms_t>().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date_time.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::kVarchar) {
+  } else if (value.type().id() == DataTypeId::kVarchar) {
     rapidjson::Value valueVal;
-    auto str_value = value.as_string_view();
+    const std::string& str_value = execution::StringValue::Get(value);
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
-  } else if (value.type() == DataTypeId::kInterval) {
-    std::string interval_str = value.as_interval().to_string();
+  } else if (value.type().id() == DataTypeId::kInterval) {
+    std::string interval_str =
+        value.GetValue<execution::interval_t>().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
                      allocator);
@@ -141,41 +144,43 @@ void add_member(rapidjson::Value& object,
 
 void add_prop_member(rapidjson::Value& object,
                      rapidjson::Document::AllocatorType& allocator,
-                     const std::string& key, Property value) {
-  if (value.type() == DataTypeId::kInt32) {
+                     const std::string& key, const execution::Value& value) {
+  if (value.type().id() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_int32(), allocator);
-  } else if (value.type() == DataTypeId::kUInt32) {
+                     value.GetValue<int32_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_uint32(), allocator);
-  } else if (value.type() == DataTypeId::kInt64) {
+                     value.GetValue<uint32_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_int64(), allocator);
-  } else if (value.type() == DataTypeId::kUInt64) {
+                     value.GetValue<int64_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_uint64(), allocator);
-  } else if (value.type() == DataTypeId::kFloat) {
+                     value.GetValue<uint64_t>(), allocator);
+  } else if (value.type().id() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_float(), allocator);
-  } else if (value.type() == DataTypeId::kDouble) {
+                     value.GetValue<float>(), allocator);
+  } else if (value.type().id() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_double(), allocator);
-  } else if (value.type() == DataTypeId::kDate) {
-    std::string date = value.as_date().to_string();
+                     value.GetValue<double>(), allocator);
+  } else if (value.type().id() == DataTypeId::kDate) {
+    std::string date = value.GetValue<execution::date_t>().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::kTimestampMs) {
+  } else if (value.type().id() == DataTypeId::kTimestampMs) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_datetime().milli_second, allocator);
-  } else if (value.type() == DataTypeId::kInterval) {
-    std::string interval_str = value.as_interval().to_string();
+                     value.GetValue<execution::timestamp_ms_t>().milli_second,
+                     allocator);
+  } else if (value.type().id() == DataTypeId::kInterval) {
+    std::string interval_str =
+        value.GetValue<execution::interval_t>().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::kVarchar) {
+  } else if (value.type().id() == DataTypeId::kVarchar) {
     rapidjson::Value valueVal;
-    auto str_value = value.as_string_view();
+    const std::string& str_value = execution::StringValue::Get(value);
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
@@ -192,11 +197,11 @@ rapidjson::Value build_vertex_object(
   std::string internal_id_key = "_ID";
   std::string encoded_id_str =
       std::to_string(label) + ":" + std::to_string(vid);
-  Property encoded_id = Property::from_string_view(encoded_id_str);
+  execution::Value encoded_id = execution::Value::STRING(encoded_id_str);
   add_member(vertex_object, allocator, internal_id_key, encoded_id);
   std::string internal_label_key = "_LABEL";
   std::string label_name_str = graph.schema().get_vertex_label_name(label);
-  Property label_name = Property::from_string_view(label_name_str);
+  execution::Value label_name = execution::Value::STRING(label_name_str);
   add_member(vertex_object, allocator, internal_label_key, label_name);
   std::string primary_key = graph.schema().get_vertex_primary_key_name(label);
   add_member(vertex_object, allocator, primary_key,
@@ -232,28 +237,30 @@ rapidjson::Value build_edge_object(
   std::string internal_src_id = "_SRC";
   std::string encoded_src_id_str =
       std::to_string(src_label) + ":" + std::to_string(edge.src);
-  Property encoded_src_id = Property::from_string_view(encoded_src_id_str);
+  execution::Value encoded_src_id =
+      execution::Value::STRING(encoded_src_id_str);
   add_member(edge_object, allocator, internal_src_id, encoded_src_id);
 
   std::string internal_dst_id = "_DST";
   std::string encoded_dst_id_str =
       std::to_string(dst_label) + ":" + std::to_string(edge.dst);
-  Property encoded_dst_id = Property::from_string_view(encoded_dst_id_str);
+  execution::Value encoded_dst_id =
+      execution::Value::STRING(encoded_dst_id_str);
   add_member(edge_object, allocator, internal_dst_id, encoded_dst_id);
 
   std::string internal_src_label_key = "_SRC_LABEL";
-  Property src_label_name = Property::from_string_view(
-      graph.schema().get_vertex_label_name(src_label));
+  execution::Value src_label_name =
+      execution::Value::STRING(graph.schema().get_vertex_label_name(src_label));
   add_member(edge_object, allocator, internal_src_label_key, src_label_name);
 
   std::string internal_dst_label_key = "_DST_LABEL";
-  Property dst_label_name = Property::from_string_view(
-      graph.schema().get_vertex_label_name(dst_label));
+  execution::Value dst_label_name =
+      execution::Value::STRING(graph.schema().get_vertex_label_name(dst_label));
   add_member(edge_object, allocator, internal_dst_label_key, dst_label_name);
 
   std::string internal_label_key = "_LABEL";
-  Property edge_label_name = Property::from_string_view(
-      graph.schema().get_edge_label_name(edge_label));
+  execution::Value edge_label_name =
+      execution::Value::STRING(graph.schema().get_edge_label_name(edge_label));
   add_member(edge_object, allocator, internal_label_key, edge_label_name);
 
   auto property_names =
@@ -294,18 +301,18 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
     if (i > 0) {
       rapidjson::Value edge_object(rapidjson::kObjectType);
       std::string internal_src_label_key = "_SRC_LABEL";
-      Property src_label_name = Property::from_string_view(
+      execution::Value src_label_name = execution::Value::STRING(
           graph.schema().get_vertex_label_name(path_vertices[i - 1].label_));
       add_member(edge_object, allocator, internal_src_label_key,
                  src_label_name);
       std::string internal_dst_label_key = "_DST_LABEL";
-      Property dst_label_name = Property::from_string_view(
+      execution::Value dst_label_name = execution::Value::STRING(
           graph.schema().get_vertex_label_name(path_vertices[i].label_));
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      Property edge_label_name =
-          Property::from_string_view(graph.schema().get_edge_label_name(
+      execution::Value edge_label_name =
+          execution::Value::STRING(graph.schema().get_edge_label_name(
               path_edges[i - 1].label.edge_label));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);

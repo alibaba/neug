@@ -54,17 +54,14 @@ class GraphViewTest : public ::testing::Test {
 
     // Create vertex type: person with id as primary key and name as property
     CreateVertexTypeParamBuilder person_builder;
-    ASSERT_TRUE(
-        graph_
-            ->CreateVertexType(
-                person_builder.VertexLabel("person")
-                    .AddProperty("id", execution::property_to_value(
-                                           Property::from_int64(0)))
-                    .AddProperty("name", execution::property_to_value(
-                                             Property::from_string_view("")))
-                    .AddPrimaryKeyName("id")
-                    .Build())
-            .ok());
+    ASSERT_TRUE(graph_
+                    ->CreateVertexType(
+                        person_builder.VertexLabel("person")
+                            .AddProperty("id", execution::Value::INT64(0))
+                            .AddProperty("name", execution::Value::STRING(""))
+                            .AddPrimaryKeyName("id")
+                            .Build())
+                    .ok());
 
     // Create edge type: knows
     CreateEdgeTypeParamBuilder knows_builder;
@@ -74,8 +71,7 @@ class GraphViewTest : public ::testing::Test {
                 knows_builder.SrcLabel("person")
                     .DstLabel("person")
                     .EdgeLabel("knows")
-                    .AddProperty("weight", execution::property_to_value(
-                                               Property::from_double(0.0)))
+                    .AddProperty("weight", execution::Value::DOUBLE(0.0))
                     .Build())
             .ok());
 
@@ -83,19 +79,19 @@ class GraphViewTest : public ::testing::Test {
     label_t person_label = graph_->schema().get_vertex_label_id("person");
     vid_t vid1, vid2, vid3;
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, Property::from_int64(1),
-                                {Property::from_string_view("Alice")}, vid1, 0,
+                    ->AddVertex(person_label, execution::Value::INT64(1),
+                                {execution::Value::STRING("Alice")}, vid1, 0,
                                 false)
                     .ok());
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, Property::from_int64(2),
-                                {Property::from_string_view("Bob")}, vid2, 0,
+                    ->AddVertex(person_label, execution::Value::INT64(2),
+                                {execution::Value::STRING("Bob")}, vid2, 0,
                                 false)
                     .ok());
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, Property::from_int64(3),
-                                {Property::from_string_view("Charlie")}, vid3,
-                                0, false)
+                    ->AddVertex(person_label, execution::Value::INT64(3),
+                                {execution::Value::STRING("Charlie")}, vid3, 0,
+                                false)
                     .ok());
 
     label_t knows_label = graph_->schema().get_edge_label_id("knows");
@@ -104,12 +100,12 @@ class GraphViewTest : public ::testing::Test {
     const void* edge_prop = nullptr;
     ASSERT_TRUE(graph_
                     ->AddEdge(person_label, vid1, person_label, vid2,
-                              knows_label, {Property::from_double(0.5)}, 0,
+                              knows_label, {execution::Value::DOUBLE(0.5)}, 0,
                               *alloc_, oe_offset, edge_prop, false)
                     .ok());
     ASSERT_TRUE(graph_
                     ->AddEdge(person_label, vid2, person_label, vid3,
-                              knows_label, {Property::from_double(0.7)}, 0,
+                              knows_label, {execution::Value::DOUBLE(0.7)}, 0,
                               *alloc_, oe_offset, edge_prop, false)
                     .ok());
   }
@@ -134,10 +130,11 @@ TEST_F(GraphViewTest, GetLid) {
   label_t person_label = view.schema().get_vertex_label_id("person");
 
   vid_t lid;
-  EXPECT_TRUE(view.get_lid(person_label, Property::from_int64(1), lid, 0));
-  EXPECT_TRUE(view.get_lid(person_label, Property::from_int64(2), lid, 0));
-  EXPECT_TRUE(view.get_lid(person_label, Property::from_int64(3), lid, 0));
-  EXPECT_FALSE(view.get_lid(person_label, Property::from_int64(999), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(1), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(2), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(3), lid, 0));
+  EXPECT_FALSE(
+      view.get_lid(person_label, execution::Value::INT64(999), lid, 0));
 }
 
 TEST_F(GraphViewTest, GetOid) {
@@ -146,10 +143,10 @@ TEST_F(GraphViewTest, GetOid) {
 
   auto oid0 = view.GetOid(person_label, 0);
   EXPECT_EQ(oid0.type(), DataTypeId::kInt64);
-  EXPECT_EQ(oid0.as_int64(), 1);
+  EXPECT_EQ(oid0.GetValue<int64_t>(), 1);
 
-  EXPECT_EQ(view.GetOid(person_label, 1).as_int64(), 2);
-  EXPECT_EQ(view.GetOid(person_label, 2).as_int64(), 3);
+  EXPECT_EQ(view.GetOid(person_label, 1).GetValue<int64_t>(), 2);
+  EXPECT_EQ(view.GetOid(person_label, 2).GetValue<int64_t>(), 3);
 }
 
 TEST_F(GraphViewTest, SchemaAccess) {
@@ -179,9 +176,9 @@ TEST_F(GraphViewTest, GetVertexPropertyColumnByName) {
   // indexer's keys.
   auto pk_col = view.GetVertexPropertyColumn(person_label, "id");
   ASSERT_NE(pk_col, nullptr);
-  EXPECT_EQ(pk_col->get(0).as_int64(), 1);
-  EXPECT_EQ(pk_col->get(1).as_int64(), 2);
-  EXPECT_EQ(pk_col->get(2).as_int64(), 3);
+  EXPECT_EQ(pk_col->get_any(0).GetValue<int64_t>(), 1);
+  EXPECT_EQ(pk_col->get_any(1).GetValue<int64_t>(), 2);
+  EXPECT_EQ(pk_col->get_any(2).GetValue<int64_t>(), 3);
 
   // Non-PK property goes through the underlying Table.
   auto name_col = view.GetVertexPropertyColumn(person_label, "name");
@@ -219,8 +216,9 @@ TEST_F(GraphViewTest, EdgeBasicTraversal) {
   for (vid_t v = 0; v < 3; ++v) {
     auto nbrs = out_csr.get_edges(v);
     for (auto it = nbrs.begin(); it != nbrs.end(); ++it) {
-      edges.emplace_back(view.GetOid(person_label, v).as_int64(),
-                         view.GetOid(person_label, it.get_vertex()).as_int64());
+      edges.emplace_back(
+          view.GetOid(person_label, v).GetValue<int64_t>(),
+          view.GetOid(person_label, it.get_vertex()).GetValue<int64_t>());
     }
   }
 

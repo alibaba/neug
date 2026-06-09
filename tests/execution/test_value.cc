@@ -15,7 +15,6 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
-#include "neug/utils/property/property.h"
 
 namespace neug {
 namespace execution {
@@ -417,60 +416,8 @@ TEST_F(ValueTest, GetValueTemplate) {
 }
 
 TEST_F(ValueTest, PropertyConversion) {
-  Value original_bool = Value::BOOLEAN(true);
-  Property prop_bool = value_to_property(original_bool);
-  Value converted_bool = property_to_value(prop_bool);
-  EXPECT_TRUE(converted_bool == original_bool);
-
-  Value original_int32 = Value::INT32(-42);
-  Property prop_int32 = value_to_property(original_int32);
-  Value converted_int32 = property_to_value(prop_int32);
-  EXPECT_TRUE(converted_int32 == original_int32);
-
-  Value original_int64 = Value::INT64(123456789012345LL);
-  Property prop_int64 = value_to_property(original_int64);
-  Value converted_int64 = property_to_value(prop_int64);
-  EXPECT_TRUE(converted_int64 == original_int64);
-
-  Value original_uint32 = Value::UINT32(428);
-  Property prop_uint32 = value_to_property(original_uint32);
-  Value converted_uint32 = property_to_value(prop_uint32);
-  EXPECT_TRUE(converted_uint32 == original_uint32);
-
-  Value original_uint64 = Value::UINT64(123456789012345ULL);
-  Property prop_uint64 = value_to_property(original_uint64);
-  Value converted_uint64 = property_to_value(prop_uint64);
-  EXPECT_TRUE(converted_uint64 == original_uint64);
-
-  Value original_str = Value::STRING("round trip test");
-  Property prop_str = value_to_property(original_str);
-  Value converted_str = property_to_value(prop_str);
-  EXPECT_TRUE(converted_str == original_str);
-
-  Value original_float = Value::FLOAT(3.1415);
-  Property prop_float = value_to_property(original_float);
-  Value converted_float = property_to_value(prop_float);
-  EXPECT_TRUE(converted_float == original_float);
-
-  Value original_double = Value::DOUBLE(3.141592653589793);
-  Property prop_double = value_to_property(original_double);
-  Value converted_double = property_to_value(prop_double);
-  EXPECT_TRUE(converted_double == original_double);
-
-  Value original_date = Value::DATE(Date(std::string("2020-01-01")));
-  Property prop_date = value_to_property(original_date);
-  Value converted_date = property_to_value(prop_date);
-  EXPECT_TRUE(converted_date == original_date);
-
-  Value original_datetime = Value::TIMESTAMPMS(DateTime(293092399));
-  Property prop_datetime = value_to_property(original_datetime);
-  Value converted_datetime = property_to_value(prop_datetime);
-  EXPECT_TRUE(converted_datetime == original_datetime);
-
-  Value original_interval = Value::INTERVAL(Interval(std::string("3years")));
-  Property prop_interval = value_to_property(original_interval);
-  Value converted_interval = property_to_value(prop_interval);
-  EXPECT_TRUE(converted_interval == original_interval);
+  // value_to_property/property_to_value have been removed; this test is
+  // intentionally left empty after the Property type retirement.
 }
 
 TEST_F(ValueTest, EdgeCases) {
