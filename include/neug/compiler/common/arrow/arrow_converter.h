@@ -61,9 +61,6 @@ struct ArrowConverter {
   static void setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
                                       ArrowSchema& child,
                                       const LogicalType& dataType);
-  static void setArrowFormatForUnion(ArrowSchemaHolder& rootHolder,
-                                     ArrowSchema& child,
-                                     const LogicalType& dataType);
   static void setArrowFormatForInternalID(ArrowSchemaHolder& rootHolder,
                                           ArrowSchema& child,
                                           const LogicalType& dataType);

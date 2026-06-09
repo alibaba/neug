@@ -26,7 +26,6 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/timestamp_t.h"
-#include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "re2/include/re2.h"
 
@@ -115,10 +114,6 @@ bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
 
 static bool isDate(std::string_view str) {
   return RE2::FullMatch(str, Date::regexPattern());
-}
-
-static bool isUUID(std::string_view str) {
-  return RE2::FullMatch(str, UUID::regexPattern());
 }
 
 static bool isInterval(std::string_view str) {
@@ -239,17 +234,7 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
   }
   // Real value checking
   if (RE2::FullMatch(cpy, realPattern())) {
-    if (cpy[0] == '-') {
-      cpy = cpy.substr(1);
-    }
-    if (cpy.size() <= DECIMAL_PRECISION_LIMIT) {
-      auto decimalPoint = cpy.find('.');
-      NEUG_ASSERT(decimalPoint != std::string::npos);
-      return LogicalType::DECIMAL(cpy.size() - 1,
-                                  cpy.size() - decimalPoint - 1);
-    } else {
-      return LogicalType::DOUBLE();
-    }
+    return LogicalType::DOUBLE();
   }
   // date
   if (isDate(cpy)) {
@@ -259,11 +244,6 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
   neug::common::timestamp_t tmp;
   if (common::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(), tmp)) {
     return LogicalType::TIMESTAMP();
-  }
-
-  // UUID
-  if (isUUID(cpy)) {
-    return LogicalType::UUID();
   }
 
   // interval checking

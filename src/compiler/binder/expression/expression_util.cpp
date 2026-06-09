@@ -357,8 +357,6 @@ static bool compatible(const LogicalType& type, const LogicalType& target) {
     }
     return true;
   }
-  case LogicalTypeID::DECIMAL:
-  case LogicalTypeID::UNION:
   case LogicalTypeID::MAP:
   case LogicalTypeID::NODE:
   case LogicalTypeID::REL:

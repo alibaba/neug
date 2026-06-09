@@ -30,7 +30,6 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/cast_array.h"
-#include "neug/compiler/function/cast/functions/cast_decimal.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
@@ -221,13 +220,6 @@ static bool hasImplicitCastStruct(const LogicalType& srcType,
   return true;
 }
 
-static bool hasImplicitCastUnion(const LogicalType& /*srcType*/,
-                                 const LogicalType& /*dstType*/) {
-  // todo: implement union casting function
-  // currently, there seems to be no casting functionality between union types
-  return false;
-}
-
 static bool hasImplicitCastMap(const LogicalType& srcType,
                                const LogicalType& dstType) {
   const auto& srcKeyType = MapType::getKeyType(srcType);
@@ -260,8 +252,6 @@ bool CastFunction::hasImplicitCast(const LogicalType& srcType,
       return hasImplicitCastArray(srcType, dstType);
     case LogicalTypeID::STRUCT:
       return hasImplicitCastStruct(srcType, dstType);
-    case LogicalTypeID::UNION:
-      return hasImplicitCastUnion(srcType, dstType);
     case LogicalTypeID::MAP:
       return hasImplicitCastMap(srcType, dstType);
     default:
@@ -294,21 +284,9 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
         ScalarFunction::UnaryCastStringExecFunction<neug_string_t, date_t,
                                                     CastString, EXECUTOR>;
   } break;
-  case LogicalTypeID::TIMESTAMP_SEC: {
-    execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, timestamp_sec_t, CastString, EXECUTOR>;
-  } break;
   case LogicalTypeID::TIMESTAMP_MS: {
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
         neug_string_t, timestamp_ms_t, CastString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_NS: {
-    execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, timestamp_ns_t, CastString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_TZ: {
-    execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, neug::common::timestamp_tz_t, CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
@@ -317,16 +295,6 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
   case LogicalTypeID::INTERVAL: {
     execFunc =
         ScalarFunction::UnaryCastStringExecFunction<neug_string_t, interval_t,
-                                                    CastString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::BLOB: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<neug_string_t, blob_t,
-                                                    CastString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::UUID: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<neug_string_t, neug_uuid_t,
                                                     CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::STRING: {
@@ -349,38 +317,11 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
         ScalarFunction::UnaryCastStringExecFunction<neug_string_t, float,
                                                     CastString, EXECUTOR>;
   } break;
-  case LogicalTypeID::DECIMAL: {
-    switch (targetType.getPhysicalType()) {
-    case PhysicalTypeID::INT16:
-      execFunc =
-          ScalarFunction::UnaryExecNestedTypeFunction<neug_string_t, int16_t,
-                                                      CastToDecimal>;
-      break;
-    case PhysicalTypeID::INT32:
-      execFunc =
-          ScalarFunction::UnaryExecNestedTypeFunction<neug_string_t, int32_t,
-                                                      CastToDecimal>;
-      break;
-    case PhysicalTypeID::INT64:
-      execFunc =
-          ScalarFunction::UnaryExecNestedTypeFunction<neug_string_t, int64_t,
-                                                      CastToDecimal>;
-      break;
-    case PhysicalTypeID::INT128:
-      execFunc =
-          ScalarFunction::UnaryExecNestedTypeFunction<neug_string_t, int128_t,
-                                                      CastToDecimal>;
-      break;
-    default:
-      NEUG_UNREACHABLE;
-    }
-  } break;
   case LogicalTypeID::INT128: {
     execFunc =
         ScalarFunction::UnaryCastStringExecFunction<neug_string_t, int128_t,
                                                     CastString, EXECUTOR>;
   } break;
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64: {
     execFunc =
         ScalarFunction::UnaryCastStringExecFunction<neug_string_t, int64_t,
@@ -436,10 +377,6 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
         neug_string_t, struct_entry_t, CastString, EXECUTOR>;
   } break;
-  case LogicalTypeID::UNION: {
-    execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, union_entry_t, CastString, EXECUTOR>;
-  } break;
   default:
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from STRING to {}.",
@@ -459,7 +396,6 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
     func = ScalarFunction::UnaryCastExecFunction<bool, neug_string_t,
                                                  CastToString, EXECUTOR>;
   } break;
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64: {
     func = ScalarFunction::UnaryCastExecFunction<int64_t, neug_string_t,
                                                  CastToString, EXECUTOR>;
@@ -504,48 +440,13 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
     func = ScalarFunction::UnaryCastExecFunction<float, neug_string_t,
                                                  CastToString, EXECUTOR>;
   } break;
-  case LogicalTypeID::DECIMAL: {
-    switch (sourceType.getPhysicalType()) {
-    case PhysicalTypeID::INT16:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int16_t, neug_string_t,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT32:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int32_t, neug_string_t,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT64:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int64_t, neug_string_t,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT128:
-      func =
-          ScalarFunction::UnaryExecNestedTypeFunction<int128_t, neug_string_t,
-                                                      CastDecimalTo>;
-      break;
-    default:
-      NEUG_UNREACHABLE;
-    }
-  } break;
   case LogicalTypeID::DATE: {
     func = ScalarFunction::UnaryCastExecFunction<date_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_NS: {
-    func = ScalarFunction::UnaryCastExecFunction<timestamp_ns_t, neug_string_t,
                                                  CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP_MS: {
     func = ScalarFunction::UnaryCastExecFunction<timestamp_ms_t, neug_string_t,
                                                  CastToString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_SEC: {
-    func = ScalarFunction::UnaryCastExecFunction<timestamp_sec_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_TZ: {
-    func = ScalarFunction::UnaryCastExecFunction<
-        neug::common::timestamp_tz_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
     func = ScalarFunction::UnaryCastExecFunction<
@@ -557,14 +458,6 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
   } break;
   case LogicalTypeID::INTERNAL_ID: {
     func = ScalarFunction::UnaryCastExecFunction<internalID_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::BLOB: {
-    func = ScalarFunction::UnaryCastExecFunction<blob_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
-  } break;
-  case LogicalTypeID::UUID: {
-    func = ScalarFunction::UnaryCastExecFunction<neug_uuid_t, neug_string_t,
                                                  CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::ARRAY:
@@ -589,43 +482,12 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
     func = ScalarFunction::UnaryCastExecFunction<struct_entry_t, neug_string_t,
                                                  CastToString, EXECUTOR>;
   } break;
-  case LogicalTypeID::UNION: {
-    func = ScalarFunction::UnaryCastExecFunction<union_entry_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
-  } break;
   default:
     NEUG_UNREACHABLE;
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<LogicalTypeID>{sourceType.getLogicalTypeID()},
       LogicalTypeID::STRING, func);
-}
-
-template <typename DST_TYPE, CastExecutor EXECUTOR>
-static std::unique_ptr<ScalarFunction> bindCastToDecimalFunction(
-    const std::string& functionName, const LogicalType& sourceType,
-    const LogicalType& targetType) {
-  scalar_func_exec_t func;
-  if (sourceType.getLogicalTypeID() == LogicalTypeID::DECIMAL) {
-    TypeUtils::visit(
-        sourceType,
-        [&]<SignedIntegerTypes T>(T) {
-          func = ScalarFunction::UnaryCastExecFunction<
-              T, DST_TYPE, CastBetweenDecimal, EXECUTOR>;
-        },
-        [&](auto) { NEUG_UNREACHABLE; });
-  } else {
-    TypeUtils::visit(
-        sourceType,
-        [&]<NumericTypes T>(T) {
-          func = ScalarFunction::UnaryCastExecFunction<T, DST_TYPE,
-                                                       CastToDecimal, EXECUTOR>;
-        },
-        [&](auto) { NEUG_UNREACHABLE; });
-  }
-  return std::make_unique<ScalarFunction>(
-      functionName, std::vector<LogicalTypeID>{sourceType.getLogicalTypeID()},
-      targetType.getLogicalTypeID(), func);
 }
 
 template <typename DST_TYPE, typename OP,
@@ -644,7 +506,6 @@ static std::unique_ptr<ScalarFunction> bindCastToNumericFunction(
   case LogicalTypeID::INT32: {
     func = ScalarFunction::UnaryExecFunction<int32_t, DST_TYPE, OP, EXECUTOR>;
   } break;
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64: {
     func = ScalarFunction::UnaryExecFunction<int64_t, DST_TYPE, OP, EXECUTOR>;
   } break;
@@ -668,29 +529,6 @@ static std::unique_ptr<ScalarFunction> bindCastToNumericFunction(
   } break;
   case LogicalTypeID::DOUBLE: {
     func = ScalarFunction::UnaryExecFunction<double, DST_TYPE, OP, EXECUTOR>;
-  } break;
-  case LogicalTypeID::DECIMAL: {
-    switch (sourceType.getPhysicalType()) {
-    // note: this cannot handle decimal -> decimal casting.
-    case PhysicalTypeID::INT16:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int16_t, DST_TYPE,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT32:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int32_t, DST_TYPE,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT64:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int64_t, DST_TYPE,
-                                                         CastDecimalTo>;
-      break;
-    case PhysicalTypeID::INT128:
-      func = ScalarFunction::UnaryExecNestedTypeFunction<int128_t, DST_TYPE,
-                                                         CastDecimalTo>;
-      break;
-    default:
-      NEUG_UNREACHABLE;
-    }
   } break;
   default:
     THROW_CONVERSION_EXCEPTION(
@@ -739,18 +577,9 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     func = ScalarFunction::UnaryExecFunction<timestamp_ms_t, DST_TYPE,
                                              CastToDate, EXECUTOR>;
     break;
-  case LogicalTypeID::TIMESTAMP_NS:
-    func = ScalarFunction::UnaryExecFunction<timestamp_ns_t, DST_TYPE,
-                                             CastToDate, EXECUTOR>;
-    break;
-  case LogicalTypeID::TIMESTAMP_SEC:
-    func = ScalarFunction::UnaryExecFunction<timestamp_sec_t, DST_TYPE,
-                                             CastToDate, EXECUTOR>;
-    break;
-  case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP:
-    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
-                                             CastToDate, EXECUTOR>;
+    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t,
+                                             DST_TYPE, CastToDate, EXECUTOR>;
     break;
   // LCOV_EXCL_START
   default:
@@ -778,18 +607,10 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
     func = ScalarFunction::UnaryExecFunction<timestamp_ms_t, DST_TYPE,
                                              CastBetweenTimestamp, EXECUTOR>;
   } break;
-  case LogicalTypeID::TIMESTAMP_NS: {
-    func = ScalarFunction::UnaryExecFunction<timestamp_ns_t, DST_TYPE,
-                                             CastBetweenTimestamp, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_SEC: {
-    func = ScalarFunction::UnaryExecFunction<timestamp_sec_t, DST_TYPE,
-                                             CastBetweenTimestamp, EXECUTOR>;
-  } break;
-  case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
-                                             CastBetweenTimestamp, EXECUTOR>;
+    func =
+        ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
+                                          CastBetweenTimestamp, EXECUTOR>;
   } break;
   default:
     THROW_CONVERSION_EXCEPTION(
@@ -799,35 +620,6 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<LogicalTypeID>{sourceType.getLogicalTypeID()},
       LogicalTypeID::TIMESTAMP, func);
-}
-
-template <typename DST_TYPE>
-static std::unique_ptr<ScalarFunction> bindCastBetweenDecimalFunction(
-    const std::string& functionName, const LogicalType& sourceType) {
-  scalar_func_exec_t func;
-  switch (sourceType.getPhysicalType()) {
-  case PhysicalTypeID::INT16:
-    func = ScalarFunction::UnaryExecNestedTypeFunction<int16_t, DST_TYPE,
-                                                       CastBetweenDecimal>;
-    break;
-  case PhysicalTypeID::INT32:
-    func = ScalarFunction::UnaryExecNestedTypeFunction<int32_t, DST_TYPE,
-                                                       CastBetweenDecimal>;
-    break;
-  case PhysicalTypeID::INT64:
-    func = ScalarFunction::UnaryExecNestedTypeFunction<int64_t, DST_TYPE,
-                                                       CastBetweenDecimal>;
-    break;
-  case PhysicalTypeID::INT128:
-    func = ScalarFunction::UnaryExecNestedTypeFunction<int128_t, DST_TYPE,
-                                                       CastBetweenDecimal>;
-    break;
-  default:
-    NEUG_UNREACHABLE;
-  }
-  return std::make_unique<ScalarFunction>(
-      functionName, std::vector<LogicalTypeID>{LogicalTypeID::DECIMAL},
-      LogicalTypeID::DECIMAL, func);
 }
 
 template <CastExecutor EXECUTOR>
@@ -851,23 +643,8 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
     return bindCastToNumericFunction<float, CastToFloat, EXECUTOR>(
         functionName, sourceType, targetType);
   }
-  case LogicalTypeID::DECIMAL: {
-    std::unique_ptr<ScalarFunction> scalarFunc;
-    TypeUtils::visit(
-        targetType.getPhysicalType(),
-        [&]<IntegerTypes T>(T) {
-          scalarFunc = bindCastToDecimalFunction<T, EXECUTOR>(
-              functionName, sourceType, targetType);
-        },
-        [](auto) { NEUG_UNREACHABLE; });
-    return scalarFunc;
-  }
   case LogicalTypeID::INT128: {
     return bindCastToNumericFunction<int128_t, CastToInt128, EXECUTOR>(
-        functionName, sourceType, targetType);
-  }
-  case LogicalTypeID::SERIAL: {
-    return bindCastToNumericFunction<int64_t, CastToSerial, EXECUTOR>(
         functionName, sourceType, targetType);
   }
   case LogicalTypeID::INT64: {
@@ -906,19 +683,10 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
     return bindCastToDateFunction<EXECUTOR, date_t>(functionName, sourceType,
                                                     targetType);
   }
-  case LogicalTypeID::TIMESTAMP_NS: {
-    return bindCastToTimestampFunction<EXECUTOR, timestamp_ns_t>(
-        functionName, sourceType, targetType);
-  }
   case LogicalTypeID::TIMESTAMP_MS: {
     return bindCastToTimestampFunction<EXECUTOR, timestamp_ms_t>(
         functionName, sourceType, targetType);
   }
-  case LogicalTypeID::TIMESTAMP_SEC: {
-    return bindCastToTimestampFunction<EXECUTOR, timestamp_sec_t>(
-        functionName, sourceType, targetType);
-  }
-  case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
     return bindCastToTimestampFunction<EXECUTOR, neug::common::timestamp_t>(
         functionName, sourceType, targetType);
@@ -926,8 +694,7 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
   case LogicalTypeID::LIST:
   case LogicalTypeID::ARRAY:
   case LogicalTypeID::MAP:
-  case LogicalTypeID::STRUCT:
-  case LogicalTypeID::UNION: {
+  case LogicalTypeID::STRUCT: {
     return bindCastBetweenNested(functionName, sourceType, targetType);
   }
   default: {

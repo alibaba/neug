@@ -326,8 +326,7 @@ bool Binder::isOrderByKeyTypeSupported(const LogicalType& dataType) {
       LogicalTypeID::NODE,          LogicalTypeID::REL,
       LogicalTypeID::RECURSIVE_REL, LogicalTypeID::INTERNAL_ID,
       LogicalTypeID::LIST,          LogicalTypeID::ARRAY,
-      LogicalTypeID::STRUCT,        LogicalTypeID::MAP,
-      LogicalTypeID::UNION,         LogicalTypeID::POINTER};
+      LogicalTypeID::STRUCT,        LogicalTypeID::MAP};
   for (const auto typeID : unsupportedKeyTypes) {
     if (dataType.getLogicalTypeID() == typeID) {
       return false;

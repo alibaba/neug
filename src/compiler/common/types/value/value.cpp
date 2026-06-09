@@ -28,9 +28,7 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/type_utils.h"
-#include "neug/compiler/common/types/blob.h"
 #include "neug/compiler/common/types/neug_string.h"
-#include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/exception/exception.h"
 
@@ -66,8 +64,6 @@ bool Value::operator==(const Value& rhs) const {
     return val.doubleVal == rhs.val.doubleVal;
   case PhysicalTypeID::FLOAT:
     return val.floatVal == rhs.val.floatVal;
-  case PhysicalTypeID::POINTER:
-    return val.pointer == rhs.val.pointer;
   case PhysicalTypeID::INTERVAL:
     return val.intervalVal == rhs.val.intervalVal;
   case PhysicalTypeID::INTERNAL_ID:
@@ -117,7 +113,6 @@ Value Value::createNullValue(const LogicalType& dataType) {
 
 Value Value::createDefaultValue(const LogicalType& dataType) {
   switch (dataType.getLogicalTypeID()) {
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64:
     return Value((int64_t) 0);
   case LogicalTypeID::INT32:
@@ -142,35 +137,18 @@ Value Value::createDefaultValue(const LogicalType& dataType) {
     return Value((double) 0);
   case LogicalTypeID::DATE:
     return Value(date_t());
-  case LogicalTypeID::TIMESTAMP_NS:
-    return Value(timestamp_ns_t());
   case LogicalTypeID::TIMESTAMP_MS:
     return Value(timestamp_ms_t());
-  case LogicalTypeID::TIMESTAMP_SEC:
-    return Value(timestamp_sec_t());
-  case LogicalTypeID::TIMESTAMP_TZ:
-    return Value(timestamp_tz_t());
   case LogicalTypeID::TIMESTAMP:
     return Value(timestamp_t());
   case LogicalTypeID::INTERVAL:
     return Value(interval_t());
   case LogicalTypeID::INTERNAL_ID:
     return Value(nodeID_t());
-  case LogicalTypeID::BLOB:
-    return Value(LogicalType::BLOB(), std::string(""));
-  case LogicalTypeID::UUID:
-    return Value(LogicalType::UUID(), std::string(""));
   case LogicalTypeID::STRING:
     return Value(LogicalType::STRING(), std::string(""));
   case LogicalTypeID::FLOAT:
     return Value((float) 0);
-  case LogicalTypeID::DECIMAL: {
-    Value ret(dataType.copy());
-    ret.val.int128Val = 0;
-    ret.isNull_ = false;
-    ret.childrenSize = 0;
-    return ret;
-  }
   case LogicalTypeID::ARRAY: {
     std::vector<std::unique_ptr<Value>> children;
     const auto& childType = ArrayType::getChildType(dataType);
@@ -185,11 +163,6 @@ Value Value::createDefaultValue(const LogicalType& dataType) {
   case LogicalTypeID::MAP:
   case LogicalTypeID::LIST: {
     return Value(dataType.copy(), std::vector<std::unique_ptr<Value>>{});
-  }
-  case LogicalTypeID::UNION: {
-    std::vector<std::unique_ptr<Value>> children;
-    children.push_back(std::make_unique<Value>(createNullValue()));
-    return Value(dataType.copy(), std::move(children));
   }
   case LogicalTypeID::NODE:
   case LogicalTypeID::REL:
@@ -260,11 +233,6 @@ Value::Value(int128_t val_) : isNull_{false}, childrenSize{0} {
   val.int128Val = val_;
 }
 
-Value::Value(neug_uuid_t val_) : isNull_{false}, childrenSize{0} {
-  dataType = LogicalType::UUID();
-  val.int128Val = val_.value;
-}
-
 Value::Value(float val_) : isNull_{false}, childrenSize{0} {
   dataType = LogicalType::FLOAT();
   val.floatVal = val_;
@@ -280,23 +248,8 @@ Value::Value(date_t val_) : isNull_{false}, childrenSize{0} {
   val.int32Val = val_.days;
 }
 
-Value::Value(timestamp_ns_t val_) : isNull_{false}, childrenSize{0} {
-  dataType = LogicalType::TIMESTAMP_NS();
-  val.int64Val = val_.value;
-}
-
 Value::Value(timestamp_ms_t val_) : isNull_{false}, childrenSize{0} {
   dataType = LogicalType::TIMESTAMP_MS();
-  val.int64Val = val_.value;
-}
-
-Value::Value(timestamp_sec_t val_) : isNull_{false}, childrenSize{0} {
-  dataType = LogicalType::TIMESTAMP_SEC();
-  val.int64Val = val_.value;
-}
-
-Value::Value(timestamp_tz_t val_) : isNull_{false}, childrenSize{0} {
-  dataType = LogicalType::TIMESTAMP_TZ();
   val.int64Val = val_.value;
 }
 
@@ -325,11 +278,6 @@ Value::Value(const std::string& val_) : isNull_{false}, childrenSize{0} {
   strVal = val_;
 }
 
-Value::Value(uint8_t* val_) : isNull_{false}, childrenSize{0} {
-  dataType = LogicalType::POINTER();
-  val.pointer = val_;
-}
-
 Value::Value(LogicalType type, std::string val_)
     : dataType{std::move(type)}, isNull_{false}, childrenSize{0} {
   strVal = std::move(val_);
@@ -350,11 +298,7 @@ Value::Value(const Value& other) : isNull_{other.isNull_} {
 
 void Value::copyFromRowLayout(const uint8_t* value) {
   switch (dataType.getLogicalTypeID()) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::TIMESTAMP_NS:
   case LogicalTypeID::TIMESTAMP_MS:
-  case LogicalTypeID::TIMESTAMP_SEC:
-  case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP:
   case LogicalTypeID::INT64: {
     val.int64Val = *((int64_t*) value);
@@ -393,36 +337,11 @@ void Value::copyFromRowLayout(const uint8_t* value) {
   case LogicalTypeID::FLOAT: {
     val.floatVal = *((float*) value);
   } break;
-  case LogicalTypeID::DECIMAL: {
-    switch (dataType.getPhysicalType()) {
-    case PhysicalTypeID::INT16:
-      val.int16Val = (*(int16_t*) value);
-      break;
-    case PhysicalTypeID::INT32:
-      val.int32Val = (*(int32_t*) value);
-      break;
-    case PhysicalTypeID::INT64:
-      val.int64Val = (*(int64_t*) value);
-      break;
-    case PhysicalTypeID::INT128:
-      val.int128Val = (*(int128_t*) value);
-      break;
-    default:
-      NEUG_UNREACHABLE;
-    }
-  } break;
   case LogicalTypeID::INTERVAL: {
     val.intervalVal = *((interval_t*) value);
   } break;
   case LogicalTypeID::INTERNAL_ID: {
     val.internalIDVal = *((nodeID_t*) value);
-  } break;
-  case LogicalTypeID::BLOB: {
-    strVal = ((blob_t*) value)->value.getAsString();
-  } break;
-  case LogicalTypeID::UUID: {
-    val.int128Val = ((neug_uuid_t*) value)->value;
-    strVal = UUID::toString(*((neug_uuid_t*) value));
   } break;
   case LogicalTypeID::STRING: {
     strVal = ((neug_string_t*) value)->getAsString();
@@ -436,17 +355,11 @@ void Value::copyFromRowLayout(const uint8_t* value) {
     copyFromRowLayoutList(*(neug_list_t*) value,
                           ArrayType::getChildType(dataType));
   } break;
-  case LogicalTypeID::UNION: {
-    copyFromUnion(value);
-  } break;
   case LogicalTypeID::NODE:
   case LogicalTypeID::REL:
   case LogicalTypeID::RECURSIVE_REL:
   case LogicalTypeID::STRUCT: {
     copyFromRowLayoutStruct(value);
-  } break;
-  case LogicalTypeID::POINTER: {
-    val.pointer = *((uint8_t**) value);
   } break;
   default:
     NEUG_UNREACHABLE;
@@ -572,9 +485,6 @@ void Value::copyValueFrom(const Value& other) {
       children.push_back(child->copy());
     }
   } break;
-  case PhysicalTypeID::POINTER: {
-    val.pointer = other.val.pointer;
-  } break;
   default:
     NEUG_UNREACHABLE;
   }
@@ -587,7 +497,6 @@ std::string Value::toString() const {
   switch (dataType.getLogicalTypeID()) {
   case LogicalTypeID::BOOL:
     return TypeUtils::toString(val.booleanVal);
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64:
     return TypeUtils::toString(val.int64Val);
   case LogicalTypeID::INT32:
@@ -610,31 +519,16 @@ std::string Value::toString() const {
     return TypeUtils::toString(val.doubleVal);
   case LogicalTypeID::FLOAT:
     return TypeUtils::toString(val.floatVal);
-  case LogicalTypeID::DECIMAL:
-    return decimalToString();
-  case LogicalTypeID::POINTER:
-    return TypeUtils::toString((uint64_t) val.pointer);
   case LogicalTypeID::DATE:
     return TypeUtils::toString(date_t{val.int32Val});
-  case LogicalTypeID::TIMESTAMP_NS:
-    return TypeUtils::toString(timestamp_ns_t{val.int64Val});
   case LogicalTypeID::TIMESTAMP_MS:
     return TypeUtils::toString(timestamp_ms_t{val.int64Val});
-  case LogicalTypeID::TIMESTAMP_SEC:
-    return TypeUtils::toString(timestamp_sec_t{val.int64Val});
-  case LogicalTypeID::TIMESTAMP_TZ:
-    return TypeUtils::toString(timestamp_tz_t{val.int64Val});
   case LogicalTypeID::TIMESTAMP:
     return TypeUtils::toString(timestamp_t{val.int64Val});
   case LogicalTypeID::INTERVAL:
     return TypeUtils::toString(val.intervalVal);
   case LogicalTypeID::INTERNAL_ID:
     return TypeUtils::toString(val.internalIDVal);
-  case LogicalTypeID::BLOB:
-    return Blob::toString(reinterpret_cast<const uint8_t*>(strVal.c_str()),
-                          strVal.length());
-  case LogicalTypeID::UUID:
-    return UUID::toString(val.int128Val);
   case LogicalTypeID::STRING:
     return strVal;
   case LogicalTypeID::MAP: {
@@ -643,9 +537,6 @@ std::string Value::toString() const {
   case LogicalTypeID::LIST:
   case LogicalTypeID::ARRAY: {
     return listToString();
-  }
-  case LogicalTypeID::UNION: {
-    return children[0]->toString();
   }
   case LogicalTypeID::RECURSIVE_REL:
   case LogicalTypeID::STRUCT: {
@@ -714,8 +605,6 @@ void Value::copyFromColLayoutStruct(const struct_entry_t& structEntry,
     }
   }
 }
-
-void Value::copyFromUnion(const uint8_t* kuUnion) {}
 
 void Value::serialize(Serializer& serializer) const {
   dataType.serialize(serializer);
@@ -990,25 +879,6 @@ std::string Value::relToString() const {
   }
   result += "}->(" + children[1]->toString() + ")";
   return result;
-}
-
-std::string Value::decimalToString() const {
-  switch (dataType.getPhysicalType()) {
-  case PhysicalTypeID::INT16:
-    return DecimalType::insertDecimalPoint(TypeUtils::toString(val.int16Val),
-                                           DecimalType::getScale(dataType));
-  case PhysicalTypeID::INT32:
-    return DecimalType::insertDecimalPoint(TypeUtils::toString(val.int32Val),
-                                           DecimalType::getScale(dataType));
-  case PhysicalTypeID::INT64:
-    return DecimalType::insertDecimalPoint(TypeUtils::toString(val.int64Val),
-                                           DecimalType::getScale(dataType));
-  case PhysicalTypeID::INT128:
-    return DecimalType::insertDecimalPoint(TypeUtils::toString(val.int128Val),
-                                           DecimalType::getScale(dataType));
-  default:
-    NEUG_UNREACHABLE;
-  }
 }
 
 }  // namespace common

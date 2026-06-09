@@ -573,30 +573,12 @@ CatalogEntry* Catalog::createRelTableEntry(Transaction* transaction,
 void Catalog::createSerialSequence(Transaction* transaction,
                                    const TableCatalogEntry* entry,
                                    bool isInternal) {
-  for (auto& definition : entry->getProperties()) {
-    if (definition.getType().getLogicalTypeID() != LogicalTypeID::SERIAL) {
-      continue;
-    }
-    const auto seqName = SequenceCatalogEntry::getSerialName(
-        entry->getName(), definition.getName());
-    auto seqInfo = BoundCreateSequenceInfo(
-        seqName, 0, 1, 0, std::numeric_limits<int64_t>::max(), false,
-        ConflictAction::ON_CONFLICT_THROW, isInternal);
-    seqInfo.hasParent = true;
-    createSequence(transaction, seqInfo);
-  }
+  // No-op: SERIAL type has been removed.
 }
 
 void Catalog::dropSerialSequence(Transaction* transaction,
                                  const TableCatalogEntry* entry) {
-  for (auto& definition : entry->getProperties()) {
-    if (definition.getType().getLogicalTypeID() != LogicalTypeID::SERIAL) {
-      continue;
-    }
-    auto seqName = SequenceCatalogEntry::getSerialName(entry->getName(),
-                                                       definition.getName());
-    dropSequence(transaction, seqName);
-  }
+  // No-op: SERIAL type has been removed.
 }
 
 }  // namespace catalog

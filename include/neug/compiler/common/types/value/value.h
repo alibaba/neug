@@ -29,7 +29,6 @@
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/neug_list.h"
 #include "neug/compiler/common/types/timestamp_t.h"
-#include "neug/compiler/common/types/uuid.h"
 #include "neug/utils/api.h"
 
 namespace neug {
@@ -110,10 +109,6 @@ class Value {
    */
   NEUG_API explicit Value(int128_t val_);
   /**
-   * @param val_ the UUID value to set.
-   */
-  NEUG_API explicit Value(neug_uuid_t val_);
-  /**
    * @param val_ the double value to set.
    */
   NEUG_API explicit Value(double val_);
@@ -126,21 +121,9 @@ class Value {
    */
   NEUG_API explicit Value(date_t val_);
   /**
-   * @param val_ the timestamp_ns value to set.
-   */
-  NEUG_API explicit Value(timestamp_ns_t val_);
-  /**
    * @param val_ the timestamp_ms value to set.
    */
   NEUG_API explicit Value(timestamp_ms_t val_);
-  /**
-   * @param val_ the timestamp_sec value to set.
-   */
-  NEUG_API explicit Value(timestamp_sec_t val_);
-  /**
-   * @param val_ the timestamp_tz value to set.
-   */
-  NEUG_API explicit Value(timestamp_tz_t val_);
   /**
    * @param val_ the timestamp value to set.
    */
@@ -161,10 +144,6 @@ class Value {
    * @param val_ the string value to set.
    */
   NEUG_API explicit Value(const std::string& val_);
-  /**
-   * @param val_ the uint8_t* value to set.
-   */
-  NEUG_API explicit Value(uint8_t* val_);
   /**
    * @param type the logical type of the value.
    * @param val_ the string value to set.
@@ -283,14 +262,11 @@ class Value {
   void copyFromRowLayoutStruct(const uint8_t* kuStruct);
   void copyFromColLayoutStruct(const struct_entry_t& structEntry,
                                ValueVector* vec);
-  void copyFromUnion(const uint8_t* kuUnion);
-
   std::string mapToString() const;
   std::string listToString() const;
   std::string structToString() const;
   std::string nodeToString() const;
   std::string relToString() const;
-  std::string decimalToString() const;
 
  public:
   union Val {
@@ -307,9 +283,6 @@ class Value {
     uint8_t uint8Val;
     double doubleVal;
     float floatVal;
-    // TODO(Ziyi): Should we remove the val suffix from all values in Val? Looks
-    // redundant.
-    uint8_t* pointer;
     interval_t intervalVal;
     internalID_t internalIDVal;
   } val;
@@ -454,39 +427,12 @@ NEUG_API inline timestamp_t Value::getValue() const {
 }
 
 /**
- * @return timestamp_ns_t value.
- */
-template <>
-NEUG_API inline timestamp_ns_t Value::getValue() const {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
-  return timestamp_ns_t{val.int64Val};
-}
-
-/**
  * @return timestamp_ms_t value.
  */
 template <>
 NEUG_API inline timestamp_ms_t Value::getValue() const {
   NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_MS);
   return timestamp_ms_t{val.int64Val};
-}
-
-/**
- * @return timestamp_sec_t value.
- */
-template <>
-NEUG_API inline timestamp_sec_t Value::getValue() const {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
-  return timestamp_sec_t{val.int64Val};
-}
-
-/**
- * @return timestamp_tz_t value.
- */
-template <>
-NEUG_API inline timestamp_tz_t Value::getValue() const {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
-  return timestamp_tz_t{val.int64Val};
 }
 
 /**
@@ -512,19 +458,8 @@ NEUG_API inline internalID_t Value::getValue() const {
  */
 template <>
 NEUG_API inline std::string Value::getValue() const {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING ||
-              dataType.getLogicalTypeID() == LogicalTypeID::BLOB ||
-              dataType.getLogicalTypeID() == LogicalTypeID::UUID);
+  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING);
   return strVal;
-}
-
-/**
- * @return uint8_t* value.
- */
-template <>
-NEUG_API inline uint8_t* Value::getValue() const {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
-  return val.pointer;
 }
 
 /**
@@ -663,33 +598,6 @@ NEUG_API inline timestamp_ms_t& Value::getValueReference() {
 }
 
 /**
- * @return the reference to the timestamp_ns value.
- */
-template <>
-NEUG_API inline timestamp_ns_t& Value::getValueReference() {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_NS);
-  return *reinterpret_cast<timestamp_ns_t*>(&val.int64Val);
-}
-
-/**
- * @return the reference to the timestamp_sec value.
- */
-template <>
-NEUG_API inline timestamp_sec_t& Value::getValueReference() {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_SEC);
-  return *reinterpret_cast<timestamp_sec_t*>(&val.int64Val);
-}
-
-/**
- * @return the reference to the timestamp_tz value.
- */
-template <>
-NEUG_API inline timestamp_tz_t& Value::getValueReference() {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::TIMESTAMP_TZ);
-  return *reinterpret_cast<timestamp_tz_t*>(&val.int64Val);
-}
-
-/**
  * @return the reference to the interval value.
  */
 template <>
@@ -714,15 +622,6 @@ template <>
 NEUG_API inline std::string& Value::getValueReference() {
   NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::STRING);
   return strVal;
-}
-
-/**
- * @return the reference to the uint8_t* value.
- */
-template <>
-NEUG_API inline uint8_t*& Value::getValueReference() {
-  NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::POINTER);
-  return val.pointer;
 }
 
 /**
@@ -872,15 +771,6 @@ NEUG_API inline Value Value::createValue(std::string val) {
 template <>
 NEUG_API inline Value Value::createValue(const char* value) {
   return Value(LogicalType::STRING(), std::string(value));
-}
-
-/**
- * @param val the uint8_t* val
- * @return a Value with POINTER type and val val.
- */
-template <>
-NEUG_API inline Value Value::createValue(uint8_t* val) {
-  return Value(val);
 }
 
 }  // namespace common

@@ -102,10 +102,6 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
     return std::make_unique<ParsedLiteralExpression>(
         Value::createDefaultValue(type), "NULL");
   } else {
-    if (type.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-      THROW_BINDER_EXCEPTION(
-          "No DEFAULT value should be set for SERIAL columns");
-    }
     return parsedDefault->copy();
   }
 }

@@ -89,31 +89,6 @@ void ArrowConverter::setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
   }
 }
 
-void ArrowConverter::setArrowFormatForUnion(ArrowSchemaHolder& rootHolder,
-                                            ArrowSchema& child,
-                                            const LogicalType& dataType) {
-  std::string formatStr = "+ud";
-  child.n_children = (std::int64_t) UnionType::getNumFields(dataType);
-  rootHolder.nestedChildren.emplace_back();
-  rootHolder.nestedChildren.back().resize(child.n_children);
-  rootHolder.nestedChildrenPtr.emplace_back();
-  rootHolder.nestedChildrenPtr.back().resize(child.n_children);
-  for (auto i = 0u; i < child.n_children; i++) {
-    rootHolder.nestedChildrenPtr.back()[i] =
-        &rootHolder.nestedChildren.back()[i];
-  }
-  child.children = &rootHolder.nestedChildrenPtr.back()[0];
-  for (auto i = 0u; i < child.n_children; i++) {
-    initializeChild(*child.children[i]);
-    const auto& unionFieldType = UnionType::getFieldType(dataType, i);
-    auto unionFieldName = UnionType::getFieldName(dataType, i);
-    child.children[i]->name = copyName(rootHolder, unionFieldName);
-    setArrowFormat(rootHolder, *child.children[i], unionFieldType);
-    formatStr += (i == 0u ? ":" : ",") + std::to_string(i);
-  }
-  child.format = copyName(rootHolder, formatStr);
-}
-
 void ArrowConverter::setArrowFormatForInternalID(
     ArrowSchemaHolder& rootHolder, ArrowSchema& child,
     const LogicalType& /*dataType*/) {
@@ -147,7 +122,6 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
   case LogicalTypeID::INT128: {
     child.format = "d:38,0";
   } break;
-  case LogicalTypeID::SERIAL:
   case LogicalTypeID::INT64: {
     child.format = "l";
   } break;
@@ -178,27 +152,11 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
   case LogicalTypeID::FLOAT: {
     child.format = "f";
   } break;
-  case LogicalTypeID::DECIMAL: {
-    auto formatString =
-        "d:" + std::to_string(DecimalType::getPrecision(dataType)) + "," +
-        std::to_string(DecimalType::getScale(dataType));
-    child.format = copyName(rootHolder, formatString);
-  } break;
   case LogicalTypeID::DATE: {
     child.format = "tdD";
   } break;
   case LogicalTypeID::TIMESTAMP_MS: {
     child.format = "tsm:";
-  } break;
-  case LogicalTypeID::TIMESTAMP_NS: {
-    child.format = "tsn:";
-  } break;
-  case LogicalTypeID::TIMESTAMP_SEC: {
-    child.format = "tss:";
-  } break;
-  case LogicalTypeID::TIMESTAMP_TZ: {
-    auto format = "tsu:UTC";
-    child.format = copyName(rootHolder, format);
   } break;
   case LogicalTypeID::TIMESTAMP: {
     child.format = "tsu:";
@@ -206,12 +164,8 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
   case LogicalTypeID::INTERVAL: {
     child.format = "tDu";
   } break;
-  case LogicalTypeID::UUID:
   case LogicalTypeID::STRING: {
     child.format = "u";
-  } break;
-  case LogicalTypeID::BLOB: {
-    child.format = "z";
   } break;
   case LogicalTypeID::LIST: {
     child.format = "+l";
@@ -265,9 +219,6 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     break;
   case LogicalTypeID::INTERNAL_ID:
     setArrowFormatForInternalID(rootHolder, child, dataType);
-    break;
-  case LogicalTypeID::UNION:
-    setArrowFormatForUnion(rootHolder, child, dataType);
     break;
   default:
     THROW_RUNTIME_ERROR(

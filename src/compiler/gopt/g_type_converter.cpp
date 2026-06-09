@@ -473,11 +473,6 @@ common::LogicalType GLogicalTypeConverter::convertDataType(
           std::to_string(static_cast<int>(type.primitive_type())));
     }
   }
-  case ::common::DataType::kDecimal: {
-    // Handle decimal type
-    const auto& decimal = type.decimal();
-    return common::LogicalType::DECIMAL(decimal.precision(), decimal.scale());
-  }
   case ::common::DataType::kString: {
     // Handle string types - all variants map to STRING
     return common::LogicalType::STRING();

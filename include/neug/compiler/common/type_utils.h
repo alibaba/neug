@@ -25,14 +25,12 @@
 #include <type_traits>
 
 #include "neug/compiler/common/assert.h"
-#include "neug/compiler/common/types/blob.h"
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
-#include "neug/compiler/common/types/uuid.h"
 
 #include <glog/logging.h>
 
@@ -193,7 +191,6 @@ class TypeUtils {
       return func(int32_t());
     case LogicalTypeID::UINT32:
       return func(uint32_t());
-    case LogicalTypeID::SERIAL:
     case LogicalTypeID::INT64:
       return func(int64_t());
     case LogicalTypeID::UINT64:
@@ -206,19 +203,6 @@ class TypeUtils {
       return func(double());
     case LogicalTypeID::FLOAT:
       return func(float());
-    case LogicalTypeID::DECIMAL:
-      switch (dataType.getPhysicalType()) {
-      case PhysicalTypeID::INT16:
-        return func(int16_t());
-      case PhysicalTypeID::INT32:
-        return func(int32_t());
-      case PhysicalTypeID::INT64:
-        return func(int64_t());
-      case PhysicalTypeID::INT128:
-        return func(int128_t());
-      default:
-        NEUG_UNREACHABLE;
-      }
     case LogicalTypeID::INTERVAL:
       return func(interval_t());
     case LogicalTypeID::INTERNAL_ID:
@@ -227,20 +211,10 @@ class TypeUtils {
       return func(neug_string_t());
     case LogicalTypeID::DATE:
       return func(date_t());
-    case LogicalTypeID::TIMESTAMP_NS:
-      return func(timestamp_ns_t());
     case LogicalTypeID::TIMESTAMP_MS:
       return func(timestamp_ms_t());
-    case LogicalTypeID::TIMESTAMP_SEC:
-      return func(timestamp_sec_t());
-    case LogicalTypeID::TIMESTAMP_TZ:
-      return func(timestamp_tz_t());
     case LogicalTypeID::TIMESTAMP:
       return func(timestamp_t());
-    case LogicalTypeID::BLOB:
-      return func(blob_t());
-    case LogicalTypeID::UUID:
-      return func(neug_uuid_t());
     case LogicalTypeID::ARRAY:
     case LogicalTypeID::LIST:
       return func(list_entry_t());
@@ -251,8 +225,6 @@ class TypeUtils {
     case LogicalTypeID::RECURSIVE_REL:
     case LogicalTypeID::STRUCT:
       return func(struct_entry_t());
-    case LogicalTypeID::UNION:
-      return func(union_entry_t());
     /* NOLINTEND(bugprone-branch-clone)*/
     default:
       // Unsupported type
@@ -304,7 +276,6 @@ class TypeUtils {
       return func(struct_entry_t());
     /* NOLINTEND(bugprone-branch-clone)*/
     case PhysicalTypeID::ANY:
-    case PhysicalTypeID::POINTER:
     case PhysicalTypeID::ALP_EXCEPTION_DOUBLE:
     case PhysicalTypeID::ALP_EXCEPTION_FLOAT:
       // Unsupported type
@@ -329,13 +300,7 @@ std::string TypeUtils::toString(const internalID_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const date_t& val, void* valueVector);
 template <>
-std::string TypeUtils::toString(const timestamp_ns_t& val, void* valueVector);
-template <>
 std::string TypeUtils::toString(const timestamp_ms_t& val, void* valueVector);
-template <>
-std::string TypeUtils::toString(const timestamp_sec_t& val, void* valueVector);
-template <>
-std::string TypeUtils::toString(const timestamp_tz_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const timestamp_t& val, void* valueVector);
 template <>
@@ -343,17 +308,11 @@ std::string TypeUtils::toString(const interval_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const neug_string_t& val, void* valueVector);
 template <>
-std::string TypeUtils::toString(const blob_t& val, void* valueVector);
-template <>
-std::string TypeUtils::toString(const neug_uuid_t& val, void* valueVector);
-template <>
 std::string TypeUtils::toString(const list_entry_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const map_entry_t& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const struct_entry_t& val, void* valueVector);
-template <>
-std::string TypeUtils::toString(const union_entry_t& val, void* valueVector);
 
 }  // namespace common
 }  // namespace neug

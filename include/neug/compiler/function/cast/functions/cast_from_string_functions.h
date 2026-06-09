@@ -25,8 +25,6 @@
 #include "cast_string_non_nested_functions.h"
 #include "neug/compiler/common/copier_config/csv_reader_config.h"
 #include "neug/compiler/common/type_utils.h"
-#include "neug/compiler/common/types/blob.h"
-#include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
 using namespace neug::common;
@@ -171,17 +169,6 @@ inline void CastString::operation(const neug_string_t& input,
 
 template <>
 inline void CastString::operation(const neug_string_t& input,
-                                  timestamp_ns_t& result,
-                                  ValueVector* /*resultVector*/,
-                                  uint64_t /*rowToAdd*/,
-                                  const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<timestamp_ns_t>((const char*) input.getData(),
-                                                 input.len, result,
-                                                 LogicalTypeID::TIMESTAMP_NS);
-}
-
-template <>
-inline void CastString::operation(const neug_string_t& input,
                                   timestamp_ms_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
@@ -189,28 +176,6 @@ inline void CastString::operation(const neug_string_t& input,
   TryCastStringToTimestamp::cast<timestamp_ms_t>((const char*) input.getData(),
                                                  input.len, result,
                                                  LogicalTypeID::TIMESTAMP_MS);
-}
-
-template <>
-inline void CastString::operation(const neug_string_t& input,
-                                  timestamp_sec_t& result,
-                                  ValueVector* /*resultVector*/,
-                                  uint64_t /*rowToAdd*/,
-                                  const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<timestamp_sec_t>((const char*) input.getData(),
-                                                  input.len, result,
-                                                  LogicalTypeID::TIMESTAMP_SEC);
-}
-
-template <>
-inline void CastString::operation(const neug_string_t& input,
-                                  neug::common::timestamp_tz_t& result,
-                                  ValueVector* /*resultVector*/,
-                                  uint64_t /*rowToAdd*/,
-                                  const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<neug::common::timestamp_tz_t>(
-      (const char*) input.getData(), input.len, result,
-      LogicalTypeID::TIMESTAMP_TZ);
 }
 
 template <>
@@ -233,16 +198,6 @@ inline void CastString::operation(const neug_string_t& input, bool& result,
 }
 
 template <>
-void CastString::operation(const neug_string_t& input, blob_t& result,
-                           ValueVector* resultVector, uint64_t rowToAdd,
-                           const CSVOption* option);
-
-template <>
-void CastString::operation(const neug_string_t& input, neug_uuid_t& result,
-                           ValueVector* result_vector, uint64_t rowToAdd,
-                           const CSVOption* option);
-
-template <>
 void CastString::operation(const neug_string_t& input, list_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
@@ -254,11 +209,6 @@ void CastString::operation(const neug_string_t& input, map_entry_t& result,
 
 template <>
 void CastString::operation(const neug_string_t& input, struct_entry_t& result,
-                           ValueVector* resultVector, uint64_t rowToAdd,
-                           const CSVOption* option);
-
-template <>
-void CastString::operation(const neug_string_t& input, union_entry_t& result,
                            ValueVector* resultVector, uint64_t rowToAdd,
                            const CSVOption* option);
 

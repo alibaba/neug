@@ -480,20 +480,12 @@ template NEUG_API void ValueVector::setValue<float>(uint32_t pos, float val);
 template NEUG_API void ValueVector::setValue<date_t>(uint32_t pos, date_t val);
 template NEUG_API void ValueVector::setValue<timestamp_t>(uint32_t pos,
                                                           timestamp_t val);
-template NEUG_API void ValueVector::setValue<timestamp_ns_t>(
-    uint32_t pos, timestamp_ns_t val);
 template NEUG_API void ValueVector::setValue<timestamp_ms_t>(
     uint32_t pos, timestamp_ms_t val);
-template NEUG_API void ValueVector::setValue<timestamp_sec_t>(
-    uint32_t pos, timestamp_sec_t val);
-template NEUG_API void ValueVector::setValue<timestamp_tz_t>(
-    uint32_t pos, timestamp_tz_t val);
 template NEUG_API void ValueVector::setValue<interval_t>(uint32_t pos,
                                                          interval_t val);
 template NEUG_API void ValueVector::setValue<list_entry_t>(uint32_t pos,
                                                            list_entry_t val);
-template NEUG_API void ValueVector::setValue<neug_uuid_t>(uint32_t pos,
-                                                          neug_uuid_t val);
 
 template <>
 void ValueVector::setValue(uint32_t pos, neug_string_t val) {

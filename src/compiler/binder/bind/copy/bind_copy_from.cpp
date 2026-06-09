@@ -475,9 +475,6 @@ static bool skipPropertyInFile(const PropertyDefinition& property) {
 }
 
 static bool skipPropertyInSchema(const PropertyDefinition& property) {
-  if (property.getType().getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    return true;
-  }
   if (property.getName() == InternalKeyword::ID) {
     return true;
   }
@@ -531,13 +528,7 @@ void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
   columnNames.push_back("from");
   columnNames.push_back("to");
   auto srcPKColumnType = srcTable->getPrimaryKeyDefinition().getType().copy();
-  if (srcPKColumnType.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    srcPKColumnType = LogicalType::INT64();
-  }
   auto dstPKColumnType = dstTable->getPrimaryKeyDefinition().getType().copy();
-  if (dstPKColumnType.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    dstPKColumnType = LogicalType::INT64();
-  }
   columnTypes.push_back(std::move(srcPKColumnType));
   columnTypes.push_back(std::move(dstPKColumnType));
   bindExpectedColumns(relTableEntry, info, columnNames, columnTypes);

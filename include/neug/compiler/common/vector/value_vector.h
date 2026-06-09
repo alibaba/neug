@@ -350,38 +350,6 @@ class StructVector {
                                  const uint8_t* srcData);
 };
 
-class UnionVector {
- public:
-  static inline ValueVector* getTagVector(const ValueVector* vector) {
-    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    return StructVector::getFieldVector(vector, UnionType::TAG_FIELD_IDX).get();
-  }
-
-  static inline ValueVector* getValVector(const ValueVector* vector,
-                                          union_field_idx_t fieldIdx) {
-    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    return StructVector::getFieldVector(
-               vector, UnionType::getInternalFieldIdx(fieldIdx))
-        .get();
-  }
-
-  static inline void referenceVector(
-      ValueVector* vector, union_field_idx_t fieldIdx,
-      std::shared_ptr<ValueVector> vectorToReference) {
-    StructVector::referenceVector(vector,
-                                  UnionType::getInternalFieldIdx(fieldIdx),
-                                  std::move(vectorToReference));
-  }
-
-  static inline void setTagField(ValueVector& vector, SelectionVector& sel,
-                                 union_field_idx_t tag) {
-    NEUG_ASSERT(vector.dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    for (auto i = 0u; i < sel.getSelSize(); i++) {
-      vector.setValue<struct_field_idx_t>(sel[i], tag);
-    }
-  }
-};
-
 class MapVector {
  public:
   static inline ValueVector* getKeyVector(const ValueVector* vector) {

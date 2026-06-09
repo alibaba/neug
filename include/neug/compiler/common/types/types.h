@@ -76,7 +76,6 @@ constexpr idx_t INVALID_IDX = UINT32_MAX;
 using block_idx_t = uint64_t;
 constexpr block_idx_t INVALID_BLOCK_IDX = UINT64_MAX;
 using struct_field_idx_t = uint8_t;
-using union_field_idx_t = struct_field_idx_t;
 constexpr struct_field_idx_t INVALID_STRUCT_FIELD_IDX = UINT8_MAX;
 using row_idx_t = uint64_t;
 constexpr row_idx_t INVALID_ROW_IDX = UINT64_MAX;
@@ -149,10 +148,6 @@ struct map_entry_t {
   list_entry_t entry;
 };
 
-struct union_entry_t {
-  struct_entry_t entry;
-};
-
 struct int128_t;
 struct neug_string_t;
 
@@ -209,7 +204,6 @@ enum class LogicalTypeID : uint8_t {
   NODE = 10,
   REL = 11,
   RECURSIVE_REL = 12,
-  SERIAL = 13,
 
   BOOL = 22,
   INT64 = 23,
@@ -225,25 +219,16 @@ enum class LogicalTypeID : uint8_t {
   FLOAT = 33,
   DATE = 34,
   TIMESTAMP = 35,
-  TIMESTAMP_SEC = 36,
   TIMESTAMP_MS = 37,
-  TIMESTAMP_NS = 38,
-  TIMESTAMP_TZ = 39,
   INTERVAL = 40,
-  DECIMAL = 41,
   INTERNAL_ID = 42,
 
   STRING = 50,
-  BLOB = 51,
 
   LIST = 52,
   ARRAY = 53,
   STRUCT = 54,
   MAP = 55,
-  UNION = 56,
-  POINTER = 58,
-
-  UUID = 59,
 
   DATE32 = 60,      // return i32 in storage without any format
   TIMESTAMP64 = 61  // return i64 in storage without any format
@@ -272,7 +257,6 @@ enum class PhysicalTypeID : uint8_t {
   LIST = 22,
   ARRAY = 23,
   STRUCT = 24,
-  POINTER = 25,
 };
 
 class ExtraTypeInfo;
@@ -284,7 +268,6 @@ enum class TypeCategory : uint8_t { INTERNAL = 0, UDT = 1 };
 
 class LogicalType {
   friend struct LogicalTypeUtils;
-  friend struct DecimalType;
   friend struct StructType;
   friend struct ListType;
   friend struct ArrayType;
@@ -362,32 +345,18 @@ class LogicalType {
   static LogicalType DOUBLE() { return LogicalType(LogicalTypeID::DOUBLE); }
   static LogicalType FLOAT() { return LogicalType(LogicalTypeID::FLOAT); }
   static LogicalType DATE() { return LogicalType(LogicalTypeID::DATE); }
-  static LogicalType TIMESTAMP_NS() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_NS);
-  }
   static LogicalType TIMESTAMP_MS() {
     return LogicalType(LogicalTypeID::TIMESTAMP_MS);
-  }
-  static LogicalType TIMESTAMP_SEC() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_SEC);
-  }
-  static LogicalType TIMESTAMP_TZ() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_TZ);
   }
   static LogicalType TIMESTAMP() {
     return LogicalType(LogicalTypeID::TIMESTAMP);
   }
   static LogicalType INTERVAL() { return LogicalType(LogicalTypeID::INTERVAL); }
-  static NEUG_API LogicalType DECIMAL(uint32_t precision, uint32_t scale);
   static LogicalType INTERNAL_ID() {
     return LogicalType(LogicalTypeID::INTERNAL_ID);
   }
-  static LogicalType SERIAL() { return LogicalType(LogicalTypeID::SERIAL); }
   static LogicalType STRING();
   static LogicalType STRING(size_t max_length);
-  static LogicalType BLOB() { return LogicalType(LogicalTypeID::BLOB); }
-  static LogicalType UUID() { return LogicalType(LogicalTypeID::UUID); }
-  static LogicalType POINTER() { return LogicalType(LogicalTypeID::POINTER); }
   static NEUG_API LogicalType STRUCT(std::vector<StructField>&& fields);
 
   static NEUG_API LogicalType
@@ -396,8 +365,6 @@ class LogicalType {
   static NEUG_API LogicalType NODE(std::unique_ptr<StructTypeInfo> typeInfo);
 
   static NEUG_API LogicalType REL(std::unique_ptr<StructTypeInfo> typeInfo);
-
-  static NEUG_API LogicalType UNION(std::vector<StructField>&& fields);
 
   static NEUG_API LogicalType LIST(LogicalType childType);
   template <class T>
@@ -493,28 +460,6 @@ class NEUG_API UDTTypeInfo : public ExtraTypeInfo {
 
  private:
   std::string typeName;
-};
-
-class DecimalTypeInfo final : public ExtraTypeInfo {
- public:
-  explicit DecimalTypeInfo(uint32_t precision = 18, uint32_t scale = 3)
-      : precision(precision), scale(scale) {}
-
-  uint32_t getPrecision() const { return precision; }
-  uint32_t getScale() const { return scale; }
-
-  bool containsAny() const override { return false; }
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-
- protected:
-  void serializeInternal(Serializer& serializer) const override;
-
-  uint32_t precision, scale;
 };
 
 class NEUG_API ListTypeInfo : public ExtraTypeInfo {
@@ -654,13 +599,6 @@ class GRelTypeInfo : public StructTypeInfo {
 
 using logical_type_vec_t = std::vector<LogicalType>;
 
-struct NEUG_API DecimalType {
-  static uint32_t getPrecision(const LogicalType& type);
-  static uint32_t getScale(const LogicalType& type);
-  static std::string insertDecimalPoint(const std::string& value,
-                                        uint32_t posFromEnd);
-};
-
 struct NEUG_API ListType {
   static const LogicalType& getChildType(const LogicalType& type);
 };
@@ -703,24 +641,6 @@ struct NEUG_API MapType {
   static const LogicalType& getKeyType(const LogicalType& type);
 
   static const LogicalType& getValueType(const LogicalType& type);
-};
-
-struct NEUG_API UnionType {
-  static constexpr union_field_idx_t TAG_FIELD_IDX = 0;
-
-  static constexpr auto TAG_FIELD_TYPE = LogicalTypeID::INT8;
-
-  static constexpr char TAG_FIELD_NAME[] = "tag";
-
-  static union_field_idx_t getInternalFieldIdx(union_field_idx_t idx);
-
-  static std::string getFieldName(const LogicalType& type,
-                                  union_field_idx_t idx);
-
-  static const LogicalType& getFieldType(const LogicalType& type,
-                                         union_field_idx_t idx);
-
-  static uint64_t getNumFields(const LogicalType& type);
 };
 
 struct PhysicalTypeUtils {

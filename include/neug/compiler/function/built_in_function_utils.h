@@ -84,17 +84,11 @@ class BuiltInFunctionsUtils {
 
   static uint32_t castFloat(common::LogicalTypeID targetTypeID);
 
-  static uint32_t castDecimal(common::LogicalTypeID targetTypeID);
-
   static uint32_t castDate(common::LogicalTypeID targetTypeID);
-
-  static uint32_t castSerial(common::LogicalTypeID targetTypeID);
 
   static uint32_t castTimestamp(common::LogicalTypeID targetTypeID);
 
   static uint32_t castFromString(common::LogicalTypeID inputTypeID);
-
-  static uint32_t castUUID(common::LogicalTypeID targetTypeID);
 
   static uint32_t castList(common::LogicalTypeID targetTypeID);
 
