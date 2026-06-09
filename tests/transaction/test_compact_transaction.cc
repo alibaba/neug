@@ -93,11 +93,10 @@ class CompactTransactionTest : public ::testing::Test {
                      neug::label_t src_label, neug::label_t neighbor_label,
                      neug::label_t edge_label, bool outgoing) {
     size_t edge_count = 0;
-    auto view = outgoing
-                    ? gi.GetGenericOutgoingGraphView(src_label, neighbor_label,
-                                                    edge_label)
-                    : gi.GetGenericIncomingGraphView(src_label, neighbor_label,
-                                                    edge_label);
+    auto view = outgoing ? gi.GetGenericOutgoingGraphView(
+                               src_label, neighbor_label, edge_label)
+                         : gi.GetGenericIncomingGraphView(
+                               src_label, neighbor_label, edge_label);
     auto v_set = gi.GetVertexSet(src_label);
     v_set.foreach_vertex([&](neug::vid_t vid) {
       auto edge_iter = view.get_edges(vid);
@@ -139,7 +138,7 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -147,9 +146,8 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
 
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     EXPECT_EQ(count_vertices(gi, software_label), 2);
-    EXPECT_EQ(count_edges(gi, person_label, software_label, created_label,
-                          true),
-              2);
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 2);
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
               1);
     EXPECT_TRUE(txn.Commit());
@@ -176,7 +174,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     EXPECT_TRUE(txn.Commit());
@@ -193,7 +191,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -202,9 +200,8 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     EXPECT_EQ(count_vertices(gi, software_label), 2);
     // Only person 1's edges remain
-    EXPECT_EQ(count_edges(gi, person_label, software_label, created_label,
-                          true),
-              1);
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 1);
     // knows edge: person1 → person2, but person2 is deleted
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
               0);
@@ -250,7 +247,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
 
     auto sess = svc2->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -258,9 +255,8 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     EXPECT_EQ(count_vertices(gi, software_label), 2);
     // Only person 2's created edge remains
-    EXPECT_EQ(count_edges(gi, person_label, software_label, created_label,
-                          true),
-              1);
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 1);
     EXPECT_TRUE(txn.Commit());
     db2.Close();
   }
@@ -286,7 +282,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     EXPECT_TRUE(txn.Commit());
@@ -314,7 +310,7 @@ static void AssertCompactBlocksAcquire(
   std::atomic<bool> worker_acquired{false};
 
   // Main thread: acquire compact timestamp (exclusive lock)
-  uint32_t compact_ts = vm.acquire_compact_timestamp();
+  uint32_t compact_ts = vm.acquire_update_timestamp();
 
   // Worker thread: try to acquire another timestamp
   std::thread worker([&]() {
@@ -334,7 +330,7 @@ static void AssertCompactBlocksAcquire(
       << "Worker should be blocked while compact timestamp is held";
 
   // Release compact timestamp — worker should proceed
-  vm.release_compact_timestamp(compact_ts);
+  vm.release_update_timestamp(compact_ts);
 
   worker.join();
   EXPECT_TRUE(worker_acquired.load())
@@ -346,8 +342,7 @@ TEST_F(CompactTransactionTest, CompactBlocksRead) {
   vm.init_ts(0, 1);
 
   AssertCompactBlocksAcquire(
-      vm,
-      [](neug::TPVersionManager& v) { v.acquire_read_timestamp(); },
+      vm, [](neug::TPVersionManager& v) { v.acquire_read_timestamp(); },
       [](neug::TPVersionManager& v, uint32_t) { v.release_read_timestamp(); });
 }
 
@@ -355,8 +350,7 @@ TEST_F(CompactTransactionTest, CompactBlocksInsert) {
   neug::TPVersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm,
-      [](neug::TPVersionManager& v) { v.acquire_insert_timestamp(); },
+      vm, [](neug::TPVersionManager& v) { v.acquire_insert_timestamp(); },
       [](neug::TPVersionManager& v, uint32_t ts) {
         v.release_insert_timestamp(ts);
       });
@@ -366,8 +360,7 @@ TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
   neug::TPVersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm,
-      [](neug::TPVersionManager& v) { v.acquire_update_timestamp(); },
+      vm, [](neug::TPVersionManager& v) { v.acquire_update_timestamp(); },
       [](neug::TPVersionManager& v, uint32_t ts) {
         v.release_update_timestamp(ts);
       });
@@ -377,9 +370,8 @@ TEST_F(CompactTransactionTest, CompactBlocksCompact) {
   neug::TPVersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm,
-      [](neug::TPVersionManager& v) { v.acquire_compact_timestamp(); },
+      vm, [](neug::TPVersionManager& v) { v.acquire_update_timestamp(); },
       [](neug::TPVersionManager& v, uint32_t ts) {
-        v.release_compact_timestamp(ts);
+        v.release_update_timestamp(ts);
       });
 }
