@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <filesystem>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
@@ -164,59 +165,61 @@ TEST_F(TableTest, TestTableBasic) {
   size_t index = 0;
   for (size_t i = 0; i < 10; i++) {
     disk_table.get_column("bool_column")
-        ->set_prop(index, Property::from_bool(bool_data[i]));
+        ->set_any(index, execution::Value::BOOLEAN(bool_data[i]), false);
     mem_table.get_column("bool_column")
-        ->set_prop(index, Property::from_bool(bool_data[i]));
+        ->set_any(index, execution::Value::BOOLEAN(bool_data[i]), false);
 
     disk_table.get_column("int32_column")
-        ->set_prop(index, Property::from_int32(int32_data[i]));
+        ->set_any(index, execution::Value::INT32(int32_data[i]), false);
     mem_table.get_column("int32_column")
-        ->set_prop(index, Property::from_int32(int32_data[i]));
+        ->set_any(index, execution::Value::INT32(int32_data[i]), false);
 
     disk_table.get_column("uint32_column")
-        ->set_prop(index, Property::from_uint32(uint32_data[i]));
+        ->set_any(index, execution::Value::UINT32(uint32_data[i]), false);
     mem_table.get_column("uint32_column")
-        ->set_prop(index, Property::from_uint32(uint32_data[i]));
+        ->set_any(index, execution::Value::UINT32(uint32_data[i]), false);
 
     disk_table.get_column("int64_column")
-        ->set_prop(index, Property::from_int64(int64_data[i]));
+        ->set_any(index, execution::Value::INT64(int64_data[i]), false);
     mem_table.get_column("int64_column")
-        ->set_prop(index, Property::from_int64(int64_data[i]));
+        ->set_any(index, execution::Value::INT64(int64_data[i]), false);
 
     disk_table.get_column("uint64_column")
-        ->set_prop(index, Property::from_uint64(uint64_data[i]));
+        ->set_any(index, execution::Value::UINT64(uint64_data[i]), false);
     mem_table.get_column("uint64_column")
-        ->set_prop(index, Property::from_uint64(uint64_data[i]));
+        ->set_any(index, execution::Value::UINT64(uint64_data[i]), false);
 
     disk_table.get_column("float_column")
-        ->set_prop(index, Property::from_float(float_data[i]));
+        ->set_any(index, execution::Value::FLOAT(float_data[i]), false);
     mem_table.get_column("float_column")
-        ->set_prop(index, Property::from_float(float_data[i]));
+        ->set_any(index, execution::Value::FLOAT(float_data[i]), false);
 
     disk_table.get_column("double_column")
-        ->set_prop(index, Property::from_double(double_data[i]));
+        ->set_any(index, execution::Value::DOUBLE(double_data[i]), false);
     mem_table.get_column("double_column")
-        ->set_prop(index, Property::from_double(double_data[i]));
+        ->set_any(index, execution::Value::DOUBLE(double_data[i]), false);
 
     disk_table.get_column("date_column")
-        ->set_prop(index, Property::from_date(date_data[i]));
+        ->set_any(index, execution::Value::DATE(date_data[i]), false);
     mem_table.get_column("date_column")
-        ->set_prop(index, Property::from_date(date_data[i]));
+        ->set_any(index, execution::Value::DATE(date_data[i]), false);
 
     disk_table.get_column("datetime_column")
-        ->set_prop(index, Property::from_datetime(datetime_data[i]));
+        ->set_any(index, execution::Value::TIMESTAMPMS(datetime_data[i]),
+                  false);
     mem_table.get_column("datetime_column")
-        ->set_prop(index, Property::from_datetime(datetime_data[i]));
+        ->set_any(index, execution::Value::TIMESTAMPMS(datetime_data[i]),
+                  false);
 
     disk_table.get_column("interval_column")
-        ->set_prop(index, Property::from_interval(interval_data[i]));
+        ->set_any(index, execution::Value::INTERVAL(interval_data[i]), false);
     mem_table.get_column("interval_column")
-        ->set_prop(index, Property::from_interval(interval_data[i]));
+        ->set_any(index, execution::Value::INTERVAL(interval_data[i]), false);
 
     disk_table.get_column("string_column")
-        ->set_prop(index, Property::from_string_view(string_data[i]));
+        ->set_any(index, execution::Value::STRING(string_data[i]), true);
     mem_table.get_column("string_column")
-        ->set_prop(index, Property::from_string_view(string_data[i]));
+        ->set_any(index, execution::Value::STRING(string_data[i]), true);
     index++;
   }
 
@@ -356,7 +359,7 @@ TEST_F(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.get_row(0).size(), 11);
     EXPECT_EQ(disk_table.get_column("bool_column")->type(),
               DataTypeId::kBoolean);
-    std::vector<Property> properties = disk_table.get_row(9);
+    const auto& properties = disk_table.get_row(9);
     disk_table.insert(9, properties, false);
   }
 
@@ -396,26 +399,29 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
 
   OpenTableLegacy(table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
                   col_name, property_types);
-  table.resize(2, {Property::from_string_view("default_value")});
+  table.resize(2, std::vector<execution::Value>{
+                      execution::Value::STRING(std::string("default_value"))});
 
   auto string_column = std::dynamic_pointer_cast<StringColumn>(
       table.get_column("string_column"));
   ASSERT_NE(string_column, nullptr);
 
-  EXPECT_EQ(string_column->get_prop(0).as_string_view(), "default_value");
+  EXPECT_EQ(string_column->get_any(0).GetValue<std::string>(), "default_value");
 
-  string_column->set_prop(1, Property::from_string_view(""));
-  EXPECT_TRUE(string_column->get_prop(1).as_string_view().empty());
-  EXPECT_EQ(string_column->get_prop(1).type(), DataTypeId::kVarchar);
-  string_column->set_prop(
-      1, Property::from_string_view("new value new value new value"));
-  EXPECT_EQ(string_column->get_prop(1).as_string_view(),
+  string_column->set_any(1, execution::Value::STRING(std::string("")), true);
+  EXPECT_TRUE(string_column->get_any(1).GetValue<std::string>().empty());
+  EXPECT_EQ(string_column->get_any(1).type().id(), DataTypeId::kVarchar);
+  string_column->set_any(
+      1, execution::Value::STRING(std::string("new value new value new value")),
+      true);
+  EXPECT_EQ(string_column->get_any(1).GetValue<std::string>(),
             "new value new value new value");
   auto desc = string_column->Dump(*ckp);
   StringColumn new_string_column;
   new_string_column.Open(*ckp, desc, MemoryLevel::kInMemory);
-  EXPECT_EQ(new_string_column.get_prop(0).as_string_view(), "default_value");
-  EXPECT_EQ(new_string_column.get_prop(1).as_string_view(),
+  EXPECT_EQ(new_string_column.get_any(0).GetValue<std::string>(),
+            "default_value");
+  EXPECT_EQ(new_string_column.get_any(1).GetValue<std::string>(),
             "new value new value new value");
 }
 

@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/execution/common/types/value.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -80,9 +81,9 @@ struct UpdateVertexPropUndo : public IUndoLog {
   label_t v_label;
   vid_t vid;
   int32_t col_id;
-  Property value;
+  execution::Value value;
   UpdateVertexPropUndo(label_t v_label, vid_t vid, int32_t col_id,
-                       const Property& value)
+                       const execution::Value& value)
       : v_label(v_label), vid(vid), col_id(col_id), value(value) {}
   OpType GetType() const override { return OpType::kUpdateVertexProp; }
   void Undo(PropertyGraph& graph, timestamp_t ts) const override;
@@ -93,10 +94,11 @@ struct UpdateEdgePropUndo : public IUndoLog {
   vid_t src_lid, dst_lid;
   int32_t oe_offset, ie_offset;
   int32_t col_id;
-  Property value;
+  execution::Value value;
   UpdateEdgePropUndo(label_t src_label, label_t dst_label, label_t edge_label,
                      vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
-                     int32_t ie_offset, int32_t col_id, const Property& value)
+                     int32_t ie_offset, int32_t col_id,
+                     const execution::Value& value)
       : src_label(src_label),
         dst_label(dst_label),
         edge_label(edge_label),

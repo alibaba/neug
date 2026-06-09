@@ -446,14 +446,14 @@ class ASPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Property oid;
+    execution::Value oid;
     if (expr_opr_.has_param()) {
       auto name = expr_opr_.param().name();
       auto val = params.at(name).GetValue<int64_t>();
-      oid = Property::from_int64(val);
+      oid = execution::Value::INT64(val);
     } else {
       const auto& c = expr_opr_.const_();
-      oid = Property::from_int64(c.i64());
+      oid = execution::Value::INT64(c.i64());
     }
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
@@ -488,14 +488,14 @@ class SSSDSPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Property vertex = [&]() {
+    execution::Value vertex = [&]() {
       if (expr_opr_.has_param()) {
         auto name = expr_opr_.param().name();
         auto val = params.at(name).GetValue<int64_t>();
-        return Property::from_int64(val);
+        return execution::Value::INT64(val);
       } else {
         const auto& c = expr_opr_.const_();
-        return Property::from_int64(c.i64());
+        return execution::Value::INT64(c.i64());
       }
     }();
     vid_t vid;

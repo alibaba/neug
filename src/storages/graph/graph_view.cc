@@ -21,12 +21,12 @@ VertexSet GraphView::GetVertexSet(label_t label, timestamp_t ts) const {
   return pg_->get_vertex_table(label).GetVertexSet(ts);
 }
 
-bool GraphView::get_lid(label_t label, const Property& oid, vid_t& lid,
+bool GraphView::get_lid(label_t label, const execution::Value& oid, vid_t& lid,
                         timestamp_t ts) const {
   return pg_->get_lid(label, oid, lid, ts);
 }
 
-Property GraphView::GetOid(label_t label, vid_t lid) const {
+execution::Value GraphView::GetOid(label_t label, vid_t lid) const {
   return pg_->GetOid(label, lid, MAX_TIMESTAMP);
 }
 
@@ -71,15 +71,15 @@ EdgeDataAccessor GraphView::GetEdgeDataAccessor(
       .get_edge_data_accessor(prop_name);
 }
 
-Status GraphView::AddVertex(label_t label, const Property& id,
-                            const std::vector<Property>& props, vid_t& vid,
-                            timestamp_t ts) {
+Status GraphView::AddVertex(label_t label, const execution::Value& id,
+                            const std::vector<execution::Value>& props,
+                            vid_t& vid, timestamp_t ts) {
   return pg_->AddVertex(label, id, props, vid, ts, false);
 }
 
 Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                           vid_t dst_lid, label_t edge_label,
-                          const std::vector<Property>& properties,
+                          const std::vector<execution::Value>& properties,
                           timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
                           const void*& prop) {
   return pg_->AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,

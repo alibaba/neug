@@ -17,6 +17,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/params_map.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -57,7 +58,7 @@ class Scan {
                                            const IStorageInterface& graph,
                                            const ScanParams& params,
                                            const PRED_T& predicate,
-                                           const std::vector<Property>& oids) {
+                                           const std::vector<Value>& oids) {
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
       MSVertexColumnBuilder builder(label);
@@ -101,7 +102,7 @@ class Scan {
 
   static neug::result<Context> find_vertex_with_oid(
       Context&& ctx, const IStorageInterface& graph, label_t label,
-      const Property& pk, int32_t alias);
+      const Value& pk, int32_t alias);
 };
 
 }  // namespace execution

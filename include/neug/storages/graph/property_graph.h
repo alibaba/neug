@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
@@ -35,7 +36,6 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -320,7 +320,8 @@ class PropertyGraph {
    * @return true if deletion is successful, false otherwise.
    * @note We always delete vertex in detach mode.
    */
-  Status DeleteVertex(label_t v_label, const Property& oid, timestamp_t ts);
+  Status DeleteVertex(label_t v_label, const execution::Value& oid,
+                      timestamp_t ts);
 
   Status DeleteVertex(label_t v_label, vid_t lid, timestamp_t ts);
 
@@ -378,28 +379,28 @@ class PropertyGraph {
   size_t EdgeNum(label_t src_label, label_t edge_label,
                  label_t dst_label) const;
 
-  bool get_lid(label_t label, const Property& oid, vid_t& lid,
+  bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
                timestamp_t ts) const;
 
-  Property GetOid(label_t label, vid_t lid, timestamp_t ts) const;
+  execution::Value GetOid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  Status AddVertex(label_t label, const Property& id,
-                   const std::vector<Property>& props, vid_t& vid,
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props, vid_t& vid,
                    timestamp_t ts, bool insert_safe = false);
 
   Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                  vid_t dst_lid, label_t edge_label,
-                 const std::vector<Property>& properties, timestamp_t ts,
-                 Allocator& alloc, int32_t& oe_offset, const void*& prop,
-                 bool insert_safe = false);
+                 const std::vector<execution::Value>& properties,
+                 timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
+                 const void*& prop, bool insert_safe = false);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
-                              const Property& value, timestamp_t ts);
+                              const execution::Value& value, timestamp_t ts);
 
   Status UpdateEdgeProperty(label_t src_label, vid_t src_lid, label_t dst_label,
                             vid_t dst_lid, label_t e_label, int32_t oe_offset,
                             int32_t ie_offset, int32_t col_id,
-                            const Property& new_prop, timestamp_t ts);
+                            const execution::Value& new_prop, timestamp_t ts);
 
   /**
    * @brief Get a view for traversing outgoing edges.

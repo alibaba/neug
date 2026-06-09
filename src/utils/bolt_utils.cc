@@ -32,7 +32,7 @@
 #include "glog/logging.h"
 
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/property.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
 

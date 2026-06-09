@@ -90,7 +90,6 @@ void apply_on_match_edge_impl(
         on_match) {
   for (const auto& [prop_name, expression] : on_match) {
     auto value = expression->Cast<RecordExprBase>().eval_record(ctx, row);
-    auto prop = value_to_property(value);
     auto er = edge_col.get_edge(row);
     auto label_id = er.label.edge_label;
     auto src_label = er.label.src_label;
@@ -119,7 +118,7 @@ void apply_on_match_edge_impl(
         record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
     graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
                              offset_pair.first, offset_pair.second, col_id,
-                             prop);
+                             value);
   }
 }
 
@@ -153,7 +152,7 @@ EdgeRecord insert_and_return_edge_row(
                         std::to_string(dst_label) + ", got " +
                         std::to_string(v2.label_));
   }
-  std::vector<Property> property_values(properties.size());
+  std::vector<execution::Value> property_values(properties.size());
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
     Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, row);
@@ -167,9 +166,9 @@ EdgeRecord insert_and_return_edge_row(
     }
     size_t index = std::distance(properties_name.begin(), it);
     if (value.IsNull()) {
-      property_values[index] = value_to_property(default_values[index]);
+      property_values[index] = default_values[index];
     } else {
-      property_values[index] = value_to_property(value);
+      property_values[index] = value;
     }
   }
   const void* edge_prop = nullptr;
