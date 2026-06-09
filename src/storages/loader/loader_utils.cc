@@ -294,7 +294,8 @@ CSVStreamRecordBatchSupplier::GetNextBatch() {
   } else {
     LOG(ERROR) << "Failed to read next batch from file: " << file_path_
                << " error: " << res.status().message();
-    return nullptr;
+    THROW_IO_EXCEPTION("Failed to read next batch from file: " + file_path_ +
+                       " error: " + res.status().message());
   }
 }
 
@@ -336,6 +337,8 @@ CSVTableRecordBatchSupplier::GetNextBatch() {
   if (!status.ok()) {
     LOG(ERROR) << "Failed to read batch from file: " << file_path_
                << " error: " << status.message();
+    THROW_IO_EXCEPTION("Failed to read batch from file: " + file_path_ +
+                       " error: " + status.message());
   }
   return batch;
 }
@@ -365,15 +368,15 @@ ArrowRecordBatchArraySupplier::GetNextBatch() {
 std::shared_ptr<arrow::RecordBatch>
 ArrowRecordBatchStreamSupplier::GetNextBatch() {
   if (!reader_) {
-    LOG(ERROR) << "Reader is null";
-    return nullptr;
+    THROW_IO_EXCEPTION("Reader is null");
   }
   auto result = reader_->Next();
   if (result.ok()) {
     return result.ValueOrDie();
   } else {
     LOG(ERROR) << "Failed to get next batch: " << result.status().message();
-    return nullptr;  // Handle error appropriately in production code
+    THROW_IO_EXCEPTION("Failed to get next batch: " +
+                       result.status().message());
   }
 }
 
