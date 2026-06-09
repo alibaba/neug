@@ -97,5 +97,4 @@ The typical lifecycle of an extension follows these steps:
 1. **Install**: Download the extension from the official repository to your local system
 2. **Load**: Load the extension into your current database to make it available for use
 3. **Use**: Execute queries that utilize the extension's functionality
-4. **Unload**: Extensions are automatically unloaded when the database closes
-5. **Uninstall**: Remove the extension files from your local system when no longer needed
+4. **Uninstall**: Remove the extension files from your local system when no longer needed

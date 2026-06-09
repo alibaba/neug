@@ -22,8 +22,7 @@ jobs:
     # those from forks). Fork PRs are intentionally included to avoid the
     # GitHub-hosted runner queue. Other repositories (e.g. user forks running
     # this workflow on their own branches) fall back to ubuntu-22.04.
-    # runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
-    runs-on: ubuntu-22.04
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted"]') || 'ubuntu-22.04' }}
 
     steps:
     - uses: actions/checkout@v4
