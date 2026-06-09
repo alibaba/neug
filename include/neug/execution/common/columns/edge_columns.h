@@ -451,7 +451,9 @@ class SDMLEdgeColumn : public IEdgeColumn {
   inline EdgeRecord get_edge(size_t idx) const override {
     EdgeRecord ret;
     auto& e = edges_[idx];
-    ret.label = labels_[std::get<0>(e)];
+    int label_idx = std::get<0>(e);
+    assert(label_idx >= 0 && static_cast<size_t>(label_idx) < labels_.size());
+    ret.label = labels_[label_idx];
     ret.dir = dir_;
     ret.src = std::get<1>(e);
     ret.dst = std::get<2>(e);
@@ -575,7 +577,9 @@ class BDMLEdgeColumn : public IEdgeColumn {
   inline EdgeRecord get_edge(size_t idx) const override {
     EdgeRecord ret;
     auto& e = edges_[idx];
-    ret.label = labels_[std::get<0>(e)];
+    int label_idx = std::get<0>(e);
+    assert(label_idx >= 0 && static_cast<size_t>(label_idx) < labels_.size());
+    ret.label = labels_[label_idx];
     ret.dir = std::get<4>(e);
     ret.src = std::get<1>(e);
     ret.dst = std::get<2>(e);

@@ -3154,11 +3154,13 @@ def test_sort_csr_compact(tmp_path):
         "MATCH (a:Person {id: 0}), (b:Person {id: 1}) CREATE (a)-[:Knows {since: 100}]->(b);"
     )
     res = sess.execute(
-        "MATCH (a: Person {id: 1})-[r:Knows]-> (b: Person) WHERE r.since < 2 RETURN b.id, r.since"
+        query="MATCH (a: Person {id: 1})-[r:Knows]-> (b: Person) WHERE r.since < $since RETURN b.id, r.since",
+        parameters={"since": 2},
     )
     assert list(res) == [[0, 0], [98, 1]]
     res = sess.execute(
-        "MATCH (a: Person {id: 0})-[r:Knows]-> (b: Person) WHERE r.since > 99 RETURN b.id, r.since"
+        query="MATCH (a: Person {id: 0})-[r:Knows]-> (b: Person) WHERE r.since > $since RETURN b.id, r.since",
+        parameters={"since": 99},
     )
     assert list(res) == [[1, 100]]
     sess.close()

@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/container/i_container.h"
 
 namespace neug {
@@ -32,13 +33,22 @@ namespace neug {
 class MMapContainer : public IDataContainer {
  public:
   MMapContainer();
-  virtual ~MMapContainer() {}
-
+  // Note: Close() is NOT called here because it dispatches to the pure-virtual
+  // munmapImpl(). By the time this base dtor runs the derived part is already
+  // destroyed and the vtable points back to the pure-virtual slot. Each derived
+  // class must invoke Close() from its own destructor.
+  ~MMapContainer() override = default;
+  inline FileHeader* GetHeader() const {
+    if (mmap_data_ == nullptr || mmap_size_ < sizeof(FileHeader)) {
+      return nullptr;
+    }
+    return reinterpret_cast<FileHeader*>(mmap_data_);
+  }
   virtual void Resize(size_t size) override;
   std::string GetPath() const override;
 
   void Open(const std::string& path) override;
-  void Close() override;
+  void Close();
   void Dump(const std::string& path) override;
   virtual void Sync() override;
   bool IsDirty() override;
