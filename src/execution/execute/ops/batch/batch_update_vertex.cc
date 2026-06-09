@@ -71,7 +71,7 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
     const auto& expr_ref = expr->Cast<RecordExprBase>();
 
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
-      auto value = value_to_property(expr_ref.eval_record(ctx, ind));
+      auto value = expr_ref.eval_record(ctx, ind);
       auto vr = vertex_col->get_vertex(ind);
       auto label_id = vr.label();
       // Restricts: 0. Could not set primary key; 1. Could not set empty
@@ -102,13 +102,13 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
       int32_t col_id = std::distance(property_names.begin(), pos);
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
-      if (property_types[col_id].id() != value.type()) {
+      if (property_types[col_id].id() != value.type().id()) {
         LOG(ERROR) << "Property type mismatch for property " << prop_name
                    << ": expected " << property_types[col_id].ToString()
-                   << ", got " << std::to_string(value.type());
+                   << ", got " << value.type().ToString();
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
                             ": expected " + property_types[col_id].ToString() +
-                            ", got " + std::to_string(value.type()));
+                            ", got " + value.type().ToString());
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }

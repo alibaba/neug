@@ -91,8 +91,7 @@ void apply_on_match_vertex(
     if (prop_name == std::get<1>(pks[0])) {
       THROW_RUNTIME_ERROR("Cannot ON MATCH set primary key on vertex");
     }
-    Property prop =
-        value_to_property(expr->Cast<RecordExprBase>().eval_record(ctx, row));
+    Value prop = expr->Cast<RecordExprBase>().eval_record(ctx, row);
     auto pos =
         std::find(property_names.begin(), property_names.end(), prop_name);
     if (pos == property_names.end()) {
@@ -102,7 +101,7 @@ void apply_on_match_vertex(
     }
     int32_t col_id =
         static_cast<int32_t>(std::distance(property_names.begin(), pos));
-    if (property_types[col_id].id() != prop.type()) {
+    if (property_types[col_id].id() != prop.type().id()) {
       THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
     }
     graph.UpdateVertexProperty(label, vid, col_id, prop);
@@ -131,13 +130,13 @@ neug::result<vid_t> insert_vertex_row(
                         std::to_string(properties_name.size() + 1));
   }
 
-  Property pk_value;
-  std::vector<Property> property_values(properties.size() - 1);
+  Value pk_value;
+  std::vector<execution::Value> property_values(properties.size() - 1);
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
     Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, row);
     if (prop_name == std::get<1>(pk)) {
-      pk_value = value_to_property(value);
+      pk_value = value;
     } else {
       auto it =
           std::find(properties_name.begin(), properties_name.end(), prop_name);
@@ -148,9 +147,9 @@ neug::result<vid_t> insert_vertex_row(
       }
       size_t index = std::distance(properties_name.begin(), it);
       if (value.IsNull()) {
-        property_values[index] = value_to_property(v_default_values[index]);
+        property_values[index] = v_default_values[index];
       } else {
-        property_values[index] = value_to_property(value);
+        property_values[index] = value;
       }
     }
   }

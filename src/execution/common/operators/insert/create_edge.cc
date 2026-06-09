@@ -69,7 +69,7 @@ neug::result<Context> CreateEdge::insert_edge(
                             std::to_string(dst_label) + ", got " +
                             std::to_string(v2.label_));
       }
-      std::vector<Property> property_values(properties.size());
+      std::vector<execution::Value> property_values(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
@@ -83,9 +83,9 @@ neug::result<Context> CreateEdge::insert_edge(
         } else {
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = value_to_property(default_values[index]);
+            property_values[index] = default_values[index];
           } else {
-            property_values[index] = value_to_property(value);
+            property_values[index] = value;
           }
         }
       }

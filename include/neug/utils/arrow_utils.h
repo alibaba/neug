@@ -28,7 +28,6 @@
 #include <string>       // for string
 #include <string_view>  // for string_view
 #include "glog/logging.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {

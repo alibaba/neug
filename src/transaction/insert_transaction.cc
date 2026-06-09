@@ -24,6 +24,7 @@
 #include <ostream>
 #include <thread>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -51,7 +52,8 @@ InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
-bool InsertTransaction::GetVertexIndex(label_t label, const Property& id,
+bool InsertTransaction::GetVertexIndex(label_t label,
+                                       const execution::Value& id,
                                        vid_t& index) const {
   if (graph_.get_lid(label, id, index, timestamp_)) {
     return true;
@@ -64,13 +66,14 @@ bool InsertTransaction::GetVertexIndex(label_t label, const Property& id,
   return false;
 }
 
-Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
+execution::Value InsertTransaction::GetVertexId(label_t label,
+                                                vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
     return graph_.GetOid(label, lid, timestamp_);
   }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
-    Property ret;
+    execution::Value ret(DataType(DataTypeId::kNull));
     CHECK(added_vertices_[label]->get_key(lid - base, ret));
     return ret;
   } else {
@@ -78,8 +81,8 @@ Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
   }
 }
 
-Status InsertTransaction::AddVertex(label_t label, const Property& id,
-                                    const std::vector<Property>& props,
+Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
+                                    const std::vector<execution::Value>& props,
                                     vid_t& vid) {
   std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -96,17 +99,17 @@ Status InsertTransaction::AddVertex(label_t label, const Property& id,
   int col_num = props.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
-    if (prop.type() != types[col_i].id()) {
+    if (prop.type().id() != types[col_i].id()) {
       std::string label_name = graph_.schema().get_vertex_label_name(label);
       LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
                  << "] property type not match, expected "
                  << types[col_i].ToString() << ", but got "
-                 << std::to_string(prop.type());
+                 << prop.type().ToString();
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Vertex [" + label_name + "][" + std::to_string(col_i) +
                         "] property type not match, expected " +
                         types[col_i].ToString() + ", but got " +
-                        std::to_string(prop.type()));
+                        prop.type().ToString());
     }
   }
   create_id_indexer_if_not_exists(label);
@@ -119,11 +122,10 @@ Status InsertTransaction::AddVertex(label_t label, const Property& id,
   return Status::OK();
 }
 
-Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
-                                  label_t dst_label, vid_t dst_vid,
-                                  label_t edge_label,
-                                  const std::vector<Property>& properties,
-                                  const void*& prop) {
+Status InsertTransaction::AddEdge(
+    label_t src_label, vid_t src_vid, label_t dst_label, vid_t dst_vid,
+    label_t edge_label, const std::vector<execution::Value>& properties,
+    const void*& prop) {
   const auto& src = GetVertexId(src_label, src_vid);
   const auto& dst = GetVertexId(dst_label, dst_vid);
   const auto& types =
@@ -139,15 +141,15 @@ Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
                       std::to_string(properties.size()));
   }
   for (size_t i = 0; i < properties.size(); ++i) {
-    if (properties[i].type() != types[i].id()) {
+    if (properties[i].type().id() != types[i].id()) {
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i].ToString()
-                 << ", got " << std::to_string(properties[i].type());
+                 << ", got " << properties[i].type().ToString();
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Edge property " + label_name +
                         " type not match, expected " + types[i].ToString() +
-                        ", got " + std::to_string(properties[i].type()));
+                        ", got " + properties[i].type().ToString());
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
@@ -244,7 +246,8 @@ const Schema& InsertTransaction::schema() const { return graph_.schema(); }
 
 bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
                                                 label_t label,
-                                                const Property& oid, vid_t& lid,
+                                                const execution::Value& oid,
+                                                vid_t& lid,
                                                 timestamp_t timestamp) {
   if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
     return true;

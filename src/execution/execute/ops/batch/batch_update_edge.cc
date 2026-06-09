@@ -95,18 +95,12 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
             "Property " + prop_name +
             " does not exist for edge label: " + std::to_string(label_id));
       }
-      Property prop;
       auto val_type = value.type();
-      if (val_type.id() == DataTypeId::kEmpty) {
-      } else if (val_type.id() == DataTypeId::kInt32) {
-        prop.set_int32(value.GetValue<int32_t>());
-      } else if (val_type.id() == DataTypeId::kInt64) {
-        prop.set_int64(value.GetValue<int64_t>());
-      } else if (val_type.id() == DataTypeId::kVarchar) {
-        prop.set_string_view(StringValue::Get(value));
-      } else if (val_type.id() == DataTypeId::kDouble) {
-        prop.set_double(value.GetValue<double>());
-      } else {
+      if (val_type.id() != DataTypeId::kEmpty &&
+          val_type.id() != DataTypeId::kInt32 &&
+          val_type.id() != DataTypeId::kInt64 &&
+          val_type.id() != DataTypeId::kVarchar &&
+          val_type.id() != DataTypeId::kDouble) {
         THROW_RUNTIME_ERROR("Unsupported property type: " +
                             std::to_string(static_cast<int>(val_type.id())));
       }
@@ -120,7 +114,7 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
           record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
       graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
                                offset_pair.first, offset_pair.second, col_id,
-                               prop);
+                               value);
     }
   }
   return neug::result<Context>(std::move(ctx));
