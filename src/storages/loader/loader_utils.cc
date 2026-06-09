@@ -796,8 +796,8 @@ void set_interval_column_from_string_array(
                                     type->ToString() + " to " +
                                     col_data_type.ToString());
 #undef SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY
-  }  // namespace neug
-}  // namespace neug
+  }
+}
 
 void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
