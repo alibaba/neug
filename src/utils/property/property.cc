@@ -14,55 +14,47 @@
  */
 
 #include "neug/utils/property/property.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
-Property get_default_value(const DataTypeId& type) {
-  Property default_value;
-  switch (type) {
+execution::Value get_default_value(const DataType& type) {
+  switch (type.id()) {
   case DataTypeId::kEmpty:
-    break;
+    return execution::Value(type);
   case DataTypeId::kBoolean:
-    default_value.set_bool(false);
-    break;
+    return execution::Value::BOOLEAN(false);
   case DataTypeId::kInt32:
-    default_value.set_int32(0);
-    break;
+    return execution::Value::INT32(0);
   case DataTypeId::kUInt32:
-    default_value.set_uint32(0);
-    break;
+    return execution::Value::UINT32(0);
   case DataTypeId::kInt64:
-    default_value.set_int64(0);
-    break;
+    return execution::Value::INT64(0);
   case DataTypeId::kUInt64:
-    default_value.set_uint64(0);
-    break;
+    return execution::Value::UINT64(0);
   case DataTypeId::kFloat:
-    default_value.set_float(0.0f);
-    break;
+    return execution::Value::FLOAT(0.0);
   case DataTypeId::kDouble:
-    default_value.set_double(0.0);
-    break;
-  case DataTypeId::kVarchar:
-    default_value.set_string_view("");
-    break;
+    return execution::Value::DOUBLE(0.0);
+  case DataTypeId::kVarchar: {
+    int32_t width =
+        type.RawExtraTypeInfo()
+            ? type.RawExtraTypeInfo()->Cast<StringTypeInfo>().max_length
+            : STRING_DEFAULT_MAX_LENGTH;
+    return execution::Value::VARCHAR("", width);
+  }
   case DataTypeId::kDate:
-    default_value.set_date(Date((int32_t) 0));
-    break;
+    return execution::Value::DATE(Date(0));
   case DataTypeId::kTimestampMs:
-    default_value.set_datetime(DateTime((int64_t) 0));
-    break;
+    return execution::Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
-    default_value.set_interval(Interval());
-    break;
+    return execution::Value::INTERVAL(Interval());
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported property type for default value: " + std::to_string(type) +
-        ", " + std::to_string((int) type));
+        "Unsupported property type for default value: " + type.ToString());
   }
-  return default_value;
 }
 
 InArchive& operator<<(InArchive& in_archive, const Property& value) {

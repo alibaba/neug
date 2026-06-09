@@ -108,9 +108,19 @@ BoundTableScanInfo Binder::bindTableFunc(
     auto parameterTypeID = callFunc->parameterTypeIDs[i];
     if (positionalParams[i]->expressionType == ExpressionType::LITERAL &&
         parameterTypeID != LogicalTypeID::ANY) {
-      positionalParams[i] = expressionBinder.foldExpression(
-          expressionBinder.implicitCastIfNecessary(positionalParams[i],
-                                                   inputTypes[i]));
+      positionalParams[i] = expressionBinder.implicitCastIfNecessary(
+          positionalParams[i], inputTypes[i]);
+      // A bare LITERAL already holds its final value — fold would only
+      // re-materialize it through a ValueVector. We skip that round-trip
+      // because the literal-fold path currently trips NEUG_UNREACHABLE in
+      // LogicalType::getPhysicalType (types.cpp:990) for at least
+      // JSON_SCAN's STRING parameter. When the cast above wrapped the
+      // literal in a CAST function expression we still need to fold to
+      // evaluate the cast.
+      if (positionalParams[i]->expressionType != ExpressionType::LITERAL) {
+        positionalParams[i] =
+            expressionBinder.foldExpression(positionalParams[i]);
+      }
     }
   }
   const auto& tableFunc = callFunc->constPtrCast<TableFunction>();

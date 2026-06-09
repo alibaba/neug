@@ -27,6 +27,7 @@
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "neug/common/extra_type_info.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
@@ -35,7 +36,6 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/undo_log.h"
 #include "neug/utils/id_indexer.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -179,8 +179,8 @@ class UpdateTransaction {
                         const std::string& dst_type,
                         const std::string& edge_type);
 
-  bool AddVertex(label_t label, const Property& oid,
-                 const std::vector<Property>& props, vid_t& vid);
+  Status AddVertex(label_t label, const execution::Value& oid,
+                   const std::vector<execution::Value>& props, vid_t& vid);
 
   /**
    * @brief Delete vertex and its associated edges.
@@ -191,8 +191,10 @@ class UpdateTransaction {
    */
   bool DeleteVertex(label_t label, vid_t lid);
 
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label, const std::vector<Property>& properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label,
+                 const std::vector<execution::Value>& properties,
+                 const void*& prop);
 
   bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                    label_t edge_label);
@@ -207,23 +209,23 @@ class UpdateTransaction {
     return graph_.GetVertexPropertyColumn(label, col_name);
   }
 
-  Property GetVertexProperty(label_t label, vid_t lid, int col_id) const;
+  execution::Value GetVertexProperty(label_t label, vid_t lid,
+                                     int col_id) const;
 
   bool UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                            const Property& value);
+                            const execution::Value& value);
 
   bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
                           vid_t dst, label_t edge_label, int32_t col_id,
-                          const Property& value);
+                          const execution::Value& value);
 
   bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
                           vid_t dst, label_t edge_label, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
-                          const Property& value);
+                          const execution::Value& value);
 
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
@@ -231,9 +233,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
@@ -243,9 +244,10 @@ class UpdateTransaction {
 
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
-  Property GetVertexId(label_t label, vid_t lid) const;
+  execution::Value GetVertexId(label_t label, vid_t lid) const;
 
-  bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
+  bool GetVertexIndex(label_t label, const execution::Value& id,
+                      vid_t& index) const;
 
   PropertyGraph& graph() const { return graph_; }
 
@@ -353,33 +355,34 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       : StorageUpdateInterface(txn.graph(), txn.timestamp()), txn_(txn) {}
   ~StorageTPUpdateInterface() {}
 
-  inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                   const Property& value) override {
+  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                            const execution::Value& value) override {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
-  inline void UpdateEdgeProperty(label_t src_label, vid_t src,
-                                 label_t dst_label, vid_t dst,
-                                 label_t edge_label, int32_t oe_offset,
-                                 int32_t ie_offset, int32_t col_id,
-                                 const Property& value) override {
+  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const execution::Value& value) override {
     txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                             oe_offset, ie_offset, col_id, value);
   }
 
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props,
-                        vid_t& vid) override {
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props,
+                   vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                      vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label,
+                 const std::vector<execution::Value>& properties,
+                 const void*& prop) override {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                        prop);
   }
   void CreateCheckpoint() override;
-  inline UpdateTransaction& GetTransaction() { return txn_; }
+
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;

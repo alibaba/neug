@@ -15,6 +15,8 @@
 
 #include "neug/execution/expression/exprs/arith_expr.h"
 
+#include "neug/utils/exception/exception.h"
+
 namespace neug {
 namespace execution {
 class BindedArithExpr : public VertexExprBase,
@@ -69,8 +71,8 @@ class BindedArithExpr : public VertexExprBase,
     case ::common::Arithmetic::MOD:
       return lhs % rhs;
     default:
-      LOG(FATAL) << "Unsupported arithmetic operation: "
-                 << static_cast<int>(arith);
+      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arithmetic operation: " +
+                                    std::to_string(static_cast<int>(arith)));
       return Value(type_);
     }
   }

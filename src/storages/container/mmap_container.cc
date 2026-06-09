@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <stdexcept>
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/mmap_container.h"
 #include "neug/utils/file_utils.h"
@@ -107,7 +108,9 @@ void MMapContainer::Resize(size_t size) {
   void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (new_mmap_data == MAP_FAILED) {
-    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing");
+    int err = errno;
+    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing: " +
+                       std::to_string(err) + ", size: " + std::to_string(size));
   }
 
   // Copy existing payload only when there is payload to copy
@@ -148,12 +151,14 @@ void MMapContainer::Dump(const std::string& path) {
 }
 
 bool MMapContainer::IsDirty() {
-  // Guard: no mapping or mapping too small to hold a header → never dirty.
-  if (mmap_data_ == nullptr || mmap_size_ < sizeof(FileHeader)) {
+  if (mmap_data_ == nullptr) {
     return false;
   }
   if (path_.empty()) {
     // Anonymous mmap with no backing file – always considered dirty.
+    // Must precede the FileHeader-size guard: small anonymous mmaps (e.g. a
+    // freshly-resized column with only a few entries) won't fit a FileHeader
+    // but still hold live data that Fork must copy.
     return true;
   }
   if (size_ == 0) {

@@ -33,8 +33,9 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
@@ -47,20 +48,19 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
 
-  MutableCsr() : locks_(nullptr) {}
-  ~MutableCsr() { close(); }
+  MutableCsr() : unsorted_since_(0) {}
+  ~MutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
-        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
-        reinterpret_cast<const int*>(degree_list_->GetData()), cfg, ts,
-        unsorted_since_);
+    return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+                   reinterpret_cast<const int*>(degree_list_->GetData()), cfg,
+                   ts, unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -69,15 +69,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -87,7 +82,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -110,8 +105,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator& alloc) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -140,8 +136,13 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
+    // invalidate sort flag
+    if (ts < unsorted_since_) {
+      unsorted_since_ = 0;
+    }
+    const void* data_ptr = static_cast<const void*>(&nbr.data);
     locks_[src].unlock();
-    return prev_size;
+    return {prev_size, data_ptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -177,15 +178,14 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "mutable_csr<" + type_name_string<EDATA_T>() + ">";
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-
-  void dump_meta(const std::string& prefix) const;
-
-  void open_internal(const std::string& snapshot_prefix,
-                     const std::string& tmp_prefix, MemoryLevel mem_level);
-
-  SpinLock* locks_;
+  std::unique_ptr<SpinLock[]> locks_;
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_;
   std::unique_ptr<IDataContainer> cap_list_;
@@ -208,17 +208,17 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   SingleMutableCsr() {}
-  ~SingleMutableCsr() { close(); }
+  ~SingleMutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
-                       ts, std::numeric_limits<timestamp_t>::max());
+    return CsrView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg, ts,
+                   std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {
@@ -229,15 +229,10 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -247,7 +242,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -270,8 +265,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator& alloc) override {
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator& alloc) override {
     if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -283,7 +279,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
-    return 0;
+    return {0, static_cast<const void*>(&nbrs[src].data)};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -314,10 +310,13 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
- private:
-  void load_meta(const std::string& prefix);
-  void dump_meta(const std::string& prefix) const;
+  std::string ModuleTypeName() const override { return type_name(); }
 
+  static std::string type_name() {
+    return "single_mutable_csr<" + type_name_string<EDATA_T>() + ">";
+  }
+
+ private:
   std::unique_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
 
@@ -337,9 +336,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   CsrType csr_type() const override { return CsrType::kEmpty; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     LOG(FATAL) << "Not implemented";
-    return GenericView();
+    return CsrView();
   }
 
   timestamp_t unsorted_since() const override {
@@ -350,15 +349,14 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return 0; }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel /* level */) override {}
 
-  void open_in_memory(const std::string& prefix) override {}
-
-  void open_with_hugepages(const std::string& prefix) override {}
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override {}
+  ModuleDescriptor Dump(Checkpoint& ckp) override {
+    ModuleDescriptor desc;
+    desc.module_type = ModuleTypeName();
+    return desc;
+  }
 
   void reset_timestamp() override {}
 
@@ -367,8 +365,6 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void resize(vid_t vnum) override {}
 
   size_t capacity() const override { return 0; }
-
-  void close() override {}
 
   void batch_sort_by_edge_data(timestamp_t ts) override {}
 
@@ -391,14 +387,21 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
-  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                   Allocator&) override {
-    return 0;
+  std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
+                                           const EDATA_T& data, timestamp_t ts,
+                                           Allocator&) override {
+    return {0, nullptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     return {};
+  }
+
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "empty_csr<" + type_name_string<EDATA_T>() + ">";
   }
 };
 

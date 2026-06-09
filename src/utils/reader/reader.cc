@@ -115,6 +115,18 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
 
   arrow::Result<std::shared_ptr<arrow::dataset::Dataset>> dataset_result;
   if (scan_opts->dataset_schema) {
+    auto inspected = factory->Inspect();
+    if (inspected.ok()) {
+      auto fileSchema = inspected.ValueOrDie();
+      for (const auto& field : scan_opts->dataset_schema->fields()) {
+        if (!fileSchema->GetFieldByName(field->name())) {
+          THROW_SCHEMA_MISMATCH(
+              "Column '" + field->name() +
+              "' not found in file. Available columns: " +
+              fileSchema->ToString());
+        }
+      }
+    }
     dataset_result = factory->Finish(scan_opts->dataset_schema);
   } else {
     arrow::dataset::FinishOptions finish_options;

@@ -15,7 +15,10 @@
 
 #include <gtest/gtest.h>
 
+#include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/property_graph.h"
+#include "unittest/utils.h"
 
 namespace neug {
 
@@ -23,6 +26,7 @@ class PropertyGraphTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
+  CheckpointManager ws_;
 
   void SetUp() override {
     work_dir_ = std::string("/tmp/test_property_graph") +
@@ -32,7 +36,9 @@ class PropertyGraphTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(work_dir_, MemoryLevel::kInMemory);
+    ws_.Open(work_dir_);
+    auto ckp = make_checkpoint(ws_);
+    graph_->Open(ckp, MemoryLevel::kInMemory);
   }
 
   void TearDown() override {
@@ -44,40 +50,34 @@ class PropertyGraphTest : public ::testing::Test {
 
   void CreateModernGraphSchema() {
     CreateVertexTypeParamBuilder person_builder;
-    EXPECT_TRUE(
-        graph_
-            ->CreateVertexType(person_builder.VertexLabel("person")
-                                   .AddProperty(DataTypeId::kInt64, "id",
-                                                Property::from_int64(0))
-                                   .AddProperty(DataTypeId::kVarchar, "name",
-                                                Property::from_string_view(""))
-                                   .AddProperty(DataTypeId::kInt32, "age",
-                                                Property::from_int32(0))
-                                   .AddProperty(DataTypeId::kDouble, "score",
-                                                Property::from_double(0.0))
-                                   .AddPrimaryKeyName("id")
-                                   .Build())
-            .ok());
+    EXPECT_TRUE(graph_
+                    ->CreateVertexType(
+                        person_builder.VertexLabel("person")
+                            .AddProperty("id", execution::Value::INT64(0))
+                            .AddProperty("name", execution::Value::STRING(""))
+                            .AddProperty("age", execution::Value::INT32(0))
+                            .AddProperty("score", execution::Value::DOUBLE(0.0))
+                            .AddPrimaryKeyName("id")
+                            .Build())
+                    .ok());
     CreateVertexTypeParamBuilder company_builder;
-    EXPECT_TRUE(
-        graph_
-            ->CreateVertexType(company_builder.VertexLabel("company")
-                                   .AddProperty(DataTypeId::kInt64, "id",
-                                                Property::from_int64(0))
-                                   .AddProperty(DataTypeId::kVarchar, "name",
-                                                Property::from_string_view(""))
-                                   .AddPrimaryKeyName("id")
-                                   .Build())
-            .ok());
+    EXPECT_TRUE(graph_
+                    ->CreateVertexType(
+                        company_builder.VertexLabel("company")
+                            .AddProperty("id", execution::Value::INT64(0))
+                            .AddProperty("name", execution::Value::STRING(""))
+                            .AddPrimaryKeyName("id")
+                            .Build())
+                    .ok());
     CreateEdgeTypeParamBuilder knows_builder;
     EXPECT_TRUE(
         graph_
-            ->CreateEdgeType(knows_builder.SrcLabel("person")
-                                 .DstLabel("person")
-                                 .EdgeLabel("knows")
-                                 .AddProperty(DataTypeId::kDouble, "weight",
-                                              Property::from_double(0.0))
-                                 .Build())
+            ->CreateEdgeType(
+                knows_builder.SrcLabel("person")
+                    .DstLabel("person")
+                    .EdgeLabel("knows")
+                    .AddProperty("weight", execution::Value::DOUBLE(0.0))
+                    .Build())
             .ok());
   }
 };
@@ -88,53 +88,61 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
   label_t knows_label = graph_->schema().get_edge_label_id("knows");
 
   vid_t vid1, vid2;
-  EXPECT_TRUE(
-      graph_
-          ->AddVertex(person_label, Property::from_int64(1),
-                      {Property::from_string_view("Alice"),
-                       Property::from_int32(30), Property::from_double(88.5)},
-                      vid1, 0)
-          .ok());
-  EXPECT_TRUE(
-      graph_
-          ->AddVertex(person_label, Property::from_int64(2),
-                      {Property::from_string_view("Bob"),
-                       Property::from_int32(25), Property::from_double(92.0)},
-                      vid2, 0)
-          .ok());
+  EXPECT_TRUE(graph_
+                  ->AddVertex(person_label, execution::Value::INT64(1),
+                              {execution::Value::STRING("Alice"),
+                               execution::Value::INT32(30),
+                               execution::Value::DOUBLE(88.5)},
+                              vid1, 0)
+                  .ok());
+  EXPECT_TRUE(graph_
+                  ->AddVertex(person_label, execution::Value::INT64(2),
+                              {execution::Value::STRING("Bob"),
+                               execution::Value::INT32(25),
+                               execution::Value::DOUBLE(92.0)},
+                              vid2, 0)
+                  .ok());
   auto id_column = graph_->GetVertexPropertyColumn(person_label, "id");
   EXPECT_TRUE(id_column);
-  EXPECT_EQ(id_column->get(vid1).as_int64(), 1);
-  EXPECT_EQ(id_column->get(vid2).as_int64(), 2);
+  EXPECT_EQ(id_column->get_any(vid1).GetValue<int64_t>(), 1);
+  EXPECT_EQ(id_column->get_any(vid2).GetValue<int64_t>(), 2);
 
   // By default, we will reserve 4096 slots for each vertex label.
   for (size_t i = 3; i <= 4096; ++i) {
     vid_t vid;
-    graph_->AddVertex(person_label, Property::from_int64(i),
-                      {Property::from_string_view("User" + std::to_string(i)),
-                       Property::from_int32(20 + (i % 10)),
-                       Property::from_double(80.0 + (i % 20))},
+    graph_->AddVertex(person_label, execution::Value::INT64(i),
+                      {execution::Value::STRING("User" + std::to_string(i)),
+                       execution::Value::INT32(20 + (i % 10)),
+                       execution::Value::DOUBLE(80.0 + (i % 20))},
                       vid, 0);
   }
   EXPECT_EQ(graph_->VertexNum(person_label), 4096);
   vid_t vid4097;
-  EXPECT_FALSE(
-      graph_
-          ->AddVertex(person_label, Property::from_int64(4097),
-                      {Property::from_string_view("User4097"),
-                       Property::from_int32(27), Property::from_double(85.0)},
-                      vid4097, 0)
-          .ok());
+  EXPECT_FALSE(graph_
+                   ->AddVertex(person_label, execution::Value::INT64(4097),
+                               {execution::Value::STRING("User4097"),
+                                execution::Value::INT32(27),
+                                execution::Value::DOUBLE(85.0)},
+                               vid4097, 0)
+                   .ok());
 
   Allocator allocator(MemoryLevel::kInMemory, "");
   for (vid_t i = 0; i < 4094; ++i) {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
     graph_->AddEdge(person_label, i, person_label, i + 1, knows_label,
-                    {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator);
+                    {execution::Value::DOUBLE(1.0)}, MAX_TIMESTAMP, allocator,
+                    oe_offset, prop);
   }
-  EXPECT_THROW(
-      graph_->AddEdge(person_label, 4095, person_label, 4096, knows_label,
-                      {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator),
-      exception::Exception);
+  {
+    int32_t oe_offset = 0;
+    const void* prop = nullptr;
+    EXPECT_FALSE(graph_
+                     ->AddEdge(person_label, 4095, person_label, 4096,
+                               knows_label, {execution::Value::DOUBLE(1.0)},
+                               MAX_TIMESTAMP, allocator, oe_offset, prop)
+                     .ok());
+  }
 }
 
 }  // namespace neug

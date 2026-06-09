@@ -54,6 +54,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_delete.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
+#include "neug/compiler/planner/operator/persistent/logical_merge.h"
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
@@ -127,6 +128,22 @@ class GQueryConvertor {
                            ::physical::PhysicalPlan* plan);
   void convertInsertEdge(const planner::LogicalInsert& insert,
                          ::physical::PhysicalPlan* plan);
+  void convertMerge(const planner::LogicalMerge& merge,
+                    ::physical::PhysicalPlan* plan);
+  void convertMergeVertex(const planner::LogicalMerge& merge,
+                          ::physical::PhysicalPlan* plan);
+  void convertMergeEdge(const planner::LogicalMerge& merge,
+                        ::physical::PhysicalPlan* plan);
+  void appendMergeVertexBoundSet(
+      const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+      const binder::Expression& insertPattern,
+      const planner::LogicalMerge& mergeOp,
+      ::physical::MergeVertex::Entry* entry, bool forOnCreate);
+  void appendMergeEdgeBoundSet(
+      const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+      const binder::Expression& insertPattern,
+      const planner::LogicalMerge& mergeOp, ::physical::MergeEdge::Entry* entry,
+      bool forOnCreate);
   void convertSetProperty(const planner::LogicalSetProperty& set,
                           ::physical::PhysicalPlan* plan);
   void convertSetVertexProperty(const planner::LogicalSetProperty& set,

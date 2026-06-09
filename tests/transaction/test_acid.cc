@@ -23,7 +23,7 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-#include "neug/config.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/server/neug_db_session.h"
@@ -36,19 +36,15 @@
 
 namespace fs = std::filesystem;
 using namespace neug;
-using neug::EdgeStrategy;
-using neug::MemoryLevel;
 using neug::NeugDB;
 using neug::NeugDBSession;
-using oid_t = int64_t;
-using neug::DataTypeId;
-using neug::Schema;
 using neug::vid_t;
+using oid_t = int64_t;
 
 // Utility: Generate unique id (thread-safe)
 static std::atomic<int64_t> neug_current_id(0);
-Property neug_generate_id() {
-  return neug::Property::From(neug_current_id.fetch_add(1));
+neug::execution::Value neug_generate_id() {
+  return neug::execution::Value::INT64(neug_current_id.fetch_add(1));
 }
 
 std::string neug_generate_random_string(int length) {
@@ -184,15 +180,16 @@ auto neug_get_random_vertex(StorageTPUpdateInterface& gi, label_t label_id) {
 void neug_append_string_to_field(StorageTPUpdateInterface& gui, label_t label,
                                  neug::vid_t vit, int col_id,
                                  const std::string& str) {
-  std::string cur_str =
-      std::string(gui.GetVertexProperty(label, vit, col_id).as_string_view());
+  std::string cur_str = std::string(
+      gui.GetVertexProperty(label, vit, col_id).GetValue<std::string>());
   if (cur_str.empty())
     cur_str = str;
   else {
     cur_str += ";";
     cur_str += str;
   }
-  gui.UpdateVertexProperty(label, vit, col_id, Property::From(cur_str));
+  gui.UpdateVertexProperty(label, vit, col_id,
+                           neug::execution::Value::STRING(cur_str));
 }
 
 // Atomicity helpers and tests
@@ -222,16 +219,18 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
   std::string name2 = "Bob";
   std::string email2 = "bob@hotmail.com;bobby@yahoo.com";
   vid_t vid;
-  EXPECT_TRUE(gii.AddVertex(
-      person_label_id, neug_generate_id(),
-      {Property::from_int64(id1), Property::from_string_view(name1),
-       Property::from_string_view(email1)},
-      vid));
-  EXPECT_TRUE(gii.AddVertex(
-      person_label_id, neug_generate_id(),
-      {Property::from_int64(id2), Property::from_string_view(name2),
-       Property::from_string_view(email2)},
-      vid));
+  EXPECT_TRUE(
+      gii.AddVertex(person_label_id, neug_generate_id(),
+                    {neug::execution::Value::INT64(id1),
+                     neug::execution::Value::STRING(std::string(name1)),
+                     neug::execution::Value::STRING(std::string(email1))},
+                    vid));
+  EXPECT_TRUE(
+      gii.AddVertex(person_label_id, neug_generate_id(),
+                    {neug::execution::Value::INT64(id2),
+                     neug::execution::Value::STRING(std::string(name2)),
+                     neug::execution::Value::STRING(std::string(email2))},
+                    vid));
   txn.Commit();
 
   return service;
@@ -249,16 +248,17 @@ bool neug_AtomicityC(neug::NeugDBSession& db, int64_t person2_id,
   std::string name = "", email = "";
   vid_t vid;
 
-  if (!gui.AddVertex(
-          person_label_id, p2_id,
-          {Property::from_int64(person2_id), Property::from_string_view(name),
-           Property::from_string_view(email)},
-          vid)) {
+  if (!gui.AddVertex(person_label_id, p2_id,
+                     {neug::execution::Value::INT64(person2_id),
+                      neug::execution::Value::STRING(std::string(name)),
+                      neug::execution::Value::STRING(std::string(email))},
+                     vid)) {
     txn.Abort();
     return false;
   }
+  const void* edge_prop = nullptr;
   if (!gui.AddEdge(person_label_id, vit, person_label_id, vid, knows_label_id,
-                   {Property::from_int64(since)})) {
+                   {neug::execution::Value::INT64(since)}, edge_prop)) {
     txn.Abort();
     return false;
   }
@@ -268,27 +268,27 @@ bool neug_AtomicityC(neug::NeugDBSession& db, int64_t person2_id,
 
 bool neug_AtomicityRB(neug::NeugDBSession& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
-  UpdateTransaction txn = db.GetUpdateTransaction();
+  auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vit1 = neug_get_random_vertex(gui, person_label_id);
   neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
   neug::vid_t vit2;
   if (gui.GetVertexIndex(person_label_id,
-                         neug::Property::from_int64(person2_id), vit2)) {
+                         neug::execution::Value::INT64(person2_id), vit2)) {
     txn.Abort();
     return false;
   }
   auto p2_id = neug_generate_id();
   std::string name = "", email = "";
   vid_t vid;
-  EXPECT_TRUE(gui.AddVertex(
-      person_label_id, p2_id,
-      {Property::from_int64(person2_id), Property::from_string_view(name),
-       Property::from_string_view(email)},
-      vid));
-  auto ret = txn.Commit();
-  EXPECT_TRUE(ret);
+  EXPECT_TRUE(
+      gui.AddVertex(person_label_id, p2_id,
+                    {neug::execution::Value::INT64(person2_id),
+                     neug::execution::Value::STRING(std::string(name)),
+                     neug::execution::Value::STRING(std::string(email))},
+                    vid));
+  EXPECT_TRUE(txn.Commit());
   return true;
 }
 
@@ -357,17 +357,19 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
     int64_t p1_id_property = 2 * i + 1;
     vid_t vid0, vid1;
     CHECK(gii.AddVertex(person_label_id, p1_id,
-                        {Property::from_int64(p1_id_property),
-                         Property::from_string_view(value)},
+                        {neug::execution::Value::INT64(p1_id_property),
+                         neug::execution::Value::STRING(std::string(value))},
                         vid0));
     auto p2_id = neug_generate_id();
     int64_t p2_id_property = 2 * i + 2;
     CHECK(gii.AddVertex(person_label_id, p2_id,
-                        {Property::from_int64(p2_id_property),
-                         Property::from_string_view(value)},
+                        {neug::execution::Value::INT64(p2_id_property),
+                         neug::execution::Value::STRING(std::string(value))},
                         vid1));
-    CHECK(gii.AddEdge(person_label_id, vid0, person_label_id, vid1,
-                      knows_label_id, {Property::from_string_view(value)}));
+    const void* edge_prop = nullptr;
+    CHECK(gii.AddEdge(
+        person_label_id, vid0, person_label_id, vid1, knows_label_id,
+        {neug::execution::Value::STRING(std::string(value))}, edge_prop));
   }
   txn.Commit();
   return svc;
@@ -384,7 +386,8 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person1_id) {
       vit1 = v;
       flag = true;
@@ -398,7 +401,8 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug::vid_t vit2;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person2_id) {
       vit2 = v;
       flag = true;
@@ -423,16 +427,15 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
                                              person_label_id, 0);
   CHECK(oeit != oeit_end);
 
-  Property cur = ed_accessor.get_data(oeit);
-  std::string cur_str(cur.as_string_view());
+  auto cur = ed_accessor.get_data(oeit);
+  std::string cur_str(cur.GetValue<std::string>());
   if (cur_str.empty()) {
     cur_str = std::to_string(txn_id);
   } else {
     cur_str += ";";
     cur_str += std::to_string(txn_id);
   }
-  Property new_value;
-  new_value.set_string_view(cur_str);
+  neug::execution::Value new_value = neug::execution::Value::STRING(cur_str);
 
   ed_accessor.set_data(oeit, new_value, txn.timestamp());
 
@@ -459,9 +462,10 @@ std::tuple<std::string, std::string, std::string> G0Check(
   vid_t vit1_index = 0;
   auto vertex_set = gi.GetVertexSet(person_label_id);
   for (vid_t lid : vertex_set) {
-    if (prop_col->get(lid).as_int64() == person1_id) {
+    if (prop_col->get_any(lid).GetValue<int64_t>() == person1_id) {
       vit1_index = lid;
-      p1_version_history = std::string(name_col->get(lid).as_string_view());
+      p1_version_history =
+          std::string(name_col->get_any(lid).GetValue<std::string>());
       break;
     }
   }
@@ -470,9 +474,10 @@ std::tuple<std::string, std::string, std::string> G0Check(
   std::string p2_version_history;
 
   for (vid_t lid : vertex_set) {
-    if (prop_col->get(lid).as_int64() == person2_id) {
+    if (prop_col->get_any(lid).GetValue<int64_t>() == person2_id) {
       vit2_index = lid;
-      p2_version_history = std::string(name_col->get(lid).as_string_view());
+      p2_version_history =
+          std::string(name_col->get_any(lid).GetValue<std::string>());
       break;
     }
   }
@@ -491,9 +496,10 @@ std::tuple<std::string, std::string, std::string> G0Check(
                                             person_label_id, 0);
 
   CHECK(iter != end);
-  Property k_version_history_field = ed_accessor.get_data(iter);
-  CHECK(k_version_history_field.type() == neug::DataTypeId::kVarchar);
-  std::string k_version_history(k_version_history_field.as_string_view());
+  auto k_version_history_field = ed_accessor.get_data(iter);
+  CHECK(k_version_history_field.type().id() == neug::DataTypeId::kVarchar);
+  std::string k_version_history(
+      k_version_history_field.GetValue<std::string>());
 
   return std::make_tuple(p1_version_history, p2_version_history,
                          k_version_history);
@@ -501,9 +507,12 @@ std::tuple<std::string, std::string, std::string> G0Check(
 
 // Intermediate Reads
 
-std::shared_ptr<neug::NeugDBService> G1BInit(NeugDB& db,
-                                             const std::string& work_dir,
-                                             int thread_num) {
+// Shared initializer for tests using PERSON(id, id_prop, version) schema with
+// 100 vertices (id_prop=1..100, version=initial_version). Used by G1A, G1B,
+// G1C, IMP.
+std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
+    NeugDB& db, const std::string& work_dir, int thread_num,
+    int64_t initial_version) {
   db.Open(work_dir, thread_num);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -512,20 +521,16 @@ std::shared_ptr<neug::NeugDBService> G1BInit(NeugDB& db,
         "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
         "PRIMARY KEY(id));"));
   }
-  const auto& schema = db.schema();
-
-  auto person_label_id = schema.get_vertex_label_id("PERSON");
+  auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto sess = svc->AcquireSession();
   auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
-  int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
-    int64_t vertex_id_property = i + 1;
     vid_t vid;
-    CHECK(gii.AddVertex(
-        person_label_id, neug_generate_id(),
-        {Property::from_int64(vertex_id_property), Property::from_int64(value)},
-        vid));
+    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
+                        {neug::execution::Value::INT64(i + 1),
+                         neug::execution::Value::INT64(initial_version)},
+                        vid));
   }
   txn.Commit();
   return svc;
@@ -536,9 +541,11 @@ void G1B1(neug::NeugDBSession& db, int64_t even, int64_t odd) {
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vit = neug_get_random_vertex(gui, person_label_id);
-  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From(even));
+  gui.UpdateVertexProperty(person_label_id, vit, 1,
+                           neug::execution::Value::INT64(even));
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
-  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From(odd));
+  gui.UpdateVertexProperty(person_label_id, vit, 1,
+                           neug::execution::Value::INT64(odd));
   txn.Commit();
 }
 
@@ -553,42 +560,10 @@ int64_t G1B2(neug::NeugDBSession& db) {
       std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
           gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
-  return vprop_col->get(vid).as_int64();
+  return vprop_col->get_any(vid).GetValue<int64_t>();
 }
 
 // Circular Information Flow
-
-std::shared_ptr<neug::NeugDBService> G1CInit(NeugDB& db,
-                                             const std::string& work_dir,
-                                             int thread_num) {
-  db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<neug::NeugDBService>(db);
-  {
-    auto conn = db.Connect();
-    EXPECT_TRUE(conn->Query(
-        "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
-        "PRIMARY KEY(id));"));
-  }
-  const auto& schema = db.schema();
-
-  auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
-
-  StorageTPInsertInterface gii(txn);
-
-  int64_t version_property = 0;
-  for (int i = 0; i < 100; ++i) {
-    int64_t id_property = i + 1;
-    vid_t vid;
-    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
-                        {Property::from_int64(id_property),
-                         Property::from_int64(version_property)},
-                        vid));
-  }
-  txn.Commit();
-  return svc;
-}
 
 int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
@@ -599,7 +574,8 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   bool flag = false;
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person2_id) {
       person1_vid = v;
       flag = true;
@@ -607,21 +583,22 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   gui.UpdateVertexProperty(person_label_id, person1_vid, 1,
-                           Property::From(txn_id));
+                           neug::execution::Value::INT64(txn_id));
 
   CHECK(flag);
   neug::vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person1_id) {
       person2_vid = v;
       flag = true;
       break;
     }
   }
-  int64_t ret =
-      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+  int64_t ret = gui.GetVertexProperty(person_label_id, person2_vid, 1)
+                    .GetValue<int64_t>();
 
   txn.Commit();
 
@@ -629,36 +606,6 @@ int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
 }
 
 // Aborted Reads
-
-std::shared_ptr<neug::NeugDBService> G1AInit(NeugDB& db,
-                                             const std::string& work_dir,
-                                             int thread_num) {
-  db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<neug::NeugDBService>(db);
-  {
-    auto conn = db.Connect();
-    EXPECT_TRUE(conn->Query(
-        "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
-        "PRIMARY KEY(id));"));
-  }
-  const auto& schema = db.schema();
-
-  auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
-  StorageTPInsertInterface gii(txn);
-  int64_t vertex_data = 1;
-  for (int i = 0; i < 100; ++i) {
-    int64_t vertex_id_property = i + 1;
-    vid_t vid;
-    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
-                        {Property::from_int64(vertex_id_property),
-                         Property::from_int64(vertex_data)},
-                        vid));
-  }
-  txn.Commit();
-  return svc;
-}
 
 void G1A1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
@@ -669,7 +616,8 @@ void G1A1(neug::NeugDBSession& db) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
   // attempt to set version = 2
-  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From<int64_t>(2));
+  gui.UpdateVertexProperty(person_label_id, vit, 1,
+                           neug::execution::Value::INT64(2));
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
   txn.Abort();
@@ -686,39 +634,10 @@ int64_t G1A2(neug::NeugDBSession& db) {
       std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
           gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
-  return vprop_col->get(vid).as_int64();
+  return vprop_col->get_any(vid).GetValue<int64_t>();
 }
 
 // Item-Many-Preceders
-
-std::shared_ptr<neug::NeugDBService> IMPInit(NeugDB& db,
-                                             const std::string& work_dir,
-                                             int thread_num) {
-  db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<neug::NeugDBService>(db);
-  {
-    auto conn = db.Connect();
-    EXPECT_TRUE(conn->Query(
-        "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
-        "PRIMARY KEY(id));"));
-  }
-  const auto& schema = db.schema();
-
-  auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
-  int64_t version_property = 1;
-  for (int i = 0; i < 100; ++i) {
-    int64_t id_property = i + 1;
-    vid_t vid;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
-                        {Property::from_int64(id_property),
-                         Property::from_int64(version_property)},
-                        vid));
-  }
-  txn.Commit();
-  return svc;
-}
 
 void IMP1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
@@ -726,9 +645,9 @@ void IMP1(neug::NeugDBSession& db) {
   StorageTPUpdateInterface gui(txn);
   auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
-      gui.GetVertexProperty(person_label_id, vit, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, vit, 1).GetValue<int64_t>();
   gui.UpdateVertexProperty(person_label_id, vit, 1,
-                           Property::From(old_version + 1));
+                           neug::execution::Value::INT64(old_version + 1));
   txn.Commit();
 }
 
@@ -747,7 +666,7 @@ std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   auto vertex_set = gi.GetVertexSet(person_label_id);
   bool found = false;
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == person1_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == person1_id) {
       vit0_index = lid;
       found = true;
       break;
@@ -755,19 +674,19 @@ std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   }
   CHECK(found);
 
-  int64_t v1 = v_prop_col1->get(vit0_index).as_int64();
+  int64_t v1 = v_prop_col1->get_any(vit0_index).GetValue<int64_t>();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
   vid_t vit1_index = 0;
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == person1_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == person1_id) {
       vit1_index = lid;
       break;
     }
   }
 
-  int64_t v2 = v_prop_col1->get(vit1_index).as_int64();
+  int64_t v2 = v_prop_col1->get_any(vit1_index).GetValue<int64_t>();
 
   return std::make_tuple(v1, v2);
 }
@@ -800,9 +719,9 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
     int64_t value = i + 1;
     vid_t vid;
     CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
-                        {Property::from_int64(value)}, vid));
+                        {neug::execution::Value::INT64(value)}, vid));
     CHECK(gii.AddVertex(post_label_id, neug_generate_id(),
-                        {Property::from_int64(value)}, vid));
+                        {neug::execution::Value::INT64(value)}, vid));
   }
   txn.Commit();
   return svc;
@@ -818,7 +737,8 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   bool found = false;
   auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       person_vid = v;
       found = true;
@@ -830,7 +750,8 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   found = false;
   auto post_vertex_set = gui.GetVertexSet(post_label_id);
   for (auto v : post_vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(post_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(post_label_id, v, 0).GetValue<int64_t>();
     if (v_id == post_id) {
       post_vid = v;
       found = true;
@@ -838,8 +759,9 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
     }
   }
   CHECK(found);
+  const void* edge_prop = nullptr;
   if (!txn.AddEdge(person_label_id, person_vid, post_label_id, post_vid,
-                   likes_label_id, {})) {
+                   likes_label_id, {}, edge_prop)) {
     txn.Abort();
     return false;
   }
@@ -861,7 +783,7 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   CHECK(v_prop_col0 != nullptr);
   auto vertex_set = gi.GetVertexSet(post_label_id);
   for (vid_t lid : vertex_set) {
-    if (v_prop_col0->get(lid).as_int64() == post_id) {
+    if (v_prop_col0->get_any(lid).GetValue<int64_t>() == post_id) {
       vit0_index = lid;
       break;
     }
@@ -881,7 +803,7 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   vid_t vit1_index = 0;
   auto vertex_set1 = gi.GetVertexSet(post_label_id);
   for (vid_t lid : vertex_set1) {
-    if (v_prop_col->get(lid).as_int64() == post_id) {
+    if (v_prop_col->get_any(lid).GetValue<int64_t>() == post_id) {
       vit1_index = lid;
       break;
     }
@@ -927,16 +849,18 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
       int64_t id_property = j * 4 + i;
       vid_t vid;
       string_props.push_back(std::to_string(j));
-      CHECK(gii.AddVertex(person_label_id, id,
-                          {Property::from_int64(id_property),
-                           Property::from_string_view(string_props.back()),
-                           Property::from_int64(value)},
-                          vid));
+      CHECK(gii.AddVertex(
+          person_label_id, id,
+          {neug::execution::Value::INT64(id_property),
+           neug::execution::Value::STRING(std::string(string_props.back())),
+           neug::execution::Value::INT64(value)},
+          vid));
       vids.push_back(vid);
     }
     for (int i = 0; i < 4; i++) {
+      const void* edge_prop = nullptr;
       CHECK(gii.AddEdge(person_label_id, vids[i], person_label_id,
-                        vids[(i + 1) % 4], knows_label_id, {}));
+                        vids[(i + 1) % 4], knows_label_id, {}, edge_prop));
     }
   }
   txn.Commit();
@@ -953,7 +877,8 @@ void OTV1(neug::NeugDBSession& db, int64_t person_id) {
   bool found = false;
   auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       vid1 = v;
       found = true;
@@ -978,26 +903,30 @@ void OTV1(neug::NeugDBSession& db, int64_t person_id) {
           if (eit4.get_vertex() == vid1) {
             txn.UpdateVertexProperty(
                 person_label_id, vid1, 2,
-                Property::From(
-                    txn.GetVertexProperty(person_label_id, vid1, 2).as_int64() +
+                neug::execution::Value::INT64(
+                    txn.GetVertexProperty(person_label_id, vid1, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid2, 2,
-                Property::From(
-                    gui.GetVertexProperty(person_label_id, vid2, 2).as_int64() +
+                neug::execution::Value::INT64(
+                    gui.GetVertexProperty(person_label_id, vid2, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid3, 2,
-                Property::From(
-                    gui.GetVertexProperty(person_label_id, vid3, 2).as_int64() +
+                neug::execution::Value::INT64(
+                    gui.GetVertexProperty(person_label_id, vid3, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             gui.UpdateVertexProperty(
                 person_label_id, vid4, 2,
-                Property::From(
-                    gui.GetVertexProperty(person_label_id, vid4, 2).as_int64() +
+                neug::execution::Value::INT64(
+                    gui.GetVertexProperty(person_label_id, vid4, 2)
+                        .GetValue<int64_t>() +
                     1));
 
             txn.Commit();
@@ -1041,10 +970,14 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
             auto edges4 = view.get_edges(vid4);
             for (auto it4 = edges4.begin(); it4 != edges4.end(); ++it4) {
               if (it4.get_vertex() == lid) {
-                int64_t v1_version = vprop_col->get(lid).as_int64();
-                int64_t v2_version = vprop_col->get(vid2).as_int64();
-                int64_t v3_version = vprop_col->get(vid3).as_int64();
-                int64_t v4_version = vprop_col->get(vid4).as_int64();
+                int64_t v1_version =
+                    vprop_col->get_any(lid).GetValue<int64_t>();
+                int64_t v2_version =
+                    vprop_col->get_any(vid2).GetValue<int64_t>();
+                int64_t v3_version =
+                    vprop_col->get_any(vid3).GetValue<int64_t>();
+                int64_t v4_version =
+                    vprop_col->get_any(vid4).GetValue<int64_t>();
                 return std::make_tuple(v1_version, v2_version, v3_version,
                                        v4_version);
               }
@@ -1060,7 +993,7 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
     bool found = false;
 
     for (vid_t lid : vertex_set) {
-      if (prop0_col->get(lid).as_int64() == person_id) {
+      if (prop0_col->get_any(lid).GetValue<int64_t>() == person_id) {
         found = true;
         break;
       }
@@ -1076,7 +1009,7 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
     auto vertex_set = gi.GetVertexSet(person_label_id);
     bool found = false;
     for (vid_t lid : vertex_set) {
-      if (prop0_col->get(lid).as_int64() == person_id) {
+      if (prop0_col->get_any(lid).GetValue<int64_t>() == person_id) {
         found = true;
         break;
       }
@@ -1086,22 +1019,6 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
   auto tup2 = get_versions();
 
   return std::make_tuple(tup1, tup2);
-}
-
-// Fractured Reads
-
-std::shared_ptr<neug::NeugDBService> FRInit(NeugDB& db,
-                                            const std::string& work_dir,
-                                            int thread_num) {
-  return OTVInit(db, work_dir, thread_num);
-}
-
-void FR1(neug::NeugDBSession& db, int64_t person_id) { OTV1(db, person_id); }
-
-std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
-           std::tuple<int64_t, int64_t, int64_t, int64_t>>
-FR2(neug::NeugDBSession& db, int64_t person_id) {
-  return OTV2(db, person_id);
 }
 
 // Lost Updates
@@ -1128,10 +1045,10 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
     vid_t vid;
-    CHECK(gii.AddVertex(
-        person_label_id, neug_generate_id(),
-        {Property::from_int64(id_property), Property::from_int64(num_property)},
-        vid));
+    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
+                        {neug::execution::Value::INT64(id_property),
+                         neug::execution::Value::INT64(num_property)},
+                        vid));
   }
 
   txn.Commit();
@@ -1147,7 +1064,8 @@ bool LU1(neug::NeugDBSession& db, int64_t person_id) {
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person_id) {
       person_vid = v;
       flag = true;
@@ -1157,9 +1075,9 @@ bool LU1(neug::NeugDBSession& db, int64_t person_id) {
   CHECK(flag);
 
   int64_t num_friends =
-      gui.GetVertexProperty(person_label_id, person_vid, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, person_vid, 1).GetValue<int64_t>();
   gui.UpdateVertexProperty(person_label_id, person_vid, 1,
-                           Property::From(num_friends + 1));
+                           neug::execution::Value::INT64(num_friends + 1));
 
   txn.Commit();
   return true;
@@ -1178,8 +1096,8 @@ std::map<int64_t, int64_t> LU2(neug::NeugDBSession& db) {
           gi.GetVertexPropColumn(person_label_id, "num_friends"));
   auto vertex_set = gi.GetVertexSet(person_label_id);
   for (vid_t lid : vertex_set) {
-    int64_t person_id = prop_col->get(lid).as_int64();
-    int64_t num_friends = num_friends_col->get(lid).as_int64();
+    int64_t person_id = prop_col->get_any(lid).GetValue<int64_t>();
+    int64_t num_friends = num_friends_col->get_any(lid).GetValue<int64_t>();
     numFriends.emplace(person_id, num_friends);
   }
 
@@ -1210,14 +1128,16 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
     int64_t id1 = 2 * i - 1;
     int64_t version1 = 70;
     vid_t vid;
-    CHECK(gi.AddVertex(
-        person_label_id, neug_generate_id(),
-        {Property::from_int64(id1), Property::from_int64(version1)}, vid));
+    CHECK(gi.AddVertex(person_label_id, neug_generate_id(),
+                       {neug::execution::Value::INT64(id1),
+                        neug::execution::Value::INT64(version1)},
+                       vid));
     int64_t id2 = 2 * i;
     int64_t version2 = 80;
-    CHECK(gi.AddVertex(
-        person_label_id, neug_generate_id(),
-        {Property::from_int64(id2), Property::from_int64(version2)}, vid));
+    CHECK(gi.AddVertex(person_label_id, neug_generate_id(),
+                       {neug::execution::Value::INT64(id2),
+                        neug::execution::Value::INT64(version2)},
+                       vid));
   }
   txn.Commit();
   return svc;
@@ -1233,7 +1153,8 @@ void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person1_id) {
       person1_vid = v;
       flag = true;
@@ -1241,12 +1162,13 @@ void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   CHECK(flag);
-  int64_t p1_value =
-      gui.GetVertexProperty(person_label_id, person1_vid, 1).as_int64();
+  int64_t p1_value = gui.GetVertexProperty(person_label_id, person1_vid, 1)
+                         .GetValue<int64_t>();
   vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id =
+        gui.GetVertexProperty(person_label_id, v, 0).GetValue<int64_t>();
     if (v_id == person2_id) {
       person2_vid = v;
       flag = true;
@@ -1254,8 +1176,8 @@ void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   CHECK(flag);
-  int64_t p2_value =
-      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+  int64_t p2_value = gui.GetVertexProperty(person_label_id, person2_vid, 1)
+                         .GetValue<int64_t>();
 
   if (p1_value + p2_value - 100 < 0) {
     txn.Abort();
@@ -1268,10 +1190,10 @@ void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   // property
   if (dist(gen)) {
     gui.UpdateVertexProperty(person_label_id, person1_vid, 1,
-                             neug::Property::From(p1_value - 100));
+                             neug::execution::Value::INT64(p1_value - 100));
   } else {
     gui.UpdateVertexProperty(person_label_id, person2_vid, 1,
-                             neug::Property::From(p2_value - 100));
+                             neug::execution::Value::INT64(p2_value - 100));
   }
   txn.Commit();
 }
@@ -1288,20 +1210,20 @@ std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
   auto vertex_set = gi.GetVertexSet(person_label_id);
 
   for (vid_t lid : vertex_set) {
-    auto person1_id = person_prop_col->get(lid).as_int64();
+    auto person1_id = person_prop_col->get_any(lid).GetValue<int64_t>();
     if (person1_id % 2 != 1) {
       continue;
     }
-    int64_t p1_value = person_prop_col->get(lid).as_int64();
+    int64_t p1_value = person_prop_col->get_any(lid).GetValue<int64_t>();
     auto person2_id = person1_id + 1;
     vid_t lid2;
     for (vid_t lid : vertex_set) {
-      if (person_prop_col->get(lid).as_int64() == person2_id) {
+      if (person_prop_col->get_any(lid).GetValue<int64_t>() == person2_id) {
         lid2 = lid;
         break;
       }
     }
-    int64_t p2_value = person_prop_col->get(lid2).as_int64();
+    int64_t p2_value = person_prop_col->get_any(lid2).GetValue<int64_t>();
     if (p1_value + p2_value <= 0) {
       results.emplace_back(person1_id, p1_value, person2_id, p2_value);
     }
@@ -1390,7 +1312,7 @@ TEST_F(NeugDBACIDTest, G0) {
 TEST_F(NeugDBACIDTest, G1A) {
   std::string dir = work_dir_ + "/G1A";
   NeugDB db;
-  auto svc = G1AInit(db, dir, thread_num_);
+  auto svc = InitPersonWithVersion(db, dir, thread_num_, 1);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
   neug_parallel_client(svc, [&](neug::NeugDBSession& db, int client_id) {
@@ -1413,7 +1335,7 @@ TEST_F(NeugDBACIDTest, G1A) {
 TEST_F(NeugDBACIDTest, G1B) {
   std::string dir = work_dir_ + "/G1B";
   NeugDB db;
-  auto svc = G1BInit(db, dir, thread_num_);
+  auto svc = InitPersonWithVersion(db, dir, thread_num_, 99);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
   neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
@@ -1436,7 +1358,7 @@ TEST_F(NeugDBACIDTest, G1B) {
 TEST_F(NeugDBACIDTest, G1C) {
   std::string dir = work_dir_ + "/G1C";
   NeugDB db;
-  auto svc = G1CInit(db, dir, thread_num_);
+  auto svc = InitPersonWithVersion(db, dir, thread_num_, 0);
   int64_t c = 1000;
   std::vector<int64_t> results(c);
   neug_parallel_transaction(
@@ -1469,7 +1391,7 @@ TEST_F(NeugDBACIDTest, G1C) {
 TEST_F(NeugDBACIDTest, IMP) {
   std::string dir = work_dir_ + "/IMP";
   NeugDB db;
-  auto svc = IMPInit(db, dir, thread_num_);
+  auto svc = InitPersonWithVersion(db, dir, thread_num_, 1);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
   neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
@@ -1558,7 +1480,7 @@ TEST_F(NeugDBACIDTest, OTV) {
 TEST_F(NeugDBACIDTest, FR) {
   std::string dir = work_dir_ + "/FR";
   NeugDB db;
-  auto svc = FRInit(db, dir, thread_num_);
+  auto svc = OTVInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
   neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
@@ -1568,13 +1490,13 @@ TEST_F(NeugDBACIDTest, FR) {
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         std::tuple<int64_t, int64_t, int64_t, int64_t> tup1, tup2;
-        std::tie(tup1, tup2) = FR2(session, dist(gen) * 4 + 1);
+        std::tie(tup1, tup2) = OTV2(session, dist(gen) * 4 + 1);
         if (tup1 != tup2)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
       for (int i = 0; i < 100; ++i)
-        FR1(session, dist(gen) * 4 + 1);
+        OTV1(session, dist(gen) * 4 + 1);
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);

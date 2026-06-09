@@ -20,14 +20,10 @@ import logging
 import os
 import shutil
 import sys
+from ctypes import sizeof
 from unittest import result
 
 import pytest
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
-from ctypes import sizeof
-
 from conftest import ensure_result_cnt_eq
 from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
@@ -638,6 +634,33 @@ def test_insert_edge(tmp_path):
             "CREATE (u:person {name: 'Alice2'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
         )
     assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
+    conn.close()
+    db.close()
+
+
+def test_create_edge_return_edge_property(tmp_path):
+    db_dir = tmp_path / "create_edge_return_edge_property"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, since INT64, MANY_TO_MANY);"
+    )
+    conn.execute("CREATE (a:person {id: 1});")
+    conn.execute("CREATE (b:person {id: 2});")
+
+    result = conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) "
+        "CREATE (a)-[e:knows {since: 2024}]->(b) "
+        "RETURN e.since;"
+    )
+
+    records = list(result)
+    assert records == [[2024]], f"Expected [[2024]], got {records}"
+
     conn.close()
     db.close()
 
@@ -3036,6 +3059,32 @@ def test_not_starts_with(tmp_path):
     db.close()
 
 
+def test_drop_and_recreate_node_table_no_stale_data(tmp_path):
+    """After DROP + re-CREATE of a node table, old rows must not reappear."""
+    db_dir = tmp_path / "drop_recreate_stale"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CHECKPOINT")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["alice"]]
+
+    # Drop and re-create with the same schema
+    conn.execute("DROP TABLE IF EXISTS Person;")
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+
+    # Old data must be gone
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Only newly inserted data should be visible
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["bob"]]
+
+    conn.close()
+    db.close()
+
+
 def test_not_list_contains(tmp_path):
     db_dir = tmp_path / "test_not_list_contains"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -3066,5 +3115,90 @@ def test_not_list_contains(tmp_path):
     )
     records = list(result)
     assert records == [[0]]
+    conn.close()
+    db.close()
+
+
+def test_sort_csr_compact(tmp_path):
+    db_dir = tmp_path / "test_sort_csr_compact"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="rw")
+    conn = db.connect()
+    conn.execute("""CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id))""")
+    conn.execute(
+        """CREATE REL TABLE Knows(FROM Person TO Person, since INT64) WITH (sort_key_for_nbr='since')"""
+    )
+
+    for i in range(100):
+        conn.execute(f"CREATE (:Person {{id: {i}}});")
+    for i in range(100):
+        if i % 2 == 0:
+            conn.execute(
+                f"MATCH (a:Person {{id: 1}}), (b:Person {{id: {i}}}) CREATE (a)-[:Knows {{since: {i}}}]->(b:Person);"
+            )
+        else:
+            conn.execute(
+                f"MATCH (a:Person {{id: 0}}), (b:Person {{id: {i}}}) CREATE (a)-[:Knows {{since: {i}}}]->(b);"
+            )
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="rw")
+    endpoint = db.serve(host="127.0.0.1", port=10010, blocking=False)
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+    sess.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 98}) CREATE (a)-[:Knows {since: 1}]->(b);"
+    )
+    sess.execute(
+        "MATCH (a:Person {id: 0}), (b:Person {id: 1}) CREATE (a)-[:Knows {since: 100}]->(b);"
+    )
+    res = sess.execute(
+        query="MATCH (a: Person {id: 1})-[r:Knows]-> (b: Person) WHERE r.since < $since RETURN b.id, r.since",
+        parameters={"since": 2},
+    )
+    assert list(res) == [[0, 0], [98, 1]]
+    res = sess.execute(
+        query="MATCH (a: Person {id: 0})-[r:Knows]-> (b: Person) WHERE r.since > $since RETURN b.id, r.since",
+        parameters={"since": 99},
+    )
+    assert list(res) == [[1, 100]]
+    sess.close()
+    db.close()
+
+
+def test_unsupported_operator_error_message():
+    """Test that unsupported operators produce readable error messages."""
+    modern_graph_db_dir = "/tmp/modern_graph"
+    db = Database(modern_graph_db_dir, "rw")
+    conn = db.connect()
+    query = "CREATE MACRO f(x) AS x + 1"
+    with pytest.raises(Exception, match="Unsupported operator type: CREATE_MACRO"):
+        conn.execute(query)
+
+
+def test_delete_all_rows_then_reinsert_visible(tmp_path):
+    """After deleting all rows, newly inserted rows must be visible."""
+    db_dir = tmp_path / "delete_reinsert"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS Person(id STRING PRIMARY KEY);")
+    conn.execute("CREATE (p:Person {id: 'alice'});")
+    conn.execute("CREATE (p:Person {id: 'bob'});")
+    conn.execute("CHECKPOINT")
+    assert sorted(list(conn.execute("MATCH (p:Person) RETURN p.id;"))) == [
+        ["alice"],
+        ["bob"],
+    ]
+
+    # Delete all rows
+    conn.execute("MATCH (a:Person) DELETE a;")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == []
+
+    # Re-insert — new data must be visible
+    conn.execute("CREATE (p:Person {id: 'charlie'});")
+    assert list(conn.execute("MATCH (p:Person) RETURN p.id;")) == [["charlie"]]
+
     conn.close()
     db.close()

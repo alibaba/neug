@@ -69,7 +69,7 @@ neug::result<Context> CreateEdge::insert_edge(
                             std::to_string(dst_label) + ", got " +
                             std::to_string(v2.label_));
       }
-      std::vector<Property> property_values(properties.size());
+      std::vector<execution::Value> property_values(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
@@ -85,18 +85,20 @@ neug::result<Context> CreateEdge::insert_edge(
           if (value.IsNull()) {
             property_values[index] = default_values[index];
           } else {
-            property_values[index] = value_to_property(value);
+            property_values[index] = value;
           }
         }
       }
-      if (!graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_, edge_label,
-                         property_values)) {
+      const void* edge_prop = nullptr;
+      auto add_status = graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_,
+                                      edge_label, property_values, edge_prop);
+      if (!add_status.ok()) {
         THROW_RUNTIME_ERROR("Failed to add edge (" + std::to_string(src_label) +
                             "," + std::to_string(edge_label) + "," +
-                            std::to_string(dst_label) + ")");
+                            std::to_string(dst_label) +
+                            "): " + add_status.ToString());
       }
-      // TODO: store edge properties
-      builder.push_back_opt(v1.vid_, v2.vid_, nullptr);
+      builder.push_back_opt(v1.vid_, v2.vid_, edge_prop);
     }
     ctx.set(alias[i], builder.finish());
   }

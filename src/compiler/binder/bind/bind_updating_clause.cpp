@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/binder/query/query_graph.h"
 #include "neug/compiler/binder/query/query_graph_label_analyzer.h"
 #include "neug/compiler/binder/query/updating_clause/bound_delete_clause.h"
 #include "neug/compiler/binder/query/updating_clause/bound_insert_clause.h"
@@ -107,6 +108,29 @@ static expression_vector getColumnDataExprs(QueryGraphCollection& collection) {
   return exprs;
 }
 
+// Currently, we only support merge one vertex or one edge, merge a path or
+// pattern is unsupported for unclear semantics see limitations in merge doc
+void validateMergeClause(const BoundMergeClause& boundMerge) {
+  auto& insertInfos = boundMerge.getInsertInfosRef();
+  if (insertInfos.empty()) {
+    THROW_BINDER_EXCEPTION(
+        "Merge clause must have at least one insert pattern.");
+  }
+  if (insertInfos.size() > 1) {
+    THROW_BINDER_EXCEPTION(
+        "Merge clause only supports one vertex or edge, path or pattern is "
+        "unsupported.");
+  }
+  auto& insertInfo = insertInfos[0];
+  if (insertInfo.tableType != TableType::NODE &&
+      insertInfo.tableType != TableType::REL) {
+    THROW_BINDER_EXCEPTION(
+        "Invalid table type " +
+        std::to_string(static_cast<uint8_t>(insertInfo.tableType)) +
+        " in merge clause.");
+  }
+}
+
 std::unique_ptr<BoundUpdatingClause> Binder::bindMergeClause(
     const UpdatingClause& updatingClause) {
   auto& mergeClause = updatingClause.constCast<MergeClause>();
@@ -128,6 +152,7 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindMergeClause(
       columnDataExprs, std::move(existenceMark), std::move(distinctMark),
       std::move(boundGraphPattern.queryGraphCollection),
       std::move(boundGraphPattern.where), std::move(createInfos));
+  validateMergeClause(*boundMergeClause);
   if (mergeClause.hasOnMatchSetItems()) {
     for (auto& [lhs, rhs] : mergeClause.getOnMatchSetItemsRef()) {
       auto setPropertyInfo = bindSetPropertyInfo(lhs.get(), rhs.get());

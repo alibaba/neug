@@ -14,6 +14,9 @@
  */
 #pragma once
 
+#include <optional>
+
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -84,7 +87,7 @@ class IStorageInterface {
    * @param index Output parameter for internal vertex index
    * @return true if vertex found, false otherwise
    */
-  virtual bool GetVertexIndex(label_t label, const Property& id,
+  virtual bool GetVertexIndex(label_t label, const execution::Value& id,
                               vid_t& index) const = 0;
 };
 
@@ -195,7 +198,7 @@ class StorageReadInterface : virtual public IStorageInterface {
     return graph_.GetVertexSet(label, read_ts_);
   }
 
-  bool GetVertexIndex(label_t label, const Property& id,
+  bool GetVertexIndex(label_t label, const execution::Value& id,
                       vid_t& index) const override {
     return graph_.get_lid(label, id, index, read_ts_);
   }
@@ -218,11 +221,11 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * @param label Vertex label
    * @param index Internal vertex ID
-   * @return Property containing the primary key value
+   * @return execution::Value containing the primary key value
    *
    * @since v0.1.0
    */
-  inline Property GetVertexId(label_t label, vid_t index) const {
+  inline execution::Value GetVertexId(label_t label, vid_t index) const {
     return graph_.GetOid(label, index, read_ts_);
   }
 
@@ -231,22 +234,21 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * Property age = reader.GetVertexProperty(person_label, vid, age_prop_id);
-   * int64_t age_val = age.as_int64();
+   * execution::Value age = reader.GetVertexProperty(person_label, vid,
+   * age_prop_id); int64_t age_val = age.GetValue<int64_t>();
    * @endcode
    *
    * @param label Vertex label
    * @param index Internal vertex ID
    * @param prop_id Property column index
-   * @return Property containing the value
+   * @return execution::Value containing the value
    *
    * @since v0.1.0
    */
-  inline Property GetVertexProperty(label_t label, vid_t index,
-                                    int prop_id) const {
-    return graph_.get_vertex_table(label)
-        .get_property_column(prop_id)
-        ->get_prop(index);
+  inline execution::Value GetVertexProperty(label_t label, vid_t index,
+                                            int prop_id) const {
+    return graph_.get_vertex_table(label).GetPropertyColumn(prop_id)->get_any(
+        index);
   }
 
   /**
@@ -255,7 +257,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    * **Usage Example:**
    * @code{.cpp}
    * // Get outgoing KNOWS edges from Person to Person
-   * GenericView view = reader.GetGenericOutgoingGraphView(
+   * CsrView view = reader.GetGenericOutgoingGraphView(
    *     person_label, person_label, knows_label);
    *
    * // Traverse neighbors of vertex v
@@ -267,15 +269,14 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @param v_label Source vertex label
    * @param neighbor_label Destination vertex label
    * @param edge_label Edge label
-   * @return GenericView for edge traversal
+   * @return CsrView for edge traversal
    *
-   * @see GenericView For traversal operations
+   * @see CsrView For traversal operations
    *
    * @since v0.1.0
    */
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }
@@ -286,13 +287,12 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @param v_label Destination vertex label (receives edges)
    * @param neighbor_label Source vertex label (edges come from)
    * @param edge_label Edge label
-   * @return GenericView for reverse edge traversal
+   * @return CsrView for reverse edge traversal
    *
    * @since v0.1.0
    */
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
     return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
                                               edge_label, read_ts_);
   }
@@ -324,7 +324,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    *     person_label, person_label, knows_label, "weight");
    *
    * // Access property during traversal
-   * GenericView view = reader.GetGenericOutgoingGraphView(...);
+   * CsrView view = reader.GetGenericOutgoingGraphView(...);
    * for (auto it = view.get_edges(v).begin(); ...; ++it) {
    *     double w = weight.get_typed_data<double>(it);
    * }
@@ -366,8 +366,9 @@ class StorageReadInterface : virtual public IStorageInterface {
  * inserter.AddVertex(person_label, Property("alice"), props, vid);
  *
  * // Add edge between vertices
+ * const void* edge_prop = nullptr;
  * inserter.AddEdge(person_label, src_vid, person_label, dst_vid, knows_label,
- * {});
+ *                  {}, edge_prop);
  * @endcode
  *
  * @note This interface is write-only; use StorageReadInterface for reads.
@@ -392,11 +393,13 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param label Vertex label
    * @param id Primary key value
    * @param props Property values (excluding primary key)
-   * @param vid Output: assigned internal vertex ID
-   * @return true if vertex added successfully
+   * @param vid Output: assigned internal vertex ID on success
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. property count/type mismatch, capacity failure).
    */
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props, vid_t& vid) = 0;
+  virtual Status AddVertex(label_t label, const execution::Value& id,
+                           const std::vector<execution::Value>& props,
+                           vid_t& vid) = 0;
 
   /**
    * @brief Add a single edge to the graph.
@@ -407,11 +410,16 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param dst Destination vertex internal ID
    * @param edge_label Edge label
    * @param properties Edge property values
-   * @return true if edge added successfully
+   * @param prop Output: pointer to the inserted edge property storage. For an
+   *             insert transaction the edge property is not actually inserted
+   *             into the graph until commit, so this is set to nullptr.
+   * @return Status::OK() on success, or an error Status if validation fails
+   *         (e.g. missing source/destination vertex, property mismatch).
    */
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<execution::Value>& properties,
+                         const void*& prop) = 0;
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -497,7 +505,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param value New property value
    */
   virtual void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                    const Property& value) = 0;
+                                    const execution::Value& value) = 0;
 
   /**
    * @brief Update an edge property value.
@@ -516,14 +524,15 @@ class StorageUpdateInterface : public StorageReadInterface,
                                   label_t dst_label, vid_t dst,
                                   label_t edge_label, int32_t oe_offset,
                                   int32_t ie_offset, int32_t col_id,
-                                  const Property& value) = 0;
+                                  const execution::Value& value) = 0;
 
-  virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props,
-                         vid_t& vid) override = 0;
-  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                       vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) override = 0;
+  virtual Status AddVertex(label_t label, const execution::Value& id,
+                           const std::vector<execution::Value>& props,
+                           vid_t& vid) override = 0;
+  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label,
+                         const std::vector<execution::Value>& properties,
+                         const void*& prop) override = 0;
 
   /**
    * @brief Delete multiple vertices by their internal IDs.
@@ -595,16 +604,18 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   ~StorageAPUpdateInterface() {}
 
   void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                            const Property& value) override;
+                            const execution::Value& value) override;
   void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
                           vid_t dst, label_t edge_label, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
-                          const Property& value) override;
-  bool AddVertex(label_t label, const Property& id,
-                 const std::vector<Property>& props, vid_t& vid) override;
-  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-               label_t edge_label,
-               const std::vector<Property>& properties) override;
+                          const execution::Value& value) override;
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props,
+                   vid_t& vid) override;
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label,
+                 const std::vector<execution::Value>& properties,
+                 const void*& prop) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

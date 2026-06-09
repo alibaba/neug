@@ -10,10 +10,12 @@ on:
     paths:
       - 'cmake/**'
       - 'src/**'
+      - 'bin/**'
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tools/java_driver/**'
+      - 'tools/utils/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
@@ -21,15 +23,15 @@ on:
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
   push:
-    branches:
-      - main
     paths:
       - 'cmake/**'
       - 'src/**'
+      - 'bin/**'
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tools/java_driver/**'
+      - 'tools/utils/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
@@ -43,7 +45,7 @@ concurrency:
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main')
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
@@ -53,10 +55,18 @@ jobs:
   # ============================================================
   build_and_test:
     needs: format_check
-    if: ${{ needs.format_check.result == 'success' || needs.format_check.result == 'skipped' }}
-    runs-on: [self-hosted, daily, linux]
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
+          - arch: arm64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
+    runs-on: ${{ matrix.runner }}
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
     - name: checkout
       id: checkout
@@ -193,8 +203,7 @@ jobs:
     - name: Test examples
       if: steps.scope.outputs.extension_only != 'true'
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        ./build/neug_py_bind/examples/cpp/simple_example
+        ${GITHUB_WORKSPACE}/build/examples/cpp/simple_example
 
     - name: Install Python requirements
       run: |
@@ -209,22 +218,23 @@ jobs:
     - name: Run C++ Test
       if: steps.scope.outputs.extension_only != 'true'
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export COMPREHENSIVE_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
-        cd build/neug_py_bind
+        cd ${GITHUB_WORKSPACE}/build
         ctest -R storage_test -V
         ctest -R transaction_test -V
         ctest -R csr_test -V
         ctest -R edge_table_test -V
+        ctest -R graph_view_test -V
         ctest -R utils_test -V
         ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
         ctest -R gopt_test -V
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
+        ctest -R test_mmap_container -V
         ctest -R logical_delete_test -V
         ctest -R test_connection -V
         ctest -R test_request -V
@@ -244,15 +254,15 @@ jobs:
         rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb && rm -rf /tmp/comprehensive_graph
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
         export FLEX_DATA_DIR=${GS_TEST_DIR}/neug/lsqb-sf01
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
 
     # ========================================
     # Phase 3: Python Tests
@@ -299,7 +309,9 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_query.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_call_string_literal.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_merge.py
 
     - name: Run TinySNB Tutorial Test
       if: steps.scope.outputs.extension_only != 'true'
@@ -326,11 +338,11 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_data_io_docs.py
 
-    - name: Run LOAD FROM sniffer tests (CSV)
+    - name: Run LOAD FROM sniffer tests (CSV and JSON)
       if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_sniffer.py -k "csv"
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_sniffer.py -k "csv or json"
 
     - name: Run Complex Query Test
       if: steps.scope.outputs.extension_only != 'true'
@@ -355,6 +367,14 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/transaction/elle_tester_insert.py
+
+    - name: Run PyArrow related test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pip install pyarrow==18.0.0
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_to_arrow.py
+        python3 -m pip uninstall -y pyarrow
 
     - name: Test CLI tool
       if: steps.scope.outputs.extension_only != 'true'
@@ -421,7 +441,7 @@ jobs:
       env:
         CI: ON
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        cd ${GITHUB_WORKSPACE}/build
         # Use cmake --install instead of make install to avoid CMakeCache
         # referencing ccache (which is only installed in the build job)
         sudo cmake --install .
@@ -442,7 +462,7 @@ jobs:
         python3 -m pip install fastcov
         sudo apt update
         sudo apt install lcov -y
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        cd ${GITHUB_WORKSPACE}/build
         make coverage
 
     - name: Upload coverage to Codecov
@@ -450,4 +470,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info
+        files: ${{ github.workspace }}/build/coverage_filtered.info

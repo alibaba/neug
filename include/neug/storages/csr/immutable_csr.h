@@ -23,8 +23,9 @@
 
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
-#include "neug/storages/csr/generic_view.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -35,20 +36,20 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
 
-  ImmutableCsr() {}
-  ~ImmutableCsr() { close(); }
+  ImmutableCsr() : unsorted_since_(0) {}
+  ~ImmutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kImmutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
-        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
-        reinterpret_cast<const int*>(degree_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
+    return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+                   reinterpret_cast<const int*>(degree_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -61,15 +62,10 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -79,7 +75,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -108,14 +104,13 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "immutable_csr<" + type_name_string<EDATA_T>() + ">";
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-
-  void dump_meta(const std::string& prefix) const;
-
-  void open_internal(const std::string& snapshot_prefix,
-                     const std::string& tmp_prefix, MemoryLevel mem_level);
-
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_buffer_;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
@@ -130,19 +125,18 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   SingleImmutableCsr() {}
-  ~SingleImmutableCsr() { close(); }
+  ~SingleImmutableCsr() = default;
 
   CsrType csr_type() const override { return CsrType::kSingleImmutable; }
 
-  GenericView get_generic_view(timestamp_t ts) const override {
+  CsrView get_generic_view(timestamp_t ts) const override {
     NbrIterConfig cfg;
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(
-        reinterpret_cast<const char*>(nbr_list_buffer_->GetData()), cfg,
-        std::numeric_limits<timestamp_t>::max() - 1,
-        std::numeric_limits<timestamp_t>::max());
+    return CsrView(reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
+                   cfg, std::numeric_limits<timestamp_t>::max() - 1,
+                   std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {
@@ -156,15 +150,10 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -174,7 +163,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close();
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -203,9 +192,13 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() {
+    return "single_immutable_csr<" + type_name_string<EDATA_T>() + ">";
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-  void dump_meta(const std::string& prefix) const;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
   std::atomic<uint64_t> edge_num_{0};
 };

@@ -1,0 +1,97 @@
+name: PR Completeness Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited, labeled, unlabeled]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-completeness:
+    runs-on: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "Linux", "X64"]') || 'ubuntu-latest' }}
+    steps:
+      - name: Check PR completeness
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          # --- helpers (pure curl, no gh CLI needed) ---
+          api() { curl -sfL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+
+          get_labels() {
+            api "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+              | python3 -c "import sys,json; [print(l['name']) for l in json.load(sys.stdin).get('labels',[])]"
+          }
+
+          get_changed_files() {
+            page=1
+            while :; do
+              resp=$(api "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100&page=$page")
+              files=$(echo "$resp" | python3 -c "import sys,json; [print(f['filename']) for f in json.load(sys.stdin)]" 2>/dev/null)
+              [[ -z "$files" ]] && break
+              echo "$files"
+              page=$((page+1))
+            done
+          }
+
+          # --- extract prefix (feat, fix, etc.) ---
+          PREFIX=$(echo "$PR_TITLE" | grep -oE '^[a-z]+' || true)
+
+          if [[ -z "$PREFIX" ]]; then
+            echo "⚠ PR title does not follow conventional format (feat:/fix:/refactor:/...). Skipping check."
+            exit 0
+          fi
+
+          echo "PR #$PR_NUMBER: prefix='$PREFIX'"
+
+          LABELS=$(get_labels)
+          FILES=$(get_changed_files)
+
+          errors=()
+
+          # --- Rule 1: feat → must include doc changes ---
+          if [[ "$PREFIX" == "feat" ]]; then
+            if echo "$LABELS" | grep -qx 'skip-check:docs'; then
+              echo "✓ Doc check skipped (skip-check:docs label)"
+            elif echo "$FILES" | grep -qE '^doc/source/'; then
+              echo "✓ Feature PR includes documentation updates"
+            else
+              errors+=("Feature PR is missing documentation. Add or update files under doc/source/, or add the 'skip-check:docs' label to bypass.")
+            fi
+          fi
+
+          # --- Rule 2: fix → must include test changes ---
+          if [[ "$PREFIX" == "fix" ]]; then
+            if echo "$LABELS" | grep -qx 'skip-check:tests'; then
+              echo "✓ Test check skipped (skip-check:tests label)"
+            else
+              # exempt if PR only touches CI/build infra
+              non_infra=$(echo "$FILES" | grep -cvE '^(\.github/|docker/|Makefile|CMakeLists\.txt|\.clang|\.gitignore|pre-commit/)' || true)
+              if [[ "$non_infra" -eq 0 ]]; then
+                echo "✓ Fix PR only touches CI/build infra — test not required"
+              elif echo "$FILES" | grep -qE '^(tests/|tools/python_bind/tests/|extension/[^/]+/tests/)'; then
+                echo "✓ Fix PR includes test changes"
+              else
+                errors+=("Bug-fix PR is missing tests. Add or update tests in tests/, tools/python_bind/tests/, or extension/*/tests/, or add the 'skip-check:tests' label to bypass.")
+              fi
+            fi
+          fi
+
+          # --- report ---
+          if [[ ${#errors[@]} -gt 0 ]]; then
+            echo ""
+            echo "============================================"
+            echo "❌ PR Completeness Check FAILED"
+            echo "============================================"
+            for err in "${errors[@]}"; do
+              echo "  • $err"
+            done
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ PR completeness check passed"

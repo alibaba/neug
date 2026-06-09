@@ -5,6 +5,7 @@ requests
 tqdm
 tabulate
 click>=8.0.0
+prompt_toolkit>=3.0.0
 PyYAML>=6.0.2
 # required by ui
 Flask

@@ -25,12 +25,14 @@
 #include <vector>
 
 #include "arrow/util/value_parsing.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
+#include "unittest/utils.h"
 
 namespace arrow {
 class DataType;
@@ -266,25 +268,24 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
       graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, casted).ok());
 }
 
-void testOpenEmptyGraph(const std::string& graph_dir,
+void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
                         const std::string& data_dir) {
   PropertyGraph graph;
-  graph.Open(graph_dir, MemoryLevel::kSyncToFile);
+  graph.Open(ckp, MemoryLevel::kSyncToFile);
 
   // Create vertex type PERSON
   {
     LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
-    std::vector<std::tuple<DataType, std::string, Property>> properties;
+    std::vector<std::pair<std::string, execution::Value>> properties;
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
-    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
-        DataTypeId::kInt32, std::string("id"), Property::from_int32(0)));
-    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
-        DataTypeId::kVarchar, std::string("name"),
-        Property::from_string_view("")));
-    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
-        DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
+    properties.emplace_back(
+        std::make_pair(std::string("id"), execution::Value::INT32(0)));
+    properties.emplace_back(
+        std::make_pair(std::string("name"), execution::Value::STRING("")));
+    properties.emplace_back(
+        std::make_pair(std::string("age"), execution::Value::INT32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     CreateVertexTypeParamBuilder builder;
     auto status = graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
@@ -302,11 +303,9 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
-    std::vector<std::tuple<DataType, std::string, Property>> edge_properties;
+    std::vector<std::pair<std::string, execution::Value>> edge_properties;
     edge_properties.emplace_back(
-        std::make_tuple<DataType, std::string, Property>(
-            DataTypeId::kFloat, std::string("weight"),
-            Property::from_float(0.0)));
+        std::make_pair(std::string("weight"), execution::Value::FLOAT(0.0)));
     CreateEdgeTypeParamBuilder builder;
     auto status = graph.CreateEdgeType(builder.SrcLabel(src_vertex_label)
                                            .DstLabel(dst_vertex_label)
@@ -364,10 +363,10 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::vector<std::tuple<DataType, std::string, Property>> add_properties;
+    std::vector<std::pair<std::string, execution::Value>> add_properties;
     add_properties.emplace_back(
-        std::make_tuple(DataTypeId::kTimestampMs, "creationDate",
-                        Property::from_datetime(DateTime(0))));
+        std::make_pair(std::string("creationDate"),
+                       execution::Value::TIMESTAMPMS(DateTime(0))));
     AddEdgePropertiesParamBuilder builder;
     graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)
                                 .DstLabel(dst_vertex_type)
@@ -407,5 +406,8 @@ TEST(DatabaseTest, TestAlterProperty) {
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
   LOG(INFO) << "Data directory: " << data_dir;
-  neug::testOpenEmptyGraph(data_path, data_dir);
+  neug::CheckpointManager ws;
+  ws.Open(data_path);
+  auto ckp = make_checkpoint(ws);
+  neug::testOpenEmptyGraph(ckp, data_dir);
 }

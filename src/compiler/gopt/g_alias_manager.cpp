@@ -33,10 +33,17 @@
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
+#include "neug/compiler/planner/operator/persistent/logical_merge.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
 namespace neug {
 namespace gopt {
+
+#define THROW_UNSUPPORTED_OPERATOR_TYPE(op)                       \
+  THROW_EXCEPTION_WITH_FILE_LINE(                                 \
+      "Unsupported operator type: " +                             \
+      planner::LogicalOperatorUtils::logicalOperatorTypeToString( \
+          (op).getOperatorType()))
 
 GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
   auto lastOp = plan.getLastOperator();
@@ -74,6 +81,10 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::INSERT: {
     auto& insertOp = op.constCast<planner::LogicalInsert>();
     return insertOp.getGAliasNames();
+  }
+  case planner::LogicalOperatorType::MERGE: {
+    auto& mergeOp = op.constCast<planner::LogicalMerge>();
+    return mergeOp.getGAliasNames();
   }
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
@@ -118,9 +129,7 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::TRANSACTION:
     return {};
   default: {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Unsupported operator type for alias management: " +
-        std::to_string(static_cast<int>(op.getOperatorType())));
+    THROW_UNSUPPORTED_OPERATOR_TYPE(op);
   }
   }
 }
@@ -150,7 +159,13 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE:
-  case planner::LogicalOperatorType::DISTINCT: {
+  case planner::LogicalOperatorType::DISTINCT:
+  // for MERGE, we only extract alias name from the merge operator itself, skip
+  // its children, for case `UNWIND ['a', 'b', 'c'] as x MERGE (u:User {name:
+  // x}) Return u.name`, the project (u.name) after merge will fetch properties
+  // from the merge alias (u), instead of reusing the projected value before the
+  // merge.
+  case planner::LogicalOperatorType::MERGE: {
     auto singleOpGAliasNames = extractSingleOpGAliasNames(op);
     aliasNames.insert(aliasNames.end(), singleOpGAliasNames.begin(),
                       singleOpGAliasNames.end());
@@ -175,9 +190,7 @@ void GAliasManager::extractGAliasNames(
     // do nothing
     break;
   default: {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Unsupported operator type for alias management: " +
-        std::to_string(static_cast<int>(op.getOperatorType())));
+    THROW_UNSUPPORTED_OPERATOR_TYPE(op);
   }
   }
 }
@@ -278,6 +291,7 @@ void GAliasManager::visitOperator(const planner::LogicalOperator& op,
       // In such cases, node aliases are not
       // explicitly provided, but the edge still requires source and destination
       // aliases for proper binding.
+    case planner::LogicalOperatorType::MERGE:
     default:
       addGAliasName(name);
       break;

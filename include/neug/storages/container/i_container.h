@@ -83,11 +83,6 @@ class IDataContainer {
   virtual void Dump(const std::string& path) = 0;
 
   /**
-   * @brief Close the container and release resources.
-   */
-  virtual void Close() = 0;
-
-  /**
    * @brief Check if the data has been modified.
    */
   virtual bool IsDirty() = 0;

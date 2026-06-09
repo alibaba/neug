@@ -15,12 +15,31 @@
 
 #pragma once
 
+#include <string>
+
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/extension/extension.h"
 
 namespace neug {
 namespace execution {
 namespace ops {
+
+struct DeprecatedInfo {
+  std::string version;  // The version since which this extension is deprecated
+  std::string error_message;
+
+  // Compare two semver strings, return true if lhs >= rhs.
+  static bool compareVersion(const std::string& lhs, const std::string& rhs);
+};
+
+// Registry of deprecated/unsupported extensions.
+// Key: extension name (case-insensitive), Value: deprecation info.
+const common::case_insensitive_map_t<DeprecatedInfo>& getDeprecatedExtensions();
+
+// Check if an extension is deprecated in the current version.
+// Throws if current version >= deprecated version.
+void checkDeprecatedExtension(const std::string& extension_name);
 
 // Builders
 class ExtensionInstallOprBuilder : public IOperatorBuilder {

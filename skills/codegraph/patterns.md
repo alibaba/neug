@@ -4,9 +4,25 @@ Run these via `cs.conn.execute(query)`. All queries return lists of tuples.
 
 ## Structural Queries
 
+**Locate a function (file, lines, signature, doc):**
+```cypher
+MATCH (f:Function {name: 'func_name'})
+WHERE f.is_historical = 0
+RETURN f.file_path, f.start_line, f.end_line, f.signature, f.doc_comment
+LIMIT 5
+```
+
+**Check if a function exists:**
+```cypher
+MATCH (f:Function {name: 'func_name'})
+WHERE f.is_historical = 0
+RETURN count(f)
+```
+
 **Who calls a function?**
 ```cypher
 MATCH (caller:Function)-[:CALLS]->(f:Function {name: 'free_irq'})
+WHERE f.is_historical = 0
 RETURN caller.name, caller.file_path
 ORDER BY caller.name LIMIT 30
 ```
@@ -14,20 +30,38 @@ ORDER BY caller.name LIMIT 30
 **What does a function call?**
 ```cypher
 MATCH (f:Function {name: 'sched_fork'})-[:CALLS]->(callee:Function)
+WHERE f.is_historical = 0
 RETURN callee.name, callee.file_path
+LIMIT 50
 ```
 
 **Transitive callers (up to 3 hops):**
 ```cypher
 MATCH (caller:Function)-[:CALLS*1..3]->(f:Function {name: 'kfree'})
+WHERE f.is_historical = 0
 RETURN DISTINCT caller.name, caller.file_path LIMIT 50
+```
+
+**Transitive callees (up to 2 hops):**
+```cypher
+MATCH (f:Function {name: 'func_name'})-[:CALLS*1..2]->(callee:Function)
+WHERE f.is_historical = 0
+RETURN DISTINCT callee.name, callee.file_path
+LIMIT 50
 ```
 
 **Functions in a module:**
 ```cypher
 MATCH (f:Function)<-[:DEFINES_FUNC]-(file:File)-[:BELONGS_TO]->(m:Module)
-WHERE m.path_prefix = 'net/core'
+WHERE m.path_prefix = 'net/core' AND f.is_historical = 0
 RETURN f.name, file.path LIMIT 30
+```
+
+**Module membership of a function:**
+```cypher
+MATCH (f:Function {name: 'func_name'})<-[:DEFINES_FUNC]-(file:File)-[:BELONGS_TO]->(m:Module)
+RETURN m.path_prefix
+LIMIT 1
 ```
 
 **Cross-module calls (e.g. fs → mm):**
@@ -41,13 +75,20 @@ RETURN f1.name, f2.name, count(*) AS calls
 ORDER BY calls DESC LIMIT 20
 ```
 
-**Fan-in and fan-out:**
+**Fan-in and fan-out (top risky functions):**
 ```cypher
 MATCH (caller:Function)-[:CALLS]->(f:Function)-[:CALLS]->(callee:Function)
 WHERE f.is_historical = 0
 WITH f, count(DISTINCT caller) AS fi, count(DISTINCT callee) AS fo
 RETURN f.name, f.file_path, fi, fo, fi * fo AS risk
 ORDER BY risk DESC LIMIT 20
+```
+
+**Fan-in and fan-out for a specific function:**
+```cypher
+MATCH (caller:Function)-[:CALLS]->(f:Function {name: 'func_name'})-[:CALLS]->(callee:Function)
+WHERE f.is_historical = 0
+RETURN count(DISTINCT caller) AS fan_in, count(DISTINCT callee) AS fan_out
 ```
 
 **Module sizes:**
@@ -60,12 +101,12 @@ ORDER BY func_count DESC LIMIT 30
 
 **Functions by name pattern:**
 ```cypher
-MATCH (f:Function) WHERE f.name STARTS WITH 'irq_'
+MATCH (f:Function) WHERE f.name STARTS WITH 'irq_' AND f.is_historical = 0
 RETURN f.name, f.file_path LIMIT 20
 ```
 
 ```cypher
-MATCH (f:Function) WHERE f.name CONTAINS 'alloc'
+MATCH (f:Function) WHERE f.name CONTAINS 'alloc' AND f.is_historical = 0
 RETURN f.name, f.file_path LIMIT 30
 ```
 
@@ -117,6 +158,39 @@ RETURN count(c) AS backfilled
 MATCH (c:Commit)-[:TOUCHES]->(f:File)
 RETURN f.path, count(c) AS commits
 ORDER BY commits DESC LIMIT 20
+```
+
+## Class & Object Queries
+
+**Find all methods in a class:**
+```cypher
+MATCH (c:Class {name: 'ClassName'})-[:HAS_METHOD]->(f:Function)
+RETURN f.name, f.signature, f.file_path, f.start_line, f.end_line
+```
+
+**Find which class owns a method:**
+```cypher
+MATCH (c:Class)-[:HAS_METHOD]->(f:Function {name: 'method_name'})
+RETURN c.name, c.file_path
+LIMIT 5
+```
+
+**Class inheritance chain:**
+```cypher
+MATCH (c:Class {name: 'ClassName'})-[:INHERITS*1..10]->(base:Class)
+RETURN c.name, base.name
+```
+
+**Find subclasses:**
+```cypher
+MATCH (c:Class)-[:INHERITS]->(p:Class {name: 'ParentClass'})
+RETURN c.name, c.file_path
+```
+
+**Composition / aggregation neighbors:**
+```cypher
+MATCH (c:Class {name: 'ClassName'})-[r:COMPOSES|AGGREGATES]->(t:Class)
+RETURN type(r), t.name
 ```
 
 ## Composition Strategies

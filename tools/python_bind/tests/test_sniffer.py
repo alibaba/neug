@@ -25,8 +25,6 @@ from datetime import datetime
 
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-
 from neug import Database
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
@@ -190,9 +188,7 @@ class TestLoadSniffer:
         self._assert_datetime(row[0], datetime(2012, 1, 2, 0, 0, 0))
         self._assert_date(row[1], date(2012, 1, 2))
 
-    @extension_test
     def test_json_type_inference_basic(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_basic.json"
         json_path.write_text(
             json.dumps(
@@ -222,12 +218,10 @@ class TestLoadSniffer:
         assert isinstance(row[2], bool)
         assert isinstance(row[3], str)
 
-    @extension_test
     @pytest.mark.xfail(
         reason="TODO: align JSON date inference behavior (DATE vs DATETIME)."
     )
     def test_json_type_inference_date(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_date.json"
         json_path.write_text(
             json.dumps(
@@ -249,9 +243,7 @@ class TestLoadSniffer:
         assert len(rows) == 1
         self._assert_date(rows[0][0], date(2012, 1, 2))
 
-    @extension_test
     def test_json_type_inference_datetime(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_datetime.json"
         json_path.write_text(json.dumps([{"ts_col": "2012-01-02 09:30:21"}]))
 
@@ -265,9 +257,7 @@ class TestLoadSniffer:
         assert len(rows) == 1
         self._assert_datetime(rows[0][0], datetime(2012, 1, 2, 9, 30, 21))
 
-    @extension_test
     def test_json_type_inference_interval(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_interval.json"
         json_path.write_text(json.dumps([{"iv_col": "1 year 2 month"}]))
 
@@ -281,10 +271,8 @@ class TestLoadSniffer:
         assert len(rows) == 1
         assert self._is_expected_interval(rows[0][0])
 
-    @extension_test
     @pytest.mark.xfail(reason="TODO: support JSON list type inference in LOAD FROM.")
     def test_json_type_inference_list(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_list.json"
         json_path.write_text(json.dumps([{"list_col": [1, 2, 3]}]))
 
@@ -299,12 +287,10 @@ class TestLoadSniffer:
         assert isinstance(rows[0][0], list)
         assert rows[0][0] == [1, 2, 3]
 
-    @extension_test
     @pytest.mark.xfail(
         reason="TODO: support JSON map/object type inference in LOAD FROM."
     )
     def test_json_type_inference_map(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_map.json"
         json_path.write_text(json.dumps([{"map_col": {"a": "abc", "b": "bcd"}}]))
 
@@ -319,9 +305,7 @@ class TestLoadSniffer:
         assert isinstance(rows[0][0], dict)
         assert rows[0][0] == {"a": "abc", "b": "bcd"}
 
-    @extension_test
     def test_json_cast_numeric_conversions(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_cast_numeric.json"
         json_path.write_text(json.dumps([{"i_col": 42, "d_col": 3.25}]))
 
@@ -337,12 +321,10 @@ class TestLoadSniffer:
         assert isinstance(row[0], int) and row[0] == 42
         assert isinstance(row[1], float) and abs(row[1] - 3.25) < 1e-6
 
-    @extension_test
     @pytest.mark.xfail(
         reason="TODO: support casting ISO datetime string to DATE in LOAD FROM."
     )
     def test_json_cast_temporal_conversions(self):
-        self.conn.execute("LOAD JSON")
         json_path = self.data_dir / "json_cast_temporal.json"
         json_path.write_text(
             json.dumps([{"d_col": "2012-01-02", "ts_col": "2012-01-02 09:30:21"}])

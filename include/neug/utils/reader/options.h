@@ -28,6 +28,12 @@
 namespace neug {
 namespace reader {
 
+// Small block size used during schema sniffing to avoid excessive memory
+// allocation. Only 1 batch is read for type inference, so a large batch_size
+// is unnecessary and can leak memory proportional to block_size in Arrow's
+// memory pool.
+static constexpr int64_t kSniffBlockSize = 1 << 20;  // 1 MB
+
 struct ReadSharedState;
 struct EntrySchema;
 
@@ -100,6 +106,25 @@ class Option {
             return false;
           } else {
             THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " + s);
+          }
+        });
+  }
+
+  static Option<double> DoubleOption(const std::string& key,
+                                     double default_val) {
+    return Option<double>(
+        key, std::to_string(default_val), [](const std::string& s) -> double {
+          try {
+            double val = std::stod(s);
+            if (val < 0) {
+              THROW_INVALID_ARGUMENT_EXCEPTION(
+                  "Value must be non-negative, got: " + s);
+            }
+            return val;
+          } catch (const exception::Exception&) {
+            throw;  // re-throw our own exceptions
+          } catch (const std::exception& e) {
+            THROW_INVALID_ARGUMENT_EXCEPTION("Failed to parse double: " + s);
           }
         });
   }

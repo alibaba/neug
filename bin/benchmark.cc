@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
 
     {
       std::ofstream fout("./tmp_physical_plan.pb");
-      fout << plan.DebugString();
+      fout << neug::proto_to_string(plan);
       fout.close();
     }
     auto param_meta = neug::execution::PlanParser::parse_params_type(plan);

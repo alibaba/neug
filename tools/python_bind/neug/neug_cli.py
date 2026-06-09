@@ -38,6 +38,23 @@ except ImportError:
 
 import click
 
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.auto_suggest import AutoSuggest
+    from prompt_toolkit.auto_suggest import Suggestion
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.lexers import Lexer
+    from prompt_toolkit.styles import Style
+except ImportError:
+    PromptSession = None
+    AutoSuggest = object
+    Suggestion = None
+    FileHistory = None
+    KeyBindings = None
+    Lexer = object
+    Style = None
+
 from neug.connection import Connection
 from neug.database import Database
 from neug.format import parse_and_format_results
@@ -47,10 +64,366 @@ COMMAND_HELP = ":help"
 COMMAND_QUIT = ":quit"
 COMMAND_MAX_ROWS = ":max_rows"
 COMMAND_UI = ":ui"
+SHELL_COMMANDS = [COMMAND_HELP, COMMAND_QUIT, COMMAND_MAX_ROWS, COMMAND_UI]
+CYPHER_KEYWORDS = [
+    "MATCH",
+    "OPTIONAL MATCH",
+    "WHERE",
+    "RETURN",
+    "WITH",
+    "CREATE",
+    "MERGE",
+    "SET",
+    "DELETE",
+    "DETACH DELETE",
+    "UNWIND",
+    "ORDER BY",
+    "LIMIT",
+    "SKIP",
+    "AS",
+    "AND",
+    "OR",
+    "NOT",
+    "IN",
+    "IS NULL",
+    "IS NOT NULL",
+    "ACYCLIC",
+    "ANY",
+    "ADD",
+    "ALL",
+    "ALTER",
+    "ASC",
+    "ASCENDING",
+    "ATTACH",
+    "BEGIN",
+    "BY",
+    "CALL",
+    "CASE",
+    "CAST",
+    "CHECKPOINT",
+    "COLUMN",
+    "COMMENT",
+    "COMMIT",
+    "COMMIT_SKIP_CHECKPOINT",
+    "CONTAINS",
+    "COPY",
+    "COUNT",
+    "CYCLE",
+    "DATABASE",
+    "DBTYPE",
+    "DEFAULT",
+    "DESC",
+    "DESCENDING",
+    "DETACH",
+    "DISTINCT",
+    "DROP",
+    "ELSE",
+    "END",
+    "ENDS",
+    "EXISTS",
+    "EXPLAIN",
+    "EXPORT",
+    "EXTENSION",
+    "FROM",
+    "GLOB",
+    "GRAPH",
+    "GROUP",
+    "HEADERS",
+    "HINT",
+    "IMPORT",
+    "IF",
+    "INCREMENT",
+    "INSTALL",
+    "IS",
+    "JOIN",
+    "KEY",
+    "LOAD",
+    "LOGICAL",
+    "MACRO",
+    "MAXVALUE",
+    "MINVALUE",
+    "MULTI_JOIN",
+    "NO",
+    "NODE",
+    "NONE",
+    "NULL",
+    "ON",
+    "ONLY",
+    "OPTIONAL",
+    "ORDER",
+    "PRIMARY",
+    "PROFILE",
+    "PROJECT",
+    "READ",
+    "REL",
+    "RENAME",
+    "ROLLBACK",
+    "ROLLBACK_SKIP_CHECKPOINT",
+    "SEQUENCE",
+    "SHORTEST",
+    "START",
+    "STARTS",
+    "TABLE",
+    "THEN",
+    "TO",
+    "TRAIL",
+    "TRANSACTION",
+    "TYPE",
+    "UNINSTALL",
+    "UNION",
+    "USE",
+    "WHEN",
+    "WRITE",
+    "WSHORTEST",
+    "XOR",
+    "SINGLE",
+    "YIELD",
+]
+BUILTIN_FUNCTIONS = [
+    "COUNT",
+    "SUM",
+    "AVG",
+    "MIN",
+    "MAX",
+    "COLLECT",
+    "ID",
+    "LABEL",
+    "LABELS",
+    "NODES",
+    "RELS",
+    "RELATIONSHIPS",
+    "PROPERTIES",
+    "LENGTH",
+    "START_NODE",
+    "END_NODE",
+    "LOWER",
+    "UPPER",
+    "REVERSE",
+    "CONTAINS",
+    "STARTS_WITH",
+    "ENDS_WITH",
+    "TOLOWER",
+    "TOUPPER",
+    "LCASE",
+    "UCASE",
+    "CAST",
+    "DATE",
+    "TIMESTAMP",
+    "DURATION",
+    "DATE_PART",
+    "DATEPART",
+]
 
 # Default prompt
 PROMPT = "neug > "
 ALTPROMPT = "... "
+PROMPT_TOKENS = [("class:prompt", "neug"), ("class:prompt-symbol", " > ")]
+ALTPROMPT_TOKENS = [("class:prompt-symbol", "... ")]
+SHELL_STYLE = (
+    Style.from_dict(
+        {
+            "prompt": "ansicyan bold",
+            "prompt-symbol": "ansibrightblack",
+            "auto-suggestion": "#777777",
+            "command": "ansigreen bold",
+            "cypher-keyword": "ansigreen bold",
+            "error": "ansired",
+        }
+    )
+    if Style
+    else None
+)
+CYPHER_CANDIDATES = CYPHER_KEYWORDS + BUILTIN_FUNCTIONS
+CYPHER_KEYWORDS_BY_LENGTH = sorted(CYPHER_KEYWORDS, key=len, reverse=True)
+CYPHER_KEYWORD_PATTERN = re.compile(
+    r"\b("
+    + "|".join(re.escape(keyword) for keyword in CYPHER_KEYWORDS_BY_LENGTH)
+    + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _format_like_typed(candidate, typed):
+    if typed.islower():
+        return candidate.lower()
+    if typed.isupper():
+        return candidate.upper()
+    if typed[:1].isupper() and typed[1:].islower():
+        return candidate.capitalize()
+    return candidate.lower()
+
+
+def _deduplicate(items):
+    seen = set()
+    result = []
+    for item in items:
+        normalized = item.upper()
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(item)
+    return result
+
+
+def _matching_candidates(fragment, candidates):
+    upper_fragment = fragment.upper()
+    return [
+        candidate for candidate in candidates if candidate.startswith(upper_fragment)
+    ]
+
+
+def _candidate_suffix(candidate, fragment):
+    formatted = _format_like_typed(candidate, fragment)
+    return formatted[len(fragment) :]
+
+
+def _current_cypher_fragment(text):
+    fragments = re.findall(r"\S+", text)
+    for size in range(min(3, len(fragments)), 0, -1):
+        fragment = " ".join(fragments[-size:])
+        if text.endswith(fragment):
+            matches = _matching_candidates(fragment, CYPHER_CANDIDATES)
+            if matches:
+                return fragment
+    return None
+
+
+def _completion_candidates(text):
+    stripped = text.lstrip()
+    if stripped.startswith(":"):
+        commands = [
+            command for command in SHELL_COMMANDS if command.startswith(stripped)
+        ]
+        return stripped, commands
+
+    fragment = _current_cypher_fragment(stripped)
+    if not fragment:
+        return "", []
+    return fragment, _deduplicate(_matching_candidates(fragment, CYPHER_CANDIDATES))
+
+
+def _suggestion_for_index(text, index=0):
+    fragment, candidates = _completion_candidates(text)
+    if not fragment or not candidates:
+        return None
+    candidate = candidates[index % len(candidates)]
+    return _candidate_suffix(candidate, fragment)
+
+
+def _lex_cypher_line(line):
+    tokens = []
+    position = 0
+    for match in CYPHER_KEYWORD_PATTERN.finditer(line):
+        if match.start() > position:
+            tokens.append(("", line[position : match.start()]))
+        tokens.append(("class:cypher-keyword", line[match.start() : match.end()]))
+        position = match.end()
+    if position < len(line):
+        remaining = line[position:]
+        partial_match = re.match(r"\S+$", remaining)
+        if partial_match:
+            before_partial = remaining[: partial_match.start()]
+            partial = partial_match.group(0)
+            if before_partial:
+                tokens.append(("", before_partial))
+            if _matching_candidates(partial, CYPHER_KEYWORDS):
+                tokens.append(("class:cypher-keyword", partial))
+            else:
+                tokens.append(("", partial))
+        else:
+            tokens.append(("", remaining))
+    return tokens
+
+
+class NeugAutoSuggest(AutoSuggest):
+    def get_suggestion(self, buffer, document):
+        text = document.text_before_cursor
+        if buffer:
+            state = getattr(buffer, "_neug_completion_state", None)
+            if state and state.get("text") == text:
+                suggestion = _suggestion_for_index(text, state.get("index", 0))
+                if suggestion:
+                    return Suggestion(suggestion)
+
+        suggestion = _suggestion_for_index(text)
+        if suggestion:
+            return Suggestion(suggestion)
+        return None
+
+
+def _refresh_buffer_suggestion(buffer):
+    if buffer.auto_suggest:
+        buffer.suggestion = buffer.auto_suggest.get_suggestion(buffer, buffer.document)
+    else:
+        buffer.suggestion = None
+    buffer.on_suggestion_set.fire()
+
+
+def _handle_tab(buffer):
+    text = buffer.document.text_before_cursor
+    fragment, candidates = _completion_candidates(text)
+    if not fragment or not candidates:
+        return False
+
+    state = getattr(buffer, "_neug_completion_state", None)
+    same_cycle = (
+        state
+        and state.get("text") == text
+        and state.get("fragment") == fragment
+        and state.get("candidates") == candidates
+    )
+    if len(candidates) == 1:
+        suggestion = _suggestion_for_index(text)
+        if suggestion:
+            buffer.insert_text(suggestion)
+            buffer._neug_completion_state = None
+            return True
+        return False
+
+    index = (state.get("index", 0) + 1) % len(candidates) if same_cycle else 1
+    buffer._neug_completion_state = {
+        "text": text,
+        "fragment": fragment,
+        "candidates": candidates,
+        "index": index,
+    }
+    _refresh_buffer_suggestion(buffer)
+    return True
+
+
+def create_key_bindings():
+    bindings = KeyBindings()
+
+    @bindings.add("tab")
+    def _(event):
+        _handle_tab(event.current_buffer)
+
+    return bindings
+
+
+class NeugLexer(Lexer):
+    def lex_document(self, document):
+        def get_line(lineno):
+            line = document.lines[lineno]
+            stripped = line.lstrip()
+            leading_spaces = len(line) - len(stripped)
+            tokens = []
+            if leading_spaces:
+                tokens.append(("", line[:leading_spaces]))
+            if stripped.startswith(":"):
+                command = next(
+                    (cmd for cmd in SHELL_COMMANDS if cmd.startswith(stripped)), None
+                )
+                if command:
+                    typed_len = min(len(stripped), len(command))
+                    tokens.append(("class:command", stripped[:typed_len]))
+                    tokens.append(("class:auto-suggestion", stripped[typed_len:]))
+                    return tokens
+                tokens.append(("class:error", stripped))
+                return tokens
+            tokens.extend(_lex_cypher_line(stripped))
+            return tokens
+
+        return get_line
 
 
 class NeugShell(cmd.Cmd):
@@ -63,24 +436,25 @@ class NeugShell(cmd.Cmd):
         self.buffer = []
         self.multi_line_mode = False
         self.max_rows = 20  # Default max rows for query results
-
-        # Set and read history file when readline is available
         self._histfile = os.path.join(os.path.expanduser("~"), ".neug_history")
-        if readline:
-            try:
-                readline.read_history_file(self._histfile)
-            except FileNotFoundError:
-                pass
-            except OSError as e:
-                # OSError (errno 22/EINVAL): libedit (macOS) cannot parse a
-                # GNU readline history file. Safe to ignore.
-                # Re-raise for any other OS error (e.g. EPERM) so unexpected
-                # problems still surface to the user.
-                if e.errno != errno.EINVAL:
-                    raise
-            atexit.register(self._save_history, self._histfile)
-        else:
-            logger.info("Command history disabled; readline support not detected.")
+        self._prompt_session = None
+
+        if not PromptSession:
+            if readline:
+                try:
+                    readline.read_history_file(self._histfile)
+                except FileNotFoundError:
+                    pass
+                except OSError as e:
+                    # OSError (errno 22/EINVAL): libedit (macOS) cannot parse a
+                    # GNU readline history file. Safe to ignore.
+                    # Re-raise for any other OS error (e.g. EPERM) so unexpected
+                    # problems still surface to the user.
+                    if e.errno != errno.EINVAL:
+                        raise
+                atexit.register(self._save_history, self._histfile)
+            else:
+                logger.info("Command history disabled; readline support not detected.")
 
         logger.info("Connection established.")
 
@@ -92,6 +466,37 @@ class NeugShell(cmd.Cmd):
             readline.write_history_file(histfile)
         except (PermissionError, OSError) as e:
             logger.warning(f"Could not save history to {histfile}: {e}")
+
+    def cmdloop(self, intro=None):
+        if not PromptSession:
+            return super().cmdloop(intro=intro)
+
+        self._prompt_session = PromptSession(
+            history=FileHistory(self._histfile),
+            auto_suggest=NeugAutoSuggest(),
+            key_bindings=create_key_bindings(),
+            lexer=NeugLexer(),
+            style=SHELL_STYLE,
+        )
+
+        if intro is None:
+            intro = self.intro
+        if intro:
+            print(intro, end="")
+
+        while True:
+            try:
+                line = self._prompt_session.prompt(
+                    ALTPROMPT_TOKENS if self.multi_line_mode else PROMPT_TOKENS
+                )
+            except (EOFError, KeyboardInterrupt):
+                print("Exiting...")
+                self.connection.close()
+                return True
+            if not line.strip():
+                continue
+            if self.default(line):
+                return True
 
     def emptyline(self):
         """Override default emptyline behavior to do nothing instead of repeating the last command."""
@@ -129,7 +534,7 @@ class NeugShell(cmd.Cmd):
                 self.prompt = PROMPT
                 self.do_query(full_query)
                 # Add complete query to history after execution
-                if readline:
+                if readline and not self._prompt_session:
                     readline.add_history(full_query)
             else:
                 self.prompt = ALTPROMPT
@@ -199,6 +604,7 @@ class NeugShell(cmd.Cmd):
             - Use :ui <endpoint> to start a web ui service on endpoint.
             - Multi-line commands are supported. Use ';' at the end to execute.
             - Command history is supported; use the up/down arrow keys to navigate previous commands.
+            - Use Tab to cycle candidates and right arrow to accept the current suggestion.
             """
         )
 
@@ -207,7 +613,7 @@ class NeugShell(cmd.Cmd):
     name="neug-cli",
     epilog="Run 'neug-cli COMMAND --help' for more information on a command.\n\n  e.g. neug-cli open --help",
 )
-@click.version_option(version="0.1.1")
+@click.version_option(version="0.1.2")
 def cli():
     """Neug CLI Tool."""
 

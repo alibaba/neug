@@ -21,6 +21,7 @@
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
@@ -645,7 +646,9 @@ neug::result<Context> Join::join(Context&& ctx, Context&& ctx2,
   } else if (params.join_type == JoinKind::kTimesJoin) {
     return default_times_join(std::move(ctx), std::move(ctx2), params);
   }
-  LOG(FATAL) << "Unsupported join type" << static_cast<int>(params.join_type);
+  THROW_NOT_SUPPORTED_EXCEPTION(
+      "Unsupported join type" +
+      std::to_string(static_cast<int>(params.join_type)));
   return ctx;
 }
 
@@ -659,7 +662,7 @@ neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
   for (label_t label : labels) {
     builder.start_label(label);
     for (size_t i = 0; i < row_num; ++i) {
-      auto any = value_to_property(column->get_elem(i));
+      const auto& any = column->get_elem(i);
       vid_t index;
       if (graph.GetVertexIndex(label, any, index)) {
         builder.push_back_opt(index);

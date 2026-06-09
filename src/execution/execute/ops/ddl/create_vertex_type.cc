@@ -42,10 +42,8 @@ class CreateVertexTypeOpr : public IOperator {
         dynamic_cast<StorageUpdateInterface&>(graph);
     CreateVertexTypeParamBuilder builder;
     builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
-    std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_value.type(), prop_name,
-                          value_to_property(prop_value));
+      builder.AddProperty(prop_name, prop_value);
     }
     auto res = storage.CreateVertexType(builder.Build());
     if (!res.ok()) {

@@ -25,6 +25,7 @@
 #include <vector>
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -200,6 +201,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::INSERT: {
     auto insert = op.constPtrCast<planner::LogicalInsert>();
     convertInsert(*insert, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::MERGE: {
+    auto merge = op.constPtrCast<planner::LogicalMerge>();
+    convertMerge(*merge, plan);
     break;
   }
   case planner::LogicalOperatorType::SET_PROPERTY: {
@@ -1638,6 +1644,215 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_create_edge(insertPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::appendMergeVertexBoundSet(
+    const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+    const binder::Expression& insertPattern,
+    const planner::LogicalMerge& mergeOp, ::physical::MergeVertex::Entry* entry,
+    bool forOnCreate) {
+  auto* repeated =
+      forOnCreate ? entry->mutable_on_create() : entry->mutable_on_match();
+  for (const auto& info : boundInfos) {
+    if (info.pattern->getUniqueName() != insertPattern.getUniqueName()) {
+      continue;
+    }
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    repeated->AddAllocated(
+        convertPropMapping(columnName, *info.columnData, mergeOp).release());
+  }
+}
+
+void GQueryConvertor::appendMergeEdgeBoundSet(
+    const std::vector<binder::BoundSetPropertyInfo>& boundInfos,
+    const binder::Expression& insertPattern,
+    const planner::LogicalMerge& mergeOp, ::physical::MergeEdge::Entry* entry,
+    bool forOnCreate) {
+  auto* repeated =
+      forOnCreate ? entry->mutable_on_create() : entry->mutable_on_match();
+  for (const auto& info : boundInfos) {
+    if (info.pattern->getUniqueName() != insertPattern.getUniqueName()) {
+      continue;
+    }
+    auto& column = info.column;
+    std::string columnName;
+    if (column->expressionType == common::ExpressionType::PROPERTY) {
+      auto property = column->ptrCast<binder::PropertyExpression>();
+      columnName = property->getPropertyName();
+    } else {
+      columnName = column->toString();
+    }
+    if (skipColumn(columnName)) {
+      continue;
+    }
+    repeated->AddAllocated(
+        convertPropMapping(columnName, *info.columnData, mergeOp).release());
+  }
+}
+
+void GQueryConvertor::convertMerge(const planner::LogicalMerge& merge,
+                                   ::physical::PhysicalPlan* plan) {
+  const auto& nodeInfos = merge.getInsertNodeInfos();
+  const auto& relInfos = merge.getInsertRelInfos();
+  if (nodeInfos.empty() && relInfos.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Merge insert info should not be empty");
+  }
+  if (!nodeInfos.empty() && !relInfos.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Merge cannot combine vertex and edge patterns in one operator");
+  }
+  if (!nodeInfos.empty()) {
+    convertMergeVertex(merge, plan);
+  } else {
+    convertMergeEdge(merge, plan);
+  }
+}
+
+void GQueryConvertor::convertMergeVertex(const planner::LogicalMerge& merge,
+                                         ::physical::PhysicalPlan* plan) {
+  auto& infos = merge.getInsertNodeInfos();
+  auto mergePB = std::make_unique<::physical::MergeVertex>();
+  for (auto& info : infos) {
+    auto nodeExpr = info.pattern->ptrCast<binder::NodeExpression>();
+    GNodeType nodeType(*nodeExpr);
+    auto typeIds = nodeType.getLabelIds();
+    if (typeIds.size() != 1) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "merge vertex with multiple labels is not supported");
+    }
+    auto labelId = typeIds[0];
+    auto labelPB = std::make_unique<::common::NameOrId>();
+    labelPB->set_id(labelId);
+    auto entryPB = std::make_unique<::physical::MergeVertex::Entry>();
+    entryPB->set_allocated_vertex_type(labelPB.release());
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data, merge).release());
+    }
+    auto aliasId = aliasManager->getAliasId(nodeExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Merge vertex alias not found: " +
+                                     nodeExpr->getUniqueName());
+    }
+    appendMergeVertexBoundSet(merge.getOnCreateSetNodeInfos(), *nodeExpr, merge,
+                              entryPB.get(), true);
+    appendMergeVertexBoundSet(merge.getOnMatchSetNodeInfos(), *nodeExpr, merge,
+                              entryPB.get(), false);
+    mergePB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_merge_vertex(mergePB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
+}
+
+void GQueryConvertor::convertMergeEdge(const planner::LogicalMerge& merge,
+                                       ::physical::PhysicalPlan* plan) {
+  auto& infos = merge.getInsertRelInfos();
+  auto mergePB = std::make_unique<::physical::MergeEdge>();
+  for (auto& info : infos) {
+    auto relExpr = info.pattern->ptrCast<binder::RelExpression>();
+    GRelType relType(*relExpr);
+    auto& rels = relType.relTables;
+    if (rels.size() != 1) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "merge edge bound by multiple rel types is not supported");
+    }
+    EdgeLabelId edgeLabel(rels[0]->getLabelId(), rels[0]->getSrcTableID(),
+                          rels[0]->getDstTableID());
+    auto entryPB = std::make_unique<::physical::MergeEdge::Entry>();
+    entryPB->set_allocated_edge_type(convertToEdgeType(edgeLabel).release());
+    if (info.columnExprs.size() != info.columnDataExprs.size()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Number of column expressions does not match the number of column "
+          "data expressions");
+    }
+    for (size_t i = 0; i < info.columnExprs.size(); i++) {
+      auto column = info.columnExprs[i];
+      std::string columnName;
+      if (column->expressionType == common::ExpressionType::PROPERTY) {
+        auto property = column->ptrCast<binder::PropertyExpression>();
+        columnName = property->getPropertyName();
+      } else {
+        columnName = column->toString();
+      }
+      if (skipColumn(columnName)) {
+        continue;
+      }
+      auto data = info.columnDataExprs[i];
+      entryPB->mutable_property_mappings()->AddAllocated(
+          convertPropMapping(columnName, *data, merge).release());
+    }
+    auto srcAliasId = aliasManager->getAliasId(relExpr->getSrcNodeName());
+    if (srcAliasId != DEFAULT_ALIAS_ID) {
+      auto srcAliasPB = std::make_unique<::common::NameOrId>();
+      srcAliasPB->set_id(srcAliasId);
+      entryPB->set_allocated_source_vertex_binding(srcAliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Source vertex binding not found: " +
+                                     relExpr->getSrcNodeName());
+    }
+    auto dstAliasId = aliasManager->getAliasId(relExpr->getDstNodeName());
+    if (dstAliasId != DEFAULT_ALIAS_ID) {
+      auto dstAliasPB = std::make_unique<::common::NameOrId>();
+      dstAliasPB->set_id(dstAliasId);
+      entryPB->set_allocated_destination_vertex_binding(dstAliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Destination vertex binding not found: " +
+                                     relExpr->getDstNodeName());
+    }
+    auto aliasId = aliasManager->getAliasId(relExpr->getUniqueName());
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      auto aliasPB = std::make_unique<::common::NameOrId>();
+      aliasPB->set_id(aliasId);
+      entryPB->set_allocated_alias(aliasPB.release());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE("Merge edge alias not found: " +
+                                     relExpr->getUniqueName());
+    }
+    appendMergeEdgeBoundSet(merge.getOnCreateSetRelInfos(), *relExpr, merge,
+                            entryPB.get(), true);
+    appendMergeEdgeBoundSet(merge.getOnMatchSetRelInfos(), *relExpr, merge,
+                            entryPB.get(), false);
+    mergePB->mutable_entries()->AddAllocated(entryPB.release());
+  }
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_merge_edge(mergePB.release());
   physicalPB->set_allocated_opr(oprPB.release());
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }

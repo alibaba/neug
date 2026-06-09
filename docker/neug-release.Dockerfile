@@ -1,4 +1,4 @@
-FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1 as builder
+FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2 as builder
 
 USER neug
 

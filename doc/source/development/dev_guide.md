@@ -57,15 +57,29 @@ sudo dnf -y install git python3 python3-pip cmake gcc-c++ make
 
 With the environment ready, you can proceed to build NeuG.
 
+**Build model**: NeuG uses a single root build tree at `<repo>/build/`. The
+core engine is compiled once into a shared library `libneug.{dylib,so}`, and
+each language binding (currently Python; future Node/Rust) builds its own `.so`
+that dynamically links against the same core library. There is no separate
+per-binding build of the core.
+
+```
+<repo>/build/
+├── src/libneug.{dylib,so}             # core, built once
+└── tools/python_bind/neug_py_bind*.so # binding, links to core
+```
+
 #### For Development Purposes
 
-To build the NeuG Python package in development mode, execute:
+To configure the root build and compile the Python binding in one shot:
 
 ```bash
 make python-dev
 ```
 
-This will compile the NeuG engine and Python client in development mode. You can use the NeuG package by running Python scripts from the `tools/python_bind` directory.
+This bootstraps the root build (`cmake -S . -B build -DBUILD_PYTHON=ON`),
+compiles the core, and builds the `neug_py_bind` target. Subsequent runs only
+rebuild what changed. You can then import `neug` directly:
 
 ```bash
 cd tools/python_bind
@@ -73,35 +87,52 @@ python3
 >>> import neug
 ```
 
-To use NeuG from other directories, add `tools/python_bind` to `sys.path`:
+The loader auto-discovers `neug_py_bind*.so` in `<repo>/build/tools/python_bind/`
+— no `sys.path` mangling needed. Point at an alternate build tree with
+`NEUG_BUILD_DIR=/path/to/build`.
 
-```python
-import sys
-sys.path.append('/path/to/neug/tools/python_bind')
-```
+For the tightest incremental loop, run `make dev` directly from
+`tools/python_bind/`. It auto-bootstraps if the root build is missing or
+wasn't configured with `-DBUILD_PYTHON=ON`, so you can start with it from a
+fresh checkout too.
 
 #### Building the Wheel Package
-
-To compile the wheel package, run:
 
 ```bash
 make python-wheel
 ```
 
-Afterwards, the wheel package can be found in `tools/python_bind/dist`.
+The wheel is written to `tools/python_bind/dist/`. It bundles both
+`neug_py_bind*.so` and `libneug.{dylib,so}` inside the `neug` package — they
+find each other at runtime via `@loader_path` (macOS) / `$ORIGIN` (Linux)
+RPATH, so the wheel is fully self-contained.
+
+`setup.py` consumes the root build artifacts. In CI (cibuildwheel containers
+with no pre-existing build tree), it falls back to running cmake configure +
+`--target neug_py_bind` in the container.
 
 #### Building C++ Libraries and Executables Only
 
-To build only the C++ libraries and executables without the Python bindings, use:
+To build only the C++ libraries and executables without the Python bindings:
 
 ```bash
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-# Optional: run tests
-ctest
-# Optional: install to the system
-make install
+make cpp-build   # configures with -DBUILD_PYTHON=OFF, then builds
+make cpp-test    # additionally enables -DBUILD_TEST=ON and runs ctest
+```
+
+Both targets accept `BUILD_TYPE` (default `Release`) and `EXTRA_CMAKE_FLAGS`:
+
+```bash
+BUILD_TYPE=Debug make cpp-build
+EXTRA_CMAKE_FLAGS="-DBUILD_HTTP_SERVER=ON -DWITH_MIMALLOC=ON" make cpp-build
+```
+
+Equivalent raw cmake form:
+
+```bash
+cmake -S . -B build -DBUILD_PYTHON=OFF
+cmake --build build -j
+cmake --install build   # optional: install to the system
 ```
 
 Check `CMakeLists.txt` for more CMake options.
@@ -165,29 +196,32 @@ For more options, see `./scripts/pre_commit_check.sh --help`.
 
 ### FAQ
 
-#### Fail to run e2e queries on macos
+#### `ImportError: cannot import 'neug_py_bind'`
 
-```
-➜  e2e git:(main) ✗ ./scripts/run_embed_test.sh modern_graph /tmp/modern_graph basic_test
-Running command: python3 -m pytest -sv -m neug_test --query_dir=/Users/zhanglei/code/nexg/tests/e2e/scripts/../queries/basic_test --dataset modern_graph --db_dir=/tmp/modern_graph --read_only --html="/Users/zhanglei/code/nexg/tests/e2e/scripts/../report/modern_graph/basic_test/test_report.html" --alluredir="/Users/zhanglei/code/nexg/tests/e2e/scripts/../report/modern_graph/basic_test/allure-results"
-INFO:neug:Found build directories: ['lib.macosx-15.0-arm64-cpython-313']
-INFO:neug:Selected build directory: lib.macosx-15.0-arm64-cpython-313
-INFO:neug:Selected build directory: lib.macosx-15.0-arm64-cpython-313
-INFO:neug:Build directory: /Users/zhanglei/code/nexg/tests/e2e/../../tools/python_bind/neug/../build/lib.macosx-15.0-arm64-cpython-313
-INFO:neug:Adding build directory to sys.path: /Users/zhanglei/code/nexg/tests/e2e/../../tools/python_bind/neug/../build/lib.macosx-15.0-arm64-cpython-313
-ImportError while loading conftest '/Users/zhanglei/code/nexg/tests/e2e/conftest.py'.
-conftest.py:31: in <module>
-    from neug import Session
-../../tools/python_bind/neug/__init__.py:149: in <module>
-    raise ImportError(
-E   ImportError: NeuG is not installed. Please install it using pip or build it from source: dlopen(/Users/zhanglei/code/nexg/tests/e2e/../../tools/python_bind/neug/../build/lib.macosx-15.0-arm64-cpython-313/neug_py_bind.cpython-313-darwin.so, 0x0002): Library not loaded: @rpath/libboost_filesystem.dylib
-E     Referenced from: <F7ACB223-7AD2-4427-B5F6-5BA4505CFA4F> /Users/zhanglei/code/nexg/tools/python_bind/build/lib.macosx-15.0-arm64-cpython-313/neug_py_bind.cpython-313-darwin.so
-E     Reason: tried: '/Users/zhanglei/code/nexg/tools/python_bind/build/lib.macosx-15.0-arm64-cpython-313/libboost_filesystem.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/Users/zhanglei/code/nexg/tools/python_bind/build/lib.macosx-15.0-arm64-cpython-313/libboost_filesystem.dylib' (no such file), '/Users/zhanglei/code/nexg/tools/python_bind/build/lib.macosx-15.0-arm64-cpython-313/libboost_filesystem.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/Users/zhanglei/code/nexg/tools/python_bind/build/lib.macosx-15.0-arm64-cpython-313/libboost_filesystem.dylib' (no such file), '/opt/homebrew/lib/libboost_filesystem.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/lib/libboost_filesystem.dylib' (no such file), '/opt/homebrew/lib/libboost_filesystem.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/lib/libboost_filesystem.dylib' (no such file)
-```
+The loader could not find `neug_py_bind*.so`. Check in this order:
 
-To fix this issue, install the rpath manually
+1. Did you actually build the target? Run `cd tools/python_bind && make dev` —
+   the `.so` should appear at `<repo>/build/tools/python_bind/`.
+2. Are you pointing at the right build tree? If you maintain multiple, set
+   `NEUG_BUILD_DIR=/path/to/build` to override the default `<repo>/build`.
+3. Inspect what the loader is looking for:
+   `python3 -c "from neug import __init__; print(__init__._find_neug_py_bind_dir())"`
 
+#### `Library not loaded: @rpath/libneug.dylib` or transitive third-party libs
+
+`neug_py_bind*.so` is set up with `BUILD_RPATH=@loader_path/../../src` so it
+finds the sibling `libneug.dylib` automatically in the root build tree.
+If you see this error:
+
+- **For `libneug` itself**: your build tree is incomplete or you moved files.
+  Re-run `cmake --build build --target neug_py_bind`.
+- **For a third-party dep** (arrow, openssl, etc.): `libneug.dylib`'s
+  transitive deps weren't found. Set `DYLD_LIBRARY_PATH=/opt/neug/lib` (macOS)
+  or `LD_LIBRARY_PATH=/opt/neug/lib:/opt/neug/lib64` (Linux) to where they are
+  installed, or rebuild with the deps statically linked.
+
+To inspect what a `.so` is asking for:
 ```bash
-cd tools/python_bind/
-install_name_tool -add_rpath /opt/neug/lib ./build/lib.macosx-15.0-arm64-cpython-313/neug_py_bind.cpython-313-darwin.so
+otool -L build/tools/python_bind/neug_py_bind*.so   # macOS
+ldd     build/tools/python_bind/neug_py_bind*.so    # Linux
 ```

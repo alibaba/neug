@@ -60,6 +60,22 @@ class PyQueryResult {
 
   std::string get_bolt_response() const;
 
+  /**
+   * @brief Convert the query result to a pyarrow.Table via Arrow C Data
+   * Interface.
+   *
+   * This method builds ArrowArray / ArrowSchema C structs directly from the
+   * protobuf QueryResponse (no Arrow C++ symbols involved) and hands them to
+   * pyarrow through `pyarrow.RecordBatch._import_from_c()`.  This avoids any
+   * symbol conflict between the Arrow static library linked into libneug and
+   * the Arrow shared library used by pyarrow.
+   *
+   * @return pybind11::object  A `pyarrow.Table` Python object.
+   * @throws pybind11::error_already_set if importing `pyarrow` fails or if
+   *         Python-side Arrow conversion raises an exception.
+   */
+  pybind11::object to_arrow() const;
+
  private:
   size_t index_{0};
   Status status_;

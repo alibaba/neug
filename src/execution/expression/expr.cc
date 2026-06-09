@@ -28,6 +28,7 @@
 #include "neug/execution/expression/exprs/struct_expr.h"
 #include "neug/execution/expression/exprs/udfs.h"
 #include "neug/execution/expression/exprs/variable.h"
+#include "neug/utils/exception/exception.h"
 
 #include "neug/generated/proto/plan/expr.pb.h"
 
@@ -194,7 +195,7 @@ static std::unique_ptr<ExprBase> build_expr(
       } else if (name == "gs.function.endNode") {
         return std::make_unique<StartEndNodeExpr>(std::move(expr), false);
       } else {
-        LOG(FATAL) << "not support udf" << opr.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support udf" + opr.DebugString());
       }
     }
     case ::common::ExprOpr::kPathFunc: {
@@ -203,7 +204,8 @@ static std::unique_ptr<ExprBase> build_expr(
       int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
       if (opr.node_type().data_type().item_case() !=
           ::common::DataType::kArray) {
-        LOG(FATAL) << "path function node_type is not array type";
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "path function node_type is not array type");
         return nullptr;
       }
       auto type = parse_from_data_type(
@@ -215,13 +217,14 @@ static std::unique_ptr<ExprBase> build_expr(
                  ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
         return std::make_unique<PathPropsExpr>(tag, name, type, false);
       } else {
-        LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
+        THROW_NOT_SUPPORTED_EXCEPTION("unsupport path function opt" +
+                                      opr.DebugString());
       }
 
       break;
     }
     default:
-      LOG(FATAL) << "not support" << opr.DebugString();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support" + opr.DebugString());
       break;
     }
   }

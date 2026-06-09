@@ -27,7 +27,9 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/comparison/vector_comparison_functions.h"
-#include "neug/compiler/function/csv_read_function.h"
+#include "neug/compiler/function/import/csv_read_function.h"
+#include "neug/compiler/function/import/json_read_function.h"
+#include "neug/compiler/function/export/json_export_function.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/gds/project_graph_function.h"
@@ -156,7 +158,11 @@ FunctionCollection* FunctionCollection::getFunctions() {
       TABLE_FUNCTION(ProjectGraphFunction),
       TABLE_FUNCTION(DropProjectedGraphFunction),
       TABLE_FUNCTION(CSVReadFunction),
+      TABLE_FUNCTION(JsonReadFunction),
+      TABLE_FUNCTION(JsonLReadFunction),
       EXPORT_FUNCTION(ExportCSVFunction),
+      EXPORT_FUNCTION(ExportJsonFunction),
+      EXPORT_FUNCTION(ExportJsonLFunction),
 
       FINAL_FUNCTION};
 

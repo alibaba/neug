@@ -15,6 +15,10 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_broker.h"
+#include "neug/storages/module/module_factory.h"
+
 #include <arrow/api.h>
 #include <arrow/array/array_base.h>
 #include <arrow/array/array_binary.h>
@@ -27,100 +31,39 @@
 #include <string_view>
 #include <utility>
 
-#include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module/type_name.h"
+#include "neug/storages/module_descriptor.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
-std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
-filterInvalidEdges(const std::vector<vid_t>& src_lid,
-                   const std::vector<vid_t>& dst_lid) {
+void filterInvalidEdges(std::vector<vid_t>& src_lid,
+                        std::vector<vid_t>& dst_lid,
+                        std::vector<bool>& valid_flags) {
   assert(src_lid.size() == dst_lid.size());
-  std::vector<vid_t> filtered_src, filtered_dst;
-  std::vector<bool> valid_flags;
-  filtered_src.reserve(src_lid.size());
-  filtered_dst.reserve(dst_lid.size());
+
   valid_flags.reserve(src_lid.size());
+  size_t valid_count = 0;
   for (size_t i = 0; i < src_lid.size(); ++i) {
     if (src_lid[i] != std::numeric_limits<vid_t>::max() &&
         dst_lid[i] != std::numeric_limits<vid_t>::max()) {
-      filtered_src.push_back(src_lid[i]);
-      filtered_dst.push_back(dst_lid[i]);
+      src_lid[valid_count] = src_lid[i];
+      dst_lid[valid_count] = dst_lid[i];
+      ++valid_count;
       valid_flags.push_back(true);
     } else {
       valid_flags.push_back(false);
     }
   }
-  return std::make_tuple(std::move(filtered_src), std::move(filtered_dst),
-                         std::move(valid_flags));
-}
-
-template <typename EDATA_T, typename ARROW_COL_T>
-std::vector<Property> extract_edge_data(
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
-    const std::vector<bool>& valid_flags) {
-  std::vector<Property> edge_data;
-  assert([&]() {
-    int64_t total = 0;
-    for (auto rb : data_batches) {
-      total += rb->num_rows();
-    }
-    return total == static_cast<int64_t>(valid_flags.size());
-  }());
-  edge_data.reserve(std::count(valid_flags.begin(), valid_flags.end(), true));
-  size_t cur_index = 0;
-  for (auto rb : data_batches) {
-    auto array = rb->column(0);
-    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      if (valid_flags[cur_index++]) {
-        edge_data.emplace_back(
-            neug::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
-      }
-    }
-  }
-  return edge_data;
-}
-
-// Helper alias to resolve the Arrow array type for a property type.
-template <typename T>
-using ExtractEdgeArrowArray = typename TypeConverter<T>::ArrowArrayType;
-
-std::vector<Property> extract_bundled_edge_data_from_batches(
-    std::shared_ptr<const EdgeSchema> meta,
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
-    const std::vector<bool>& valid_flags) {
-  assert(meta->is_bundled());
-  if (meta->properties.empty() ||
-      meta->properties[0].id() == DataTypeId::kEmpty) {
-    return std::vector<Property>();
-  }
-  switch (meta->properties[0].id()) {
-#define EXTRACT_EDGE_DATA_CASE(enum_val, type)                                \
-  case DataTypeId::enum_val:                                                  \
-    return extract_edge_data<type, ExtractEdgeArrowArray<type>>(data_batches, \
-                                                                valid_flags);
-    FOR_EACH_DATA_TYPE_PRIMITIVE(EXTRACT_EDGE_DATA_CASE)
-  case DataTypeId::kDate:
-    return extract_edge_data<Date, arrow::Date64Array>(data_batches,
-                                                       valid_flags);
-  case DataTypeId::kTimestampMs:
-    return extract_edge_data<DateTime, arrow::TimestampArray>(data_batches,
-                                                              valid_flags);
-  case DataTypeId::kInterval:
-    return extract_edge_data<Interval, arrow::LargeStringArray>(data_batches,
-                                                                valid_flags);
-#undef EXTRACT_EDGE_DATA_CASE
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
-                                  meta->properties[0].ToString());
-  }
+  src_lid.resize(valid_count);
+  dst_lid.resize(valid_count);
 }
 
 template <typename EDATA_T>
@@ -134,18 +77,17 @@ void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
       src_lid, dst_lid, default_datas);
 }
 
-// TODO(zhanglei): Support default value for non-empty edge data type
 void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
                                         const std::vector<vid_t>& dst_lid,
                                         DataTypeId property_type,
-                                        Property default_value,
+                                        const execution::Value& default_value,
                                         CsrBase* out_csr) {
   assert(src_lid.size() == dst_lid.size());
   switch (property_type) {
-#define TYPE_DISPATCHER(enum_val, type)                                       \
-  case DataTypeId::enum_val:                                                  \
-    batch_put_edges_with_default_edata_impl<type>(                            \
-        src_lid, dst_lid, PropUtils<type>::to_typed(default_value), out_csr); \
+#define TYPE_DISPATCHER(enum_val, type)                             \
+  case DataTypeId::enum_val:                                        \
+    batch_put_edges_with_default_edata_impl<type>(                  \
+        src_lid, dst_lid, default_value.GetValue<type>(), out_csr); \
     break;
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
@@ -159,18 +101,17 @@ void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
   }
 }
 
-void batch_put_edges_to_bundled_csr(const std::vector<vid_t>& src_lid,
-                                    const std::vector<vid_t>& dst_lid,
-                                    DataTypeId property_type,
-                                    const std::vector<Property>& edge_data,
-                                    CsrBase* out_csr) {
+void batch_put_edges_to_bundled_csr(
+    const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
+    DataTypeId property_type, const std::vector<execution::Value>& edge_data,
+    CsrBase* out_csr) {
   switch (property_type) {
 #define TYPE_DISPATCHER(enum_val, type)                          \
   case DataTypeId::enum_val: {                                   \
     std::vector<type> typed_data;                                \
     typed_data.reserve(edge_data.size());                        \
-    for (const auto& prop : edge_data) {                         \
-      typed_data.emplace_back(PropUtils<type>::to_typed(prop));  \
+    for (const auto& v : edge_data) {                            \
+      typed_data.emplace_back(v.GetValue<type>());               \
     }                                                            \
     dynamic_cast<TypedCsrBase<type>*>(out_csr)->batch_put_edges( \
         src_lid, dst_lid, typed_data);                           \
@@ -252,7 +193,7 @@ static void parse_endpoint_column(const IndexerType& indexer,
     for (int64_t i = 0; i < casted->length(); ++i) {
       auto str = casted->GetView(i);
       std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Property::From(sv));
+      auto vid = indexer.get_index(execution::Value::STRING(std::string(sv)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::large_utf8())) {
@@ -260,35 +201,36 @@ static void parse_endpoint_column(const IndexerType& indexer,
     for (int64_t i = 0; i < casted->length(); ++i) {
       auto str = casted->GetView(i);
       std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Property::From(sv));
+      auto vid = indexer.get_index(execution::Value::STRING(std::string(sv)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::int64())) {
     auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      auto vid = indexer.get_index(execution::Value::INT64(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::uint64())) {
     auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      auto vid = indexer.get_index(execution::Value::UINT64(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::int32())) {
     auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      auto vid = indexer.get_index(execution::Value::INT32(casted->Value(i)));
       lids.push_back(vid);
     }
   } else if (array->type()->Equals(arrow::uint32())) {
     auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      auto vid = indexer.get_index(execution::Value::UINT32(casted->Value(i)));
       lids.push_back(vid);
     }
   } else {
-    LOG(FATAL) << "not support type " << array->type()->ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                  array->type()->ToString());
   }
 }
 
@@ -301,15 +243,29 @@ void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
 }
 
-template <typename EDATA_T>
+template <typename EDATA_T, typename ARROW_COL_T>
 void insert_edges_bundled_typed_impl(
     TypedCsrBase<EDATA_T>* out_csr, TypedCsrBase<EDATA_T>* in_csr,
     const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
-    const std::vector<Property>& property_vec) {
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
   std::vector<EDATA_T> edge_data;
-  edge_data.reserve(edge_data.size());
-  for (const auto& prop : property_vec) {
-    edge_data.push_back(PropUtils<EDATA_T>::to_typed(prop));
+  edge_data.reserve(src_lid.size());
+  size_t cur_index = 0;
+  for (auto& rb : data_batches) {
+    auto array = rb->column(0);
+    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      if (valid_flags[cur_index++]) {
+        if constexpr (std::is_same_v<EDATA_T, Interval>) {
+          auto str = casted->GetView(i);
+          edge_data.push_back(Interval(std::string(str.data(), str.size())));
+        } else {
+          edge_data.push_back(EDATA_T(casted->Value(i)));
+        }
+      }
+    }
+    rb.reset();
   }
   out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
@@ -328,11 +284,15 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-static std::vector<Property> get_row_from_recordbatch(
+// Helper alias to resolve the Arrow array type for a property type.
+template <typename T>
+using ExtractEdgeArrowArray = typename TypeConverter<T>::ArrowArrayType;
+
+static std::vector<execution::Value> get_row_from_recordbatch(
     const std::vector<DataType>& prop_types,
     const std::vector<std::shared_ptr<arrow::DataType>>& expected_types,
     const std::shared_ptr<arrow::RecordBatch>& rb, int64_t row_idx) {
-  std::vector<Property> row;
+  std::vector<execution::Value> row;
   if ((int32_t) expected_types.size() != rb->num_columns()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "property types size not match recordbatch column size");
@@ -354,30 +314,34 @@ static std::vector<Property> get_row_from_recordbatch(
       }
     }
     if (array->IsNull(row_idx)) {
-      row.push_back(Property());
+      row.push_back(execution::Value(DataType::SQLNULL));
       continue;
     }
     switch (prop_types[i].id()) {
-#define GET_PRIMITIVE_PROPERTY_CASE(enum_val, type)                   \
+#define GET_PRIMITIVE_VALUE_CASE(enum_val, type)                      \
   case DataTypeId::enum_val: {                                        \
     auto casted =                                                     \
         std::static_pointer_cast<ExtractEdgeArrowArray<type>>(array); \
-    row.push_back(PropUtils<type>::to_prop(casted->Value(row_idx)));  \
+    row.push_back(                                                    \
+        execution::Value::CreateValue<type>(casted->Value(row_idx))); \
     break;                                                            \
   }
-      FOR_EACH_DATA_TYPE_PRIMITIVE(GET_PRIMITIVE_PROPERTY_CASE)
-#undef GET_PRIMITIVE_PROPERTY_CASE
+      FOR_EACH_DATA_TYPE_PRIMITIVE(GET_PRIMITIVE_VALUE_CASE)
+#undef GET_PRIMITIVE_VALUE_CASE
     case DataTypeId::kVarchar: {
       if (array->type()->Equals(arrow::utf8())) {
         auto casted = std::static_pointer_cast<arrow::StringArray>(array);
         auto str = casted->GetView(row_idx);
-        row.push_back(Property::from_string_view(str));
+        row.push_back(
+            execution::Value::STRING(std::string(str.data(), str.size())));
       } else if (array->type()->Equals(arrow::large_utf8())) {
         auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
         auto str = casted->GetView(row_idx);
-        row.push_back(Property::from_string_view(str));
+        row.push_back(
+            execution::Value::STRING(std::string(str.data(), str.size())));
       } else {
-        LOG(FATAL) << "not support type " << array->type()->ToString();
+        THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                      array->type()->ToString());
       }
       break;
     }
@@ -385,23 +349,24 @@ static std::vector<Property> get_row_from_recordbatch(
       auto casted = std::static_pointer_cast<arrow::Date64Array>(array);
       Date d;
       d.from_timestamp(casted->Value(row_idx));
-      row.push_back(Property::from_date(d));
+      row.push_back(execution::Value::DATE(d));
       break;
     }
     case DataTypeId::kTimestampMs: {
       auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(Property::from_datetime(DateTime(casted->Value(row_idx))));
+      row.push_back(
+          execution::Value::TIMESTAMPMS(DateTime(casted->Value(row_idx))));
       break;
     }
     case DataTypeId::kInterval: {
       if (array->type()->id() == arrow::Type::STRING) {
         auto casted = std::static_pointer_cast<arrow::StringArray>(array);
         row.push_back(
-            Property::from_interval(Interval(casted->GetView(row_idx))));
+            execution::Value::INTERVAL(Interval(casted->GetView(row_idx))));
       } else if (array->type()->id() == arrow::Type::LARGE_STRING) {
         auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
         row.push_back(
-            Property::from_interval(Interval(casted->GetView(row_idx))));
+            execution::Value::INTERVAL(Interval(casted->GetView(row_idx))));
       } else {
         THROW_NOT_IMPLEMENTED_EXCEPTION("Not support typed: " +
                                         array->type()->ToString());
@@ -409,7 +374,8 @@ static std::vector<Property> get_row_from_recordbatch(
       break;
     }
     default:
-      LOG(FATAL) << "not support type " << array->type()->ToString();
+      THROW_NOT_SUPPORTED_EXCEPTION("not support type " +
+                                    array->type()->ToString());
     }
   }
   return row;
@@ -451,11 +417,13 @@ void batch_add_unbundled_edges_impl(
   }
 }
 
-void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
-                                  const std::vector<DataType>& prop_types,
-                                  const std::vector<vid_t>& src_lid_list,
-                                  const std::vector<vid_t>& dst_lid_list,
-                                  const std::vector<Property>& edge_data) {
+void batch_add_bundled_edges_impl(
+    CsrBase* out_csr, CsrBase* in_csr, std::shared_ptr<const EdgeSchema> meta,
+    const std::vector<vid_t>& src_lid_list,
+    const std::vector<vid_t>& dst_lid_list,
+    std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  const auto& prop_types = meta->properties;
   if (prop_types.empty() || prop_types[0].id() == DataTypeId::kEmpty) {
     insert_edges_empty_impl(dynamic_cast<TypedCsrBase<EmptyType>*>(out_csr),
                             dynamic_cast<TypedCsrBase<EmptyType>*>(in_csr),
@@ -465,22 +433,43 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
   switch (prop_types[0].id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                        \
   case DataTypeId::enum_val:                                                   \
-    insert_edges_bundled_typed_impl(                                           \
+    insert_edges_bundled_typed_impl<type, ExtractEdgeArrowArray<type>>(        \
         dynamic_cast<TypedCsrBase<type>*>(out_csr),                            \
         dynamic_cast<TypedCsrBase<type>*>(in_csr), src_lid_list, dst_lid_list, \
-        edge_data);                                                            \
+        data_batches, valid_flags);                                            \
     break;
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_PRIMITIVE(TYPE_DISPATCHER)
+
 #undef TYPE_DISPATCHER
+  case DataTypeId::kDate:
+    insert_edges_bundled_typed_impl<Date, arrow::Date64Array>(
+        dynamic_cast<TypedCsrBase<Date>*>(out_csr),
+        dynamic_cast<TypedCsrBase<Date>*>(in_csr), src_lid_list, dst_lid_list,
+        data_batches, valid_flags);
+    break;
+  case DataTypeId::kTimestampMs:
+    insert_edges_bundled_typed_impl<DateTime, arrow::TimestampArray>(
+        dynamic_cast<TypedCsrBase<DateTime>*>(out_csr),
+        dynamic_cast<TypedCsrBase<DateTime>*>(in_csr), src_lid_list,
+        dst_lid_list, data_batches, valid_flags);
+    break;
+  case DataTypeId::kInterval:
+    insert_edges_bundled_typed_impl<Interval, arrow::LargeStringArray>(
+        dynamic_cast<TypedCsrBase<Interval>*>(out_csr),
+        dynamic_cast<TypedCsrBase<Interval>*>(in_csr), src_lid_list,
+        dst_lid_list, data_batches, valid_flags);
+    break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
                                   std::to_string(prop_types[0].id()));
   }
 }
 
-EdgeTable::EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {
-  table_ = std::make_unique<Table>();
+void EdgeTable::Init(Checkpoint& ckp, MemoryLevel level) {
+  CHECK(meta_ != nullptr) << "EdgeTable::Init requires schema";
 
+  memory_level_ = level;
+  const ModuleDescriptor empty{};
   if (meta_->is_bundled()) {
     auto property_type = meta_->properties.empty() ? DataTypeId::kEmpty
                                                    : meta_->properties[0].id();
@@ -492,13 +481,56 @@ EdgeTable::EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {
     in_csr_ =
         create_csr(meta_->ie_mutable, meta_->ie_strategy, DataTypeId::kUInt64);
   }
+  in_csr_->Open(ckp, empty, level);
+  out_csr_->Open(ckp, empty, level);
+  if (meta_->is_bundled()) {
+    table_ = std::make_unique<Table>();
+  } else {
+    table_ = std::make_unique<Table>(meta_->property_names, meta_->properties);
+  }
+  table_->Init(ckp, level);
+}
+
+std::string expectedCsrType(const EdgeSchema& meta, bool is_in) {
+  DataTypeId edata_type;
+  if (meta.is_bundled()) {
+    edata_type =
+        meta.properties.empty() ? DataTypeId::kEmpty : meta.properties[0].id();
+  } else {
+    edata_type = DataTypeId::kUInt64;
+  }
+  EdgeStrategy strategy = is_in ? meta.ie_strategy : meta.oe_strategy;
+  bool is_mutable = is_in ? meta.ie_mutable : meta.oe_mutable;
+  return module_naming::CsrTypeName(edata_type, strategy, is_mutable);
+}
+
+void setCsrSlot(std::shared_ptr<const EdgeSchema> meta,
+                std::unique_ptr<CsrBase>& slot, std::unique_ptr<CsrBase> csr,
+                bool is_in) {
+  const char* fn_name = is_in ? "SetInCsr" : "SetOutCsr";
+  CHECK(csr != nullptr) << "EdgeTable::" << fn_name << ": csr must not be null";
+  auto expected = expectedCsrType(*meta, is_in);
+  auto actual = csr->ModuleTypeName();
+  if (expected != actual) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        std::string("EdgeTable::") + fn_name + ": CSR type mismatch for edge " +
+        meta->src_label_name + "-[" + meta->edge_label_name + "]->" +
+        meta->dst_label_name + "; expected '" + expected + "', got '" + actual +
+        "'");
+  }
+  slot = std::move(csr);
+}
+
+void EdgeTable::SetInCsr(std::unique_ptr<CsrBase> csr) {
+  setCsrSlot(meta_, in_csr_, std::move(csr), /*is_in=*/true);
+}
+
+void EdgeTable::SetOutCsr(std::unique_ptr<CsrBase> csr) {
+  setCsrSlot(meta_, out_csr_, std::move(csr), /*is_in=*/false);
 }
 
 EdgeTable::EdgeTable(EdgeTable&& edge_table)
-    : meta_(edge_table.meta_),
-      work_dir_(edge_table.work_dir_),
-      memory_level_(edge_table.memory_level_) {
-  csr_alter_version_ = edge_table.csr_alter_version_.load();
+    : meta_(edge_table.meta_), memory_level_(edge_table.memory_level_) {
   out_csr_ = std::move(edge_table.out_csr_);
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
@@ -508,11 +540,7 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
 
 void EdgeTable::Swap(EdgeTable& edge_table) {
   std::swap(meta_, edge_table.meta_);
-  std::swap(work_dir_, edge_table.work_dir_);
   std::swap(memory_level_, edge_table.memory_level_);
-  auto v = csr_alter_version_.load();
-  csr_alter_version_.store(edge_table.csr_alter_version_.load());
-  edge_table.csr_alter_version_.store(v);
   out_csr_.swap(edge_table.out_csr_);
   in_csr_.swap(edge_table.in_csr_);
   table_.swap(edge_table.table_);
@@ -528,94 +556,11 @@ void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
   meta_ = meta;
 }
 
-void load_statistic_file(const std::string& work_dir,
-                         const std::string& src_label_name,
-                         const std::string& dst_label_name,
-                         const std::string& edge_label_name,
-                         std::atomic<uint64_t>& cap_atomic,
-                         std::atomic<uint64_t>& table_idx_atomic) {
-  size_t cap = 0, size = 0;
-  auto statistic_file_path =
-      checkpoint_dir(work_dir) + "/" +
-      statistics_file_prefix(src_label_name, dst_label_name, edge_label_name);
-  if (!std::filesystem::exists(statistic_file_path)) {
-    cap_atomic.store(0);
-    table_idx_atomic.store(0);
-    return;
-  }
-  read_statistic_file(statistic_file_path, cap, size);
-  cap_atomic.store(cap);
-  table_idx_atomic.store(size);
-}
-
-void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
-  work_dir_ = work_dir;
-  memory_level_ = memory_level;
-  auto ckp_dir_path = checkpoint_dir(work_dir);
-  auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                                  meta_->edge_label_name);
-  auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                                  meta_->edge_label_name);
-  auto edata_prefix_path = edata_prefix(
-      meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
-  if (memory_level == MemoryLevel::kSyncToFile) {
-    in_csr_->open(ie_prefix_path, ckp_dir_path, work_dir);
-    out_csr_->open(oe_prefix_path, ckp_dir_path, work_dir);
-  } else if (memory_level == MemoryLevel::kInMemory) {
-    in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
-  } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-    in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "unsupported memory level: " +
-        std::to_string(static_cast<int>(memory_level)));
-  }
-
-  if (!meta_->is_bundled()) {
-    if (memory_level == MemoryLevel::kSyncToFile) {
-      table_->open(edata_prefix_path, work_dir_, meta_->property_names,
-                   meta_->properties);
-    } else if (memory_level == MemoryLevel::kInMemory) {
-      table_->open_in_memory(edata_prefix_path, work_dir_,
-                             meta_->property_names, meta_->properties);
-    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-      table_->open_with_hugepages(edata_prefix_path, work_dir_,
-                                  meta_->property_names, meta_->properties);
-    } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "unsupported memory level: " +
-          std::to_string(static_cast<int>(memory_level)));
-    }
-    assert(table_->col_num() > 0);
-    size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
-          "the graph is not dumped properly");
-    }
-  }
-}
-
-void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
-  in_csr_->dump(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                          meta_->edge_label_name),
-                checkpoint_dir_path);
-  out_csr_->dump(oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                           meta_->edge_label_name),
-                 checkpoint_dir_path);
-  if (!meta_->is_bundled()) {
-    table_->dump(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
-                              meta_->edge_label_name),
-                 checkpoint_dir_path);
-    auto statistc_file_path =
-        checkpoint_dir_path + "/" +
-        statistics_file_prefix(meta_->src_label_name, meta_->dst_label_name,
-                               meta_->edge_label_name);
-    write_statistic_file(statistc_file_path, Capacity(), PropTableSize());
+void EdgeTable::Close() {
+  out_csr_.reset();
+  in_csr_.reset();
+  if (table_) {
+    table_->close();
   }
 }
 
@@ -697,7 +642,7 @@ void EdgeTable::RevertDeleteEdge(vid_t src_lid, vid_t dst_lid,
 
 void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
                                    int32_t oe_offset, int32_t ie_offset,
-                                   int32_t col_id, const Property& prop,
+                                   int32_t col_id, const execution::Value& prop,
                                    timestamp_t ts) {
   auto accessor = get_edge_data_accessor(col_id);
   auto oe_edges = out_csr_->get_generic_view(ts).get_edges(src_lid);
@@ -724,7 +669,7 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
       return;
     }
     capacity = std::max(capacity, 4096UL);
-    table_->resize(capacity, meta_->default_property_values);
+    table_->resize(capacity, meta_->get_default_property_values());
     capacity_.store(capacity);
   }
 }
@@ -752,24 +697,32 @@ size_t EdgeTable::EdgeNum() const {
 
 size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
 
-GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
+CsrView EdgeTable::get_outgoing_view(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
 }
 
-GenericView EdgeTable::get_incoming_view(timestamp_t ts) const {
+CsrView EdgeTable::get_incoming_view(timestamp_t ts) const {
   return in_csr_->get_generic_view(ts);
 }
 
 EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
+  if (col_id < 0 || static_cast<size_t>(col_id) >= meta_->properties.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge property column id out of range: " + std::to_string(col_id) +
+        " (edge has " + std::to_string(meta_->properties.size()) +
+        " properties)");
+  }
   if (!meta_->is_bundled()) {
     return EdgeDataAccessor(meta_->properties[col_id].id(),
                             table_->get_column_by_id(col_id).get());
   } else {
-    if (meta_->properties.empty()) {
-      return EdgeDataAccessor(DataTypeId::kEmpty, nullptr);
-    } else {
-      return EdgeDataAccessor(meta_->properties[0].id(), nullptr);
+    if (col_id != 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Bundled edges store a single inline property; expected col_id 0 "
+          "but got " +
+          std::to_string(col_id));
     }
+    return EdgeDataAccessor(meta_->properties[0].id(), nullptr);
   }
 }
 
@@ -783,9 +736,10 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
   return get_edge_data_accessor(static_cast<int>(prop_ind));
 }
 
-void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
-                              const std::vector<DataType>& prop_types,
-                              const std::vector<Property>& default_values) {
+void EdgeTable::AddProperties(
+    Checkpoint& ckp, const std::vector<std::string>& prop_names,
+    const std::vector<DataType>& prop_types,
+    const std::vector<execution::Value>& default_values) {
   if (prop_names.empty()) {
     return;
   }
@@ -795,14 +749,14 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
     // is empty.
     if (meta_->properties.size() == 1 &&
         meta_->properties[0].id() != DataTypeId::kVarchar) {
-      dropAndCreateNewBundledCSR(nullptr);
+      dropAndCreateNewBundledCSR(ckp, nullptr);
     } else {
-      dropAndCreateNewUnbundledCSR(false);
+      dropAndCreateNewUnbundledCSR(ckp, false);
     }
   } else {
     size_t property_size = table_->get_column_by_id(0)->size();
-    table_->add_columns(prop_names, prop_types, default_values, property_size,
-                        memory_level_);
+    table_->add_columns(ckp, prop_names, prop_types, default_values,
+                        property_size, memory_level_);
   }
 }
 
@@ -816,7 +770,8 @@ void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
   }
 }
 
-void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
+void EdgeTable::DeleteProperties(Checkpoint& ckp,
+                                 const std::vector<std::string>& col_names) {
   if (meta_->is_bundled()) {
     if (meta_->property_names.size() <= 0) {
       return;
@@ -829,7 +784,7 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
       }
     }
     if (found) {
-      dropAndCreateNewUnbundledCSR(true);
+      dropAndCreateNewUnbundledCSR(ckp, true);
     }
   } else {
     for (const auto& col : col_names) {
@@ -837,42 +792,49 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
       VLOG(1) << "delete column " << col;
     }
     if (table_->col_num() == 0) {
-      dropAndCreateNewUnbundledCSR(true);
+      dropAndCreateNewUnbundledCSR(ckp, true);
     } else if (table_->col_num() == 1) {
       auto remaining_col = table_->get_column_by_id(0);
       if (remaining_col->type() != DataTypeId::kVarchar) {
-        dropAndCreateNewBundledCSR(remaining_col);
+        dropAndCreateNewBundledCSR(ckp, remaining_col);
       }
     }
   }
 }
 
-int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
-                           const std::vector<Property>& edge_data,
-                           timestamp_t ts, Allocator& alloc, bool insert_safe) {
+std::pair<int32_t, const void*> EdgeTable::AddEdge(
+    vid_t src_lid, vid_t dst_lid,
+    const std::vector<execution::Value>& edge_data, timestamp_t ts,
+    Allocator& alloc, bool insert_safe) {
   int32_t oe_offset;
+  const void* data_ptr = nullptr;
   if (meta_->is_bundled()) {
     assert(edge_data.size() == 1 ||
            (edge_data.size() == 0 &&
             (meta_->properties.empty() ||
              meta_->properties[0] == DataTypeId::kEmpty)));
-    Property bundled_data = edge_data.empty() ? Property() : edge_data[0];
+    execution::Value bundled_data =
+        edge_data.empty() ? execution::Value(DataType::SQLNULL) : edge_data[0];
     in_csr_->put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
-    oe_offset =
+    auto out_ret =
         out_csr_->put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
   } else {
     if (meta_->properties.size() != edge_data.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "edge data size not match edge table property size");
     }
     size_t row_id = table_idx_.fetch_add(1);
-    Property prop;
-    prop.set_uint64(row_id);
+    execution::Value prop = execution::Value::UINT64(row_id);
     in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    oe_offset = out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    auto out_ret =
+        out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
     table_->insert(row_id, edge_data, insert_safe);
   }
-  return oe_offset;
+  return {oe_offset, data_ptr};
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
@@ -897,8 +859,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
   }
   std::vector<bool> valid_flags;  // true for valid edges
-  std::tie(src_lid, dst_lid, valid_flags) =
-      filterInvalidEdges(src_lid, dst_lid);
+  filterInvalidEdges(src_lid, dst_lid, valid_flags);
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
@@ -908,10 +869,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
-    auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
-                                                        valid_flags);
-    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
-                                 meta_->properties, src_lid, dst_lid, edges);
+    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(), meta_, src_lid,
+                                 dst_lid, data_batches, valid_flags);
   } else {
     auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
     auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
@@ -925,7 +884,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
 void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
-    const std::vector<std::vector<Property>>& edge_data_list) {
+    const std::vector<std::vector<execution::Value>>& edge_data_list) {
   size_t new_size = table_idx_.load() + src_lid_list.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
@@ -935,7 +894,7 @@ void EdgeTable::BatchAddEdges(
     EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
-    std::vector<Property> flat_edge_data;
+    std::vector<execution::Value> flat_edge_data;
     assert(meta_->properties.size() == 1);
     if (meta_->properties[0] == DataTypeId::kEmpty) {
     } else {
@@ -945,9 +904,11 @@ void EdgeTable::BatchAddEdges(
         flat_edge_data.push_back(edata[0]);
       }
     }
-    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
-                                 meta_->properties, src_lid_list, dst_lid_list,
-                                 flat_edge_data);
+    auto prop_type = meta_->properties[0].id();
+    batch_put_edges_to_bundled_csr(src_lid_list, dst_lid_list, prop_type,
+                                   flat_edge_data, out_csr_.get());
+    batch_put_edges_to_bundled_csr(dst_lid_list, src_lid_list, prop_type,
+                                   flat_edge_data, in_csr_.get());
   } else {
     auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
     auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
@@ -968,16 +929,18 @@ void EdgeTable::Compact(bool compact_csr,
     out_csr_->compact();
     in_csr_->compact();
   }
+  // must reset timestamp before sorting, otherwise the unsorted_since_ may not
+  // be properly setted
+  out_csr_->reset_timestamp();
+  in_csr_->reset_timestamp();
   if (sort_key_for_nbr.has_value()) {
     if (!meta_->is_bundled()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "sort key is not supported for unbundled edge table currently");
     }
-    out_csr_->batch_sort_by_edge_data(ts);
-    in_csr_->batch_sort_by_edge_data(ts);
+    out_csr_->batch_sort_by_edge_data(1);
+    in_csr_->batch_sort_by_edge_data(1);
   }
-  out_csr_->reset_timestamp();
-  in_csr_->reset_timestamp();
 }
 
 size_t EdgeTable::PropTableSize() const {
@@ -1003,50 +966,44 @@ size_t EdgeTable::Capacity() const {
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR(
-    std::shared_ptr<ColumnBase> remaining_col) {
+    Checkpoint& ckp, std::shared_ptr<ColumnBase> remaining_col) {
   DataTypeId property_type = (remaining_col == nullptr)
                                  ? meta_->properties[0].id()
                                  : remaining_col->type();
-  auto suffix = get_next_csr_path_suffix();
-  std::string next_oe_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_ie_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
 
   std::unique_ptr<CsrBase> new_out_csr, new_in_csr;
   new_out_csr =
       create_csr(meta_->oe_mutable, meta_->oe_strategy, property_type);
   new_in_csr = create_csr(meta_->ie_mutable, meta_->ie_strategy, property_type);
+  ModuleDescriptor out_csr_desc;
+  ModuleDescriptor in_csr_desc;
+  new_out_csr->Open(ckp, out_csr_desc, MemoryLevel::kInMemory);
+  new_in_csr->Open(ckp, in_csr_desc, MemoryLevel::kInMemory);
 
-  new_out_csr->open_in_memory(next_oe_csr_path);
-  new_in_csr->open_in_memory(next_ie_csr_path);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
 
   if (remaining_col == nullptr) {
     auto edges = out_csr_->batch_export(nullptr);
-    batch_put_edges_with_default_edata(
-        std::get<0>(edges), std::get<1>(edges), property_type,
-        meta_->default_property_values[0], new_out_csr.get());
-    batch_put_edges_with_default_edata(
-        std::get<1>(edges), std::get<0>(edges), property_type,
-        meta_->default_property_values[0], new_in_csr.get());
+    auto default_props = meta_->get_default_property_values();
+    batch_put_edges_with_default_edata(std::get<0>(edges), std::get<1>(edges),
+                                       property_type, default_props[0],
+                                       new_out_csr.get());
+    batch_put_edges_with_default_edata(std::get<1>(edges), std::get<0>(edges),
+                                       property_type, default_props[0],
+                                       new_in_csr.get());
   } else {
-    auto row_id_col = std::make_shared<ULongColumn>();
-    row_id_col->open_in_memory("");
+    std::shared_ptr<ColumnBase> row_id_col_base(
+        CreateColumn(DataTypeId::kUInt64));
+    auto row_id_col = std::dynamic_pointer_cast<ULongColumn>(row_id_col_base);
+    row_id_col->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = out_csr_->batch_export(row_id_col);
-    std::vector<Property> remaining_data;
+    std::vector<execution::Value> remaining_data;
     remaining_data.reserve(row_id_col->size());
     for (size_t i = 0; i < row_id_col->size(); ++i) {
       auto row_id = row_id_col->get_view(i);
       CHECK_LT(row_id, remaining_col->size());
-      remaining_data.emplace_back(remaining_col->get_prop(row_id));
+      remaining_data.emplace_back(remaining_col->get_any(row_id));
     }
     batch_put_edges_to_bundled_csr(std::get<0>(edges), std::get<1>(edges),
                                    property_type, remaining_data,
@@ -1056,38 +1013,24 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                    new_in_csr.get());
   }
 
-  table_->drop();
+  table_->close();
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
-  out_csr_->close();
-  in_csr_->close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
 }
 
-void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
-  auto suffix = get_next_csr_path_suffix();
-  std::string next_oe_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_ie_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_table_prefix = edata_prefix(
-      meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
+void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
+                                             bool delete_property) {
   // In this method, the edge table must be bundled, so the table must be
   // opened opened. In open_in_memory method, table will try to read the
   // existing table file from checkpoint_dir, but it must not exist.
   if (!delete_property) {
     LOG(INFO) << "rebuild unbundled edge csr with edge properties: "
               << meta_->property_names.size();
-    table_->open_in_memory(next_table_prefix, work_dir_, meta_->property_names,
-                           meta_->properties);
+    table_ = std::make_unique<Table>(meta_->property_names, meta_->properties);
+    table_->Init(ckp, MemoryLevel::kInMemory);
   }
 
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;
@@ -1106,12 +1049,13 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   }
 
   auto edges = out_csr_->batch_export(prev_data_col);
+  auto prop_defaults = meta_->get_default_property_values();
   if (prev_data_col && prev_data_col->size() > 0) {
-    table_->resize(prev_data_col->size(), meta_->default_property_values);
+    table_->resize(prev_data_col->size(), prop_defaults);
     table_idx_.store(prev_data_col->size());
     EnsureCapacity(prev_data_col->size());
   } else if (!delete_property) {
-    table_->resize(std::get<0>(edges).size(), meta_->default_property_values);
+    table_->resize(std::get<0>(edges).size(), prop_defaults);
     table_idx_.store(std::get<0>(edges).size());
     EnsureCapacity(std::get<0>(edges).size());
   }
@@ -1132,8 +1076,8 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
         create_csr(meta_->ie_mutable, meta_->ie_strategy, DataTypeId::kUInt64);
   }
 
-  new_out_csr->open_in_memory(next_oe_csr_path);
-  new_in_csr->open_in_memory(next_ie_csr_path);
+  new_out_csr->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  new_in_csr->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
   if (delete_property) {
@@ -1147,14 +1091,105 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
   }
-  out_csr_->close();
-  in_csr_->close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
 }
 
-std::string EdgeTable::get_next_csr_path_suffix() {
-  return std::string("_v_") + std::to_string(csr_alter_version_.fetch_add(1));
+// --- Static key builders ---
+
+static std::string EdgeKeyBase(const std::string& src, const std::string& edge,
+                               const std::string& dst,
+                               const std::string& suffix) {
+  return "edge_" + src + "_" + edge + "_" + dst + "_" + suffix;
+}
+
+std::string EdgeTable::KeyOutCsr(const std::string& src,
+                                 const std::string& edge,
+                                 const std::string& dst) {
+  return EdgeKeyBase(src, edge, dst, "out_csr");
+}
+
+std::string EdgeTable::KeyInCsr(const std::string& src, const std::string& edge,
+                                const std::string& dst) {
+  return EdgeKeyBase(src, edge, dst, "in_csr");
+}
+
+std::string EdgeTable::KeyProperty(const std::string& src,
+                                   const std::string& edge,
+                                   const std::string& dst, size_t index) {
+  return EdgeKeyBase(src, edge, dst, "prop_" + std::to_string(index));
+}
+
+std::string EdgeTable::ScalarKey(const std::string& src,
+                                 const std::string& edge,
+                                 const std::string& dst,
+                                 const std::string& field) {
+  return "edge_" + src + "_" + edge + "_" + dst + "/" + field;
+}
+
+// --- Snapshot orchestration ---
+
+EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
+                              std::shared_ptr<const EdgeSchema> es,
+                              ModuleBroker& store,
+                              const CheckpointManifest& meta,
+                              MemoryLevel level) {
+  EdgeTable et(es);
+  et.SetMemoryLevel(level);
+  const auto& src = es->src_label_name;
+  const auto& edge = es->edge_label_name;
+  const auto& dst = es->dst_label_name;
+
+  if (!store.Contains(KeyOutCsr(src, edge, dst))) {
+    et.Init(ckp, level);
+    return et;
+  }
+
+  et.SetInCsr(store.TakeModule<CsrBase>(KeyInCsr(src, edge, dst)));
+  et.SetOutCsr(store.TakeModule<CsrBase>(KeyOutCsr(src, edge, dst)));
+
+  if (!es->is_bundled()) {
+    auto table = std::make_unique<Table>(es->property_names, es->properties);
+    for (size_t i = 0; i < es->properties.size(); ++i) {
+      table->SetColumn(static_cast<int>(i),
+                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
+                           KeyProperty(src, edge, dst, i))));
+    }
+    et.SetTable(std::move(table));
+    et.SetTableIdx(
+        meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "table_idx"))
+            .value_or(0));
+  } else {
+    et.SetTable(std::make_unique<Table>());
+  }
+  et.SetCapacity(
+      meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "capacity"))
+          .value_or(0));
+  return et;
+}
+
+void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                              Checkpoint& ckp) {
+  if (!meta_) {
+    return;
+  }
+  const auto& src = meta_->src_label_name;
+  const auto& edge = meta_->edge_label_name;
+  const auto& dst = meta_->dst_label_name;
+
+  store.SetModule(KeyOutCsr(src, edge, dst), TakeOutCsr());
+  store.SetModule(KeyInCsr(src, edge, dst), TakeInCsr());
+  if (!meta_->is_bundled()) {
+    auto table = TakeTable();
+    for (size_t i = 0; i < table->col_num(); ++i) {
+      meta.set_module(KeyProperty(src, edge, dst, i),
+                      table->get_column_by_id(i)->Dump(ckp));
+    }
+    meta.SetScalar(ScalarKey(src, edge, dst, "table_idx"),
+                   std::to_string(GetTableIdx()));
+  }
+  meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
+                 std::to_string(GetCapacity()));
 }
 
 }  // namespace neug

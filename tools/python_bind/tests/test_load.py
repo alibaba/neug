@@ -16,13 +16,12 @@
 # limitations under the License.
 #
 
+import json
 import os
 import shutil
 import sys
 
 import pytest
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug import Database
 
@@ -788,15 +787,11 @@ class TestLoadFrom:
             assert isinstance(record[1], float), "age_double should be float"
             assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
 
-    @extension_test
     def test_load_from_json_basic_return_all(self):
         """Test basic LOAD FROM JSON with RETURN *."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        # json should be loaded as extension first
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -813,14 +808,11 @@ class TestLoadFrom:
         first_record = records[0]
         assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
 
-    @extension_test
     def test_load_from_json_return_specific_columns(self):
         """Test LOAD FROM JSON Array with column projection."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -836,7 +828,6 @@ class TestLoadFrom:
         assert isinstance(first_record[0], str), "fName should be string"
         assert isinstance(first_record[1], int), "age should be integer"
 
-    @extension_test
     def test_load_from_json_with_column_alias(self):
         """Test LOAD FROM JSON Array with column aliases in RETURN.
 
@@ -847,8 +838,6 @@ class TestLoadFrom:
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
         if not os.path.exists(json_path):
             pytest.skip(f"JSON file not found: {json_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -867,14 +856,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_with_column_alias(self):
         """Test LOAD FROM JSONL with column aliases in RETURN."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -892,14 +878,11 @@ class TestLoadFrom:
         assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
         assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
 
-    @extension_test
     def test_load_from_jsonl_return_specific_columns(self):
         """Test LOAD FROM JSONL with column projection."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}"
@@ -917,14 +900,11 @@ class TestLoadFrom:
         assert isinstance(first_record[1], int), "age should be integer"
         print(first_record)
 
-    @extension_test
     def test_load_from_jsonl_with_multiple_where_conditions(self):
         """Test LOAD FROM JSONL with multiple WHERE conditions."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
@@ -945,14 +925,11 @@ class TestLoadFrom:
             assert isinstance(fname, str), "fName should be string"
             assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
 
-    @extension_test
     def test_load_from_jsonl_with_complex_where_conditions(self):
         """Test LOAD FROM JSONL with complex WHERE conditions (age, eyeSight, height)."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
-
-        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
@@ -1282,6 +1259,172 @@ class TestLoadFrom:
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
 
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_on_httpfs_oss(self):
+        """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
+        # Load required extensions
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+
+        # OSS file path - use inline options to specify anonymous access
+        vertex_oss_path = "oss://graphscope/neug/vPerson.parquet"
+
+        # Execute LOAD FROM query with inline httpfs options
+        # This is the CORRECT way: pass options inline, not via environment variables
+        vertex_query = f"""
+        LOAD FROM "{vertex_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_oss_path = "oss://graphscope/neug/eMeets.parquet"
+
+        edge_query = f"""
+        LOAD FROM "{edge_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_http(self):
+        """Test LOAD FROM Parquet file via HTTP."""
+        vertex_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_httpfs_https(self):
+        """Test LOAD FROM Parquet file via HTTPS."""
+        vertex_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # eMeets.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_from_parquet_on_public_httpfs_aws(self):
+        """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
+
+        Dataset: s3://ookla-open-data (Speedtest by Ookla, fixed tiles, Q1 2019)
+        Schema (2019 Q1): avg_d_kbps, avg_u_kbps, avg_lat_ms, tests, devices, quadkey, tile
+        Access: anonymous (--no-sign-request equivalent)
+        """
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+
+        s3_path = (
+            "s3://ookla-open-data/parquet/performance/type=fixed/year=2019/quarter=1/"
+            "2019-01-01_performance_fixed_tiles.parquet"
+        )
+
+        query = f"""
+        LOAD FROM "{s3_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            AWS_DEFAULT_REGION='us-west-2'
+        )
+        RETURN avg_d_kbps, avg_u_kbps, tests
+        LIMIT 5
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) == 5, f"Expected 5 records (LIMIT 5), got {len(records)}"
+        for record in records:
+            avg_d, avg_u, tests = record
+            assert (
+                isinstance(avg_d, int) and avg_d > 0
+            ), f"avg_d_kbps should be positive int, got {avg_d}"
+            assert (
+                isinstance(avg_u, int) and avg_u > 0
+            ), f"avg_u_kbps should be positive int, got {avg_u}"
+            assert (
+                isinstance(tests, int) and tests > 0
+            ), f"tests should be positive int, got {tests}"
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
@@ -1289,6 +1432,7 @@ class TestCopyFrom:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
         """Setup test database."""
+        self.tmp_path = tmp_path
         self.db_dir = str(tmp_path / "test_copy_from_db")
         shutil.rmtree(self.db_dir, ignore_errors=True)
         self.db = Database(db_path=self.db_dir, mode="w")
@@ -1388,7 +1532,6 @@ class TestCopyFrom:
         assert records[0][2] == "Alice", "First person name should be Alice"
         assert records[0][3] == 1, "Alice's gender should be 1"
 
-    @extension_test
     def test_copy_from_node_jsonl_with_column_remapping(self):
         """Test COPY FROM for node table with column remapping using JSONL file."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
@@ -1410,8 +1553,6 @@ class TestCopyFrom:
         )
         """
         self.conn.execute(create_schema)
-
-        self.conn.execute("LOAD JSON")
 
         # Copy data with column remapping using LOAD FROM subquery
         # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...
@@ -1952,3 +2093,147 @@ class TestCopyFrom:
         assert str(rows[0][5]).startswith(
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
+
+    @extension_test
+    def test_copy_from_parquet_edge_non_standard_columns(self):
+        """COPY edge FROM parquet whose endpoint columns are named src/dst
+        (not from/to) should load all rows correctly."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        edge_pq = self.tmp_path / "edge.parquet"
+        pq.write_table(
+            pa.table(
+                {
+                    "id": pa.array([1, 2, 3, 4], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob", "Carol", "Dave"]),
+                }
+            ),
+            str(node_pq),
+        )
+        pq.write_table(
+            pa.table(
+                {
+                    "src": pa.array([1, 2, 3, 1], type=pa.int64()),
+                    "dst": pa.array([2, 3, 4, 4], type=pa.int64()),
+                    "weight": pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
+                }
+            ),
+            str(edge_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{node_pq}";')
+        self.conn.execute(f'COPY Knows FROM "{edge_pq}" (from="Person", to="Person");')
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 4, f"Expected 4 edges, got {count}"
+
+        res = self.conn.execute(
+            "MATCH (a:Person)-[k:Knows]->(b:Person) "
+            "RETURN a.name, b.name, k.weight ORDER BY k.weight;"
+        )
+        rows = list(res)
+        assert len(rows) == 4
+        assert str(rows[0][0]) == "Alice" and str(rows[0][1]) == "Bob"
+        assert str(rows[1][0]) == "Bob" and str(rows[1][1]) == "Carol"
+        assert str(rows[2][0]) == "Carol" and str(rows[2][1]) == "Dave"
+        assert str(rows[3][0]) == "Alice" and str(rows[3][1]) == "Dave"
+
+    @extension_test
+    def test_copy_from_parquet_edge_without_from_to_options(self):
+        """COPY edge FROM parquet without explicit from/to options should
+        work when endpoint columns are named src/dst."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        self.conn.execute("LOAD PARQUET")
+
+        node_pq = self.tmp_path / "node.parquet"
+        edge_pq = self.tmp_path / "edge.parquet"
+        pq.write_table(
+            pa.table(
+                {
+                    "id": pa.array([1, 2], type=pa.int64()),
+                    "name": pa.array(["Alice", "Bob"]),
+                }
+            ),
+            str(node_pq),
+        )
+        pq.write_table(
+            pa.table(
+                {
+                    "src": pa.array([1], type=pa.int64()),
+                    "dst": pa.array([2], type=pa.int64()),
+                    "weight": pa.array([3.14], type=pa.float64()),
+                }
+            ),
+            str(edge_pq),
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{node_pq}";')
+        self.conn.execute(f'COPY Knows FROM "{edge_pq}";')
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 1, f"Expected 1 edge, got {count}"
+
+    def test_copy_from_csv_edge_non_standard_columns(self):
+        """CSV COPY edge with non-standard column names (src/dst) should
+        still work via positional mapping."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,Alice\n2,Bob\n3,Carol\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("src,dst,weight\n1,2,1.0\n2,3,2.0\n1,3,3.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        self.conn.execute(
+            f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=true, delim=",");'
+        )
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 3, f"Expected 3 edges, got {count}"
+
+    def test_copy_from_csv_edge_no_header_positional(self):
+        """CSV COPY edge without header should work via positional mapping (no name validation)."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,A\n2,B\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+        self.conn.execute(
+            f'COPY Knows FROM "{csv_edge}" (from="Person", to="Person", HEADER=false, delim=",");'
+        )
+
+        res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
+        count = next(res)[0]
+        assert count == 1, f"Expected 1 edge, got {count}"

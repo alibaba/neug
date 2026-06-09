@@ -76,8 +76,6 @@ size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
 
 AnonMMap::AnonMMap() : MMapContainer() {}
 
-AnonMMap::~AnonMMap() { Close(); }
-
 void AnonMMap::OpenAnonymous(size_t size) {
   if (!path_.empty() || mmap_data_ != nullptr) {
     Close();
@@ -110,8 +108,6 @@ void AnonMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
 
 // AnonHugeMMap implementation
 AnonHugeMMap::AnonHugeMMap() : MMapContainer() {}
-
-AnonHugeMMap::~AnonHugeMMap() { Close(); }
 
 void AnonHugeMMap::OpenAnonymous(size_t size) {
   if (!path_.empty() || mmap_data_ != nullptr) {

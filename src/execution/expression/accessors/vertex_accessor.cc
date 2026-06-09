@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/expression/accessors/vertex_accessor.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace execution {
@@ -26,7 +27,7 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
       : type_(type) {
     int32_t label_num = graph.schema().vertex_label_frontier();
     for (label_t label = 0; label < label_num; ++label) {
-      if (!graph.schema().vertex_label_valid(label)) {
+      if (!graph.schema().is_vertex_label_valid(label)) {
         continue;
       }
       property_columns_.emplace_back(
@@ -38,8 +39,7 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
     if (property_columns_[v_label] == nullptr) {
       return Value(type_);  // return null value
     }
-    auto val = property_columns_[v_label]->get(v);
-    return property_to_value(val);
+    return property_columns_[v_label]->get_any(v);
   }
 
   const DataType& type() const override { return type_; }
@@ -116,7 +116,9 @@ std::unique_ptr<BindedExprBase> VertexAccessor::bind(
     return std::make_unique<BindedVertexIdentityAccessor>();
   }
   default:
-    LOG(FATAL) << "Unknown GraphAccessType: " << static_cast<int>(access_type_);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unknown GraphAccessType: " +
+        std::to_string(static_cast<int>(access_type_)));
     break;
   }
   return nullptr;
