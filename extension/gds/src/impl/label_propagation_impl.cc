@@ -91,8 +91,8 @@ void LabelPropagation::init_communities(const PRED_T& vertex_pred) {
   }
 }
 
-int64_t LabelPropagation::get_majority_community(const GenericView& ie_view,
-                                                 const GenericView& oe_view,
+int64_t LabelPropagation::get_majority_community(const CsrView& ie_view,
+                                                 const CsrView& oe_view,
                                                  vid_t dst_vid,
                                                  int64_t* buffer) const {
   size_t neighbor_count = 0;
@@ -169,8 +169,8 @@ int64_t LabelPropagation::get_majority_community(const GenericView& ie_view,
 bool LabelPropagation::run_single_iteration(int64_t* buffer,
                                             const size_t* offsets,
                                             int iteration,
-                                            const GenericView& ie_view,
-                                            const GenericView& oe_view) {
+                                            const CsrView& ie_view,
+                                            const CsrView& oe_view) {
   std::vector<size_t> updateds(concurrency_, 0);
   ParallelUtils::parallel_for(
       vertices_.data(), vertices_.size(),

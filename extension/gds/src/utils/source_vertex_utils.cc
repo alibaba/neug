@@ -19,19 +19,19 @@
 namespace neug {
 namespace gds {
 
-static Property get_property_from_string(const std::string& str,
-                                         const DataType& data_type) {
+static execution::Value get_property_from_string(const std::string& str,
+                                                 const DataType& data_type) {
   switch (data_type.id()) {
   case DataTypeId::kInt32:
-    return Property::from_int32(std::stoi(str));
+    return execution::Value::INT32(std::stoi(str));
   case DataTypeId::kInt64:
-    return Property::from_int64(std::atoll(str.c_str()));
+    return execution::Value::INT64(std::atoll(str.c_str()));
   case DataTypeId::kUInt32:
-    return Property::from_uint32(std::stoul(str));
+    return execution::Value::UINT32(std::stoul(str));
   case DataTypeId::kUInt64:
-    return Property::from_uint64(std::stoull(str));
+    return execution::Value::UINT64(std::stoull(str));
   case DataTypeId::kVarchar:
-    return Property::from_string_view(str);
+    return execution::Value::STRING(str);
   default:
     throw std::runtime_error("Unsupported data type: " + str);
   }

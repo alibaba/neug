@@ -43,12 +43,11 @@ class LabelPropagation {
   void init_communities(const PRED_T& vertex_pred);
 
   bool run_single_iteration(int64_t* buffer, const size_t* offsets,
-                            int iteration, const GenericView& ie_view,
-                            const GenericView& oe_view);
+                            int iteration, const CsrView& ie_view,
+                            const CsrView& oe_view);
 
-  int64_t get_majority_community(const GenericView& ie_view,
-                                 const GenericView& oe_view, vid_t dst,
-                                 int64_t* communities) const;
+  int64_t get_majority_community(const CsrView& ie_view, const CsrView& oe_view,
+                                 vid_t dst, int64_t* communities) const;
 
   const StorageReadInterface& graph_;
   label_t vertex_label_;
