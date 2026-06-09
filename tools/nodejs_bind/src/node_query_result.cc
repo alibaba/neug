@@ -115,7 +115,12 @@ Napi::Value ParseJsonToJsObject(Napi::Env env, const std::string& json_str) {
   Napi::Object global = env.Global();
   Napi::Object json_obj = global.Get("JSON").As<Napi::Object>();
   Napi::Function parse_fn = json_obj.Get("parse").As<Napi::Function>();
-  return parse_fn.Call(json_obj, {Napi::String::New(env, json_str)});
+  try {
+    return parse_fn.Call(json_obj, {Napi::String::New(env, json_str)});
+  } catch (const Napi::Error& e) {
+    // Fall back to returning the raw string on parse failure
+    return Napi::String::New(env, json_str);
+  }
 }
 
 Napi::Value FetchValueFromColumn(Napi::Env env, const neug::Array& column,
@@ -144,14 +149,14 @@ Napi::Value FetchValueFromColumn(Napi::Env env, const neug::Array& column,
   } else if (column.has_int64_array()) {
     const auto& col = column.int64_array();
     if (is_valid(col.validity(), index)) {
-      return Napi::Number::New(env, static_cast<double>(col.values(index)));
+      return Napi::BigInt::New(env, col.values(index));
     } else {
       return env.Null();
     }
   } else if (column.has_uint64_array()) {
     const auto& col = column.uint64_array();
     if (is_valid(col.validity(), index)) {
-      return Napi::Number::New(env, static_cast<double>(col.values(index)));
+      return Napi::BigInt::New(env, static_cast<uint64_t>(col.values(index)));
     } else {
       return env.Null();
     }
@@ -333,7 +338,9 @@ Napi::Value NodeQueryResult::GetBoltResponse(const Napi::CallbackInfo& info) {
 }
 
 Napi::Value NodeQueryResult::Close(const Napi::CallbackInfo& info) {
-  // No-op, provided for compatibility
+  // Release the underlying query result resources early
+  QueryResult empty;
+  query_result_.Swap(empty);
   return info.Env().Undefined();
 }
 
