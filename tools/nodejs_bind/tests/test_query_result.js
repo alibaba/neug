@@ -95,7 +95,7 @@ test('test_query_result_sequential_iteration', () => {
     const row = result.getNext();
     ids.push(row[0]);
   }
-  assert.deepEqual(ids, [1, 2, 3]);
+  assert.deepEqual(ids, [1n, 2n, 3n]);
   // getNext() after exhaustion should throw
   assert.throws(() => result.getNext());
   conn.close();
@@ -208,7 +208,7 @@ test('test_parameterized_query_string_param', () => {
     { name: 'Alice' }
   );
   assert.equal(result.length(), 1);
-  assert.equal(result.getAt(0)[0], 1);
+  assert.equal(result.getAt(0)[0], 1n);
   conn.close();
   db.close();
 });
@@ -224,8 +224,8 @@ test('test_query_result_data_types', () => {
   );
   assert.equal(result.length(), 1);
   const row = result.getAt(0);
-  // INT64
-  assert.equal(row[0], 1);
+  // INT64 (returned as BigInt)
+  assert.equal(row[0], 1n);
   // STRING
   assert.equal(row[1], 'Alice');
   // INT32
