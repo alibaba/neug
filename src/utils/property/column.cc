@@ -20,6 +20,7 @@
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/property/array_column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -71,6 +72,9 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
       }
     }
     return std::make_unique<StringColumn>(max_length);
+  }
+  case DataTypeId::kArray: {
+    return std::make_unique<ArrayColumn>(type);
   }
   case DataTypeId::kEmpty: {
     return std::make_unique<TypedColumn<EmptyType>>();

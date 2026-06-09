@@ -259,10 +259,14 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     }
   }
   case ::common::DataType::kArray: {
-    const auto& element_type = ddt.array().component_type();
-    auto data_type = parse_from_data_type(element_type);
-    return DataType(DataTypeId::kList,
-                    std::make_shared<ListTypeInfo>(data_type));
+    const auto& array_pb = ddt.array();
+    const auto& element_type = array_pb.component_type();
+    auto child_data_type = parse_from_data_type(element_type);
+    uint32_t max_length = array_pb.max_length();
+    if (max_length > 0) {
+      return DataType::Array(child_data_type, max_length);
+    }
+    return DataType::List(child_data_type);
   }
   case ::common::DataType::kTuple: {
     const auto& component_types = ddt.tuple().component_types();

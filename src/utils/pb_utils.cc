@@ -231,8 +231,19 @@ bool data_type_to_property_type(const common::DataType& data_type,
     return temporal_type_to_property_type(data_type.temporal(), out_type);
   }
   case common::DataType::kArray: {
-    LOG(ERROR) << "Array type is not supported";
-    return false;
+    const auto& array = data_type.array();
+    DataType child_type;
+    if (!data_type_to_property_type(array.component_type(), child_type)) {
+      LOG(ERROR) << "Failed to parse array component type";
+      return false;
+    }
+    uint32_t max_length = array.max_length();
+    if (max_length > 0) {
+      out_type = DataType::Array(child_type, max_length);
+    } else {
+      out_type = DataType::List(child_type);
+    }
+    return true;
   }
   case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
@@ -299,6 +310,37 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   case common::Value::kDate:
     out_value = execution::Value::DATE(Date(value.date().item()));
     break;
+  case common::Value::kI32Array: {
+    const auto& arr = value.i32_array();
+    auto child_type = ArrayType::GetChildType(type);
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::INT32(arr.item(i)));
+    }
+    out_value = execution::Value::ARRAY(type, std::move(elements));
+    break;
+  }
+  case common::Value::kI64Array: {
+    const auto& arr = value.i64_array();
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::INT64(arr.item(i)));
+    }
+    out_value = execution::Value::ARRAY(type, std::move(elements));
+    break;
+  }
+  case common::Value::kF64Array: {
+    const auto& arr = value.f64_array();
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::DOUBLE(arr.item(i)));
+    }
+    out_value = execution::Value::ARRAY(type, std::move(elements));
+    break;
+  }
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
     return false;

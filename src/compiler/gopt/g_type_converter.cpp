@@ -366,6 +366,16 @@ GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
     result->set_allocated_temporal(temporalType.release());
     break;
   }
+  case common::DataTypeId::kArray: {
+    auto& childType = ArrayType::GetChildType(type);
+    auto numElements = ArrayType::GetNumElements(type);
+    auto childIrType = convertSimpleLogicalType(childType);
+    auto arrayPb = std::make_unique<::common::Array>();
+    arrayPb->set_allocated_component_type(childIrType->release_data_type());
+    arrayPb->set_max_length(numElements);
+    result->set_allocated_array(arrayPb.release());
+    break;
+  }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported basic type for conversion: " +
                                    type.ToString());

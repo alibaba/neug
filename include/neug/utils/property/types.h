@@ -584,6 +584,16 @@ struct convert<neug::DataType> {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
+    } else if (config["array"]) {
+      auto array_node = config["array"];
+      neug::DataType child_type;
+      if (!array_node["component_type"] ||
+          !decode(array_node["component_type"], child_type)) {
+        LOG(ERROR) << "Failed to parse array component_type";
+        return false;
+      }
+      uint32_t max_length = array_node["max_length"].as<uint32_t>();
+      property_type = neug::DataType::Array(child_type, max_length);
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {
@@ -611,6 +621,11 @@ struct convert<neug::DataType> {
                            : neug::STRING_DEFAULT_MAX_LENGTH;
     } else if (type == neug::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
+    } else if (type == neug::DataTypeId::kArray) {
+      auto child_type = neug::ArrayType::GetChildType(type);
+      uint32_t array_size = neug::ArrayType::GetNumElements(type);
+      node["array"]["component_type"] = encode(child_type);
+      node["array"]["max_length"] = array_size;
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }

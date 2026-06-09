@@ -28,6 +28,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/common/extra_type_info.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
@@ -2432,6 +2433,9 @@ InArchive& operator<<(InArchive& in_archive, const DataType& type) {
       for (const auto& child_type : child_types) {
         in_archive << child_type;
       }
+    } else if (id == DataTypeId::kArray) {
+      const auto& array_type_info = type_info->Cast<ArrayTypeInfo>();
+      in_archive << array_type_info.child_type << array_type_info.num_elements;
     } else if (id == DataTypeId::kVarchar) {
       const auto& varchar_type_info = type_info->Cast<StringTypeInfo>();
       in_archive << varchar_type_info.max_length;
@@ -2464,6 +2468,11 @@ OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
         out_archive >> child_types[i];
       }
       type = DataType::Struct(child_types);
+    } else if (id == DataTypeId::kArray) {
+      DataType child_type;
+      uint32_t array_size;
+      out_archive >> child_type >> array_size;
+      type = DataType::Array(child_type, array_size);
     } else if (id == DataTypeId::kVarchar) {
       size_t max_length;
       out_archive >> max_length;
