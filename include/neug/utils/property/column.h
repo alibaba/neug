@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_header.h"
@@ -59,7 +60,7 @@ class ColumnBase : public Module {
   virtual size_t size() const = 0;
 
   virtual void resize(size_t size) = 0;
-  virtual void resize(size_t size, const Property& default_value) = 0;
+  virtual void resize(size_t size, const execution::Value& default_value) = 0;
 
   virtual DataTypeId type() const = 0;
 
@@ -67,14 +68,10 @@ class ColumnBase : public Module {
   // new value, which can happen when the value is not fixed length. If the
   // value is fixed length, we should already have enough space allocated, so
   // insert_safe can be false.
-  virtual void set_any(size_t index, const Property& value,
+  virtual void set_any(size_t index, const execution::Value& value,
                        bool insert_safe) = 0;
 
-  virtual Property get_prop(size_t index) const = 0;
-
-  virtual void set_prop(size_t index, const Property& prop) {
-    LOG(FATAL) << "Not implemented";
-  }
+  virtual execution::Value get_any(size_t index) const = 0;
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
@@ -111,14 +108,14 @@ class TypedColumn : public ColumnBase {
 
   // Assume it is safe to insert the default value even if it is reserving,
   // since user could always override
-  void resize(size_t size, const Property& default_value) override {
-    if (default_value.type() != type()) {
+  void resize(size_t size, const execution::Value& default_value) override {
+    if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
     size_t old_size = size_;
     size_ = size;
     buffer_->Resize(size_ * sizeof(T));
-    auto default_typed_value = PropUtils<T>::to_typed(default_value);
+    auto default_typed_value = default_value.GetValue<T>();
     for (size_t i = old_size; i < size_; ++i) {
       set_value(i, default_typed_value);
     }
@@ -134,9 +131,10 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const Property& value, bool insert_safe) override {
+  void set_any(size_t index, const execution::Value& value,
+               bool insert_safe) override {
     // allow resize is ignored for fixed-length types
-    set_value(index, PropUtils<T>::to_typed(value));
+    set_value(index, value.GetValue<T>());
   }
 
   inline T get_view(size_t index) const {
@@ -144,12 +142,8 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData())[index];
   }
 
-  Property get_prop(size_t index) const override {
-    return PropUtils<T>::to_prop(get_view(index));
-  }
-
-  void set_prop(size_t index, const Property& prop) override {
-    set_value(index, PropUtils<T>::to_typed(prop));
+  execution::Value get_any(size_t index) const override {
+    return execution::Value::CreateValue<T>(get_view(index));
   }
 
   void ingest(uint32_t index, OutArchive& arc) override {
@@ -202,18 +196,18 @@ class TypedColumn<EmptyType> : public ColumnBase {
   ModuleDescriptor Dump(Checkpoint& ckp) override { return ModuleDescriptor(); }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
-  void resize(size_t size, const Property& default_value) override {}
+  void resize(size_t size, const execution::Value& default_value) override {}
 
   DataTypeId type() const override { return DataTypeId::kEmpty; }
 
-  void set_any(size_t index, const Property& value, bool insert_safe) override {
-  }
+  void set_any(size_t index, const execution::Value& value,
+               bool insert_safe) override {}
 
   void set_value(size_t index, const EmptyType& value) {}
 
-  Property get_prop(size_t index) const override { return Property::empty(); }
-
-  void set_prop(size_t index, const Property& prop) override {}
+  execution::Value get_any(size_t index) const override {
+    return execution::Value(DataType::SQLNULL);
+  }
 
   EmptyType get_view(size_t index) const { return EmptyType(); }
 
@@ -399,13 +393,13 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
   }
 
-  void resize(size_t size, const Property& default_value) override {
-    if (default_value.type() != type()) {
+  void resize(size_t size, const execution::Value& default_value) override {
+    if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
     size_t old_size = size_;
     size_ = size;
-    auto default_str = PropUtils<std::string_view>::to_typed(default_value);
+    auto default_str = default_value.GetValue<std::string>();
     default_str = truncate_utf8(default_str, width_);
 
     size_t new_items = (size > old_size) ? (size - old_size) : 0;
@@ -452,11 +446,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   // When insert_safe is set to true, concurrency control should be guaranteed
   // by caller.
-  void set_any(size_t idx, const Property& value, bool insert_safe) override {
+  void set_any(size_t idx, const execution::Value& value,
+               bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");
     }
-    auto dst_value = value.as_string_view();
+    auto dst_value = value.GetValue<std::string>();
     if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
       if (insert_safe) {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
@@ -483,12 +478,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return std::string_view(raw_data + item.offset, item.length);
   }
 
-  Property get_prop(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
-  }
-
-  void set_prop(size_t index, const Property& prop) override {
-    set_value(index, PropUtils<std::string_view>::to_typed(prop));
+  execution::Value get_any(size_t index) const override {
+    return execution::Value::STRING(std::string(get_view(index)));
   }
 
   void ingest(uint32_t index, OutArchive& arc) override {
@@ -560,7 +551,7 @@ class RefColumnBase {
     kExternal,
   };
   virtual ~RefColumnBase() {}
-  virtual Property get(size_t index) const = 0;
+  virtual execution::Value get_any(size_t index) const = 0;
   virtual DataTypeId type() const = 0;
   virtual ColType col_type() const = 0;
 };
@@ -581,8 +572,8 @@ class TypedRefColumn : public RefColumnBase {
     return basic_buffer[index];
   }
 
-  Property get(size_t index) const override {
-    return PropUtils<T>::to_prop(get_view(index));
+  execution::Value get_any(size_t index) const override {
+    return execution::Value::CreateValue<T>(get_view(index));
   }
 
   DataTypeId type() const override { return PropUtils<T>::prop_type(); }
@@ -608,8 +599,8 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
     return column_.get_view(index);
   }
 
-  Property get(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
+  execution::Value get_any(size_t index) const override {
+    return execution::Value::STRING(std::string(get_view(index)));
   }
 
   DataTypeId type() const override {

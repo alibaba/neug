@@ -74,7 +74,7 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
       return Value(type_);  // return null value
     }
 
-    return property_to_value(column->get(vid));
+    return column->get_any(vid);
   }
 
   const DataType& type() const override { return type_; }
@@ -198,8 +198,7 @@ class BindedEdgeRecordPropertyExpr : public RecordExprBase {
       return Value(type_);  // return null value
     }
     auto accessor = it->second;
-    auto prop = accessor.get_data_from_ptr(edge.prop);
-    return property_to_value(prop);
+    return accessor.get_data_from_ptr(edge.prop);
   }
 
   const DataType& type() const override { return type_; }

@@ -28,6 +28,12 @@
 namespace neug {
 namespace reader {
 
+// Small block size used during schema sniffing to avoid excessive memory
+// allocation. Only 1 batch is read for type inference, so a large batch_size
+// is unnecessary and can leak memory proportional to block_size in Arrow's
+// memory pool.
+static constexpr int64_t kSniffBlockSize = 1 << 20;  // 1 MB
+
 struct ReadSharedState;
 struct EntrySchema;
 

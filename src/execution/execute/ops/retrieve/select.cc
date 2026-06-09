@@ -57,7 +57,7 @@ class SelectIdNeOpr : public IOperator {
         auto label = *labels.begin();
         int64_t oid = params.at(param_name_).GetValue<int64_t>();
         vid_t vid;
-        if (graph_interface.GetVertexIndex(label, Property::from_int64(oid),
+        if (graph_interface.GetVertexIndex(label, execution::Value::INT64(oid),
                                            vid)) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             const SLVertexColumn& sl_vertex_col =

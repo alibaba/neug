@@ -662,7 +662,7 @@ neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
   for (label_t label : labels) {
     builder.start_label(label);
     for (size_t i = 0; i < row_num; ++i) {
-      auto any = value_to_property(column->get_elem(i));
+      const auto& any = column->get_elem(i);
       vid_t index;
       if (graph.GetVertexIndex(label, any, index)) {
         builder.push_back_opt(index);

@@ -152,15 +152,6 @@ struct VertexSchema {
     return default_property_values;
   }
 
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
-  }
-
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
   std::string label_name;
@@ -294,15 +285,6 @@ struct EdgeSchema {
 
   const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
-  }
-
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
   }
 
   std::string src_label_name, dst_label_name, edge_label_name;

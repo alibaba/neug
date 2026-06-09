@@ -79,6 +79,8 @@ struct JsonReadFunction {
     // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
+    externalSchema.file.options["BATCH_SIZE"] =
+        std::to_string(reader::kSniffBlockSize);
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -150,6 +152,8 @@ struct JsonLReadFunction {
     // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
+    externalSchema.file.options["BATCH_SIZE"] =
+        std::to_string(reader::kSniffBlockSize);
     // todo: get file system from vfs manager
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
