@@ -39,7 +39,7 @@ print("✅ NeuG is ready!")
 
 ### Option 1: Install from npm
 ```bash
-npm install neug
+npm i @graphscope-neug/neug
 ```
 
 ### Option 2: Install from Tarball
