@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include "kcore.h"
+#include "lcc.h"
 
+#include <limits>
 #include <thread>
 
-#include "impl/kcore_impl.h"
+#include "impl/lcc_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {
 
-struct KCoreInput : public function::CallFuncInputBase {
-  ~KCoreInput() = default;
+struct LCCInput : public function::CallFuncInputBase {
+  ~LCCInput() = default;
 
   bool parse_subgraph(const ::physical::Subgraph& subgraph,
                       const execution::ContextMeta& ctx_meta) {
@@ -34,16 +35,16 @@ struct KCoreInput : public function::CallFuncInputBase {
     if (!parse_subgraph_entries(subgraph, ctx_meta, parsed)) {
       return false;
     }
-    if (!check_simple_graph_subgraph(parsed, "KCore")) {
+    if (!check_simple_graph_subgraph(parsed, "LCC")) {
       return false;
     }
 
     if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in KCore.";
+      LOG(ERROR) << "Vertex predicates are not supported in LCC.";
       return false;
     }
     if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in KCore.";
+      LOG(ERROR) << "Edge predicates are not supported in LCC.";
       return false;
     }
 
@@ -54,60 +55,76 @@ struct KCoreInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   label_t edge_label;
-  int32_t k;
+  int32_t degree_threshold;
   int32_t concurrency;
+  bool directed;
   int32_t node_alias;
-  int32_t core_alias;
+  int32_t lcc_alias;
 };
 
-std::unique_ptr<function::CallFuncInputBase> KCoreFunction::bind(
+std::unique_ptr<function::CallFuncInputBase> LCCFunction::bind(
     const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr();
   const auto& subgraph = opr.gds_algo().sub_graph();
   const auto& options = opr.gds_algo().options();
 
-  auto input = std::make_unique<KCoreInput>();
+  auto input = std::make_unique<LCCInput>();
   if (!input->parse_subgraph(subgraph, ctx_meta)) {
-    LOG(ERROR) << "Failed to parse subgraph for KCore.";
-    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for KCore");
+    LOG(ERROR) << "Failed to parse subgraph for LCC.";
+    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for LCC");
   }
 
-  input->k = get_option_value<int32_t>(options, "k", 2);
-  if (input->k < 0) {
-    THROW_RUNTIME_ERROR("KCore option 'k' must be non-negative");
-  }
+  input->directed =
+      get_option_value<std::string>(options, "directed", "false") == "true";
+
+  input->degree_threshold = get_option_value<int32_t>(
+      options, "degree_threshold", std::numeric_limits<int32_t>::max());
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->core_alias = plan.plan(op_idx).meta_data(1).alias();
+  input->lcc_alias = plan.plan(op_idx).meta_data(1).alias();
 
   return input;
 }
 
-execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& g,
-                                       const neug::execution::Context& ctx) {
-  const auto& kcore_input = dynamic_cast<const KCoreInput&>(input);
-
+execution::Context LCCFunction::exec(const function::CallFuncInputBase& input,
+                                     neug::IStorageInterface& g,
+                                     const neug::execution::Context& ctx) {
+  const auto& lcc_input = dynamic_cast<const LCCInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  KCore runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
-               kcore_input.k, kcore_input.concurrency);
-  runner.compute();
+
+  std::unique_ptr<LCCUndirected> undirected;
+  std::unique_ptr<LCCDirected> directed;
+  if (lcc_input.directed) {
+    directed = std::make_unique<LCCDirected>(
+        graph, lcc_input.vertex_label, lcc_input.edge_label,
+        lcc_input.degree_threshold, lcc_input.concurrency);
+    directed->compute();
+  } else {
+    undirected = std::make_unique<LCCUndirected>(
+        graph, lcc_input.vertex_label, lcc_input.edge_label,
+        lcc_input.degree_threshold, lcc_input.concurrency);
+    undirected->compute();
+  }
 
   execution::Context ret;
-  runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
+  if (lcc_input.directed) {
+    directed->sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
+  } else {
+    undirected->sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
+  }
   return ret;
 }
 
-function::function_set KCoreFunction::getFunctionSet() {
+function::function_set LCCFunction::getFunctionSet() {
   function::function_set func_set;
   std::vector<common::LogicalTypeID> input_types = {
       common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
   function::call_output_columns output_columns = {
       {"node", common::LogicalTypeID::NODE},
-      {"core", common::LogicalTypeID::INT64}};
+      {"lcc", common::LogicalTypeID::DOUBLE}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);

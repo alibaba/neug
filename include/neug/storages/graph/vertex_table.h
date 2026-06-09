@@ -66,6 +66,10 @@ class VertexSet {
     v_ts_.foreach_vertex(func, size_, ts_);
   }
 
+  inline bool valid(vid_t v) const {
+    return v < size_ && v_ts_.IsVertexValid(v, ts_);
+  }
+
   inline iterator begin() const { return iterator(0, size_, v_ts_, ts_); }
   inline iterator end() const { return iterator(size_, size_, v_ts_, ts_); }
   inline size_t size() const { return size_; }

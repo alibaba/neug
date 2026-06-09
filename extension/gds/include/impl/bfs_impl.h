@@ -26,7 +26,8 @@ namespace gds {
 class BFS {
  public:
   BFS(const StorageReadInterface& graph, label_t vertex_label,
-      label_t edge_label, vid_t source, bool directed, int concurrency);
+      label_t edge_label, const std::string& source, bool directed,
+      int concurrency);
 
   void compute();
   void sink(execution::Context& ctx, int node_alias, int distance_alias);
@@ -39,6 +40,7 @@ class BFS {
   bool directed_;
   int concurrency_;
   std::unique_ptr<uint32_t[]> distances_;
+  std::vector<vid_t> vertices_;
 };
 
 }  // namespace gds

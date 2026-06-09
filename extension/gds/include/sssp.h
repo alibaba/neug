@@ -16,29 +16,22 @@
 
 #pragma once
 
-#include "neug/execution/common/context.h"
-#include "neug/storages/graph/graph_interface.h"
+#include "neug/compiler/function/gds/gds_algo_function.h"
+#include "neug/compiler/function/neug_call_function.h"
 
 namespace neug {
 namespace gds {
+struct NEUG_API SSSPFunction {
+  static constexpr const char* name = "SSSP";
+  static neug::execution::Context exec(const function::CallFuncInputBase& input,
+                                       neug::IStorageInterface& graph,
+                                       const neug::execution::Context& ctx);
 
-class WCC {
- public:
-  WCC(const StorageReadInterface& graph, label_t vertex_label,
-      label_t edge_label, int concurrency);
+  static std::unique_ptr<function::CallFuncInputBase> bind(
+      const Schema& schema, const execution::ContextMeta& ctx_meta,
+      const ::physical::PhysicalPlan& plan, int op_idx);
 
-  void compute();
-  void sink(execution::Context& ctx, int node_alias, int component_alias);
-
- private:
-  const StorageReadInterface& graph_;
-  label_t vertex_label_;
-  label_t edge_label_;
-
-  std::unique_ptr<std::atomic<vid_t>[]> parents_;
-  std::unique_ptr<int64_t[]> comps_;
-  int concurrency_;
-  std::vector<vid_t> vertices_;
+  static function::function_set getFunctionSet();
 };
 }  // namespace gds
 }  // namespace neug

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_EXTENSION_GDS_SUBGRAPH_UTILS_H_
-#define NEUG_EXTENSION_GDS_SUBGRAPH_UTILS_H_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -50,5 +49,3 @@ bool check_simple_graph_subgraph(const ParsedSubgraph& parsed,
 
 }  // namespace gds
 }  // namespace neug
-
-#endif  // NEUG_EXTENSION_GDS_SUBGRAPH_UTILS_H_

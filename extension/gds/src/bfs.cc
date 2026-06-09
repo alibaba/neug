@@ -18,8 +18,8 @@
 
 #include "impl/bfs_impl.h"
 #include "neug/execution/common/context.h"
-#include "option_utils.h"
-#include "subgraph_utils.h"
+#include "utils/option_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {
@@ -53,7 +53,7 @@ struct BFSInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   label_t edge_label;
-  vid_t source;
+  std::string source;
   int32_t concurrency;
   bool directed;
   int32_t node_alias;
@@ -73,8 +73,7 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
     THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for BFS");
   }
 
-  input->source =
-      static_cast<vid_t>(get_option_value<int32_t>(options, "source", 0));
+  input->source = get_option_value<std::string>(options, "source", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
   input->directed =
@@ -95,9 +94,6 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
   auto vertex_count = graph.GetVertexSet(bfs_input.vertex_label).size();
   if (vertex_count == 0) {
     THROW_RUNTIME_ERROR("BFS requires a non-empty vertex set");
-  }
-  if (bfs_input.source >= static_cast<vid_t>(vertex_count)) {
-    THROW_RUNTIME_ERROR("BFS source vertex is out of range");
   }
 
   BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, bfs_input.source,

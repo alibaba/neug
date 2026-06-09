@@ -19,7 +19,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "parallel_utils.h"
+#include "utils/parallel_utils.h"
 namespace neug {
 namespace gds {
 
@@ -33,8 +33,8 @@ DirectedPageRank::DirectedPageRank(const StorageReadInterface& graph,
       damping_factor_(damping_factor),
       concurrency_(concurrency) {
   vertex_count_ = graph_.GetVertexSet(vertex_label).size();
-  pr_ = std::make_unique<double[]>(vertex_count_);
-  out_degree_ = std::make_unique<uint32_t[]>(vertex_count_);
+  pr_.reset(new double[vertex_count_]);
+  out_degree_.reset(new uint32_t[vertex_count_]);
   valid_vertices_.reserve(vertex_count_);
   auto oe_view =
       graph.GetGenericOutgoingGraphView(vertex_label, vertex_label, edge_label);
@@ -70,8 +70,9 @@ DirectedPageRank::DirectedPageRank(const StorageReadInterface& graph,
 }
 
 void DirectedPageRank::compute(int max_iterations) {
-  std::unique_ptr<double[]> new_pr =
-      std::make_unique<double[]>(graph_.GetVertexSet(vertex_label_).size());
+  std::unique_ptr<double[]> new_pr(
+      new double[graph_.GetVertexSet(vertex_label_).size()]);
+
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   std::vector<double> dangling_sums(concurrency_, 0.0);
@@ -136,15 +137,14 @@ UndirectedPageRank::UndirectedPageRank(const StorageReadInterface& graph,
       concurrency_(concurrency) {
   (void) vertex_predicate;
   vertex_count_ = graph.GetVertexSet(vertex_label).size();
-  pr_ = std::make_unique<double[]>(vertex_count_);
-  out_degree_ = std::make_unique<uint32_t[]>(vertex_count_);
+  pr_.reset(new double[vertex_count_]);
+  out_degree_.reset(new uint32_t[vertex_count_]);
   valid_vertices_.reserve(vertex_count_);
 
   for (const auto& v : graph.GetVertexSet(vertex_label)) {
     valid_vertices_.push_back(v);
   }
   vertex_count_ = valid_vertices_.size();
-
   auto oe_view =
       graph.GetGenericOutgoingGraphView(vertex_label, vertex_label, edge_label);
   auto ie_view =
@@ -182,8 +182,8 @@ UndirectedPageRank::UndirectedPageRank(const StorageReadInterface& graph,
 }
 
 void UndirectedPageRank::compute(int max_iterations) {
-  std::unique_ptr<double[]> new_pr =
-      std::make_unique<double[]>(graph_.GetVertexSet(vertex_label_).size());
+  std::unique_ptr<double[]> new_pr(
+      new double[graph_.GetVertexSet(vertex_label_).size()]);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
@@ -209,30 +209,28 @@ void UndirectedPageRank::compute(int max_iterations) {
           uint32_t degree = out_degree_[v];
           new_pr[v] =
               degree > 0 ? (base + damping_factor_ * rank_sum) / degree : base;
+          if (iter == max_iterations) {
+            double pr = new_pr[v];
+            new_pr[v] = degree > 0 ? pr * degree : pr;
+          }
         },
         concurrency_);
 
     std::swap(pr_, new_pr);
   }
-
-  ParallelUtils::parallel_for(
-      valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int) {
-        pr_[v] = out_degree_[v] > 0 ? pr_[v] * out_degree_[v] : pr_[v];
-      },
-      concurrency_);
 }
 
 void UndirectedPageRank::sink(execution::Context& ctx, int node_alias,
                               int pr_alias) {
   execution::MSVertexColumnBuilder builder(vertex_label_);
-  builder.reserve(valid_vertices_.size());
+
   execution::ValueColumnBuilder<double> pr_builder;
   pr_builder.reserve(valid_vertices_.size());
   for (vid_t v : valid_vertices_) {
-    builder.push_back_opt(v);
     pr_builder.push_back_opt(pr_[v]);
   }
+
+  builder.append(vertex_label_, std::move(valid_vertices_));
   ctx.set(node_alias, builder.finish());
   ctx.set(pr_alias, pr_builder.finish());
 }

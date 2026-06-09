@@ -22,7 +22,7 @@
 
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "parallel_utils.h"
+#include "utils/parallel_utils.h"
 
 namespace neug {
 namespace gds {
@@ -32,15 +32,9 @@ KCore::KCore(const StorageReadInterface& graph, label_t vertex_label,
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),
-      k_(k),
-      concurrency_(concurrency) {
-  if (concurrency_ <= 0) {
-    concurrency_ = static_cast<int32_t>(std::thread::hardware_concurrency());
-    if (concurrency_ <= 0) {
-      concurrency_ = 1;
-    }
-  }
-
+      k_(k) {
+  concurrency_ =
+      (concurrency <= 0) ? std::thread::hardware_concurrency() : concurrency;
   const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
   vertices_.reserve(vertex_set.size());
   for (vid_t v : vertex_set) {
@@ -58,7 +52,6 @@ KCore::KCore(const StorageReadInterface& graph, label_t vertex_label,
 }
 
 void KCore::compute() {
-  auto start = std::chrono::high_resolution_clock::now();
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
 
@@ -125,12 +118,6 @@ void KCore::compute() {
     frontier.swap(next_frontier);
     ++rounds;
   }
-
-  LOG(INFO) << "KCore compute phase took "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(
-                   std::chrono::high_resolution_clock::now() - start)
-                   .count()
-            << " ms, rounds=" << rounds << ", k=" << k_;
 }
 
 void KCore::sink(execution::Context& ctx, int node_alias, int core_alias) {

@@ -98,8 +98,8 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -183,8 +183,8 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -250,6 +250,15 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
   ~MSVertexColumnBuilder() = default;
   void reserve(size_t size) override { cur_list_.reserve(size); }
 
+  void append(label_t label, std::vector<vid_t>&& vertices) {
+    if (cur_label_ != std::numeric_limits<label_t>::max() &&
+        !cur_list_.empty()) {
+      vertices_.emplace_back(cur_label_, std::move(cur_list_));
+      cur_list_.clear();
+    }
+    cur_label_ = label;
+    cur_list_ = std::move(vertices);
+  }
   // v should not be null
   __attribute__((always_inline)) void push_back_vertex(
       VertexRecord v) override {
@@ -328,8 +337,8 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return vertices_[idx];
   }
 

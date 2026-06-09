@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "subgraph_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {

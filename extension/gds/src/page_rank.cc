@@ -17,8 +17,8 @@
 #include "page_rank.h"
 
 #include "impl/page_rank_impl.h"
-#include "option_utils.h"
-#include "subgraph_utils.h"
+#include "utils/option_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {
@@ -94,51 +94,18 @@ execution::Context PageRankFunction::exec(
                               func_input.edge_label, func_input.damping_factor,
                               func_input.concurrency,
                               func_input.vertex_predicate.get());
-    LOG(INFO) << "PageRank initialization took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
     start = std::chrono::high_resolution_clock::now();
     pagerank.compute(func_input.max_iterations);
-    LOG(INFO) << "PageRank computation took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
     start = std::chrono::high_resolution_clock::now();
 
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
-    LOG(INFO) << "PageRank sink took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
   } else {
     UndirectedPageRank pagerank(
         graph, func_input.vertex_label, func_input.edge_label,
         func_input.damping_factor, func_input.concurrency,
         func_input.vertex_predicate.get());
-    LOG(INFO) << "PageRank initialization took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
-    start = std::chrono::high_resolution_clock::now();
-
     pagerank.compute(func_input.max_iterations);
-    LOG(INFO) << "PageRank computation took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
-    start = std::chrono::high_resolution_clock::now();
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
-    LOG(INFO) << "PageRank sink took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     std::chrono::high_resolution_clock::now() - start)
-                     .count()
-              << " ms";
   }
   return ret;
 }

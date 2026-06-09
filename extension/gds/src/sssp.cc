@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-#include "kcore.h"
+#include "sssp.h"
 
 #include <thread>
 
-#include "impl/kcore_impl.h"
+#include "impl/sssp_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {
 
-struct KCoreInput : public function::CallFuncInputBase {
-  ~KCoreInput() = default;
+struct SSSPInput : public function::CallFuncInputBase {
+  ~SSSPInput() = default;
 
   bool parse_subgraph(const ::physical::Subgraph& subgraph,
                       const execution::ContextMeta& ctx_meta) {
@@ -34,16 +34,16 @@ struct KCoreInput : public function::CallFuncInputBase {
     if (!parse_subgraph_entries(subgraph, ctx_meta, parsed)) {
       return false;
     }
-    if (!check_simple_graph_subgraph(parsed, "KCore")) {
+    if (!check_simple_graph_subgraph(parsed, "SSSP")) {
       return false;
     }
 
     if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in KCore.";
+      LOG(ERROR) << "Vertex predicates are not supported in SSSP.";
       return false;
     }
     if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in KCore.";
+      LOG(ERROR) << "Edge predicates are not supported in SSSP.";
       return false;
     }
 
@@ -54,60 +54,68 @@ struct KCoreInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   label_t edge_label;
-  int32_t k;
+  std::string source;
+  bool directed;
+  std::string edge_weight;
   int32_t concurrency;
   int32_t node_alias;
-  int32_t core_alias;
+  int32_t distance_alias;
 };
 
-std::unique_ptr<function::CallFuncInputBase> KCoreFunction::bind(
+std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
     const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr();
   const auto& subgraph = opr.gds_algo().sub_graph();
   const auto& options = opr.gds_algo().options();
 
-  auto input = std::make_unique<KCoreInput>();
+  auto input = std::make_unique<SSSPInput>();
   if (!input->parse_subgraph(subgraph, ctx_meta)) {
-    LOG(ERROR) << "Failed to parse subgraph for KCore.";
-    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for KCore");
+    LOG(ERROR) << "Failed to parse subgraph for SSSP.";
+    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for SSSP");
   }
 
-  input->k = get_option_value<int32_t>(options, "k", 2);
-  if (input->k < 0) {
-    THROW_RUNTIME_ERROR("KCore option 'k' must be non-negative");
-  }
+  input->source = get_option_value<std::string>(options, "source", "");
+  input->directed =
+      get_option_value<std::string>(options, "directed", "false") == "true";
+  input->edge_weight = get_option_value<std::string>(options, "weight", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->core_alias = plan.plan(op_idx).meta_data(1).alias();
+  input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
 
   return input;
 }
 
-execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& g,
-                                       const neug::execution::Context& ctx) {
-  const auto& kcore_input = dynamic_cast<const KCoreInput&>(input);
-
+execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
+                                      neug::IStorageInterface& g,
+                                      const neug::execution::Context& ctx) {
+  const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  KCore runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
-               kcore_input.k, kcore_input.concurrency);
-  runner.compute();
+
+  auto vertex_count = graph.GetVertexSet(sssp_input.vertex_label).size();
+  if (vertex_count == 0) {
+    THROW_RUNTIME_ERROR("SSSP requires a non-empty vertex set");
+  }
+
+  SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
+            sssp_input.source, sssp_input.directed, sssp_input.edge_weight,
+            sssp_input.concurrency);
+  sssp.compute();
 
   execution::Context ret;
-  runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
+  sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
   return ret;
 }
 
-function::function_set KCoreFunction::getFunctionSet() {
+function::function_set SSSPFunction::getFunctionSet() {
   function::function_set func_set;
   std::vector<common::LogicalTypeID> input_types = {
       common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
   function::call_output_columns output_columns = {
       {"node", common::LogicalTypeID::NODE},
-      {"core", common::LogicalTypeID::INT64}};
+      {"distance", common::LogicalTypeID::DOUBLE}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);

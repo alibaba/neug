@@ -16,8 +16,8 @@
 
 #include "label_propagation.h"
 #include "impl/label_propagation_impl.h"
-#include "option_utils.h"
-#include "subgraph_utils.h"
+#include "utils/option_utils.h"
+#include "utils/subgraph_utils.h"
 
 #include <string>
 #include "neug/utils/exception/exception.h"

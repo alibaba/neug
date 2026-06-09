@@ -16,29 +16,38 @@
 
 #pragma once
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 namespace gds {
 
-class WCC {
+class SSSP {
  public:
-  WCC(const StorageReadInterface& graph, label_t vertex_label,
-      label_t edge_label, int concurrency);
+  SSSP(const StorageReadInterface& graph, label_t vertex_label,
+       label_t edge_label, const std::string& source, bool directed,
+       const std::string& edge_weight_prop, int concurrency);
 
   void compute();
-  void sink(execution::Context& ctx, int node_alias, int component_alias);
+  void sink(execution::Context& ctx, int node_alias, int distance_alias);
 
  private:
   const StorageReadInterface& graph_;
   label_t vertex_label_;
   label_t edge_label_;
-
-  std::unique_ptr<std::atomic<vid_t>[]> parents_;
-  std::unique_ptr<int64_t[]> comps_;
+  vid_t source_;
+  bool directed_;
+  bool has_edge_weight_;
   int concurrency_;
+
+  std::unique_ptr<EdgeDataAccessor> edge_weight_accessor_;
+  std::unique_ptr<std::atomic<double>[]> distances_;
   std::vector<vid_t> vertices_;
 };
+
 }  // namespace gds
 }  // namespace neug

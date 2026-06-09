@@ -18,9 +18,9 @@
 
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "option_utils.h"
-#include "parallel_utils.h"
-#include "subgraph_utils.h"
+#include "utils/option_utils.h"
+#include "utils/parallel_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {

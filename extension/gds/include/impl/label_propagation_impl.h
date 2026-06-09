@@ -42,12 +42,13 @@ class LabelPropagation {
   template <typename PRED_T>
   void init_communities(const PRED_T& vertex_pred);
 
-  void collect_neighbor_communities(vid_t dst_vid,
-                                    std::vector<int64_t>& communities) const;
+  bool run_single_iteration(int64_t* buffer, const size_t* offsets,
+                            int iteration, const GenericView& ie_view,
+                            const GenericView& oe_view);
 
-  bool run_single_iteration(int iteration);
-
-  int64_t get_majority_community(std::vector<int64_t>& communities) const;
+  int64_t get_majority_community(const GenericView& ie_view,
+                                 const GenericView& oe_view, vid_t dst,
+                                 int64_t* communities) const;
 
   const StorageReadInterface& graph_;
   label_t vertex_label_;
@@ -57,8 +58,8 @@ class LabelPropagation {
   execution::ExprBase* vertex_pred_;
   execution::ExprBase* edge_pred_;
 
-  std::vector<int64_t> community_;
-  std::vector<int64_t> next_community_;
+  std::unique_ptr<int64_t[]> community_;
+  std::unique_ptr<int64_t[]> next_community_;
   std::vector<vid_t> vertices_;
 };
 

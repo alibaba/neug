@@ -23,7 +23,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "parallel_utils.h"
+#include "utils/parallel_utils.h"
 
 namespace neug {
 namespace gds {
@@ -33,137 +33,126 @@ WCC::WCC(const StorageReadInterface& graph, label_t vertex_label,
       vertex_label_(vertex_label),
       edge_label_(edge_label),
       concurrency_(concurrency) {
-  if (concurrency_ <= 0) {
-    concurrency_ = static_cast<int>(std::thread::hardware_concurrency());
-    if (concurrency_ <= 0) {
-      concurrency_ = 1;
-    }
-  }
-  parents_ = std::make_unique<vid_t[]>(graph.GetVertexSet(vertex_label).size());
-  comps_ = std::make_unique<int64_t[]>(graph.GetVertexSet(vertex_label).size());
-  auto id_column = dynamic_cast<const TypedRefColumn<int64_t>*>(
-      graph.GetVertexPropColumn(vertex_label, "id").get());
+  concurrency = std::max(concurrency, 1);
+  parents_.reset(
+      new std::atomic<vid_t>[graph.GetVertexSet(vertex_label).size()]);
+  comps_.reset(new int64_t[graph.GetVertexSet(vertex_label).size()]);
+  auto id_column_holder = graph.GetVertexPropColumn(vertex_label, "id");
+  auto id_column =
+      dynamic_cast<const TypedRefColumn<int64_t>*>(id_column_holder.get());
   vertices_.reserve(graph.GetVertexSet(vertex_label).size());
+  const auto& vertex_set = graph.GetVertexSet(vertex_label);
+
   if (id_column) {
-    for (vid_t v : graph.GetVertexSet(vertex_label)) {
-      parents_[v] = v;
-      comps_[v] = id_column->get_view(v);
-      vertices_.push_back(v);
-    }
+    ParallelUtils::parallel_for(
+        vertex_set,
+        [&](vid_t v, int tid) {
+          parents_[v] = v;
+          comps_[v] = id_column->get_view(v);
+        },
+        concurrency_);
   } else {
-    for (vid_t v : graph.GetVertexSet(vertex_label)) {
-      parents_[v] = v;
-      comps_[v] = v;
-      vertices_.push_back(v);
-    }
+    const auto& vertex_set = graph.GetVertexSet(vertex_label);
+    ParallelUtils::parallel_for(
+        vertex_set,
+        [&](vid_t v, int tid) {
+          parents_[v] = v;
+          comps_[v] = v;
+        },
+        concurrency_);
+  }
+
+  for (vid_t v : vertex_set) {
+    vertices_.push_back(v);
   }
 }
 
-bool atomic_min_vid(vid_t* addr, vid_t val) {
-  vid_t cur = __atomic_load_n(addr, __ATOMIC_RELAXED);
-  while (val < cur) {
-    if (__atomic_compare_exchange_n(addr, &cur, val, true, __ATOMIC_RELAXED,
-                                    __ATOMIC_RELAXED)) {
-      return true;
+vid_t find(vid_t v, std::atomic<vid_t>* parents) {
+  while (true) {
+    vid_t p = parents[v].load(std::memory_order_acquire);
+    if (p == v) {
+      return v;
+    }
+    vid_t gp = parents[p].load(std::memory_order_acquire);
+
+    parents[v].compare_exchange_weak(p, gp, std::memory_order_release,
+                                     std::memory_order_relaxed);
+    v = p;
+  }
+  return v;
+}
+
+void union_comp(vid_t a, vid_t b, std::atomic<vid_t>* buffer) {
+  do {
+    vid_t root_a = find(a, buffer);
+    vid_t root_b = find(b, buffer);
+    if (root_a == root_b) {
+      return;
+    }
+    if (root_a < root_b) {
+      if (buffer[root_b].compare_exchange_weak(root_b, root_a,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed)) {
+        return;
+      }
+    } else {
+      if (buffer[root_a].compare_exchange_weak(root_a, root_b,
+                                               std::memory_order_release,
+                                               std::memory_order_relaxed)) {
+        return;
+      }
+    }
+  } while (true);
+}
+
+inline void atomic_min_i64(int64_t* addr, int64_t value) {
+  int64_t old = __atomic_load_n(addr, __ATOMIC_ACQUIRE);
+  while (value < old) {
+    if (__atomic_compare_exchange_n(addr, &old, value, true, __ATOMIC_RELEASE,
+                                    __ATOMIC_ACQUIRE)) {
+      return;
     }
   }
-  return false;
 }
 
 void WCC::compute() {
-  auto begin_total = std::chrono::high_resolution_clock::now();
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
 
-  std::vector<vid_t> frontier = vertices_;
-  std::vector<std::atomic<uint8_t>> marked(
-      graph_.GetVertexSet(vertex_label_).size());
-  for (auto& m : marked) {
-    m.store(0, std::memory_order_relaxed);
-  }
+  ParallelUtils::parallel_for(
+      vertices_.data(), vertices_.size(),
+      [&](vid_t v, int tid) {
+        const auto& oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          union_comp(v, *it, parents_.get());
+        }
+      },
+      concurrency_);
+  ParallelUtils::parallel_for(
+      vertices_.data(), vertices_.size(),
+      [&](vid_t v, int tid) {
+        parents_[v] = find(v, parents_.get());
+        vid_t root = parents_[v];
+        atomic_min_i64(&comps_[root], comps_[v]);
+      },
+      concurrency_);
 
-  int rounds = 0;
-  while (!frontier.empty()) {
-    std::vector<std::vector<vid_t>> local_next(concurrency_);
-    std::atomic<bool> updated(false);
-
-    ParallelUtils::parallel_for(
-        frontier.data(), frontier.size(),
-        [&](vid_t src, int tid) {
-          const vid_t src_comp =
-              __atomic_load_n(&parents_[src], __ATOMIC_RELAXED);
-
-          auto relax = [&](vid_t dst) {
-            if (atomic_min_vid(&parents_[dst], src_comp)) {
-              updated.store(true, std::memory_order_relaxed);
-              uint8_t expected = 0;
-              if (marked[dst].compare_exchange_strong(
-                      expected, 1, std::memory_order_relaxed,
-                      std::memory_order_relaxed)) {
-                local_next[tid].push_back(dst);
-              }
-            }
-          };
-
-          auto oe_edges = oe_view.get_edges(src);
-          for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-            relax(*it);
-          }
-
-          auto ie_edges = ie_view.get_edges(src);
-          for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
-            relax(*it);
-          }
-        },
-        concurrency_);
-
-    if (!updated.load(std::memory_order_relaxed)) {
-      break;
-    }
-
-    std::vector<vid_t> next_frontier;
-    size_t total = 0;
-    for (const auto& bucket : local_next) {
-      total += bucket.size();
-    }
-    next_frontier.reserve(total);
-    for (auto& bucket : local_next) {
-      next_frontier.insert(next_frontier.end(), bucket.begin(), bucket.end());
-    }
-
-    for (vid_t v : next_frontier) {
-      marked[v].store(0, std::memory_order_relaxed);
-    }
-
-    frontier.swap(next_frontier);
-    ++rounds;
-  }
-
-  for (vid_t v : vertices_) {
-    const vid_t root = parents_[v];
-    comps_[root] = std::min(comps_[root], comps_[v]);
-  }
-  for (vid_t v : vertices_) {
-    comps_[v] = comps_[parents_[v]];
-  }
-
-  LOG(INFO) << "WCC compute phase took "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(
-                   std::chrono::high_resolution_clock::now() - begin_total)
-                   .count()
-            << " ms, rounds=" << rounds;
+  ParallelUtils::parallel_for(
+      vertices_.data(), vertices_.size(),
+      [&](vid_t v, int tid) { comps_[v] = comps_[parents_[v]]; }, concurrency_);
 }
+
 void WCC::sink(execution::Context& ctx, int node_alias, int component_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
   execution::ValueColumnBuilder<int64_t> component_builder;
-  node_builder.reserve(vertices_.size());
-  component_builder.reserve(vertices_.size());
+  size_t vertex_count = vertices_.size();
+
+  component_builder.reserve(vertex_count);
   for (vid_t v : vertices_) {
-    node_builder.push_back_opt(v);
     component_builder.push_back_opt(comps_[v]);
   }
+  node_builder.append(vertex_label_, std::move(vertices_));
+
   ctx.set(node_alias, node_builder.finish());
   ctx.set(component_alias, component_builder.finish());
 }

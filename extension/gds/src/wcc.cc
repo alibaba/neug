@@ -17,8 +17,8 @@
 #include "wcc.h"
 
 #include "impl/wcc_impl.h"
-#include "option_utils.h"
-#include "subgraph_utils.h"
+#include "utils/option_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {

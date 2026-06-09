@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_EXTENSION_GDS_OPTION_UTILS_H_
-#define NEUG_EXTENSION_GDS_OPTION_UTILS_H_
+#pragma once
 
 #include <google/protobuf/map.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -70,5 +71,3 @@ T get_option_value(
 
 }  // namespace gds
 }  // namespace neug
-
-#endif  // NEUG_EXTENSION_GDS_OPTION_UTILS_H_

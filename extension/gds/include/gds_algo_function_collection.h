@@ -23,7 +23,9 @@
 #include "bfs.h"
 #include "kcore.h"
 #include "label_propagation.h"
+#include "lcc.h"
 #include "page_rank.h"
+#include "sssp.h"
 #include "wcc.h"
 
 namespace neug {

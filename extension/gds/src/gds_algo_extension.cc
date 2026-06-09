@@ -32,8 +32,12 @@ void Init() {
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerFunction<neug::gds::KCoreFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+    neug::extension::ExtensionAPI::registerFunction<neug::gds::LCCFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerFunction<
         neug::gds::PageRankFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+    neug::extension::ExtensionAPI::registerFunction<neug::gds::SSSPFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerFunction<neug::gds::WCCFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
