@@ -20,13 +20,16 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alibaba/neug"
+    "url": "git+https://github.com/alibaba/neug.git"
   },
   "engines": {
-    "node": "16.0.0"
+    "node": ">=16.0.0"
   },
   "dependencies": {
     "node-addon-api": "^7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "lib/",

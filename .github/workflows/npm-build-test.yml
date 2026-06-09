@@ -125,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-x86_64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/neug-*-linux_x86_64.tgz
+          path: ./tools/nodejs_bind/graphscope-neug-linux-x86_64-*.tgz
           if-no-files-found: error
 
   build_npm_linux_arm64:
@@ -217,7 +217,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/neug-*-linux_arm64.tgz
+          path: ./tools/nodejs_bind/graphscope-neug-linux-arm64-*.tgz
           if-no-files-found: error
 
   build_npm_macos_aarch64:
@@ -273,5 +273,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-macos-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/neug-*-osx_arm64.tgz
+          path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
           if-no-files-found: error

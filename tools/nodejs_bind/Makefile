@@ -79,14 +79,12 @@ proto:  ## Regenerate lib/proto/error_pb.js from proto/error.proto
 pack: build  ## Create per-platform npm tarball
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
 	@cp package.json package.json.orig
-	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
-	@VERSION=$$(node -p 'require("./package.json").version'); \
-		npm pack && \
-		mv neug-$$VERSION.tgz neug-$$VERSION-$(PREBUILD_PLATFORM).tgz; \
+	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@graphscope-neug/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
+	@npm pack && \
 		PACK_RC=$$?; \
 		mv package.json.orig package.json; \
 		exit $$PACK_RC
-	@echo "Package created: neug-*-$(PREBUILD_PLATFORM).tgz"
+	@echo "Package created: graphscope-neug-$(OS_TAG)-$(ARCH_TAG)-*.tgz"
 
 clean:  ## Clean Node.js build artifacts (does NOT touch $(ROOT_BUILD))
 	rm -rf build/
