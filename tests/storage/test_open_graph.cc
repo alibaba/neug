@@ -19,8 +19,8 @@
 #include "column_assertions.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 #include <glog/logging.h>
 
@@ -76,8 +76,8 @@ TEST(DatabaseTest, TestDangling) {
     throw std::runtime_error(
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
-  LOG(INFO) << "CSV data dir: " << csv_dir_ptr;
   std::string csv_dir = csv_dir_ptr;
+  LOG(INFO) << "CSV data dir: " << csv_dir;
   std::string data_path = "/tmp/test_dangling";
   if (std::filesystem::exists(data_path)) {
     std::filesystem::remove_all(data_path);

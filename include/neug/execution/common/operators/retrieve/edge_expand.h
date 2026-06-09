@@ -21,6 +21,7 @@
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
+#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 namespace execution {
@@ -240,10 +241,7 @@ class EdgeExpand {
     MSVertexColumnBuilder builder2(d2_nbr_label);
     std::vector<size_t> offsets;
 
-    static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
-    static thread_local std::vector<vid_t> d0_vec;
-
-    d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);
+    phmap::flat_hash_set<vid_t> d0_set;
 
     size_t idx = 0;
     if (csr0.type() == CsrViewType::kMultipleMutable &&
@@ -252,52 +250,48 @@ class EdgeExpand {
           csr0.template get_typed_view<T1, CsrViewType::kMultipleMutable>();
       if (LT) {
         for (auto v : casted_input_vertex_list->vertices()) {
-          typed_csr0.foreach_nbr_lt(v, param, [&](vid_t u, const T1& data) {
-            d0_set[u] = true;
-            d0_vec.push_back(u);
-          });
+          typed_csr0.foreach_nbr_lt(
+              v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
+          if (d0_set.empty()) {
+            continue;
+          }
           auto es1 = csr1.get_edges(v);
           for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
             auto nbr1 = it1.get_vertex();
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       } else {
         for (auto v : casted_input_vertex_list->vertices()) {
-          typed_csr0.foreach_nbr_gt(v, param, [&](vid_t u, const T1& data) {
-            d0_set[u] = true;
-            d0_vec.push_back(u);
-          });
+          typed_csr0.foreach_nbr_gt(
+              v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
+          if (d0_set.empty()) {
+            continue;
+          }
           auto es1 = csr1.get_edges(v);
           for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
             auto nbr1 = it1.get_vertex();
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       }
@@ -309,8 +303,7 @@ class EdgeExpand {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
             if (ed0 < param) {
               auto nbr0 = it0.get_vertex();
-              d0_set[nbr0] = true;
-              d0_vec.push_back(nbr0);
+              d0_set.emplace(nbr0);
             }
           }
           auto es1 = csr1.get_edges(v);
@@ -319,17 +312,14 @@ class EdgeExpand {
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       } else {
@@ -339,8 +329,7 @@ class EdgeExpand {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
             if (param < ed0) {
               auto nbr0 = it0.get_vertex();
-              d0_set[nbr0] = true;
-              d0_vec.push_back(nbr0);
+              d0_set.emplace(nbr0);
             }
           }
           auto es1 = csr1.get_edges(v);
@@ -349,13 +338,15 @@ class EdgeExpand {
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
+          d0_set.clear();
+          ++idx;
         }
       }
     }

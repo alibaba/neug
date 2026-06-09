@@ -13,12 +13,16 @@
  * limitations under the License.
  */
 #include <gtest/gtest.h>
+#include <unistd.h>
 #include <filesystem>
 
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_broker.h"
+#include "neug/storages/module_descriptor.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
-
-static constexpr const char* TEST_DIR = "/tmp/table_test";
+#include "unittest/utils.h"
 
 static const std::vector<bool> bool_data = {1, 0, 0, 1, 1, 0, 1, 0, 1, 1};
 static const std::vector<int32_t> int32_data = {1, 4, -1, 2, 9, 2, 4, 3, 1, -2};
@@ -57,13 +61,80 @@ static const std::vector<std::string> string_data = {
 
 namespace neug {
 namespace test {
-TEST(TableTest, TestTableBasic) {
-  if (std::filesystem::exists(TEST_DIR)) {
-    std::filesystem::remove_all(TEST_DIR);
+
+// Test-side Open / Dump for Table: round-trips columns through ModuleBroker
+// + CheckpointManifest the same way the production OpenVertexTable flow does.
+// Pass an empty CheckpointManifest to initialize fresh columns, or one returned
+// from a previous DumpTableLegacy to restore.
+inline std::string TablePropKey(size_t i) {
+  return "table/col_" + std::to_string(i);
+}
+
+static void OpenTableLegacy(Table& t, Checkpoint& ckp,
+                            const CheckpointManifest& meta, MemoryLevel level,
+                            const std::vector<std::string>& col_names,
+                            const std::vector<DataType>& types) {
+  t = Table(col_names, types);
+  if (!meta.has_module(TablePropKey(0))) {
+    t.Init(ckp, level);
+    return;
   }
-  std::filesystem::create_directories(TEST_DIR);
-  std::filesystem::create_directories(std::string(TEST_DIR) + "/checkpoint");
-  std::filesystem::create_directories(std::string(TEST_DIR) + "/runtime/tmp");
+  ModuleBroker store;
+  store.Open(ckp, meta, level);
+  for (size_t i = 0; i < types.size(); ++i) {
+    t.SetColumn(static_cast<int>(i),
+                std::shared_ptr<ColumnBase>(
+                    store.TakeModule<ColumnBase>(TablePropKey(i))));
+  }
+}
+
+static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
+  // Table holds columns by shared_ptr, so ownership can't be transferred
+  // into a unique_ptr-typed ModuleBroker — dump inline directly.
+  CheckpointManifest meta;
+  for (size_t i = 0; i < t.col_num(); ++i) {
+    meta.set_module(TablePropKey(i), t.get_column_by_id(i)->Dump(ckp));
+  }
+  return meta;
+}
+
+class TableTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ =
+        std::filesystem::temp_directory_path() /
+        ("table_test_" + std::to_string(::getpid()) + "_" + GetTestName());
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+    std::filesystem::create_directories(temp_dir_);
+    ws.Open(temp_dir_.string());
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+  }
+
+  neug::CheckpointManager& Workspace() { return ws; }
+
+  std::string TempDir() const { return temp_dir_.string(); }
+
+ private:
+  std::filesystem::path temp_dir_;
+  neug::CheckpointManager ws;
+
+  std::string GetTestName() const {
+    const testing::TestInfo* const test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
+    return std::string(test_info->name());
+  }
+};
+
+TEST_F(TableTest, TestTableBasic) {
+  auto& ws = Workspace();
+  auto ckp = make_checkpoint(ws);
 
   Table disk_table, mem_table, none_table;
 
@@ -80,9 +151,12 @@ TEST(TableTest, TestTableBasic) {
       {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
       {DataTypeId::kVarchar}};
 
-  disk_table.open("test_dist", TEST_DIR, col_name, property_types);
-  mem_table.open("test_dist", TEST_DIR, col_name, property_types);
-  none_table.open("test_dist", TEST_DIR, col_name, property_types);
+  OpenTableLegacy(disk_table, *ckp, CheckpointManifest(),
+                  MemoryLevel::kSyncToFile, col_name, property_types);
+  OpenTableLegacy(mem_table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                  col_name, property_types);
+  OpenTableLegacy(none_table, *ckp, CheckpointManifest(),
+                  MemoryLevel::kInMemory, col_name, property_types);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -282,17 +356,17 @@ TEST(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.get_row(0).size(), 11);
     EXPECT_EQ(disk_table.get_column("bool_column")->type(),
               DataTypeId::kBoolean);
-    disk_table.set_name("disk_table");
     std::vector<Property> properties = disk_table.get_row(9);
     disk_table.insert(9, properties, false);
   }
 
-  disk_table.dump("disk_table", std::string(TEST_DIR) + "/checkpoint");
+  // dump disk_table and reopen it from the descriptor
+  auto disk_desc = DumpTableLegacy(disk_table, *ckp);
   disk_table.close();
   mem_table.close();
 
-  disk_table.open("disk_table", std::string(TEST_DIR), col_name,
-                  property_types);
+  OpenTableLegacy(disk_table, *ckp, disk_desc, MemoryLevel::kSyncToFile,
+                  col_name, property_types);
   EXPECT_EQ(disk_table.col_num(), 11);
   EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
   disk_table.reset_header(col_name);
@@ -300,11 +374,11 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(disk_table.get_column_id_by_name("renamed_bool_column"), 0);
   disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(disk_table.col_num(), 10);
-  disk_table.set_work_dir(std::string(TEST_DIR));
   disk_table.close();
 
-  mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
-                           property_types);
+  // reopen from the same descriptor in-memory
+  OpenTableLegacy(mem_table, *ckp, disk_desc, MemoryLevel::kInMemory, col_name,
+                  property_types);
   EXPECT_EQ(mem_table.col_num(), 11);
   EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
   const Table& mem_table_ref = mem_table;
@@ -313,19 +387,15 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::kBoolean);
 }
 
-TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
-  if (std::filesystem::exists(TEST_DIR)) {
-    std::filesystem::remove_all(TEST_DIR);
-  }
-  std::filesystem::create_directories(TEST_DIR);
-  std::filesystem::create_directories(std::string(TEST_DIR) + "/checkpoint");
-  std::filesystem::create_directories(std::string(TEST_DIR) + "/runtime/tmp");
+TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
+  auto ckp = make_checkpoint(Workspace());
 
   Table table;
   std::vector<std::string> col_name = {"string_column"};
   std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
 
-  table.open("test_string_validity", TEST_DIR, col_name, property_types);
+  OpenTableLegacy(table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
+                  col_name, property_types);
   table.resize(2, {Property::from_string_view("default_value")});
 
   auto string_column = std::dynamic_pointer_cast<StringColumn>(
@@ -341,11 +411,9 @@ TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
       1, Property::from_string_view("new value new value new value"));
   EXPECT_EQ(string_column->get_prop(1).as_string_view(),
             "new value new value new value");
-  std::string path = std::string(TEST_DIR) + "/string_column";
-  string_column->dump(path);
-
+  auto desc = string_column->Dump(*ckp);
   StringColumn new_string_column;
-  new_string_column.open_in_memory(path);
+  new_string_column.Open(*ckp, desc, MemoryLevel::kInMemory);
   EXPECT_EQ(new_string_column.get_prop(0).as_string_view(), "default_value");
   EXPECT_EQ(new_string_column.get_prop(1).as_string_view(),
             "new value new value new value");

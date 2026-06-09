@@ -32,5 +32,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           CONFIG_PATH: .github/issue-triage-config.yml
-          QWEN_MODEL: qwen3-plus
+          QWEN_MODEL: ${{ vars.QWEN_MODEL || 'qwen-plus' }}
         run: python .github/scripts/triage_issue.py
