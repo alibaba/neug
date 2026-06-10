@@ -286,6 +286,20 @@ Transformer::transformUnaryAddSubtractOrFactorialExpression(
         FactorialFunction::name, std::move(result), std::move(raw));
   }
   if (!ctx.MINUS().empty()) {
+    // When a single unary minus is applied to an integer literal that didn't
+    // fit in int64_t (e.g., 9223372036854775808), try parsing the negated
+    // string directly as int64_t. This correctly handles INT64_MIN
+    // (-9223372036854775808) which cannot be expressed as negate(positive).
+    if (ctx.MINUS().size() % 2 == 1 &&
+        result->getExpressionType() == ExpressionType::LITERAL) {
+      auto negStr = "-" + result->toString();
+      neug_string_t literal{negStr.c_str(), negStr.length()};
+      int64_t negResult = 0;
+      if (CastString::tryCast(literal, negResult)) {
+        return std::make_unique<ParsedLiteralExpression>(Value(negResult),
+                                                         negStr);
+      }
+    }
     for ([[maybe_unused]] auto& _ : ctx.MINUS()) {
       auto raw = "-" + result->toString();
       result = std::make_unique<ParsedFunctionExpression>(
