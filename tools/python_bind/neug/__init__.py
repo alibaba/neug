@@ -20,10 +20,10 @@ import logging
 import os
 import platform
 import sys
+from typing import Optional
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Mimalloc auto-preload: ensure mimalloc is loaded before libstdc++ so that
