@@ -53,10 +53,6 @@ endif()
 if (APPLE)
     target_link_libraries(neug PUBLIC ${MACOS_DYLIBS})
 endif()
-if (WITH_MIMALLOC)
-    # It must be PUBLIC, otherwise there will be performance differences.
-    target_link_libraries(neug PUBLIC mimalloc)
-endif()
 target_include_directories(neug PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
     $<INSTALL_INTERFACE:include/neug/compiler>

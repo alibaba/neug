@@ -23,6 +23,198 @@ import sys
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
+from typing import Optional
+
+# ---------------------------------------------------------------------------
+# Mimalloc auto-preload: ensure mimalloc is loaded before libstdc++ so that
+# MI_OVERRIDE=ON takes effect.  If libmimalloc.so is bundled alongside the
+# package but not yet preloaded, we exec the current process with
+# LD_PRELOAD set.  This is the *only* reliable way to make mimalloc's
+# malloc/free override work inside a Python extension.
+# ---------------------------------------------------------------------------
+
+_MIMALLOC_PRELOADED_ENV = "NEUG_MIMALLOC_PRELOADED"
+
+
+def _find_mimalloc() -> Optional[str]:
+    """Find libmimalloc.so in package dir or build dir."""
+    # Search locations in priority order:
+    # 1. Package directory (wheel install: .so lives next to __init__.py)
+    # 2. Build directory (development: .so is in build/third_party/mimalloc/)
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    search_dirs = [
+        pkg_dir,
+        os.path.join(pkg_dir, "..", "..", "..", "build", "third_party", "mimalloc"),
+    ]
+    # Also check relative to neug_py_bind location if available
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("neug_py_bind")
+        if spec and spec.origin:
+            bind_dir = os.path.dirname(spec.origin)
+            search_dirs.append(
+                os.path.join(bind_dir, "..", "..", "third_party", "mimalloc")
+            )
+    except (ImportError, ValueError):
+        pass
+
+    for search_dir in search_dirs:
+        search_dir = os.path.normpath(search_dir)
+        candidates = glob.glob(os.path.join(search_dir, "libmimalloc.so*"))
+        for c in sorted(candidates, key=lambda p: -len(p)):
+            real = os.path.realpath(c)
+            if os.path.isfile(real):
+                return real
+    return None
+
+
+def _ensure_mimalloc_preloaded() -> None:
+    """If mimalloc is bundled but not yet preloaded, re-exec with LD_PRELOAD."""
+    if os.environ.get(_MIMALLOC_PRELOADED_ENV):
+        return  # Already preloaded in a previous exec
+
+    mimalloc_path = _find_mimalloc()
+    if not mimalloc_path:
+        return  # No mimalloc available, use glibc
+
+    # Check if mimalloc is already active (via /proc/self/maps)
+    try:
+        with open("/proc/self/maps") as f:
+            if "mimalloc" in f.read():
+                return  # Already loaded
+    except OSError:
+        pass
+
+    # Re-exec the current Python process with LD_PRELOAD
+    os.environ[_MIMALLOC_PRELOADED_ENV] = "1"
+    existing = os.environ.get("LD_PRELOAD", "")
+    if existing:
+        os.environ["LD_PRELOAD"] = mimalloc_path + ":" + existing
+    else:
+        os.environ["LD_PRELOAD"] = mimalloc_path
+
+    import logging as _logging
+    _logging.getLogger("neug").info(
+        "Re-executing with LD_PRELOAD=%s for mimalloc", mimalloc_path
+    )
+    # Use os.execvpe to preserve the current process args
+    # Works for: python script.py, python -m module, python -c "cmd"
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+_ensure_mimalloc_preloaded()
+
+
+# ---------------------------------------------------------------------------
+# Mimalloc runtime configuration
+# ---------------------------------------------------------------------------
+
+# Default mimalloc options applied automatically on import.
+# Users can override by calling configure_mimalloc() after import,
+# or by setting the NEUG_MIMALLOC_DEFAULTS env var to "off" to skip.
+_MIMALLOC_DEFAULTS = {
+    "page_reset": 0,                  # Keep pages resident on free
+    "eager_commit": 1,               # Commit segment up front
+    "allow_decommit": 1,             # Allow decommit of idle segments
+    "decommit_delay": 30000,         # Auto-decommit after 30s (ms)
+    "segment_decommit_delay": 30000, # Auto-decommit segments after 30s (ms)
+    "large_os_pages": 1,             # Use 2MiB explicit hugetlb pages (MAP_HUGETLB)
+}
+
+
+def configure_mimalloc(page_reset=None, eager_commit=None,
+                       decommit_delay=None,
+                       large_os_pages=None, reserve_os_memory=None,
+                       reserve_huge_os_pages=None,
+                       abandoned_page_decommit=None,
+                       eager_commit_delay=None,
+                       allow_decommit=None,
+                       segment_decommit_delay=None,
+                       decommit_extend_delay=None) -> None:
+    """Configure mimalloc options at runtime.
+
+    Only takes effect if mimalloc is loaded (via LD_PRELOAD).
+    Silently ignored if mimalloc is not available.
+
+    Args:
+        page_reset: Keep pages resident on free (0=off, 1=on). Default: 0
+        eager_commit: Commit segment up front (0=off, 1=on). Default: 1
+        decommit_delay: Auto-decommit after N ms of inactivity. Default: 30000
+        large_os_pages: Use 2MiB explicit hugetlb pages (0=off, 1=on). Default: 1
+        reserve_os_memory: Reserve OS memory in KiB at startup. Default: 0
+        reserve_huge_os_pages: Reserve N huge OS pages (1GiB). Default: 0
+        abandoned_page_decommit: Decommit abandoned pages. Default: 0
+        eager_commit_delay: Delay before eager commit (ms). Default: 0
+        allow_decommit: Allow decommit of idle segments. Default: 1
+        segment_decommit_delay: Auto-decommit segments after N ms. Default: 30000
+        decommit_extend_delay: Delay before decommit extend (ms). Default: 0
+    """
+    try:
+        import ctypes
+        lib = ctypes.CDLL(None)
+        if not hasattr(lib, "mi_option_set"):
+            return  # mimalloc not loaded
+    except OSError:
+        return
+
+    # Enum values from mimalloc.h mi_option_t (must match bundled mimalloc version)
+    _option_map = {
+        "eager_commit": 3,              # mi_option_eager_commit
+        "large_os_pages": 6,             # mi_option_large_os_pages
+        "reserve_huge_os_pages": 7,      # mi_option_reserve_huge_os_pages
+        "reserve_os_memory": 9,          # mi_option_reserve_os_memory
+        "page_reset": 11,               # mi_option_page_reset
+        "abandoned_page_decommit": 12,   # mi_option_abandoned_page_decommit
+        "eager_commit_delay": 14,        # mi_option_eager_commit_delay
+        "decommit_delay": 15,            # mi_option_decommit_delay
+        "allow_decommit": 22,            # mi_option_allow_decommit
+        "segment_decommit_delay": 23,    # mi_option_segment_decommit_delay
+        "decommit_extend_delay": 24,     # mi_option_decommit_extend_delay
+    }
+
+    kwargs = {
+        "page_reset": page_reset,
+        "eager_commit": eager_commit,
+        "decommit_delay": decommit_delay,
+        "large_os_pages": large_os_pages,
+        "reserve_os_memory": reserve_os_memory,
+        "reserve_huge_os_pages": reserve_huge_os_pages,
+        "abandoned_page_decommit": abandoned_page_decommit,
+        "eager_commit_delay": eager_commit_delay,
+        "allow_decommit": allow_decommit,
+        "segment_decommit_delay": segment_decommit_delay,
+        "decommit_extend_delay": decommit_extend_delay,
+    }
+
+    for name, value in kwargs.items():
+        if value is not None and name in _option_map:
+            try:
+                lib.mi_option_set(_option_map[name], int(value))
+            except Exception:
+                pass  # Silently ignore if option not supported
+
+
+def mimalloc_stats() -> str:
+    """Get mimalloc statistics. Returns empty string if not available."""
+    try:
+        import ctypes
+        lib = ctypes.CDLL(None)
+        if not hasattr(lib, "mi_stats_print_out"):
+            return "mimalloc not loaded"
+
+        buf = ctypes.create_string_buffer(4096)
+        lib.mi_stats_print_out(None, buf)
+        return buf.value.decode("utf-8", errors="replace")
+    except OSError:
+        return "mimalloc not loaded"
+
+
+# Auto-apply default mimalloc options on import.
+# Set NEUG_MIMALLOC_DEFAULTS=off to disable.
+if os.environ.get("NEUG_MIMALLOC_DEFAULTS", "").lower() not in ("off", "0", "no", "false"):
+    configure_mimalloc(**_MIMALLOC_DEFAULTS)
+
+# ---------------------------------------------------------------------------
 
 import neug
 from neug.version import __version__

@@ -85,7 +85,7 @@ _ENV_FLAGS = {
     "BUILD_HTTP_SERVER": "ON",
     "BUILD_COMPILER": "ON",
     "ENABLE_BACKTRACES": "OFF",
-    "WITH_MIMALLOC": "OFF",
+    "WITH_MIMALLOC": "ON",
     "BUILD_TEST": "OFF",
     "ENABLE_GCOV": "OFF",
 }
@@ -132,6 +132,23 @@ class CMakeBuild(build_ext):
         ]:
             shutil.copy2(src, extdir, follow_symlinks=True)
             print(f"[CMakeBuild] copied {src.name} -> {extdir}")
+
+        # Copy mimalloc.so if it exists (for wheel distribution with MI_OVERRIDE)
+        # Must be copied to the neug/ package directory so __init__.py can find it
+        # mimalloc is built in build/third_party/mimalloc/, not build/src/
+        mimalloc_build_dir = build_dir / "third_party" / "mimalloc"
+        mimalloc_search_dirs = [core_lib_dir, mimalloc_build_dir]
+        mimalloc_dest = extdir / "neug"
+        mimalloc_dest.mkdir(parents=True, exist_ok=True)
+        for search_dir in mimalloc_search_dirs:
+            mimalloc_patterns = [
+                *search_dir.glob("libmimalloc.so"),
+                *search_dir.glob("libmimalloc.so.*"),
+            ]
+            for src in mimalloc_patterns:
+                if src.exists() and not src.is_symlink():
+                    shutil.copy2(src, mimalloc_dest)
+                    print(f"[CMakeBuild] copied mimalloc {src.name} -> {mimalloc_dest}")
 
         # Mirror <repo>/build/extension/<name>/* into <extdir>/extension/<name>/
         # so they get packaged into the wheel. Triggered by CI_INSTALL_EXTENSIONS
@@ -379,7 +396,13 @@ setup(
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"neug": ["resources/*"]},
+    package_data={
+        "neug": [
+            "resources/*",
+            "*.so",  # Include mimalloc.so and other shared libraries
+            "*.so.*",
+        ],
+    },
     zip_safe=False,
     include_package_data=True,
     entry_points={
