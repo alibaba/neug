@@ -720,6 +720,14 @@ std::unique_ptr<ParsedExpression> Transformer::transformIntegerLiteral(
     return std::make_unique<ParsedLiteralExpression>(Value(result),
                                                      ctx.getText());
   }
+  // Value exceeds INT64_MAX; try uint64_t before falling back to int128_t.
+  // This avoids the broken Value(int128_t) constructor which sets kInt64 type
+  // but stores data in the int128Val union member.
+  uint64_t resultU64 = 0;
+  if (function::CastString::tryCast(literal, resultU64)) {
+    return std::make_unique<ParsedLiteralExpression>(Value(resultU64),
+                                                     ctx.getText());
+  }
   int128_t result128 = 0;
   function::CastString::operation(literal, result128);
   return std::make_unique<ParsedLiteralExpression>(Value(result128),
