@@ -20,7 +20,7 @@ const assert = require('assert').strict;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Database, Session } = require('../lib');
+const { Database } = require('../lib');
 const {
   ERR_DATABASE_LOCKED,
   ERR_TX_STATE_CONFLICT,
@@ -43,10 +43,6 @@ function makeTmpDir(prefix = 'neug_tx_test_') {
   return dir;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 after(() => {
   for (const dir of _tmpDirs) {
     try {
@@ -56,24 +52,6 @@ after(() => {
     }
   }
 });
-
-// ---------------------------------------------------------------------------
-// Server helpers (mirrors Python started_server fixture)
-// Each call uses a unique port to avoid conflicts between tests.
-// ---------------------------------------------------------------------------
-
-let _portCounter = 19000;
-function nextPort() {
-  return _portCounter++;
-}
-
-async function startServer(dbDir) {
-  const port = nextPort();
-  const db = new Database({ databasePath: dbDir, mode: 'w' });
-  const endpoint = db.serve({ port, host: 'localhost', blocking: false });
-  await sleep(1000);
-  return { db, endpoint };
-}
 
 // ---------------------------------------------------------------------------
 // DB-004-01
@@ -126,86 +104,6 @@ test('test_ap_read_write_concurrent', () => {
   );
   conn.close();
   db.close();
-});
-
-// ---------------------------------------------------------------------------
-// DB-004-04
-// ---------------------------------------------------------------------------
-
-test('test_tp_read_concurrent', async () => {
-  const dbDir = makeTmpDir('tp_read_concurrent');
-  const { db, endpoint } = await startServer(dbDir);
-  try {
-    const session = await Session.open({ endpoint });
-    await session.execute('CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));');
-    await session.execute('CREATE (n:T {id: 1});');
-    await session.execute('CREATE (n:T {id: 2});');
-    session.close();
-
-    const s1 = await Session.open({ endpoint });
-    const s2 = await Session.open({ endpoint });
-    const r1 = await s1.execute('MATCH (n) RETURN count(n);');
-    const r2 = await s2.execute('MATCH (n) RETURN count(n);');
-    assert.equal(r1.getNext()[0], 2);
-    assert.equal(r2.getNext()[0], 2);
-    s1.close();
-    s2.close();
-  } finally {
-    db.close();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// DB-004-05
-// ---------------------------------------------------------------------------
-
-test('test_tp_write_concurrent', async () => {
-  const dbDir = makeTmpDir('tp_write_concurrent');
-  const { db, endpoint } = await startServer(dbDir);
-  try {
-    const session = await Session.open({ endpoint });
-    await session.execute('CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));');
-    session.close();
-
-    const s1 = await Session.open({ endpoint });
-    const s2 = await Session.open({ endpoint });
-    await s1.execute('CREATE (n:T {id: 1});');
-    await s2.execute('CREATE (n:T {id: 2});');
-    const r1 = await s1.execute('MATCH (n:T) RETURN count(n);');
-    const r2 = await s2.execute('MATCH (n:T) RETURN count(n);');
-    assert.equal(r1.getNext()[0], 2);
-    assert.equal(r2.getNext()[0], 2);
-    s1.close();
-    s2.close();
-  } finally {
-    db.close();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// DB-004-06
-// ---------------------------------------------------------------------------
-
-test('test_tp_read_write_concurrent', async () => {
-  const dbDir = makeTmpDir('tp_rw_concurrent');
-  const { db, endpoint } = await startServer(dbDir);
-  try {
-    const session = await Session.open({ endpoint });
-    await session.execute('CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));');
-    session.close();
-
-    const s1 = await Session.open({ endpoint });
-    const s2 = await Session.open({ endpoint });
-    const r1 = await s1.execute('MATCH (n) RETURN count(n);');
-    await s2.execute('CREATE (n:T {id: 1});');
-    const r2 = await s2.execute('MATCH (n:T) RETURN count(n);');
-    assert.equal(r1.getNext()[0], 0);
-    assert.equal(r2.getNext()[0], 1);
-    s1.close();
-    s2.close();
-  } finally {
-    db.close();
-  }
 });
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ The NodeJS API offers a simple yet powerful way to:
 
 - **[Database](database)** - The main entry point of the NeuG database
 - **[Connection](connection)** - Connection represents a logical connection to a database
-- **[Session](session)** - Session connects to a remote NeuG server
 - **[QueryResult](query_result)** - QueryResult represents the result of a Cypher query
 
 

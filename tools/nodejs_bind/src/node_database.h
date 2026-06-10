@@ -23,9 +23,6 @@
 #include <string>
 
 #include "neug/main/neug_db.h"
-#ifdef BUILD_HTTP_SERVER
-#include "neug/server/neug_db_service.h"
-#endif
 #include "node_connection.h"
 
 namespace neug {
@@ -40,8 +37,6 @@ class NodeDatabase : public Napi::ObjectWrap<NodeDatabase> {
 
   Napi::Value Connect(const Napi::CallbackInfo& info);
   Napi::Value Close(const Napi::CallbackInfo& info);
-  Napi::Value Serve(const Napi::CallbackInfo& info);
-  Napi::Value StopServing(const Napi::CallbackInfo& info);
 
  private:
   static Napi::FunctionReference constructor;
@@ -51,9 +46,6 @@ class NodeDatabase : public Napi::ObjectWrap<NodeDatabase> {
   std::recursive_mutex mtx_;
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;
-#ifdef BUILD_HTTP_SERVER
-  std::unique_ptr<NeugDBService> service_;
-#endif
 };
 
 }  // namespace neug

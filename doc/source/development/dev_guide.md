@@ -199,6 +199,9 @@ For more options, see `./scripts/pre_commit_check.sh --help`.
 We also provide NodeJS client. Both clients share a single root build tree at `<repo>/build/`.
 If you have already built NeuG with Python, the library `libneug.{dylib,so}` can be shared.
 
+> **NOTE**: The NodeJS binding only supports **AP mode**. Exposing a raw HTTP port directly from a Node.js process to run TP mode is considered a dangerous practice — it bypasses the typical security layers (authentication, TLS termination, rate limiting, etc.) that a production server should have behind a proper reverse proxy or gateway. Therefore, the `serve()` / `Session` APIs have been intentionally removed from the NodeJS binding.  
+If you really need TP mode, please deploy a dedicated NeuG server using the **C++** or **Python** binding, and then connect to it from Node.js via standard HTTP clients.
+
 #### For Development Purposes
 
 From repo root:

@@ -46,7 +46,6 @@ const { Database } = require('./database');
 const { Connection } = require('./connection');
 const { AsyncConnection } = require('./async-connection');
 const { QueryResult } = require('./query-result');
-const { Session } = require('./session');
 const { parseAndFormatResults, printResultsAsTable, parseEntry } = require('./format');
 const { version } = require('./version');
 const errorCodes = require('./error-codes');
@@ -56,7 +55,6 @@ module.exports = {
   Connection,
   AsyncConnection,
   QueryResult,
-  Session,
   parseAndFormatResults,
   printResultsAsTable,
   parseEntry,

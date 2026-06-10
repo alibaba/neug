@@ -56,7 +56,7 @@ PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	npm install
 	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_NODEJS=ON -DBUILD_PYTHON=OFF \
-	    -DBUILD_HTTP_SERVER=ON -DWITH_MIMALLOC=OFF \
+	    -DWITH_MIMALLOC=OFF \
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	    $(EXTRA_CMAKE_FLAGS)

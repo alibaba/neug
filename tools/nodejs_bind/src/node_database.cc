@@ -32,8 +32,6 @@ Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
       {
           InstanceMethod("connect", &NodeDatabase::Connect),
           InstanceMethod("close", &NodeDatabase::Close),
-          InstanceMethod("serve", &NodeDatabase::Serve),
-          InstanceMethod("stopServing", &NodeDatabase::StopServing),
           StaticMethod("cpuCount", &NodeDatabase::GetCpuCount),
       });
   constructor = Napi::Persistent(func);
@@ -122,12 +120,6 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
 
 NodeDatabase::~NodeDatabase() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-#ifdef BUILD_HTTP_SERVER
-  if (service_) {
-    service_->Stop();
-    service_.reset();
-  }
-#endif
   if (database) {
     database->Close();
     database.reset();
@@ -155,87 +147,10 @@ Napi::Value NodeDatabase::Connect(const Napi::CallbackInfo& info) {
 
 Napi::Value NodeDatabase::Close(const Napi::CallbackInfo& info) {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
-#ifdef BUILD_HTTP_SERVER
-  if (service_) {
-    service_->Stop();
-    service_.reset();
-  }
-#endif
   if (database) {
     database->Close();
     database.reset();
   }
-  return info.Env().Undefined();
-}
-
-Napi::Value NodeDatabase::Serve(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-#ifdef BUILD_HTTP_SERVER
-  if (!database) {
-    Napi::Error::New(env, "Database is not initialized.")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-  if (service_) {
-    Napi::Error::New(env, "Server is already running.")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-
-  int port = 10000;
-  std::string host = "localhost";
-  int32_t num_thread = 0;
-  bool blocking = false;
-
-  if (info.Length() >= 1 && info[0].IsNumber()) {
-    port = info[0].As<Napi::Number>().Int32Value();
-  }
-  if (info.Length() >= 2 && info[1].IsString()) {
-    host = info[1].As<Napi::String>().Utf8Value();
-  }
-  if (info.Length() >= 3 && info[2].IsNumber()) {
-    num_thread = info[2].As<Napi::Number>().Int32Value();
-  }
-  if (info.Length() >= 4 && info[3].IsBoolean()) {
-    blocking = info[3].As<Napi::Boolean>().Value();
-  }
-
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-  database->Close();
-  database->Open(database->config());
-
-  neug::ServiceConfig config;
-  config.query_port = port;
-  config.host_str = host;
-  config.shard_num =
-      (num_thread == 0) ? std::thread::hardware_concurrency() : num_thread;
-#ifdef __APPLE__
-  if (host == "localhost") {
-    config.host_str = "127.0.0.1";
-  }
-#endif
-
-  service_ = std::make_unique<neug::NeugDBService>(*database, config);
-  if (blocking) {
-    service_->run_and_wait_for_exit();
-    return Napi::String::New(env, "");
-  }
-  return Napi::String::New(env, service_->Start());
-#else
-  Napi::Error::New(env, "HTTP server is not enabled in this build.")
-      .ThrowAsJavaScriptException();
-  return env.Null();
-#endif
-}
-
-Napi::Value NodeDatabase::StopServing(const Napi::CallbackInfo& info) {
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-#ifdef BUILD_HTTP_SERVER
-  if (service_) {
-    service_->Stop();
-    service_.reset();
-  }
-#endif
   return info.Env().Undefined();
 }
 

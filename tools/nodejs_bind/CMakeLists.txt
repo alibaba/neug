@@ -60,9 +60,6 @@ target_include_directories(neug_node_bind PRIVATE
 add_dependencies(neug_node_bind neug_proto)
 
 set(NEUG_LIBRARIES neug)
-if (BUILD_HTTP_SERVER)
-    set(NEUG_LIBRARIES ${NEUG_LIBRARIES})
-endif()
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(neug_node_bind PRIVATE

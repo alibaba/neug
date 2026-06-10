@@ -12,7 +12,7 @@ The Neug database module.
 class Database
 ```
 
-The entrance of the Neug database.
+The entrance of the Neug database. (Only AP mode is supported.)
 
 This class is used to open a database connection and manage the database. User should use this class to
 open a database connection, and then use the `connect` method to get a `Connection` object to interact with the database.
@@ -141,7 +141,7 @@ Connect to the database.
     A Connection object to interact with the database.
 - **Throws:**
   - **Error**
-    If the database is closed or the server is running.
+    If the database is closed.
 
 <a id="neug.database.Database.asyncConnect"></a>
 
@@ -158,62 +158,7 @@ Connect to the database asynchronously.
     An AsyncConnection object to interact with the database asynchronously.
 - **Throws:**
   - **Error**
-    If the database is closed or the server is running.
-
-<a id="neug.database.Database.serve"></a>
-
-### serve
-
-```javascript
-serve(options = {}) -> string
-```
-
-Start the database server for handling remote connections(TP mode).
-This method is used to start the database server for handling remote connections.
-When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
-will be closed. After that, no new connections to the local database will be allowed.
-It will start a server that listens on a specific port, and clients can connect to the server to interact with the
-database. User could use Session to connect to the server. For detail usage, please refer to the
-documentation of Session.
-
-- **Parameters:**
-  - `options` (Object)
-    Server options.
-  - `options.port` (number)
-    The port to listen on. Default is 10000.
-  - `options.host` (string)
-    The host to bind to. Default is 'localhost'.
-  - `options.blocking` (boolean)
-    Whether to block the process after starting the database server. Default is true.
-
-- **Returns:**
-  - `uri` (string)
-    The URI of the server, in the format of 'http://host:port'.
-
-- **Throws:**
-  - **Error**
-    If there are open connections to the local database or the database is already serving.
-
-- **Notes:**
-  - **Make sure to close all connections before starting the server.**
-  - **After starting the server, no new connections to the local database will be allowed.**
-
-<a id="neug.database.Database.stopServing"></a>
-
-### stopServing
-
-```javascript
-stopServing()
-```
-
-Stop the database server.
-This method is used to stop the database server that was started by the `serve` method.
-After calling this method, the database will switch back to the local mode, and new connections to the local
-database will be allowed again.
-
-- **Throws:**
-  - **Error**
-    If the server is not running.
+    If the database is closed.
 
 <a id="neug.database.Database.close"></a>
 

@@ -8,5 +8,4 @@ NodeJS API Reference
 
    database
    connection
-   session
    query_result

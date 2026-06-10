@@ -91,7 +91,6 @@ class Database {
 
     this._connections = [];
     this._asyncConnections = [];
-    this._serving = false;
 
     // Validate path
     const dbPath = databasePath !== null ? databasePath : '';
@@ -187,16 +186,11 @@ class Database {
    * Connect to the database and return a Connection object.
    *
    * @returns {Connection} A connection to the database.
-   * @throws {Error} If the database is closed or serving.
+   * @throws {Error} If the database is closed.
    */
   connect() {
     if (!this._database) {
       throw new Error('Database is closed.');
-    }
-    if (this._serving) {
-      throw new Error(
-        'Cannot create connection while the database server is running.'
-      );
     }
     const nativeConn = this._database.connect();
     const conn = new Connection(nativeConn);
@@ -208,77 +202,16 @@ class Database {
    * Connect to the database asynchronously.
    *
    * @returns {AsyncConnection} An async connection to the database.
-   * @throws {Error} If the database is closed or serving.
+   * @throws {Error} If the database is closed.
    */
   asyncConnect() {
     if (!this._database) {
       throw new Error('Database is closed.');
     }
-    if (this._serving) {
-      throw new Error(
-        'Cannot create async connection while the database server is running.'
-      );
-    }
     const nativeConn = this._database.connect();
     const asyncConn = new AsyncConnection(nativeConn);
     this._asyncConnections.push(asyncConn);
     return asyncConn;
-  }
-
-  /**
-   * Start the database server for handling remote connections (TP mode).
-   *
-   * @param {Object} [options] - Server options.
-   * @param {number} [options.port=10000] - The port to listen on.
-   * @param {string} [options.host='localhost'] - The host to bind to.
-   * @param {boolean} [options.blocking=true] - Whether to block until server stops.
-   * @returns {string} The URI of the server.
-   */
-  serve(options = {}) {
-    const { port = 10000, host = 'localhost', blocking = true } = options;
-
-    // Check all connections are closed
-    for (const conn of this._connections) {
-      if (conn && conn.isOpen) {
-        throw new Error(
-          'Cannot start the server while there are open connections to the local database.'
-        );
-      }
-    }
-    for (const asyncConn of this._asyncConnections) {
-      if (asyncConn && asyncConn.isOpen) {
-        throw new Error(
-          'Cannot start the server while there are open async connections to the local database.'
-        );
-      }
-    }
-
-    if (this._serving) {
-      console.log('[neug] Database server is already running.');
-      return;
-    }
-    this._serving = true;
-    console.log(`[neug] Starting database server on ${host}:${port}.`);
-
-    try {
-      return this._database.serve(port, host, this._maxThreadNum, blocking);
-    } catch (e) {
-      this._serving = false;
-      throw e;
-    }
-  }
-
-  /**
-   * Stop the database server.
-   * @throws {Error} If the server is not running.
-   */
-  stopServing() {
-    if (!this._serving) {
-      throw new Error('Database server is not running.');
-    }
-    console.log('[neug] Stopping database server.');
-    this._database.stopServing();
-    this._serving = false;
   }
 
   /**
