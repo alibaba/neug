@@ -16,5 +16,4 @@ target_include_directories(neug_gds_extension PRIVATE
 
 target_link_libraries(neug_gds_extension PRIVATE
     neug
-    ${Protobuf_LIBRARIES}
 )
