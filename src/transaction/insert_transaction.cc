@@ -73,7 +73,7 @@ execution::Value InsertTransaction::GetVertexId(label_t label,
   }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
-    execution::Value ret(DataType(DataTypeId::kNull));
+    execution::Value ret{DataType{DataTypeId::kNull}};
     CHECK(added_vertices_[label]->get_key(lid - base, ret));
     return ret;
   } else {
