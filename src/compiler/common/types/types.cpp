@@ -745,7 +745,7 @@ DataType convertFromString(const std::string& str,
   } else if (upperDataTypeString.starts_with("MAP")) {
     return parseMapType(trimmedStr, context);
   } else if (upperDataTypeString == "STRING") {
-    return DataType(DataTypeId::kVarchar);
+    return DataType::Varchar();
   } else if (upperDataTypeString.starts_with("VARCHAR")) {
     return parseStringType(trimmedStr);
   } else {

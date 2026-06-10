@@ -158,7 +158,7 @@ bool string_type_to_property_type(const common::String& string_type,
                                   DataType& out_type) {
   switch (string_type.item_case()) {
   case common::String::kVarChar: {
-    uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+    size_t max_length = STRING_DEFAULT_MAX_LENGTH;
     if (string_type.has_var_char()) {
       auto str_info = string_type.var_char();
       if (str_info.max_length() > 0) {
