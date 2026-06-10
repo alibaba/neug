@@ -144,6 +144,8 @@ struct CSVReadFunction {
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     validateAndConvertSniffOptions(externalSchema.file);
+    externalSchema.file.options["BATCH_SIZE"] =
+        std::to_string(reader::kSniffBlockSize);
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -172,7 +174,12 @@ struct CSVReadFunction {
     if (hasHeader) {
       options.insert({"SKIP_ROWS", "1"});
       options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
-      sniffResult = sniffer->sniff();
+      auto optionsBuilder2 =
+          std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
+      auto reader2 = std::make_shared<reader::ArrowReader>(
+          state, std::move(optionsBuilder2), fs->toArrowFileSystem());
+      auto sniffer2 = std::make_shared<reader::ArrowSniffer>(reader2);
+      sniffResult = sniffer2->sniff();
       if (sniffResult) {
         return sniffResult.value();
       }

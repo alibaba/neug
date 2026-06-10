@@ -22,9 +22,9 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/utils/property/column.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -46,7 +46,7 @@ class Table {
 
   void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
-                   const std::vector<Property>& default_property_values,
+                   const std::vector<execution::Value>& default_property_values,
                    size_t capacity,
                    MemoryLevel memory_level = MemoryLevel::kInMemory);
 
@@ -62,7 +62,7 @@ class Table {
 
   const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
 
-  std::vector<Property> get_row(size_t row_id) const;
+  std::vector<execution::Value> get_row(size_t row_id) const;
 
   std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
 
@@ -82,7 +82,7 @@ class Table {
   }
   std::vector<std::shared_ptr<ColumnBase>>& columns();
 
-  void insert(size_t index, const std::vector<Property>& values,
+  void insert(size_t index, const std::vector<execution::Value>& values,
               bool insert_safe);
 
   void resize(size_t row_num);
@@ -91,7 +91,8 @@ class Table {
    * values. Assume it is safe to insert the default value even if it is
    * reserving, since user could always override.
    */
-  void resize(size_t row_num, const std::vector<Property>& default_values);
+  void resize(size_t row_num,
+              const std::vector<execution::Value>& default_values);
 
   void ingest(uint32_t index, OutArchive& arc);
 

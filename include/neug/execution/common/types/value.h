@@ -23,13 +23,16 @@
 
 #include <rapidjson/document.h>
 #include <charconv>
+#include <string_view>
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/numeric_cast.h"
 
 namespace neug {
-class Property;
 class Encoder;
+class InArchive;
+class OutArchive;
+struct EmptyType;
 
 namespace execution {
 using timestamp_ms_t = neug::DateTime;
@@ -45,6 +48,8 @@ class Value {
   friend struct PathValue;
 
  public:
+  Value() : type_(DataType()), is_null_(true) {}
+
   explicit Value(DataType type);
 
   Value(const Value& other);
@@ -196,6 +201,8 @@ template <>
 Value Value::CreateValue(timestamp_ms_t value);
 template <>
 Value Value::CreateValue(std::string value);
+template <>
+Value Value::CreateValue(std::string_view value);
 
 template <>
 Value Value::CreateValue(float value);
@@ -224,6 +231,10 @@ template <>
 uint64_t Value::GetValue() const;
 template <>
 std::string Value::GetValue() const;
+template <>
+std::string_view Value::GetValue() const;
+template <>
+EmptyType Value::GetValue() const;
 
 template <>
 float Value::GetValue() const;
@@ -631,9 +642,6 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
   }
 }
 
-Property value_to_property(const Value& value);
-Value property_to_value(const Property& property);
-
 template <typename T>
 Value performCast(const Value& input) {
   T val;
@@ -721,4 +729,8 @@ Value performCastToString(const Value& input);
 void encode_value(const Value& val, Encoder& encoder);
 
 }  // namespace execution
+
+InArchive& operator<<(InArchive& in_archive, const execution::Value& value);
+OutArchive& operator>>(OutArchive& out_archive, execution::Value& value);
+
 }  // namespace neug

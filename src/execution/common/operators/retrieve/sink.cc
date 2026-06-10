@@ -36,13 +36,18 @@
 namespace neug {
 namespace execution {
 
-void append_property_to_json(const std::string& key, const Property& prop,
+void append_property_to_json(const std::string& key, const Value& prop,
                              rapidjson::Value& doc,
                              rapidjson::Document::AllocatorType& allocator) {
-  auto type_id = prop.type();
+  if (prop.IsNull()) {
+    doc.AddMember(rapidjson::Value(key.c_str(), allocator),
+                  rapidjson::Value(rapidjson::kNullType), allocator);
+    return;
+  }
+  auto type_id = prop.type().id();
   switch (type_id) {
   case DataTypeId::kVarchar: {
-    auto str = prop.as_string_view();
+    const auto& str = StringValue::Get(prop);
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
                   rapidjson::Value(str.data(), str.size(), allocator),
                   allocator);
@@ -50,34 +55,34 @@ void append_property_to_json(const std::string& key, const Property& prop,
   }
   case DataTypeId::kBoolean:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_bool()), allocator);
+                  rapidjson::Value(prop.GetValue<bool>()), allocator);
     break;
   case DataTypeId::kInt32:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_int32()), allocator);
+                  rapidjson::Value(prop.GetValue<int32_t>()), allocator);
     break;
   case DataTypeId::kUInt32:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_uint32()), allocator);
+                  rapidjson::Value(prop.GetValue<uint32_t>()), allocator);
     break;
   case DataTypeId::kInt64:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_int64()), allocator);
+                  rapidjson::Value(prop.GetValue<int64_t>()), allocator);
     break;
   case DataTypeId::kUInt64:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_uint64()), allocator);
+                  rapidjson::Value(prop.GetValue<uint64_t>()), allocator);
     break;
   case DataTypeId::kFloat:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_float()), allocator);
+                  rapidjson::Value(prop.GetValue<float>()), allocator);
     break;
   case DataTypeId::kDouble:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_double()), allocator);
+                  rapidjson::Value(prop.GetValue<double>()), allocator);
     break;
   case DataTypeId::kDate: {
-    auto day = prop.as_date();
+    auto day = prop.GetValue<date_t>();
     std::stringstream ss;
     ss << day.year() << "-" << std::setfill('0') << std::setw(2) << day.month()
        << "-" << std::setfill('0') << std::setw(2) << day.day();
@@ -86,7 +91,7 @@ void append_property_to_json(const std::string& key, const Property& prop,
     break;
   }
   case DataTypeId::kTimestampMs: {
-    auto milliseconds = prop.as_datetime().milli_second;
+    auto milliseconds = prop.GetValue<timestamp_ms_t>().milli_second;
     std::time_t seconds = milliseconds / 1000;
     int ms = milliseconds % 1000;
     std::tm* tm_info = std::gmtime(&seconds);
@@ -101,7 +106,7 @@ void append_property_to_json(const std::string& key, const Property& prop,
     break;
   }
   case DataTypeId::kInterval: {
-    auto interval_str = prop.as_interval().to_string();
+    auto interval_str = prop.GetValue<interval_t>().to_string();
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
                   rapidjson::Value(interval_str.c_str(), allocator), allocator);
     break;
@@ -173,12 +178,12 @@ std::string convert_edge_to_json(const StorageReadInterface& graph,
   auto property_names = graph.schema().get_edge_property_names(
       record.label.src_label, record.label.dst_label, record.label.edge_label);
   for (size_t i = 0; i < property_types.size(); ++i) {
-    auto prop =
+    auto value =
         graph
             .GetEdgeDataAccessor(record.label.src_label, record.label.dst_label,
                                  record.label.edge_label, i)
             .get_data_from_ptr(record.prop);
-    append_property_to_json(property_names[i], prop, doc, allocator);
+    append_property_to_json(property_names[i], value, doc, allocator);
   }
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
