@@ -193,7 +193,7 @@ if (OPTIMIZE_FOR_HOST AND NOT APPLE)
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #if compiler is gcc
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # -Wno-missing-requires: protobuf v29.6 headers use C++20 concepts in port.h
