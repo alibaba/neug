@@ -57,8 +57,10 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
         desc_builder.push_back_opt(desc_view);
       }
   
-      ctx.set(0, name_builder.finish());
-      ctx.set(1, desc_builder.finish());
+      neug::execution::DataChunk chunk;
+      chunk.set(0, name_builder.finish());
+      chunk.set(1, desc_builder.finish());
+      ctx.append_chunk(std::move(chunk));
       ctx.tag_ids = {0, 1};
       return ctx;
     } catch (const std::exception& e) {

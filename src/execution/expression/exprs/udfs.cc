@@ -27,11 +27,11 @@ class BindedScalarFunctionExpr : public VertexExprBase,
       : func_(fn), ret_type_(ret_type), children_(std::move(children)) {}
   const DataType& type() const override { return ret_type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
     std::vector<Value> params;
     params.reserve(children_.size());
     for (auto& ch : children_) {
-      params.emplace_back(ch->Cast<RecordExprBase>().eval_record(ctx, idx));
+      params.emplace_back(ch->Cast<RecordExprBase>().eval_record(chunk, idx));
     }
     return func_(params);
   }

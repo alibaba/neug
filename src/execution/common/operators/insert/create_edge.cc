@@ -16,15 +16,16 @@
 #include "neug/execution/common/operators/insert/create_edge.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 namespace execution {
 namespace ops {
-neug::result<Context> CreateEdge::insert_edge(
-    StorageInsertInterface& graph, Context&& ctx,
+neug::result<ContextChunk> CreateEdge::insert_edge(
+    StorageInsertInterface& graph, ContextChunk&& chunk,
     std::vector<LabelTriplet> labels,
     const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
     std::vector<
@@ -53,10 +54,10 @@ neug::result<Context> CreateEdge::insert_edge(
                           std::to_string(properties_name.size()));
     }
     const auto& src_vertex_col = dynamic_cast<const IVertexColumn&>(
-        *ctx.get(src_dst_tags[i].first).get());
+        *chunk.get(src_dst_tags[i].first).get());
     const auto& dst_vertex_col = dynamic_cast<const IVertexColumn&>(
-        *ctx.get(src_dst_tags[i].second).get());
-    for (size_t i = 0; i < ctx.row_num(); ++i) {
+        *chunk.get(src_dst_tags[i].second).get());
+    for (size_t i = 0; i < chunk.row_num(); ++i) {
       auto v1 = src_vertex_col.get_vertex(i);
       if (v1.label_ != src_label) {
         THROW_RUNTIME_ERROR("Source vertex label mismatch: expected " +
@@ -72,7 +73,8 @@ neug::result<Context> CreateEdge::insert_edge(
       std::vector<execution::Value> property_values(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
-        Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
+        Value value =
+            prop_expr->Cast<RecordExprBase>().eval_record(chunk.chunk(), i);
         auto it = std::find(properties_name.begin(), properties_name.end(),
                             prop_name);
         if (it == properties_name.end()) {
@@ -100,9 +102,9 @@ neug::result<Context> CreateEdge::insert_edge(
       }
       builder.push_back_opt(v1.vid_, v2.vid_, edge_prop);
     }
-    ctx.set(alias[i], builder.finish());
+    chunk.set(alias[i], builder.finish());
   }
-  return ctx;
+  return chunk;
 }
 }  // namespace ops
 }  // namespace execution

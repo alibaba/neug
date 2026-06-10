@@ -20,17 +20,19 @@
 namespace neug {
 class IStorageInterface;
 namespace execution {
-class Context;
+class ContextChunk;
 struct JoinParams;
 
 class Join {
  public:
-  static neug::result<Context> join(Context&& ctx, Context&& ctx2,
-                                    const JoinParams& params);
+  static neug::result<ContextChunk> join(ContextChunk&& chunk,
+                                         ContextChunk&& chunk2,
+                                         const JoinParams& params);
 
-  static neug::result<Context> pk_join(IStorageInterface&, Context&& ctx,
-                                       const std::vector<label_t>& labels,
-                                       int tag, int alias);
+  static neug::result<ContextChunk> pk_join(IStorageInterface&,
+                                            ContextChunk&& chunk,
+                                            const std::vector<label_t>& labels,
+                                            int tag, int alias);
 };
 }  // namespace execution
 }  // namespace neug

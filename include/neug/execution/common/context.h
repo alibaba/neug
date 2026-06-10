@@ -15,7 +15,13 @@
 
 #pragma once
 #include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "neug/common/types.h"
+#include "neug/execution/common/context_chunk.h"
+#include "neug/execution/common/data_chunk.h"
+#include "neug/utils/result.h"
 
 namespace neug {
 class StorageReadInterface;
@@ -23,6 +29,16 @@ class StorageReadInterface;
 namespace execution {
 class IContextColumn;
 
+/**
+ * @brief Context is a multi-chunk container passed between operators.
+ *
+ * A Context holds one or more ContextChunks (DataChunk + head pairs) that
+ * share the same schema. Operators iterate chunks via `apply_chunks`, whose
+ * callback receives a `ContextChunk&&` (by-value ownership) and returns
+ * `result<ContextChunk>`. The single-chunk case (today's typical query path)
+ * always has exactly one chunk at index 0; multi-chunk support enables batch
+ * IO scenarios where data arrives in chunks.
+ */
 class Context {
  public:
   Context();
@@ -31,36 +47,68 @@ class Context {
 
   void clear();
 
-  void set(int alias, std::shared_ptr<IContextColumn> col);
+  // --- Chunk access ---
 
-  void set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                          const std::vector<size_t>& offsets);
+  /// Returns the number of chunks (always >= 1).
+  size_t chunk_num() const;
 
-  void reshuffle(const std::vector<size_t>& offsets);
-  void optional_reshuffle(const std::vector<size_t>& offsets);
+  /// Returns a mutable reference to the chunk at the given index.
+  ContextChunk& chunk(size_t idx);
 
-  std::shared_ptr<IContextColumn> get(int alias);
+  /// Returns a const reference to the chunk at the given index.
+  const ContextChunk& chunk(size_t idx) const;
 
-  const std::shared_ptr<IContextColumn> get(int alias) const;
+  /// Returns a mutable reference to all chunks.
+  std::vector<ContextChunk>& chunks();
 
-  void remove(int alias);
+  /// Returns a const reference to all chunks.
+  const std::vector<ContextChunk>& chunks() const;
 
-  size_t row_num() const;
+  /// Appends a chunk (with no head) to this Context.
+  void append_chunk(DataChunk&& chunk);
 
-  bool exist(int alias) const;
+  /// Appends a chunk with the given head column.
+  void append_chunk(DataChunk&& chunk, std::shared_ptr<IContextColumn> head);
 
-  void desc(const std::string& info = "") const;
+  /// Appends a fully-formed ContextChunk to this Context.
+  void append_chunk(ContextChunk&& chunk);
 
-  void show(const StorageReadInterface& graph) const;
+  /// Applies a chunk-level operation to every chunk in this Context.
+  template <typename F>
+  neug::result<Context> apply_chunks(F&& func) {
+    Context out;
+    out.tag_ids = std::move(tag_ids);
+    std::vector<ContextChunk> in = std::move(chunks_);
+    out.chunks_.reserve(in.size());
+    for (auto& cc : in) {
+      auto r = func(std::move(cc));
+      if (!r) {
+        return tl::make_unexpected(r.error());
+      }
+      out.chunks_.push_back(std::move(*r));
+    }
+    return out;
+  }
 
+  // --- Cross-chunk operations ---
+
+  /// Merges all chunks into a single chunk using ContextChunk::union_with.
+  /// No-op if already single-chunk or empty.
+  void flatten();
+
+  /// Ensures single-chunk. If multi-chunk, logs a warning and flattens.
+  void ensure_single_chunk(const char* caller);
+
+  /// Returns the number of columns (from the first chunk, 0 if empty).
   size_t col_num() const;
 
-  Context union_ctx(const Context& ctx) const;
-
-  std::vector<std::shared_ptr<IContextColumn>> columns;
-  std::shared_ptr<IContextColumn> head;
+  /// Returns the total number of rows across all chunks.
+  size_t row_num() const;
 
   std::vector<int> tag_ids;
+
+ private:
+  std::vector<ContextChunk> chunks_;
 };
 
 class ContextMeta {
@@ -83,8 +131,6 @@ class ContextMeta {
   const std::unordered_map<int32_t, DataType>& columns() const {
     return alias_set_;
   }
-
-  void desc() const;
 
  private:
   std::unordered_map<int32_t, DataType> alias_set_;

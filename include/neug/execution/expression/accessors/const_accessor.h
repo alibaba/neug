@@ -25,7 +25,7 @@ class ConstExpr : public ExprBase,
   ConstExpr(const Value& value) : inner_(value) {}
   ~ConstExpr() override = default;
 
-  Value eval_record(const Context&, size_t) const override { return inner_; }
+  Value eval_record(const DataChunk&, size_t) const override { return inner_; }
 
   Value eval_vertex(label_t, vid_t) const override { return inner_; }
 

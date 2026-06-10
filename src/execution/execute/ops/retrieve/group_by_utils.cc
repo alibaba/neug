@@ -28,12 +28,12 @@ struct GKey : public KeyBase {
   GKey(const std::vector<std::pair<int, int>>& tag_alias)
       : tag_alias_(tag_alias) {}
   std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>> group(
-      const Context& ctx) override {
+      const ContextChunk& chunk) override {
     std::vector<std::shared_ptr<IContextColumn>> exprs;
     for (size_t i = 0; i < tag_alias_.size(); ++i) {
-      exprs.push_back(ctx.get(tag_alias_[i].first));
+      exprs.push_back(chunk.get(tag_alias_[i].first));
     }
-    size_t row_num = ctx.row_num();
+    size_t row_num = chunk.row_num();
     std::vector<std::vector<size_t>> groups;
     std::vector<size_t> offsets;
     phmap::flat_hash_map<std::string_view, size_t> sig_to_root;
@@ -123,8 +123,8 @@ struct VarPairWrapper {
 };
 
 static std::unique_ptr<KeyBase> create_sp_key(
-    const Context& ctx, const std::vector<std::pair<int, int>>& tag_alias) {
-  auto col = ctx.get(tag_alias[0].first);
+    const DataChunk& chunk, const std::vector<std::pair<int, int>>& tag_alias) {
+  auto col = chunk.get(tag_alias[0].first);
   if (col->column_type() == ContextColumnType::kVertex) {
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     VertexWrapper wrapper(*vertex_col);
@@ -719,11 +719,11 @@ static std::unique_ptr<ReducerBase> create_pair_reducer(
 }
 
 static std::unique_ptr<ReducerBase> create_reducer(
-    const IStorageInterface& graph, const Context& ctx,
+    const IStorageInterface& graph, const DataChunk& chunk,
     const common::Variable& var, AggrKind kind) {
   if (!var.has_property() && var.has_tag()) {
     int tag = var.has_tag() ? var.tag().id() : -1;
-    auto col = ctx.get(tag);
+    auto col = chunk.get(tag);
     {
       if (col->column_type() == ContextColumnType::kVertex) {
         auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
@@ -796,7 +796,7 @@ static std::unique_ptr<ReducerBase> create_reducer(
     }
   }
   auto tag_id = var.has_tag() ? var.tag().id() : -1;
-  auto var_ = ctx.get(tag_id);
+  auto var_ = chunk.get(tag_id);
   switch (var_->elem_type().id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                        \
   case DataTypeId::enum_val: {                                                 \
@@ -820,9 +820,9 @@ static std::unique_ptr<ReducerBase> create_reducer(
 
 std::unique_ptr<KeyBase> create_key_func(
     const std::vector<std::pair<int, int>>& mappings,
-    const IStorageInterface& graph, const Context& ctx) {
+    const IStorageInterface& graph, const DataChunk& chunk) {
   if (mappings.size() == 1) {
-    auto key = create_sp_key(ctx, mappings);
+    auto key = create_sp_key(chunk, mappings);
     if (key) {
       return key;
     }
@@ -831,7 +831,8 @@ std::unique_ptr<KeyBase> create_key_func(
 }
 
 ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,
-                          const IStorageInterface& graph, const Context& ctx) {
+                          const IStorageInterface& graph,
+                          const DataChunk& chunk) {
   auto aggr_kind = parse_aggregate(func.aggregate());
   int alias = func.has_alias() ? func.alias().value() : -1;
   if (func.vars_size() == 0) {
@@ -848,14 +849,14 @@ ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,
     auto& snd = func.vars(1);
     int32_t fst_tag = fst.has_tag() ? fst.tag().id() : -1;
     int32_t snd_tag = snd.has_tag() ? snd.tag().id() : -1;
-    auto fst_var = ctx.get(fst_tag);
-    auto snd_var = ctx.get(snd_tag);
+    auto fst_var = chunk.get(fst_tag);
+    auto snd_var = chunk.get(snd_tag);
     auto reducer = create_pair_reducer(fst_var, snd_var, aggr_kind);
     return ReduceOp(std::move(reducer), alias);
   } else if (func.vars_size() == 1) {
     auto& var = func.vars(0);
 
-    auto reducer = create_reducer(graph, ctx, var, aggr_kind);
+    auto reducer = create_reducer(graph, chunk, var, aggr_kind);
     return ReduceOp(std::move(reducer), alias);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("not support reduce with more than 2 vars");

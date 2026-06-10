@@ -16,7 +16,7 @@
 
 #include <algorithm>
 
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
@@ -28,17 +28,16 @@ class OrderBy {
  public:
   template <typename Comparer>
   static void order_by_limit_impl(const StorageReadInterface& graph,
-                                  const Context& ctx, const Comparer& cmp,
+                                  size_t row_num, const Comparer& cmp,
                                   size_t low, size_t high,
                                   std::vector<size_t>& offsets) {
-    if (low == 0 && high >= ctx.row_num()) {
-      offsets.resize(ctx.row_num());
+    if (low == 0 && high >= row_num) {
+      offsets.resize(row_num);
       std::iota(offsets.begin(), offsets.end(), 0);
       std::sort(offsets.begin(), offsets.end(),
                 [&](size_t lhs, size_t rhs) { return cmp(lhs, rhs); });
       return;
     }
-    size_t row_num = ctx.row_num();
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
     for (size_t i = 0; i < row_num; ++i) {
       queue.push(i);
@@ -59,19 +58,20 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static neug::result<Context> order_by_with_limit(
-      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
-      size_t low, size_t high) {
+  static neug::result<ContextChunk> order_by_with_limit(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const Comparer& cmp, size_t low, size_t high) {
     std::vector<size_t> offsets;
-    order_by_limit_impl(graph, ctx, cmp, low, high, offsets);
-    ctx.reshuffle(offsets);
-    return ctx;
+    order_by_limit_impl(graph, chunk.row_num(), cmp, low, high, offsets);
+    chunk.reshuffle(offsets);
+    return chunk;
   }
 
   template <typename Comparer>
-  static neug::result<Context> staged_order_by_with_limit(
-      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
-      size_t low, size_t high, const std::vector<size_t>& indices) {
+  static neug::result<ContextChunk> staged_order_by_with_limit(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const Comparer& cmp, size_t low, size_t high,
+      const std::vector<size_t>& indices) {
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
     for (auto i : indices) {
       queue.push(i);
@@ -91,8 +91,8 @@ class OrderBy {
       queue.pop();
     }
 
-    ctx.reshuffle(offsets);
-    return ctx;
+    chunk.reshuffle(offsets);
+    return chunk;
   }
 };
 }  // namespace execution

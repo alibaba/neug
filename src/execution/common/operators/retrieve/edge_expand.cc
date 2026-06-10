@@ -25,9 +25,9 @@ namespace neug {
 
 namespace execution {
 
-Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
+void EdgeExpand::remove_null_from_chunk(ContextChunk& chunk, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag_id));
+      std::dynamic_pointer_cast<IVertexColumn>(chunk.get(tag_id));
   std::vector<size_t> selected_offsets;
   size_t num = vertex_col->size();
   for (size_t k = 0; k < num; ++k) {
@@ -35,15 +35,14 @@ Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
       selected_offsets.push_back(k);
     }
   }
-  ctx.reshuffle(selected_offsets);
-  return ctx;
+  chunk.reshuffle(selected_offsets);
 }
 
-neug::result<Context> EdgeExpand::expand_degree(
-    const StorageReadInterface& graph, Context&& ctx,
+neug::result<ContextChunk> EdgeExpand::expand_degree(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params) {
   auto vertex_col =
-      dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(params.v_tag).get());
 
   std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
@@ -64,8 +63,8 @@ neug::result<Context> EdgeExpand::expand_degree(
   ValueColumnBuilder<int64_t> builder;
   std::vector<size_t> shuffle_offset;
   if (mps.empty()) {
-    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-    return ctx;
+    chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return chunk;
   }
   foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
     int64_t degree = 0;
@@ -87,15 +86,16 @@ neug::result<Context> EdgeExpand::expand_degree(
     builder.push_back_opt(degree);
     shuffle_offset.push_back(index);
   });
-  ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-  return ctx;
+  chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+  return chunk;
 }
 
-neug::result<Context> EdgeExpand::expand_count(
-    const StorageReadInterface& graph, Context&& ctx,
+neug::result<ContextChunk> EdgeExpand::expand_count(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params) {
-  auto vertex_col =
-      dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
+  auto vertex_col_owner =
+      std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
+  const auto* vertex_col = vertex_col_owner.get();
 
   std::unordered_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
@@ -114,12 +114,14 @@ neug::result<Context> EdgeExpand::expand_count(
     }
   }
   ValueColumnBuilder<int64_t> builder;
-  Context ret;
   int64_t degree = 0;
+  // expand_count produces a single-row aggregate; replace existing data.
+  chunk.chunk().clear();
+  chunk.head().reset();
   if (mps.empty()) {
     builder.push_back_opt(degree);
-    ret.set(params.alias, builder.finish());
-    return ret;
+    chunk.set(params.alias, builder.finish());
+    return chunk;
   }
   foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
     if (v == graph.kInvalidVid) {
@@ -136,17 +138,17 @@ neug::result<Context> EdgeExpand::expand_count(
   });
 
   builder.push_back_opt(degree);
-  ret.set(params.alias, builder.finish());
-  return ret;
+  chunk.set(params.alias, builder.finish());
+  return chunk;
 }
 
 template <typename CMP_T>
-static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
-    const StorageReadInterface& graph, Context&& ctx,
+static neug::result<ContextChunk> expand_edge_with_special_edge_predicate_impl1(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const CMP_T& cmp_value) {
   auto input_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
   if (input_col->is_optional() || params.is_optional) {
     LOG(ERROR) << "not support optional edge expand with predicate";
     RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
@@ -172,8 +174,8 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
   if (expected_labels.empty()) {
     MLVertexColumnBuilder builder;
     auto col = builder.finish();
-    ctx.set_with_reshuffle(params.alias, col, {});
-    return ctx;
+    chunk.set_with_reshuffle(params.alias, col, {});
+    return chunk;
   } else if (expected_labels.size() == 1) {
     SLEdgePropertyGetter<typename CMP_T::data_t> accessor(
         graph, expected_labels, config.property_name);
@@ -181,7 +183,7 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
                              SLEdgePropertyGetter<typename CMP_T::data_t>,
                              CMP_T>
         pred(accessor, cmp_value);
-    return EdgeExpand::expand_edge(graph, std::move(ctx), params, pred);
+    return EdgeExpand::expand_edge(graph, std::move(chunk), params, pred);
   } else {
     MLEdgePropertyGetter<typename CMP_T::data_t> accessor(
         graph, expected_labels, config.property_name);
@@ -189,13 +191,13 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
                              MLEdgePropertyGetter<typename CMP_T::data_t>,
                              CMP_T>
         pred(accessor, cmp_value);
-    return EdgeExpand::expand_edge(graph, std::move(ctx), params, pred);
+    return EdgeExpand::expand_edge(graph, std::move(chunk), params, pred);
   }
 }
 
 template <typename T>
-static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
-    const StorageReadInterface& graph, Context&& ctx,
+static neug::result<ContextChunk> expand_edge_with_special_edge_predicate_impl0(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const Value& target_val) {
   T target = [&target_val]() -> T {
@@ -208,47 +210,47 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
   if (config.ptype == SPPredicateType::kPropertyGT) {
     GTCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   } else if (config.ptype == SPPredicateType::kPropertyLT) {
     LTCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   } else if (config.ptype == SPPredicateType::kPropertyEQ) {
     EQCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   } else if (config.ptype == SPPredicateType::kPropertyNE) {
     NECmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   } else if (config.ptype == SPPredicateType::kPropertyLE) {
     LECmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   } else {
     CHECK(config.ptype == SPPredicateType::kPropertyGE);
     GECmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
-        graph, std::move(ctx), params, config, target_cmp);
+        graph, std::move(chunk), params, config, target_cmp);
   }
 }
 
-neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
-    const StorageReadInterface& graph, Context&& ctx,
+neug::result<ContextChunk> EdgeExpand::expand_edge_with_special_edge_predicate(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const Value& target_val) {
   if (config.param_type == DataTypeId::kInt32) {
     return expand_edge_with_special_edge_predicate_impl0<int>(
-        graph, std::move(ctx), params, config, target_val);
+        graph, std::move(chunk), params, config, target_val);
   } else if (config.param_type == DataTypeId::kInt64) {
     return expand_edge_with_special_edge_predicate_impl0<int64_t>(
-        graph, std::move(ctx), params, config, target_val);
+        graph, std::move(chunk), params, config, target_val);
   } else if (config.param_type == DataTypeId::kTimestampMs) {
     return expand_edge_with_special_edge_predicate_impl0<DateTime>(
-        graph, std::move(ctx), params, config, target_val);
+        graph, std::move(chunk), params, config, target_val);
   } else if (config.param_type == DataTypeId::kVarchar) {
     return expand_edge_with_special_edge_predicate_impl0<std::string_view>(
-        graph, std::move(ctx), params, config, target_val);
+        graph, std::move(chunk), params, config, target_val);
   } else {
     LOG(ERROR) << "not support edge property type "
                << DataType(config.param_type).ToString();
@@ -337,15 +339,15 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
   }
 }
 
-neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
-    const StorageReadInterface& graph, Context&& ctx,
+neug::result<ContextChunk> EdgeExpand::expand_vertex_ep_cmp(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params, const Value& ep_val, SPPredicateType tp) {
   if (params.is_optional) {
     LOG(ERROR) << "not support optional edge expand";
     RETURN_UNSUPPORTED_ERROR("not support optional edge expand");
   }
   std::shared_ptr<IVertexColumn> input_vertex_list =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
   VertexColumnType input_vertex_list_type =
       input_vertex_list->vertex_column_type();
 
@@ -376,8 +378,8 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     if (label_dirs.empty()) {
       MLVertexColumnBuilder builder;
       auto col = builder.finish();
-      ctx.set_with_reshuffle(params.alias, col, {});
-      return ctx;
+      chunk.set_with_reshuffle(params.alias, col, {});
+      return chunk;
     }
     {
       std::sort(label_dirs.begin(), label_dirs.end());
@@ -431,8 +433,8 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       }
     }
     std::shared_ptr<IContextColumn> col = builder.finish();
-    ctx.set_with_reshuffle(params.alias, col, offsets);
-    return ctx;
+    chunk.set_with_reshuffle(params.alias, col, offsets);
+    return chunk;
   } else {
     LOG(ERROR) << "unexpected to reach here...";
     RETURN_UNSUPPORTED_ERROR("unexpected to reach here...");
@@ -441,20 +443,21 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
 
 struct ExpandVertexSPOp {
   template <typename PRED_T>
-  static neug::result<Context> eval_with_predicate(
-      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params) {
+  static neug::result<ContextChunk> eval_with_predicate(
+      const PRED_T& pred, const StorageReadInterface& graph,
+      ContextChunk&& chunk, const EdgeExpandParams& params) {
     return EdgeExpand::expand_vertex<EdgeNbrPredicate<PRED_T>>(
-        graph, std::move(ctx), params, EdgeNbrPredicate(pred));
+        graph, std::move(chunk), params, EdgeNbrPredicate(pred));
   }
 };
 
-neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
-    const StorageReadInterface& graph, Context&& ctx,
+neug::result<ContextChunk>
+EdgeExpand::expand_vertex_with_special_vertex_predicate(
+    const StorageReadInterface& graph, ContextChunk&& chunk,
     const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const ParamsMap& query_params) {
   auto input_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+      std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
   auto input_vertex_labels_set = input_col->get_labels_set();
   std::set<label_t> expected_labels;
   for (const auto& triplet : params.labels) {
@@ -468,7 +471,7 @@ neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     }
   }
   return dispatch_vertex_predicate<ExpandVertexSPOp>(
-      graph, expected_labels, config, query_params, graph, std::move(ctx),
+      graph, expected_labels, config, query_params, graph, std::move(chunk),
       params);
 }
 
