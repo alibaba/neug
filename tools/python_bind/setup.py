@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 #
 # Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
 #
