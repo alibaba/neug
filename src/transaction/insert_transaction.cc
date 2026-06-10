@@ -73,7 +73,7 @@ execution::Value InsertTransaction::GetVertexId(label_t label,
   }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
-    execution::Value ret(DataType(DataTypeId::kNull));
+    execution::Value ret{DataType{DataTypeId::kNull}};
     CHECK(added_vertices_[label]->get_key(lid - base, ret));
     return ret;
   } else {
@@ -208,10 +208,8 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       vid_t vid;
       auto ret =
           graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
-      if (!ret.ok()) {
-        THROW_STORAGE_EXCEPTION("Failed to add vertex during WAL ingestion: " +
-                                ret.ToString());
-      }
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to add vertex during WAL ingestion", ret);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
@@ -222,9 +220,11 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                     timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
-                    redo.edge_label, redo.properties, timestamp, alloc,
-                    oe_offset_unused, prop_unused);
+      auto ret = graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
+                               redo.edge_label, redo.properties, timestamp,
+                               alloc, oe_offset_unused, prop_unused);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge during WAL ingestion",
+                                     ret);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));

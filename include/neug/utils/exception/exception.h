@@ -313,6 +313,13 @@ class NEUG_API TxStateConflictException : public Exception {
 #define THROW_STORAGE_EXCEPTION(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(StorageException, msg)
 
+#define THROW_STORAGE_EXCEPTION_STATUS(msg, status)                           \
+  do {                                                                        \
+    if (!(status).ok()) {                                                     \
+      THROW_STORAGE_EXCEPTION(std::string(msg) + ": " + (status).ToString()); \
+    }                                                                         \
+  } while (0)
+
 #define THROW_TEST_EXCEPTION(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(TestException, msg)
 
