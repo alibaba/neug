@@ -57,6 +57,8 @@ class QueryProcessor {
                               const rapidjson::Value& parameters_json,
                               int32_t num_threads = 0);
 
+  void clear_cache();
+
  private:
   result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
   check_and_retrieve_pipeline(const std::string& query_string,

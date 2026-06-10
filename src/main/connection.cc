@@ -37,8 +37,31 @@ void Connection::Close() {
     return;
   }
   LOG(INFO) << "Closing connection.";
+
+  auto temp_edges = graph_.schema().get_temporary_edge_triplet_keys();
+  for (auto key : temp_edges) {
+    auto [src, dst, edge] = graph_.schema().parse_edge_label(key);
+    try {
+      graph_.DeleteEdgeType(src, dst, edge);
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
+    }
+  }
+
+  auto temp_vertices = graph_.schema().get_temporary_vertex_labels();
+  for (auto label : temp_vertices) {
+    try {
+      graph_.DeleteVertexType(label);
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
+    }
+  }
+
+  if (!temp_edges.empty() || !temp_vertices.empty()) {
+    query_processor_->clear_cache();
+  }
+
   is_closed_.store(true);
-  // Necessary cleanup could be done here.
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,

@@ -175,6 +175,9 @@ struct VertexSchema {
   // Mark whether the vertex property is soft deleted
   std::vector<bool> vprop_soft_deleted;
 
+  // Mark whether this vertex type is temporary (session-scoped, not persisted)
+  bool temporary = false;
+
  private:
   bool has_property_internal(const std::string& prop) const;
 
@@ -319,6 +322,9 @@ struct EdgeSchema {
   // Mark whether the edge property is soft deleted
   std::vector<bool> eprop_soft_deleted;
 
+  // Mark whether this edge type is temporary (session-scoped, not persisted)
+  bool temporary = false;
+
  private:
   bool has_property_internal(const std::string& prop) const;
 
@@ -459,7 +465,8 @@ class Schema {
       const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
-      const std::vector<execution::Value>& default_property_values = {});
+      const std::vector<execution::Value>& default_property_values = {},
+      bool temporary = false);
 
   void AddEdgeLabel(
       const std::string& src_label, const std::string& dst_label,
@@ -470,7 +477,13 @@ class Schema {
       bool ie_mutable = true,
       std::optional<std::string> sort_key_for_nbr = std::nullopt,
       const std::string& description = "",
-      const std::vector<execution::Value>& default_property_values = {});
+      const std::vector<execution::Value>& default_property_values = {},
+      bool temporary = false);
+
+  bool is_vertex_label_temporary(label_t label) const;
+  bool is_edge_label_temporary(uint32_t edge_triplet_key) const;
+  std::vector<label_t> get_temporary_vertex_labels() const;
+  std::vector<uint32_t> get_temporary_edge_triplet_keys() const;
 
   void DeleteVertexLabel(const std::string& label, bool is_soft = false);
 

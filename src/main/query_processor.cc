@@ -163,4 +163,10 @@ void QueryProcessor::update_compiler_meta_if_needed(
   }
 }
 
+void QueryProcessor::clear_cache() {
+  auto schema_yaml = g_.schema().to_yaml().value();
+  std::string statistics_json = g_.get_statistics_json();
+  global_query_cache_->clear(schema_yaml, statistics_json);
+}
+
 }  // namespace neug

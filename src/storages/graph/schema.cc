@@ -397,7 +397,7 @@ void Schema::AddVertexLabel(
     const std::vector<std::string>& property_names,
     const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
     size_t max_vnum, const std::string& description,
-    const std::vector<Value>& default_property_values) {
+    const std::vector<Value>& default_property_values, bool temporary) {
   label_t v_label_id = vertex_label_to_index(label);
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
@@ -410,8 +410,10 @@ void Schema::AddVertexLabel(
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
       label, property_types, property_names, primary_key,
       default_property_values, description, max_vnum);
+  v_schemas_[v_label_id]->temporary = temporary;
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
-           << ", prop size: " << v_schemas_[v_label_id]->property_names.size();
+           << ", prop size: " << v_schemas_[v_label_id]->property_names.size()
+           << ", temporary: " << temporary;
 }
 
 void Schema::AddEdgeLabel(
@@ -420,7 +422,7 @@ void Schema::AddEdgeLabel(
     const std::vector<std::string>& prop_names, EdgeStrategy oe,
     EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
     std::optional<std::string> sort_key_for_nbr, const std::string& description,
-    const std::vector<Value>& default_property_values) {
+    const std::vector<Value>& default_property_values, bool temporary) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
@@ -442,8 +444,46 @@ void Schema::AddEdgeLabel(
   if (elabel_triplet_tomb_.get(label_id)) {  // Add back a deleted label
     elabel_triplet_tomb_.reset(label_id);
   }
+  e_schemas_[label_id]->temporary = temporary;
   VLOG(10) << "Add edge label: " << edge_label << ", id: " << (int) label_id
-           << ", prop size: " << e_schemas_[label_id]->property_names.size();
+           << ", prop size: " << e_schemas_[label_id]->property_names.size()
+           << ", temporary: " << temporary;
+}
+
+bool Schema::is_vertex_label_temporary(label_t label) const {
+  if (label >= v_schemas_.size() || !v_schemas_[label]) {
+    return false;
+  }
+  return v_schemas_[label]->temporary;
+}
+
+bool Schema::is_edge_label_temporary(uint32_t edge_triplet_key) const {
+  auto it = e_schemas_.find(edge_triplet_key);
+  if (it == e_schemas_.end() || !it->second) {
+    return false;
+  }
+  return it->second->temporary;
+}
+
+std::vector<label_t> Schema::get_temporary_vertex_labels() const {
+  std::vector<label_t> result;
+  auto v_labels = get_vertex_label_ids();
+  for (auto label : v_labels) {
+    if (v_schemas_[label]->temporary) {
+      result.push_back(label);
+    }
+  }
+  return result;
+}
+
+std::vector<uint32_t> Schema::get_temporary_edge_triplet_keys() const {
+  std::vector<uint32_t> result;
+  for (const auto& [key, schema] : e_schemas_) {
+    if (schema && schema->temporary) {
+      result.push_back(key);
+    }
+  }
+  return result;
 }
 
 label_t Schema::vertex_label_num() const {
@@ -985,7 +1025,20 @@ bool Schema::Equals(const Schema& other) const {
 }
 
 neug::result<YAML::Node> Schema::to_yaml() const {
-  return Schema::DumpToYaml(*this);
+  YAML::Node graph_node;
+  graph_node["name"] = GetGraphName();
+  graph_node["id"] = GetGraphId();
+  graph_node["description"] = GetDescription();
+
+  YAML::Node vertex_types(YAML::NodeType::Sequence);
+  config_parsing::dump_vertices_schema(*this, vertex_types, true);
+  graph_node["schema"]["vertex_types"] = vertex_types;
+
+  YAML::Node edge_types(YAML::NodeType::Sequence);
+  config_parsing::dump_edges_schema(*this, edge_types, true);
+  graph_node["schema"]["edge_types"] = edge_types;
+
+  return graph_node;
 }
 
 namespace config_parsing {
@@ -1542,13 +1595,21 @@ static Status parse_schema_config_file(const std::string& path,
 }
 
 ///////////////////////Dump schema to yaml//////////////////////////
-bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
+bool dump_vertices_schema(const Schema& schema, YAML::Node& node,
+                          bool include_temporary = false) {
   auto v_labels = schema.get_vertex_label_ids();
   for (auto& v_label : v_labels) {
+    bool is_temp = schema.is_vertex_label_temporary(v_label);
+    if (is_temp && !include_temporary) {
+      continue;
+    }
     YAML::Node cur_node(YAML::NodeType::Map);
     cur_node["type_name"] = schema.get_vertex_label_name(v_label);
     cur_node["description"] = schema.get_vertex_description(v_label);
     cur_node["type_id"] = std::to_string(v_label);
+    if (is_temp) {
+      cur_node["temporary"] = true;
+    }
     cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
     auto properties = schema.get_vertex_properties(v_label);
     auto property_names = schema.get_vertex_property_names(v_label);
@@ -1580,7 +1641,8 @@ bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
   return true;
 }
 
-bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
+bool dump_edges_schema(const Schema& schema, YAML::Node& node,
+                       bool include_temporary = false) {
   auto v_labels = schema.get_vertex_label_ids();
   auto e_labels = schema.get_edge_label_ids();
   for (auto e_label : e_labels) {
@@ -1591,10 +1653,20 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     cur_node["vertex_type_pair_relations"] =
         YAML::Node(YAML::NodeType::Sequence);
     bool properties_set = false;
+    bool has_temp_triplet = false;
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
         if (schema.is_edge_triplet_valid(src_v, dst_v, e_label)) {
+          uint32_t triplet_key =
+              schema.generate_edge_label(src_v, dst_v, e_label);
+          bool is_temp = schema.is_edge_label_temporary(triplet_key);
+          if (is_temp && !include_temporary) {
+            continue;
+          }
+          if (is_temp) {
+            has_temp_triplet = true;
+          }
           if (!properties_set) {
             auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
             auto property_names =
@@ -1634,6 +1706,9 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     }
     if (cur_node["vertex_type_pair_relations"].size() == 0) {
       continue;
+    }
+    if (has_temp_triplet) {
+      cur_node["temporary"] = true;
     }
     node.push_back(cur_node);
   }
