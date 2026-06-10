@@ -18,13 +18,18 @@
 #include <utility>
 #include <vector>
 
+#include "neug/execution/common/columns/selection_vec.h"
+
 namespace neug {
+
+using execution::sel_t;
+using execution::sel_vec_t;
 
 template <typename T>
 struct TopNUnit {
-  TopNUnit(const T& val_, size_t idx_) : val(val_), idx(idx_) {}
+  TopNUnit(const T& val_, sel_t idx_) : val(val_), idx(idx_) {}
   T val;
-  size_t idx;
+  sel_t idx;
 };
 
 template <typename T>
@@ -56,7 +61,7 @@ class TopNGenerator {
  public:
   explicit TopNGenerator(size_t n) : n_(n), pq_(CMP_T()) {}
 
-  inline void push(const T& val, size_t idx) {
+  inline void push(const T& val, sel_t idx) {
     if (pq_.empty()) {
       pq_.emplace(val, idx);
       return;
@@ -91,7 +96,7 @@ class TopNGenerator {
     }
   }
 
-  void generate_indices(std::vector<size_t>& indices) {
+  void generate_indices(sel_vec_t& indices) {
     indices = std::move(replicated_indices_);
     replicated_indices_.clear();
     while (!pq_.empty()) {
@@ -100,7 +105,7 @@ class TopNGenerator {
     }
   }
 
-  void generate_pairs(std::vector<T>& values, std::vector<size_t>& indices) {
+  void generate_pairs(std::vector<T>& values, sel_vec_t& indices) {
     indices = std::move(replicated_indices_);
     replicated_indices_.clear();
     values.clear();
@@ -115,7 +120,7 @@ class TopNGenerator {
  private:
   size_t n_;
   std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq_;
-  std::vector<size_t> replicated_indices_;
+  sel_vec_t replicated_indices_;
 };
 
 template <typename T, typename CMP_T>
@@ -126,7 +131,7 @@ class InplaceTopNGenerator {
   explicit InplaceTopNGenerator(size_t n) : n_(n) {}
 
   void generate_indices(const std::vector<T>& input,
-                        std::vector<size_t>& indices) {
+                        sel_vec_t& indices) {
     size_t size = input.size();
     std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq(CMP_T{});
     for (size_t i = 0; i < size; ++i) {

@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/execution/common/columns/selection_vec.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -111,7 +112,7 @@ class GlobalQueryCache {
   GlobalQueryCache() : version_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
   std::atomic<uint64_t> version_;
-  std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
+  flat_hash_map<std::string, std::shared_ptr<CacheValue>> cache_;
   std::shared_mutex mutex_;
 };
 
@@ -148,7 +149,7 @@ class LocalQueryCache {
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
   uint64_t version_;
-  std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
+  flat_hash_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };
 }  // namespace execution
 }  // namespace neug

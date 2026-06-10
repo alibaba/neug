@@ -57,7 +57,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
                    VertexColumnType::kMultiple ||
                vertex_column->vertex_column_type() ==
                    VertexColumnType::kMultiSegment) {
-      std::unordered_map<label_t, std::vector<vid_t>> vids_map;
+      flat_hash_map<label_t, std::vector<vid_t>> vids_map;
       for (auto label : vertex_column->get_labels_set()) {
         std::vector<vid_t> vids;
         vids_map.insert({label, vids});
@@ -75,7 +75,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
       THROW_RUNTIME_ERROR(
           "Unsupported vertex column type for batch delete vertex operation.");
     }
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
                              // remove all data.
   }

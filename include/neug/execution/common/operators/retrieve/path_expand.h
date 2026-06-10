@@ -49,7 +49,7 @@ class PathExpand {
   single_source_shortest_path_with_order_by_length_limit(
       const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred, int limit_upper) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 &&
@@ -74,7 +74,7 @@ class PathExpand {
   static neug::result<Context> single_source_shortest_path(
       const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred) {
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto input_vertex_col =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     if (params.labels.size() == 1 &&
@@ -112,7 +112,7 @@ class PathExpand {
       RETURN_UNSUPPORTED_ERROR(
           "only support arbitrary path expand with predicate");
     }
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto& input_vertex_list =
         *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
     auto label_sets = input_vertex_list.get_labels_set();
@@ -300,11 +300,11 @@ class PathExpand {
     auto col = ctx.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
     PathColumnBuilder path_builder;
-    std::vector<size_t> shuffle_offset;
+    sel_vec_t shuffle_offset;
     foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
                                           vid_t v) {
-      std::unordered_map<VertexRecord, double> dist;
-      std::unordered_set<VertexRecord> visited;
+      flat_hash_map<VertexRecord, double> dist;
+      flat_hash_set<VertexRecord> visited;
       VertexRecord start_vr(label, v);
       dist[start_vr] = 0;
       auto cmp = [](const Path& a, const Path& b) {

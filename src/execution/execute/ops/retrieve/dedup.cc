@@ -35,7 +35,7 @@ class OprTimer;
 namespace ops {
 class DedupOpr : public IOperator {
  public:
-  explicit DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
+  explicit DedupOpr(const std::vector<int32_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
   neug::result<neug::execution::Context> Eval(
@@ -45,7 +45,7 @@ class DedupOpr : public IOperator {
     return Dedup::dedup(std::move(ctx), tag_ids_);
   }
 
-  std::vector<size_t> tag_ids_;
+  std::vector<int32_t> tag_ids_;
 };
 
 neug::result<OpBuildResultT> DedupOprBuilder::Build(
@@ -53,7 +53,7 @@ neug::result<OpBuildResultT> DedupOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& dedup_opr = plan.plan(op_idx).opr().dedup();
   int keys_num = dedup_opr.keys_size();
-  std::vector<size_t> keys;
+  std::vector<int32_t> keys;
   ContextMeta ret_meta;
   for (int k_i = 0; k_i < keys_num; ++k_i) {
     const auto& key = dedup_opr.keys(k_i);

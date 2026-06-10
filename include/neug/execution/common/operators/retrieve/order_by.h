@@ -30,7 +30,7 @@ class OrderBy {
   static void order_by_limit_impl(const StorageReadInterface& graph,
                                   const Context& ctx, const Comparer& cmp,
                                   size_t low, size_t high,
-                                  std::vector<size_t>& offsets) {
+                                  sel_vec_t& offsets) {
     if (low == 0 && high >= ctx.row_num()) {
       offsets.resize(ctx.row_num());
       std::iota(offsets.begin(), offsets.end(), 0);
@@ -39,7 +39,7 @@ class OrderBy {
       return;
     }
     size_t row_num = ctx.row_num();
-    std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
+    std::priority_queue<sel_t, sel_vec_t, Comparer> queue(cmp);
     for (size_t i = 0; i < row_num; ++i) {
       queue.push(i);
       if (queue.size() > high) {
@@ -62,7 +62,7 @@ class OrderBy {
   static neug::result<Context> order_by_with_limit(
       const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high) {
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     order_by_limit_impl(graph, ctx, cmp, low, high, offsets);
     ctx.reshuffle(offsets);
     return ctx;
@@ -71,15 +71,15 @@ class OrderBy {
   template <typename Comparer>
   static neug::result<Context> staged_order_by_with_limit(
       const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
-      size_t low, size_t high, const std::vector<size_t>& indices) {
-    std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
+      size_t low, size_t high, const sel_vec_t& indices) {
+    std::priority_queue<sel_t, sel_vec_t, Comparer> queue(cmp);
     for (auto i : indices) {
       queue.push(i);
       if (queue.size() > high) {
         queue.pop();
       }
     }
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     for (size_t k = 0; k < low; ++k) {
       queue.pop();
     }

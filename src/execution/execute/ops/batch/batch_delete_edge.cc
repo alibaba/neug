@@ -80,7 +80,7 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
       RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteEdges(
           src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
     } else {
-      std::unordered_map<uint32_t, std::vector<EdgeRecord>> edges_map;
+      flat_hash_map<uint32_t, std::vector<EdgeRecord>> edges_map;
       for (size_t j = 0; j < edge_column->size(); j++) {
         auto edge = edge_column->get_edge(j);
         uint32_t index = graph.schema().generate_edge_label(
@@ -114,7 +114,7 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
             src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
       }
     }
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
                              // remove all data.
   }

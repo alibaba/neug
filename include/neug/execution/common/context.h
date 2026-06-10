@@ -16,6 +16,7 @@
 #pragma once
 #include <unordered_map>
 #include "neug/common/types.h"
+#include "neug/execution/common/columns/selection_vec.h"
 
 namespace neug {
 class StorageReadInterface;
@@ -34,10 +35,10 @@ class Context {
   void set(int alias, std::shared_ptr<IContextColumn> col);
 
   void set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                          const std::vector<size_t>& offsets);
+                          const sel_vec_t& offsets);
 
-  void reshuffle(const std::vector<size_t>& offsets);
-  void optional_reshuffle(const std::vector<size_t>& offsets);
+  void reshuffle(const sel_vec_t& offsets);
+  void optional_reshuffle(const sel_vec_t& offsets);
 
   std::shared_ptr<IContextColumn> get(int alias);
 
@@ -80,14 +81,14 @@ class ContextMeta {
 
   DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  const std::unordered_map<int32_t, DataType>& columns() const {
+  const flat_hash_map<int32_t, DataType>& columns() const {
     return alias_set_;
   }
 
   void desc() const;
 
  private:
-  std::unordered_map<int32_t, DataType> alias_set_;
+  flat_hash_map<int32_t, DataType> alias_set_;
 };
 
 }  // namespace execution

@@ -14,30 +14,23 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
-#include "neug/utils/result.h"
+#include <vector>
+#include "parallel_hashmap/phmap.h"
 
 namespace neug {
-
 namespace execution {
+using sel_t = uint32_t;
+using sel_vec_t = std::vector<sel_t>;
 
-class Select {
- public:
-  template <typename PRED_T>
-  static neug::result<Context> select(Context&& ctx, const PRED_T& pred) {
-    size_t row_num = ctx.row_num();
-    sel_vec_t offsets;
-    for (size_t k = 0; k < row_num; ++k) {
-      if (pred(ctx, k)) {
-        offsets.push_back(k);
-      }
-    }
-
-    ctx.reshuffle(offsets);
-    return ctx;
-  }
-};
+template <typename K, typename V,
+          typename H = phmap::priv::hash_default_hash<K>,
+          typename E = phmap::priv::hash_default_eq<K>,
+          typename A = std::allocator<std::pair<const K, V>>>
+using flat_hash_map = phmap::flat_hash_map<K, V, H, E, A>;
+template <typename T, typename H = phmap::priv::hash_default_hash<T>,
+          typename E = phmap::priv::hash_default_eq<T>,
+          typename A = std::allocator<T>>
+using flat_hash_set = phmap::flat_hash_set<T, H, E, A>;
 
 }  // namespace execution
-
 }  // namespace neug

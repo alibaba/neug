@@ -78,7 +78,7 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline Direction dir() const override { return dir_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, offsets);
     return true;
   }
@@ -91,10 +91,10 @@ class SDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   template <typename FUNC_T>
   void foreach_edge_opt(const FUNC_T& func) const {
@@ -185,7 +185,7 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return total_size_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     LOG(ERROR) << "not implemented for " << this->column_info();
     return false;
   }
@@ -198,10 +198,10 @@ class MSEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kMS;
@@ -353,7 +353,7 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, offsets);
     return true;
   }
@@ -365,10 +365,10 @@ class BDSLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDSL;
@@ -463,7 +463,7 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, offsets);
     return true;
   }
@@ -476,10 +476,10 @@ class SDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDML;
@@ -589,7 +589,7 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, offsets);
     return true;
   }
@@ -602,10 +602,10 @@ class BDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kBDML;

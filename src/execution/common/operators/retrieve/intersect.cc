@@ -20,7 +20,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 
@@ -62,10 +61,10 @@ static neug::result<neug::execution::Context> Binary_Intersect_SL_Impl(
   auto label = (eep0.dir == Direction::kOut ? eep0.labels[0].dst_label
                                             : eep0.labels[0].src_label);
   MSVertexColumnBuilder builder(label);
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_set<vid_t> vertex_set;
+    flat_hash_set<vid_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -154,10 +153,10 @@ static neug::result<neug::execution::Context> Binary_Intersect_ML_Impl(
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_map<VertexRecord, uint32_t> vertex_set;
+    flat_hash_map<VertexRecord, uint32_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {
@@ -301,10 +300,10 @@ neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
     }
   }
 
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_map<VertexRecord, size_t> vertex_set;
+    flat_hash_map<VertexRecord, size_t> vertex_set;
     auto v = vertex_cols[0]->get_vertex(i);
     if (eeps[0].dir == Direction::kOut || eeps[0].dir == Direction::kBoth) {
       for (const auto& label_triplet : eeps[0].labels) {
@@ -352,7 +351,7 @@ neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
     }
 
     for (size_t j = 1; j < eeps.size(); ++j) {
-      phmap::flat_hash_map<VertexRecord, size_t> tmp_set;
+      flat_hash_map<VertexRecord, size_t> tmp_set;
       v = vertex_cols[j]->get_vertex(i);
       if (eeps[j].dir == Direction::kOut || eeps[j].dir == Direction::kBoth) {
         for (const auto& label_triplet : eeps[j].labels) {
@@ -439,7 +438,7 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
 
   std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
       labels;
@@ -466,7 +465,7 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
         std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
 
     std::vector<value_t> aux_values;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> vertex_set;
+    flat_hash_map<VertexRecord, sel_vec_t> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {

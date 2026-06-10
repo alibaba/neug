@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "neug/execution/common/columns/selection_vec.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -26,7 +27,7 @@ class Context;
 class Dedup {
  public:
   static neug::result<Context> dedup(Context&& ctx,
-                                     const std::vector<size_t>& cols);
+                                     const std::vector<int32_t>& cols);
 };
 
 }  // namespace execution

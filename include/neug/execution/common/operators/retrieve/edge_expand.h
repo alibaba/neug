@@ -21,7 +21,6 @@
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 namespace execution {
@@ -239,9 +238,9 @@ class EdgeExpand {
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
 
-    phmap::flat_hash_set<vid_t> d0_set;
+    flat_hash_set<vid_t> d0_set;
 
     size_t idx = 0;
     if (csr0.type() == CsrViewType::kMultipleMutable &&

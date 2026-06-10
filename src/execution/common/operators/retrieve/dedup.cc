@@ -21,23 +21,22 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/encoder.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 
 namespace execution {
 
 neug::result<Context> Dedup::dedup(Context&& ctx,
-                                   const std::vector<size_t>& cols) {
+                                   const std::vector<int32_t>& cols) {
   size_t row_num = ctx.row_num();
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   if (cols.size() == 0) {
     return ctx;
   }
   if (cols.size() == 1 && ctx.get(cols[0])->generate_dedup_offset(offsets)) {
   } else {
     offsets.clear();
-    phmap::flat_hash_set<std::string> set;
+    flat_hash_set<std::string> set;
     for (size_t r_i = 0; r_i < row_num; ++r_i) {
       std::vector<char> bytes;
       Encoder encoder(bytes);

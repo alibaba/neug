@@ -93,10 +93,10 @@ class SLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offset) const override;
+      const sel_vec_t& offset) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -114,9 +114,9 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> union_col(
       std::shared_ptr<IContextColumn> other) const override;
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
-  std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
+  std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
   generate_aggregate_offset() const override;
 
   template <typename FUNC_T>
@@ -178,10 +178,10 @@ class MSVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -231,7 +231,7 @@ class MSVertexColumn : public IVertexColumn {
     return vertices_[seg_id].second;
   }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MSVertexColumnBuilder;
@@ -324,9 +324,9 @@ class MLVertexColumn : public IVertexColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   __attribute__((always_inline)) VertexRecord get_vertex(
       size_t idx) const override {
@@ -351,7 +351,7 @@ class MLVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;

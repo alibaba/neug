@@ -21,13 +21,13 @@ namespace neug {
 
 namespace execution {
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
 iterative_expand_vertex_on_graph_view(const CsrView& view,
                                       const SLVertexColumn& input, int lower,
                                       int upper) {
   int input_label = input.label();
   MSVertexColumnBuilder builder(input_label);
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   if (upper == lower) {
     return std::make_pair(builder.finish(), std::move(offsets));
   }
@@ -85,14 +85,14 @@ iterative_expand_vertex_on_graph_view(const CsrView& view,
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
 iterative_expand_vertex_on_dual_graph_view(const CsrView& iview,
                                            const CsrView& oview,
                                            const SLVertexColumn& input,
                                            int lower, int upper) {
   int input_label = input.label();
   MSVertexColumnBuilder builder(input_label);
-  std::vector<size_t> offsets;
+  sel_vec_t offsets;
   if (upper == lower) {
     return std::make_pair(builder.finish(), std::move(offsets));
   }
@@ -158,7 +158,7 @@ iterative_expand_vertex_on_dual_graph_view(const CsrView& iview,
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
 path_expand_vertex_without_predicate_impl(
     const StorageReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,

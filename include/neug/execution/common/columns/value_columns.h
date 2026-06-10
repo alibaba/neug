@@ -42,10 +42,10 @@ class ValueColumn : public IContextColumn {
   }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> optional_shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   inline const DataType& elem_type() const override { return type_; }
   inline Value get_elem(size_t idx) const override {
@@ -60,13 +60,13 @@ class ValueColumn : public IContextColumn {
   const std::vector<T>& data() const { return data_; }
   const std::vector<bool>& validity_bitmap() const { return valid_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(sel_vec_t& offsets) const override {
     if (!is_optional_) {
       ColumnsUtils::generate_dedup_offset(data_, offsets);
       return true;
     }
     std::set<T> st;
-    size_t null_index = std::numeric_limits<size_t>::max();
+    sel_t null_index = std::numeric_limits<sel_t>::max();
     for (size_t i = 0; i < data_.size(); ++i) {
       if (valid_[i]) {
         if (st.find(data_[i]) == st.end()) {
@@ -77,7 +77,7 @@ class ValueColumn : public IContextColumn {
         null_index = i;
       }
     }
-    if (null_index != std::numeric_limits<size_t>::max()) {
+    if (null_index != std::numeric_limits<sel_t>::max()) {
       offsets.push_back(null_index);
     }
     return true;
@@ -87,7 +87,7 @@ class ValueColumn : public IContextColumn {
       std::shared_ptr<IContextColumn> other) const override;
 
   bool order_by_limit(bool asc, size_t limit,
-                      std::vector<size_t>& offsets) const override;
+                      sel_vec_t& offsets) const override;
 
   bool has_value(size_t idx) const override {
     if (!is_optional_) {
@@ -159,7 +159,7 @@ class ValueColumnBuilder : public IContextColumnBuilder {
 
 template <typename T>
 std::shared_ptr<IContextColumn> ValueColumn<T>::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   ValueColumnBuilder<T> builder;
   builder.reserve(offsets.size());
   if (!is_optional_) {
@@ -180,12 +180,12 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::shuffle(
 
 template <typename T>
 std::shared_ptr<IContextColumn> ValueColumn<T>::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   ValueColumnBuilder<T> builder(true);
   builder.reserve(offsets.size());
   if (!is_optional_) {
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max()) {
+      if (offset == std::numeric_limits<sel_t>::max()) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(data_[offset]);
@@ -193,7 +193,7 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::optional_shuffle(
     }
   } else {
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max() || !valid_[offset]) {
+      if (offset == std::numeric_limits<sel_t>::max() || !valid_[offset]) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(data_[offset]);
@@ -239,7 +239,7 @@ std::shared_ptr<IContextColumn> ValueColumn<T>::union_col(
 
 template <typename T>
 bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
-                                    std::vector<size_t>& offsets) const {
+                                    sel_vec_t& offsets) const {
   if (is_optional_) {
     return false;
   }
