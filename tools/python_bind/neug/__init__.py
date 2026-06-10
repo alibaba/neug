@@ -49,6 +49,7 @@ def _find_mimalloc() -> Optional[str]:
     # Also check relative to neug_py_bind location if available
     try:
         import importlib.util
+
         spec = importlib.util.find_spec("neug_py_bind")
         if spec and spec.origin:
             bind_dir = os.path.dirname(spec.origin)
@@ -94,6 +95,7 @@ def _ensure_mimalloc_preloaded() -> None:
         os.environ["LD_PRELOAD"] = mimalloc_path
 
     import logging as _logging
+
     _logging.getLogger("neug").info(
         "Re-executing with LD_PRELOAD=%s for mimalloc", mimalloc_path
     )
@@ -113,24 +115,28 @@ _ensure_mimalloc_preloaded()
 # Users can override by calling configure_mimalloc() after import,
 # or by setting the NEUG_MIMALLOC_DEFAULTS env var to "off" to skip.
 _MIMALLOC_DEFAULTS = {
-    "page_reset": 0,                  # Keep pages resident on free
-    "eager_commit": 1,               # Commit segment up front
-    "allow_decommit": 1,             # Allow decommit of idle segments
-    "decommit_delay": 30000,         # Auto-decommit after 30s (ms)
-    "segment_decommit_delay": 30000, # Auto-decommit segments after 30s (ms)
-    "large_os_pages": 1,             # Use 2MiB explicit hugetlb pages (MAP_HUGETLB)
+    "page_reset": 0,  # Keep pages resident on free
+    "eager_commit": 1,  # Commit segment up front
+    "allow_decommit": 1,  # Allow decommit of idle segments
+    "decommit_delay": 30000,  # Auto-decommit after 30s (ms)
+    "segment_decommit_delay": 30000,  # Auto-decommit segments after 30s (ms)
+    "large_os_pages": 1,  # Use 2MiB explicit hugetlb pages (MAP_HUGETLB)
 }
 
 
-def configure_mimalloc(page_reset=None, eager_commit=None,
-                       decommit_delay=None,
-                       large_os_pages=None, reserve_os_memory=None,
-                       reserve_huge_os_pages=None,
-                       abandoned_page_decommit=None,
-                       eager_commit_delay=None,
-                       allow_decommit=None,
-                       segment_decommit_delay=None,
-                       decommit_extend_delay=None) -> None:
+def configure_mimalloc(
+    page_reset=None,
+    eager_commit=None,
+    decommit_delay=None,
+    large_os_pages=None,
+    reserve_os_memory=None,
+    reserve_huge_os_pages=None,
+    abandoned_page_decommit=None,
+    eager_commit_delay=None,
+    allow_decommit=None,
+    segment_decommit_delay=None,
+    decommit_extend_delay=None,
+) -> None:
     """Configure mimalloc options at runtime.
 
     Only takes effect if mimalloc is loaded (via LD_PRELOAD).
@@ -151,6 +157,7 @@ def configure_mimalloc(page_reset=None, eager_commit=None,
     """
     try:
         import ctypes
+
         lib = ctypes.CDLL(None)
         if not hasattr(lib, "mi_option_set"):
             return  # mimalloc not loaded
@@ -159,17 +166,17 @@ def configure_mimalloc(page_reset=None, eager_commit=None,
 
     # Enum values from mimalloc.h mi_option_t (must match bundled mimalloc version)
     _option_map = {
-        "eager_commit": 3,              # mi_option_eager_commit
-        "large_os_pages": 6,             # mi_option_large_os_pages
-        "reserve_huge_os_pages": 7,      # mi_option_reserve_huge_os_pages
-        "reserve_os_memory": 9,          # mi_option_reserve_os_memory
-        "page_reset": 11,               # mi_option_page_reset
-        "abandoned_page_decommit": 12,   # mi_option_abandoned_page_decommit
-        "eager_commit_delay": 14,        # mi_option_eager_commit_delay
-        "decommit_delay": 15,            # mi_option_decommit_delay
-        "allow_decommit": 22,            # mi_option_allow_decommit
-        "segment_decommit_delay": 23,    # mi_option_segment_decommit_delay
-        "decommit_extend_delay": 24,     # mi_option_decommit_extend_delay
+        "eager_commit": 3,  # mi_option_eager_commit
+        "large_os_pages": 6,  # mi_option_large_os_pages
+        "reserve_huge_os_pages": 7,  # mi_option_reserve_huge_os_pages
+        "reserve_os_memory": 9,  # mi_option_reserve_os_memory
+        "page_reset": 11,  # mi_option_page_reset
+        "abandoned_page_decommit": 12,  # mi_option_abandoned_page_decommit
+        "eager_commit_delay": 14,  # mi_option_eager_commit_delay
+        "decommit_delay": 15,  # mi_option_decommit_delay
+        "allow_decommit": 22,  # mi_option_allow_decommit
+        "segment_decommit_delay": 23,  # mi_option_segment_decommit_delay
+        "decommit_extend_delay": 24,  # mi_option_decommit_extend_delay
     }
 
     kwargs = {
@@ -198,6 +205,7 @@ def mimalloc_stats() -> str:
     """Get mimalloc statistics. Returns empty string if not available."""
     try:
         import ctypes
+
         lib = ctypes.CDLL(None)
         if not hasattr(lib, "mi_stats_print_out"):
             return "mimalloc not loaded"
@@ -211,7 +219,12 @@ def mimalloc_stats() -> str:
 
 # Auto-apply default mimalloc options on import.
 # Set NEUG_MIMALLOC_DEFAULTS=off to disable.
-if os.environ.get("NEUG_MIMALLOC_DEFAULTS", "").lower() not in ("off", "0", "no", "false"):
+if os.environ.get("NEUG_MIMALLOC_DEFAULTS", "").lower() not in (
+    "off",
+    "0",
+    "no",
+    "false",
+):
     configure_mimalloc(**_MIMALLOC_DEFAULTS)
 
 # ---------------------------------------------------------------------------
