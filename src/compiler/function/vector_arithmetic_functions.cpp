@@ -105,8 +105,7 @@ function_set AddFunction::getFunctionSet() {
 
   // list + list -> list
   auto func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kList},
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kList},
       DataTypeId::kList,
       ScalarFunction::BinaryExecListStructFunction<list_entry_t, list_entry_t,
                                                    list_entry_t, ListConcat>);
@@ -115,41 +114,35 @@ function_set AddFunction::getFunctionSet() {
       name, DataTypeId::kInterval, DataTypeId::kInterval));
   // date + int → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
+      name, std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, int64_t, date_t, Add>));
   // int + date → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kInt64, DataTypeId::kDate},
+      name, std::vector<DataTypeId>{DataTypeId::kInt64, DataTypeId::kDate},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<int64_t, date_t, date_t, Add>));
   // date + interval → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
+      name, std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, interval_t, date_t, Add>));
   // interval + date → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kDate},
+      name, std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kDate},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<interval_t, date_t, date_t, Add>));
   // timestamp + interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<DataTypeId>{DataTypeId::kTimestampMs,
-                                 DataTypeId::kInterval},
+      std::vector<DataTypeId>{DataTypeId::kTimestampMs, DataTypeId::kInterval},
       DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
                                          neug::common::timestamp_t, Add>));
   // interval + timestamp → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<DataTypeId>{DataTypeId::kInterval,
-                                 DataTypeId::kTimestampMs},
+      std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kTimestampMs},
       DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<interval_t, neug::common::timestamp_t,
                                          neug::common::timestamp_t, Add>));
@@ -166,14 +159,12 @@ function_set SubtractFunction::getFunctionSet() {
       name, DataTypeId::kDate, DataTypeId::kInterval));
   // date - integer → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
+      name, std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInt64},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, int64_t, date_t, Subtract>));
   // date - interval → date
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
+      name, std::vector<DataTypeId>{DataTypeId::kDate, DataTypeId::kInterval},
       DataTypeId::kDate,
       ScalarFunction::BinaryExecFunction<date_t, interval_t, date_t,
                                          Subtract>));
@@ -184,8 +175,7 @@ function_set SubtractFunction::getFunctionSet() {
   // timestamp - interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<DataTypeId>{DataTypeId::kTimestampMs,
-                                 DataTypeId::kInterval},
+      std::vector<DataTypeId>{DataTypeId::kTimestampMs, DataTypeId::kInterval},
       DataTypeId::kTimestampMs,
       ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
                                          neug::common::timestamp_t, Subtract>));
@@ -210,8 +200,7 @@ function_set DivideFunction::getFunctionSet() {
   }
   // interval / int → interval
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kInt64},
+      name, std::vector<DataTypeId>{DataTypeId::kInterval, DataTypeId::kInt64},
       DataTypeId::kInterval,
       ScalarFunction::BinaryExecFunction<interval_t, int64_t, interval_t,
                                          Divide>));

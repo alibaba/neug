@@ -28,10 +28,10 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
-#include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
+#include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
@@ -234,7 +234,8 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
     }
 
     const auto& relsType = common::StructType::GetChildType(type, fieldIdx);
-    if (common::getPhysicalType(relsType.id()) == common::PhysicalTypeID::LIST) {
+    if (common::getPhysicalType(relsType.id()) ==
+        common::PhysicalTypeID::LIST) {
       auto& childType = common::ListType::GetChildType(relsType);
       auto gRelType = convertGRelType(childType);
       if (gRelType) {
@@ -245,7 +246,8 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
                      << " , return RECURSIVE_REL type with empty label";
         return convertPathType(gopt::GRelType({}));
       }
-    } else if (common::getPhysicalType(relsType.id()) == common::PhysicalTypeID::ARRAY) {
+    } else if (common::getPhysicalType(relsType.id()) ==
+               common::PhysicalTypeID::ARRAY) {
       auto& childType = common::ArrayType::GetChildType(relsType);
       auto gRelType = convertGRelType(childType);
       if (gRelType) {
@@ -285,8 +287,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
 }
 
 std::unique_ptr<::common::IrDataType>
-GPhysicalTypeConverter::convertSimpleLogicalType(
-    const neug::DataType& type) {
+GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
   auto result = std::make_unique<::common::DataType>();
   switch (type.id()) {
   case common::DataTypeId::kUnknown: {
@@ -327,8 +328,7 @@ GPhysicalTypeConverter::convertSimpleLogicalType(
     if (!extraInfo) {
       maxLen = VARCHAR_DEFAULT_LENGTH;
     } else {
-      auto& stringTypeInfo =
-          extraInfo->Cast<neug::StringTypeInfo>();
+      auto& stringTypeInfo = extraInfo->Cast<neug::StringTypeInfo>();
       maxLen = stringTypeInfo.max_length;
     }
     auto strType = std::make_unique<::common::String>();
@@ -466,8 +466,7 @@ neug::DataType GLogicalTypeConverter::convertDataType(
     auto childType = convertDataType(array.component_type());
     // If max_length is set and > 0, use ARRAY, otherwise use LIST
     if (array.max_length() > 0) {
-      return neug::DataType::Array(std::move(childType),
-                                        array.max_length());
+      return neug::DataType::Array(std::move(childType), array.max_length());
     } else {
       return neug::DataType::List(std::move(childType));
     }

@@ -83,16 +83,14 @@ std::unique_ptr<common::DataType> ProjectJoinConditionOptimizer::getDataType(
     auto nbrNode = extend.getNbrNode();
     if (extend.getExtendOpt() == planner::ExtendOpt::VERTEX &&
         uniqueVarName == nbrNode->getUniqueName()) {
-      return std::make_unique<common::DataType>(
-          nbrNode->getDataType().copy());
+      return std::make_unique<common::DataType>(nbrNode->getDataType().copy());
     }
   } else {
     auto schema = op->getSchema();
     if (schema) {
       for (auto& expr : schema->getExpressionsInScope()) {
         if (expr->getUniqueName() == uniqueVarName) {
-          return std::make_unique<common::DataType>(
-              expr->getDataType().copy());
+          return std::make_unique<common::DataType>(expr->getDataType().copy());
         }
       }
     }
@@ -133,8 +131,7 @@ void ProjectJoinConditionOptimizer::visitHashJoin(LogicalOperator* op) {
   // convert join conditions: convert internal id to node it self in that NeuG
   // can support join by nodes directly
   for (auto& [probeKey, buildKey] : joinConditions) {
-    if (probeKey->getDataType().id() ==
-            common::DataTypeId::kInternalId &&
+    if (probeKey->getDataType().id() == common::DataTypeId::kInternalId &&
         !containsAliasName(probeAliasNames, probeKey->getUniqueName())) {
       // convert internal id to node it self
       auto probeIDExpr = probeKey->ptrCast<binder::PropertyExpression>();
@@ -146,8 +143,7 @@ void ProjectJoinConditionOptimizer::visitHashJoin(LogicalOperator* op) {
           probeType->copy(), probeVarName, probeVarName);
       probeKey = varExpr;
     }
-    if (buildKey->getDataType().id() ==
-            common::DataTypeId::kInternalId &&
+    if (buildKey->getDataType().id() == common::DataTypeId::kInternalId &&
         !containsAliasName(buildAliasNames, buildKey->getUniqueName())) {
       // convert internal id to node it self
       auto buildIDExpr = buildKey->ptrCast<binder::PropertyExpression>();

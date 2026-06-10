@@ -323,10 +323,9 @@ expression_vector Binder::bindOrderByExpressions(
 
 bool Binder::isOrderByKeyTypeSupported(const DataType& dataType) {
   static std::vector unsupportedKeyTypes{
-      DataTypeId::kVertex,          DataTypeId::kEdge,
-      DataTypeId::kPath, DataTypeId::kInternalId,
-      DataTypeId::kList,          DataTypeId::kArray,
-      DataTypeId::kStruct,        DataTypeId::kMap};
+      DataTypeId::kVertex,     DataTypeId::kEdge, DataTypeId::kPath,
+      DataTypeId::kInternalId, DataTypeId::kList, DataTypeId::kArray,
+      DataTypeId::kStruct,     DataTypeId::kMap};
   for (const auto typeID : unsupportedKeyTypes) {
     if (dataType.id() == typeID) {
       return false;

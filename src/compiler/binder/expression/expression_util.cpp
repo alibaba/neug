@@ -281,7 +281,7 @@ void ExpressionUtil::validateDataType(const Expression& expr,
 void ExpressionUtil::validateDataType(
     const Expression& expr, const std::vector<DataTypeId>& expectedTypeIDs) {
   auto targetsSet = std::unordered_set<DataTypeId>{expectedTypeIDs.begin(),
-                                                      expectedTypeIDs.end()};
+                                                   expectedTypeIDs.end()};
   if (targetsSet.contains(expr.getDataType().id())) {
     return;
   }

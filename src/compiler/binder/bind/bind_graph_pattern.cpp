@@ -95,7 +95,7 @@ QueryGraph Binder::bindPatternElement(const PatternElement& patternElement) {
 }
 
 static DataType getRecursiveRelLogicalType(const DataType& nodeType,
-                                              const DataType& relType) {
+                                           const DataType& relType) {
   auto nodesType = DataType::List(nodeType.copy());
   auto relsType = DataType::List(relType.copy());
   std::vector<std::string> fieldNames;
@@ -105,7 +105,8 @@ static DataType getRecursiveRelLogicalType(const DataType& nodeType,
   fieldNames.push_back(InternalKeyword::RELS);
   fieldTypes.push_back(std::move(relsType));
   return DataType(DataTypeId::kPath,
-      std::make_shared<common::StructTypeInfo>(std::move(fieldNames), std::move(fieldTypes)));
+                  std::make_shared<common::StructTypeInfo>(
+                      std::move(fieldNames), std::move(fieldTypes)));
 }
 
 static void extraFieldFromStructType(const DataType& structType,
@@ -329,9 +330,8 @@ getBaseNodeStructFields() {
 }
 
 static std::pair<std::vector<std::string>, std::vector<DataType>>
-getBaseRelStructFields(
-    std::shared_ptr<NodeExpression> srcNode,
-    std::shared_ptr<NodeExpression> dstNode) {
+getBaseRelStructFields(std::shared_ptr<NodeExpression> srcNode,
+                       std::shared_ptr<NodeExpression> dstNode) {
   std::vector<std::string> names;
   std::vector<DataType> types;
   if (srcNode) {
@@ -385,9 +385,8 @@ std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
     relEntries.emplace_back(entry->ptrCast<GRelTableCatalogEntry>());
   }
   auto relType = std::make_unique<gopt::GRelType>(relEntries);
-  auto extraInfo = std::make_unique<common::GRelTypeInfo>(std::move(fieldNames),
-                                                          std::move(fieldTypes),
-                                                          std::move(relType));
+  auto extraInfo = std::make_unique<common::GRelTypeInfo>(
+      std::move(fieldNames), std::move(fieldTypes), std::move(relType));
   queryRel->setExtraTypeInfo(std::move(extraInfo));
   return queryRel;
 }
@@ -648,8 +647,8 @@ std::pair<uint64_t, uint64_t> Binder::bindVariableLengthRelBound(
 
 void Binder::bindQueryRelProperties(RelExpression& rel) {
   if (rel.isEmpty()) {
-    auto internalID = PropertyExpression::construct(DataType(DataTypeId::kInternalId),
-                                                    InternalKeyword::ID, rel);
+    auto internalID = PropertyExpression::construct(
+        DataType(DataTypeId::kInternalId), InternalKeyword::ID, rel);
     rel.addPropertyExpression(InternalKeyword::ID, std::move(internalID));
     return;
   }
@@ -744,7 +743,8 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
   }
   auto nodeType = std::make_unique<gopt::GNodeType>(nodeEntries);
   auto extraInfo = std::make_unique<common::GNodeTypeInfo>(
-      std::move(structFieldNames), std::move(structFieldTypes), std::move(nodeType));
+      std::move(structFieldNames), std::move(structFieldTypes),
+      std::move(nodeType));
   queryNode->setExtraTypeInfo(std::move(extraInfo));
   return queryNode;
 }

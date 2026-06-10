@@ -58,13 +58,11 @@ class GTypeUtils {
       if (temporalType["date32"].IsDefined()) {
         return neug::common::DataType(neug::common::DataTypeId::kDate);
       } else if (temporalType["timestamp"].IsDefined()) {
-        return neug::common::DataType(
-            neug::common::DataTypeId::kTimestampMs);
+        return neug::common::DataType(neug::common::DataTypeId::kTimestampMs);
       } else if (temporalType["date"].IsDefined()) {
         return neug::common::DataType(neug::common::DataTypeId::kDate);
       } else if (temporalType["datetime"].IsDefined()) {
-        return neug::common::DataType(
-            neug::common::DataTypeId::kTimestampMs);
+        return neug::common::DataType(neug::common::DataTypeId::kTimestampMs);
       } else if (temporalType["interval"].IsDefined()) {
         return neug::common::DataType(neug::common::DataTypeId::kInterval);
       } else {
@@ -102,8 +100,7 @@ class GTypeUtils {
       size_t maxLen = VARCHAR_DEFAULT_LENGTH;
       auto extraInfo = type.RawExtraTypeInfo();
       if (extraInfo) {
-        auto& stringTypeInfo =
-            extraInfo->Cast<neug::StringTypeInfo>();
+        auto& stringTypeInfo = extraInfo->Cast<neug::StringTypeInfo>();
         maxLen = stringTypeInfo.max_length;
       }
       YAML::Node n;

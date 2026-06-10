@@ -191,8 +191,7 @@ class VariableCastTypeCollector final : public ExpressionVisitor {
       if (child0->expressionType == common::ExpressionType::VARIABLE &&
           child1->expressionType == common::ExpressionType::LITERAL) {
         auto literalExpr = child1->ptrCast<binder::LiteralExpression>();
-        auto type = common::convertFromString(
-            literalExpr->toString(), ctx);
+        auto type = common::convertFromString(literalExpr->toString(), ctx);
         variableTypes[child0->getUniqueName()] = type.copy();
       }
     } else if (functionExpr->getNumChildren() == 1) {

@@ -21,19 +21,17 @@
 #include <string>
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/function/function_collection.h"
 #include "neug/compiler/function/function_signature_util.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
-#include "neug/compiler/function/function_collection.h"
 
 namespace neug {
 namespace catalog {
 
-GCatalog::GCatalog() : Catalog() {
-  registerBuiltInFunctions();
-}
+GCatalog::GCatalog() : Catalog() { registerBuiltInFunctions(); }
 
 GCatalog::GCatalog(const std::filesystem::path& schemaPath) : Catalog() {
   if (!std::filesystem::exists(schemaPath)) {
@@ -80,11 +78,9 @@ void GCatalog::registerBuiltInFunctions() {
   for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
     auto& f = functionCollection[i];
     auto functionSet = f.getFunctionSetFunc();
-    addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION, 
-                           f.catalogEntryType, 
-                           f.name, 
-                           std::move(functionSet), 
-                           false);
+    addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
+                             f.catalogEntryType, f.name, std::move(functionSet),
+                             false);
   }
 }
 
@@ -281,7 +277,8 @@ std::unique_ptr<GRelTableCatalogEntry> GCatalog::createRelTableEntry(
   }
   auto srcID = srcEntry->getTableID();
   auto dstID = dstEntry->getTableID();
-  auto multiplicity = neug::to_lower_copy(relation["relation"].as<std::string>());
+  auto multiplicity =
+      neug::to_lower_copy(relation["relation"].as<std::string>());
   common::RelMultiplicity srcMultiplicity = common::RelMultiplicity::MANY;
   common::RelMultiplicity dstMultiplicity = common::RelMultiplicity::MANY;
   if (multiplicity == "one_to_one") {

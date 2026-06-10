@@ -356,7 +356,7 @@ static std::string getTypeDoesNotExistMessage(std::string_view entryName) {
 }
 
 DataType Catalog::getType(const Transaction* transaction,
-                             const std::string& name) const {
+                          const std::string& name) const {
   if (!types->containsEntry(transaction, name)) {
     THROW_CATALOG_EXCEPTION(getTypeDoesNotExistMessage(name));
   }

@@ -66,8 +66,7 @@ bool CastArrayHelper::containsListToArray(const DataType& srcType,
     return true;
   }
 
-  if (checkCompatibleNestedTypes(srcType.id(),
-                                 dstType.id())) {
+  if (checkCompatibleNestedTypes(srcType.id(), dstType.id())) {
     switch (getPhysicalType(srcType.id())) {
     case PhysicalTypeID::LIST: {
       return containsListToArray(ListType::GetChildType(srcType),

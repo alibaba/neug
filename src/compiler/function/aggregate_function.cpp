@@ -51,8 +51,9 @@ template void AggregateFunctionUtils::appendSumOrAvgFuncs<SumFunction>(
     std::string name, common::DataTypeId inputType, function_set& result);
 
 template <template <typename, typename> class FunctionType>
-void AggregateFunctionUtils::appendSumOrAvgFuncs(
-    std::string name, common::DataTypeId inputType, function_set& result) {
+void AggregateFunctionUtils::appendSumOrAvgFuncs(std::string name,
+                                                 common::DataTypeId inputType,
+                                                 function_set& result) {
   std::unique_ptr<AggregateFunction> aggFunc;
   for (auto isDistinct : std::vector<bool>{true, false}) {
     TypeUtils::visit(

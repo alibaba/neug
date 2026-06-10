@@ -273,8 +273,7 @@ std::unique_ptr<Schema> Planner::combineSchema(LogicalPlan& outerPlan) {
       auto opSchema = op->getSchema();
       if (opSchema) {
         for (auto& expr : opSchema->getExpressionsInScope()) {
-          if (expr->getDataType().id() ==
-              DataTypeId::kInternalId) {
+          if (expr->getDataType().id() == DataTypeId::kInternalId) {
             combinedSchema->insertToScopeMayRepeat(expr, 0);
           }
         }

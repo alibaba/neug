@@ -129,8 +129,7 @@ static bool checkUDTCast(const DataType& type, const DataType& target) {
 }
 
 std::shared_ptr<Expression> ExpressionBinder::implicitCastIfNecessary(
-    const std::shared_ptr<Expression>& expression,
-    const DataType& targetType) {
+    const std::shared_ptr<Expression>& expression, const DataType& targetType) {
   auto& type = expression->dataType;
   if (checkUDTCast(type, targetType)) {
     return expression;
@@ -146,8 +145,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCastIfNecessary(
 }
 
 std::shared_ptr<Expression> ExpressionBinder::implicitCast(
-    const std::shared_ptr<Expression>& expression,
-    const DataType& targetType) {
+    const std::shared_ptr<Expression>& expression, const DataType& targetType) {
   if (CastFunction::hasImplicitCast(expression->dataType, targetType)) {
     return forceCast(expression, targetType);
   } else {
@@ -157,8 +155,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCast(
 }
 
 std::shared_ptr<Expression> ExpressionBinder::forceCast(
-    const std::shared_ptr<Expression>& expression,
-    const DataType& targetType) {
+    const std::shared_ptr<Expression>& expression, const DataType& targetType) {
   auto functionName = "CAST";
   // we suppose INTERNAL_ID can be converted from other types without cast
   if (targetType == common::DataType(DataTypeId::kInternalId)) {

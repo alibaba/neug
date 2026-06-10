@@ -133,8 +133,8 @@ class Binder {
 
   std::shared_ptr<Expression> createVariable(std::string_view name,
                                              common::DataTypeId typeID);
-  std::shared_ptr<Expression> createVariable(
-      const std::string& name, common::DataTypeId logicalTypeID);
+  std::shared_ptr<Expression> createVariable(const std::string& name,
+                                             common::DataTypeId logicalTypeID);
 
   /*** bind DDL ***/
   BoundCreateTableInfo bindCreateTableInfo(const parser::CreateTableInfo* info);

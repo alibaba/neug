@@ -58,15 +58,14 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
                                   returnTypeID} {}
   ScalarFunction(std::string name,
                  std::vector<common::DataTypeId> parameterTypeIDs,
-                 common::DataTypeId returnTypeID,
-                 scalar_func_exec_t execFunc)
+                 common::DataTypeId returnTypeID, scalar_func_exec_t execFunc)
       : ScalarOrAggregateFunction{std::move(name), std::move(parameterTypeIDs),
                                   returnTypeID},
         execFunc{std::move(execFunc)} {}
   ScalarFunction(std::string name,
                  std::vector<common::DataTypeId> parameterTypeIDs,
-                 common::DataTypeId returnTypeID,
-                 scalar_func_exec_t execFunc, scalar_func_select_t selectFunc)
+                 common::DataTypeId returnTypeID, scalar_func_exec_t execFunc,
+                 scalar_func_select_t selectFunc)
       : ScalarOrAggregateFunction{std::move(name), std::move(parameterTypeIDs),
                                   returnTypeID},
         execFunc{std::move(execFunc)},

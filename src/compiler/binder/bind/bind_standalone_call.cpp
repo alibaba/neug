@@ -48,8 +48,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
   auto optionValue =
       expressionBinder.bindExpression(*callStatement.getOptionValue());
   ExpressionUtil::validateExpressionType(*optionValue, ExpressionType::LITERAL);
-  if (LogicalTypeUtils::isFloatingPoint(
-          optionValue->dataType.id()) &&
+  if (LogicalTypeUtils::isFloatingPoint(optionValue->dataType.id()) &&
       LogicalTypeUtils::isIntegral(DataType(option->parameterType))) {
     THROW_BINDER_EXCEPTION(stringFormat(
         "Expression {} has data type {} but expected {}. Implicit cast is not "

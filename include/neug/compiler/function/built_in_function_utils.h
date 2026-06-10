@@ -46,14 +46,12 @@ class BuiltInFunctionsUtils {
     return matchFunction(name, {}, catalogEntry);
   }
   static NEUG_API Function* matchFunction(
-      const std::string& name,
-      const std::vector<common::DataType>& inputTypes,
+      const std::string& name, const std::vector<common::DataType>& inputTypes,
       const catalog::FunctionCatalogEntry* functionEntry);
 
   static AggregateFunction* matchAggregateFunction(
-      const std::string& name,
-      const std::vector<common::DataType>& inputTypes, bool isDistinct,
-      const catalog::FunctionCatalogEntry* functionEntry);
+      const std::string& name, const std::vector<common::DataType>& inputTypes,
+      bool isDistinct, const catalog::FunctionCatalogEntry* functionEntry);
 
   static NEUG_API uint32_t getCastCost(common::DataTypeId inputTypeID,
                                        common::DataTypeId targetTypeID);

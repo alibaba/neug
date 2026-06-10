@@ -126,13 +126,13 @@ std::shared_ptr<Expression> Binder::createVariable(std::string_view name,
   return createVariable(std::string(name), DataType{typeID});
 }
 
-std::shared_ptr<Expression> Binder::createVariable(
-    const std::string& name, DataTypeId logicalTypeID) {
+std::shared_ptr<Expression> Binder::createVariable(const std::string& name,
+                                                   DataTypeId logicalTypeID) {
   return createVariable(name, DataType{logicalTypeID});
 }
 
-std::shared_ptr<Expression> Binder::createVariable(
-    const std::string& name, const DataType& dataType) {
+std::shared_ptr<Expression> Binder::createVariable(const std::string& name,
+                                                   const DataType& dataType) {
   if (scope.contains(name)) {
     return scope.getExpression(name);
   }
@@ -333,8 +333,7 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
   std::vector<catalog::TableCatalogEntry*> entries;
   if (inputExpr &&
       inputExpr->expressionType == common::ExpressionType::PATTERN &&
-      inputExpr->getDataType().id() ==
-          common::DataTypeId::kVertex) {
+      inputExpr->getDataType().id() == common::DataTypeId::kVertex) {
     auto nodeExpr = inputExpr->ptrCast<binder::NodeExpression>();
     entries = nodeExpr->getEntries();
   }

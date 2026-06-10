@@ -35,8 +35,7 @@ namespace common {
 static void resizeVector(ArrowVector* vector, const DataType& type,
                          int64_t capacity);
 
-ArrowRowBatch::ArrowRowBatch(std::vector<DataType> types,
-                             std::int64_t capacity)
+ArrowRowBatch::ArrowRowBatch(std::vector<DataType> types, std::int64_t capacity)
     : types{std::move(types)}, numTuples{0} {
   auto numVectors = this->types.size();
   vectors.resize(numVectors);
@@ -279,8 +278,7 @@ void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kVarchar>(
 
 template <>
 void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kList>(
-    ArrowVector* vector, const DataType& type, Value* value,
-    std::int64_t pos) {
+    ArrowVector* vector, const DataType& type, Value* value, std::int64_t pos) {
   auto offsets = (std::uint32_t*) vector->data.data();
   auto numElements = value->childrenSize;
   if (pos == 0) {
@@ -309,10 +307,8 @@ void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kArray>(
 
 template <>
 void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kMap>(
-    ArrowVector* vector, const DataType& type, Value* value,
-    std::int64_t pos) {
-  return templateCopyNonNullValue<DataTypeId::kList>(vector, type, value,
-                                                       pos);
+    ArrowVector* vector, const DataType& type, Value* value, std::int64_t pos) {
+  return templateCopyNonNullValue<DataTypeId::kList>(vector, type, value, pos);
 }
 
 template <>
@@ -332,8 +328,10 @@ void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kInternalId>(
   auto nodeID = value->getValue<nodeID_t>();
   Value offsetVal((std::int64_t) nodeID.offset);
   Value tableIDVal((std::int64_t) nodeID.tableID);
-  appendValue(vector->childData[0].get(), DataType(DataTypeId::kInt64), &offsetVal);
-  appendValue(vector->childData[1].get(), DataType(DataTypeId::kInt64), &tableIDVal);
+  appendValue(vector->childData[0].get(), DataType(DataTypeId::kInt64),
+              &offsetVal);
+  appendValue(vector->childData[1].get(), DataType(DataTypeId::kInt64),
+              &tableIDVal);
 }
 
 template <>
@@ -376,9 +374,8 @@ void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kEdge>(
   }
 }
 
-void ArrowRowBatch::copyNonNullValue(ArrowVector* vector,
-                                     const DataType& type, Value* value,
-                                     std::int64_t pos) {
+void ArrowRowBatch::copyNonNullValue(ArrowVector* vector, const DataType& type,
+                                     Value* value, std::int64_t pos) {
   switch (type.id()) {
   case DataTypeId::kBoolean: {
     templateCopyNonNullValue<DataTypeId::kBoolean>(vector, type, value, pos);
@@ -440,8 +437,7 @@ void ArrowRowBatch::copyNonNullValue(ArrowVector* vector,
     templateCopyNonNullValue<DataTypeId::kStruct>(vector, type, value, pos);
   } break;
   case DataTypeId::kInternalId: {
-    templateCopyNonNullValue<DataTypeId::kInternalId>(vector, type, value,
-                                                         pos);
+    templateCopyNonNullValue<DataTypeId::kInternalId>(vector, type, value, pos);
   } break;
   case DataTypeId::kVertex: {
     templateCopyNonNullValue<DataTypeId::kVertex>(vector, type, value, pos);
@@ -487,8 +483,8 @@ void ArrowRowBatch::templateCopyNullValue<DataTypeId::kList>(
 }
 
 template <>
-void ArrowRowBatch::templateCopyNullValue<DataTypeId::kMap>(
-    ArrowVector* vector, std::int64_t pos) {
+void ArrowRowBatch::templateCopyNullValue<DataTypeId::kMap>(ArrowVector* vector,
+                                                            std::int64_t pos) {
   return templateCopyNullValue<DataTypeId::kList>(vector, pos);
 }
 

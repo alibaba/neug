@@ -33,8 +33,7 @@ struct VectorStringFunction {
   static inline function_set getUnaryStrFunction(std::string funcName) {
     function_set functionSet;
     functionSet.emplace_back(std::make_unique<ScalarFunction>(
-        funcName,
-        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
+        funcName, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
         common::DataTypeId::kVarchar,
         ScalarFunction::UnaryStringExecFunction<
             common::neug_string_t, common::neug_string_t, OPERATION>));

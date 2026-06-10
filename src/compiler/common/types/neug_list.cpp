@@ -27,8 +27,7 @@
 namespace neug {
 namespace common {
 
-void neug_list_t::set(const uint8_t* values,
-                      const DataType& dataType) const {}
+void neug_list_t::set(const uint8_t* values, const DataType& dataType) const {}
 
 void neug_list_t::set(const std::vector<uint8_t*>& parameters,
                       DataTypeId childTypeId) {}

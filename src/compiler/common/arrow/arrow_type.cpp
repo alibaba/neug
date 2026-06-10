@@ -110,18 +110,18 @@ DataType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
     // complex types need a complementary ExtraTypeInfo object
     case 'l':
     case 'L':
-      return DataType::List(
-          DataType(fromArrowSchema(schema->children[0])));
+      return DataType::List(DataType(fromArrowSchema(schema->children[0])));
     case 'w':
-      return DataType::Array(
-          DataType(fromArrowSchema(schema->children[0])),
-          std::stoul(arrowType + 3));
+      return DataType::Array(DataType(fromArrowSchema(schema->children[0])),
+                             std::stoul(arrowType + 3));
     case 's':
       for (int64_t i = 0; i < schema->n_children; i++) {
         structFieldNames.push_back(std::string(schema->children[i]->name));
-        structFieldTypes.push_back(DataType(fromArrowSchema(schema->children[i])));
+        structFieldTypes.push_back(
+            DataType(fromArrowSchema(schema->children[i])));
       }
-      return DataType::Struct(std::move(structFieldNames), std::move(structFieldTypes));
+      return DataType::Struct(std::move(structFieldNames),
+                              std::move(structFieldTypes));
     case 'm':
       return DataType::Map(
           DataType(fromArrowSchema(schema->children[0]->children[0])),
@@ -130,8 +130,7 @@ DataType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
       switch (arrowType[2]) {
       case 'l':
       case 'L':
-        return DataType::List(
-            DataType(fromArrowSchema(schema->children[0])));
+        return DataType::List(DataType(fromArrowSchema(schema->children[0])));
       default:
         NEUG_UNREACHABLE;
       }

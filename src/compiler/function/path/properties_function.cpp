@@ -55,7 +55,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     THROW_BINDER_EXCEPTION(stringFormat("Cannot extract properties from {}.",
                                         listType.toString()));
   }
-  auto returnType = DataType::List(StructType::GetChildType(childType, fieldIdx).copy());
+  auto returnType =
+      DataType::List(StructType::GetChildType(childType, fieldIdx).copy());
   auto bindData =
       std::make_unique<PropertiesBindData>(std::move(returnType), fieldIdx);
   bindData->paramTypes.push_back(input.arguments[0]->getDataType().copy());
@@ -89,8 +90,7 @@ static void execFunc(
 function_set PropertiesFunction::getFunctionSet() {
   function_set functions;
   auto function = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kVarchar},
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kVarchar},
       DataTypeId::kUnknown, execFunc);
   function->bindFunc = bindFunc;
   function->compileFunc = compileFunc;

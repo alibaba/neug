@@ -63,8 +63,7 @@ struct NEUG_API FunctionBindData {
   }
 
   virtual std::unique_ptr<FunctionBindData> copy() const {
-    return std::make_unique<FunctionBindData>(
-        paramTypes, resultType.copy());
+    return std::make_unique<FunctionBindData>(paramTypes, resultType.copy());
   }
 };
 
@@ -101,8 +100,7 @@ struct NEUG_API Function {
   bool isReadOnly = true;
 
   Function() : isVarLength{false}, isListLambda{false}, isReadOnly{true} {};
-  Function(std::string name,
-           std::vector<common::DataTypeId> parameterTypeIDs)
+  Function(std::string name, std::vector<common::DataTypeId> parameterTypeIDs)
       : name{std::move(name)},
         parameterTypeIDs{std::move(parameterTypeIDs)},
         isVarLength{false},

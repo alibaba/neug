@@ -45,8 +45,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 function_set NodesFunction::getFunctionSet() {
   function_set functionSet;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<DataTypeId>{DataTypeId::kPath},
-      DataTypeId::kUnknown);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, DataTypeId::kUnknown);
   function->bindFunc = bindFunc;
   function->compileFunc = StructExtractFunctions::compileFunc;
   functionSet.push_back(std::move(function));

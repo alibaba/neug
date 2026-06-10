@@ -51,8 +51,9 @@ std::shared_ptr<Expression> ExpressionBinder::bindSubqueryExpression(
   }
   binder->rewriteMatchPattern(boundGraphPattern);
   auto subqueryType = subqueryExpr.getSubqueryType();
-  auto dataType = subqueryType == SubqueryType::COUNT ? DataType(DataTypeId::kInt64)
-                                                      : DataType(DataTypeId::kBoolean);
+  auto dataType = subqueryType == SubqueryType::COUNT
+                      ? DataType(DataTypeId::kInt64)
+                      : DataType(DataTypeId::kBoolean);
   auto rawName = subqueryExpr.getRawName();
   auto uniqueName = binder->getUniqueExpressionName(rawName);
   auto boundSubqueryExpr = make_shared<SubqueryExpression>(

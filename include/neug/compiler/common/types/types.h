@@ -198,21 +198,21 @@ concept HashableTypes = (HashableNestedTypes<T> || HashableNonNestedTypes<T>);
 // Bring engine types into neug::common namespace.
 // All compiler code uses these instead of the old DataType/DataTypeId.
 // ============================================================================
+using neug::ArrayType;
+using neug::ArrayTypeInfo;
 using neug::DataType;
 using neug::DataTypeId;
 using neug::ExtraTypeInfo;
 using neug::ExtraTypeInfoType;
-using neug::StructTypeInfo;
-using neug::ListTypeInfo;
-using neug::ArrayTypeInfo;
-using neug::MapTypeInfo;
-using neug::StringTypeInfo;
 using neug::GNodeTypeInfo;
 using neug::GRelTypeInfo;
 using neug::ListType;
-using neug::StructType;
-using neug::ArrayType;
+using neug::ListTypeInfo;
 using neug::MapType;
+using neug::MapTypeInfo;
+using neug::StringTypeInfo;
+using neug::StructType;
+using neug::StructTypeInfo;
 
 using logical_type_vec_t = std::vector<DataType>;
 
@@ -285,7 +285,7 @@ struct NEUG_API LogicalTypeUtils {
 
  private:
   static bool tryGetMaxDataTypeId(DataTypeId left, DataTypeId right,
-                                     DataTypeId& result);
+                                  DataTypeId& result);
 };
 
 DataType convertFromString(const std::string& str,

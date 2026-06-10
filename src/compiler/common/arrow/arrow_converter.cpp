@@ -83,14 +83,16 @@ void ArrowConverter::setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
   child.children = &rootHolder.nestedChildrenPtr.back()[0];
   for (auto i = 0u; i < child.n_children; i++) {
     initializeChild(*child.children[i]);
-    child.children[i]->name = copyName(rootHolder, StructType::GetChildName(dataType, i));
-    setArrowFormat(rootHolder, *child.children[i], StructType::GetChildType(dataType, i));
+    child.children[i]->name =
+        copyName(rootHolder, StructType::GetChildName(dataType, i));
+    setArrowFormat(rootHolder, *child.children[i],
+                   StructType::GetChildType(dataType, i));
   }
 }
 
-void ArrowConverter::setArrowFormatForInternalID(
-    ArrowSchemaHolder& rootHolder, ArrowSchema& child,
-    const DataType& /*dataType*/) {
+void ArrowConverter::setArrowFormatForInternalID(ArrowSchemaHolder& rootHolder,
+                                                 ArrowSchema& child,
+                                                 const DataType& /*dataType*/) {
   child.format = "+s";
   // name is set by parent.
   child.n_children = 2;

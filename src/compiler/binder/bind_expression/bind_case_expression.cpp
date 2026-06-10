@@ -86,7 +86,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindCaseExpression(
     for (auto i = 0u; i < parsedCaseExpression.getNumCaseAlternative(); ++i) {
       auto caseAlternative = parsedCaseExpression.getCaseAlternative(i);
       auto boundWhen = bindExpression(*caseAlternative->whenExpression);
-      boundWhen = implicitCastIfNecessary(boundWhen, DataType(DataTypeId::kBoolean));
+      boundWhen =
+          implicitCastIfNecessary(boundWhen, DataType(DataTypeId::kBoolean));
       auto boundThen = bindExpression(*caseAlternative->thenExpression);
       boundThen = implicitCastIfNecessary(boundThen, resultType);
       boundCaseExpression->addCaseAlternative(boundWhen, boundThen);

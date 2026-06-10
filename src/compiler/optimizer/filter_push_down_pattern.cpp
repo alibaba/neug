@@ -190,8 +190,8 @@ FilterPushDownPattern::bindBooleanExpression(
   auto functionName = common::ExpressionTypeUtil::toString(expressionType);
   function::scalar_func_exec_t execFunc = nullptr;
   function::scalar_func_select_t selectFunc = nullptr;
-  auto bindData =
-      std::make_unique<function::FunctionBindData>(common::DataType(DataTypeId::kBoolean));
+  auto bindData = std::make_unique<function::FunctionBindData>(
+      common::DataType(DataTypeId::kBoolean));
   auto uniqueExpressionName = binder::ScalarFunctionExpression::getUniqueName(
       functionName, childrenAfterCast);
   auto func = std::make_unique<function::ScalarFunction>(

@@ -281,8 +281,7 @@ Value::Value(DataType type, std::string val_)
   strVal = std::move(val_);
 }
 
-Value::Value(DataType dataType_,
-             std::vector<std::unique_ptr<Value>> children)
+Value::Value(DataType dataType_, std::vector<std::unique_ptr<Value>> children)
     : dataType{std::move(dataType_)}, isNull_{false} {
   this->children = std::move(children);
   childrenSize = this->children.size();

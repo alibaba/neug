@@ -212,8 +212,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
 
 std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
     const BaseScanSource& scanSource, const options_t& options,
-    const std::vector<std::string>& columnNames,
-    const std::vector<DataType>&) {
+    const std::vector<std::string>& columnNames, const std::vector<DataType>&) {
   auto querySource = scanSource.constPtrCast<QueryScanSource>();
   auto boundStatement = bind(*querySource->statement);
   auto columns = boundStatement->getStatementResult()->getColumns();

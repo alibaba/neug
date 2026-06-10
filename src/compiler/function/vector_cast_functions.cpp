@@ -214,8 +214,7 @@ static bool hasImplicitCastStruct(const DataType& srcType,
     if (srcFieldNames[i] != dstFieldNames[i]) {
       return false;
     }
-    if (!CastFunction::hasImplicitCast(srcFieldTypes[i],
-                                       dstFieldTypes[i])) {
+    if (!CastFunction::hasImplicitCast(srcFieldTypes[i], dstFieldTypes[i])) {
       return false;
     }
   }
@@ -262,8 +261,7 @@ bool CastFunction::hasImplicitCast(const DataType& srcType,
       // LCOV_EXCL_END
     }
   }
-  if (BuiltInFunctionsUtils::getCastCost(srcType.id(),
-                                         dstType.id()) !=
+  if (BuiltInFunctionsUtils::getCastCost(srcType.id(), dstType.id()) !=
       UNDEFINED_CAST_COST) {
     return true;
   }
@@ -518,8 +516,8 @@ static std::unique_ptr<ScalarFunction> bindCastToNumericFunction(
                      sourceType.toString(), targetType.toString()));
   }
   return std::make_unique<ScalarFunction>(
-      functionName, std::vector<DataTypeId>{sourceType.id()},
-      targetType.id(), func);
+      functionName, std::vector<DataTypeId>{sourceType.id()}, targetType.id(),
+      func);
 }
 
 static std::unique_ptr<ScalarFunction> bindCastBetweenNested(
@@ -532,20 +530,19 @@ static std::unique_ptr<ScalarFunction> bindCastBetweenNested(
   case DataTypeId::kUnknown:
   case DataTypeId::kArray: {
     // todo: compile time checking of nested types
-    if (CastArrayHelper::checkCompatibleNestedTypes(
-            sourceType.id(), targetType.id())) {
+    if (CastArrayHelper::checkCompatibleNestedTypes(sourceType.id(),
+                                                    targetType.id())) {
       return std::make_unique<ScalarFunction>(
-          functionName,
-          std::vector<DataTypeId>{sourceType.id()},
+          functionName, std::vector<DataTypeId>{sourceType.id()},
           targetType.id(), nestedTypesCastExecFunction);
     }
     [[fallthrough]];
   }
   default:
-    THROW_CONVERSION_EXCEPTION(stringFormat(
-        "Unsupported casting function from {} to {}.",
-        LogicalTypeUtils::toString(sourceType.id()),
-        LogicalTypeUtils::toString(targetType.id())));
+    THROW_CONVERSION_EXCEPTION(
+        stringFormat("Unsupported casting function from {} to {}.",
+                     LogicalTypeUtils::toString(sourceType.id()),
+                     LogicalTypeUtils::toString(targetType.id())));
   }
 }
 
@@ -567,8 +564,8 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     // LCOV_EXCL_END
   }
   return std::make_unique<ScalarFunction>(
-      functionName, std::vector<DataTypeId>{sourceType.id()},
-      DataTypeId::kDate, func);
+      functionName, std::vector<DataTypeId>{sourceType.id()}, DataTypeId::kDate,
+      func);
 }
 
 template <typename EXECUTOR = UnaryFunctionExecutor, typename DST_TYPE>
@@ -679,15 +676,15 @@ function_set CastToDateFunction::getFunctionSet() {
 
 function_set CastToTimestampFunction::getFunctionSet() {
   function_set result;
-  result.push_back(CastFunction::bindCastFunction(name, DataType::Varchar(),
-                                                  DataType(DataTypeId::kTimestampMs)));
+  result.push_back(CastFunction::bindCastFunction(
+      name, DataType::Varchar(), DataType(DataTypeId::kTimestampMs)));
   return result;
 }
 
 function_set CastToIntervalFunction::getFunctionSet() {
   function_set result;
-  result.push_back(CastFunction::bindCastFunction(name, DataType::Varchar(),
-                                                  DataType(DataTypeId::kInterval)));
+  result.push_back(CastFunction::bindCastFunction(
+      name, DataType::Varchar(), DataType(DataTypeId::kInterval)));
   return result;
 }
 
@@ -702,14 +699,12 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   auto literalExpr = input.arguments[1]->constPtrCast<LiteralExpression>();
   auto targetTypeStr = literalExpr->getValue().getValue<std::string>();
   auto func = input.definition->ptrCast<ScalarFunction>();
-  auto targetType =
-      convertFromString(targetTypeStr, input.context);
+  auto targetType = convertFromString(targetTypeStr, input.context);
   // For STRUCT type, we will need to check its field name in later stage
   // Otherwise, there will be bug for: RETURN cast({'a': 12, 'b': 12} AS
   // struct(c int64, d int64)); being allowed.
   if (targetType == input.arguments[0]->getDataType() &&
-      targetType.id() !=
-          DataTypeId::kStruct) {  // No need to cast.
+      targetType.id() != DataTypeId::kStruct) {  // No need to cast.
     return nullptr;
   }
   if (ExpressionUtil::canCastStatically(*input.arguments[0], targetType) &&
@@ -768,8 +763,7 @@ function_set CastAnyFunction::getFunctionSet() {
   function_set result;
   // todo(engine): support cast execution function in NeugScalarFunction
   auto func = std::make_unique<NeugScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kUnknown, DataTypeId::kVarchar},
+      name, std::vector<DataTypeId>{DataTypeId::kUnknown, DataTypeId::kVarchar},
       DataTypeId::kUnknown, std::move(castFunc));
   func->bindFunc = castBindFunc;
   result.push_back(std::move(func));

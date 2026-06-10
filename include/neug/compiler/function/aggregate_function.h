@@ -137,9 +137,9 @@ struct AggregateFunctionUtils {
       common::DataTypeId resultType, bool isDistinct,
       param_rewrite_function_t paramRewriteFunc = nullptr) {
     return std::make_unique<AggregateFunction>(
-        std::move(name), std::vector<common::DataTypeId>{inputType},
-        resultType, T::initialize, T::updateAll, T::updatePos, T::combine,
-        T::finalize, isDistinct, nullptr /* bindFunc */, paramRewriteFunc);
+        std::move(name), std::vector<common::DataTypeId>{inputType}, resultType,
+        T::initialize, T::updateAll, T::updatePos, T::combine, T::finalize,
+        isDistinct, nullptr /* bindFunc */, paramRewriteFunc);
   }
 
   template <template <typename, typename> class FunctionType>

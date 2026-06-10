@@ -193,7 +193,7 @@ class NEUG_API Catalog {
                     const std::string& name) const;
   // Get type entry with name.
   common::DataType getType(const transaction::Transaction*,
-                              const std::string& name) const;
+                           const std::string& name) const;
 
   // Create type entry.
   void createType(transaction::Transaction* transaction, std::string name,

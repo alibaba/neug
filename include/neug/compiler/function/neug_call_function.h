@@ -52,11 +52,9 @@ struct NeugCallFunction : public TableFunction {
 
   NeugCallFunction() = default;
 
-  NeugCallFunction(std::string name,
-                   std::vector<common::DataTypeId> inputTypes)
+  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
       : TableFunction{std::move(name), std::move(inputTypes)} {}
-  NeugCallFunction(std::string name,
-                   std::vector<common::DataTypeId> inputTypes,
+  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
                    call_output_columns outputColumns)
       : TableFunction{std::move(name), std::move(inputTypes)},
         outputColumns{std::move(outputColumns)} {}

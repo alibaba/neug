@@ -87,10 +87,8 @@ bool Schema::isExpressionInScope(const Expression& expression) const {
     // following code is to handle this case and identify the join node by
     // comparing internal ID directly.
     if (expressionInScope->expressionType == common::ExpressionType::PATTERN &&
-        expressionInScope->getDataType().id() ==
-            common::DataTypeId::kVertex &&
-        expression.getDataType().id() ==
-            common::DataTypeId::kInternalId) {
+        expressionInScope->getDataType().id() == common::DataTypeId::kVertex &&
+        expression.getDataType().id() == common::DataTypeId::kInternalId) {
       auto nodeScope = expressionInScope->constPtrCast<NodeExpression>();
       if (nodeScope->getInternalID()->getUniqueName() ==
           expression.getUniqueName()) {

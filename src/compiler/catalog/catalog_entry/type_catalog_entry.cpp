@@ -40,7 +40,8 @@ std::unique_ptr<TypeCatalogEntry> TypeCatalogEntry::deserialize(
   deserializer.validateDebuggingInfo(debuggingInfo, "type");
   uint8_t typeIdVal;
   deserializer.deserializeValue(typeIdVal);
-  typeCatalogEntry->type = common::DataType(static_cast<common::DataTypeId>(typeIdVal));
+  typeCatalogEntry->type =
+      common::DataType(static_cast<common::DataTypeId>(typeIdVal));
   return typeCatalogEntry;
 }
 

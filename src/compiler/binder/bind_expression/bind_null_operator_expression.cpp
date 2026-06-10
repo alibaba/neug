@@ -56,8 +56,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindNullOperatorExpression(
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   function::scalar_func_exec_t execFunc = nullptr;
   function::scalar_func_select_t selectFunc = nullptr;
-  auto bindData =
-      std::make_unique<function::FunctionBindData>(DataType(DataTypeId::kBoolean));
+  auto bindData = std::make_unique<function::FunctionBindData>(
+      DataType(DataTypeId::kBoolean));
   auto uniqueExpressionName =
       ScalarFunctionExpression::getUniqueName(functionName, childrenAfterCast);
   auto func = std::make_unique<ScalarFunction>(

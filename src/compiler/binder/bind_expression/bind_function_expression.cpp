@@ -148,8 +148,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
     if (function->bindFunc) {
       bindData = function->bindFunc(bindInput);
     } else {
-      bindData = std::make_unique<FunctionBindData>(
-          DataType(function->returnTypeID));
+      bindData =
+          std::make_unique<FunctionBindData>(DataType(function->returnTypeID));
     }
     if (bindData == nullptr) {
       THROW_BINDER_EXCEPTION("Failed to bind function " + functionName +

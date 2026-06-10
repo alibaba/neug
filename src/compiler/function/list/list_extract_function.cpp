@@ -86,8 +86,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 function_set ListExtractFunction::getFunctionSet() {
   function_set result;
   std::unique_ptr<ScalarFunction> func = std::make_unique<NeugScalarFunction>(
-      name,
-      std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kInt64},
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kInt64},
       DataTypeId::kUnknown, std::move(execFunc));
   func->bindFunc = bindFunc;
   result.push_back(std::move(func));

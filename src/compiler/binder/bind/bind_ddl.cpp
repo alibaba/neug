@@ -321,8 +321,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateType(
     const Statement& statement) const {
   auto createType = statement.constPtrCast<CreateType>();
   auto name = createType->getName();
-  DataType type =
-      convertFromString(createType->getDataType(), clientContext);
+  DataType type = convertFromString(createType->getDataType(), clientContext);
   if (clientContext->getCatalog()->containsType(clientContext->getTransaction(),
                                                 name)) {
     THROW_BINDER_EXCEPTION(stringFormat("Duplicated type name: {}.", name));
@@ -451,8 +450,7 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   auto extraInfo = info->extraInfo->ptrCast<ExtraAddPropertyInfo>();
   auto tableName = info->tableName;
   auto propertyName = extraInfo->propertyName;
-  auto type =
-      convertFromString(extraInfo->dataType, clientContext);
+  auto type = convertFromString(extraInfo->dataType, clientContext);
   auto columnDefinition = ColumnDefinition(propertyName, type.copy());
   auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(), type,
                                             tableName, propertyName);

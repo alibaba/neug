@@ -174,8 +174,7 @@ bool LogicalHashJoin::isNodeIDOnlyJoin(
     const std::vector<join_condition_t>& joinConditions) {
   for (auto& [probeKey, buildKey] : joinConditions) {
     if (probeKey->getUniqueName() != buildKey->getUniqueName() ||
-        probeKey->getDataType().id() !=
-            common::DataTypeId::kInternalId) {
+        probeKey->getDataType().id() != common::DataTypeId::kInternalId) {
       return false;
     }
   }

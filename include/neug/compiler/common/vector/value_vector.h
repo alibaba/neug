@@ -186,7 +186,8 @@ class NEUG_API StringVector {
  public:
   static inline InMemOverflowBuffer* getInMemOverflowBuffer(
       ValueVector* vector) {
-    NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
+    NEUG_ASSERT(getPhysicalType(vector->dataType.id()) ==
+                PhysicalTypeID::STRING);
     return neug_dynamic_cast<StringAuxiliaryBuffer*>(
                vector->auxiliaryBuffer.get())
         ->getOverflowBuffer();

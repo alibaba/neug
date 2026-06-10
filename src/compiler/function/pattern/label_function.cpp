@@ -84,8 +84,7 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
     if (map.contains(i)) {
       labels[i] = std::make_unique<Value>(DataType::Varchar(), map.at(i));
     } else {
-      labels[i] =
-          std::make_unique<Value>(DataType::Varchar(), std::string(""));
+      labels[i] = std::make_unique<Value>(DataType::Varchar(), std::string(""));
     }
   }
   auto labelsValue =

@@ -35,7 +35,8 @@ class LambdaExpression final : public Expression {
  public:
   LambdaExpression(std::unique_ptr<parser::ParsedExpression> parsedLambdaExpr,
                    std::string uniqueName)
-      : Expression{type_, common::DataType(DataTypeId::kUnknown), std::move(uniqueName)},
+      : Expression{type_, common::DataType(DataTypeId::kUnknown),
+                   std::move(uniqueName)},
         parsedLambdaExpr{std::move(parsedLambdaExpr)} {}
 
   void cast(const common::DataType& type_) override {

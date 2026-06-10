@@ -69,8 +69,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
       expressionBinder.bindExpression(*unwindClause.getExpression());
   auto aliasName = unwindClause.getAlias();
   std::shared_ptr<Expression> alias;
-  if (boundExpression->getDataType().id() ==
-      DataTypeId::kArray) {
+  if (boundExpression->getDataType().id() == DataTypeId::kArray) {
     auto targetType = DataType::List(
         ArrayType::GetChildType(boundExpression->dataType).copy());
     boundExpression =
@@ -78,11 +77,13 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
   }
   if (!skipDataTypeValidation(*boundExpression)) {
     ExpressionUtil::validateDataType(*boundExpression, DataTypeId::kList);
-    alias = createAlias(aliasName,
-                        neug::common::ListType::GetChildType(boundExpression->dataType),
-                        boundExpression);
+    alias = createAlias(
+        aliasName,
+        neug::common::ListType::GetChildType(boundExpression->dataType),
+        boundExpression);
   } else {
-    alias = createAlias(aliasName, DataType(DataTypeId::kUnknown), boundExpression);
+    alias =
+        createAlias(aliasName, DataType(DataTypeId::kUnknown), boundExpression);
   }
   std::shared_ptr<Expression> idExpr = nullptr;
   if (scope.hasMemorizedTableIDs(boundExpression->getAlias())) {

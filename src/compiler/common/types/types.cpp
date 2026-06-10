@@ -221,8 +221,7 @@ PhysicalTypeID getPhysicalType(DataTypeId typeId) {
 // isBuiltInType)
 // ============================================================================
 
-static bool tryGetIDFromString(const std::string& trimmedStr,
-                               DataTypeId& id);
+static bool tryGetIDFromString(const std::string& trimmedStr, DataTypeId& id);
 static std::vector<std::string> parseStructFields(
     const std::string& structTypeStr);
 
@@ -299,8 +298,7 @@ std::string LogicalTypeUtils::toString(DataTypeId dataTypeID) {
   }
 }
 
-std::string LogicalTypeUtils::toString(
-    const std::vector<DataType>& dataTypes) {
+std::string LogicalTypeUtils::toString(const std::vector<DataType>& dataTypes) {
   if (dataTypes.empty()) {
     return {""};
   }
@@ -457,25 +455,20 @@ bool LogicalTypeUtils::isNested(DataTypeId logicalTypeID) {
   }
 }
 
-std::vector<DataTypeId>
-LogicalTypeUtils::getAllValidComparableLogicalTypes() {
+std::vector<DataTypeId> LogicalTypeUtils::getAllValidComparableLogicalTypes() {
   return std::vector<DataTypeId>{
-      DataTypeId::kBoolean,  DataTypeId::kInt64,
-      DataTypeId::kInt32,    DataTypeId::kInt16,
-      DataTypeId::kInt8,     DataTypeId::kUInt64,
-      DataTypeId::kUInt32,   DataTypeId::kUInt16,
-      DataTypeId::kUInt8,    DataTypeId::kDouble,
-      DataTypeId::kFloat,    DataTypeId::kDate,
-      DataTypeId::kTimestampMs, DataTypeId::kInterval,
-      DataTypeId::kVarchar};
+      DataTypeId::kBoolean,     DataTypeId::kInt64,    DataTypeId::kInt32,
+      DataTypeId::kInt16,       DataTypeId::kInt8,     DataTypeId::kUInt64,
+      DataTypeId::kUInt32,      DataTypeId::kUInt16,   DataTypeId::kUInt8,
+      DataTypeId::kDouble,      DataTypeId::kFloat,    DataTypeId::kDate,
+      DataTypeId::kTimestampMs, DataTypeId::kInterval, DataTypeId::kVarchar};
 }
 
 std::vector<DataTypeId> LogicalTypeUtils::getIntegerTypeIDs() {
-  return std::vector<DataTypeId>{
-      DataTypeId::kInt64,  DataTypeId::kInt32,
-      DataTypeId::kInt16,  DataTypeId::kInt8,
-      DataTypeId::kUInt64, DataTypeId::kUInt32,
-      DataTypeId::kUInt16, DataTypeId::kUInt8};
+  return std::vector<DataTypeId>{DataTypeId::kInt64,  DataTypeId::kInt32,
+                                 DataTypeId::kInt16,  DataTypeId::kInt8,
+                                 DataTypeId::kUInt64, DataTypeId::kUInt32,
+                                 DataTypeId::kUInt16, DataTypeId::kUInt8};
 }
 
 std::vector<DataTypeId> LogicalTypeUtils::getFloatingPointTypeIDs() {
@@ -492,18 +485,14 @@ std::vector<DataTypeId> LogicalTypeUtils::getNumericalDataTypeIds() {
 
 std::vector<DataTypeId> LogicalTypeUtils::getAllValidLogicTypeIDs() {
   return std::vector<DataTypeId>{
-      DataTypeId::kInternalId, DataTypeId::kBoolean,
-      DataTypeId::kInt64,      DataTypeId::kInt32,
-      DataTypeId::kInt16,      DataTypeId::kInt8,
-      DataTypeId::kUInt64,     DataTypeId::kUInt32,
-      DataTypeId::kUInt16,     DataTypeId::kUInt8,
-      DataTypeId::kDouble,     DataTypeId::kVarchar,
-      DataTypeId::kDate,       DataTypeId::kTimestampMs,
-      DataTypeId::kInterval,   DataTypeId::kList,
-      DataTypeId::kArray,      DataTypeId::kMap,
-      DataTypeId::kFloat,      DataTypeId::kVertex,
-      DataTypeId::kEdge,       DataTypeId::kPath,
-      DataTypeId::kStruct};
+      DataTypeId::kInternalId, DataTypeId::kBoolean,     DataTypeId::kInt64,
+      DataTypeId::kInt32,      DataTypeId::kInt16,       DataTypeId::kInt8,
+      DataTypeId::kUInt64,     DataTypeId::kUInt32,      DataTypeId::kUInt16,
+      DataTypeId::kUInt8,      DataTypeId::kDouble,      DataTypeId::kVarchar,
+      DataTypeId::kDate,       DataTypeId::kTimestampMs, DataTypeId::kInterval,
+      DataTypeId::kList,       DataTypeId::kArray,       DataTypeId::kMap,
+      DataTypeId::kFloat,      DataTypeId::kVertex,      DataTypeId::kEdge,
+      DataTypeId::kPath,       DataTypeId::kStruct};
 }
 
 std::vector<DataType> LogicalTypeUtils::getAllValidLogicTypes() {
@@ -528,10 +517,12 @@ std::vector<DataType> LogicalTypeUtils::getAllValidLogicTypes() {
   typeVec.push_back(DataType::Map(DataType(DataTypeId::kUnknown),
                                   DataType(DataTypeId::kUnknown)));
   typeVec.push_back(DataType(DataTypeId::kFloat));
-  typeVec.push_back(DataType(DataTypeId::kVertex,
-      std::make_shared<StructTypeInfo>(std::vector<DataType>{})));
-  typeVec.push_back(DataType(DataTypeId::kEdge,
-      std::make_shared<StructTypeInfo>(std::vector<DataType>{})));
+  typeVec.push_back(
+      DataType(DataTypeId::kVertex,
+               std::make_shared<StructTypeInfo>(std::vector<DataType>{})));
+  typeVec.push_back(
+      DataType(DataTypeId::kEdge,
+               std::make_shared<StructTypeInfo>(std::vector<DataType>{})));
   typeVec.push_back(DataType::Struct(std::vector<DataType>{}));
   return typeVec;
 }
@@ -652,8 +643,8 @@ DataType parseStructType(const std::string& trimmedStr,
       rightBracketPos == std::string::npos) {
     THROW_EXCEPTION_WITH_FILE_LINE("Cannot parse struct type: " + trimmedStr);
   }
-  auto structFieldsStr = trimmedStr.substr(leftBracketPos + 1,
-                                           rightBracketPos - leftBracketPos - 1);
+  auto structFieldsStr = trimmedStr.substr(
+      leftBracketPos + 1, rightBracketPos - leftBracketPos - 1);
   std::vector<std::string> fieldNames;
   std::vector<DataType> fieldTypes;
   auto structFieldStrs = parseStructFields(structFieldsStr);
@@ -765,8 +756,8 @@ DataType convertFromString(const std::string& str,
 // tryGetMaxLogicalType support functions
 // ============================================================================
 
-static bool tryCombineListTypes(const DataType& left,
-                                const DataType& right, DataType& result) {
+static bool tryCombineListTypes(const DataType& left, const DataType& right,
+                                DataType& result) {
   DataType childType;
   if (!LogicalTypeUtils::tryGetMaxLogicalType(ListType::GetChildType(left),
                                               ListType::GetChildType(right),
@@ -777,8 +768,7 @@ static bool tryCombineListTypes(const DataType& left,
   return true;
 }
 
-static bool tryCombineArrayTypes(const DataType& left,
-                                 const DataType& right,
+static bool tryCombineArrayTypes(const DataType& left, const DataType& right,
                                  DataType& result) {
   if (ArrayType::GetNumElements(left) != ArrayType::GetNumElements(right)) {
     return tryCombineListTypes(left, right, result);
@@ -795,8 +785,7 @@ static bool tryCombineArrayTypes(const DataType& left,
 }
 
 static bool tryCombineListArrayTypes(const DataType& left,
-                                     const DataType& right,
-                                     DataType& result) {
+                                     const DataType& right, DataType& result) {
   DataType childType;
   if (!LogicalTypeUtils::tryGetMaxLogicalType(ListType::GetChildType(left),
                                               ArrayType::GetChildType(right),
@@ -807,8 +796,7 @@ static bool tryCombineListArrayTypes(const DataType& left,
   return true;
 }
 
-static bool tryCombineStructTypes(const DataType& left,
-                                  const DataType& right,
+static bool tryCombineStructTypes(const DataType& left, const DataType& right,
                                   DataType& result) {
   const auto& leftNames = StructType::GetFieldNames(left);
   const auto& leftTypes = StructType::GetChildTypes(left);
@@ -836,8 +824,8 @@ static bool tryCombineStructTypes(const DataType& left,
   return true;
 }
 
-static bool tryCombineMapTypes(const DataType& left,
-                               const DataType& right, DataType& result) {
+static bool tryCombineMapTypes(const DataType& left, const DataType& right,
+                               DataType& result) {
   const auto& leftKeyType = MapType::GetKeyType(left);
   const auto& leftValueType = MapType::GetValueType(left);
   const auto& rightKeyType = MapType::GetKeyType(right);
@@ -849,8 +837,7 @@ static bool tryCombineMapTypes(const DataType& left,
                                               resultValueType)) {
     return false;
   }
-  result =
-      DataType::Map(std::move(resultKeyType), std::move(resultValueType));
+  result = DataType::Map(std::move(resultKeyType), std::move(resultValueType));
   return true;
 }
 
@@ -1004,8 +991,7 @@ bool LogicalTypeUtils::tryGetMaxLogicalType(const DataType& left,
     return true;
   }
   if (isSemanticallyNested(left.id()) || isSemanticallyNested(right.id())) {
-    if (left.id() == DataTypeId::kList &&
-        right.id() == DataTypeId::kArray) {
+    if (left.id() == DataTypeId::kList && right.id() == DataTypeId::kArray) {
       return tryCombineListArrayTypes(left, right, result);
     } else if (left.id() == DataTypeId::kArray &&
                right.id() == DataTypeId::kList) {
@@ -1040,8 +1026,8 @@ bool LogicalTypeUtils::tryGetMaxLogicalType(const DataType& left,
   return true;
 }
 
-bool LogicalTypeUtils::tryGetMaxLogicalType(
-    const std::vector<DataType>& types, DataType& result) {
+bool LogicalTypeUtils::tryGetMaxLogicalType(const std::vector<DataType>& types,
+                                            DataType& result) {
   DataType combinedType(DataTypeId::kUnknown);
   for (auto& type : types) {
     if (!tryGetMaxLogicalType(combinedType, type, combinedType)) {
@@ -1054,14 +1040,11 @@ bool LogicalTypeUtils::tryGetMaxLogicalType(
 
 DataType LogicalTypeUtils::combineTypes(const DataType& lft,
                                         const DataType& rit) {
-  if (lft.id() == DataTypeId::kVarchar ||
-      rit.id() == DataTypeId::kVarchar) {
+  if (lft.id() == DataTypeId::kVarchar || rit.id() == DataTypeId::kVarchar) {
     return DataType(DataTypeId::kVarchar);
   }
-  if (isSemanticallyNested(lft.id()) &&
-      isSemanticallyNested(rit.id())) {}
-  if (lft.id() == rit.id() &&
-      lft.id() == DataTypeId::kStruct) {
+  if (isSemanticallyNested(lft.id()) && isSemanticallyNested(rit.id())) {}
+  if (lft.id() == rit.id() && lft.id() == DataTypeId::kStruct) {
     const auto& lftNames = StructType::GetFieldNames(lft);
     const auto& lftTypes = StructType::GetChildTypes(lft);
     std::vector<std::string> resultNames;
@@ -1088,14 +1071,12 @@ DataType LogicalTypeUtils::combineTypes(const DataType& lft,
     }
     return DataType::Struct(std::move(resultNames), std::move(resultTypes));
   }
-  if (lft.id() == rit.id() &&
-      lft.id() == DataTypeId::kList) {
+  if (lft.id() == rit.id() && lft.id() == DataTypeId::kList) {
     const auto& lftChild = ListType::GetChildType(lft);
     const auto& ritChild = ListType::GetChildType(rit);
     return DataType::List(combineTypes(lftChild, ritChild));
   }
-  if (lft.id() == rit.id() &&
-      lft.id() == DataTypeId::kMap) {
+  if (lft.id() == rit.id() && lft.id() == DataTypeId::kMap) {
     const auto& lftKey = MapType::GetKeyType(lft);
     const auto& lftValue = MapType::GetValueType(lft);
     const auto& ritKey = MapType::GetKeyType(rit);
@@ -1116,12 +1097,10 @@ DataType LogicalTypeUtils::purgeAny(const DataType& type,
   case DataTypeId::kUnknown:
     return replacement.copy();
   case DataTypeId::kList:
-    return DataType::List(
-        purgeAny(ListType::GetChildType(type), replacement));
+    return DataType::List(purgeAny(ListType::GetChildType(type), replacement));
   case DataTypeId::kArray:
-    return DataType::Array(
-        purgeAny(ArrayType::GetChildType(type), replacement),
-        ArrayType::GetNumElements(type));
+    return DataType::Array(purgeAny(ArrayType::GetChildType(type), replacement),
+                           ArrayType::GetNumElements(type));
   case DataTypeId::kMap:
     return DataType::Map(purgeAny(MapType::GetKeyType(type), replacement),
                          purgeAny(MapType::GetValueType(type), replacement));

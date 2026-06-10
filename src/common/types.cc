@@ -89,7 +89,7 @@ const DataType& StructType::GetChildType(const DataType& type, size_t index) {
 }
 
 const std::string& StructType::GetChildName(const DataType& type,
-                                             size_t index) {
+                                            size_t index) {
   const auto& info = getStructInfo(type);
   assert(index < info.field_names.size());
   return info.field_names[index];
@@ -177,13 +177,13 @@ DataType DataType::Varchar(size_t max_length) {
   return DataType(DataTypeId::kVarchar, type_info);
 }
 
-DataType DataType::InternalId() {
-  return DataType(DataTypeId::kInternalId);
-}
+DataType DataType::InternalId() { return DataType(DataTypeId::kInternalId); }
 
 bool DataType::containsAny() const {
-  if (id_ == DataTypeId::kUnknown) return true;
-  if (!type_info_) return false;
+  if (id_ == DataTypeId::kUnknown)
+    return true;
+  if (!type_info_)
+    return false;
   switch (id_) {
   case DataTypeId::kList: {
     auto& info = type_info_->Cast<ListTypeInfo>();
@@ -203,7 +203,8 @@ bool DataType::containsAny() const {
   case DataTypeId::kPath: {
     auto& info = type_info_->Cast<StructTypeInfo>();
     for (auto& child : info.child_types) {
-      if (child.containsAny()) return true;
+      if (child.containsAny())
+        return true;
     }
     return false;
   }

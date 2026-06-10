@@ -104,7 +104,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
   ExpressionUtil::validateDataType(
       *child,
       std::vector<DataTypeId>{DataTypeId::kVertex, DataTypeId::kEdge,
-                                 DataTypeId::kStruct, DataTypeId::kUnknown});
+                              DataTypeId::kStruct, DataTypeId::kUnknown});
   // Neug can support node or rel pattern as order key directly, we don't
   // need to convert it to struct property expression.
 

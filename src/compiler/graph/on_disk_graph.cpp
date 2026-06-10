@@ -71,7 +71,7 @@ static Schema getSchema(const expression_vector& exprs) {
 }
 
 static neug::processor::ResultSet getResultSet(Schema* schema,
-                                             MemoryManager* mm) {
+                                               MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");
 }
