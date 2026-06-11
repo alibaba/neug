@@ -268,3 +268,12 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
     neug::test::AssertInt64Column(table.response(), 0, {4});
   }
 }
+
+// ---------------------------------------------------------------------------
+// Primary key type validation: LIST should be rejected
+// ---------------------------------------------------------------------------
+TEST_F(DDLTestDBFixture, ListAsPrimaryKeyRejected) {
+  // Attempt to create table with LIST as primary key - should fail
+  EXPECT_FALSE(
+      conn->Query("CREATE NODE TABLE BadTable(id INT64[] PRIMARY KEY);"));
+}

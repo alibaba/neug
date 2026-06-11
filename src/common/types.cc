@@ -23,10 +23,12 @@
 
 #include "neug/common/types.h"
 
+#include <yaml-cpp/yaml.h>
 #include "neug/common/extra_type_info.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
 
@@ -270,6 +272,22 @@ std::string DataType::ToString() const {
   default:
     return "UNKNOWN" + std::to_string(static_cast<uint8_t>(id_));
   }
+}
+
+std::string DataType::ToYAMLString(const DataType& type) {
+  YAML::Node node = YAML::convert<DataType>::encode(type);
+  YAML::Emitter emitter;
+  emitter << YAML::Flow << node;
+  return std::string(emitter.c_str());
+}
+
+DataType DataType::FromYAMLString(const std::string& str) {
+  YAML::Node node = YAML::Load(str);
+  DataType type;
+  if (!YAML::convert<DataType>::decode(node, type)) {
+    THROW_RUNTIME_ERROR("Failed to parse DataType from YAML: " + str);
+  }
+  return type;
 }
 
 }  // namespace neug

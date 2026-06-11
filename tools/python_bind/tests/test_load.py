@@ -2237,3 +2237,217 @@ class TestCopyFrom:
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
         count = next(res)[0]
         assert count == 1, f"Expected 1 edge, got {count}"
+
+    def test_copy_from_node_with_int64_list_property(self):
+        """COPY FROM CSV into a node table with INT64[] list property."""
+        csv_path = self.tmp_path / "persons_with_scores.csv"
+        csv_path.write_text(
+            "id|name|s1|s2|s3\n"
+            "1|Alice|10|20|30\n"
+            "2|Bob|40|50|60\n"
+            "3|Carol|70|80|90\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonScores("
+            "id INT64 PRIMARY KEY, name STRING, scores INT64[]);"
+        )
+        self.conn.execute(
+            f"COPY PersonScores FROM ("
+            f'  LOAD FROM "{csv_path}" (header=true, delim="|")'
+            f'  RETURN CAST(id, "INT64") as id, name,'
+            f'         [CAST(s1, "INT64"), CAST(s2, "INT64"), CAST(s3, "INT64")] as scores'
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (p:PersonScores) RETURN p.id, p.name, p.scores ORDER BY p.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 3
+        assert rows[0] == [1, "Alice", [10, 20, 30]]
+        assert rows[1] == [2, "Bob", [40, 50, 60]]
+        assert rows[2] == [3, "Carol", [70, 80, 90]]
+
+    def test_copy_from_node_with_string_list_property(self):
+        """COPY FROM CSV into a node table with STRING[] list property."""
+        csv_path = self.tmp_path / "persons_with_tags.csv"
+        csv_path.write_text(
+            "id|tag1|tag2\n" "1|engineer|python\n" "2|designer|figma\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonTags(" "id INT64 PRIMARY KEY, tags STRING[]);"
+        )
+        self.conn.execute(
+            f"COPY PersonTags FROM ("
+            f'  LOAD FROM "{csv_path}" (header=true, delim="|")'
+            f'  RETURN CAST(id, "INT64") as id, [tag1, tag2] as tags'
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (p:PersonTags) RETURN p.id, p.tags ORDER BY p.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 2
+        assert rows[0] == [1, ["engineer", "python"]]
+        assert rows[1] == [2, ["designer", "figma"]]
+
+    def test_copy_from_node_with_multiple_list_properties(self):
+        """COPY FROM CSV into a node table with both INT64[] and STRING[] properties."""
+        csv_path = self.tmp_path / "persons_multi_list.csv"
+        csv_path.write_text(
+            "id|name|s1|s2|t1|t2\n" "1|Alice|10|20|math|sci\n" "2|Bob|30|40|eng|art\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonMultiList("
+            "id INT64 PRIMARY KEY, name STRING, scores INT64[], subjects STRING[]);"
+        )
+        self.conn.execute(
+            f"COPY PersonMultiList FROM ("
+            f'  LOAD FROM "{csv_path}" (header=true, delim="|")'
+            f'  RETURN CAST(id, "INT64") as id, name,'
+            f'         [CAST(s1, "INT64"), CAST(s2, "INT64")] as scores,'
+            f"         [t1, t2] as subjects"
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (p:PersonMultiList) RETURN p.id, p.name, p.scores, p.subjects ORDER BY p.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 2
+        assert rows[0] == [1, "Alice", [10, 20], ["math", "sci"]]
+        assert rows[1] == [2, "Bob", [30, 40], ["eng", "art"]]
+
+    def test_copy_from_node_with_double_list_property(self):
+        """COPY FROM CSV into a node table with DOUBLE[] list property."""
+        csv_path = self.tmp_path / "persons_with_weights.csv"
+        csv_path.write_text(
+            "id|w1|w2|w3\n" "1|1.1|2.2|3.3\n" "2|4.4|5.5|6.6\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonWeights("
+            "id INT64 PRIMARY KEY, weights DOUBLE[]);"
+        )
+        self.conn.execute(
+            f"COPY PersonWeights FROM ("
+            f'  LOAD FROM "{csv_path}" (header=true, delim="|")'
+            f'  RETURN CAST(id, "INT64") as id,'
+            f'         [CAST(w1, "DOUBLE"), CAST(w2, "DOUBLE"), CAST(w3, "DOUBLE")] as weights'
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (p:PersonWeights) RETURN p.id, p.weights ORDER BY p.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 2
+        assert rows[0][0] == 1
+        assert len(rows[0][1]) == 3
+        assert abs(rows[0][1][0] - 1.1) < 1e-9
+        assert abs(rows[0][1][1] - 2.2) < 1e-9
+        assert abs(rows[0][1][2] - 3.3) < 1e-9
+
+    def test_copy_from_edge_with_list_property(self):
+        """COPY FROM CSV into an edge table with INT64[] list property."""
+        node_csv = self.tmp_path / "nodes_for_edge_list.csv"
+        node_csv.write_text("id|name\n1|Alice\n2|Bob\n3|Carol\n", encoding="utf-8")
+        edge_csv = self.tmp_path / "edges_with_list.csv"
+        edge_csv.write_text(
+            "src|dst|w1|w2\n" "1|2|10|20\n" "2|3|30|40\n" "1|3|50|60\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonEL(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE KnowsEL(FROM PersonEL TO PersonEL, weights INT64[]);"
+        )
+        self.conn.execute(f'COPY PersonEL FROM "{node_csv}" (header=true, delim="|");')
+        self.conn.execute(
+            f"COPY KnowsEL FROM ("
+            f'  LOAD FROM "{edge_csv}" (header=true, delim="|")'
+            f'  RETURN CAST(src, "INT64") as src, CAST(dst, "INT64") as dst,'
+            f'         [CAST(w1, "INT64"), CAST(w2, "INT64")] as weights'
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (a:PersonEL)-[r:KnowsEL]->(b:PersonEL) "
+            "RETURN a.id, b.id, r.weights ORDER BY a.id, b.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, [10, 20]]
+        assert rows[1] == [1, 3, [50, 60]]
+        assert rows[2] == [2, 3, [30, 40]]
+
+    def test_copy_from_edge_with_string_list_property(self):
+        """COPY FROM CSV into an edge table with STRING[] list property."""
+        node_csv = self.tmp_path / "nodes_for_str_edge.csv"
+        node_csv.write_text("id|name\n1|Alice\n2|Bob\n", encoding="utf-8")
+        edge_csv = self.tmp_path / "edges_str_list.csv"
+        edge_csv.write_text(
+            "src|dst|label1|label2\n" "1|2|friend|colleague\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonSEL(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(
+            "CREATE REL TABLE KnowsSEL(FROM PersonSEL TO PersonSEL, labels STRING[]);"
+        )
+        self.conn.execute(f'COPY PersonSEL FROM "{node_csv}" (header=true, delim="|");')
+        self.conn.execute(
+            f"COPY KnowsSEL FROM ("
+            f'  LOAD FROM "{edge_csv}" (header=true, delim="|")'
+            f'  RETURN CAST(src, "INT64") as src, CAST(dst, "INT64") as dst,'
+            f"         [label1, label2] as labels"
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (a:PersonSEL)-[r:KnowsSEL]->(b:PersonSEL) "
+            "RETURN a.name, b.name, r.labels;"
+        )
+        rows = list(res)
+        assert len(rows) == 1
+        assert rows[0] == ["Alice", "Bob", ["friend", "colleague"]]
+
+    def test_copy_from_node_with_nested_list_property(self):
+        """COPY FROM CSV into a node table with INT64[][] nested list property."""
+        csv_path = self.tmp_path / "persons_nested_list.csv"
+        csv_path.write_text(
+            "id|a1|a2|b1|b2\n" "1|1|2|3|4\n" "2|5|6|7|8\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE PersonNested(" "id INT64 PRIMARY KEY, matrix INT64[][]);"
+        )
+        self.conn.execute(
+            f"COPY PersonNested FROM ("
+            f'  LOAD FROM "{csv_path}" (header=true, delim="|")'
+            f'  RETURN CAST(id, "INT64") as id,'
+            f'         [[CAST(a1, "INT64"), CAST(a2, "INT64")],'
+            f'          [CAST(b1, "INT64"), CAST(b2, "INT64")]] as matrix'
+            f")"
+        )
+
+        res = self.conn.execute(
+            "MATCH (p:PersonNested) RETURN p.id, p.matrix ORDER BY p.id;"
+        )
+        rows = list(res)
+        assert len(rows) == 2
+        assert rows[0] == [1, [[1, 2], [3, 4]]]
+        assert rows[1] == [2, [[5, 6], [7, 8]]]

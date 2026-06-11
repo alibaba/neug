@@ -15,16 +15,17 @@
 
 #include "neug/utils/property/column.h"
 
-#include <limits>
-
-#include "neug/storages/container/container_utils.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/utils/id_indexer.h"
-#include "neug/utils/property/table.h"
+#include "neug/utils/property/nest_column.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+
+void ColumnBase::DumpTo(Checkpoint& ckp, CheckpointManifest& meta,
+                        const std::string& key) {
+  meta.set_module(key, Dump(ckp));
+}
 
 std::string_view truncate_utf8(std::string_view str, size_t length) {
   if (str.size() <= length) {
@@ -75,6 +76,9 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
   case DataTypeId::kEmpty: {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
+  case DataTypeId::kList: {
+    return std::make_unique<ListColumn>(type);
+  }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
                                   type.ToString());
@@ -94,6 +98,10 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::kVarchar: {
     return std::make_shared<TypedRefColumn<std::string_view>>(
         dynamic_cast<const StringColumn&>(column));
+  }
+  case DataTypeId::kList: {
+    return std::make_shared<ListRefColumn>(
+        dynamic_cast<const ListColumn&>(column));
   }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +

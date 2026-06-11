@@ -33,6 +33,7 @@
 #include "neug/compiler/gopt/g_precedence.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/config.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
@@ -44,8 +45,9 @@ namespace gopt {
 
 class GExprConverter {
  public:
-  GExprConverter(const std::shared_ptr<gopt::GAliasManager> aliasManager)
-      : aliasManager{std::move(aliasManager)} {}
+  GExprConverter(const std::shared_ptr<gopt::GAliasManager> aliasManager,
+                 main::ClientContext* clientContext)
+      : aliasManager{std::move(aliasManager)}, ctx{clientContext} {}
 
   // Main conversion function
   std::unique_ptr<::common::Expression> convert(
@@ -61,7 +63,7 @@ class GExprConverter {
       const binder::AggregateFunctionExpression& expr,
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
-  std::unique_ptr<::common::Value> convertDefaultValue(
+  std::unique_ptr<::common::Expression> convertDefaultValue(
       const binder::PropertyDefinition& propertyDef);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
@@ -122,7 +124,7 @@ class GExprConverter {
       const std::vector<std::string>& schemaAlias);
 
   // helper functions
-  std::unique_ptr<::common::Value> convertValue(
+  std::unique_ptr<::common::Expression> convertValue(
       const neug::common::Value& value);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
@@ -145,8 +147,6 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertUDFFunc(
       const std::string& funcName, const binder::Expression& expr,
       size_t paramNum, const std::vector<std::string>& schemaAlias);
-  std::unique_ptr<::common::Value> convertToLiteralArray(
-      const common::Value& value, const common::LogicalType& childType);
   std::unique_ptr<::common::Expression> convertRegexFunc(
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);
@@ -156,13 +156,14 @@ class GExprConverter {
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);
 
-  std::unique_ptr<::common::Value> castLiteral(
+  std::unique_ptr<::common::Expression> castLiteral(
       const binder::Expression& castExpr);
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
   gopt::GPhysicalTypeConverter typeConverter;
   gopt::GPrecedence preced;
+  main::ClientContext* ctx;
 };
 
 }  // namespace gopt

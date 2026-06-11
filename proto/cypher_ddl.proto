@@ -19,6 +19,7 @@ package physical;
 
 import "common.proto";
 import "basic_type.proto";
+import "expr.proto";
 
 // The create/drop/alter operations for edges are all based on the triplet type <src_type, edge_type, dst_type>.
 message EdgeType {
@@ -30,7 +31,9 @@ message EdgeType {
 message PropertyDef {
     string name = 1;
     common.DataType type = 2;
+    // to be deprecated as we need to support nested list
     common.Value default_value = 3;
+    common.Expression default_expr = 4;
 }
 
 // When the operation does not meet the data requirements, an exception is thrown by default; 

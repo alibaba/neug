@@ -578,6 +578,13 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
                         std::to_string(col_i) + " for vertex of label " +
                         graph_.schema().get_vertex_label_name(label));
     }
+    if (types[col_i].id() == DataTypeId::kList &&
+        !(props[col_i].type() == types[col_i])) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "List child type mismatch at column " +
+                        std::to_string(col_i) + " for vertex of label " +
+                        graph_.schema().get_vertex_label_name(label));
+    }
   }
 
   const auto& v_table = graph_.get_vertex_table(label);
@@ -808,6 +815,10 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
     return false;
   }
   if (types[col_id].id() != value.type().id()) {
+    return false;
+  }
+  if (types[col_id].id() == DataTypeId::kList &&
+      !(value.type() == types[col_id])) {
     return false;
   }
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,

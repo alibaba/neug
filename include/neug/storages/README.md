@@ -84,6 +84,50 @@ Unlike the property table of vertices, the property table of edges is not column
 Fow now, only one property is supported for edges, but developers can define a struct with multiple fields to store multiple properties.
 
 
+## 5. List Property Storage
+
+List properties are stored using a binary encoding in [VarLenColumn](../utils/property/column.h),
+which extends the dual-buffer storage pattern used for strings. The encoding differs based on
+whether element types are POD (fixed-size) or non-POD (variable-size like strings or nested lists).
+
+### 5.1 Binary Encoding
+
+**POD Lists** (integers, floats, dates, booleans):
+```
+┌──────────────────────────────────────────┐
+│ T[0]  T[1]  …  T[count-1]                │
+└──────────────────────────────────────────┘
+Total bytes: count * sizeof(T)        (empty list = 0 bytes)
+```
+`count` is not stored; it is derived from the buffer size as
+`data_.size() / pod_type_size(child_id)`.
+
+**Non-POD Lists** (strings, nested lists):
+```
+┌──────────┬──────────────────────────────┬────────────────────┐
+│ count    │ off[0] off[1] … off[count-1] │ data[0] data[1] …  │
+│ uint32_t │ uint32_t × count             │                    │
+└──────────┴──────────────────────────────┴────────────────────┘
+Empty list: 4 bytes (count=0).
+```
+`off[i]` is relative to the start of the data region (first byte after the
+last offset entry). The data region size is derived from the buffer size:
+`data_.size() - sizeof(uint32_t) - count * sizeof(uint32_t)`. The length of
+element `i` is `off[i+1] - off[i]` for `i < count-1`, and
+`data_region_size - off[count-1]` for the last element.
+
+### 5.2 Thread Safety
+
+VarLenColumn uses `std::atomic<size_t> pos_` for concurrent offset allocation via `fetch_add`.
+- Concurrent writes to different indices are thread-safe
+- The `insert_safe` parameter controls resize behavior: when `false`, throws on insufficient space;
+  when `true`, caller must provide external synchronization during resize
+
+### 5.3 Nested Lists
+
+Nested lists use non-POD encoding: each inner list is serialized as a blob, then stored
+as a variable-length element in the outer list's data region.
+
 
 ## 6. Durability
 

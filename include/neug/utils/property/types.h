@@ -587,6 +587,20 @@ struct convert<neug::DataType> {
       }
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
+    } else if (config["list"]) {
+      auto array_node = config["list"];
+      if (array_node["component_type"]) {
+        neug::DataType child_type;
+        if (!convert<neug::DataType>::decode(array_node["component_type"],
+                                             child_type)) {
+          LOG(ERROR) << "Failed to decode array component_type";
+          return false;
+        }
+        property_type = neug::DataType::List(child_type);
+      } else {
+        LOG(ERROR) << "list type requires component_type";
+        return false;
+      }
     } else {
       LOG(ERROR) << "Unrecognized property type: " << config;
       return false;
@@ -596,22 +610,35 @@ struct convert<neug::DataType> {
 
   static Node encode(const neug::DataType& type) {
     YAML::Node node;
-    if (type == neug::DataTypeId::kBoolean ||
-        type == neug::DataTypeId::kInt32 || type == neug::DataTypeId::kUInt32 ||
-        type == neug::DataTypeId::kFloat || type == neug::DataTypeId::kInt64 ||
-        type == neug::DataTypeId::kUInt64 ||
-        type == neug::DataTypeId::kDouble) {
+    auto id = type.id();
+    if (id == neug::DataTypeId::kBoolean || id == neug::DataTypeId::kInt32 ||
+        id == neug::DataTypeId::kUInt32 || id == neug::DataTypeId::kFloat ||
+        id == neug::DataTypeId::kInt64 || id == neug::DataTypeId::kUInt64 ||
+        id == neug::DataTypeId::kDouble) {
       node["primitive_type"] =
-          neug::config_parsing::PrimitivePropertyTypeToString(type.id());
-    } else if (type == neug::DataTypeId::kVarchar) {
+          neug::config_parsing::PrimitivePropertyTypeToString(id);
+    } else if (id == neug::DataTypeId::kVarchar) {
       const auto* extra_type_info = type.RawExtraTypeInfo();
       const auto* string_type_info =
           dynamic_cast<const neug::StringTypeInfo*>(extra_type_info);
       node["string"]["varchar"]["max_length"] =
           string_type_info ? string_type_info->max_length
                            : neug::STRING_DEFAULT_MAX_LENGTH;
-    } else if (type == neug::DataTypeId::kDate) {
+    } else if (id == neug::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
+    } else if (id == neug::DataTypeId::kTimestampMs) {
+      node["temporal"]["timestamp"] = "";
+    } else if (id == neug::DataTypeId::kInterval) {
+      node["temporal"]["interval"] = "";
+    } else if (id == neug::DataTypeId::kList) {
+      const auto* extra_type_info = type.RawExtraTypeInfo();
+      const auto* list_type_info =
+          dynamic_cast<const neug::ListTypeInfo*>(extra_type_info);
+      if (list_type_info) {
+        node["list"]["component_type"] = encode(list_type_info->child_type);
+      } else {
+        LOG(ERROR) << "List type missing ListTypeInfo";
+      }
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }

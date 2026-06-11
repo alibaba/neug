@@ -150,6 +150,9 @@ struct DataType {
 
   std::string ToString() const;
 
+  static std::string ToYAMLString(const DataType& type);
+  static DataType FromYAMLString(const std::string& str);
+
  private:
   DataTypeId id_;
   std::shared_ptr<ExtraTypeInfo> type_info_;

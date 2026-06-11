@@ -63,6 +63,9 @@ static const std::vector<std::string> string_data = {
 namespace neug {
 namespace test {
 
+using execution::StringValue;
+using execution::Value;
+
 // Test-side Open / Dump for Table: round-trips columns through ModuleBroker
 // + CheckpointManifest the same way the production OpenVertexTable flow does.
 // Pass an empty CheckpointManifest to initialize fresh columns, or one returned
@@ -90,8 +93,6 @@ static void OpenTableLegacy(Table& t, Checkpoint& ckp,
 }
 
 static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
-  // Table holds columns by shared_ptr, so ownership can't be transferred
-  // into a unique_ptr-typed ModuleBroker — dump inline directly.
   CheckpointManifest meta;
   for (size_t i = 0; i < t.col_num(); ++i) {
     meta.set_module(TablePropKey(i), t.get_column_by_id(i)->Dump(ckp));

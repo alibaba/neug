@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
+#include <arrow/api.h>
 #include <arrow/csv/options.h>
 #include <arrow/type.h>
 #include <arrow/util/value_parsing.h>
@@ -405,38 +406,164 @@ create_record_batch_supplier_from_arrow_stream_column(
   THROW_RUNTIME_ERROR("No valid column mappings found.");
 }
 
+static void append_value_to_builder(arrow::ArrayBuilder* builder,
+                                    const Value& val,
+                                    const DataType& elem_type) {
+  if (val.IsNull()) {
+    auto s = builder->AppendNull();
+    CHECK(s.ok()) << "AppendNull failed: " << s.ToString();
+    return;
+  }
+  arrow::Status s;
+  switch (elem_type.id()) {
+  case DataTypeId::kInt32:
+    s = static_cast<arrow::Int32Builder*>(builder)->Append(
+        val.GetValue<int32_t>());
+    break;
+  case DataTypeId::kInt64:
+    s = static_cast<arrow::Int64Builder*>(builder)->Append(
+        val.GetValue<int64_t>());
+    break;
+  case DataTypeId::kUInt32:
+    s = static_cast<arrow::UInt32Builder*>(builder)->Append(
+        val.GetValue<uint32_t>());
+    break;
+  case DataTypeId::kUInt64:
+    s = static_cast<arrow::UInt64Builder*>(builder)->Append(
+        val.GetValue<uint64_t>());
+    break;
+  case DataTypeId::kFloat:
+    s = static_cast<arrow::FloatBuilder*>(builder)->Append(
+        val.GetValue<float>());
+    break;
+  case DataTypeId::kDouble:
+    s = static_cast<arrow::DoubleBuilder*>(builder)->Append(
+        val.GetValue<double>());
+    break;
+  case DataTypeId::kBoolean:
+    s = static_cast<arrow::BooleanBuilder*>(builder)->Append(
+        val.GetValue<bool>());
+    break;
+  case DataTypeId::kVarchar: {
+    auto& sv = StringValue::Get(val);
+    s = static_cast<arrow::StringBuilder*>(builder)->Append(sv);
+    break;
+  }
+  case DataTypeId::kList: {
+    auto* list_builder = static_cast<arrow::ListBuilder*>(builder);
+    s = list_builder->Append();
+    CHECK(s.ok()) << "ListBuilder::Append failed: " << s.ToString();
+    auto child_type = ListType::GetChildType(elem_type);
+    const auto& children = ListValue::GetChildren(val);
+    for (const auto& child : children) {
+      append_value_to_builder(list_builder->value_builder(), child, child_type);
+    }
+    return;
+  }
+  default:
+    THROW_RUNTIME_ERROR("Unsupported type for arrow builder: " +
+                        elem_type.ToString());
+  }
+  CHECK(s.ok()) << "Append failed: " << s.ToString();
+}
+
+static std::shared_ptr<arrow::Array> value_column_to_arrow_array(
+    const std::shared_ptr<IContextColumn>& column) {
+  auto arrow_type = PropertyTypeToArrowType(column->elem_type());
+  auto builder_result = arrow::MakeBuilder(arrow_type);
+  CHECK(builder_result.ok()) << "Failed to create arrow builder";
+  auto builder = std::move(builder_result).ValueUnsafe();
+  size_t n = column->size();
+  auto reserve_s = builder->Reserve(n);
+  CHECK(reserve_s.ok()) << "Reserve failed: " << reserve_s.ToString();
+  for (size_t i = 0; i < n; ++i) {
+    append_value_to_builder(builder.get(), column->get_elem(i),
+                            column->elem_type());
+  }
+  auto result = builder->Finish();
+  CHECK(result.ok()) << "Failed to finish arrow builder";
+  return std::move(result).ValueUnsafe();
+}
+
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  // We expect all columns are of same type.
-  ContextColumnType column_type = ContextColumnType::kNone;
+  bool has_arrow_array = false;
+  bool has_arrow_stream = false;
+  bool has_value = false;
   for (const auto& mapping : prop_mappings) {
     auto tag_id = mapping.first;
     auto column = ctx.get(tag_id);
     if (column == nullptr) {
-      LOG(ERROR) << "Column not found for tag id: " << tag_id;
       THROW_RUNTIME_ERROR("Column not found for tag id: " +
                           std::to_string(tag_id));
     }
-    if (column_type == ContextColumnType::kNone) {
-      column_type = column->column_type();
-    } else if (column_type != column->column_type()) {
-      LOG(ERROR) << "Column type mismatch for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Column type mismatch for tag id: " +
-                          std::to_string(tag_id));
+    switch (column->column_type()) {
+    case ContextColumnType::kArrowArray:
+      has_arrow_array = true;
+      break;
+    case ContextColumnType::kArrowStream:
+      has_arrow_stream = true;
+      break;
+    case ContextColumnType::kValue:
+      has_value = true;
+      break;
+    default:
+      THROW_RUNTIME_ERROR(
+          "Unsupported column type: " +
+          std::to_string(static_cast<int>(column->column_type())));
     }
   }
-  if (column_type == ContextColumnType::kArrowArray) {
-    return create_record_batch_supplier_from_arrow_array_column(ctx,
-                                                                prop_mappings);
-  } else if (column_type == ContextColumnType::kArrowStream) {
+
+  if (has_arrow_stream && !has_arrow_array && !has_value) {
     return create_record_batch_supplier_from_arrow_stream_column(ctx,
                                                                  prop_mappings);
-  } else {
-    LOG(ERROR) << "Unsupported column type: " << static_cast<int>(column_type);
-    THROW_RUNTIME_ERROR("Unsupported column type: " +
-                        std::to_string(static_cast<int>(column_type)));
   }
+  if (has_arrow_array && !has_value) {
+    return create_record_batch_supplier_from_arrow_array_column(ctx,
+                                                                prop_mappings);
+  }
+
+  // Mixed kArrowArray + kValue, or all kValue: build arrays from all columns.
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrays;
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  arrays.resize(prop_mappings.size());
+
+  for (size_t i = 0; i < prop_mappings.size(); ++i) {
+    auto tag_id = prop_mappings[i].first;
+    auto prop_name = prop_mappings[i].second;
+    auto column = ctx.get(tag_id);
+
+    if (column->column_type() == ContextColumnType::kArrowArray) {
+      auto arrow_column =
+          std::dynamic_pointer_cast<ArrowArrayContextColumn>(column);
+      for (auto& array : arrow_column->GetColumns()) {
+        arrays[i].emplace_back(array);
+      }
+      fields.emplace_back(std::make_shared<arrow::Field>(
+          prop_name, arrow_column->GetArrowType(), true));
+    } else {
+      auto arr = value_column_to_arrow_array(column);
+      arrays[i].emplace_back(arr);
+      fields.emplace_back(
+          std::make_shared<arrow::Field>(prop_name, arr->type(), true));
+    }
+  }
+
+  if (!arrays.empty()) {
+    size_t batch_size = arrays[0].size();
+    for (size_t i = 1; i < arrays.size(); ++i) {
+      if (arrays[i].size() != batch_size) {
+        THROW_INTERNAL_EXCEPTION("Array size mismatch for tag id: " +
+                                 std::to_string(prop_mappings[i].first));
+      }
+    }
+  }
+  auto schema = std::make_shared<arrow::Schema>(fields);
+  suppliers.emplace_back(
+      std::make_shared<ArrowRecordBatchArraySupplier>(arrays, schema));
+  return suppliers;
 }
 
 void to_arrow_csv_options(

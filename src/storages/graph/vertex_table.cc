@@ -14,11 +14,13 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
-
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/property/nest_column.h"
 
 namespace neug {
 
@@ -117,6 +119,7 @@ bool VertexTable::AddVertex(const execution::Value& id,
       return true;
     }
   }());
+
   table_->insert(vid, props, insert_safe);
   return true;
 }
@@ -305,9 +308,17 @@ VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
 
   auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
+    const std::string key = KeyProperty(lbl, i);
+    auto col = store.TakeModule<ColumnBase>(key);
+    if (vs->property_types[i].id() == DataTypeId::kList) {
+      auto* list_col = dynamic_cast<ListColumn*>(col.get());
+      if (list_col) {
+        list_col->SetListType(vs->property_types[i]);
+      }
+    }
+    col->RestoreChildren(store, key);
     table->SetColumn(static_cast<int>(i),
-                     std::shared_ptr<ColumnBase>(
-                         store.TakeModule<ColumnBase>(KeyProperty(lbl, i))));
+                     std::shared_ptr<ColumnBase>(std::move(col)));
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(
@@ -332,7 +343,9 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
 
   auto table = TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    meta.set_module(KeyProperty(lbl, i), table->get_column_by_id(i)->Dump(ckp));
+    const std::string key = KeyProperty(lbl, i);
+    auto col = table->get_column_by_id(i);
+    col->DumpTo(ckp, meta, key);
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }

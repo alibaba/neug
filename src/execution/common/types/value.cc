@@ -26,6 +26,12 @@
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+
+// Defined in schema.cc; declared here to avoid pulling in the heavy schema.h
+// header. Needed by the kList branch of Value serialization below.
+InArchive& operator<<(InArchive& arc, const DataType& type);
+OutArchive& operator>>(OutArchive& arc, DataType& type);
+
 namespace execution {
 enum class ExtraValueInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
@@ -228,7 +234,7 @@ Value Value::LIST(const DataType& child_type, std::vector<Value>&& values) {
 
 Value Value::LIST(std::vector<Value>&& values) {
   if (values.empty()) {
-    throw std::runtime_error("Cannot create LIST Value with empty values");
+    return Value::LIST(DataType(DataTypeId::kUnknown), std::move(values));
   }
   const auto& type = values[0].type();
   return Value::LIST(type, std::move(values));
@@ -890,6 +896,14 @@ InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
     auto interval = value.GetValue<execution::interval_t>();
     in_archive << type_id << interval.months << interval.days
                << interval.micros;
+  } else if (type_id == DataTypeId::kList) {
+    const auto& child_type = ListType::GetChildType(value.type());
+    const auto& children = execution::ListValue::GetChildren(value);
+    in_archive << type_id << child_type
+               << static_cast<uint32_t>(children.size());
+    for (const auto& child : children) {
+      in_archive << child;
+    }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         std::string("Value serialization not supported for type: ") +
@@ -949,6 +963,18 @@ OutArchive& operator>>(OutArchive& out_archive, execution::Value& value) {
     Interval interval;
     out_archive >> interval.months >> interval.days >> interval.micros;
     value = execution::Value::INTERVAL(interval);
+  } else if (type_id == DataTypeId::kList) {
+    DataType child_type;
+    uint32_t count;
+    out_archive >> child_type >> count;
+    std::vector<execution::Value> children;
+    children.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) {
+      execution::Value child;
+      out_archive >> child;
+      children.push_back(std::move(child));
+    }
+    value = execution::Value::LIST(child_type, std::move(children));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         std::string("Value deserialization not supported for type: ") +

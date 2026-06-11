@@ -49,6 +49,8 @@
 
 namespace neug {
 class Table;
+class ModuleBroker;
+class CheckpointManifest;
 
 std::string_view truncate_utf8(std::string_view str, size_t length);
 
@@ -73,6 +75,11 @@ class ColumnBase : public Module {
   virtual execution::Value get_any(size_t index) const = 0;
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
+
+  virtual void DumpTo(Checkpoint& ckp, CheckpointManifest& meta,
+                      const std::string& key);
+
+  virtual void RestoreChildren(ModuleBroker& store, const std::string& key) {}
 };
 
 template <typename T>

@@ -23,11 +23,14 @@
 
 #include <fstream>
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "neug/common/types.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
@@ -243,5 +246,9 @@ void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids,
                            std::shared_mutex& mutex);
+
+execution::Value arrow_element_to_value(
+    const std::shared_ptr<arrow::Array>& arr, int64_t idx,
+    const DataType& neug_type);
 
 }  // namespace neug
