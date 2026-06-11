@@ -17,11 +17,15 @@
 
 **Key Components**:
 
-1. **LoadAs Parser**: 在 Cypher 语法中新增 `LOAD NODE TABLE FROM <source> (<options>) AS <label>` 和 `LOAD EDGE TABLE FROM <source> (<options>) AS <label>` 规则。独立于现有 LoadFrom ReadingClause（LoadFrom 返回行，LoadAs 写入图，语义不同）。
-2. **LoadAs Binder/Planner**: 校验 label 冲突、类型绑定、边约束，生成 PhysicalPlan（`CreateVertexSchema(temporary=true)` + `DataSource` + `BatchInsertVertex`）。模式门禁（AP READ_WRITE 检查）由 `QueryProcessor` 层通过 `is_read_only_` + `ExecutionFlag.create_temp_table` 统一处理。
-3. **Storage 层 temporary 标记**: `VertexSchema`/`EdgeSchema` 添加 `bool temporary` 字段，区分临时与持久化类型。`CreateVertexTypeParam`/`CreateEdgeTypeParam` 扩展 temporary 字段，复用整条现有 DDL + 数据加载链路。
-4. **Proto 扩展**: `CreateVertexSchema`/`CreateEdgeSchema` message 添加 `bool temporary` 字段。`ExecutionFlag.create_temp_table` 已有，直接复用。
-5. **Dump/Checkpoint 防护**: `Dump()`/`Serialize()`/`DumpToYaml()` 跳过 temporary labels，确保临时数据不写入磁盘。`to_yaml()` 包含 temporary labels（compiler 需要）。`Open()` 检测残留 temporary labels 作为兜底防护。
+**LoadAs Parser**: 在 Cypher 语法中新增 `LOAD NODE TABLE FROM <source> (<options>) AS <label>` 和 `LOAD EDGE TABLE FROM <source> (<options>) AS <label>` 规则。独立于现有 LoadFrom ReadingClause（LoadFrom 返回行，LoadAs 写入图，语义不同）。
+
+**LoadAs Binder/Planner**: 校验 label 冲突、类型绑定、边约束，生成 PhysicalPlan（`CreateVertexSchema(temporary=true)` + `DataSource` + `BatchInsertVertex`）。模式门禁（AP READ_WRITE 检查）由 `QueryProcessor` 层通过 `is_read_only_` + `ExecutionFlag.create_temp_table` 统一处理。
+
+**Storage 层 temporary 标记**: `VertexSchema`/`EdgeSchema` 添加 `bool temporary` 字段，区分临时与持久化类型。`CreateVertexTypeParam`/`CreateEdgeTypeParam` 扩展 temporary 字段，复用整条现有 DDL + 数据加载链路。
+
+**Proto 扩展**: `CreateVertexSchema`/`CreateEdgeSchema` message 添加 `bool temporary` 字段。`ExecutionFlag.create_temp_table` 已有，直接复用。
+
+**Dump/Checkpoint 防护**: `Dump()`/`Serialize()`/`DumpToYaml()` 跳过 temporary labels，确保临时数据不写入磁盘。`to_yaml()` 包含 temporary labels（compiler 需要）。`Open()` 检测残留 temporary labels 作为兜底防护。
 
 **Functional Requirements**:
 
