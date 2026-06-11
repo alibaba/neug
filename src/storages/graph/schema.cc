@@ -2348,23 +2348,16 @@ OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.label_name << v_schema.property_types
           << v_schema.property_names << v_schema.primary_keys
-          << v_schema.get_default_properties() << v_schema.description
+          << v_schema.default_property_values << v_schema.description
           << v_schema.max_num << v_schema.vprop_soft_deleted;
   return archive;
 }
 
 OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
-  std::vector<Property> deserialized_defaults;
   archive >> v_schema.label_name >> v_schema.property_types >>
       v_schema.property_names >> v_schema.primary_keys >>
-      deserialized_defaults >> v_schema.description >> v_schema.max_num >>
-      v_schema.vprop_soft_deleted;
-  v_schema.default_property_values.clear();
-  v_schema.default_property_values.reserve(deserialized_defaults.size());
-  for (size_t i = 0; i < deserialized_defaults.size(); ++i) {
-    v_schema.default_property_values.emplace_back(
-        execution::property_to_value(deserialized_defaults[i]));
-  }
+      v_schema.default_property_values >> v_schema.description >>
+      v_schema.max_num >> v_schema.vprop_soft_deleted;
   return archive;
 }
 
@@ -2373,7 +2366,7 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
           << e_schema.edge_label_name << e_schema.description
           << e_schema.ie_mutable << e_schema.oe_mutable << e_schema.ie_strategy
           << e_schema.oe_strategy << e_schema.properties
-          << e_schema.property_names << e_schema.get_default_properties()
+          << e_schema.property_names << e_schema.default_property_values
           << e_schema.eprop_soft_deleted;
   if (e_schema.sort_key_for_nbr.has_value()) {
     archive << static_cast<uint8_t>(1) << e_schema.sort_key_for_nbr.value();
@@ -2384,18 +2377,11 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
 }
 
 OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
-  std::vector<Property> deserialized_defaults;
   archive >> e_schema.src_label_name >> e_schema.dst_label_name >>
       e_schema.edge_label_name >> e_schema.description >> e_schema.ie_mutable >>
       e_schema.oe_mutable >> e_schema.ie_strategy >> e_schema.oe_strategy >>
-      e_schema.properties >> e_schema.property_names >> deserialized_defaults >>
-      e_schema.eprop_soft_deleted;
-  e_schema.default_property_values.clear();
-  e_schema.default_property_values.reserve(deserialized_defaults.size());
-  for (size_t i = 0; i < deserialized_defaults.size(); ++i) {
-    e_schema.default_property_values.emplace_back(
-        execution::property_to_value(deserialized_defaults[i]));
-  }
+      e_schema.properties >> e_schema.property_names >>
+      e_schema.default_property_values >> e_schema.eprop_soft_deleted;
   uint8_t has_sort_key_for_nbr;
   archive >> has_sort_key_for_nbr;
   if (has_sort_key_for_nbr) {

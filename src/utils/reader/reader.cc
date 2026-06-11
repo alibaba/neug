@@ -120,10 +120,9 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
       auto fileSchema = inspected.ValueOrDie();
       for (const auto& field : scan_opts->dataset_schema->fields()) {
         if (!fileSchema->GetFieldByName(field->name())) {
-          THROW_SCHEMA_MISMATCH(
-              "Column '" + field->name() +
-              "' not found in file. Available columns: " +
-              fileSchema->ToString());
+          THROW_SCHEMA_MISMATCH("Column '" + field->name() +
+                                "' not found in file. Available columns: " +
+                                fileSchema->ToString());
         }
       }
     }

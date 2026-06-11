@@ -16,7 +16,6 @@
 
 #include <vector>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/property.h"
 
 namespace neug {
 
@@ -67,18 +66,6 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
     return PropertyTypeToArrowType(id);
   }
   return nullptr;
-}
-
-template <typename T>
-void emplace_into_vector(const std::shared_ptr<arrow::ChunkedArray>& array,
-                         std::vector<Property>& vec) {
-  using arrow_array_type = typename neug::TypeConverter<T>::ArrowArrayType;
-  for (int32_t i = 0; i < array->num_chunks(); ++i) {
-    auto casted = std::static_pointer_cast<arrow_array_type>(array->chunk(i));
-    for (auto k = 0; k < casted->length(); ++k) {
-      vec.emplace_back(PropUtils<T>::to_prop(casted->Value(k)));
-    }
-  }
 }
 
 }  // namespace neug

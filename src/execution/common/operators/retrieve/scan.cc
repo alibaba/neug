@@ -24,7 +24,7 @@ namespace execution {
 neug::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
                                                  const IStorageInterface& graph,
                                                  label_t label,
-                                                 const Property& oid,
+                                                 const Value& oid,
                                                  int32_t alias) {
   MSVertexColumnBuilder builder(label);
   vid_t vid;

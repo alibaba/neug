@@ -23,9 +23,9 @@
 #include <utility>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
@@ -108,8 +108,8 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  Status AddVertex(label_t label, const Property& id,
-                   const std::vector<Property>& props, vid_t& vid);
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props, vid_t& vid);
 
   /**
    * @brief Add a new edge to the transaction.
@@ -136,7 +136,8 @@ class InsertTransaction {
    * @since v0.1.0
    */
   Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Property>& properties,
+                 label_t edge_label,
+                 const std::vector<execution::Value>& properties,
                  const void*& prop);
 
   /**
@@ -163,9 +164,10 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  bool GetVertexIndex(label_t label, const Property& oid, vid_t& lid) const;
+  bool GetVertexIndex(label_t label, const execution::Value& oid,
+                      vid_t& lid) const;
 
-  Property GetVertexId(label_t label, vid_t lid) const;
+  execution::Value GetVertexId(label_t label, vid_t lid) const;
 
   PropertyGraph& graph() { return graph_; }
 
@@ -175,7 +177,7 @@ class InsertTransaction {
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
-                                      const Property& oid, vid_t& lid,
+                                      const execution::Value& oid, vid_t& lid,
                                       timestamp_t timestamp);
   InArchive arc_;
 
@@ -196,13 +198,15 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
   ~StorageTPInsertInterface() {}
 
-  Status AddVertex(label_t label, const Property& id,
-                   const std::vector<Property>& props, vid_t& vid) override {
+  Status AddVertex(label_t label, const execution::Value& id,
+                   const std::vector<execution::Value>& props,
+                   vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
   Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Property>& properties,
+                 label_t edge_label,
+                 const std::vector<execution::Value>& properties,
                  const void*& prop) override {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
                         prop);
@@ -210,7 +214,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
 
   inline const Schema& schema() const override { return txn_.schema(); }
 
-  bool GetVertexIndex(label_t label, const Property& id,
+  bool GetVertexIndex(label_t label, const execution::Value& id,
                       vid_t& index) const override {
     return txn_.GetVertexIndex(label, id, index);
   }

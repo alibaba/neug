@@ -30,7 +30,11 @@
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/module_descriptor.h"
 #include "unittest/utils.h"
 
 namespace {
@@ -1028,6 +1032,220 @@ TYPED_TEST(DropTableCheckpointTest,
 
   conn->Close();
   db.Close();
+}
+
+// ===========================================================================
+// CheckpointSafetyTest — verifies failure handling
+// ===========================================================================
+template <typename T>
+class CheckpointSafetyTest : public CheckpointTestBase<T> {
+ protected:
+  std::string db_dir_;
+
+  void SetUp() override {
+    if (getuid() == 0) {
+      GTEST_SKIP() << "Cannot test permission-based failures as root";
+    }
+    db_dir_ = this->MakeUniqueDir("ckp_safety");
+  }
+
+  void TearDown() override {
+    // Restore permissions recursively before cleanup.
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(
+             db_dir_,
+             std::filesystem::directory_options::skip_permission_denied)) {
+      std::error_code ec;
+      std::filesystem::permissions(entry.path(),
+                                   std::filesystem::perms::owner_all, ec);
+    }
+    std::error_code ec;
+    std::filesystem::permissions(db_dir_, std::filesystem::perms::owner_all,
+                                 ec);
+    this->CleanDir(db_dir_);
+  }
+
+  neug::NeugDBConfig MakeConfigNoCheckpointOnClose(
+      const std::string& data_dir) {
+    auto config = this->MakeConfig(data_dir);
+    config.checkpoint_on_close = false;
+    config.compact_on_close = false;
+    return config;
+  }
+};
+
+TYPED_TEST_SUITE(CheckpointSafetyTest, AllMemoryLevels);
+
+// Fix #528: UpdateMeta re-throws on I/O failure and preserves old meta.
+TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
+  neug::CheckpointManager mgr;
+  mgr.Open(this->db_dir_);
+  auto ckp_id = mgr.CreateCheckpoint();
+  auto ckp = mgr.GetCheckpoint(ckp_id);
+
+  ASSERT_TRUE(ckp->GetMeta().modules().empty());
+
+  neug::CheckpointManifest new_meta;
+  neug::ModuleDescriptor desc;
+  desc.set_path("data", "/fake/path");
+  new_meta.set_module("test_module", std::move(desc));
+
+  // Make checkpoint root dir read-only → AtomicFileWriter can't create .tmp.
+  std::filesystem::permissions(
+      ckp->path(),
+      std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+
+  EXPECT_THROW(ckp->UpdateMeta(std::move(new_meta)), std::exception);
+
+  // Old (empty) meta is preserved after the failed update.
+  EXPECT_TRUE(ckp->GetMeta().modules().empty());
+
+  // Restore permissions for cleanup.
+  std::filesystem::permissions(ckp->path(), std::filesystem::perms::owner_all);
+}
+
+// Fix #529: RemoveCheckpoint cleans up directory and map entry.
+TYPED_TEST(CheckpointSafetyTest, remove_checkpoint_cleans_up_directory) {
+  neug::CheckpointManager mgr;
+  mgr.Open(this->db_dir_);
+  auto ckp_id = mgr.CreateCheckpoint();
+  auto ckp = mgr.GetCheckpoint(ckp_id);
+  auto ckp_path = ckp->path();
+
+  ASSERT_TRUE(std::filesystem::exists(ckp_path));
+  ASSERT_EQ(mgr.NumCheckpoints(), 1u);
+  ASSERT_EQ(mgr.HeadId(), ckp_id);
+
+  mgr.RemoveCheckpoint(ckp_id);
+
+  EXPECT_FALSE(std::filesystem::exists(ckp_path));
+  EXPECT_EQ(mgr.NumCheckpoints(), 0u);
+  EXPECT_EQ(mgr.HeadId(), neug::kInvalidCheckpointId);
+}
+
+// Fix #528 integration: A failed in-place CHECKPOINT does not corrupt
+// on-disk data — recovery on restart succeeds.
+TYPED_TEST(CheckpointSafetyTest,
+           in_place_checkpoint_failure_preserves_data_on_reopen) {
+  // Phase 1: Create table, insert data, and produce a valid checkpoint.
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->db_dir_);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Item"
+                      "(id INT64, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn, "CREATE (:Item {id: 100});");
+    this->ExpectQuery(*conn, "CREATE (:Item {id: 200});");
+    auto res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  // Phase 2: Reopen and trigger a failing in-place CHECKPOINT.
+  // After a failed in-place CHECKPOINT, the in-memory graph is left in an
+  // inconsistent state (tables disassembled). We use checkpoint_on_close=false
+  // so Close() doesn't attempt to checkpoint the broken graph.
+  {
+    neug::NeugDB db;
+    db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+    auto conn = db.Connect();
+
+    // Find the highest-numbered checkpoint dir (the one ckp_ points to).
+    std::string ckp_dir;
+    int32_t max_id = -1;
+    for (const auto& entry :
+         std::filesystem::directory_iterator(this->db_dir_)) {
+      auto name = entry.path().filename().string();
+      if (entry.is_directory() && name.find("checkpoint-") == 0) {
+        int32_t id = std::stoi(name.substr(std::string("checkpoint-").size()));
+        if (id > max_id) {
+          max_id = id;
+          ckp_dir = entry.path().string();
+        }
+      }
+    }
+    ASSERT_FALSE(ckp_dir.empty());
+
+    std::filesystem::permissions(ckp_dir,
+                                 std::filesystem::perms::owner_read |
+                                     std::filesystem::perms::owner_exec);
+
+    // CHECKPOINT should fail because UpdateMeta can't write meta.tmp.
+    auto res = conn->Query("CHECKPOINT;");
+    EXPECT_FALSE(res) << "Expected CHECKPOINT to fail, but it succeeded";
+
+    // Restore permissions so Close() and subsequent reopen work.
+    std::filesystem::permissions(ckp_dir, std::filesystem::perms::owner_all);
+    conn->Close();
+    db.Close();
+  }
+
+  // Phase 3: Reopen and verify data is intact from the valid checkpoint.
+  {
+    neug::NeugDB db;
+    db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+    auto conn = db.Connect();
+    auto table = this->RunQuery(*conn, "MATCH (v:Item) RETURN v.id;");
+    EXPECT_EQ(table.row_count(), 2);
+    conn->Close();
+    db.Close();
+  }
+}
+
+// Fix #530: Open discards an incomplete (empty-meta) checkpoint and recovers.
+TYPED_TEST(CheckpointSafetyTest,
+           open_discards_incomplete_checkpoint_and_recovers) {
+  // Phase 1: Create a valid DB with data.
+  {
+    neug::NeugDB db;
+    this->OpenDB(db, this->db_dir_);
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE IF NOT EXISTS Widget"
+                      "(id INT64, name STRING, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn, "CREATE (:Widget {id: 1, name: 'alpha'});");
+    this->ExpectQuery(*conn, "CREATE (:Widget {id: 2, name: 'beta'});");
+    conn->Close();
+    db.Close();  // checkpoint_on_close creates a valid checkpoint
+  }
+
+  // Phase 2: Simulate a crash that left an incomplete checkpoint directory.
+  std::string bad_ckp_path;
+  {
+    // Find the highest existing checkpoint ID.
+    int32_t max_id = -1;
+    for (const auto& entry :
+         std::filesystem::directory_iterator(this->db_dir_)) {
+      auto name = entry.path().filename().string();
+      if (name.find("checkpoint-") == 0) {
+        auto id_str = name.substr(std::string("checkpoint-").size());
+        int32_t id = std::stoi(id_str);
+        max_id = std::max(max_id, id);
+      }
+    }
+    ASSERT_GE(max_id, 0);
+
+    // Create a fake incomplete checkpoint with a higher ID.
+    bad_ckp_path = this->db_dir_ + "/checkpoint-" + std::to_string(max_id + 1);
+    std::filesystem::create_directories(bad_ckp_path);
+    neug::CheckpointManifest::GenerateEmptyMeta(bad_ckp_path + "/meta");
+    ASSERT_TRUE(std::filesystem::exists(bad_ckp_path + "/meta"));
+  }
+
+  // Phase 3: Reopen — the incomplete checkpoint should be discarded.
+  {
+    neug::NeugDB db;
+    db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+    auto conn = db.Connect();
+    auto table = this->RunQuery(*conn, "MATCH (v:Widget) RETURN v.id, v.name;");
+    EXPECT_EQ(table.row_count(), 2);
+    conn->Close();
+    db.Close();
+  }
+
+  EXPECT_FALSE(std::filesystem::exists(bad_ckp_path))
+      << "Incomplete checkpoint directory should have been removed on Open";
 }
 
 }  // namespace test

@@ -28,6 +28,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -150,15 +151,6 @@ struct VertexSchema {
 
   const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
-  }
-
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
   }
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
@@ -294,15 +286,6 @@ struct EdgeSchema {
 
   const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
-  }
-
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
   }
 
   std::string src_label_name, dst_label_name, edge_label_name;
