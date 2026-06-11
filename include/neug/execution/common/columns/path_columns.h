@@ -71,7 +71,7 @@ class PathColumn : public IContextColumn {
 
  private:
   friend class PathColumnBuilder;
-  std::vector<Path> data_;
+  neug::vector<Path> data_;
   DataType type_;
   bool is_optional_ = false;
 };
@@ -101,7 +101,7 @@ class PathColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_ = false;
-  std::vector<Path> data_;
+  neug::vector<Path> data_;
 };
 
 }  // namespace execution

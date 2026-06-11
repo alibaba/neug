@@ -58,16 +58,15 @@ class ListColumn : public IContextColumn {
     return Value::LIST(elem_type_, std::move(list_values));
   }
 
-  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold()
-      const;
+  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold() const;
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
 
-  const std::vector<list_item>& items() const { return items_; }
+  const neug::vector<list_item>& items() const { return items_; }
 
   std::shared_ptr<IContextColumn> reorder() const {
     auto ptr = std::make_shared<ListColumn>(elem_type_);
-    std::vector<list_item> new_items(items_.size());
+    neug::vector<list_item> new_items(items_.size());
     size_t cur_offset = 0;
     sel_vec_t indices;
     indices.reserve(datas_->size());
@@ -90,8 +89,7 @@ class ListColumn : public IContextColumn {
 
  private:
   template <typename T>
-  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold_impl()
-      const {
+  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold_impl() const {
     sel_vec_t offsets;
     auto builder = std::make_shared<ValueColumnBuilder<T>>();
     size_t i = 0;
@@ -108,7 +106,7 @@ class ListColumn : public IContextColumn {
   friend class ListColumnBuilder;
   DataType elem_type_;
   DataType type_;
-  std::vector<list_item> items_;
+  neug::vector<list_item> items_;
   std::shared_ptr<IContextColumn> datas_;
 };
 
@@ -143,7 +141,7 @@ class ListColumnBuilder : public IContextColumnBuilder {
   DataType type_;
   size_t cur_offset_;
 
-  std::vector<list_item> items_;
+  neug::vector<list_item> items_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 

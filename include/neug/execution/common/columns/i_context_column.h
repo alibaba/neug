@@ -19,7 +19,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/columns/selection_vec.h"
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/types/value.h"
 
 #include "glog/logging.h"
@@ -83,12 +83,12 @@ class IContextColumn {
     return false;
   }
 
-  virtual std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
+  virtual std::pair<std::shared_ptr<IContextColumn>, neug::vector<sel_vec_t>>
   generate_aggregate_offset() const {
     LOG(INFO) << "generate_aggregate_offset not implemented for "
               << this->column_info() << ", return empty by default";
     std::shared_ptr<IContextColumn> col(nullptr);
-    return std::make_pair(col, std::vector<sel_vec_t>());
+    return std::make_pair(col, neug::vector<sel_vec_t>());
   }
 
   virtual bool order_by_limit(bool asc, size_t limit,

@@ -57,8 +57,8 @@ class ValueColumn : public IContextColumn {
 
   inline T get_value(size_t idx) const { return data_[idx]; }
 
-  const std::vector<T>& data() const { return data_; }
-  const std::vector<bool>& validity_bitmap() const { return valid_; }
+  const neug::vector<T>& data() const { return data_; }
+  const neug::vector<bool>& validity_bitmap() const { return valid_; }
 
   bool generate_dedup_offset(sel_vec_t& offsets) const override {
     if (!is_optional_) {
@@ -101,8 +101,8 @@ class ValueColumn : public IContextColumn {
  private:
   template <typename _T>
   friend class ValueColumnBuilder;
-  std::vector<T> data_;
-  std::vector<bool> valid_;
+  neug::vector<T> data_;
+  neug::vector<bool> valid_;
   bool is_optional_;
   DataType type_;
 };
@@ -153,8 +153,8 @@ class ValueColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_;
-  std::vector<bool> valid_;
-  std::vector<T> data_;
+  neug::vector<bool> valid_;
+  neug::vector<T> data_;
 };
 
 template <typename T>

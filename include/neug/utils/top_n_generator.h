@@ -18,12 +18,12 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/selection_vec.h"
+#include "neug/execution/common/columns/container_types.h"
 
 namespace neug {
 
-using execution::sel_t;
-using execution::sel_vec_t;
+using neug::sel_t;
+using neug::sel_vec_t;
 
 template <typename T>
 struct TopNUnit {
@@ -130,8 +130,7 @@ class InplaceTopNGenerator {
  public:
   explicit InplaceTopNGenerator(size_t n) : n_(n) {}
 
-  void generate_indices(const std::vector<T>& input,
-                        sel_vec_t& indices) {
+  void generate_indices(const std::vector<T>& input, sel_vec_t& indices) {
     size_t size = input.size();
     std::priority_queue<unit_t, std::vector<unit_t>, CMP_T> pq(CMP_T{});
     for (size_t i = 0; i < size; ++i) {

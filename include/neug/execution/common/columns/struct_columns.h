@@ -62,13 +62,13 @@ class StructColumn : public IContextColumn {
     return children_;
   }
 
-  const std::vector<bool>& validity_bitmap() const { return valids_; }
+  const neug::vector<bool>& validity_bitmap() const { return valids_; }
   friend class StructColumnBuilder;
 
  private:
   DataType type_;
   bool is_optional_;
-  std::vector<bool> valids_;
+  neug::vector<bool> valids_;
   std::vector<std::shared_ptr<IContextColumn>> children_;
 };
 
@@ -92,7 +92,7 @@ class StructColumnBuilder : public IContextColumnBuilder {
   size_t current_size_ = 0;
   DataType type_;
   bool is_optional_;
-  std::vector<bool> valids_;
+  neug::vector<bool> valids_;
   std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 

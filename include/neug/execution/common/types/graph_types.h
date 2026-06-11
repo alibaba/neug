@@ -22,6 +22,7 @@
 #include <tuple>
 #include <utility>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -163,21 +164,21 @@ struct Path {
   explicit Path(label_t v_label, vid_t vid);
 
   explicit Path(
-      label_t label, label_t e_label, const std::vector<vid_t>& vids,
-      const std::vector<std::pair<Direction, const void*>>& edge_datas);
+      label_t label, label_t e_label, const neug::vector<vid_t>& vids,
+      const neug::vector<std::pair<Direction, const void*>>& edge_datas);
 
-  explicit Path(const std::vector<std::tuple<label_t, Direction, const void*>>&
+  explicit Path(const neug::vector<std::tuple<label_t, Direction, const void*>>&
                     edge_datas,
-                const std::vector<VertexRecord>& path);
+                const neug::vector<VertexRecord>& path);
 
   Path expand(label_t edge_label, label_t label, vid_t v, Direction dir,
               const void* payload) const;
 
   int32_t length() const;
 
-  std::vector<VertexRecord> nodes() const;
+  neug::vector<VertexRecord> nodes() const;
 
-  std::vector<EdgeRecord> relationships() const;
+  neug::vector<EdgeRecord> relationships() const;
 
   bool operator<(const Path& p) const;
 

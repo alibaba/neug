@@ -22,8 +22,8 @@
 namespace neug {
 namespace execution {
 
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-ListColumn::unfold() const {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
+    const {
   switch (elem_type_.id()) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
@@ -99,7 +99,7 @@ ListColumn::unfold() const {
 std::shared_ptr<IContextColumn> ListColumn::shuffle(
     const sel_vec_t& offsets) const {
   auto ptr = std::make_shared<ListColumn>(elem_type_);
-  std::vector<list_item> new_items(offsets.size());
+  neug::vector<list_item> new_items(offsets.size());
   for (size_t i = 0; i < offsets.size(); ++i) {
     new_items[i] = items_[offsets[i]];
   }

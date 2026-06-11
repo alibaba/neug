@@ -332,12 +332,13 @@ if (WITH_MIMALLOC)
     set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
     set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
     # Keep MI_OVERRIDE=ON to let it take effect.
-    set(MI_OVERRIDE ON CACHE BOOL "Override malloc with mimalloc" FORCE)
+    set(MI_OVERRIDE OFF CACHE BOOL "Override malloc with mimalloc" FORCE)
     set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
     # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
     add_subdirectory(third_party/mimalloc)
     set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
     include_directories(SYSTEM third_party/mimalloc/include)
+    add_compile_definitions(NEUG_WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 

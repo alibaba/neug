@@ -15,7 +15,7 @@
 #pragma once
 
 #include "neug/compiler/planner/graph_planner.h"
-#include "neug/execution/common/columns/selection_vec.h"
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"

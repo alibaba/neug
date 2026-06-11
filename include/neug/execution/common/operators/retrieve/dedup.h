@@ -16,7 +16,7 @@
 
 #include <vector>
 
-#include "neug/execution/common/columns/selection_vec.h"
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

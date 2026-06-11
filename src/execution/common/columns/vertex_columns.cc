@@ -58,7 +58,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
 bool SLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   offsets.clear();
 
-  std::vector<bool> bitset;
+  neug::vector<bool> bitset;
   size_t vnum = vertices_.size();
   bitset.resize(vnum);
 
@@ -91,9 +91,9 @@ bool SLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   return true;
 }
 
-std::pair<std::shared_ptr<IContextColumn>, std::vector<sel_vec_t>>
+std::pair<std::shared_ptr<IContextColumn>, neug::vector<sel_vec_t>>
 SLVertexColumn::generate_aggregate_offset() const {
-  std::vector<sel_vec_t> offsets;
+  neug::vector<sel_vec_t> offsets;
   MSVertexColumnBuilder builder(label_);
   flat_hash_map<vid_t, size_t> vertex_to_offset;
   size_t idx = 0;

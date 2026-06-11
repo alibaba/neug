@@ -16,7 +16,7 @@
 #pragma once
 #include <unordered_map>
 #include "neug/common/types.h"
-#include "neug/execution/common/columns/selection_vec.h"
+#include "neug/execution/common/columns/container_types.h"
 
 namespace neug {
 class StorageReadInterface;
@@ -81,9 +81,7 @@ class ContextMeta {
 
   DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  const flat_hash_map<int32_t, DataType>& columns() const {
-    return alias_set_;
-  }
+  const flat_hash_map<int32_t, DataType>& columns() const { return alias_set_; }
 
   void desc() const;
 

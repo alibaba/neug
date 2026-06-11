@@ -48,8 +48,8 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
               int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
               PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
               const PRED_T& pred) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+  neug::vector<vid_t> cur;
+  neug::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -60,13 +60,13 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            neug::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            neug::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -87,14 +87,14 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            neug::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            neug::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -147,8 +147,8 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
                    MSVertexColumnBuilder& dest_col_builder,
                    PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
                    const PRED_T& pred) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+  neug::vector<vid_t> cur;
+  neug::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -159,13 +159,13 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            neug::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            neug::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -196,14 +196,14 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            std::vector<vid_t> path(depth + 1);
+            neug::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            std::vector<std::pair<Direction, const void*>> edge_datas;
+            neug::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -280,8 +280,8 @@ void sssp_both_dir_with_order_by_length_limit(
     int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, sel_vec_t& offsets,
     const PRED_T& pred, int limit_upper) {
-  std::vector<vid_t> cur;
-  std::vector<vid_t> next;
+  neug::vector<vid_t> cur;
+  neug::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<bool> vis(vertices, false);
@@ -454,8 +454,8 @@ default_single_source_shortest_path_impl(
     MSVertexColumnBuilder dest_col_builder(*dest_labels.begin());
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::pair<label_t, vid_t>> cur;
-      std::vector<std::pair<label_t, vid_t>> next;
+      neug::vector<std::pair<label_t, vid_t>> cur;
+      neug::vector<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       flat_hash_map<std::pair<label_t, vid_t>,
                     std::tuple<label_t, vid_t, label_t, Direction, const void*>>
@@ -466,8 +466,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            std::vector<VertexRecord> path;
-            std::vector<std::tuple<label_t, Direction, const void*>>
+            neug::vector<VertexRecord> path;
+            neug::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;
             auto x = std::make_pair(label, vid);
             while (!(v_label == label && vid == v)) {
@@ -523,8 +523,8 @@ default_single_source_shortest_path_impl(
     MLVertexColumnBuilder dest_col_builder;
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      std::vector<std::pair<label_t, vid_t>> cur;
-      std::vector<std::pair<label_t, vid_t>> next;
+      neug::vector<std::pair<label_t, vid_t>> cur;
+      neug::vector<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       std::map<std::pair<label_t, vid_t>,
                std::tuple<label_t, vid_t, label_t, Direction, const void*>>
@@ -535,8 +535,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            std::vector<VertexRecord> path;
-            std::vector<std::tuple<label_t, Direction, const void*>>
+            neug::vector<VertexRecord> path;
+            neug::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;
             auto x = std::make_pair(v_label, vid);
             while (!(v_label == label && vid == v)) {

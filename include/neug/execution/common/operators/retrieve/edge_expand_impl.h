@@ -129,11 +129,10 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const SLVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const SLVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const GPRED_T& gpred) {
   label_t input_label = input.label();
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs =
       get_label_dirs(input_label, graph.schema(), labels, dir);
@@ -144,7 +143,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
   MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
   sel_vec_t offsets;
   auto& vertices = input.vertices();
-  std::vector<bool> matched;
+  neug::vector<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -217,11 +216,10 @@ expand_vertex_impl(const StorageReadInterface& graph,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const MLVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const MLVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
   int label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
@@ -245,7 +243,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
     return std::make_pair(builder.finish(), sel_vec_t());
   }
   if (input_labels.size() == 1) {
-    std::vector<bool> matched;
+    neug::vector<bool> matched;
     if constexpr (is_optional) {
       matched.resize(input.size(), false);
     }
@@ -625,11 +623,10 @@ expand_vertex_impl(const StorageReadInterface& graph,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_vertex_impl(const StorageReadInterface& graph,
-                   const MSVertexColumn& input,
-                   const std::vector<LabelTriplet>& labels, Direction dir,
-                   const GPRED_T& gpred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+    const StorageReadInterface& graph, const MSVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
   int label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
@@ -669,7 +666,7 @@ expand_vertex_impl(const StorageReadInterface& graph,
 
   size_t input_seg_num = input.seg_num();
   size_t seg_start_idx = 0;
-  std::vector<bool> edges_found;
+  neug::vector<bool> edges_found;
   if constexpr (is_optional) {
     edges_found.resize(input.size(), false);
   }
@@ -758,10 +755,10 @@ expand_vertex_optional_impl(const StorageReadInterface& graph,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const SLVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const PRED_T& pred) {
   label_t input_label = input.label();
   auto& vertices = input.vertices();
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs =
@@ -772,7 +769,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
   }
   MSEdgeColumnBuilder builder;
   sel_vec_t offsets;
-  std::vector<bool> matched;
+  neug::vector<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -881,16 +878,16 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const MSVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   MSEdgeColumnBuilder builder;
   sel_vec_t offsets;
-  std::vector<bool> matched;
+  neug::vector<bool> matched;
   if constexpr (is_optional) {
     matched.resize(input.seg_num(), false);
   }
@@ -1006,10 +1003,10 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
-                 const std::vector<LabelTriplet>& labels, Direction dir,
-                 const PRED_T& pred) {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+    const StorageReadInterface& graph, const MLVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
   label_t label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
