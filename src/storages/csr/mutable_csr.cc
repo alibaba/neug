@@ -84,6 +84,7 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
         " but degree list implies " + std::to_string(edge_count) +
         ", desc: " + descriptor.ToJsonString());
   }
+  nbr_data_dirty_ = false;
 }
 
 template <typename EDATA_T>
@@ -100,40 +101,49 @@ ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   descriptor.set_path(ModuleDescriptor::kDegreeListPath,
                       ckp.Commit(*degree_list_));
 
-  const nbr_t* const* adj_lists =
-      reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-  const int* cap_arr = reinterpret_cast<const int*>(cap_list_->GetData());
+  if (!nbr_data_dirty_ && nbr_list_ != nullptr) {
+    // Fast path: no writes since last Dump/Open, reuse existing file.
+    descriptor.set_path(ModuleDescriptor::kNbrListPath,
+                        ckp.Commit(*nbr_list_));
+  } else {
+    // Slow path: serialize adjacency lists with MD5 checksum.
+    const nbr_t* const* adj_lists =
+        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
+    const int* cap_arr = reinterpret_cast<const int*>(cap_list_->GetData());
 
-  std::string nbr_path_committed;
-  FileHeader header{};
+    std::string nbr_path_committed;
+    FileHeader header{};
 
-  auto runtime_uuid = ckp.CreateRuntimeObject();
-  auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
-  std::ofstream nbr_out(nbr_path, std::ios::binary);
-  if (!nbr_out.is_open()) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
+    auto runtime_uuid = ckp.CreateRuntimeObject();
+    auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
+    std::ofstream nbr_out(nbr_path, std::ios::binary);
+    if (!nbr_out.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
+    }
+
+    nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+
+    MD5_CTX ctx;
+    MD5_Init(&ctx);
+    for (size_t i = 0; i < vnum; ++i) {
+      const char* data = reinterpret_cast<const char*>(adj_lists[i]);
+      size_t len = cap_arr[i] * sizeof(nbr_t);
+      nbr_out.write(data, len);
+      MD5_Update(&ctx, data, len);
+    }
+
+    MD5_Final(header.data_md5, &ctx);
+    // Update the header with the correct MD5 after writing all data
+    nbr_out.seekp(0);
+    nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    nbr_out.flush();
+    nbr_out.close();
+    nbr_path_committed = ckp.CommitRuntimeObject(runtime_uuid);
+
+    descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_path_committed);
+    nbr_data_dirty_ = false;
   }
 
-  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
-  for (size_t i = 0; i < vnum; ++i) {
-    const char* data = reinterpret_cast<const char*>(adj_lists[i]);
-    size_t len = cap_arr[i] * sizeof(nbr_t);
-    nbr_out.write(data, len);
-    MD5_Update(&ctx, data, len);
-  }
-
-  MD5_Final(header.data_md5, &ctx);
-  // Update the header with the correct MD5 after writing all data
-  nbr_out.seekp(0);
-  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-  nbr_out.flush();
-  nbr_out.close();
-  nbr_path_committed = ckp.CommitRuntimeObject(runtime_uuid);
-
-  descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_path_committed);
   descriptor.set_path(ModuleDescriptor::kCapacityListPath,
                       ckp.Commit(*cap_list_));
   return descriptor;
@@ -156,6 +166,7 @@ void MutableCsr<EDATA_T>::reset_timestamp() {
       }
     }
   }
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -198,6 +209,7 @@ void MutableCsr<EDATA_T>::compact() {
         std::to_string(edge_num_.load()) + ", actual " +
         std::to_string(total_edge_num));
   }
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -221,6 +233,7 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
       cap_arr[i] = 0;
     }
     locks_ = std::make_unique<SpinLock[]>(vnum);
+    nbr_data_dirty_ = true;
   } else {
     adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
     degree_list_->Resize(vnum * sizeof(int));
@@ -261,6 +274,7 @@ void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
     }
   }
   unsorted_since_ = ts;
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -312,6 +326,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
     sz_arr[src] -= removed;
   }
   unsorted_since_ = 0;
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -344,6 +359,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     }
   }
   unsorted_since_ = 0;
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -375,6 +391,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     }
   }
   unsorted_since_ = 0;
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -400,6 +417,7 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
     LOG(ERROR) << "Attempting to delete edge with timestamp " << old_ts
                << " using older timestamp " << ts;
   }
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -426,6 +444,7 @@ void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
   }
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>
@@ -502,6 +521,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   if (ts < unsorted_since_) {
     unsorted_since_ = 0;
   }
+  nbr_data_dirty_ = true;
 }
 
 template <typename EDATA_T>

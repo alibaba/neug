@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <sys/stat.h>
 #include <chrono>
 #include <iostream>
 #include <optional>
@@ -691,5 +692,120 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
   empty_csr.delete_edge(0, 0, 0);
   empty_csr.revert_delete_edge(0, 0, 0, 0);
 }
+// ---------------------------------------------------------------------------
+// DumpDirty: validates nbr_data_dirty_ fast-path in MutableCsr::Dump.
+// After Open, nbr_list_ is file-backed+clean; when nbr_data_dirty_==false,
+// Dump calls ckp.Commit(*nbr_list_) → hardlink (zero-copy) instead of
+// manual serialisation + MD5.
+// ---------------------------------------------------------------------------
+class MutableCsrDumpDirtyTest : public ::testing::Test {
+ protected:
+  using CsrT = MutableCsr<int64_t>;
+  static constexpr const char* TEST_DIR = "/tmp/mutable_csr_dump_dirty_test";
+  static constexpr vid_t VNUM = 5;
+  const std::vector<vid_t> src_ = {0, 0, 1, 2, 4};
+  const std::vector<vid_t> dst_ = {3, 4, 2, 1, 0};
+  const std::vector<int64_t> data_ = {10, 20, 30, 40, 50};
+
+  void SetUp() override {
+    if (std::filesystem::exists(TEST_DIR))
+      std::filesystem::remove_all(TEST_DIR);
+    std::filesystem::create_directories(TEST_DIR);
+    ws_.Open(TEST_DIR);
+    alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, "");
+  }
+  void TearDown() override {
+    ws_.Close();
+    if (std::filesystem::exists(TEST_DIR))
+      std::filesystem::remove_all(TEST_DIR);
+  }
+
+  std::shared_ptr<Checkpoint> prepare(CsrT& csr, ModuleDescriptor& desc) {
+    CsrT orig;
+    auto ckp = make_checkpoint(ws_);
+    orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    orig.resize(VNUM);
+    orig.batch_put_edges(src_, dst_, data_);
+    desc = orig.Dump(*ckp);
+    csr.Open(*ckp, desc, MemoryLevel::kInMemory);
+    return ckp;
+  }
+
+  static ino_t inode_of(const std::string& path) {
+    struct stat st {};
+    EXPECT_EQ(stat(path.c_str(), &st), 0) << "stat: " << path;
+    return st.st_ino;
+  }
+  std::string nbr_path(const ModuleDescriptor& d) {
+    return d.get_path(ModuleDescriptor::kNbrListPath).value();
+  }
+  void expect_slow_after(const std::string& label,
+                         std::function<void(CsrT&)> mutate) {
+    CsrT csr;
+    ModuleDescriptor orig_desc;
+    auto ckp = prepare(csr, orig_desc);
+    auto orig_inode = inode_of(nbr_path(orig_desc));
+    mutate(csr);
+    auto new_inode = inode_of(nbr_path(csr.Dump(*ckp)));
+    EXPECT_NE(orig_inode, new_inode) << label << " should mark dirty";
+  }
+
+  CheckpointManager ws_;
+  std::unique_ptr<Allocator> alloc_;
+};
+
+TEST_F(MutableCsrDumpDirtyTest, FastAndSlowPath) {
+  CsrT csr;
+  ModuleDescriptor orig_desc;
+  auto ckp = prepare(csr, orig_desc);
+  auto orig = inode_of(nbr_path(orig_desc));
+  EXPECT_EQ(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+  int64_t val = 999;
+  csr.put_edge(0, 2, val, 1, *alloc_);
+  EXPECT_NE(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+}
+
+TEST_F(MutableCsrDumpDirtyTest, FastPath_DataIntegrity) {
+  CsrT csr;
+  ModuleDescriptor desc;
+  auto ckp = prepare(csr, desc);
+  auto fast_desc = csr.Dump(*ckp);
+  CsrT restored;
+  restored.Open(*ckp, fast_desc, MemoryLevel::kInMemory);
+  EXPECT_EQ(restored.edge_num(), src_.size());
+}
+
+TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
+  CsrT orig;
+  auto ckp = make_checkpoint(ws_);
+  orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  orig.resize(VNUM);
+  orig.batch_put_edges(src_, dst_, data_);
+  auto d1 = orig.Dump(*ckp);
+  auto p1 = nbr_path(d1);
+
+  CsrT c2;
+  c2.Open(*ckp, d1, MemoryLevel::kInMemory);
+  auto p2 = nbr_path(c2.Dump(*ckp));
+  EXPECT_EQ(inode_of(p1), inode_of(p2));
+
+  c2.reset_timestamp();
+  auto d3 = c2.Dump(*ckp);
+  auto p3 = nbr_path(d3);
+  EXPECT_NE(inode_of(p2), inode_of(p3));
+
+  CsrT c3;
+  c3.Open(*ckp, d3, MemoryLevel::kInMemory);
+  auto p4 = nbr_path(c3.Dump(*ckp));
+  EXPECT_EQ(inode_of(p3), inode_of(p4));
+}
+
+TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
+  expect_slow_after("delete_edge", [](CsrT& c) { c.delete_edge(0, 0, 1); });
+  expect_slow_after("reset_timestamp", [](CsrT& c) { c.reset_timestamp(); });
+  expect_slow_after("compact", [](CsrT& c) { c.compact(); });
+  expect_slow_after("batch_sort", [](CsrT& c) { c.batch_sort_by_edge_data(10); });
+}
+
 }  // namespace test
 }  // namespace neug
