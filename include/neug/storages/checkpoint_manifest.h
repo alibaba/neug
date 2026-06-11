@@ -119,8 +119,16 @@ class CheckpointManifest {
 
   void SetSchema(const Schema& schema);
 
+  /// Returns true if the meta file contained a "schema" field when loaded.
+  /// GenerateEmptyMeta() does not write a schema, so this returns false for
+  /// stub checkpoints created during initial DB creation.  A fully committed
+  /// checkpoint (via Save()) always writes a schema, even if the graph has
+  /// no tables.
+  bool has_schema() const { return has_schema_; }
+
  private:
   Schema schema_;
+  bool has_schema_ = false;
   std::unordered_map<std::string, ModuleDescriptor> modules_;
   std::unordered_map<std::string, std::string> scalars_;
 };

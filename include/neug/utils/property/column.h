@@ -42,7 +42,6 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -121,7 +120,9 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
+  DataTypeId type() const override {
+    return execution::ValueConverter<T>::type().id();
+  }
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
@@ -206,7 +207,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void set_value(size_t index, const EmptyType& value) {}
 
   execution::Value get_any(size_t index) const override {
-    return execution::Value(DataType::SQLNULL);
+    return execution::Value(DataType::EMPTY);
   }
 
   EmptyType get_view(size_t index) const { return EmptyType(); }
@@ -226,20 +227,15 @@ struct string_item {
 template <>
 class TypedColumn<std::string_view> : public ColumnBase {
  public:
-  TypedColumn(uint16_t width)
-      : size_(0), pos_(0), width_(width), type_(DataTypeId::kVarchar) {}
+  TypedColumn(uint16_t width) : size_(0), pos_(0), width_(width) {}
   explicit TypedColumn()
-      : size_(0),
-        pos_(0),
-        width_(STRING_DEFAULT_MAX_LENGTH),
-        type_(DataTypeId::kVarchar) {}
+      : size_(0), pos_(0), width_(STRING_DEFAULT_MAX_LENGTH) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
     items_buffer_ = std::move(rhs.items_buffer_);
     data_buffer_ = std::move(rhs.data_buffer_);
     size_ = rhs.size_;
     pos_ = rhs.pos_.load();
     width_ = rhs.width_;
-    type_ = rhs.type_;
   }
 
   ~TypedColumn() = default;
@@ -420,7 +416,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  DataTypeId type() const override { return type_; }
+  DataTypeId type() const override { return DataTypeId::kVarchar; }
 
   void set_value(size_t idx, const std::string_view& val) {
     auto copied_val = val;
@@ -536,7 +532,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   size_t size_;
   std::atomic<size_t> pos_;
   uint16_t width_;
-  DataTypeId type_;
 };
 
 using StringColumn = TypedColumn<std::string_view>;
@@ -576,7 +571,9 @@ class TypedRefColumn : public RefColumnBase {
     return execution::Value::CreateValue<T>(get_view(index));
   }
 
-  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
+  DataTypeId type() const override {
+    return execution::ValueConverter<T>::type().id();
+  }
 
   ColType col_type() const override { return ColType::kInternal; }
 
@@ -603,9 +600,7 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
     return execution::Value::STRING(std::string(get_view(index)));
   }
 
-  DataTypeId type() const override {
-    return PropUtils<std::string_view>::prop_type();
-  }
+  DataTypeId type() const override { return DataTypeId::kVarchar; }
 
   ColType col_type() const override { return ColType::kInternal; }
 

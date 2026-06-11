@@ -156,11 +156,12 @@ void Checkpoint::UpdateMeta(CheckpointManifest&& meta) {
       LOG(WARNING) << "UpdateMeta: error cleaning snapshot_dir: " << e.what();
     }
     return;
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "Checkpoint::UpdateMeta: failed to update meta: " << e.what();
+  } catch (...) {
+    LOG(ERROR) << "Checkpoint::UpdateMeta: failed to persist meta to "
+               << meta_path();
+    meta_ = std::move(old_meta);
+    throw;
   }
-  // Restore the previous meta on failure.
-  meta_ = std::move(old_meta);
 }
 
 }  // namespace neug
