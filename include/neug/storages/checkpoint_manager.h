@@ -86,6 +86,14 @@ class CheckpointManager {
   int32_t CreateCheckpoint();
 
   /**
+   * @brief Remove a checkpoint by ID.
+   *
+   * Removes the checkpoint from the in-memory map and deletes its directory
+   * from disk.  No-op if @p id is not found.
+   */
+  void RemoveCheckpoint(int32_t id);
+
+  /**
    * @brief Get a checkpoint by ID.
    */
   std::shared_ptr<Checkpoint> GetCheckpoint(int32_t id) const;
