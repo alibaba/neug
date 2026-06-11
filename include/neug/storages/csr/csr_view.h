@@ -368,7 +368,7 @@ struct EdgeDataAccessor {
   inline execution::Value get_generic_bundled_data_from_ptr(
       const void* data_ptr) const {
     if (data_type_ == DataTypeId::kEmpty) {
-      return execution::Value(DataType::SQLNULL);
+      return execution::Value(DataType::EMPTY);
     }
     switch (data_type_) {
 #define TYPE_DISPATCHER(enum_val, type)             \
