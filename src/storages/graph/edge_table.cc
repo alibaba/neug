@@ -814,7 +814,7 @@ std::pair<int32_t, const void*> EdgeTable::AddEdge(
             (meta_->properties.empty() ||
              meta_->properties[0] == DataTypeId::kEmpty)));
     execution::Value bundled_data =
-        edge_data.empty() ? execution::Value(DataType::SQLNULL) : edge_data[0];
+        edge_data.empty() ? execution::Value(DataType::EMPTY) : edge_data[0];
     in_csr_->put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
     auto out_ret =
         out_csr_->put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
