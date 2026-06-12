@@ -61,7 +61,8 @@ class CsrStreamTest : public ::testing::Test {
         actual;
     auto view = this->csr->get_generic_view(ts);
     auto ed_accessor = neug::EdgeDataAccessor(
-        neug::PropUtils<typename T::data_t>::prop_type(), nullptr);
+        neug::execution::ValueConverter<typename T::data_t>::type().id(),
+        nullptr);
     for (neug::vid_t src = 0; src < this->csr->size(); ++src) {
       auto es = view.get_edges(src);
       for (auto it = es.begin(); it != es.end(); ++it) {

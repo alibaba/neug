@@ -37,7 +37,7 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/bolt_utils.h"
-#include "neug/utils/property/property.h"
+#include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
