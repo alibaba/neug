@@ -27,36 +27,38 @@ namespace function {
 function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowLoadedExtensionsFunction::name,
-      std::vector<neug::common::LogicalTypeID>{},
-      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
-          {"name", neug::common::LogicalTypeID::STRING},
-          {"description", common::LogicalTypeID::STRING}});
+      std::vector<neug::common::DataTypeId>{},
+      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
+          {"name", neug::common::DataTypeId::kVarchar},
+          {"description", common::DataTypeId::kVarchar}});
 
   function->bindFunc = [](const neug::Schema& schema,
-    const neug::execution::ContextMeta& ctx_meta,
-    const ::physical::PhysicalPlan& plan,
-    int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+                          const neug::execution::ContextMeta& ctx_meta,
+                          const ::physical::PhysicalPlan& plan,
+                          int op_idx) -> std::unique_ptr<CallFuncInputBase> {
     return std::make_unique<ShowLoadedExtensionsFuncInput>();
   };
 
-  function->execFunc = [](const CallFuncInputBase& input, neug::IStorageInterface& graph) {
+  function->execFunc = [](const CallFuncInputBase& input,
+                          neug::IStorageInterface& graph) {
     try {
       neug::execution::Context ctx;
-      const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
-  
+      const auto& ext_map =
+          neug::extension::ExtensionAPI::getLoadedExtensions();
+
       neug::execution::ValueColumnBuilder<std::string> name_builder;
       neug::execution::ValueColumnBuilder<std::string> desc_builder;
       name_builder.reserve(ext_map.size());
       desc_builder.reserve(ext_map.size());
-  
+
       for (const auto& kv : ext_map) {
         const std::string& name_view = kv.second.name;
         name_builder.push_back_opt(name_view);
-  
+
         const std::string& desc_view = kv.second.description;
         desc_builder.push_back_opt(desc_view);
       }
-  
+
       neug::execution::DataChunk chunk;
       chunk.set(0, name_builder.finish());
       chunk.set(1, desc_builder.finish());

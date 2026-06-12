@@ -66,7 +66,7 @@ struct RecursiveInfo {
 
 class RelExpression final : public NodeOrRelExpression {
  public:
-  RelExpression(common::LogicalType dataType, std::string uniqueName,
+  RelExpression(common::DataType dataType, std::string uniqueName,
                 std::string variableName,
                 std::vector<catalog::TableCatalogEntry*> entries,
                 std::shared_ptr<NodeExpression> srcNode,
@@ -80,7 +80,7 @@ class RelExpression final : public NodeOrRelExpression {
         relType{relType} {}
 
   bool isRecursive() const {
-    return dataType.getLogicalTypeID() == common::LogicalTypeID::RECURSIVE_REL;
+    return dataType.id() == common::DataTypeId::kPath;
   }
 
   bool isBoundByMultiLabeledNode() const {

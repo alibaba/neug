@@ -37,7 +37,7 @@ class NEUG_API LiteralExpression final : public Expression {
 
   bool isNull() const { return value.isNull(); }
 
-  void cast(const common::LogicalType& type) override;
+  void cast(const common::DataType& type) override;
 
   common::Value getValue() const { return value; }
 

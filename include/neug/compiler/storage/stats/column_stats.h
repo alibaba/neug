@@ -35,7 +35,7 @@ namespace storage {
 class ColumnStats {
  public:
   ColumnStats() = default;
-  explicit ColumnStats(const common::LogicalType& dataType);
+  explicit ColumnStats(const common::DataType& dataType);
   EXPLICIT_COPY_DEFAULT_MOVE(ColumnStats);
 
   common::cardinality_t getNumDistinctValues() const {

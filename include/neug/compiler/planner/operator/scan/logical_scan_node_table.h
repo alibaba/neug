@@ -104,7 +104,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
         message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
       }
     }
-    message += ("Type: " + nodeID->getDataType().toString());
+    message += ("Type: " + nodeID->getDataType().ToString());
     if (predicates != nullptr) {
       message += " Predicates: " + predicates->toString();
     }

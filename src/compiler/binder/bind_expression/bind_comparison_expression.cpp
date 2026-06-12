@@ -52,16 +52,16 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
   auto catalog = context->getCatalog();
   auto transaction = context->getTransaction();
   auto functionName = ExpressionTypeUtil::toString(expressionType);
-  LogicalType combinedType(LogicalTypeID::ANY);
+  DataType combinedType(DataTypeId::kUnknown);
   if (!ExpressionUtil::tryCombineDataType(children, combinedType)) {
     THROW_BINDER_EXCEPTION(stringFormat(
         "Type Mismatch: Cannot compare types {} and {}",
-        children[0]->dataType.toString(), children[1]->dataType.toString()));
+        children[0]->dataType.ToString(), children[1]->dataType.ToString()));
   }
-  if (combinedType.getLogicalTypeID() == LogicalTypeID::ANY) {
-    combinedType = LogicalType(LogicalTypeID::INT8);
+  if (combinedType.id() == DataTypeId::kUnknown) {
+    combinedType = DataType(DataTypeId::kInt8);
   }
-  std::vector<LogicalType> childrenTypes;
+  std::vector<DataType> childrenTypes;
   for (auto i = 0u; i < children.size(); i++) {
     childrenTypes.push_back(combinedType.copy());
   }
@@ -85,7 +85,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
                         std::vector<std::string>{} /* optionalParams */});
   }
   auto bindData =
-      std::make_unique<FunctionBindData>(LogicalType(function->returnTypeID));
+      std::make_unique<FunctionBindData>(DataType(function->returnTypeID));
   auto uniqueExpressionName = ScalarFunctionExpression::getUniqueName(
       function->name, childrenAfterCast);
   return std::make_shared<ScalarFunctionExpression>(

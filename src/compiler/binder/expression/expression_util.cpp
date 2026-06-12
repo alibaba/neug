@@ -36,10 +36,10 @@ namespace neug {
 namespace binder {
 
 expression_vector ExpressionUtil::getExpressionsWithDataType(
-    const expression_vector& expressions, LogicalTypeID dataTypeID) {
+    const expression_vector& expressions, DataTypeId dataTypeID) {
   expression_vector result;
   for (auto& expression : expressions) {
-    if (expression->dataType.getLogicalTypeID() == dataTypeID) {
+    if (expression->dataType.id() == dataTypeID) {
       result.push_back(expression);
     }
   }
@@ -134,9 +134,9 @@ expression_vector ExpressionUtil::excludeExpressions(
   return result;
 }
 
-logical_type_vec_t ExpressionUtil::getDataTypes(
+std::vector<DataType> ExpressionUtil::getDataTypes(
     const expression_vector& expressions) {
-  std::vector<LogicalType> result;
+  std::vector<DataType> result;
   result.reserve(expressions.size());
   for (auto& expression : expressions) {
     result.push_back(expression->getDataType().copy());
@@ -169,21 +169,21 @@ bool ExpressionUtil::isNodePattern(const Expression& expression) {
   if (expression.expressionType != ExpressionType::PATTERN) {
     return false;
   }
-  return expression.dataType.getLogicalTypeID() == LogicalTypeID::NODE;
+  return expression.dataType.id() == DataTypeId::kVertex;
 };
 
 bool ExpressionUtil::isRelPattern(const Expression& expression) {
   if (expression.expressionType != ExpressionType::PATTERN) {
     return false;
   }
-  return expression.dataType.getLogicalTypeID() == LogicalTypeID::REL;
+  return expression.dataType.id() == DataTypeId::kEdge;
 }
 
 bool ExpressionUtil::isRecursiveRelPattern(const Expression& expression) {
   if (expression.expressionType != ExpressionType::PATTERN) {
     return false;
   }
-  return expression.dataType.getLogicalTypeID() == LogicalTypeID::RECURSIVE_REL;
+  return expression.dataType.id() == DataTypeId::kPath;
 }
 
 bool ExpressionUtil::isNullLiteral(const Expression& expression) {
@@ -197,7 +197,7 @@ bool ExpressionUtil::isBoolLiteral(const Expression& expression) {
   if (expression.expressionType != ExpressionType::LITERAL) {
     return false;
   }
-  return expression.dataType == LogicalType::BOOL();
+  return expression.dataType == DataType(DataTypeId::kBoolean);
 }
 
 bool ExpressionUtil::isFalseLiteral(const Expression& expression) {
@@ -221,7 +221,7 @@ bool ExpressionUtil::isEmptyList(const Expression& expression) {
   default:
     return false;
   }
-  if (val.getDataType().getLogicalTypeID() != LogicalTypeID::LIST) {
+  if (val.getDataType().id() != DataTypeId::kList) {
     return false;
   }
   return val.getChildrenSize() == 0;
@@ -258,67 +258,67 @@ void ExpressionUtil::validateExpressionType(
 }
 
 void ExpressionUtil::validateDataType(const Expression& expr,
-                                      const LogicalType& expectedType) {
+                                      const DataType& expectedType) {
   if (expr.getDataType() == expectedType) {
     return;
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(), expectedType.toString()));
+                   expr.getDataType().ToString(), expectedType.ToString()));
 }
 
 void ExpressionUtil::validateDataType(const Expression& expr,
-                                      LogicalTypeID expectedTypeID) {
-  if (expr.getDataType().getLogicalTypeID() == expectedTypeID) {
+                                      DataTypeId expectedTypeID) {
+  if (expr.getDataType().id() == expectedTypeID) {
     return;
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(),
+                   expr.getDataType().ToString(),
                    LogicalTypeUtils::toString(expectedTypeID)));
 }
 
 void ExpressionUtil::validateDataType(
-    const Expression& expr, const std::vector<LogicalTypeID>& expectedTypeIDs) {
-  auto targetsSet = std::unordered_set<LogicalTypeID>{expectedTypeIDs.begin(),
-                                                      expectedTypeIDs.end()};
-  if (targetsSet.contains(expr.getDataType().getLogicalTypeID())) {
+    const Expression& expr, const std::vector<DataTypeId>& expectedTypeIDs) {
+  auto targetsSet = std::unordered_set<DataTypeId>{expectedTypeIDs.begin(),
+                                                   expectedTypeIDs.end()};
+  if (targetsSet.contains(expr.getDataType().id())) {
     return;
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(),
+                   expr.getDataType().ToString(),
                    LogicalTypeUtils::toString(expectedTypeIDs)));
 }
 
 template <>
 uint64_t ExpressionUtil::getLiteralValue(const Expression& expr) {
   validateExpressionType(expr, ExpressionType::LITERAL);
-  validateDataType(expr, LogicalType::UINT64());
+  validateDataType(expr, DataType(DataTypeId::kUInt64));
   return expr.constCast<LiteralExpression>().getValue().getValue<uint64_t>();
 }
 template <>
 int64_t ExpressionUtil::getLiteralValue(const Expression& expr) {
   validateExpressionType(expr, ExpressionType::LITERAL);
-  validateDataType(expr, LogicalType::INT64());
+  validateDataType(expr, DataType(DataTypeId::kInt64));
   return expr.constCast<LiteralExpression>().getValue().getValue<int64_t>();
 }
 template <>
 bool ExpressionUtil::getLiteralValue(const Expression& expr) {
   validateExpressionType(expr, ExpressionType::LITERAL);
-  validateDataType(expr, LogicalType::BOOL());
+  validateDataType(expr, DataType(DataTypeId::kBoolean));
   return expr.constCast<LiteralExpression>().getValue().getValue<bool>();
 }
 template <>
 std::string ExpressionUtil::getLiteralValue(const Expression& expr) {
   validateExpressionType(expr, ExpressionType::LITERAL);
-  validateDataType(expr, LogicalType::STRING());
+  validateDataType(expr, DataType::Varchar());
   return expr.constCast<LiteralExpression>().getValue().getValue<std::string>();
 }
 template <>
 double ExpressionUtil::getLiteralValue(const Expression& expr) {
   validateExpressionType(expr, ExpressionType::LITERAL);
-  validateDataType(expr, LogicalType::DOUBLE());
+  validateDataType(expr, DataType(DataTypeId::kDouble));
   return expr.constCast<LiteralExpression>().getValue().getValue<double>();
 }
 
@@ -326,43 +326,41 @@ double ExpressionUtil::getLiteralValue(const Expression& expr) {
 // For nested types, two types are compatible if they have the same id and their
 // children are also compatible. E.g. [NULL] is compatible with [1,2] E.g. {a:
 // NULL, b: NULL} is compatible with {a: [1,2], b: ['c']}
-static bool compatible(const LogicalType& type, const LogicalType& target) {
+static bool compatible(const DataType& type, const DataType& target) {
   if (!type.isInternalType()) {
     return false;
   }
-  if (type.getLogicalTypeID() == LogicalTypeID::ANY) {
+  if (type.id() == DataTypeId::kUnknown) {
     return true;
   }
-  if (type.getLogicalTypeID() != target.getLogicalTypeID()) {
+  if (type.id() != target.id()) {
     return false;
   }
-  switch (type.getLogicalTypeID()) {
-  case LogicalTypeID::LIST: {
-    return compatible(ListType::getChildType(type),
-                      ListType::getChildType(target));
+  switch (type.id()) {
+  case DataTypeId::kList: {
+    return compatible(ListType::GetChildType(type),
+                      ListType::GetChildType(target));
   }
-  case LogicalTypeID::ARRAY: {
-    return compatible(ArrayType::getChildType(type),
-                      ArrayType::getChildType(target));
+  case DataTypeId::kArray: {
+    return compatible(ArrayType::GetChildType(type),
+                      ArrayType::GetChildType(target));
   }
-  case LogicalTypeID::STRUCT: {
-    if (StructType::getNumFields(type) != StructType::getNumFields(target)) {
+  case DataTypeId::kStruct: {
+    if (StructType::GetNumFields(type) != StructType::GetNumFields(target)) {
       return false;
     }
-    for (auto i = 0u; i < StructType::getNumFields(type); ++i) {
-      if (!compatible(StructType::getField(type, i).getType(),
-                      StructType::getField(target, i).getType())) {
+    for (auto i = 0u; i < StructType::GetNumFields(type); ++i) {
+      if (!compatible(StructType::GetChildType(type, i),
+                      StructType::GetChildType(target, i))) {
         return false;
       }
     }
     return true;
   }
-  case LogicalTypeID::DECIMAL:
-  case LogicalTypeID::UNION:
-  case LogicalTypeID::MAP:
-  case LogicalTypeID::NODE:
-  case LogicalTypeID::REL:
-  case LogicalTypeID::RECURSIVE_REL:
+  case DataTypeId::kMap:
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
     return false;
   default:
     return true;
@@ -372,44 +370,44 @@ static bool compatible(const LogicalType& type, const LogicalType& target) {
 // Handle special cases where value can be compatible to a type. This happens
 // when a value is a nested value but does not have any child. E.g. [] is
 // compatible with [1,2]
-static bool compatible(const Value& value, const LogicalType& targetType) {
+static bool compatible(const Value& value, const DataType& targetType) {
   if (value.isNull()) {  // Value is null. We can safely change its type.
     return true;
   }
-  if (value.getDataType().getLogicalTypeID() != targetType.getLogicalTypeID()) {
+  if (value.getDataType().id() != targetType.id()) {
     return false;
   }
-  switch (value.getDataType().getLogicalTypeID()) {
-  case LogicalTypeID::LIST: {
+  switch (value.getDataType().id()) {
+  case DataTypeId::kList: {
     if (!value.hasNoneNullChildren()) {  // Empty list free to change.
       return true;
     }
     for (auto i = 0u; i < NestedVal::getChildrenSize(&value); ++i) {
       if (!compatible(*NestedVal::getChildVal(&value, i),
-                      ListType::getChildType(targetType))) {
+                      ListType::GetChildType(targetType))) {
         return false;
       }
     }
     return true;
   }
-  case LogicalTypeID::ARRAY: {
+  case DataTypeId::kArray: {
     if (!value.hasNoneNullChildren()) {  // Empty array free to change.
       return true;
     }
     for (auto i = 0u; i < NestedVal::getChildrenSize(&value); ++i) {
       if (!compatible(*NestedVal::getChildVal(&value, i),
-                      ArrayType::getChildType(targetType))) {
+                      ArrayType::GetChildType(targetType))) {
         return false;
       }
     }
     return true;
   }
-  case LogicalTypeID::MAP: {
+  case DataTypeId::kMap: {
     if (!value.hasNoneNullChildren()) {  // Empty map free to change.
       return true;
     }
-    const auto& keyType = MapType::getKeyType(targetType);
-    const auto& valType = MapType::getValueType(targetType);
+    const auto& keyType = MapType::GetKeyType(targetType);
+    const auto& valType = MapType::GetValueType(targetType);
     for (auto i = 0u; i < NestedVal::getChildrenSize(&value); ++i) {
       auto childVal = NestedVal::getChildVal(&value, i);
       NEUG_ASSERT(NestedVal::getChildrenSize(childVal) == 2);
@@ -428,9 +426,9 @@ static bool compatible(const Value& value, const LogicalType& targetType) {
 }
 
 bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
-                                        LogicalType& result) {
+                                        DataType& result) {
   std::vector<Value> secondaryValues;
-  std::vector<LogicalType> primaryTypes;
+  std::vector<DataType> primaryTypes;
   bool propKeyValues = false;
   if (expressions.size() == 2 &&
           expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
@@ -477,7 +475,7 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
 }
 
 bool ExpressionUtil::canCastStatically(const Expression& expr,
-                                       const LogicalType& targetType) {
+                                       const DataType& targetType) {
   switch (expr.expressionType) {
   case ExpressionType::LITERAL: {
     auto value = expr.constPtrCast<LiteralExpression>()->getValue();
@@ -495,7 +493,7 @@ bool ExpressionUtil::canCastStatically(const Expression& expr,
 bool ExpressionUtil::canEvaluateAsLiteral(const Expression& expr) {
   return (expr.expressionType == ExpressionType::LITERAL ||
           (expr.expressionType == ExpressionType::PARAMETER &&
-           expr.getDataType().getLogicalTypeID() != LogicalTypeID::ANY));
+           expr.getDataType().id() != DataTypeId::kUnknown));
 }
 
 Value ExpressionUtil::evaluateAsLiteralValue(const Expression& expr) {
@@ -516,7 +514,7 @@ Value ExpressionUtil::evaluateAsLiteralValue(const Expression& expr) {
 
 template <typename T>
 T ExpressionUtil::evaluateLiteral(const Expression& expression,
-                                  const common::LogicalType& type,
+                                  const common::DataType& type,
                                   validate_param_func<T> validateParamFunc) {
   if (!canEvaluateAsLiteral(expression)) {
     std::string errMsg;
@@ -534,7 +532,7 @@ T ExpressionUtil::evaluateLiteral(const Expression& expression,
   if (value.getDataType() != type) {
     THROW_RUNTIME_ERROR(
         common::stringFormat("Parameter: {} must be a {} literal.",
-                             expression.getAlias(), type.toString()));
+                             expression.getAlias(), type.ToString()));
   }
   T val = value.getValue<T>();
   if (validateParamFunc != nullptr) {
@@ -544,19 +542,19 @@ T ExpressionUtil::evaluateLiteral(const Expression& expression,
 }
 
 template NEUG_API std::string ExpressionUtil::evaluateLiteral<std::string>(
-    const Expression& expression, const common::LogicalType& type,
+    const Expression& expression, const common::DataType& type,
     validate_param_func<std::string> validateParamFunc);
 
 template NEUG_API double ExpressionUtil::evaluateLiteral<double>(
-    const Expression& expression, const common::LogicalType& type,
+    const Expression& expression, const common::DataType& type,
     validate_param_func<double> validateParamFunc);
 
 template NEUG_API int64_t ExpressionUtil::evaluateLiteral<int64_t>(
-    const Expression& expression, const common::LogicalType& type,
+    const Expression& expression, const common::DataType& type,
     validate_param_func<int64_t> validateParamFunc);
 
 template NEUG_API bool ExpressionUtil::evaluateLiteral<bool>(
-    const Expression& expression, const common::LogicalType& type,
+    const Expression& expression, const common::DataType& type,
     validate_param_func<bool> validateParamFunc);
 
 }  // namespace binder

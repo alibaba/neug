@@ -69,7 +69,7 @@ void ListUnique::operation(common::list_entry_t& input, int64_t& result,
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   return FunctionBindData::getSimpleBindData(input.arguments,
-                                             LogicalType::INT64());
+                                             DataType(DataTypeId::kInt64));
 }
 
 }  // namespace function

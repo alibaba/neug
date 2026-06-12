@@ -45,10 +45,10 @@ struct ArrowSchemaHolder {
 struct ArrowConverter {
  public:
   static std::unique_ptr<ArrowSchema> toArrowSchema(
-      const std::vector<LogicalType>& dataTypes,
+      const std::vector<DataType>& dataTypes,
       const std::vector<std::string>& columnNames);
 
-  static common::LogicalType fromArrowSchema(const ArrowSchema* schema);
+  static common::DataType fromArrowSchema(const ArrowSchema* schema);
   static void fromArrowArray(const ArrowSchema* schema, const ArrowArray* array,
                              ValueVector& outputVector, ArrowNullMaskTree* mask,
                              uint64_t srcOffset, uint64_t dstOffset,
@@ -60,15 +60,12 @@ struct ArrowConverter {
   static void initializeChild(ArrowSchema& child, const std::string& name = "");
   static void setArrowFormatForStruct(ArrowSchemaHolder& rootHolder,
                                       ArrowSchema& child,
-                                      const LogicalType& dataType);
-  static void setArrowFormatForUnion(ArrowSchemaHolder& rootHolder,
-                                     ArrowSchema& child,
-                                     const LogicalType& dataType);
+                                      const DataType& dataType);
   static void setArrowFormatForInternalID(ArrowSchemaHolder& rootHolder,
                                           ArrowSchema& child,
-                                          const LogicalType& dataType);
+                                          const DataType& dataType);
   static void setArrowFormat(ArrowSchemaHolder& rootHolder, ArrowSchema& child,
-                             const LogicalType& dataType);
+                             const DataType& dataType);
 };
 
 }  // namespace common

@@ -50,12 +50,12 @@ class NEUG_API ValueVector {
 
  public:
   explicit ValueVector(
-      LogicalType dataType, storage::MemoryManager* memoryManager = nullptr,
+      DataType dataType, storage::MemoryManager* memoryManager = nullptr,
       std::shared_ptr<DataChunkState> dataChunkState = nullptr);
-  explicit ValueVector(LogicalTypeID dataTypeID,
+  explicit ValueVector(DataTypeId dataTypeID,
                        storage::MemoryManager* memoryManager = nullptr)
-      : ValueVector(LogicalType(dataTypeID), memoryManager) {
-    NEUG_ASSERT(dataTypeID != LogicalTypeID::LIST);
+      : ValueVector(DataType(dataTypeID), memoryManager) {
+    NEUG_ASSERT(dataTypeID != DataTypeId::kList);
   }
 
   DELETE_COPY_AND_MOVE(ValueVector);
@@ -147,7 +147,7 @@ class NEUG_API ValueVector {
   uint8_t* getData() const { return valueBuffer.get(); }
 
   offset_t readNodeOffset(uint32_t pos) const {
-    NEUG_ASSERT(dataType.getLogicalTypeID() == LogicalTypeID::INTERNAL_ID);
+    NEUG_ASSERT(dataType.id() == DataTypeId::kInternalId);
     return getValue<nodeID_t>(pos).offset;
   }
 
@@ -168,11 +168,11 @@ class NEUG_API ValueVector {
   }
 
  private:
-  uint32_t getDataTypeSize(const LogicalType& type);
+  uint32_t getDataTypeSize(const DataType& type);
   void initializeValueBuffer();
 
  public:
-  LogicalType dataType;
+  DataType dataType;
   std::shared_ptr<DataChunkState> state;
 
  private:
@@ -186,7 +186,8 @@ class NEUG_API StringVector {
  public:
   static inline InMemOverflowBuffer* getInMemOverflowBuffer(
       ValueVector* vector) {
-    NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+    NEUG_ASSERT(getPhysicalType(vector->dataType.id()) ==
+                PhysicalTypeID::STRING);
     return neug_dynamic_cast<StringAuxiliaryBuffer*>(
                vector->auxiliaryBuffer.get())
         ->getOverflowBuffer();
@@ -300,7 +301,7 @@ class NEUG_API ListVector {
 
  private:
   static bool validateType(const ValueVector& vector) {
-    switch (vector.dataType.getPhysicalType()) {
+    switch (getPhysicalType(vector.dataType.id())) {
     case PhysicalTypeID::LIST:
     case PhysicalTypeID::ARRAY:
       return true;
@@ -328,7 +329,7 @@ class StructVector {
 
   static ValueVector* getFieldVectorRaw(const ValueVector& vector,
                                         const std::string& fieldName) {
-    auto idx = StructType::getFieldIdx(vector.dataType, fieldName);
+    auto idx = StructType::GetFieldIdx(vector.dataType, fieldName);
     return neug_dynamic_cast<StructAuxiliaryBuffer*>(
                vector.auxiliaryBuffer.get())
         ->getFieldVectorPtr(idx);
@@ -348,38 +349,6 @@ class StructVector {
   static void copyFromVectorData(ValueVector* dstVector, const uint8_t* dstData,
                                  const ValueVector* srcVector,
                                  const uint8_t* srcData);
-};
-
-class UnionVector {
- public:
-  static inline ValueVector* getTagVector(const ValueVector* vector) {
-    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    return StructVector::getFieldVector(vector, UnionType::TAG_FIELD_IDX).get();
-  }
-
-  static inline ValueVector* getValVector(const ValueVector* vector,
-                                          union_field_idx_t fieldIdx) {
-    NEUG_ASSERT(vector->dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    return StructVector::getFieldVector(
-               vector, UnionType::getInternalFieldIdx(fieldIdx))
-        .get();
-  }
-
-  static inline void referenceVector(
-      ValueVector* vector, union_field_idx_t fieldIdx,
-      std::shared_ptr<ValueVector> vectorToReference) {
-    StructVector::referenceVector(vector,
-                                  UnionType::getInternalFieldIdx(fieldIdx),
-                                  std::move(vectorToReference));
-  }
-
-  static inline void setTagField(ValueVector& vector, SelectionVector& sel,
-                                 union_field_idx_t tag) {
-    NEUG_ASSERT(vector.dataType.getLogicalTypeID() == LogicalTypeID::UNION);
-    for (auto i = 0u; i < sel.getSelSize(); i++) {
-      vector.setValue<struct_field_idx_t>(sel[i], tag);
-    }
-  }
 };
 
 class MapVector {

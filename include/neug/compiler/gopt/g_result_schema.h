@@ -68,7 +68,7 @@ class GResultSchema {
   static inline YAML::Node convertType(const binder::Expression& expr,
                                        catalog::Catalog* catalog) {
     auto& type = expr.getDataType();
-    if (type.getLogicalTypeID() == common::LogicalTypeID::NODE) {
+    if (type.id() == common::DataTypeId::kVertex) {
       auto nodeExpr = dynamic_cast<const binder::NodeExpression*>(&expr);
       if (nodeExpr) {
         GNodeType nodeType{*nodeExpr};
@@ -77,7 +77,7 @@ class GResultSchema {
         GNodeType emptyNode({});
         return emptyNode.toYAML();
       }
-    } else if (type.getLogicalTypeID() == common::LogicalTypeID::REL) {
+    } else if (type.id() == common::DataTypeId::kEdge) {
       auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
       if (relExpr) {
         GRelType relType{*relExpr};

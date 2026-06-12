@@ -182,20 +182,20 @@ FilterPushDownPattern::bindBooleanExpression(
     common::ExpressionType expressionType,
     const binder::expression_vector& children) {
   binder::expression_vector childrenAfterCast;
-  std::vector<common::LogicalTypeID> inputTypeIDs;
+  std::vector<common::DataTypeId> inputTypeIDs;
   for (auto& child : children) {
     childrenAfterCast.push_back(child);
-    inputTypeIDs.push_back(common::LogicalTypeID::BOOL);
+    inputTypeIDs.push_back(common::DataTypeId::kBoolean);
   }
   auto functionName = common::ExpressionTypeUtil::toString(expressionType);
   function::scalar_func_exec_t execFunc = nullptr;
   function::scalar_func_select_t selectFunc = nullptr;
-  auto bindData =
-      std::make_unique<function::FunctionBindData>(common::LogicalType::BOOL());
+  auto bindData = std::make_unique<function::FunctionBindData>(
+      common::DataType(DataTypeId::kBoolean));
   auto uniqueExpressionName = binder::ScalarFunctionExpression::getUniqueName(
       functionName, childrenAfterCast);
   auto func = std::make_unique<function::ScalarFunction>(
-      functionName, inputTypeIDs, common::LogicalTypeID::BOOL, execFunc,
+      functionName, inputTypeIDs, common::DataTypeId::kBoolean, execFunc,
       selectFunc);
   return std::make_shared<binder::ScalarFunctionExpression>(
       expressionType, std::move(func), std::move(bindData),

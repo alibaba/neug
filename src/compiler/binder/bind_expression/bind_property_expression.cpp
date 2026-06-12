@@ -44,10 +44,10 @@ static bool isNodeOrRelPattern(const Expression& expression) {
 }
 
 static bool isStructPattern(const Expression& expression) {
-  auto logicalTypeID = expression.getDataType().getLogicalTypeID();
-  return logicalTypeID == LogicalTypeID::NODE ||
-         logicalTypeID == LogicalTypeID::REL ||
-         logicalTypeID == LogicalTypeID::STRUCT;
+  auto logicalTypeID = expression.getDataType().id();
+  return logicalTypeID == DataTypeId::kVertex ||
+         logicalTypeID == DataTypeId::kEdge ||
+         logicalTypeID == DataTypeId::kStruct;
 }
 
 expression_vector ExpressionBinder::bindPropertyStarExpression(
@@ -84,8 +84,8 @@ expression_vector ExpressionBinder::bindStructPropertyStarExpression(
     const std::shared_ptr<Expression>& child) {
   expression_vector result;
   const auto& childType = child->getDataType();
-  for (auto& field : neug::common::StructType::getFields(childType)) {
-    result.push_back(bindStructPropertyExpression(child, field.getName()));
+  for (const auto& fieldName : StructType::GetFieldNames(childType)) {
+    result.push_back(bindStructPropertyExpression(child, fieldName));
   }
   return result;
 }
@@ -103,8 +103,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
   auto child = bindExpression(*parsedExpression.getChild(0));
   ExpressionUtil::validateDataType(
       *child,
-      std::vector<LogicalTypeID>{LogicalTypeID::NODE, LogicalTypeID::REL,
-                                 LogicalTypeID::STRUCT, LogicalTypeID::ANY});
+      std::vector<DataTypeId>{DataTypeId::kVertex, DataTypeId::kEdge,
+                              DataTypeId::kStruct, DataTypeId::kUnknown});
   // Neug can support node or rel pattern as order key directly, we don't
   // need to convert it to struct property expression.
 
@@ -124,8 +124,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindPropertyExpression(
     return bindNodeOrRelPropertyExpression(*child, propertyName);
   } else if (isStructPattern(*child)) {
     return bindStructPropertyExpression(child, propertyName);
-  } else if (child->getDataType().getLogicalTypeID() == LogicalTypeID::ANY) {
-    return createVariableExpression(LogicalType::ANY(),
+  } else if (child->getDataType().id() == DataTypeId::kUnknown) {
+    return createVariableExpression(DataType(DataTypeId::kUnknown),
                                     binder->getUniqueExpressionName(""));
   } else {
     THROW_BINDER_EXCEPTION(
@@ -141,7 +141,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindNodeOrRelPropertyExpression(
   // TODO(Xiyang): we should be able to remove l97-l100 after removing
   // propertyDataExprs from node & rel expression.
   if (propertyName == InternalKeyword::ID &&
-      child.dataType.getLogicalTypeID() == common::LogicalTypeID::NODE) {
+      child.dataType.id() == common::DataTypeId::kVertex) {
     auto& node = neug_dynamic_cast<const NodeExpression&>(child);
     return node.getInternalID();
   }

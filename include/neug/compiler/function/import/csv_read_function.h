@@ -35,7 +35,7 @@ struct CSVReadFunction {
 
   static function_set getFunctionSet() {
     auto typeIDs =
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING};
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = execFunc;
     readFunction->sniffFunc = sniffFunc;

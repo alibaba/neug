@@ -28,10 +28,10 @@ namespace neug {
 namespace binder {
 
 static void resolveAnyType(Expression& expr) {
-  if (expr.getDataType().getLogicalTypeID() != LogicalTypeID::ANY) {
+  if (expr.getDataType().id() != DataTypeId::kUnknown) {
     return;
   }
-  expr.cast(LogicalType::STRING());
+  expr.cast(DataType::Varchar());
 }
 
 void DefaultTypeSolver::visitProjectionBody(

@@ -65,16 +65,21 @@ bool DataType::operator==(const DataType& rhs) const {
 
 const DataType& ListType::GetChildType(const DataType& type) {
   assert(type.id() == DataTypeId::kList);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<ListTypeInfo>().child_type;
 }
 
-const std::vector<DataType>& StructType::GetChildTypes(const DataType& type) {
-  assert(type.id() == DataTypeId::kStruct);
-  auto info = type.RawExtraTypeInfo();
+static const StructTypeInfo& getStructInfo(const DataType& type) {
+  assert(type.id() == DataTypeId::kStruct || type.id() == DataTypeId::kVertex ||
+         type.id() == DataTypeId::kEdge || type.id() == DataTypeId::kPath);
+  auto info = type.getExtraTypeInfo();
   assert(info);
-  return info->Cast<StructTypeInfo>().child_types;
+  return info->Cast<StructTypeInfo>();
+}
+
+const std::vector<DataType>& StructType::GetChildTypes(const DataType& type) {
+  return getStructInfo(type).child_types;
 }
 
 const DataType& StructType::GetChildType(const DataType& type, size_t index) {
@@ -83,9 +88,68 @@ const DataType& StructType::GetChildType(const DataType& type, size_t index) {
   return children[index];
 }
 
+const std::string& StructType::GetChildName(const DataType& type,
+                                            size_t index) {
+  const auto& info = getStructInfo(type);
+  assert(index < info.field_names.size());
+  return info.field_names[index];
+}
+
+const std::vector<std::string>& StructType::GetFieldNames(
+    const DataType& type) {
+  return getStructInfo(type).field_names;
+}
+
+bool StructType::HasField(const DataType& type, const std::string& name) {
+  return getStructInfo(type).hasField(name);
+}
+
+size_t StructType::GetFieldIdx(const DataType& type, const std::string& name) {
+  return getStructInfo(type).getFieldIdx(name);
+}
+
+uint64_t StructType::GetNumFields(const DataType& type) {
+  return getStructInfo(type).child_types.size();
+}
+
+const DataType& ArrayType::GetChildType(const DataType& type) {
+  assert(type.id() == DataTypeId::kArray);
+  auto info = type.getExtraTypeInfo();
+  assert(info);
+  return info->Cast<ArrayTypeInfo>().child_type;
+}
+
+uint64_t ArrayType::GetNumElements(const DataType& type) {
+  assert(type.id() == DataTypeId::kArray);
+  auto info = type.getExtraTypeInfo();
+  assert(info);
+  return info->Cast<ArrayTypeInfo>().num_elements;
+}
+
+const DataType& MapType::GetKeyType(const DataType& type) {
+  assert(type.id() == DataTypeId::kMap);
+  auto info = type.getExtraTypeInfo();
+  assert(info);
+  return info->Cast<MapTypeInfo>().key_type;
+}
+
+const DataType& MapType::GetValueType(const DataType& type) {
+  assert(type.id() == DataTypeId::kMap);
+  auto info = type.getExtraTypeInfo();
+  assert(info);
+  return info->Cast<MapTypeInfo>().value_type;
+}
+
 DataType DataType::Struct(std::vector<DataType> children) {
   std::shared_ptr<ExtraTypeInfo> type_info =
-      std::make_shared<StructTypeInfo>(children);
+      std::make_shared<StructTypeInfo>(std::move(children));
+  return DataType(DataTypeId::kStruct, type_info);
+}
+
+DataType DataType::Struct(std::vector<std::string> field_names,
+                          std::vector<DataType> field_types) {
+  std::shared_ptr<ExtraTypeInfo> type_info = std::make_shared<StructTypeInfo>(
+      std::move(field_names), std::move(field_types));
   return DataType(DataTypeId::kStruct, type_info);
 }
 
@@ -95,10 +159,58 @@ DataType DataType::List(const DataType& child_type) {
   return DataType(DataTypeId::kList, type_info);
 }
 
+DataType DataType::Array(const DataType& child_type, uint64_t num_elements) {
+  std::shared_ptr<ExtraTypeInfo> type_info =
+      std::make_shared<ArrayTypeInfo>(child_type, num_elements);
+  return DataType(DataTypeId::kArray, type_info);
+}
+
+DataType DataType::Map(const DataType& key_type, const DataType& value_type) {
+  std::shared_ptr<ExtraTypeInfo> type_info =
+      std::make_shared<MapTypeInfo>(key_type, value_type);
+  return DataType(DataTypeId::kMap, type_info);
+}
+
 DataType DataType::Varchar(size_t max_length) {
   std::shared_ptr<ExtraTypeInfo> type_info =
       std::make_shared<StringTypeInfo>(max_length);
   return DataType(DataTypeId::kVarchar, type_info);
+}
+
+DataType DataType::InternalId() { return DataType(DataTypeId::kInternalId); }
+
+bool DataType::containsAny() const {
+  if (id_ == DataTypeId::kUnknown)
+    return true;
+  if (!type_info_)
+    return false;
+  switch (id_) {
+  case DataTypeId::kList: {
+    auto& info = type_info_->Cast<ListTypeInfo>();
+    return info.child_type.containsAny();
+  }
+  case DataTypeId::kArray: {
+    auto& info = type_info_->Cast<ArrayTypeInfo>();
+    return info.child_type.containsAny();
+  }
+  case DataTypeId::kMap: {
+    auto& info = type_info_->Cast<MapTypeInfo>();
+    return info.key_type.containsAny() || info.value_type.containsAny();
+  }
+  case DataTypeId::kStruct:
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath: {
+    auto& info = type_info_->Cast<StructTypeInfo>();
+    for (auto& child : info.child_types) {
+      if (child.containsAny())
+        return true;
+    }
+    return false;
+  }
+  default:
+    return false;
+  }
 }
 
 DataType parse_from_data_type(const ::common::DataType& ddt) {
@@ -245,6 +357,8 @@ std::string DataType::ToString() const {
     return "TIMESTAMP_MS";
   case DataTypeId::kInterval:
     return "INTERVAL";
+  case DataTypeId::kInternalId:
+    return "INTERNAL_ID";
   case DataTypeId::kVertex:
     return "VERTEX";
   case DataTypeId::kEdge:
@@ -255,18 +369,37 @@ std::string DataType::ToString() const {
     const DataType& child_type = ListType::GetChildType(*this);
     return "LIST<" + child_type.ToString() + ">";
   }
+  case DataTypeId::kArray: {
+    auto& arr_info = type_info_->Cast<ArrayTypeInfo>();
+    return arr_info.child_type.ToString() + "[" +
+           std::to_string(arr_info.num_elements) + "]";
+  }
+  case DataTypeId::kMap: {
+    auto& map_info = type_info_->Cast<MapTypeInfo>();
+    return "MAP(" + map_info.key_type.ToString() + ", " +
+           map_info.value_type.ToString() + ")";
+  }
   case DataTypeId::kStruct: {
-    const auto& child_types = StructType::GetChildTypes(*this);
-    std::string result = "STRUCT<";
-    for (size_t i = 0; i < child_types.size(); ++i) {
-      result += child_types[i].ToString();
-      if (i != child_types.size() - 1) {
+    const auto& info = getStructInfo(*this);
+    std::string result = "STRUCT(";
+    for (size_t i = 0; i < info.child_types.size(); ++i) {
+      if (!info.field_names.empty() && i < info.field_names.size()) {
+        result += info.field_names[i] + ": ";
+      }
+      result += info.child_types[i].ToString();
+      if (i != info.child_types.size() - 1) {
         result += ", ";
       }
     }
-    result += ">";
+    result += ")";
     return result;
   }
+  case DataTypeId::kNull:
+    return "NULL";
+  case DataTypeId::kUnknown:
+    return "ANY";
+  case DataTypeId::kEmpty:
+    return "EMPTY";
   default:
     return "UNKNOWN" + std::to_string(static_cast<uint8_t>(id_));
   }

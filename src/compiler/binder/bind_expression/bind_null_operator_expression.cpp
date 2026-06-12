@@ -43,12 +43,12 @@ std::shared_ptr<Expression> ExpressionBinder::bindNullOperatorExpression(
 std::shared_ptr<Expression> ExpressionBinder::bindNullOperatorExpression(
     ExpressionType expressionType, const expression_vector& children) {
   expression_vector childrenAfterCast;
-  std::vector<LogicalTypeID> inputTypeIDs;
+  std::vector<DataTypeId> inputTypeIDs;
   for (auto& child : children) {
-    inputTypeIDs.push_back(child->getDataType().getLogicalTypeID());
-    if (child->dataType.getLogicalTypeID() == LogicalTypeID::ANY) {
+    inputTypeIDs.push_back(child->getDataType().id());
+    if (child->dataType.id() == DataTypeId::kUnknown) {
       childrenAfterCast.push_back(
-          implicitCastIfNecessary(child, LogicalType::BOOL()));
+          implicitCastIfNecessary(child, DataType(DataTypeId::kBoolean)));
     } else {
       childrenAfterCast.push_back(child);
     }
@@ -56,12 +56,12 @@ std::shared_ptr<Expression> ExpressionBinder::bindNullOperatorExpression(
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   function::scalar_func_exec_t execFunc = nullptr;
   function::scalar_func_select_t selectFunc = nullptr;
-  auto bindData =
-      std::make_unique<function::FunctionBindData>(LogicalType::BOOL());
+  auto bindData = std::make_unique<function::FunctionBindData>(
+      DataType(DataTypeId::kBoolean));
   auto uniqueExpressionName =
       ScalarFunctionExpression::getUniqueName(functionName, childrenAfterCast);
   auto func = std::make_unique<ScalarFunction>(
-      functionName, inputTypeIDs, LogicalTypeID::BOOL, execFunc, selectFunc);
+      functionName, inputTypeIDs, DataTypeId::kBoolean, execFunc, selectFunc);
   return make_shared<ScalarFunctionExpression>(
       expressionType, std::move(func), std::move(bindData),
       std::move(childrenAfterCast), uniqueExpressionName);

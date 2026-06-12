@@ -42,7 +42,7 @@ class CaseExpression final : public Expression {
       common::ExpressionType::CASE_ELSE;
 
  public:
-  CaseExpression(common::LogicalType dataType,
+  CaseExpression(common::DataType dataType,
                  std::shared_ptr<Expression> elseExpression,
                  const std::string& name)
       : Expression{expressionType_, std::move(dataType), name},

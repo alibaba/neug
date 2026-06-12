@@ -71,7 +71,7 @@ class StringAuxiliaryBuffer : public AuxiliaryBuffer {
 
 class NEUG_API StructAuxiliaryBuffer : public AuxiliaryBuffer {
  public:
-  StructAuxiliaryBuffer(const LogicalType& type,
+  StructAuxiliaryBuffer(const DataType& type,
                         storage::MemoryManager* memoryManager);
 
   void referenceChildVector(idx_t idx,
@@ -112,7 +112,7 @@ class NEUG_API ListAuxiliaryBuffer : public AuxiliaryBuffer {
   friend class ListVector;
 
  public:
-  ListAuxiliaryBuffer(const LogicalType& dataVectorType,
+  ListAuxiliaryBuffer(const DataType& dataVectorType,
                       storage::MemoryManager* memoryManager);
 
   void setDataVector(std::shared_ptr<ValueVector> vector) {
@@ -146,7 +146,7 @@ class NEUG_API ListAuxiliaryBuffer : public AuxiliaryBuffer {
 class AuxiliaryBufferFactory {
  public:
   static std::unique_ptr<AuxiliaryBuffer> getAuxiliaryBuffer(
-      LogicalType& type, storage::MemoryManager* memoryManager);
+      DataType& type, storage::MemoryManager* memoryManager);
 };
 
 }  // namespace common

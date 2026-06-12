@@ -46,23 +46,24 @@ AggregateFunction::AggregateFunction(const AggregateFunction& other)
 }
 
 template void AggregateFunctionUtils::appendSumOrAvgFuncs<AvgFunction>(
-    std::string name, common::LogicalTypeID inputType, function_set& result);
+    std::string name, common::DataTypeId inputType, function_set& result);
 template void AggregateFunctionUtils::appendSumOrAvgFuncs<SumFunction>(
-    std::string name, common::LogicalTypeID inputType, function_set& result);
+    std::string name, common::DataTypeId inputType, function_set& result);
 
 template <template <typename, typename> class FunctionType>
-void AggregateFunctionUtils::appendSumOrAvgFuncs(
-    std::string name, common::LogicalTypeID inputType, function_set& result) {
+void AggregateFunctionUtils::appendSumOrAvgFuncs(std::string name,
+                                                 common::DataTypeId inputType,
+                                                 function_set& result) {
   std::unique_ptr<AggregateFunction> aggFunc;
   for (auto isDistinct : std::vector<bool>{true, false}) {
     TypeUtils::visit(
-        LogicalType{inputType},
+        DataType{inputType},
         [&]<IntegerTypes T>(T) {
-          LogicalTypeID resultType = LogicalTypeID::INT64;
+          DataTypeId resultType = DataTypeId::kInt64;
           // For avg aggregate functions, the result type is always double.
           if constexpr (std::is_same_v<FunctionType<T, int128_t>,
                                        AvgFunction<T, int128_t>>) {
-            resultType = LogicalTypeID::DOUBLE;
+            resultType = DataTypeId::kDouble;
           }
           aggFunc =
               AggregateFunctionUtils::getAggFunc<FunctionType<T, int128_t>>(
@@ -70,7 +71,7 @@ void AggregateFunctionUtils::appendSumOrAvgFuncs(
         },
         [&]<FloatingPointTypes T>(T) {
           aggFunc = AggregateFunctionUtils::getAggFunc<FunctionType<T, double>>(
-              name, inputType, LogicalTypeID::DOUBLE, isDistinct);
+              name, inputType, DataTypeId::kDouble, isDistinct);
         },
         [](auto) { NEUG_UNREACHABLE; });
     result.push_back(std::move(aggFunc));

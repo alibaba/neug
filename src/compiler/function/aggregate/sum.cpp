@@ -29,7 +29,7 @@ using namespace neug::common;
 
 function_set AggregateSumFunction::getFunctionSet() {
   function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+  for (auto typeID : LogicalTypeUtils::getNumericalDataTypeIds()) {
     AggregateFunctionUtils::appendSumOrAvgFuncs<SumFunction>(name, typeID,
                                                              result);
   }

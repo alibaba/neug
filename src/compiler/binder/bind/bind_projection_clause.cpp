@@ -78,7 +78,7 @@ BoundWithClause Binder::bindWithClause(const WithClause& withClause) {
   for (auto i = 0u; i < projectionExprs.size(); ++i) {
     auto expr = projectionExprs[i];
     addToScope(aliases[i], expr);
-    if (expr->getDataType().getLogicalTypeID() == LogicalTypeID::NODE &&
+    if (expr->getDataType().id() == DataTypeId::kVertex &&
         expr->expressionType != ExpressionType::PATTERN) {
       auto childNodeExpr = createChildNodeExpr(
           expr, expr->getDataType(), expr->getUniqueName(), aliases[i]);
@@ -314,22 +314,20 @@ expression_vector Binder::bindOrderByExpressions(
     if (!isOrderByKeyTypeSupported(expr->dataType)) {
       THROW_BINDER_EXCEPTION(
           stringFormat("Cannot order by {}. Order by {} is not supported.",
-                       expr->toString(), expr->dataType.toString()));
+                       expr->toString(), expr->dataType.ToString()));
     }
     exprs.push_back(std::move(expr));
   }
   return exprs;
 }
 
-bool Binder::isOrderByKeyTypeSupported(const LogicalType& dataType) {
+bool Binder::isOrderByKeyTypeSupported(const DataType& dataType) {
   static std::vector unsupportedKeyTypes{
-      LogicalTypeID::NODE,          LogicalTypeID::REL,
-      LogicalTypeID::RECURSIVE_REL, LogicalTypeID::INTERNAL_ID,
-      LogicalTypeID::LIST,          LogicalTypeID::ARRAY,
-      LogicalTypeID::STRUCT,        LogicalTypeID::MAP,
-      LogicalTypeID::UNION,         LogicalTypeID::POINTER};
+      DataTypeId::kVertex,     DataTypeId::kEdge, DataTypeId::kPath,
+      DataTypeId::kInternalId, DataTypeId::kList, DataTypeId::kArray,
+      DataTypeId::kStruct,     DataTypeId::kMap};
   for (const auto typeID : unsupportedKeyTypes) {
-    if (dataType.getLogicalTypeID() == typeID) {
+    if (dataType.id() == typeID) {
       return false;
     }
   }

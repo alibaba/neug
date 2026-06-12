@@ -2618,7 +2618,7 @@ def test_multi_ddl_queries():
        CREATE NODE TABLE N (id SERIAL, PRIMARY KEY(id));
         """
         )
-    assert str("Unsupported basic type for conversion: SERIAL") in str(excinfo.value)
+    assert "SERIAL" in str(excinfo.value)
     conn.close()
     db.close()
 

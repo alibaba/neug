@@ -32,7 +32,7 @@ namespace binder {
 BoundStatementResult BoundStatementResult::createSingleStringColumnResult(
     const std::string& columnName) {
   auto result = BoundStatementResult();
-  auto value = Value(LogicalType::STRING(), columnName);
+  auto value = Value(DataType::Varchar(), columnName);
   auto stringColumn =
       std::make_shared<LiteralExpression>(std::move(value), columnName);
   result.addColumn(columnName, stringColumn);
