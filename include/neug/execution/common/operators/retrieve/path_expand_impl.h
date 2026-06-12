@@ -60,13 +60,13 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            neug::vector<vid_t> path(depth + 1);
+            std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            neug::vector<std::pair<Direction, const void*>> edge_datas;
+            std::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -87,14 +87,14 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            neug::vector<vid_t> path(depth + 1);
+            std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            neug::vector<std::pair<Direction, const void*>> edge_datas;
+            std::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes = view.get_edges(path[i]);
               for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -159,13 +159,13 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
       if (depth == upper - 1) {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            neug::vector<vid_t> path(depth + 1);
+            std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
-            neug::vector<std::pair<Direction, const void*>> edge_datas;
+            std::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -196,14 +196,14 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
       } else {
         for (auto u : cur) {
           if (pred(v_label, u)) {
-            neug::vector<vid_t> path(depth + 1);
+            std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
               path[depth - i] = x;
               x = parent[x];
             }
 
-            neug::vector<std::pair<Direction, const void*>> edge_datas;
+            std::vector<std::pair<Direction, const void*>> edge_datas;
             for (int i = 0; i < depth; ++i) {
               auto oes0 = view0.get_edges(path[i]);
               for (auto it = oes0.begin(); it != oes0.end(); ++it) {
@@ -466,8 +466,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            neug::vector<VertexRecord> path;
-            neug::vector<std::tuple<label_t, Direction, const void*>>
+            std::vector<VertexRecord> path;
+            std::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;
             auto x = std::make_pair(label, vid);
             while (!(v_label == label && vid == v)) {
@@ -535,8 +535,8 @@ default_single_source_shortest_path_impl(
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
           if (depth >= lower && pred(v_label, vid)) {
-            neug::vector<VertexRecord> path;
-            neug::vector<std::tuple<label_t, Direction, const void*>>
+            std::vector<VertexRecord> path;
+            std::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;
             auto x = std::make_pair(v_label, vid);
             while (!(v_label == label && vid == v)) {
