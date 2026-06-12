@@ -91,7 +91,7 @@ void NodeVal::throwIfNotNode(const Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.id() != DataTypeId::kVertex) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(
-        "Expected NODE type, but got {} type", val->dataType.toString()));
+        "Expected NODE type, but got {} type", val->dataType.ToString()));
   }
   // LCOV_EXCL_STOP
 }

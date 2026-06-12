@@ -128,17 +128,12 @@ struct DataType {
 
   inline DataTypeId id() const { return id_; }
 
-  const ExtraTypeInfo* RawExtraTypeInfo() const {
-    return type_info_ ? type_info_.get() : nullptr;
-  }
-
   void setExtraTypeInfo(std::shared_ptr<ExtraTypeInfo> info) {
     type_info_ = std::move(info);
   }
 
   // Backward-compatible convenience methods (match LogicalType API).
   DataType copy() const { return *this; }
-  std::string toString() const { return ToString(); }
 
   const ExtraTypeInfo* getExtraTypeInfo() const {
     return type_info_ ? type_info_.get() : nullptr;

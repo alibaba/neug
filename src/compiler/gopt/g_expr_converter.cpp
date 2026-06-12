@@ -216,7 +216,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     tripletPB->set_allocated_param(valuePB.release_param());
   } else {
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
-                                   expr.getDataType().toString());
+                                   expr.getDataType().ToString());
   }
   tripletPB->set_cmp(::common::Logical::EQ);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
@@ -358,7 +358,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
-                                   value.getDataType().toString());
+                                   value.getDataType().ToString());
   }
   return valuePB;
 }
@@ -457,7 +457,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
-                                   childType.toString());
+                                   childType.ToString());
   }
   return valuePB;
 }

@@ -65,7 +65,7 @@ bool DataType::operator==(const DataType& rhs) const {
 
 const DataType& ListType::GetChildType(const DataType& type) {
   assert(type.id() == DataTypeId::kList);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<ListTypeInfo>().child_type;
 }
@@ -73,7 +73,7 @@ const DataType& ListType::GetChildType(const DataType& type) {
 static const StructTypeInfo& getStructInfo(const DataType& type) {
   assert(type.id() == DataTypeId::kStruct || type.id() == DataTypeId::kVertex ||
          type.id() == DataTypeId::kEdge || type.id() == DataTypeId::kPath);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<StructTypeInfo>();
 }
@@ -114,28 +114,28 @@ uint64_t StructType::GetNumFields(const DataType& type) {
 
 const DataType& ArrayType::GetChildType(const DataType& type) {
   assert(type.id() == DataTypeId::kArray);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<ArrayTypeInfo>().child_type;
 }
 
 uint64_t ArrayType::GetNumElements(const DataType& type) {
   assert(type.id() == DataTypeId::kArray);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<ArrayTypeInfo>().num_elements;
 }
 
 const DataType& MapType::GetKeyType(const DataType& type) {
   assert(type.id() == DataTypeId::kMap);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<MapTypeInfo>().key_type;
 }
 
 const DataType& MapType::GetValueType(const DataType& type) {
   assert(type.id() == DataTypeId::kMap);
-  auto info = type.RawExtraTypeInfo();
+  auto info = type.getExtraTypeInfo();
   assert(info);
   return info->Cast<MapTypeInfo>().value_type;
 }

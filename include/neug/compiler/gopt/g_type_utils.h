@@ -98,7 +98,7 @@ class GTypeUtils {
       return YAML_NODE_DT_BOOL;
     case neug::common::DataTypeId::kVarchar: {
       size_t maxLen = VARCHAR_DEFAULT_LENGTH;
-      auto extraInfo = type.RawExtraTypeInfo();
+      auto extraInfo = type.getExtraTypeInfo();
       if (extraInfo) {
         auto& stringTypeInfo = extraInfo->Cast<neug::StringTypeInfo>();
         maxLen = stringTypeInfo.max_length;

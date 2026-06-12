@@ -367,7 +367,7 @@ static inline void startListCast(const char* input, uint64_t len, T split,
   if (!validList) {
     THROW_CONVERSION_EXCEPTION(
         "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
-        vector->dataType.toString() + " range.");
+        vector->dataType.ToString() + " range.");
   }
 }
 
@@ -551,7 +551,7 @@ void CastStringHelper::cast(const char* input, uint64_t len,
   if (!splitCStringMap(input, len, split, option)) {
     THROW_CONVERSION_EXCEPTION(
         "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
-        vector->dataType.toString() + " range.");
+        vector->dataType.ToString() + " range.");
   }
 }
 
@@ -675,7 +675,7 @@ void CastStringHelper::cast(const char* input, uint64_t len,
   if (!tryCastStringToStruct(input, len, vector, rowToAdd, option)) {
     THROW_CONVERSION_EXCEPTION(
         "Cast failed. " + (std::string{input, (size_t) len}) + " is not in " +
-        vector->dataType.toString() + " range.");
+        vector->dataType.ToString() + " range.");
   }
 }
 

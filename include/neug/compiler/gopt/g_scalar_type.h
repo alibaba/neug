@@ -123,7 +123,7 @@ class GScalarType {
         LOG(INFO) << "type is struct";
         return ScalarType::TO_TUPLE;
       }
-      THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.toString() +
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.ToString() +
                                      " for function: " + func.name);
     } else if (func.name == function::UpperFunction::name) {
       return ScalarType::UPPER;

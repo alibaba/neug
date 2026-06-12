@@ -34,7 +34,7 @@ void VariableExpression::cast(const DataType& type) {
     // LCOV_EXCL_START
     THROW_BINDER_EXCEPTION(stringFormat(
         "Cannot change variable expression data type from {} to {}.",
-        dataType.toString(), type.toString()));
+        dataType.ToString(), type.ToString()));
     // LCOV_EXCL_STOP
   }
   dataType = type.copy();

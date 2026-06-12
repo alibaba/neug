@@ -264,7 +264,7 @@ void ExpressionUtil::validateDataType(const Expression& expr,
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(), expectedType.toString()));
+                   expr.getDataType().ToString(), expectedType.ToString()));
 }
 
 void ExpressionUtil::validateDataType(const Expression& expr,
@@ -274,7 +274,7 @@ void ExpressionUtil::validateDataType(const Expression& expr,
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(),
+                   expr.getDataType().ToString(),
                    LogicalTypeUtils::toString(expectedTypeID)));
 }
 
@@ -287,7 +287,7 @@ void ExpressionUtil::validateDataType(
   }
   THROW_BINDER_EXCEPTION(
       stringFormat("{} has data type {} but {} was expected.", expr.toString(),
-                   expr.getDataType().toString(),
+                   expr.getDataType().ToString(),
                    LogicalTypeUtils::toString(expectedTypeIDs)));
 }
 
@@ -532,7 +532,7 @@ T ExpressionUtil::evaluateLiteral(const Expression& expression,
   if (value.getDataType() != type) {
     THROW_RUNTIME_ERROR(
         common::stringFormat("Parameter: {} must be a {} literal.",
-                             expression.getAlias(), type.toString()));
+                             expression.getAlias(), type.ToString()));
   }
   T val = value.getValue<T>();
   if (validateParamFunc != nullptr) {

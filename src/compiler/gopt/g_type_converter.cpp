@@ -122,7 +122,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
     auto childType = convertLogicalType(childTypes[i]);
     if (!childType) {
       THROW_EXCEPTION_WITH_FILE_LINE(
-          "Failed to convert child type for TUPLE type: " + type.toString());
+          "Failed to convert child type for TUPLE type: " + type.ToString());
     }
     if (!childType->has_data_type()) {
       THROW_EXCEPTION_WITH_FILE_LINE(
@@ -139,11 +139,11 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
     const neug::DataType& type) {
   auto result = std::make_unique<::common::IrDataType>();
-  VLOG(1) << "Converting ARRAY child type: " << type.toString();
+  VLOG(1) << "Converting ARRAY child type: " << type.ToString();
   auto childType = convertLogicalType(type);
   if (!childType) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "Failed to convert child type for ARRAY type: " + type.toString());
+        "Failed to convert child type for ARRAY type: " + type.ToString());
   }
   if (childType->has_graph_type()) {
     auto listType = std::make_unique<::common::GraphTypeList>();
@@ -199,7 +199,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       return convertNodeType(*gNodeType);
     } else {
       LOG(WARNING) << "Expected NodeType for NODE type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return NODE type with empty label";
       return convertNodeType(gopt::GNodeType({}));
     }
@@ -211,7 +211,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       return convertRelType(*gRelType);
     } else {
       LOG(WARNING) << "Expected RelType for REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return REL type with empty label";
       return convertRelType(gopt::GRelType({}));
     }
@@ -220,7 +220,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
   case common::DataTypeId::kPath: {
     if (common::getPhysicalType(type.id()) != common::PhysicalTypeID::STRUCT) {
       LOG(WARNING) << "Expected StructType for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
@@ -228,7 +228,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         common::StructType::GetFieldIdx(type, common::InternalKeyword::RELS);
     if (fieldIdx == common::INVALID_STRUCT_FIELD_IDX) {
       LOG(WARNING) << "Expected RELS field for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
@@ -242,7 +242,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         return convertPathType(*gRelType);
       } else {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
+                     << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
         return convertPathType(gopt::GRelType({}));
       }
@@ -254,13 +254,13 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         return convertPathType(*gRelType);
       } else {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
+                     << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
         return convertPathType(gopt::GRelType({}));
       }
     } else {
       LOG(WARNING) << "Expected ListType or ArrayType for RECURSIVE_REL type, "
-                   << "but got: " << relsType.toString()
+                   << "but got: " << relsType.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
@@ -271,7 +271,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
     return convertArrayType(child_type);
   }
   case common::DataTypeId::kList: {
-    VLOG(1) << "Converting LIST type: " << type.toString();
+    VLOG(1) << "Converting LIST type: " << type.ToString();
     auto& child_type = common::ListType::GetChildType(type);
     return convertArrayType(child_type);
   }
@@ -281,7 +281,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
   }
   default:
     // For other types, we can convert them directly
-    VLOG(1) << "Converting simple logical type: " << type.toString();
+    VLOG(1) << "Converting simple logical type: " << type.ToString();
     return convertSimpleLogicalType(type);
   }
 }
@@ -368,7 +368,7 @@ GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported basic type for conversion: " +
-                                   type.toString());
+                                   type.ToString());
   }
   auto irType = std::make_unique<::common::IrDataType>();
   irType->set_allocated_data_type(result.release());

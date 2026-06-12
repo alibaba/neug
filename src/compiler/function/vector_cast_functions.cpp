@@ -92,7 +92,7 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
       // Check if struct type can be cast
       auto errorMsg =
           stringFormat("Unsupported casting function from {} to {}.",
-                       inputType->toString(), resultType->toString());
+                       inputType->ToString(), resultType->ToString());
       // Check if two structs have the same number of fields
       if (::StructType::GetNumFields(*inputType) !=
           ::StructType::GetNumFields(*resultType)) {
@@ -371,7 +371,7 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
   default:
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from STRING to {}.",
-                     targetType.toString()));
+                     targetType.ToString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<DataTypeId>{DataTypeId::kVarchar},
@@ -513,7 +513,7 @@ static std::unique_ptr<ScalarFunction> bindCastToNumericFunction(
   default:
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), targetType.toString()));
+                     sourceType.ToString(), targetType.ToString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<DataTypeId>{sourceType.id()}, targetType.id(),
@@ -560,7 +560,7 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
   default:
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), dstType.toString()));
+                     sourceType.ToString(), dstType.ToString()));
     // LCOV_EXCL_END
   }
   return std::make_unique<ScalarFunction>(
@@ -585,7 +585,7 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   default:
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), dstType.toString()));
+                     sourceType.ToString(), dstType.ToString()));
   }
   return std::make_unique<ScalarFunction>(
       functionName, std::vector<DataTypeId>{sourceType.id()},
@@ -662,7 +662,7 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
   default: {
     THROW_CONVERSION_EXCEPTION(
         stringFormat("Unsupported casting function from {} to {}.",
-                     sourceType.toString(), targetType.toString()));
+                     sourceType.ToString(), targetType.ToString()));
   }
   }
 }

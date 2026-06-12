@@ -53,7 +53,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     }
   } else {
     THROW_BINDER_EXCEPTION(stringFormat("Cannot extract properties from {}.",
-                                        listType.toString()));
+                                        listType.ToString()));
   }
   auto returnType =
       DataType::List(StructType::GetChildType(childType, fieldIdx).copy());

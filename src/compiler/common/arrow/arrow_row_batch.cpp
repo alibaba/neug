@@ -202,7 +202,7 @@ static void resizeVector(ArrowVector* vector, const DataType& type,
     return resizeInternalIDVector(vector, type, capacity);
   default: {
     THROW_RUNTIME_ERROR(common::stringFormat(
-        "Unsupported type: {} for arrow conversion.", type.toString()));
+        "Unsupported type: {} for arrow conversion.", type.ToString()));
   }
   }
 }

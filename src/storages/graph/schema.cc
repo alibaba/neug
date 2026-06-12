@@ -2285,7 +2285,7 @@ Schema Schema::Clone() const {
 InArchive& operator<<(InArchive& in_archive, const DataType& type) {
   auto id = type.id();
   in_archive << id;
-  auto type_info = type.RawExtraTypeInfo();
+  auto type_info = type.getExtraTypeInfo();
   if (type_info) {
     in_archive << (char) 1;
     if (id == DataTypeId::kList) {

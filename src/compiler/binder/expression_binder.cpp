@@ -118,7 +118,7 @@ static std::string unsupportedImplicitCastException(
   return stringFormat(
       "Expression {} has data type {} but expected {}. Implicit cast is not "
       "supported.",
-      expression.toString(), expression.dataType.toString(), targetTypeStr);
+      expression.toString(), expression.dataType.ToString(), targetTypeStr);
 }
 
 static bool checkUDTCast(const DataType& type, const DataType& target) {
@@ -150,7 +150,7 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCast(
     return forceCast(expression, targetType);
   } else {
     THROW_CONVERSION_EXCEPTION(
-        unsupportedImplicitCastException(*expression, targetType.toString()));
+        unsupportedImplicitCastException(*expression, targetType.ToString()));
   }
 }
 
@@ -162,7 +162,7 @@ std::shared_ptr<Expression> ExpressionBinder::forceCast(
     return expression;
   }
   auto children = expression_vector{
-      expression, createLiteralExpression(Value(targetType.toString()))};
+      expression, createLiteralExpression(Value(targetType.ToString()))};
   return bindScalarFunctionExpression(children, functionName);
 }
 

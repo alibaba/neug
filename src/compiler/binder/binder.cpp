@@ -300,7 +300,7 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
   if (outDataType.id() != common::DataTypeId::kVertex) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Cannot create child node expression for non-node type: " +
-        outDataType.toString());
+        outDataType.ToString());
   }
   bool startNode = true;
   while (inputExpr) {

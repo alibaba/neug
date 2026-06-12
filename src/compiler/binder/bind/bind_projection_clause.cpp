@@ -314,7 +314,7 @@ expression_vector Binder::bindOrderByExpressions(
     if (!isOrderByKeyTypeSupported(expr->dataType)) {
       THROW_BINDER_EXCEPTION(
           stringFormat("Cannot order by {}. Order by {} is not supported.",
-                       expr->toString(), expr->dataType.toString()));
+                       expr->toString(), expr->dataType.ToString()));
     }
     exprs.push_back(std::move(expr));
   }

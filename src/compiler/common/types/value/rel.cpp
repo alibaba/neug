@@ -100,7 +100,7 @@ void RelVal::throwIfNotRel(const Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.id() != DataTypeId::kEdge) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(
-        "Expected REL type, but got {} type", val->dataType.toString()));
+        "Expected REL type, but got {} type", val->dataType.ToString()));
   }
   // LCOV_EXCL_STOP
 }

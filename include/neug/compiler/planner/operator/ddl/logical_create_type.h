@@ -40,7 +40,7 @@ class LogicalCreateType : public LogicalSimple {
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalCreateTypePrintInfo>(typeName,
-                                                        type.toString());
+                                                        type.ToString());
   }
 
   inline std::unique_ptr<LogicalOperator> copy() final {

@@ -122,7 +122,7 @@ static void validatePrimaryKey(
   }
   const auto& pkType = definitions[primaryKeyIdx].getType();
   if (!pkType.isInternalType()) {
-    THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.toString()));
+    THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.ToString()));
   }
   switch (getPhysicalType(pkType.id())) {
   case PhysicalTypeID::UINT8:
@@ -139,7 +139,7 @@ static void validatePrimaryKey(
   case PhysicalTypeID::DOUBLE:
     break;
   default:
-    THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.toString()));
+    THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.ToString()));
   }
 }
 

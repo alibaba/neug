@@ -82,7 +82,7 @@ bool CastArrayHelper::containsListToArray(const DataType& srcType,
       if (srcFieldTypes.size() != dstFieldTypes.size()) {
         THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
-                         srcType.toString(), dstType.toString()));
+                         srcType.ToString(), dstType.ToString()));
       }
 
       for (auto i = 0u; i < srcFieldTypes.size(); i++) {
@@ -128,7 +128,7 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
           ArrayType::GetNumElements(resultType)) {
         THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
-                         inputType.toString(), resultType.toString()));
+                         inputType.ToString(), resultType.ToString()));
       }
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       auto inputChildVector = ListVector::getDataVector(inputVector);

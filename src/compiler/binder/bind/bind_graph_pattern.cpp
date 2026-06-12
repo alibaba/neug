@@ -208,7 +208,7 @@ static std::unique_ptr<Expression> createPropertyExpression(
     if (dataTypes[0] != type) {
       THROW_BINDER_EXCEPTION(stringFormat(
           "Expected the same data type for property {} but found {} and {}.",
-          propertyName, type.toString(), dataTypes[0].toString()));
+          propertyName, type.ToString(), dataTypes[0].ToString()));
     }
   }
   return make_unique<PropertyExpression>(std::move(dataTypes[0]), propertyName,
@@ -424,7 +424,7 @@ static void checkWeightedShortestPathSupportedType(const DataType& type) {
   }
   THROW_BINDER_EXCEPTION(stringFormat(
       "{} weight type is not supported for weighted shortest path.",
-      type.toString()));
+      type.ToString()));
 }
 
 std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(

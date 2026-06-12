@@ -744,7 +744,7 @@ void Value::validateType(DataTypeId targetTypeID) const {
   }
   THROW_BINDER_EXCEPTION(stringFormat(
       "{} has data type {} but {} was expected.", toString(),
-      dataType.toString(), LogicalTypeUtils::toString(targetTypeID)));
+      dataType.ToString(), LogicalTypeUtils::toString(targetTypeID)));
 }
 
 bool Value::hasNoneNullChildren() const {

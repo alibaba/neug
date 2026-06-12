@@ -124,7 +124,7 @@ std::string PropertyDefinitionCollection::toCypher() const {
     if (getPhysicalType(dataType.id()) == PhysicalTypeID::INTERNAL_ID) {
       continue;
     }
-    auto typeStr = dataType.toString();
+    auto typeStr = dataType.ToString();
     StringUtils::replaceAll(typeStr, ":", " ");
     if (typeStr.find("MAP") != std::string::npos) {
       StringUtils::replaceAll(typeStr, "  ", ",");

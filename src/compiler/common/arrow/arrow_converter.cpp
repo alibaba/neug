@@ -217,7 +217,7 @@ void ArrowConverter::setArrowFormat(ArrowSchemaHolder& rootHolder,
     break;
   default:
     THROW_RUNTIME_ERROR(
-        stringFormat("{} cannot be exported to arrow.", dataType.toString()));
+        stringFormat("{} cannot be exported to arrow.", dataType.ToString()));
   }
 }
 

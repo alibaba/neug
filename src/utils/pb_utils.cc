@@ -289,7 +289,7 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
       out_value = execution::Value::INTERVAL(interval);
       break;
     } else {
-      auto str_type_info = type.RawExtraTypeInfo();
+      auto str_type_info = type.getExtraTypeInfo();
       uint16_t max_length =
           str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
                         : STRING_DEFAULT_MAX_LENGTH;

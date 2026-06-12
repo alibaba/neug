@@ -302,9 +302,9 @@ std::string LogicalTypeUtils::toString(const std::vector<DataType>& dataTypes) {
   if (dataTypes.empty()) {
     return {""};
   }
-  std::string result = "(" + dataTypes[0].toString();
+  std::string result = "(" + dataTypes[0].ToString();
   for (auto i = 1u; i < dataTypes.size(); ++i) {
-    result += "," + dataTypes[i].toString();
+    result += "," + dataTypes[i].ToString();
   }
   result += ")";
   return result;
