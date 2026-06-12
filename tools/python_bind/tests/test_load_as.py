@@ -101,6 +101,14 @@ class TestLoadAs:
             "3|4|0.8\n",
         )
 
+        self.dangling_edges_csv = _write_csv(
+            self.csv_dir,
+            "dangling_edges.csv",
+            "src_id|dst_id|weight\n"
+            "1|2|0.5\n"
+            "99|3|1.0\n",
+        )
+
         yield
 
         self.conn.close()
@@ -527,3 +535,194 @@ class TestLoadAs:
         )
         rows = list(result)
         assert len(rows) == 3, f"Expected 3 edges, got {len(rows)}"
+
+    # ------------------------------------------------------------------
+    # Additional LOAD AS corner cases
+    # ------------------------------------------------------------------
+
+    def test_load_rel_table_dangling_reference(self):
+        """Edge referencing a vertex key that does not exist must fail."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempPersonD;"
+        )
+        # dangling_edges.csv has src_id=99 which does not exist.
+        with pytest.raises(Exception):
+            self.conn.execute(
+                f'LOAD REL TABLE FROM "{self.dangling_edges_csv}" '
+                f"(header = true, "
+                f"from = 'TempPersonD', to = 'TempPersonD', "
+                f"from_col = 'src_id', to_col = 'dst_id') AS TempDanglingEdge;"
+            )
+
+    def test_multiple_temp_tables_all_cleaned(self):
+        """Multiple temp tables created on the same connection must all
+        disappear after close."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempA;"
+        )
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.items_csv}" '
+            f"(primary_key = 'item_id', header = true) AS TempB;"
+        )
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempC;"
+        )
+
+        # Verify all three exist.
+        for label in ("TempA", "TempB", "TempC"):
+            result = self.conn.execute(
+                f"MATCH (n:{label}) RETURN count(n);"
+            )
+            assert list(result)[0][0] > 0
+
+        # Close triggers cleanup.
+        self.conn.close()
+        conn2 = self.db.connect()
+        try:
+            for label in ("TempA", "TempB", "TempC"):
+                with pytest.raises(Exception):
+                    list(conn2.execute(
+                        f"MATCH (n:{label}) RETURN n.id;"
+                    ))
+        finally:
+            conn2.close()
+        self.conn = self.db.connect()
+
+    def test_persistent_survives_temp_cleanup(self):
+        """Persistent tables must survive Connection::Close() while
+        temporary tables are cleaned up."""
+        self.conn.execute(
+            "CREATE NODE TABLE Persistent(id INT64, name STRING, "
+            "PRIMARY KEY(id));"
+        )
+        self.conn.execute(
+            "CREATE (p:Persistent {id: 1, name: 'Alice'});"
+        )
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempGone;"
+        )
+
+        # Close and reopen.
+        self.conn.close()
+        conn2 = self.db.connect()
+        try:
+            # Persistent should still exist.
+            result = conn2.execute(
+                "MATCH (n:Persistent) RETURN n.id, n.name;"
+            )
+            rows = list(result)
+            assert len(rows) == 1
+            assert rows[0][1] == "Alice"
+
+            # TempGone should not exist.
+            with pytest.raises(Exception):
+                list(conn2.execute(
+                    "MATCH (n:TempGone) RETURN n.id;"
+                ))
+        finally:
+            conn2.close()
+        self.conn = self.db.connect()
+
+    def test_property_type_inference(self):
+        """Verify that CSV column types are correctly inferred.
+
+        ``age`` is INT64 in the CSV, so ``n.age + 1`` should work as
+        integer arithmetic.
+        """
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempTyped;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 4
+        # Alice age=30, 30+1=31.
+        assert rows[0][0] == 31
+
+    def test_return_column_ordering(self):
+        """RETURN declares columns in a specific order; the schema
+        should respect that order."""
+        # RETURN name, id (reversed from source order).
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) "
+            f"RETURN name, id AS TempOrder;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempOrder) RETURN n.name, n.id ORDER BY n.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 4
+        # First row: Alice, id=1.
+        assert rows[0][0] == "Alice"
+        assert rows[0][1] == 1
+
+    def test_load_rel_table_with_where(self):
+        """WHERE filter pushed down to edge LOAD REL TABLE."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempPersonW;"
+        )
+        # Only edges with weight > 0.6: 1.0 and 0.8 (skip 0.5).
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempPersonW', to = 'TempPersonW', "
+            f"from_col = 'src_id', to_col = 'dst_id') "
+            f"WHERE weight > 0.6 AS TempFilteredEdge;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempPersonW)-[r:TempFilteredEdge]->(b:TempPersonW) "
+            "RETURN a.id, b.id, r.weight ORDER BY r.weight;"
+        )
+        rows = list(result)
+        assert len(rows) == 2, f"Expected 2 edges, got {len(rows)}"
+
+    def test_load_rel_table_with_return(self):
+        """RETURN projection on edge LOAD REL TABLE."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempPersonR;"
+        )
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempPersonR', to = 'TempPersonR', "
+            f"from_col = 'src_id', to_col = 'dst_id') "
+            f"RETURN src_id, dst_id, weight AS TempSlimEdge;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempPersonR)-[r:TempSlimEdge]->(b:TempPersonR) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+
+    def test_load_rel_table_where_and_return(self):
+        """WHERE + RETURN combined on edge LOAD REL TABLE."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempPersonWR;"
+        )
+        # Filter weight >= 0.8, project src_id, dst_id, weight.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempPersonWR', to = 'TempPersonWR', "
+            f"from_col = 'src_id', to_col = 'dst_id') "
+            f"WHERE weight >= 0.8 "
+            f"RETURN src_id, dst_id, weight AS TempWREdge;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempPersonWR)-[r:TempWREdge]->(b:TempPersonWR) "
+            "RETURN a.id, b.id, r.weight ORDER BY r.weight;"
+        )
+        rows = list(result)
+        # Only edges with weight >= 0.8: (2→3, 1.0) and (3→4, 0.8).
+        assert len(rows) == 2, f"Expected 2 edges, got {len(rows)}"

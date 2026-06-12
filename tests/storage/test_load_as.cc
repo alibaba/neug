@@ -73,6 +73,12 @@ class LoadAsTest : public ::testing::Test {
               "2|3|1.0\n"
               "3|4|0.8\n");
 
+    // CSV for dangling edge tests: src_id=99 does not exist in people.csv.
+    write_csv("dangling_edges.csv",
+              "src_id|dst_id|weight\n"
+              "1|2|0.5\n"
+              "99|3|1.0\n");
+
     db_ = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
@@ -551,6 +557,281 @@ TEST_F(LoadAsTest, LoadRelTableTempToPersistent) {
       "RETURN a.id, b.id ORDER BY a.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 3);
+  conn->Close();
+}
+
+// ============================================================================
+// Edge dangling reference: from_col/to_col values not found in vertex table
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableDanglingReference) {
+  auto conn = db_->Connect();
+  std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto load_nodes_res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + people_csv +
+      "\" (primary_key = 'id', header = true) AS TempPersonD;");
+  EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
+
+  // dangling_edges.csv has src_id=99 which does not exist in TempPersonD.
+  std::string dangling_csv = std::string(CSV_DIR) + "/dangling_edges.csv";
+  auto load_edges_res = conn->Query(
+      "LOAD REL TABLE FROM \"" + dangling_csv +
+      "\" (header = true, from = 'TempPersonD', to = 'TempPersonD', "
+      "from_col = 'src_id', to_col = 'dst_id') AS TempDanglingEdge;");
+  // Should fail or skip the dangling row depending on implementation.
+  EXPECT_FALSE(load_edges_res);
+  conn->Close();
+}
+
+// ============================================================================
+// Multiple temp tables all cleaned up on close
+// ============================================================================
+
+TEST_F(LoadAsTest, MultipleTempTablesCleanup) {
+  {
+    auto conn = db_->Connect();
+    std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+    std::string items_csv = std::string(CSV_DIR) + "/items.csv";
+
+    auto r1 = conn->Query(
+        "LOAD NODE TABLE FROM \"" + people_csv +
+        "\" (primary_key = 'id', header = true) AS TempA;");
+    EXPECT_TRUE(r1) << r1.error().ToString();
+
+    auto r2 = conn->Query(
+        "LOAD NODE TABLE FROM \"" + items_csv +
+        "\" (primary_key = 'item_id', header = true) AS TempB;");
+    EXPECT_TRUE(r2) << r2.error().ToString();
+
+    auto r3 = conn->Query(
+        "LOAD NODE TABLE FROM \"" + people_csv +
+        "\" (primary_key = 'id', header = true) AS TempC;");
+    EXPECT_TRUE(r3) << r3.error().ToString();
+
+    // Verify all three exist.
+    for (const auto& label : {"TempA", "TempB", "TempC"}) {
+      auto res = conn->Query(
+          std::string("MATCH (n:") + label + ") RETURN count(n);");
+      EXPECT_TRUE(res) << res.error().ToString();
+    }
+    conn->Close();
+  }
+
+  // Reopen DB, none of the three should exist.
+  {
+    db_->Close();
+    db_.reset();
+    auto db2 = std::make_unique<NeugDB>();
+    NeugDBConfig config;
+    config.data_dir = DB_DIR;
+    config.checkpoint_on_close = true;
+    config.compact_on_close = true;
+    config.compact_csr = true;
+    config.enable_auto_compaction = false;
+    db2->Open(config);
+    auto conn2 = db2->Connect();
+    for (const auto& label : {"TempA", "TempB", "TempC"}) {
+      auto res = conn2->Query(
+          std::string("MATCH (n:") + label + ") RETURN n.id;");
+      EXPECT_FALSE(res) << "label " << label << " should not exist after close";
+    }
+    conn2->Close();
+    db2->Close();
+  }
+}
+
+// ============================================================================
+// Persistent table survives, temp table cleaned on close
+// ============================================================================
+
+TEST_F(LoadAsTest, PersistentSurvivesTempCleanup) {
+  {
+    auto conn = db_->Connect();
+    auto create_res = conn->Query(
+        "CREATE NODE TABLE Persistent(id INT64, name STRING, PRIMARY KEY(id));");
+    EXPECT_TRUE(create_res) << create_res.error().ToString();
+    auto insert_res = conn->Query(
+        "CREATE (p:Persistent {id: 1, name: 'Alice'});");
+    EXPECT_TRUE(insert_res) << insert_res.error().ToString();
+
+    std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+    auto load_res = conn->Query(
+        "LOAD NODE TABLE FROM \"" + people_csv +
+        "\" (primary_key = 'id', header = true) AS TempGone;");
+    EXPECT_TRUE(load_res) << load_res.error().ToString();
+    conn->Close();
+  }
+
+  // Reopen DB: Persistent should still be there, TempGone should not.
+  {
+    db_->Close();
+    db_.reset();
+    auto db2 = std::make_unique<NeugDB>();
+    NeugDBConfig config;
+    config.data_dir = DB_DIR;
+    config.checkpoint_on_close = true;
+    config.compact_on_close = true;
+    config.compact_csr = true;
+    config.enable_auto_compaction = false;
+    db2->Open(config);
+    auto conn2 = db2->Connect();
+
+    auto persist_res = conn2->Query(
+        "MATCH (n:Persistent) RETURN n.id, n.name;");
+    EXPECT_TRUE(persist_res) << persist_res.error().ToString();
+    EXPECT_EQ(persist_res.value().response().row_count(), 1);
+
+    auto temp_res = conn2->Query(
+        "MATCH (n:TempGone) RETURN n.id;");
+    EXPECT_FALSE(temp_res);
+
+    conn2->Close();
+    db2->Close();
+  }
+}
+
+// ============================================================================
+// Property type inference: age column should be INT64
+// ============================================================================
+
+TEST_F(LoadAsTest, PropertyTypeInference) {
+  auto conn = db_->Connect();
+  std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+
+  auto res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + csv_path +
+      "\" (primary_key = 'id', header = true) AS TempTyped;");
+  EXPECT_TRUE(res) << res.error().ToString();
+
+  // age should be queryable as an integer (e.g., arithmetic works).
+  auto match_res = conn->Query(
+      "MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  const auto& table = match_res.value().response();
+  EXPECT_EQ(table.row_count(), 4);
+  const auto& col = table.arrays(0).int64_array();
+  // First row: Alice age=30, 30+1=31.
+  EXPECT_EQ(col.values(0), 31);
+  conn->Close();
+}
+
+// ============================================================================
+// RETURN column ordering: verify the declared order is respected
+// ============================================================================
+
+TEST_F(LoadAsTest, ReturnColumnOrdering) {
+  auto conn = db_->Connect();
+  std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+
+  // RETURN name, id (reversed from source order id, name).
+  auto res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + csv_path +
+      "\" (primary_key = 'id', header = true) RETURN name, id AS TempOrder;");
+  EXPECT_TRUE(res) << res.error().ToString();
+
+  // MATCH returns properties in the order they were declared in DDL.
+  // Since ddlColumns is built from returnColumns order, name should come first.
+  auto match_res = conn->Query(
+      "MATCH (n:TempOrder) RETURN n.name, n.id ORDER BY n.id;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  const auto& table = match_res.value().response();
+  EXPECT_EQ(table.row_count(), 4);
+  // Column 0 should be name (string), column 1 should be id (int64).
+  const auto& name_col = table.arrays(0).string_array();
+  const auto& id_col = table.arrays(1).int64_array();
+  EXPECT_EQ(name_col.values(0), "Alice");
+  EXPECT_EQ(id_col.values(0), 1);
+  conn->Close();
+}
+
+// ============================================================================
+// LOAD REL TABLE with WHERE filter
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableWithWhere) {
+  auto conn = db_->Connect();
+  std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto load_nodes_res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + people_csv +
+      "\" (primary_key = 'id', header = true) AS TempPersonW;");
+  EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
+
+  // Only load edges where weight > 0.6 (rows: 1.0 and 0.8, skip 0.5).
+  std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
+  auto load_edges_res = conn->Query(
+      "LOAD REL TABLE FROM \"" + edges_csv +
+      "\" (header = true, from = 'TempPersonW', to = 'TempPersonW', "
+      "from_col = 'src_id', to_col = 'dst_id') "
+      "WHERE weight > 0.6 AS TempFilteredEdge;");
+  EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
+
+  auto match_res = conn->Query(
+      "MATCH (a:TempPersonW)-[r:TempFilteredEdge]->(b:TempPersonW) "
+      "RETURN a.id, b.id, r.weight ORDER BY r.weight;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  const auto& table = match_res.value().response();
+  EXPECT_EQ(table.row_count(), 2);
+  conn->Close();
+}
+
+// ============================================================================
+// LOAD REL TABLE with RETURN projection
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableWithReturn) {
+  auto conn = db_->Connect();
+  std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto load_nodes_res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + people_csv +
+      "\" (primary_key = 'id', header = true) AS TempPersonR;");
+  EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
+
+  // Only project src_id, dst_id, weight (weight is the only extra property).
+  std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
+  auto load_edges_res = conn->Query(
+      "LOAD REL TABLE FROM \"" + edges_csv +
+      "\" (header = true, from = 'TempPersonR', to = 'TempPersonR', "
+      "from_col = 'src_id', to_col = 'dst_id') "
+      "RETURN src_id, dst_id, weight AS TempSlimEdge;");
+  EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
+
+  auto match_res = conn->Query(
+      "MATCH (a:TempPersonR)-[r:TempSlimEdge]->(b:TempPersonR) "
+      "RETURN a.id, b.id, r.weight ORDER BY a.id;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  EXPECT_EQ(match_res.value().response().row_count(), 3);
+  conn->Close();
+}
+
+// ============================================================================
+// LOAD REL TABLE with WHERE + RETURN combined
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableWhereAndReturn) {
+  auto conn = db_->Connect();
+  std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto load_nodes_res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + people_csv +
+      "\" (primary_key = 'id', header = true) AS TempPersonWR;");
+  EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
+
+  // Filter weight >= 0.8, project only weight (src_id/dst_id implicit).
+  std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
+  auto load_edges_res = conn->Query(
+      "LOAD REL TABLE FROM \"" + edges_csv +
+      "\" (header = true, from = 'TempPersonWR', to = 'TempPersonWR', "
+      "from_col = 'src_id', to_col = 'dst_id') "
+      "WHERE weight >= 0.8 "
+      "RETURN src_id, dst_id, weight AS TempWREdge;");
+  EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
+
+  auto match_res = conn->Query(
+      "MATCH (a:TempPersonWR)-[r:TempWREdge]->(b:TempPersonWR) "
+      "RETURN a.id, b.id, r.weight ORDER BY r.weight;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  const auto& table = match_res.value().response();
+  // Only edges with weight >= 0.8: (2→3, 1.0) and (3→4, 0.8).
+  EXPECT_EQ(table.row_count(), 2);
   conn->Close();
 }
 
