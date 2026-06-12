@@ -163,12 +163,13 @@ struct Path {
 
   explicit Path(label_t v_label, vid_t vid);
 
-  explicit Path(label_t label, label_t e_label, const std::vector<vid_t>& vids,
-               const std::vector<std::pair<Direction, const void*>>& edge_datas);
-
   explicit Path(
-      const std::vector<std::tuple<label_t, Direction, const void*>>& edge_datas,
-      const std::vector<VertexRecord>& path);
+      label_t label, label_t e_label, const std::vector<vid_t>& vids,
+      const std::vector<std::pair<Direction, const void*>>& edge_datas);
+
+  explicit Path(const std::vector<std::tuple<label_t, Direction, const void*>>&
+                    edge_datas,
+                const std::vector<VertexRecord>& path);
 
   Path expand(label_t edge_label, label_t label, vid_t v, Direction dir,
               const void* payload) const;
