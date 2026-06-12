@@ -81,12 +81,12 @@ class ContextMeta {
 
   DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  const flat_hash_map<int32_t, DataType>& columns() const { return alias_set_; }
+  const std::unordered_map<int32_t, DataType>& columns() const { return alias_set_; }
 
   void desc() const;
 
  private:
-  flat_hash_map<int32_t, DataType> alias_set_;
+  std::unordered_map<int32_t, DataType> alias_set_;
 };
 
 }  // namespace execution
