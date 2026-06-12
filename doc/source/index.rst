@@ -83,6 +83,7 @@ NeuG documentation
    Python API <reference/python_api/index>
    C++ API <reference/cpp_api/index>
    Java API <reference/java_api/index>
+   NodeJS API <reference/nodejs_api/index>
 
 .. toctree::
    :maxdepth: 1

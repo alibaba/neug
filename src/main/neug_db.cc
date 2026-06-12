@@ -307,7 +307,13 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
   }
   auto ckp_id = ws_.CreateCheckpoint();
   auto ckp = ws_.GetCheckpoint(ckp_id);
-  graph_.Dump(ckp, reopen);
+  try {
+    graph_.Dump(ckp, reopen);
+  } catch (...) {
+    LOG(ERROR) << "Checkpoint dump failed, rolling back checkpoint " << ckp_id;
+    ws_.RemoveCheckpoint(ckp_id);
+    throw;
+  }
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }
 
