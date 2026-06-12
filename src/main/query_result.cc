@@ -312,75 +312,135 @@ std::string QueryResult::GetValueAsString(size_t column_index) const {
 }
 
 // ---------------------------------------------------------------------------
-// Typed getters
+// Typed getters (with implicit widening conversions)
+//
+// Widening rules:
+//   int32  → int32, int64, float, double
+//   uint32 → uint32, int64, uint64, float, double
+//   int64  → int64, double
+//   uint64 → uint64, double
+//   float  → float, double
+//   bool   → int32, int64, uint32, uint64
 // ---------------------------------------------------------------------------
 
 int32_t QueryResult::GetInt32(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kInt32Array) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kInt32Array:
+    return array.int32_array().values(row);
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1 : 0;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not Int32Array");
+                        " cannot be converted to Int32");
   }
-  return array.int32_array().values(static_cast<int>(current_row_index_));
 }
 
 uint32_t QueryResult::GetUInt32(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kUint32Array) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kUint32Array:
+    return array.uint32_array().values(row);
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1 : 0;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not UInt32Array");
+                        " cannot be converted to UInt32");
   }
-  return array.uint32_array().values(static_cast<int>(current_row_index_));
 }
 
 int64_t QueryResult::GetInt64(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kInt64Array) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kInt64Array:
+    return array.int64_array().values(row);
+  case neug::Array::kInt32Array:
+    return static_cast<int64_t>(array.int32_array().values(row));
+  case neug::Array::kUint32Array:
+    return static_cast<int64_t>(array.uint32_array().values(row));
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1 : 0;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not Int64Array");
+                        " cannot be converted to Int64");
   }
-  return array.int64_array().values(static_cast<int>(current_row_index_));
 }
 
 uint64_t QueryResult::GetUInt64(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kUint64Array) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kUint64Array:
+    return array.uint64_array().values(row);
+  case neug::Array::kUint32Array:
+    return static_cast<uint64_t>(array.uint32_array().values(row));
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1 : 0;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not UInt64Array");
+                        " cannot be converted to UInt64");
   }
-  return array.uint64_array().values(static_cast<int>(current_row_index_));
 }
 
 float QueryResult::GetFloat(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kFloatArray) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kFloatArray:
+    return array.float_array().values(row);
+  case neug::Array::kInt32Array:
+    return static_cast<float>(array.int32_array().values(row));
+  case neug::Array::kUint32Array:
+    return static_cast<float>(array.uint32_array().values(row));
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1.0f : 0.0f;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not FloatArray");
+                        " cannot be converted to Float");
   }
-  return array.float_array().values(static_cast<int>(current_row_index_));
 }
 
 double QueryResult::GetDouble(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
-  if (array.typed_array_case() != neug::Array::kDoubleArray) {
+  int row = static_cast<int>(current_row_index_);
+  switch (array.typed_array_case()) {
+  case neug::Array::kDoubleArray:
+    return array.double_array().values(row);
+  case neug::Array::kFloatArray:
+    return static_cast<double>(array.float_array().values(row));
+  case neug::Array::kInt32Array:
+    return static_cast<double>(array.int32_array().values(row));
+  case neug::Array::kUint32Array:
+    return static_cast<double>(array.uint32_array().values(row));
+  case neug::Array::kInt64Array:
+    return static_cast<double>(array.int64_array().values(row));
+  case neug::Array::kUint64Array:
+    return static_cast<double>(array.uint64_array().values(row));
+  case neug::Array::kBoolArray:
+    return array.bool_array().values(row) ? 1.0 : 0.0;
+  default:
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not DoubleArray");
+                        " cannot be converted to Double");
   }
-  return array.double_array().values(static_cast<int>(current_row_index_));
 }
 
 std::string QueryResult::GetString(size_t column_index) const {
   ValidateCursorAccess(column_index);
   const auto& array = GetColumn(column_index);
   if (array.typed_array_case() != neug::Array::kStringArray) {
-    THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not StringArray");
+    // Fall back to string representation for any type
+    std::stringstream ss;
+    get_value(array, current_row_index_, ss);
+    return ss.str();
   }
   return array.string_array().values(static_cast<int>(current_row_index_));
 }
@@ -390,7 +450,7 @@ bool QueryResult::GetBool(size_t column_index) const {
   const auto& array = GetColumn(column_index);
   if (array.typed_array_case() != neug::Array::kBoolArray) {
     THROW_RUNTIME_ERROR("Column " + std::to_string(column_index) +
-                        " is not BoolArray");
+                        " cannot be converted to Bool");
   }
   return array.bool_array().values(static_cast<int>(current_row_index_));
 }
