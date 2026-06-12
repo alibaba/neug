@@ -86,6 +86,27 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
   }
 }
 
+template <typename NBR_T>
+bool is_nbr_list_unmodified(MD5_CTX& ctx, FileHeader& header,
+                            const IDataContainer* nbr_container,
+                            const NBR_T* const* adj_lists, const int* cap_arr,
+                            size_t vnum) {
+  MD5_Init(&ctx);
+  for (size_t i = 0; i < vnum; ++i) {
+    const char* data = reinterpret_cast<const char*>(adj_lists[i]);
+    size_t len = cap_arr[i] * sizeof(NBR_T);
+    MD5_Update(&ctx, data, len);
+  }
+  MD5_Final(header.data_md5, &ctx);
+  auto casted = dynamic_cast<const MMapContainer*>(nbr_container);
+  if (casted && !casted->GetPath().empty() && casted->GetHeader()) {
+    return memcmp(casted->GetHeader()->data_md5, header.data_md5,
+                  sizeof(header.data_md5)) == 0;
+  } else {
+    return false;
+  }
+}
+
 template <typename EDATA_T>
 ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   ModuleDescriptor descriptor;
@@ -104,36 +125,35 @@ ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
   const int* cap_arr = reinterpret_cast<const int*>(cap_list_->GetData());
 
-  std::string nbr_path_committed;
-  FileHeader header{};
-
-  auto runtime_uuid = ckp.CreateRuntimeObject();
-  auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
-  std::ofstream nbr_out(nbr_path, std::ios::binary);
-  if (!nbr_out.is_open()) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
-  }
-
-  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-
   MD5_CTX ctx;
-  MD5_Init(&ctx);
-  for (size_t i = 0; i < vnum; ++i) {
-    const char* data = reinterpret_cast<const char*>(adj_lists[i]);
-    size_t len = cap_arr[i] * sizeof(nbr_t);
-    nbr_out.write(data, len);
-    MD5_Update(&ctx, data, len);
+  FileHeader header{};
+  if (is_nbr_list_unmodified(ctx, header, nbr_list_.get(), adj_lists, cap_arr,
+                             vnum)) {
+    // If the neighbor list is unmodified, we can reuse the existing file.
+    descriptor.set_path(ModuleDescriptor::kNbrListPath,
+                        ckp.LinkToSnapshot(nbr_list_->GetPath()));
+  } else {
+    std::string nbr_path_committed;
+
+    auto runtime_uuid = ckp.CreateRuntimeObject();
+    auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
+    std::ofstream nbr_out(nbr_path, std::ios::binary);
+    if (!nbr_out.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
+    }
+    nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    for (size_t i = 0; i < vnum; ++i) {
+      const char* data = reinterpret_cast<const char*>(adj_lists[i]);
+      size_t len = cap_arr[i] * sizeof(nbr_t);
+      nbr_out.write(data, len);
+    }
+    nbr_out.flush();
+    nbr_out.close();
+    nbr_path_committed = ckp.CommitRuntimeObject(runtime_uuid);
+
+    descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_path_committed);
   }
 
-  MD5_Final(header.data_md5, &ctx);
-  // Update the header with the correct MD5 after writing all data
-  nbr_out.seekp(0);
-  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-  nbr_out.flush();
-  nbr_out.close();
-  nbr_path_committed = ckp.CommitRuntimeObject(runtime_uuid);
-
-  descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_path_committed);
   descriptor.set_path(ModuleDescriptor::kCapacityListPath,
                       ckp.Commit(*cap_list_));
   return descriptor;
