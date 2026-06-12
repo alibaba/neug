@@ -301,17 +301,6 @@ bool QueryResult::IsNull(size_t column_index) const {
 }
 
 // ---------------------------------------------------------------------------
-// GetValueAsString
-// ---------------------------------------------------------------------------
-
-std::string QueryResult::GetValueAsString(size_t column_index) const {
-  ValidateCursorAccess(column_index);
-  std::stringstream ss;
-  get_value(GetColumn(column_index), current_row_index_, ss);
-  return ss.str();
-}
-
-// ---------------------------------------------------------------------------
 // Typed getters (with implicit widening conversions)
 //
 // Widening rules:

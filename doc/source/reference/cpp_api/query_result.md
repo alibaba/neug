@@ -39,10 +39,6 @@ All getters read from the **current cursor row** by column index.
 
 Check whether the cell at current row is NULL.
 
-#### `GetValueAsString(size_t column_index) const`
-
-Get the string representation of the cell value (any type).
-
 #### `GetInt32(size_t column_index) const`
 
 #### `GetUInt32(size_t column_index) const`

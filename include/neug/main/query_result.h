@@ -101,11 +101,6 @@ class QueryResult {
    */
   bool IsNull(size_t column_index) const;
 
-  /**
-   * @brief Get the string representation of the cell at current row (any type).
-   */
-  std::string GetValueAsString(size_t column_index) const;
-
   int32_t GetInt32(size_t column_index) const;
   uint32_t GetUInt32(size_t column_index) const;
   int64_t GetInt64(size_t column_index) const;

@@ -223,12 +223,13 @@ TEST(QueryResultTest, IsNull) {
   EXPECT_TRUE(result.IsNull(0));
 }
 
-TEST(QueryResultTest, GetValueAsString) {
+TEST(QueryResultTest, GetStringAnyType) {
   auto result = BuildTestResult();
 
-  EXPECT_EQ(result.GetValueAsString(0), "10");
-  EXPECT_EQ(result.GetValueAsString(1), "alice");
-  EXPECT_EQ(result.GetValueAsString(3), "true");
+  // GetString works on non-string columns via fallback
+  EXPECT_EQ(result.GetString(0), "10");
+  EXPECT_EQ(result.GetString(1), "alice");
+  EXPECT_EQ(result.GetString(3), "true");
 }
 
 TEST(QueryResultTest, SerializeAndDeserialize) {
