@@ -80,7 +80,7 @@ test('test_open_after_close', () => {
 
 test('test_local_connection_params', () => {
   const dbDir = makeTmpDir('local_conn_param_db');
-  const db = new Database({ databasePath: dbDir, mode: 'w', maxThreadNum: 4 });
+  const db = new Database({ databasePath: dbDir, mode: 'w', maxThreadNum: Database.cpuCount() });
   const conn = db.connect();
   assert.ok(conn);
   conn.close();
