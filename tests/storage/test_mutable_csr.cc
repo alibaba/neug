@@ -18,10 +18,30 @@
 #include <chrono>
 #include <iostream>
 #include <optional>
+#include <random>
 #include <string>
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "unittest/utils.h"
+
+namespace {
+
+// Creates a unique temporary directory for a single test instance.
+// Uses the system temp dir + a PID-based prefix + random suffix to avoid
+// collisions under parallel test execution or concurrent CI jobs.
+std::filesystem::path make_unique_test_dir(const std::string& test_name) {
+  std::mt19937_64 rng(
+      std::chrono::steady_clock::now().time_since_epoch().count() ^
+      static_cast<uint64_t>(::getpid()));
+  std::uniform_int_distribution<uint64_t> dist;
+  auto unique_dir = std::filesystem::temp_directory_path() /
+                    (test_name + "_" + std::to_string(::getpid()) + "_" +
+                     std::to_string(dist(rng)));
+  std::filesystem::create_directories(unique_dir);
+  return unique_dir;
+}
+
+}  // namespace
 
 static const size_t src_v_num = 5;
 static const size_t single_src_v_num = 10;
@@ -80,12 +100,18 @@ using Datatypes =
 template <typename EDATA_T>
 class MutableCsrTest : public ::testing::Test {
  protected:
-  static constexpr const char* TEST_DIR = "/tmp/mutable_csr_test";
-
   void SetUp() override {
+    test_dir_ = make_unique_test_dir("mutable_csr_test");
     allocators.emplace_back(
         std::make_unique<Allocator>(MemoryLevel::kInMemory, ""));
-    ws_.Open(TEST_DIR);
+    ws_.Open(test_dir_.string());
+  }
+
+  void TearDown() override {
+    ws_.Close();
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
+    }
   }
 
   size_t count_edge_num(MutableCsr<EDATA_T>& csr) {
@@ -102,15 +128,15 @@ class MutableCsrTest : public ::testing::Test {
 
   std::shared_ptr<Checkpoint> load_csr_data(MutableCsr<EDATA_T>& csr,
                                             MemoryLevel memory_level) {
-    if (std::filesystem::exists(TEST_DIR)) {
-      std::filesystem::remove_all(TEST_DIR);
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
     }
-    std::filesystem::create_directories(TEST_DIR);
+    std::filesystem::create_directories(test_dir_);
     // The previous helper invocation left checkpoints in ws_; the directory
     // wipe above made them stale, so re-sync the workspace with disk before
     // creating a new checkpoint.
     ws_.Close();
-    ws_.Open(TEST_DIR);
+    ws_.Open(test_dir_.string());
 
     auto ckp = make_checkpoint(ws_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
@@ -143,15 +169,15 @@ class MutableCsrTest : public ::testing::Test {
 
   std::shared_ptr<Checkpoint> load_single_csr_data(
       SingleMutableCsr<EDATA_T>& csr, MemoryLevel memory_level) {
-    if (std::filesystem::exists(TEST_DIR)) {
-      std::filesystem::remove_all(TEST_DIR);
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
     }
-    std::filesystem::create_directories(TEST_DIR);
+    std::filesystem::create_directories(test_dir_);
     // The previous helper invocation left checkpoints in ws_; the directory
     // wipe above made them stale, so re-sync the workspace with disk before
     // creating a new checkpoint.
     ws_.Close();
-    ws_.Open(TEST_DIR);
+    ws_.Open(test_dir_.string());
 
     auto ckp = make_checkpoint(ws_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
@@ -345,6 +371,7 @@ class MutableCsrTest : public ::testing::Test {
 
   std::vector<std::unique_ptr<neug::Allocator>> allocators;
   CheckpointManager& workspace() { return ws_; }
+  std::filesystem::path test_dir_;
   CheckpointManager ws_;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
@@ -699,23 +726,20 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
 class MutableCsrDumpDirtyTest : public ::testing::Test {
  protected:
   using CsrT = MutableCsr<int64_t>;
-  static constexpr const char* TEST_DIR = "/tmp/mutable_csr_dump_dirty_test";
   static constexpr vid_t VNUM = 5;
   const std::vector<vid_t> src_ = {0, 0, 1, 2, 4};
   const std::vector<vid_t> dst_ = {3, 4, 2, 1, 0};
   const std::vector<int64_t> data_ = {10, 20, 30, 40, 50};
 
   void SetUp() override {
-    if (std::filesystem::exists(TEST_DIR))
-      std::filesystem::remove_all(TEST_DIR);
-    std::filesystem::create_directories(TEST_DIR);
-    ws_.Open(TEST_DIR);
+    test_dir_ = make_unique_test_dir("mutable_csr_dump_dirty_test");
+    ws_.Open(test_dir_.string());
     alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, "");
   }
   void TearDown() override {
     ws_.Close();
-    if (std::filesystem::exists(TEST_DIR))
-      std::filesystem::remove_all(TEST_DIR);
+    if (std::filesystem::exists(test_dir_))
+      std::filesystem::remove_all(test_dir_);
   }
 
   std::shared_ptr<Checkpoint> prepare(CsrT& csr, ModuleDescriptor& desc) {
@@ -729,9 +753,15 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
     return ckp;
   }
 
+  // Returns the inode number of the file at `path`.
+  // Throws std::runtime_error on stat() failure so that any follow-on
+  // inode comparisons are never made against an uninitialized value.
   static ino_t inode_of(const std::string& path) {
-    struct stat st {};
-    EXPECT_EQ(stat(path.c_str(), &st), 0) << "stat: " << path;
+    struct stat st{};
+    if (stat(path.c_str(), &st) != 0) {
+      throw std::runtime_error("stat() failed for path: " + path + " — " +
+                               std::strerror(errno));
+    }
     return st.st_ino;
   }
   std::string nbr_path(const ModuleDescriptor& d) {
@@ -748,6 +778,7 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
     EXPECT_NE(orig_inode, new_inode) << label << " should mark dirty";
   }
 
+  std::filesystem::path test_dir_;
   CheckpointManager ws_;
   std::unique_ptr<Allocator> alloc_;
 };

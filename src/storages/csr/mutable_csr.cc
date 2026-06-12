@@ -130,7 +130,8 @@ ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   if (is_nbr_list_unmodified(ctx, header, nbr_list_.get(), adj_lists, cap_arr,
                              vnum)) {
     // If the neighbor list is unmodified, we can reuse the existing file.
-    descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_list_->GetPath());
+    descriptor.set_path(ModuleDescriptor::kNbrListPath,
+                        ckp.LinkToSnapshot(nbr_list_->GetPath()));
   } else {
     std::string nbr_path_committed;
 
