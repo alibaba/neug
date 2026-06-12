@@ -62,8 +62,8 @@ neug::result<ContextChunk> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> input;
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> output;
+    vector_t<std::tuple<label_t, vid_t, size_t>> input;
+    vector_t<std::tuple<label_t, vid_t, size_t>> output;
     foreach_vertex(input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
                      output.emplace_back(label, v, index);
@@ -117,8 +117,8 @@ neug::result<ContextChunk> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> input;
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> output;
+    vector_t<std::tuple<label_t, vid_t, size_t>> input;
+    vector_t<std::tuple<label_t, vid_t, size_t>> output;
     foreach_vertex(input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
                      output.emplace_back(label, v, index);
@@ -170,8 +170,8 @@ neug::result<ContextChunk> PathExpand::edge_expand_v(
     }
 
     MLVertexColumnBuilderOpt builder(labels);
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> input;
-    neug::vector_t<std::tuple<label_t, vid_t, size_t>> output;
+    vector_t<std::tuple<label_t, vid_t, size_t>> input;
+    vector_t<std::tuple<label_t, vid_t, size_t>> output;
     auto input_vertex_list =
         std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
     if (input_vertex_list->vertex_column_type() ==
@@ -255,8 +255,8 @@ neug::result<ContextChunk> path_expand_p_arbitrary(
     in_labels_map[triplet.dst_label].emplace_back(triplet);
   }
   auto dir = params.dir;
-  neug::vector_t<std::pair<Path, size_t>> input;
-  neug::vector_t<std::pair<Path, size_t>> output;
+  vector_t<std::pair<Path, size_t>> input;
+  vector_t<std::pair<Path, size_t>> output;
 
   PathColumnBuilder builder;
   if (dir == Direction::kOut) {
@@ -617,8 +617,8 @@ neug::result<ContextChunk> path_expand_p_any_shortest(
         visited;
     std::tuple<VertexRecord, label_t, Direction, const void*> dummy;
     visited.emplace(root, dummy);
-    neug::vector_t<VertexRecord> current_level;
-    neug::vector_t<VertexRecord> next_level;
+    vector_t<VertexRecord> current_level;
+    vector_t<VertexRecord> next_level;
     current_level.emplace_back(root);
     int depth = 0;
     while (depth + 1 < params.hop_upper && !current_level.empty()) {

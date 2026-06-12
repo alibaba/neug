@@ -143,7 +143,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
   MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
   sel_vec_t offsets;
   auto& vertices = input.vertices();
-  neug::vector_t<bool> matched;
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -243,7 +243,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
     return std::make_pair(builder.finish(), sel_vec_t());
   }
   if (input_labels.size() == 1) {
-    neug::vector_t<bool> matched;
+    vector_t<bool> matched;
     if constexpr (is_optional) {
       matched.resize(input.size(), false);
     }
@@ -666,7 +666,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
 
   size_t input_seg_num = input.seg_num();
   size_t seg_start_idx = 0;
-  neug::vector_t<bool> edges_found;
+  vector_t<bool> edges_found;
   if constexpr (is_optional) {
     edges_found.resize(input.size(), false);
   }
@@ -769,7 +769,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
   }
   MSEdgeColumnBuilder builder;
   sel_vec_t offsets;
-  neug::vector_t<bool> matched;
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(vertices.size(), false);
   }
@@ -887,7 +887,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   MSEdgeColumnBuilder builder;
   sel_vec_t offsets;
-  neug::vector_t<bool> matched;
+  vector_t<bool> matched;
   if constexpr (is_optional) {
     matched.resize(input.seg_num(), false);
   }

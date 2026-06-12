@@ -48,8 +48,8 @@ void sssp_dir(const CsrView& view, Direction dir, label_t v_label, vid_t v,
               int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
               PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
               const PRED_T& pred) {
-  neug::vector_t<vid_t> cur;
-  neug::vector_t<vid_t> next;
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -147,8 +147,8 @@ void sssp_both_dir(const CsrView& view0, const CsrView& view1, label_t v_label,
                    MSVertexColumnBuilder& dest_col_builder,
                    PathColumnBuilder& path_col_builder, sel_vec_t& offsets,
                    const PRED_T& pred) {
-  neug::vector_t<vid_t> cur;
-  neug::vector_t<vid_t> next;
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<vid_t> parent(
@@ -280,8 +280,8 @@ void sssp_both_dir_with_order_by_length_limit(
     int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, sel_vec_t& offsets,
     const PRED_T& pred, int limit_upper) {
-  neug::vector_t<vid_t> cur;
-  neug::vector_t<vid_t> next;
+  vector_t<vid_t> cur;
+  vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
   StorageReadInterface::vertex_array_t<bool> vis(vertices, false);
@@ -454,8 +454,8 @@ default_single_source_shortest_path_impl(
     MSVertexColumnBuilder dest_col_builder(*dest_labels.begin());
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      neug::vector_t<std::pair<label_t, vid_t>> cur;
-      neug::vector_t<std::pair<label_t, vid_t>> next;
+      vector_t<std::pair<label_t, vid_t>> cur;
+      vector_t<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       flat_hash_map<std::pair<label_t, vid_t>,
                     std::tuple<label_t, vid_t, label_t, Direction, const void*>>
@@ -523,8 +523,8 @@ default_single_source_shortest_path_impl(
     MLVertexColumnBuilder dest_col_builder;
 
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
-      neug::vector_t<std::pair<label_t, vid_t>> cur;
-      neug::vector_t<std::pair<label_t, vid_t>> next;
+      vector_t<std::pair<label_t, vid_t>> cur;
+      vector_t<std::pair<label_t, vid_t>> next;
       cur.emplace_back(label, v);
       std::map<std::pair<label_t, vid_t>,
                std::tuple<label_t, vid_t, label_t, Direction, const void*>>

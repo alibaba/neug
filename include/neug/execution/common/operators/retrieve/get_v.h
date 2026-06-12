@@ -322,7 +322,7 @@ class GetV {
   static neug::result<ContextChunk> get_vertex_from_edges(
       const IStorageInterface& graph, ContextChunk&& chunk,
       const GetVParams& params, const PRED_T& pred) {
-        sel_vec_t shuffle_offset;
+    sel_vec_t shuffle_offset;
     auto col = chunk.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
       return get_vertex_from_path(graph, std::move(chunk), params, pred);

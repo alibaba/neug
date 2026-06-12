@@ -26,7 +26,7 @@ namespace neug {
 
 class Encoder {
  public:
-  explicit Encoder(neug::vector_t<char>& buf) : buf_(buf) {}
+  explicit Encoder(vector_t<char>& buf) : buf_(buf) {}
 
   void put_long(int64_t v);
 
@@ -69,7 +69,7 @@ class Encoder {
   void clear();
 
  private:
-  neug::vector_t<char>& buf_;
+  vector_t<char>& buf_;
 };
 
 class Decoder {

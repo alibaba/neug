@@ -40,7 +40,7 @@ static ContextChunk default_semi_join(ContextChunk&& chunk,
   sel_vec_t offset;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
-    neug::vector_t<char> bytes;
+    vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.right_columns.size(); i++) {
       auto val = chunk2.get(params.right_columns[i])->get_elem(r_i);
@@ -53,7 +53,7 @@ static ContextChunk default_semi_join(ContextChunk&& chunk,
 
   size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
-    neug::vector_t<char> bytes;
+    vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
@@ -198,7 +198,7 @@ static ContextChunk single_vertex_column_inner_join(ContextChunk&& chunk,
 static ContextChunk dual_vertex_column_inner_join(ContextChunk&& chunk,
                                                   ContextChunk&& chunk2,
                                                   const JoinParams& params) {
-                                                    sel_vec_t left_offset, right_offset;
+  sel_vec_t left_offset, right_offset;
   auto casted_left_col = std::dynamic_pointer_cast<IVertexColumn>(
       chunk.get(params.left_columns[0]));
   auto casted_left_col2 = std::dynamic_pointer_cast<IVertexColumn>(
@@ -292,7 +292,7 @@ static ContextChunk default_inner_join(ContextChunk&& chunk,
   flat_hash_map<std::string, sel_vec_t> right_set;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
-    neug::vector_t<char> bytes;
+    vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.right_columns.size(); i++) {
@@ -313,7 +313,7 @@ static ContextChunk default_inner_join(ContextChunk&& chunk,
 
   size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
-    neug::vector_t<char> bytes;
+    vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
@@ -362,7 +362,7 @@ static ContextChunk default_times_join(ContextChunk&& chunk,
    * Each row in the resulting context will contain the data from both
    * contexts, with the left context's data appearing first.
    */
-sel_vec_t left_offset, right_offset;
+  sel_vec_t left_offset, right_offset;
   size_t left_size = chunk.row_num();
   size_t right_size = chunk2.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
@@ -425,7 +425,7 @@ static ContextChunk single_vertex_column_left_outer_join(
       }
     }
   } else {
-    flat_hash_map<VertexRecord, neug::vector_t<vid_t>> right_map;
+    flat_hash_map<VertexRecord, vector_t<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         right_map[casted_right_col->get_vertex(r_i)].emplace_back(r_i);
@@ -510,7 +510,7 @@ static ContextChunk dual_vertex_column_left_outer_join(
       }
     }
   } else {
-    flat_hash_map<vertex_pair, neug::vector_t<vid_t>> right_map;
+    flat_hash_map<vertex_pair, vector_t<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         vertex_pair cur(casted_right_col0->get_vertex(r_i),
@@ -551,10 +551,10 @@ static ContextChunk default_left_outer_join(ContextChunk&& chunk,
                                             ContextChunk&& chunk2,
                                             const JoinParams& params) {
   size_t right_size = chunk2.row_num();
-  flat_hash_map<std::string, neug::vector_t<vid_t>> right_map;
+  flat_hash_map<std::string, vector_t<vid_t>> right_map;
   if (chunk.row_num() > 0) {
     for (size_t r_i = 0; r_i < right_size; r_i++) {
-      neug::vector_t<char> bytes;
+      vector_t<char> bytes;
       Encoder encoder(bytes);
       for (size_t i = 0; i < params.right_columns.size(); i++) {
         auto val = chunk2.get(params.right_columns[i])->get_elem(r_i);
@@ -566,11 +566,11 @@ static ContextChunk default_left_outer_join(ContextChunk&& chunk,
     }
   }
 
-sel_vec_t offsets;
-sel_vec_t right_offsets;
+  sel_vec_t offsets;
+  sel_vec_t right_offsets;
   size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; r_i++) {
-    neug::vector_t<char> bytes;
+    vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = chunk.get(params.left_columns[i])->get_elem(r_i);

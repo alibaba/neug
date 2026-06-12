@@ -127,8 +127,8 @@ class PathExpand {
       in_labels_map[triplet.dst_label].emplace_back(triplet);
     }
     auto dir = params.dir;
-    neug::vector_t<std::pair<Path, size_t>> input;
-    neug::vector_t<std::pair<Path, size_t>> output;
+    vector_t<std::pair<Path, size_t>> input;
+    vector_t<std::pair<Path, size_t>> output;
 
     PathColumnBuilder builder;
 
@@ -314,7 +314,7 @@ class PathExpand {
         double wb = b.get_weight();
         return wa > wb;
       };
-      std::priority_queue<Path, neug::vector_t<Path>, decltype(cmp)> pq(cmp);
+      std::priority_queue<Path, vector_t<Path>, decltype(cmp)> pq(cmp);
       Path root = Path(label, v);
       root.set_weight(0.0);
       pq.push(root);

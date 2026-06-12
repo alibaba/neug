@@ -58,8 +58,8 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
             for (auto v : sl_vertex_column->vertices()) {
               vids.emplace_back(v);
             }
-            RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
-                sl_vertex_column->label(), vids));
+            RETURN_STATUS_ERROR_IF_NOT_OK(
+                graph.BatchDeleteVertices(sl_vertex_column->label(), vids));
           } else if (vertex_column->vertex_column_type() ==
                          VertexColumnType::kMultiple ||
                      vertex_column->vertex_column_type() ==

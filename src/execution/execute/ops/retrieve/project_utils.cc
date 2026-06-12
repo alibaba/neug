@@ -30,7 +30,7 @@ struct DummyGetter : public ProjectExprBase {
   }
 
   bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
-    sel_vec_t& offsets) const override {
+                      sel_vec_t& offsets) const override {
     return chunk.get(from_)->order_by_limit(asc, limit, offsets);
   }
 
@@ -85,7 +85,7 @@ struct VertexPropertyExpr : public ProjectExprBase {
   }
 
   bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
-    sel_vec_t& indices) const override {
+                      sel_vec_t& indices) const override {
     auto col = chunk.get(tag_);
     if (col->is_optional() ||
         col->column_type() != ContextColumnType::kVertex) {
@@ -229,7 +229,7 @@ struct GeneralExpr : public ProjectExprBase {
   }
 
   bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
-    sel_vec_t&  indices) const override {
+                      sel_vec_t& indices) const override {
     return false;
   }
 

@@ -29,7 +29,7 @@ struct ProjectExprBase {
   virtual std::shared_ptr<IContextColumn> evaluate(
       const ContextChunk& chunk) = 0;
   virtual bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
-    sel_vec_t& offsets) const {
+                              sel_vec_t& offsets) const {
     return false;
   }
 };
@@ -56,7 +56,7 @@ struct ProjectOp {
   }
 
   bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
-    sel_vec_t& offsets) const {
+                      sel_vec_t& offsets) const {
     if (expr_) {
       return expr_->order_by_limit(chunk, asc, limit, offsets);
     }
@@ -136,7 +136,7 @@ class Project {
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(ret);
-sel_vec_t offsets;
+      sel_vec_t offsets;
       OrderBy::order_by_limit_impl(graph, ret.row_num(), cmp_, lower, upper,
                                    offsets);
 

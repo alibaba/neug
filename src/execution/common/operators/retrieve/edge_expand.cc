@@ -28,7 +28,7 @@ namespace execution {
 void EdgeExpand::remove_null_from_chunk(ContextChunk& chunk, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
       std::dynamic_pointer_cast<IVertexColumn>(chunk.get(tag_id));
-      sel_vec_t selected_offsets;
+  sel_vec_t selected_offsets;
   size_t num = vertex_col->size();
   for (size_t k = 0; k < num; ++k) {
     if (vertex_col->has_value(k)) {
