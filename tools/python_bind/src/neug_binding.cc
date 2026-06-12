@@ -43,12 +43,12 @@ namespace neug {
 // Tune mimalloc to minimize page faults under the explicit-allocator approach
 // used in the Python binding (no global override / no LD_PRELOAD).
 //
-// Rationale: with explicit allocate_shared / neug::vector / neug::flat_hash_map, the
-// process working set is split between glibc (Python/Arrow/numpy) and mimalloc
-// (neug containers). Default mimalloc settings aggressively decommit/reset
-// idle pages, causing extra minor page faults on re-touch. We disable that
-// here, eagerly commit, and pre-warm the heap so segments are committed up
-// front and stay resident.
+// Rationale: with explicit allocate_shared / neug::vector /
+// neug::flat_hash_map, the process working set is split between glibc
+// (Python/Arrow/numpy) and mimalloc (neug containers). Default mimalloc
+// settings aggressively decommit/reset idle pages, causing extra minor page
+// faults on re-touch. We disable that here, eagerly commit, and pre-warm the
+// heap so segments are committed up front and stay resident.
 static void tune_mimalloc_for_pybind() {
   // Read env overrides first; otherwise apply our defaults.
   //
