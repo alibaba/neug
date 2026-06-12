@@ -19,8 +19,8 @@
 #include <arrow/dataset/scanner.h>
 #include <memory>
 
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace reader {

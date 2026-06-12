@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/file_sys/file_system.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 #include <mutex>
 #include <string>
@@ -22,7 +22,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace fsys {

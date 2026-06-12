@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/reader.h"
+#include "neug/utils/io/reader.h"
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
@@ -33,10 +33,10 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/row_expression_filter.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/type_converter.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/row_expression_filter.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 

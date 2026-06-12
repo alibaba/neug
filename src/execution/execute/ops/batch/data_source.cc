@@ -24,8 +24,8 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/result.h"
 
 

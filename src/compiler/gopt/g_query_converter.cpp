@@ -71,7 +71,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace gopt {

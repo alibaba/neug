@@ -13,28 +13,8 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/sniffer.h"
+#pragma once
 
-#include "neug/utils/result.h"
-
-namespace neug {
-namespace reader {
-
-result<std::shared_ptr<EntrySchema>> CsvSniffer::sniff() {
-  if (!reader_) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "CsvReader is null");
-  }
-  return reader_->inferSchema();
-}
-
-result<std::shared_ptr<EntrySchema>> JsonSniffer::sniff() {
-  if (!reader_) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "JsonReader is null");
-  }
-  return reader_->inferSchema();
-}
-
-}  // namespace reader
-}  // namespace neug
+#include "neug/utils/io/read/common/read_state.h"
+#include "neug/utils/io/read/csv/csv_reader.h"
+#include "neug/utils/io/read/json/json_reader.h"

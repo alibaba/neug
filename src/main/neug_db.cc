@@ -41,7 +41,7 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/result.h"
 
 namespace neug {
