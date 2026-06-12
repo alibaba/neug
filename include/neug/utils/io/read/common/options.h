@@ -22,10 +22,10 @@
 #include <string>
 
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/storages/loader/csv_read_config.h"
-#include "neug/storages/loader/json_read_config.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/csv/csv_read_config.h"
+#include "neug/utils/io/read/json/json_read_config.h"
 
 namespace neug {
 namespace reader {

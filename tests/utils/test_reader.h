@@ -31,10 +31,10 @@
 #include "neug/execution/common/data_chunk.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/type_converter.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace test {

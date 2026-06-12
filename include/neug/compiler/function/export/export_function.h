@@ -27,7 +27,7 @@
 #include "neug/compiler/function/function.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace function {

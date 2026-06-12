@@ -31,7 +31,7 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/writer/writer.h"
+#include "neug/utils/io/write/writer.h"
 #include "parquet/arrow_fs_resolver.h"
 #include "parquet_options.h"
 

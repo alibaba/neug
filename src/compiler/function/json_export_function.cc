@@ -16,7 +16,7 @@
 
 #include "neug/compiler/function/export/json_export_function.h"
 
-#include "neug/utils/io/output_stream.h"
+#include "neug/utils/io/stream/output_stream.h"
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/writer.h>
@@ -29,7 +29,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
-#include "neug/utils/writer/writer.h"
+#include "neug/utils/io/write/writer.h"
 
 namespace neug {
 namespace writer {
