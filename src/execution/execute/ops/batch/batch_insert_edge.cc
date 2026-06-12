@@ -143,7 +143,9 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
   for (const auto& mapping : prop_mappings_) {
     total_mappings.emplace_back(mapping);
   }
-  auto suppliers = create_record_batch_supplier(ctx, total_mappings);
+  ctx.ensure_single_chunk("BatchInsertEdgeOpr");
+  auto suppliers =
+      create_record_batch_supplier(ctx.chunk(0).chunk(), total_mappings);
 
   for (auto& supplier : suppliers) {
     RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchAddEdges(

@@ -16,17 +16,17 @@
 
 #include <vector>
 
+#include "neug/execution/common/context_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 namespace execution {
-class Context;
 
 class Dedup {
  public:
-  static neug::result<Context> dedup(Context&& ctx,
-                                     const std::vector<size_t>& cols);
+  static neug::result<ContextChunk> dedup(ContextChunk&& chunk,
+                                          const std::vector<size_t>& cols);
 };
 
 }  // namespace execution

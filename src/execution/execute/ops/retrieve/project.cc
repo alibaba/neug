@@ -52,11 +52,14 @@ class ProjectOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     if (is_select_columns_) {
-      Context ret;
-      for (auto& p : select_columns_mapping_) {
-        ret.set(p.second, ctx.get(p.first));
-      }
-      return ret;
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            ContextChunk ret;
+            for (auto& p : select_columns_mapping_) {
+              ret.set(p.second, chunk.get(p.first));
+            }
+            return ret;
+          });
     }
 
     std::vector<ProjectOp> exprs;
@@ -73,12 +76,10 @@ class ProjectOpr : public IOperator {
       }
     }
 
-    auto ret = Project::project(std::move(ctx), exprs, is_append_);
-    if (!ret) {
-      return ret;
-    }
-
-    return ret;
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Project::project(std::move(chunk), exprs, is_append_);
+        });
   }
 
   std::string get_operator_name() const override { return "ProjectOpr"; }
@@ -185,10 +186,10 @@ class ProjectOrderByOprBeta : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
-    auto cmp_func = [&](const Context& ctx) -> GeneralComparer {
+    auto cmp_func = [&](const DataChunk& chunk) -> GeneralComparer {
       GeneralComparer cmp;
       for (const auto& pair : order_by_pairs_) {
-        cmp.add_keys(ctx.get(pair.first), pair.second);
+        cmp.add_keys(chunk.get(pair.first), pair.second);
       }
       return cmp;
     };
@@ -207,13 +208,13 @@ class ProjectOrderByOprBeta : public IOperator {
                     fallback_expr_builders_[i]->build(graph, params),
                     expr_builders_[i]->alias()));
     }
-    auto ret = Project::project_order_by_fuse<GeneralComparer>(
-        graph, params, std::move(ctx), std::move(exprs), cmp_func, lower_bound_,
-        upper_bound_, order_by_keys_, first_pair_);
-    if (!ret) {
-      return ret;
-    }
-    return ret;
+    ctx.ensure_single_chunk("ProjectOrderByOprBeta");
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Project::project_order_by_fuse<GeneralComparer>(
+              graph, params, std::move(chunk), std::move(exprs), cmp_func,
+              lower_bound_, upper_bound_, order_by_keys_, first_pair_);
+        });
   }
 
  private:

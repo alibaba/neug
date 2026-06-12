@@ -16,7 +16,6 @@
 #include "neug/execution/common/operators/retrieve/unfold.h"
 
 #include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/result.h"
 
@@ -24,8 +23,9 @@ namespace neug {
 
 namespace execution {
 
-neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
-  auto col = ctxs.get(key);
+neug::result<ContextChunk> Unfold::unfold(ContextChunk&& chunk, int key,
+                                          int alias) {
+  auto col = chunk.get(key);
   if (col->elem_type().id() != DataTypeId::kList) {
     LOG(ERROR) << "Unfold column type is not list";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list");
@@ -33,63 +33,64 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto list_col = std::dynamic_pointer_cast<ListColumn>(col);
   auto [ptr, offsets] = list_col->unfold();
 
-  ctxs.set_with_reshuffle(alias, ptr, offsets);
+  chunk.set_with_reshuffle(alias, ptr, offsets);
 
-  return ctxs;
+  return chunk;
 }
 
 template <typename T>
-Context unfold_impl(Context&& ctx, int alias, const RecordExprBase& key) {
+void unfold_impl(ContextChunk& chunk, int alias, const RecordExprBase& key) {
   ValueColumnBuilder<T> builder;
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    Value val = key.eval_record(ctx, i);
+    Value val = key.eval_record(chunk.chunk(), i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {
       builder.push_back_elem(elem);
       offsets.push_back(i);
     }
   }
-  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
-  return ctx;
+  chunk.set_with_reshuffle(alias, builder.finish(), offsets);
 }
 
-Context unfold_list(Context&& ctx, int alias, const RecordExprBase& key) {
+void unfold_list(ContextChunk& chunk, int alias, const RecordExprBase& key) {
   const auto& elem_type = ListType::GetChildType(key.type());
 
   ListColumnBuilder builder(ListType::GetChildType(elem_type));
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    Value val = key.eval_record(ctx, i);
+    Value val = key.eval_record(chunk.chunk(), i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {
       builder.push_back_elem(elem);
       offsets.push_back(i);
     }
   }
-  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
-  return ctx;
+  chunk.set_with_reshuffle(alias, builder.finish(), offsets);
 }
 
-neug::result<Context> Unfold::unfold(Context&& ctxs, const RecordExprBase& key,
-                                     int alias) {
+neug::result<ContextChunk> Unfold::unfold(ContextChunk&& chunk,
+                                          const RecordExprBase& key,
+                                          int alias) {
   auto type = ListType::GetChildType(key.type());
   switch (type.id()) {
-#define TYPE_DISPATCHER(enum_val, type) \
-  case DataTypeId::enum_val:            \
-    return unfold_impl<type>(std::move(ctxs), alias, key);
+#define TYPE_DISPATCHER(enum_val, type)   \
+  case DataTypeId::enum_val:              \
+    unfold_impl<type>(chunk, alias, key); \
+    return chunk;
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case DataTypeId::kList:
-    return unfold_list(std::move(ctxs), alias, key);
+    unfold_list(chunk, alias, key);
+    return chunk;
   default:
     LOG(ERROR) << "Unfold column type is not supported: "
                << static_cast<int>(type.id());
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not supported");
   }
-  return ctxs;
+  return chunk;
 }
 
 }  // namespace execution

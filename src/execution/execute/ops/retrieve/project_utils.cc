@@ -25,13 +25,13 @@ namespace ops {
  */
 struct DummyGetter : public ProjectExprBase {
   DummyGetter(int from, int to) : from_(from), to_(to) {}
-  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
-    return ctx.get(from_);
+  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+    return chunk.get(from_);
   }
 
-  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+  bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                       std::vector<size_t>& offsets) const override {
-    return ctx.get(from_)->order_by_limit(asc, limit, offsets);
+    return chunk.get(from_)->order_by_limit(asc, limit, offsets);
   }
 
   int from_;
@@ -48,8 +48,8 @@ struct VertexPropertyExpr : public ProjectExprBase {
         tag_(tag),
         property_name_(property_name) {}
 
-  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
-    auto col = ctx.get(tag_);
+  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+    auto col = chunk.get(tag_);
     if (col->is_optional() ||
         col->column_type() != ContextColumnType::kVertex) {
       return nullptr;
@@ -71,7 +71,7 @@ struct VertexPropertyExpr : public ProjectExprBase {
       property_columns[label] = prop_col;
     }
     ValueColumnBuilder<V> builder;
-    builder.reserve(ctx.row_num());
+    builder.reserve(chunk.row_num());
     foreach_vertex(vertex_col, [&](size_t idx, label_t label, vid_t vid) {
       auto prop_col = property_columns[label];
       if constexpr (std::is_same_v<T, std::string_view>) {
@@ -84,9 +84,9 @@ struct VertexPropertyExpr : public ProjectExprBase {
     return builder.finish();
   }
 
-  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+  bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                       std::vector<size_t>& indices) const override {
-    auto col = ctx.get(tag_);
+    auto col = chunk.get(tag_);
     if (col->is_optional() ||
         col->column_type() != ContextColumnType::kVertex) {
       return false;
@@ -137,8 +137,8 @@ struct CaseWhenExpr : public ProjectExprBase {
     }
     return true;
   }
-  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
-    auto col = ctx.get(tag_);
+  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+    auto col = chunk.get(tag_);
     if (col->is_optional() ||
         col->column_type() != ContextColumnType::kVertex) {
       return nullptr;
@@ -176,7 +176,7 @@ struct CaseWhenExpr : public ProjectExprBase {
     }
   }
 
-  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+  bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                       std::vector<size_t>& indices) const override {
     return false;
   }
@@ -212,13 +212,13 @@ struct GeneralExpr : public ProjectExprBase {
               std::unique_ptr<BindedExprBase>&& expr, const DataType& type)
       : graph(igraph), expr(std::move(expr)), type(type) {}
 
-  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
+  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
     auto column_builder = ColumnsUtils::create_builder(type);
-    column_builder->reserve(ctx.row_num());
+    column_builder->reserve(chunk.row_num());
     const auto& e = expr->Cast<RecordExprBase>();
 
-    for (size_t i = 0; i < ctx.row_num(); ++i) {
-      const auto& val = e.eval_record(ctx, i);
+    for (size_t i = 0; i < chunk.row_num(); ++i) {
+      const auto& val = e.eval_record(chunk.chunk(), i);
       if (val.IsNull()) {
         column_builder->push_back_null();
       } else {
@@ -228,7 +228,7 @@ struct GeneralExpr : public ProjectExprBase {
     return column_builder->finish();
   }
 
-  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+  bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                       std::vector<size_t>& indices) const override {
     return false;
   }

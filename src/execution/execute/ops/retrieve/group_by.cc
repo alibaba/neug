@@ -42,18 +42,17 @@ class GroupByOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    auto key = create_key_func(mappings_, graph, ctx);
-    std::vector<ReduceOp> reducers;
-    for (auto& aggr : aggrs_) {
-      reducers.push_back(create_reduce_op(aggr, graph, ctx));
-    }
-    auto ret =
-        GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
-    if (!ret) {
-      return ret;
-    }
-
-    return ret;
+    ctx.ensure_single_chunk("GroupByOpr");
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          auto key = create_key_func(mappings_, graph, chunk.chunk());
+          std::vector<ReduceOp> reducers;
+          for (auto& aggr : aggrs_) {
+            reducers.push_back(create_reduce_op(aggr, graph, chunk.chunk()));
+          }
+          return GroupBy::group_by(std::move(chunk), std::move(key),
+                                   std::move(reducers));
+        });
   }
 
  private:

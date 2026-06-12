@@ -17,7 +17,8 @@
 
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "parallel_hashmap/phmap.h"
@@ -44,20 +45,20 @@ void get_labels(
   labels.push_back(std::move(labels_i));
 }
 
-static neug::result<neug::execution::Context> Binary_Intersect_SL_Impl(
+static neug::result<ContextChunk> Binary_Intersect_SL_Impl(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   const auto& vertex_col0 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep0.v_tag).get());
   const auto& vertex_col1 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep1.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep1.v_tag).get());
   CHECK(eep0.labels.size() == 1 && eep1.labels.size() == 1)
       << "IntersectOprBeta only supports single label edge expand";
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "IntersectOprBeta does not support optional edge expand";
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
 
   auto label = (eep0.dir == Direction::kOut ? eep0.labels[0].dst_label
                                             : eep0.labels[0].src_label);
@@ -132,25 +133,25 @@ static neug::result<neug::execution::Context> Binary_Intersect_SL_Impl(
       }
     }
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
   auto col = builder.finish();
-  ctx.set(alias, std::move(col));
-  return std::move(ctx);
+  chunk.set(alias, std::move(col));
+  return chunk;
 }
 
-static neug::result<neug::execution::Context> Binary_Intersect_ML_Impl(
+static neug::result<ContextChunk> Binary_Intersect_ML_Impl(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   const auto& vertex_col0 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep0.v_tag).get());
   const auto& vertex_col1 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep1.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep1.v_tag).get());
 
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "IntersectOprBeta does not support optional edge expand";
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
@@ -256,38 +257,39 @@ static neug::result<neug::execution::Context> Binary_Intersect_ML_Impl(
       }
     }
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
   auto col = builder.finish();
-  ctx.set(alias, std::move(col));
-  return std::move(ctx);
+  chunk.set(alias, std::move(col));
+  return chunk;
 }
 
-neug::result<neug::execution::Context> Intersect::Binary_Intersect(
+neug::result<ContextChunk> Intersect::Binary_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   if (eep0.labels.size() == 1 && eep1.labels.size() == 1) {
-    return Binary_Intersect_SL_Impl(graph, params, std::move(ctx),
+    return Binary_Intersect_SL_Impl(graph, params, std::move(chunk),
                                     std::move(left_pred), std::move(right_pred),
                                     eep0, eep1, alias);
   } else {
-    return Binary_Intersect_ML_Impl(graph, params, std::move(ctx),
+    return Binary_Intersect_ML_Impl(graph, params, std::move(chunk),
                                     std::move(left_pred), std::move(right_pred),
                                     eep0, eep1, alias);
   }
 }
 
-neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
+neug::result<ContextChunk> Intersect::Multiple_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
+    neug::execution::ContextChunk&& chunk,
+    std::vector<EdgeAndNbrPredicate>&& preds,
     const std::vector<EdgeExpandParams>& eeps, int vertex_alias) {
   std::vector<IVertexColumn*> vertex_cols;
   for (const auto& eep : eeps) {
-    auto col = ctx.get(eep.v_tag);
+    auto col = chunk.get(eep.v_tag);
     vertex_cols.push_back(dynamic_cast<IVertexColumn*>(col.get()));
   }
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
   MLVertexColumnBuilder builder;
   std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
       labels;
@@ -416,26 +418,26 @@ neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
       }
     }
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
   auto col = builder.finish();
-  ctx.set(vertex_alias, std::move(col));
-  return std::move(ctx);
+  chunk.set(vertex_alias, std::move(col));
+  return chunk;
 }
 
-neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
+neug::result<ContextChunk> Intersect::Binary_Intersect_With_Edge(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int vertex_alias,
     const std::vector<int>& edge_alias) {
   const auto& vertex_col0 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep0.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep0.v_tag).get());
   const auto& vertex_col1 =
-      dynamic_cast<const IVertexColumn*>(ctx.get(eep1.v_tag).get());
+      dynamic_cast<const IVertexColumn*>(chunk.get(eep1.v_tag).get());
 
   CHECK(!eep0.is_optional && !eep1.is_optional)
       << "Intersect operator does not support optional edge expand.";
-  size_t row_num = ctx.row_num();
+  size_t row_num = chunk.row_num();
 
   // TODO(luoxiaojian): use MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
@@ -590,20 +592,20 @@ neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
       }
     }
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
   auto col = builder.finish();
-  ctx.set(vertex_alias, std::move(col));
+  chunk.set(vertex_alias, std::move(col));
 
   if (edge_alias[0] != -1) {
     auto left_e_col = edge_builders[0].finish();
-    ctx.set(edge_alias[0], std::move(left_e_col));
+    chunk.set(edge_alias[0], std::move(left_e_col));
   }
   if (edge_alias[1] != -1) {
     auto right_e_col = edge_builders[1].finish();
-    ctx.set(edge_alias[1], std::move(right_e_col));
+    chunk.set(edge_alias[1], std::move(right_e_col));
   }
 
-  return std::move(ctx);
+  return chunk;
 }
 }  // namespace execution
 

@@ -33,8 +33,8 @@ class BindedExtractExpr : public VertexExprBase,
 
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    const auto& val = expr_->Cast<RecordExprBase>().eval_record(ctx, idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    const auto& val = expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     return eval_impl(extract_type_, val);
   }
 

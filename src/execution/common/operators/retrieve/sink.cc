@@ -148,9 +148,9 @@ std::string convert_vertex_to_json(const StorageReadInterface& graph,
 
 std::string convert_edge_to_json(const StorageReadInterface& graph,
                                  const EdgeRecord& record) {
-  if (record.label.src_label == std::numeric_limits<vid_t>::max() ||
-      record.label.dst_label == std::numeric_limits<vid_t>::max() ||
-      record.label.edge_label == std::numeric_limits<vid_t>::max() ||
+  if (record.label.src_label == std::numeric_limits<label_t>::max() ||
+      record.label.dst_label == std::numeric_limits<label_t>::max() ||
+      record.label.edge_label == std::numeric_limits<label_t>::max() ||
       record.src == std::numeric_limits<vid_t>::max() ||
       record.dst == std::numeric_limits<vid_t>::max()) {
     return "";
@@ -459,14 +459,25 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
 
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
-    auto col = ctx.get(i);
-    if (col == nullptr) {
+    // Merge column across all chunks via union_col.
+    std::shared_ptr<IContextColumn> merged;
+    for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+      auto col = ctx.chunk(c).get(i);
+      if (col == nullptr)
+        continue;
+      if (!merged) {
+        merged = col;
+      } else {
+        merged = merged->union_col(col);
+      }
+    }
+    if (merged == nullptr) {
       continue;
     }
-    if (col->column_type() != ContextColumnType::kArrowArray) {
-      add_column(col, graph, response->add_arrays());
+    if (merged->column_type() != ContextColumnType::kArrowArray) {
+      add_column(merged, graph, response->add_arrays());
     } else {
-      auto casted = dynamic_cast<ArrowArrayContextColumn*>(col.get())
+      auto casted = dynamic_cast<ArrowArrayContextColumn*>(merged.get())
                         ->cast_to_value_column();
       add_column(casted, graph, response->add_arrays());
     }

@@ -16,25 +16,27 @@
 #include "neug/execution/common/operators/retrieve/union.h"
 
 #include <glog/logging.h>
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 namespace execution {
 
-neug::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
-  if (ctxs.size() != 2) {
-    LOG(ERROR) << "Union: only support two context";
-    RETURN_UNSUPPORTED_ERROR("Union: only support two context");
+neug::result<ContextChunk> Union::union_op(std::vector<ContextChunk>&& chunks) {
+  if (chunks.size() != 2) {
+    LOG(ERROR) << "Union: only support two chunks";
+    RETURN_UNSUPPORTED_ERROR("Union: only support two chunks");
   }
-  auto& ctx0 = ctxs[0];
-  auto& ctx1 = ctxs[1];
-  if (ctx0.columns.size() != ctx1.columns.size()) {
+  auto& chunk0 = chunks[0];
+  auto& chunk1 = chunks[1];
+  if (chunk0.col_num() != chunk1.col_num()) {
     LOG(ERROR) << "Union: column size not match";
     RETURN_INVALID_ARGUMENT_ERROR("Union: column size not match");
   }
-  return ctx0.union_ctx(ctx1);
+  ContextChunk ret = chunk0.union_with(chunk1);
+  ret.head().reset();
+  return ret;
 }
 
 }  // namespace execution

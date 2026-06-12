@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "neug/execution/common/data_chunk.h"
 #include "neug/utils/property/types.h"
 
 namespace physical {
@@ -41,7 +42,6 @@ class IRecordBatchSupplier;
 class Schema;
 class StorageReadInterface;
 namespace execution {
-class Context;
 class VertexRecord;
 class EdgeRecord;
 struct Path;
@@ -76,7 +76,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 // To insert the data into the graph, we need to construct the the supplier
 // which could create the arrow::RecordBatch from the holded arrow::Array.
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
-    const Context& ctx,
+    const DataChunk& chunk,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
 void to_arrow_csv_options(

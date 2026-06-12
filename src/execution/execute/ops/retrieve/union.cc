@@ -40,7 +40,7 @@ class UnionOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    std::vector<neug::execution::Context> ctxs;
+    std::vector<neug::execution::ContextChunk> chunks;
     for (auto& plan : sub_plans_) {
       neug::execution::Context n_ctx = ctx;
       std::unique_ptr<neug::execution::OprTimer> sub_timer =
@@ -53,9 +53,16 @@ class UnionOpr : public IOperator {
       if (!ret) {
         return ret;
       }
-      ctxs.emplace_back(std::move(ret.value()));
+      ret.value().ensure_single_chunk("UnionOpr::sub_plan");
+      chunks.emplace_back(std::move(ret.value().chunk(0)));
     }
-    return Union::union_op(std::move(ctxs));
+    auto union_result = Union::union_op(std::move(chunks));
+    if (!union_result) {
+      return tl::make_unexpected(union_result.error());
+    }
+    Context out;
+    out.append_chunk(std::move(union_result.value()));
+    return out;
   }
 
  private:

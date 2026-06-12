@@ -38,9 +38,9 @@ class GeneralPred {
     return edge_expr.eval_edge(triplet, src, dst, edge_data).IsTrue();
   }
 
-  inline bool operator()(const Context& ctx, size_t idx) const {
+  inline bool operator()(const DataChunk& chunk, size_t idx) const {
     RecordExprBase& record_expr = pred_->Cast<RecordExprBase>();
-    return record_expr.eval_record(ctx, idx).IsTrue();
+    return record_expr.eval_record(chunk, idx).IsTrue();
   }
 
  private:
@@ -58,7 +58,9 @@ class DummyPred {
     return true;
   }
 
-  inline bool operator()(const Context& ctx, size_t idx) const { return true; }
+  inline bool operator()(const DataChunk& chunk, size_t idx) const {
+    return true;
+  }
 };
 
 template <typename EDGE_PRED_T>

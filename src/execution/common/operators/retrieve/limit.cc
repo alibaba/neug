@@ -15,27 +15,26 @@
 
 #include "neug/execution/common/operators/retrieve/limit.h"
 
-#include "neug/execution/common/context.h"
-
 namespace neug {
 
 namespace execution {
 
-neug::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
-  if (lower == 0 && static_cast<size_t>(upper) >= ctx.row_num()) {
-    return std::move(ctx);
+neug::result<ContextChunk> Limit::limit(ContextChunk&& chunk, size_t lower,
+                                        size_t upper) {
+  if (lower == 0 && upper >= chunk.row_num()) {
+    return chunk;
   }
-  if (upper > ctx.row_num()) {
-    upper = ctx.row_num();
+  if (upper > chunk.row_num()) {
+    upper = chunk.row_num();
   }
 
   std::vector<size_t> offsets(upper - lower);
   for (size_t i = lower; i < upper; ++i) {
     offsets[i - lower] = i;
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
 
-  return ctx;
+  return chunk;
 }
 
 }  // namespace execution

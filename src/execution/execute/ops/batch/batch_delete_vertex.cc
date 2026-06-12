@@ -43,44 +43,48 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  size_t binding_size = vertex_bindings_.size();
-  for (size_t i = 0; i < binding_size; i++) {
-    int32_t alias = vertex_bindings_[i];
-    auto vertex_column =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(alias));
-    if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
-      auto sl_vertex_column =
-          std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
-          sl_vertex_column->label(), sl_vertex_column->vertices()));
-    } else if (vertex_column->vertex_column_type() ==
-                   VertexColumnType::kMultiple ||
-               vertex_column->vertex_column_type() ==
-                   VertexColumnType::kMultiSegment) {
-      std::unordered_map<label_t, std::vector<vid_t>> vids_map;
-      for (auto label : vertex_column->get_labels_set()) {
-        std::vector<vid_t> vids;
-        vids_map.insert({label, vids});
-      }
-      size_t vertex_size = vertex_column->size();
-      for (size_t j = 0; j < vertex_size; j++) {
-        auto vertex = vertex_column->get_vertex(j);
-        vids_map.at(vertex.label_).emplace_back(vertex.vid_);
-      }
-      for (auto& vids_pair : vids_map) {
-        RETURN_STATUS_ERROR_IF_NOT_OK(
-            graph.BatchDeleteVertices(vids_pair.first, vids_pair.second));
-      }
-    } else {
-      THROW_RUNTIME_ERROR(
-          "Unsupported vertex column type for batch delete vertex operation.");
-    }
-    std::vector<size_t> offsets;
-    ctx.reshuffle(offsets);  // reshuffle the context with empty offsets, to
-                             // remove all data.
-  }
-
-  return neug::result<Context>(std::move(ctx));
+  return ctx.apply_chunks(
+      [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+        size_t binding_size = vertex_bindings_.size();
+        for (size_t i = 0; i < binding_size; i++) {
+          int32_t alias = vertex_bindings_[i];
+          auto vertex_column =
+              std::dynamic_pointer_cast<IVertexColumn>(chunk.get(alias));
+          if (vertex_column->vertex_column_type() ==
+              VertexColumnType::kSingle) {
+            auto sl_vertex_column =
+                std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
+            RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
+                sl_vertex_column->label(), sl_vertex_column->vertices()));
+          } else if (vertex_column->vertex_column_type() ==
+                         VertexColumnType::kMultiple ||
+                     vertex_column->vertex_column_type() ==
+                         VertexColumnType::kMultiSegment) {
+            std::unordered_map<label_t, std::vector<vid_t>> vids_map;
+            for (auto label : vertex_column->get_labels_set()) {
+              std::vector<vid_t> vids;
+              vids_map.insert({label, vids});
+            }
+            size_t vertex_size = vertex_column->size();
+            for (size_t j = 0; j < vertex_size; j++) {
+              auto vertex = vertex_column->get_vertex(j);
+              vids_map.at(vertex.label_).emplace_back(vertex.vid_);
+            }
+            for (auto& vids_pair : vids_map) {
+              RETURN_STATUS_ERROR_IF_NOT_OK(
+                  graph.BatchDeleteVertices(vids_pair.first, vids_pair.second));
+            }
+          } else {
+            THROW_RUNTIME_ERROR(
+                "Unsupported vertex column type for batch delete vertex "
+                "operation.");
+          }
+          std::vector<size_t> offsets;
+          chunk.reshuffle(
+              offsets);  // reshuffle with empty offsets to remove all data
+        }
+        return chunk;
+      });
 }
 
 neug::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(

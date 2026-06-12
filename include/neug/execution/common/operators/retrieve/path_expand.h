@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/expression/special_predicates.h"
@@ -29,29 +29,30 @@ class PathExpand {
  public:
   // PathExpand(expandOpt == Vertex && alias == -1 && resultOpt == END_V) +
   // GetV(opt == END)
-  static neug::result<Context> edge_expand_v(const StorageReadInterface& graph,
-                                             Context&& ctx,
-                                             const PathExpandParams& params);
-  static neug::result<Context> edge_expand_p(const StorageReadInterface& graph,
-                                             Context&& ctx,
-                                             const PathExpandParams& params);
+  static neug::result<ContextChunk> edge_expand_v(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const PathExpandParams& params);
+  static neug::result<ContextChunk> edge_expand_p(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const PathExpandParams& params);
 
-  static neug::result<Context> all_shortest_paths_with_given_source_and_dest(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk>
+  all_shortest_paths_with_given_source_and_dest(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const ShortestPathParams& params, const std::pair<label_t, vid_t>& dst);
   // single dst
-  static neug::result<Context> single_source_single_dest_shortest_path(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> single_source_single_dest_shortest_path(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const ShortestPathParams& params, std::pair<label_t, vid_t>& dest);
 
   template <typename PRED_T>
-  static neug::result<Context>
+  static neug::result<ContextChunk>
   single_source_shortest_path_with_order_by_length_limit(
-      const StorageReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const ShortestPathParams& params, const PRED_T& pred, int limit_upper) {
     std::vector<size_t> shuffle_offset;
     auto input_vertex_col =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+        std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
     if (params.labels.size() == 1 &&
         params.labels[0].src_label == params.labels[0].dst_label &&
         params.dir == Direction::kBoth &&
@@ -60,10 +61,10 @@ class PathExpand {
           single_source_shortest_path_with_order_by_length_limit_impl<PRED_T>(
               graph, *input_vertex_col, params.labels[0].edge_label, params.dir,
               params.hop_lower, params.hop_upper, pred, limit_upper);
-      ctx.set_with_reshuffle(params.v_alias, std::get<0>(tup),
-                             std::get<2>(tup));
-      ctx.set(params.alias, std::get<1>(tup));
-      return ctx;
+      chunk.set_with_reshuffle(params.v_alias, std::get<0>(tup),
+                               std::get<2>(tup));
+      chunk.set(params.alias, std::get<1>(tup));
+      return chunk;
     }
 
     LOG(ERROR) << "not support edge property type ";
@@ -71,12 +72,12 @@ class PathExpand {
   }
 
   template <typename PRED_T>
-  static neug::result<Context> single_source_shortest_path(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> single_source_shortest_path(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const ShortestPathParams& params, const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
     auto input_vertex_col =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+        std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
     if (params.labels.size() == 1 &&
         params.labels[0].src_label == params.labels[0].dst_label &&
         params.dir == Direction::kBoth &&
@@ -84,28 +85,29 @@ class PathExpand {
       auto tup = single_source_shortest_path_impl<PRED_T>(
           graph, *input_vertex_col, params.labels[0].edge_label, params.dir,
           params.hop_lower, params.hop_upper, pred);
-      ctx.set_with_reshuffle(params.v_alias, std::get<0>(tup),
-                             std::get<2>(tup));
-      ctx.set(params.alias, std::get<1>(tup));
-      return ctx;
+      chunk.set_with_reshuffle(params.v_alias, std::get<0>(tup),
+                               std::get<2>(tup));
+      chunk.set(params.alias, std::get<1>(tup));
+      return chunk;
     }
     auto tup = default_single_source_shortest_path_impl<PRED_T>(
         graph, *input_vertex_col, params.labels, params.dir, params.hop_lower,
         params.hop_upper, pred);
-    ctx.set_with_reshuffle(params.v_alias, std::get<0>(tup), std::get<2>(tup));
-    ctx.set(params.alias, std::get<1>(tup));
-    return ctx;
+    chunk.set_with_reshuffle(params.v_alias, std::get<0>(tup),
+                             std::get<2>(tup));
+    chunk.set(params.alias, std::get<1>(tup));
+    return chunk;
   }
 
-  static neug::result<Context>
+  static neug::result<ContextChunk>
   single_source_shortest_path_with_special_vertex_predicate(
-      const StorageReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const ShortestPathParams& params, const SpecialPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename PRED_T>
-  static neug::result<Context> edge_expand_p_with_pred(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> edge_expand_p_with_pred(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const PathExpandParams& params, const PRED_T& pred) {
     if (params.opt != PathOpt::kArbitrary) {
       LOG(ERROR) << "only support arbitrary path expand with predicate";
@@ -114,7 +116,7 @@ class PathExpand {
     }
     std::vector<size_t> shuffle_offset;
     auto& input_vertex_list =
-        *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+        *std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));
     auto label_sets = input_vertex_list.get_labels_set();
     auto labels = params.labels;
     std::vector<std::vector<LabelTriplet>> out_labels_map(
@@ -174,9 +176,9 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+      chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
-      return ctx;
+      return chunk;
     } else if (dir == Direction::kIn) {
       foreach_vertex(input_vertex_list,
                      [&](size_t index, label_t label, vid_t v) {
@@ -222,9 +224,9 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+      chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
-      return ctx;
+      return chunk;
 
     } else if (dir == Direction::kBoth) {
       foreach_vertex(input_vertex_list,
@@ -286,18 +288,18 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
+      chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+      return chunk;
     }
     LOG(ERROR) << "not support path expand options";
     RETURN_UNSUPPORTED_ERROR("not support path expand options");
   }
 
   template <typename FUNC_T>
-  static neug::result<Context> any_weighted_shortest_path(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> any_weighted_shortest_path(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const PathExpandParams& params, const FUNC_T& weight_func) {
-    auto col = ctx.get(params.start_tag);
+    auto col = chunk.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
     PathColumnBuilder path_builder;
     std::vector<size_t> shuffle_offset;
@@ -386,8 +388,9 @@ class PathExpand {
         }
       }
     });
-    ctx.set_with_reshuffle(params.alias, path_builder.finish(), shuffle_offset);
-    return ctx;
+    chunk.set_with_reshuffle(params.alias, path_builder.finish(),
+                             shuffle_offset);
+    return chunk;
   }
 };
 
