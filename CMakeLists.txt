@@ -1009,6 +1009,13 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/flat_hash_map
             PATTERN "*.hpp"
 )
 
+# container_types.h (public header) includes parallel_hashmap/phmap.h
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/parallel-hashmap/parallel_hashmap
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+)
+
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/re2/include/
             DESTINATION include/re2
             FILES_MATCHING
@@ -1069,7 +1076,16 @@ install(FILES ${PROJECT_SOURCE_DIR}/third_party/fast_float/include/fast_float.h
 
 
 if (WITH_MIMALLOC)
-	install_neug_target(mimalloc)
+    # mimalloc's own install puts headers under include/mimalloc-<version>/,
+    # but public headers reference plain <mimalloc.h>, so also install them
+    # at the top level of the include dir.
+    install(FILES
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc.h
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc-override.h
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc-new-delete.h
+        DESTINATION include
+    )
+    install_neug_target(mimalloc)
 endif()
 
 install_neug_target(${GLOG_LIBRARIES})

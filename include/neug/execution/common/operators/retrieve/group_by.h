@@ -17,7 +17,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/utils/result.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 namespace execution {
