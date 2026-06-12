@@ -29,8 +29,7 @@ class OrderBy {
   template <typename Comparer>
   static void order_by_limit_impl(const StorageReadInterface& graph,
                                   const Context& ctx, const Comparer& cmp,
-                                  size_t low, size_t high,
-                                  sel_vec_t& offsets) {
+                                  size_t low, size_t high, sel_vec_t& offsets) {
     if (low == 0 && high >= ctx.row_num()) {
       offsets.resize(ctx.row_num());
       std::iota(offsets.begin(), offsets.end(), 0);

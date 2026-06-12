@@ -261,10 +261,10 @@ template <typename T>
 void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
                                const SLVertexColumn& input_column,
                                MSVertexColumnBuilder& builder,
-                               sel_vec_t& offsets,
-                               label_t input_label, label_t nbr_label,
-                               label_t edge_label, Direction dir,
-                               const Value& cmp_value, SPPredicateType tp) {
+                               sel_vec_t& offsets, label_t input_label,
+                               label_t nbr_label, label_t edge_label,
+                               Direction dir, const Value& cmp_value,
+                               SPPredicateType tp) {
   T cmp_val = [&cmp_value]() -> T {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return StringValue::Get(cmp_value);

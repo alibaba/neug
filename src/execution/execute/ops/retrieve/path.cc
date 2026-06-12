@@ -689,7 +689,7 @@ neug::result<OpBuildResultT> PathExpandVOprBuilder::Build(
     if (next_opr.has_params()) {
       std::vector<label_t> vertex_labels = parse_tables(next_opr.params());
       flat_hash_set<label_t> vertex_label_set(vertex_labels.begin(),
-                                                   vertex_labels.end());
+                                              vertex_labels.end());
       for (const auto& lt : pep.labels) {
         if ((pep.dir == Direction::kOut || pep.dir == Direction::kBoth) &&
             vertex_label_set.find(lt.dst_label) == vertex_label_set.end()) {
