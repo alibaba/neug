@@ -19,14 +19,14 @@
 namespace neug {
 class StorageInsertInterface;
 namespace execution {
-class Context;
+class ContextChunk;
 struct LabelTriplet;
 class BindedExprBase;
 namespace ops {
 class CreateEdge {
  public:
-  static neug::result<Context> insert_edge(
-      StorageInsertInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> insert_edge(
+      StorageInsertInterface& graph, ContextChunk&& chunk,
       std::vector<LabelTriplet> labels,
       const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
       std::vector<std::vector<

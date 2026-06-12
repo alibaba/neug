@@ -106,7 +106,7 @@ class RecordExprBase : public virtual BindedExprBase {
  public:
   RecordExprBase() { record_ptr_ = this; }
   virtual ~RecordExprBase() = default;
-  virtual Value eval_record(const Context& ctx, size_t idx) const = 0;
+  virtual Value eval_record(const DataChunk& chunk, size_t idx) const = 0;
 };
 
 std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,

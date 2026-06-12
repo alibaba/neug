@@ -14,19 +14,21 @@
  */
 #pragma once
 
+#include "neug/execution/common/context_chunk.h"
 #include "neug/utils/result.h"
 namespace neug {
 
 namespace execution {
-class Context;
 class RecordExprBase;
 
 class Unfold {
  public:
-  static neug::result<Context> unfold(Context&& ctxs, int key, int alias);
+  static neug::result<ContextChunk> unfold(ContextChunk&& chunk, int key,
+                                           int alias);
 
-  static neug::result<Context> unfold(Context&& ctxs, const RecordExprBase& key,
-                                      int alias);
+  static neug::result<ContextChunk> unfold(ContextChunk&& chunk,
+                                           const RecordExprBase& key,
+                                           int alias);
 };
 
 }  // namespace execution

@@ -84,12 +84,12 @@ merge_pattern_and_on_create(
 }
 
 void apply_on_match_edge_impl(
-    StorageUpdateInterface& graph, Context& ctx, size_t row,
+    StorageUpdateInterface& graph, DataChunk& chunk, size_t row,
     const IEdgeColumn& edge_col,
     const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         on_match) {
   for (const auto& [prop_name, expression] : on_match) {
-    auto value = expression->Cast<RecordExprBase>().eval_record(ctx, row);
+    auto value = expression->Cast<RecordExprBase>().eval_record(chunk, row);
     auto er = edge_col.get_edge(row);
     auto label_id = er.label.edge_label;
     auto src_label = er.label.src_label;
@@ -124,9 +124,9 @@ void apply_on_match_edge_impl(
 
 // insert and return the new edge record
 EdgeRecord insert_and_return_edge_row(
-    StorageUpdateInterface& graph, Context& ctx, size_t row, label_t src_label,
-    label_t dst_label, label_t edge_label, const IVertexColumn& src_vertex_col,
-    const IVertexColumn& dst_vertex_col,
+    StorageUpdateInterface& graph, DataChunk& chunk, size_t row,
+    label_t src_label, label_t dst_label, label_t edge_label,
+    const IVertexColumn& src_vertex_col, const IVertexColumn& dst_vertex_col,
     const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         properties) {
   const auto& schema = graph.schema();
@@ -155,7 +155,7 @@ EdgeRecord insert_and_return_edge_row(
   std::vector<execution::Value> property_values(properties.size());
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
-    Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, row);
+    Value value = prop_expr->Cast<RecordExprBase>().eval_record(chunk, row);
     auto it =
         std::find(properties_name.begin(), properties_name.end(), prop_name);
     if (it == properties_name.end()) {
@@ -211,92 +211,94 @@ class MergeEdgeOpr : public IOperator {
       graph_read = dynamic_cast<const StorageReadInterface*>(&graph_interface);
     }
 
-    for (const auto& plan : entries_) {
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-          pattern_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-          on_create_binded;
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-          on_match_binded;
-      for (const auto& [n, e] : plan.pattern_props) {
-        pattern_binded.emplace_back(n, e->bind(graph_read, params));
-      }
-      for (const auto& [n, e] : plan.on_create_props) {
-        on_create_binded.emplace_back(n, e->bind(graph_read, params));
-      }
-      for (const auto& [n, e] : plan.on_match_props) {
-        on_match_binded.emplace_back(n, e->bind(graph_read, params));
-      }
-      auto merged_binded = merge_pattern_and_on_create(
-          std::move(pattern_binded), std::move(on_create_binded));
-
-      label_t src_label = plan.labels.src_label;
-      label_t dst_label = plan.labels.dst_label;
-      label_t edge_label = plan.labels.edge_label;
-
-      const auto& src_vertex_col = dynamic_cast<const IVertexColumn&>(
-          *ctx.get(plan.src_dst_tags.first).get());
-      const auto& dst_vertex_col = dynamic_cast<const IVertexColumn&>(
-          *ctx.get(plan.src_dst_tags.second).get());
-
-      SDSLEdgeColumnBuilder builder(Direction::kOut, plan.labels);
-
-      std::shared_ptr<IEdgeColumn> ec = nullptr;
-      const size_t nrows = ctx.row_num();
-      if (nrows > 0) {
-        if (!ctx.exist(plan.alias_id)) {
-          THROW_RUNTIME_ERROR(
-              "MERGE edge requires the pattern edge alias in context (missing "
-              "column for alias id " +
-              std::to_string(plan.alias_id) + ")");
+    return ctx.apply_chunks([&](ContextChunk&& chunk)
+                                -> neug::result<ContextChunk> {
+      for (const auto& plan : entries_) {
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+            pattern_binded;
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+            on_create_binded;
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+            on_match_binded;
+        for (const auto& [n, e] : plan.pattern_props) {
+          pattern_binded.emplace_back(n, e->bind(graph_read, params));
         }
-        auto alias_col = ctx.get(plan.alias_id);
-        if (!alias_col) {
-          THROW_RUNTIME_ERROR("MERGE edge alias column is null for alias id " +
-                              std::to_string(plan.alias_id));
+        for (const auto& [n, e] : plan.on_create_props) {
+          on_create_binded.emplace_back(n, e->bind(graph_read, params));
         }
-        if (alias_col->size() != nrows) {
-          THROW_RUNTIME_ERROR("MERGE edge alias column size " +
-                              std::to_string(alias_col->size()) +
-                              " does not match context row count " +
-                              std::to_string(nrows));
+        for (const auto& [n, e] : plan.on_match_props) {
+          on_match_binded.emplace_back(n, e->bind(graph_read, params));
         }
-        ec = std::dynamic_pointer_cast<IEdgeColumn>(alias_col);
-        if (!ec) {
-          THROW_RUNTIME_ERROR(
-              "MERGE edge pattern alias must refer to an edge column (alias "
-              "id " +
-              std::to_string(plan.alias_id) + ")");
-        }
-      }
+        auto merged_binded = merge_pattern_and_on_create(
+            std::move(pattern_binded), std::move(on_create_binded));
 
-      for (size_t row = 0; row < nrows; ++row) {
-        bool matched = false;
-        // Optional edge columns represent unmatched rows with null (no value);
-        // SDSLEdgeColumn::has_value is false for those rows — treat as
-        // !matched.
-        if (ec && ec->has_value(row)) {
-          auto er = ec->get_edge(row);
-          if (er.label == plan.labels) {
-            matched = true;
-            apply_on_match_edge_impl(graph, ctx, row, *ec, on_match_binded);
-            builder.push_back_opt(er.src, er.dst, er.prop);
+        label_t src_label = plan.labels.src_label;
+        label_t dst_label = plan.labels.dst_label;
+        label_t edge_label = plan.labels.edge_label;
+
+        const auto& src_vertex_col = dynamic_cast<const IVertexColumn&>(
+            *chunk.get(plan.src_dst_tags.first).get());
+        const auto& dst_vertex_col = dynamic_cast<const IVertexColumn&>(
+            *chunk.get(plan.src_dst_tags.second).get());
+
+        SDSLEdgeColumnBuilder builder(Direction::kOut, plan.labels);
+
+        std::shared_ptr<IEdgeColumn> ec = nullptr;
+        const size_t nrows = chunk.row_num();
+        if (nrows > 0) {
+          if (!chunk.exist(plan.alias_id)) {
+            THROW_RUNTIME_ERROR(
+                "MERGE edge requires the pattern edge alias in context "
+                "(missing column for alias id " +
+                std::to_string(plan.alias_id) + ")");
+          }
+          auto alias_col = chunk.get(plan.alias_id);
+          if (!alias_col) {
+            THROW_RUNTIME_ERROR(
+                "MERGE edge alias column is null for alias id " +
+                std::to_string(plan.alias_id));
+          }
+          if (alias_col->size() != nrows) {
+            THROW_RUNTIME_ERROR("MERGE edge alias column size " +
+                                std::to_string(alias_col->size()) +
+                                " does not match context row count " +
+                                std::to_string(nrows));
+          }
+          ec = std::dynamic_pointer_cast<IEdgeColumn>(alias_col);
+          if (!ec) {
+            THROW_RUNTIME_ERROR(
+                "MERGE edge pattern alias must refer to an edge column (alias "
+                "id " +
+                std::to_string(plan.alias_id) + ")");
           }
         }
-        if (!matched) {
-          auto edge_record = insert_and_return_edge_row(
-              graph, ctx, row, src_label, dst_label, edge_label, src_vertex_col,
-              dst_vertex_col, merged_binded);
-          builder.push_back_opt(edge_record.src, edge_record.dst,
-                                edge_record.prop);
+
+        for (size_t row = 0; row < nrows; ++row) {
+          bool matched = false;
+          if (ec && ec->has_value(row)) {
+            auto er = ec->get_edge(row);
+            if (er.label == plan.labels) {
+              matched = true;
+              apply_on_match_edge_impl(graph, chunk.chunk(), row, *ec,
+                                       on_match_binded);
+              builder.push_back_opt(er.src, er.dst, er.prop);
+            }
+          }
+          if (!matched) {
+            auto edge_record = insert_and_return_edge_row(
+                graph, chunk.chunk(), row, src_label, dst_label, edge_label,
+                src_vertex_col, dst_vertex_col, merged_binded);
+            builder.push_back_opt(edge_record.src, edge_record.dst,
+                                  edge_record.prop);
+          }
         }
+        if (chunk.exist(plan.alias_id)) {
+          chunk.remove(plan.alias_id);
+        }
+        chunk.set(plan.alias_id, builder.finish());
       }
-      if (ctx.exist(plan.alias_id)) {
-        ctx.remove(plan.alias_id);
-      }
-      ctx.set(plan.alias_id, builder.finish());
-    }
-    return neug::result<Context>(std::move(ctx));
+      return chunk;
+    });
   }
 
  private:

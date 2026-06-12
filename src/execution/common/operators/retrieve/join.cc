@@ -17,7 +17,8 @@
 
 #include "neug/common/types.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"
@@ -31,9 +32,10 @@ namespace execution {
 
 using vertex_pair = std::pair<VertexRecord, VertexRecord>;
 
-static Context default_semi_join(Context&& ctx, Context&& ctx2,
-                                 const JoinParams& params) {
-  size_t right_size = ctx2.row_num();
+static ContextChunk default_semi_join(ContextChunk&& chunk,
+                                      ContextChunk&& chunk2,
+                                      const JoinParams& params) {
+  size_t right_size = chunk2.row_num();
   flat_hash_set<std::string> right_set;
   sel_vec_t offset;
 
@@ -41,7 +43,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
     neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.right_columns.size(); i++) {
-      auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
+      auto val = chunk2.get(params.right_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
       encoder.put_byte('#');
     }
@@ -49,13 +51,13 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
     right_set.insert(cur);
   }
 
-  size_t left_size = ctx.row_num();
+  size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
-      auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
+      auto val = chunk.get(params.left_columns[i])->get_elem(r_i);
       if (val.IsNull()) {
         has_null = true;
         break;
@@ -77,29 +79,31 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(offset);
-  return ctx;
+  chunk.reshuffle(offset);
+  chunk.head().reset();
+  return chunk;
 }
 
-static Context dual_vertex_column_semi_join(Context&& ctx, Context&& ctx2,
-                                            const JoinParams& params) {
-  size_t right_size = ctx2.row_num();
+static ContextChunk dual_vertex_column_semi_join(ContextChunk&& chunk,
+                                                 ContextChunk&& chunk2,
+                                                 const JoinParams& params) {
+  size_t right_size = chunk2.row_num();
   flat_hash_set<vertex_pair> right_set;
   sel_vec_t offset;
   auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[0]));
+      chunk2.get(params.right_columns[0]));
   auto casted_right_col2 = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[1]));
+      chunk2.get(params.right_columns[1]));
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
     auto cur1 = casted_right_col->get_vertex(r_i);
     auto cur2 = casted_right_col2->get_vertex(r_i);
     right_set.emplace(cur1, cur2);
   }
-  size_t left_size = ctx.row_num();
-  auto casted_left_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[0]));
-  auto casted_left_col2 =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[1]));
+  size_t left_size = chunk.row_num();
+  auto casted_left_col = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[0]));
+  auto casted_left_col2 = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[1]));
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     auto cur1 = casted_left_col->get_vertex(r_i);
     auto cur2 = casted_left_col2->get_vertex(r_i);
@@ -114,17 +118,19 @@ static Context dual_vertex_column_semi_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(offset);
-  return ctx;
+  chunk.reshuffle(offset);
+  chunk.head().reset();
+  return chunk;
 }
 
-static Context single_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
-                                               const JoinParams& params) {
+static ContextChunk single_vertex_column_inner_join(ContextChunk&& chunk,
+                                                    ContextChunk&& chunk2,
+                                                    const JoinParams& params) {
   sel_vec_t left_offset, right_offset;
-  auto casted_left_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[0]));
+  auto casted_left_col = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[0]));
   auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[0]));
+      chunk2.get(params.right_columns[0]));
 
   size_t left_size = casted_left_col->size();
   size_t right_size = casted_right_col->size();
@@ -174,31 +180,33 @@ static Context single_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(left_offset);
-  ctx2.reshuffle(right_offset);
-  Context ret;
-  for (size_t i = 0; i < ctx.col_num(); i++) {
-    ret.set(i, ctx.get(i));
+  chunk.reshuffle(left_offset);
+  chunk2.reshuffle(right_offset);
+  ContextChunk ret;
+  for (size_t i = 0; i < chunk.col_num(); i++) {
+    ret.set(i, chunk.get(i));
   }
-  for (size_t i = 0; i < ctx2.col_num(); i++) {
+  for (size_t i = 0; i < chunk2.col_num(); i++) {
     if (i >= ret.col_num() || ret.get(i) == nullptr) {
-      ret.set(i, ctx2.get(i));
+      ret.set(i, chunk2.get(i));
     }
   }
+  ret.head().reset();
   return ret;
 }
 
-static Context dual_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
-                                             const JoinParams& params) {
-  sel_vec_t left_offset, right_offset;
-  auto casted_left_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[0]));
-  auto casted_left_col2 =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[1]));
+static ContextChunk dual_vertex_column_inner_join(ContextChunk&& chunk,
+                                                  ContextChunk&& chunk2,
+                                                  const JoinParams& params) {
+                                                    sel_vec_t left_offset, right_offset;
+  auto casted_left_col = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[0]));
+  auto casted_left_col2 = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[1]));
   auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[0]));
+      chunk2.get(params.right_columns[0]));
   auto casted_right_col2 = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[1]));
+      chunk2.get(params.right_columns[1]));
 
   size_t left_size = casted_left_col->size();
   size_t right_size = casted_right_col->size();
@@ -261,24 +269,26 @@ static Context dual_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(left_offset);
-  ctx2.reshuffle(right_offset);
-  Context ret;
-  for (size_t i = 0; i < ctx.col_num(); i++) {
-    ret.set(i, ctx.get(i));
+  chunk.reshuffle(left_offset);
+  chunk2.reshuffle(right_offset);
+  ContextChunk ret;
+  for (size_t i = 0; i < chunk.col_num(); i++) {
+    ret.set(i, chunk.get(i));
   }
-  for (size_t i = 0; i < ctx2.col_num(); i++) {
+  for (size_t i = 0; i < chunk2.col_num(); i++) {
     if (i >= ret.col_num() || ret.get(i) == nullptr) {
-      ret.set(i, ctx2.get(i));
+      ret.set(i, chunk2.get(i));
     }
   }
+  ret.head().reset();
   return ret;
 }
 
-static Context default_inner_join(Context&& ctx, Context&& ctx2,
-                                  const JoinParams& params) {
+static ContextChunk default_inner_join(ContextChunk&& chunk,
+                                       ContextChunk&& chunk2,
+                                       const JoinParams& params) {
   sel_vec_t left_offset, right_offset;
-  size_t right_size = ctx2.row_num();
+  size_t right_size = chunk2.row_num();
   flat_hash_map<std::string, sel_vec_t> right_set;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
@@ -286,7 +296,7 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.right_columns.size(); i++) {
-      auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
+      auto val = chunk2.get(params.right_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
       if (val.IsNull()) {
         has_null = true;
@@ -301,13 +311,13 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
     right_set[cur].emplace_back(r_i);
   }
 
-  size_t left_size = ctx.row_num();
+  size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
-      auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
+      auto val = chunk.get(params.left_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
       if (val.IsNull()) {
         has_null = true;
@@ -326,22 +336,24 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(left_offset);
-  ctx2.reshuffle(right_offset);
-  Context ret;
-  for (size_t i = 0; i < ctx.col_num(); i++) {
-    ret.set(i, ctx.get(i));
+  chunk.reshuffle(left_offset);
+  chunk2.reshuffle(right_offset);
+  ContextChunk ret;
+  for (size_t i = 0; i < chunk.col_num(); i++) {
+    ret.set(i, chunk.get(i));
   }
-  for (size_t i = 0; i < ctx2.col_num(); i++) {
+  for (size_t i = 0; i < chunk2.col_num(); i++) {
     if (i >= ret.col_num() || ret.get(i) == nullptr) {
-      ret.set(i, ctx2.get(i));
+      ret.set(i, chunk2.get(i));
     }
   }
+  ret.head().reset();
   return ret;
 }
 
-static Context default_times_join(Context&& ctx, Context&& ctx2,
-                                  const JoinParams& params) {
+static ContextChunk default_times_join(ContextChunk&& chunk,
+                                       ContextChunk&& chunk2,
+                                       const JoinParams& params) {
   /*
    * For times join, we need to generate a Cartesian product of the two
    * contexts. This means that for each row in the left context, we will
@@ -350,38 +362,37 @@ static Context default_times_join(Context&& ctx, Context&& ctx2,
    * Each row in the resulting context will contain the data from both
    * contexts, with the left context's data appearing first.
    */
-  sel_vec_t left_offset, right_offset;
-  size_t left_size = ctx.row_num();
-  size_t right_size = ctx2.row_num();
+sel_vec_t left_offset, right_offset;
+  size_t left_size = chunk.row_num();
+  size_t right_size = chunk2.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     for (size_t r_j = 0; r_j < right_size; ++r_j) {
       left_offset.emplace_back(r_i);
       right_offset.emplace_back(r_j);
     }
   }
-  ctx.reshuffle(left_offset);
-  ctx2.reshuffle(right_offset);
-  Context ret;
-  for (size_t i = 0; i < ctx.col_num(); i++) {
-    ret.set(i, ctx.get(i));
+  chunk.reshuffle(left_offset);
+  chunk2.reshuffle(right_offset);
+  ContextChunk ret;
+  for (size_t i = 0; i < chunk.col_num(); i++) {
+    ret.set(i, chunk.get(i));
   }
-  for (size_t i = 0; i < ctx2.col_num(); i++) {
-    if (ctx2.get(i) != nullptr) {
-      ret.set(i, ctx2.get(i));
+  for (size_t i = 0; i < chunk2.col_num(); i++) {
+    if (chunk2.get(i) != nullptr) {
+      ret.set(i, chunk2.get(i));
     }
   }
 
+  ret.head().reset();
   return ret;
 }
 
-static Context single_vertex_column_left_outer_join(Context&& ctx,
-                                                    Context&& ctx2,
-                                                    const JoinParams& params) {
-  sel_vec_t left_offset, right_offset;
-  auto casted_left_col =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.left_columns[0]));
+static ContextChunk single_vertex_column_left_outer_join(
+    ContextChunk&& chunk, ContextChunk&& chunk2, const JoinParams& params) {
+  auto casted_left_col = std::dynamic_pointer_cast<IVertexColumn>(
+      chunk.get(params.left_columns[0]));
   auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
-      ctx2.get(params.right_columns[0]));
+      chunk2.get(params.right_columns[0]));
 
   sel_vec_t left_offsets;
   sel_vec_t right_offsets;
@@ -434,29 +445,31 @@ static Context single_vertex_column_left_outer_join(Context&& ctx,
       }
     }
   }
-  ctx.reshuffle(left_offsets);
-  ctx2.remove(params.right_columns[0]);
-  for (size_t i = 0; i < ctx2.col_num(); ++i) {
-    if (ctx2.get(i) != nullptr && i < ctx.col_num() && ctx.get(i) != nullptr) {
-      ctx2.remove(i);
+  chunk.reshuffle(left_offsets);
+  chunk2.remove(params.right_columns[0]);
+  for (size_t i = 0; i < chunk2.col_num(); ++i) {
+    if (chunk2.get(i) != nullptr && i < chunk.col_num() &&
+        chunk.get(i) != nullptr) {
+      chunk2.remove(i);
     }
   }
-  ctx2.optional_reshuffle(right_offsets);
-  for (size_t i = 0; i < ctx2.col_num(); ++i) {
-    if (ctx2.get(i) != nullptr &&
-        (i >= ctx.col_num() || ctx.get(i) == nullptr)) {
-      ctx.set(i, ctx2.get(i));
+  chunk2.optional_reshuffle(right_offsets);
+  for (size_t i = 0; i < chunk2.col_num(); ++i) {
+    if (chunk2.get(i) != nullptr &&
+        (i >= chunk.col_num() || chunk.get(i) == nullptr)) {
+      chunk.set(i, chunk2.get(i));
     }
   }
-  return ctx;
+  chunk.head().reset();
+  return chunk;
 }
 
-static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
-                                                  const JoinParams& params) {
-  auto left_col0 = ctx.get(params.left_columns[0]);
-  auto left_col1 = ctx.get(params.left_columns[1]);
-  auto right_col0 = ctx2.get(params.right_columns[0]);
-  auto right_col1 = ctx2.get(params.right_columns[1]);
+static ContextChunk dual_vertex_column_left_outer_join(
+    ContextChunk&& chunk, ContextChunk&& chunk2, const JoinParams& params) {
+  auto left_col0 = chunk.get(params.left_columns[0]);
+  auto left_col1 = chunk.get(params.left_columns[1]);
+  auto right_col0 = chunk2.get(params.right_columns[0]);
+  auto right_col1 = chunk2.get(params.right_columns[1]);
   auto casted_left_col0 = std::dynamic_pointer_cast<IVertexColumn>(left_col0);
   auto casted_left_col1 = std::dynamic_pointer_cast<IVertexColumn>(left_col1);
   auto casted_right_col0 = std::dynamic_pointer_cast<IVertexColumn>(right_col0);
@@ -520,29 +533,31 @@ static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(left_offsets);
-  ctx2.remove(params.right_columns[0]);
-  ctx2.remove(params.right_columns[1]);
-  ctx2.optional_reshuffle(right_offsets);
-  for (size_t i = 0; i < ctx2.col_num(); ++i) {
-    if (ctx2.get(i) != nullptr &&
-        (i >= ctx.col_num() || ctx.get(i) == nullptr)) {
-      ctx.set(i, ctx2.get(i));
+  chunk.reshuffle(left_offsets);
+  chunk2.remove(params.right_columns[0]);
+  chunk2.remove(params.right_columns[1]);
+  chunk2.optional_reshuffle(right_offsets);
+  for (size_t i = 0; i < chunk2.col_num(); ++i) {
+    if (chunk2.get(i) != nullptr &&
+        (i >= chunk.col_num() || chunk.get(i) == nullptr)) {
+      chunk.set(i, chunk2.get(i));
     }
   }
-  return ctx;
+  chunk.head().reset();
+  return chunk;
 }
 
-static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
-                                       const JoinParams& params) {
-  size_t right_size = ctx2.row_num();
+static ContextChunk default_left_outer_join(ContextChunk&& chunk,
+                                            ContextChunk&& chunk2,
+                                            const JoinParams& params) {
+  size_t right_size = chunk2.row_num();
   flat_hash_map<std::string, neug::vector_t<vid_t>> right_map;
-  if (ctx.row_num() > 0) {
+  if (chunk.row_num() > 0) {
     for (size_t r_i = 0; r_i < right_size; r_i++) {
       neug::vector_t<char> bytes;
       Encoder encoder(bytes);
       for (size_t i = 0; i < params.right_columns.size(); i++) {
-        auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
+        auto val = chunk2.get(params.right_columns[i])->get_elem(r_i);
         encode_value(val, encoder);
         encoder.put_byte('#');
       }
@@ -551,14 +566,14 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
     }
   }
 
-  sel_vec_t offsets;
-  sel_vec_t right_offsets;
-  size_t left_size = ctx.row_num();
+sel_vec_t offsets;
+sel_vec_t right_offsets;
+  size_t left_size = chunk.row_num();
   for (size_t r_i = 0; r_i < left_size; r_i++) {
     neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
-      auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
+      auto val = chunk.get(params.left_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
       encoder.put_byte('#');
     }
@@ -573,24 +588,26 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
       }
     }
   }
-  ctx.reshuffle(offsets);
+  chunk.reshuffle(offsets);
   for (auto idx : params.right_columns) {
-    ctx2.remove(idx);
+    chunk2.remove(idx);
   }
-  ctx2.optional_reshuffle(right_offsets);
-  for (size_t i = 0; i < ctx2.col_num(); i++) {
-    if (ctx2.get(i) != nullptr) {
-      ctx.set(i, ctx2.get(i));
-    } else if (i >= ctx.col_num()) {
-      ctx.set(i, nullptr);
+  chunk2.optional_reshuffle(right_offsets);
+  for (size_t i = 0; i < chunk2.col_num(); i++) {
+    if (chunk2.get(i) != nullptr) {
+      chunk.set(i, chunk2.get(i));
+    } else if (i >= chunk.col_num()) {
+      chunk.set(i, nullptr);
     }
   }
 
-  return ctx;
+  chunk.head().reset();
+  return chunk;
 }
 
-neug::result<Context> Join::join(Context&& ctx, Context&& ctx2,
-                                 const JoinParams& params) {
+neug::result<ContextChunk> Join::join(ContextChunk&& chunk,
+                                      ContextChunk&& chunk2,
+                                      const JoinParams& params) {
   if (params.left_columns.size() != params.right_columns.size()) {
     LOG(ERROR) << "Join columns size mismatch";
     RETURN_INVALID_ARGUMENT_ERROR(
@@ -602,60 +619,62 @@ neug::result<Context> Join::join(Context&& ctx, Context&& ctx2,
   if (params.join_type == JoinKind::kSemiJoin ||
       params.join_type == JoinKind::kAntiJoin) {
     if (params.left_columns.size() == 2 &&
-        ctx.get(params.left_columns[0])->column_type() ==
+        chunk.get(params.left_columns[0])->column_type() ==
             ContextColumnType::kVertex &&
-        ctx.get(params.left_columns[1])->column_type() ==
+        chunk.get(params.left_columns[1])->column_type() ==
             ContextColumnType::kVertex) {
-      return dual_vertex_column_semi_join(std::move(ctx), std::move(ctx2),
+      return dual_vertex_column_semi_join(std::move(chunk), std::move(chunk2),
                                           params);
     }
-    return default_semi_join(std::move(ctx), std::move(ctx2), params);
+    return default_semi_join(std::move(chunk), std::move(chunk2), params);
   } else if (params.join_type == JoinKind::kInnerJoin) {
     if (params.right_columns.size() == 1 &&
-        ctx2.get(params.right_columns[0])->column_type() ==
+        chunk2.get(params.right_columns[0])->column_type() ==
             ContextColumnType::kVertex) {
-      return single_vertex_column_inner_join(std::move(ctx), std::move(ctx2),
-                                             params);
+      return single_vertex_column_inner_join(std::move(chunk),
+                                             std::move(chunk2), params);
     } else if (params.right_columns.size() == 2 &&
-               ctx2.get(params.right_columns[0])->column_type() ==
+               chunk2.get(params.right_columns[0])->column_type() ==
                    ContextColumnType::kVertex &&
-               ctx2.get(params.right_columns[1])->column_type() ==
+               chunk2.get(params.right_columns[1])->column_type() ==
                    ContextColumnType::kVertex) {
-      return dual_vertex_column_inner_join(std::move(ctx), std::move(ctx2),
+      return dual_vertex_column_inner_join(std::move(chunk), std::move(chunk2),
                                            params);
     } else {
-      return default_inner_join(std::move(ctx), std::move(ctx2), params);
+      return default_inner_join(std::move(chunk), std::move(chunk2), params);
     }
   } else if (params.join_type == JoinKind::kLeftOuterJoin) {
     if (params.right_columns.size() == 1 &&
-        ctx2.get(params.right_columns[0])->column_type() ==
+        chunk2.get(params.right_columns[0])->column_type() ==
             ContextColumnType::kVertex) {
-      return single_vertex_column_left_outer_join(std::move(ctx),
-                                                  std::move(ctx2), params);
+      return single_vertex_column_left_outer_join(std::move(chunk),
+                                                  std::move(chunk2), params);
     } else if (params.right_columns.size() == 2 &&
-               ctx2.get(params.right_columns[0])->column_type() ==
+               chunk2.get(params.right_columns[0])->column_type() ==
                    ContextColumnType::kVertex &&
-               ctx2.get(params.right_columns[1])->column_type() ==
+               chunk2.get(params.right_columns[1])->column_type() ==
                    ContextColumnType::kVertex) {
-      return dual_vertex_column_left_outer_join(std::move(ctx), std::move(ctx2),
-                                                params);
+      return dual_vertex_column_left_outer_join(std::move(chunk),
+                                                std::move(chunk2), params);
     } else {
-      return default_left_outer_join(std::move(ctx), std::move(ctx2), params);
+      return default_left_outer_join(std::move(chunk), std::move(chunk2),
+                                     params);
     }
   } else if (params.join_type == JoinKind::kTimesJoin) {
-    return default_times_join(std::move(ctx), std::move(ctx2), params);
+    return default_times_join(std::move(chunk), std::move(chunk2), params);
   }
   THROW_NOT_SUPPORTED_EXCEPTION(
       "Unsupported join type" +
       std::to_string(static_cast<int>(params.join_type)));
-  return ctx;
+  return chunk;
 }
 
-neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
-                                    const std::vector<label_t>& labels, int tag,
-                                    int alias) {
-  size_t row_num = ctx.row_num();
-  auto column = ctx.get(tag);
+neug::result<ContextChunk> Join::pk_join(IStorageInterface& graph,
+                                         ContextChunk&& chunk,
+                                         const std::vector<label_t>& labels,
+                                         int tag, int alias) {
+  size_t row_num = chunk.row_num();
+  auto column = chunk.get(tag);
   MSVertexColumnBuilder builder(labels[0]);
   sel_vec_t offsets;
   for (label_t label : labels) {
@@ -669,8 +688,11 @@ neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
       }
     }
   }
-  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
-  return ctx;
+  chunk.remove(alias);
+  chunk.reshuffle(offsets);
+  chunk.set(alias, builder.finish());
+  chunk.head().reset();
+  return chunk;
 }
 
 }  // namespace execution

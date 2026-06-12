@@ -56,13 +56,19 @@ class IntersectOprMultip : public IOperator {
       preds.emplace_back(std::move(v_pred), std::move(e_pred));
     }
     if (eeps_.size() == 2) {
-      return Intersect::Binary_Intersect(
-          graph, params, std::move(ctx), std::move(preds[0]),
-          std::move(preds[1]), eeps_[0], eeps_[1], alias_);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Intersect::Binary_Intersect(
+                graph, params, std::move(chunk), std::move(preds[0]),
+                std::move(preds[1]), eeps_[0], eeps_[1], alias_);
+          });
     }
 
-    return Intersect::Multiple_Intersect(graph, params, std::move(ctx),
-                                         std::move(preds), eeps_, alias_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Intersect::Multiple_Intersect(graph, params, std::move(chunk),
+                                               std::move(preds), eeps_, alias_);
+        });
   }
 
   std::vector<EdgeExpandParams> eeps_;
@@ -111,9 +117,12 @@ class IntersectWithEdgeOpr : public IOperator {
                                   std::move(left_e_pred));
     EdgeAndNbrPredicate right_pred(std::move(right_v_pred),
                                    std::move(right_e_pred));
-    return Intersect::Binary_Intersect_With_Edge(
-        graph, params, std::move(ctx), std::move(left_pred),
-        std::move(right_pred), eep0_, eep1_, v_alias_, edge_alias_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Intersect::Binary_Intersect_With_Edge(
+              graph, params, std::move(chunk), std::move(left_pred),
+              std::move(right_pred), eep0_, eep1_, v_alias_, edge_alias_);
+        });
   }
 
  private:
