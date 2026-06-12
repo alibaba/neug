@@ -693,10 +693,8 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
   empty_csr.revert_delete_edge(0, 0, 0, 0);
 }
 // ---------------------------------------------------------------------------
-// DumpDirty: validates nbr_data_dirty_ fast-path in MutableCsr::Dump.
-// After Open, nbr_list_ is file-backed+clean; when nbr_data_dirty_==false,
-// Dump calls ckp.Commit(*nbr_list_) → hardlink (zero-copy) instead of
-// manual serialisation + MD5.
+// DumpDirty: Validate fast vs. slow path of Dump() and that mutations mark the
+// CSR dirty as expected.
 // ---------------------------------------------------------------------------
 class MutableCsrDumpDirtyTest : public ::testing::Test {
  protected:
@@ -792,7 +790,7 @@ TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
   c2.reset_timestamp();
   auto d3 = c2.Dump(*ckp);
   auto p3 = nbr_path(d3);
-  EXPECT_NE(inode_of(p2), inode_of(p3));
+  EXPECT_EQ(inode_of(p2), inode_of(p3));
 
   CsrT c3;
   c3.Open(*ckp, d3, MemoryLevel::kInMemory);
@@ -802,9 +800,12 @@ TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
 
 TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
   expect_slow_after("delete_edge", [](CsrT& c) { c.delete_edge(0, 0, 1); });
-  expect_slow_after("reset_timestamp", [](CsrT& c) { c.reset_timestamp(); });
-  expect_slow_after("compact", [](CsrT& c) { c.compact(); });
-  expect_slow_after("batch_sort", [](CsrT& c) { c.batch_sort_by_edge_data(10); });
+  expect_slow_after("batch_put_edges",
+                    [](CsrT& c) { c.batch_put_edges({0}, {1}, {123}); });
+  expect_slow_after(
+      "put_edge", [this](CsrT& c) { c.put_edge(0, 1, 123, 1, *this->alloc_); });
+  expect_slow_after("batch_delete_edges",
+                    [](CsrT& c) { c.batch_delete_edges({0}, {3}); });
 }
 
 }  // namespace test

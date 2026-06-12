@@ -136,7 +136,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
-    nbr_data_dirty_ = true;
     // invalidate sort flag
     if (ts < unsorted_since_) {
       unsorted_since_ = 0;
@@ -193,7 +192,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
-  bool nbr_data_dirty_ = false;
 
   size_t vertex_capacity() const {
     if (!degree_list_) {
