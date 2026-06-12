@@ -81,7 +81,9 @@ class ContextMeta {
 
   DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  const std::unordered_map<int32_t, DataType>& columns() const { return alias_set_; }
+  const std::unordered_map<int32_t, DataType>& columns() const {
+    return alias_set_;
+  }
 
   void desc() const;
 
