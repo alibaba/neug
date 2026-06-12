@@ -412,5 +412,147 @@ TEST_F(LoadAsTest, LoadAsLabelConflict) {
   conn->Close();
 }
 
+// ============================================================================
+// Error: duplicate LOAD AS same label on same connection
+// ============================================================================
+
+TEST_F(LoadAsTest, DuplicateLoadAsSameLabel) {
+  auto conn = db_->Connect();
+  std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+
+  auto res1 = conn->Query(
+      "LOAD NODE TABLE FROM \"" + csv_path +
+      "\" (primary_key = 'id', header = true) AS TempDup;");
+  EXPECT_TRUE(res1) << res1.error().ToString();
+
+  // Second LOAD AS with the same label should fail.
+  auto res2 = conn->Query(
+      "LOAD NODE TABLE FROM \"" + csv_path +
+      "\" (primary_key = 'id', header = true) AS TempDup;");
+  EXPECT_FALSE(res2);
+  conn->Close();
+}
+
+// ============================================================================
+// Close → Reconnect → Reload same temp label succeeds
+// ============================================================================
+
+TEST_F(LoadAsTest, ReloadAfterCleanup) {
+  // Phase 1: create temp table, verify, close connection.
+  {
+    auto conn = db_->Connect();
+    std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+    auto res = conn->Query(
+        "LOAD NODE TABLE FROM \"" + csv_path +
+        "\" (primary_key = 'id', header = true) AS TempReusable;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    auto match_res = conn->Query(
+        "MATCH (n:TempReusable) RETURN count(n);");
+    EXPECT_TRUE(match_res) << match_res.error().ToString();
+    conn->Close();
+  }
+
+  // Phase 2: reconnect and load the same label again — should succeed.
+  {
+    auto conn2 = db_->Connect();
+    std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+    auto res2 = conn2->Query(
+        "LOAD NODE TABLE FROM \"" + csv_path +
+        "\" (primary_key = 'id', header = true) AS TempReusable;");
+    EXPECT_TRUE(res2) << res2.error().ToString();
+    auto match_res = conn2->Query(
+        "MATCH (n:TempReusable) RETURN count(n);");
+    EXPECT_TRUE(match_res) << match_res.error().ToString();
+    conn2->Close();
+  }
+}
+
+// ============================================================================
+// Temp data not persisted to disk after checkpoint
+// ============================================================================
+
+TEST_F(LoadAsTest, TempNotPersistedAfterCheckpoint) {
+  // Phase 1: create temp table, close DB (triggers checkpoint).
+  {
+    auto conn = db_->Connect();
+    std::string csv_path = std::string(CSV_DIR) + "/people.csv";
+    auto res = conn->Query(
+        "LOAD NODE TABLE FROM \"" + csv_path +
+        "\" (primary_key = 'id', header = true) AS TempGhost;");
+    EXPECT_TRUE(res) << res.error().ToString();
+    conn->Close();
+  }
+
+  // Phase 2: release and reopen DB from disk.  TempGhost must not exist.
+  {
+    db_->Close();
+    db_.reset();
+    auto db2 = std::make_unique<NeugDB>();
+    NeugDBConfig config;
+    config.data_dir = DB_DIR;
+    config.checkpoint_on_close = true;
+    config.compact_on_close = true;
+    config.compact_csr = true;
+    config.enable_auto_compaction = false;
+    db2->Open(config);
+    auto conn2 = db2->Connect();
+    auto match_res = conn2->Query(
+        "MATCH (n:TempGhost) RETURN n.id;");
+    EXPECT_FALSE(match_res);
+    conn2->Close();
+    db2->Close();
+  }
+}
+
+// ============================================================================
+// Error: LOAD REL TABLE with nonexistent vertex label
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableNonexistentVertexLabel) {
+  auto conn = db_->Connect();
+  std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
+
+  // 'Nope' does not exist as a vertex label.
+  auto res = conn->Query(
+      "LOAD REL TABLE FROM \"" + edges_csv +
+      "\" (header = true, from = 'Nope', to = 'Nope', "
+      "from_col = 'src_id', to_col = 'dst_id') AS TempBadEdge;");
+  EXPECT_FALSE(res);
+  conn->Close();
+}
+
+// ============================================================================
+// LOAD REL TABLE: from = temp vertex, to = persistent vertex
+// ============================================================================
+
+TEST_F(LoadAsTest, LoadRelTableTempToPersistent) {
+  auto conn = db_->Connect();
+  setupPersistentNodeTables(conn);
+  insertPersistentVertices(conn);
+
+  // Load src vertices as temp table.
+  std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto load_nodes_res = conn->Query(
+      "LOAD NODE TABLE FROM \"" + people_csv +
+      "\" (primary_key = 'id', header = true) AS TempSrc;");
+  EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
+
+  // edges.csv: src_id → dst_id.  src is TempSrc (temp), dst is Person
+  // (persistent).
+  std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
+  auto load_edges_res = conn->Query(
+      "LOAD REL TABLE FROM \"" + edges_csv +
+      "\" (header = true, from = 'TempSrc', to = 'Person', "
+      "from_col = 'src_id', to_col = 'dst_id') AS TempMixedEdge;");
+  EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
+
+  auto match_res = conn->Query(
+      "MATCH (a:TempSrc)-[r:TempMixedEdge]->(b:Person) "
+      "RETURN a.id, b.id ORDER BY a.id;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  EXPECT_EQ(match_res.value().response().row_count(), 3);
+  conn->Close();
+}
+
 }  // namespace test
 }  // namespace neug

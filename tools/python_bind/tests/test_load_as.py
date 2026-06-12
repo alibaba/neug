@@ -409,3 +409,121 @@ class TestLoadAs:
         # src_id=1 (Alice) -> dst_id=2 (Bob)
         assert rows[0][0] == "Alice"
         assert rows[0][1] == "Bob"
+
+    # ------------------------------------------------------------------
+    # LOAD AS specific corner cases
+    # ------------------------------------------------------------------
+
+    def test_duplicate_load_as_same_label(self):
+        """LOAD AS the same label twice on the same connection must fail."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempDup;"
+        )
+        with pytest.raises(Exception):
+            self.conn.execute(
+                f'LOAD NODE TABLE FROM "{self.people_csv}" '
+                f"(primary_key = 'id', header = true) AS TempDup;"
+            )
+
+    def test_reload_same_label_after_close(self):
+        """After close() cleans up the temp label, reloading the same
+        label on a fresh connection must succeed."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempReusable;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempReusable) RETURN count(n);"
+        )
+        assert list(result)[0][0] == 4
+
+        # Close triggers cleanup.
+        self.conn.close()
+
+        # Reconnect and reload the same label — should succeed.
+        conn2 = self.db.connect()
+        try:
+            conn2.execute(
+                f'LOAD NODE TABLE FROM "{self.people_csv}" '
+                f"(primary_key = 'id', header = true) AS TempReusable;"
+            )
+            result2 = conn2.execute(
+                "MATCH (n:TempReusable) RETURN count(n);"
+            )
+            assert list(result2)[0][0] == 4
+        finally:
+            conn2.close()
+
+        self.conn = self.db.connect()
+
+    def test_temp_not_persisted_after_db_reopen(self):
+        """Temp labels must not appear in the checkpoint file on disk.
+
+        Close the DB (triggers checkpoint), reopen from the same directory,
+        and verify the temp label is absent.
+        """
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempGhost;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempGhost) RETURN count(n);"
+        )
+        assert list(result)[0][0] == 4
+
+        # Tear down fixture resources so we can reopen the DB directory.
+        self.conn.close()
+        self.db.close()
+
+        db2 = Database(db_path=self.db_dir, mode="w")
+        conn2 = db2.connect()
+        try:
+            with pytest.raises(Exception):
+                list(conn2.execute(
+                    "MATCH (n:TempGhost) RETURN n.id;"
+                ))
+        finally:
+            conn2.close()
+            db2.close()
+
+        # Re-open so the fixture teardown can close cleanly.
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+
+    def test_load_rel_table_nonexistent_vertex_label(self):
+        """LOAD REL TABLE referencing a vertex label that does not exist
+        must fail."""
+        with pytest.raises(Exception):
+            self.conn.execute(
+                f'LOAD REL TABLE FROM "{self.edges_csv}" '
+                f"(header = true, "
+                f"from = 'Nope', to = 'Nope', "
+                f"from_col = 'src_id', to_col = 'dst_id') AS TempBadEdge;"
+            )
+
+    def test_load_rel_table_temp_src_persistent_dst(self):
+        """LOAD REL TABLE with ``from`` pointing to a temp vertex table
+        and ``to`` pointing to a persistent vertex table must succeed."""
+        self._load_persistent_person_table()
+
+        # Load src vertices as a temp table.
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempSrc;"
+        )
+
+        # Edge from TempSrc (temp) → Person (persistent).
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempSrc', to = 'Person', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempMixedEdge;"
+        )
+
+        result = self.conn.execute(
+            "MATCH (a:TempSrc)-[r:TempMixedEdge]->(b:Person) "
+            "RETURN a.id, b.id ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3, f"Expected 3 edges, got {len(rows)}"
