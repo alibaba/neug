@@ -116,7 +116,7 @@ class SLVertexColumn : public IVertexColumn {
 
   bool generate_dedup_offset(sel_vec_t& offsets) const override;
 
-  std::pair<std::shared_ptr<IContextColumn>, neug::vector<sel_vec_t>>
+  std::pair<std::shared_ptr<IContextColumn>, neug::vector_t<sel_vec_t>>
   generate_aggregate_offset() const override;
 
   template <typename FUNC_T>
@@ -135,13 +135,13 @@ class SLVertexColumn : public IVertexColumn {
 
   __attribute__((always_inline)) label_t label() const { return label_; }
 
-  __attribute__((always_inline)) const neug::vector<vid_t>& vertices() const {
+  __attribute__((always_inline)) const neug::vector_t<vid_t>& vertices() const {
     return vertices_;
   }
 
  private:
   friend class MSVertexColumnBuilder;
-  neug::vector<vid_t> vertices_;
+  neug::vector_t<vid_t> vertices_;
   label_t label_;
   bool is_optional_ = false;
 };
@@ -226,7 +226,7 @@ class MSVertexColumn : public IVertexColumn {
     return vertices_[seg_id].first;
   }
 
-  __attribute__((always_inline)) const neug::vector<vid_t>& seg_vertices(
+  __attribute__((always_inline)) const neug::vector_t<vid_t>& seg_vertices(
       size_t seg_id) const {
     return vertices_[seg_id].second;
   }
@@ -235,7 +235,7 @@ class MSVertexColumn : public IVertexColumn {
 
  private:
   friend class MSVertexColumnBuilder;
-  neug::vector<std::pair<label_t, neug::vector<vid_t>>> vertices_;
+  neug::vector_t<std::pair<label_t, neug::vector_t<vid_t>>> vertices_;
   std::set<label_t> labels_;
 
   bool is_optional_ = false;
@@ -286,9 +286,9 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
 
  private:
   label_t cur_label_;
-  neug::vector<vid_t> cur_list_;
+  neug::vector_t<vid_t> cur_list_;
 
-  neug::vector<std::pair<label_t, neug::vector<vid_t>>> vertices_;
+  neug::vector_t<std::pair<label_t, neug::vector_t<vid_t>>> vertices_;
 
   bool is_optional_ = false;
 };
@@ -356,7 +356,7 @@ class MLVertexColumn : public IVertexColumn {
  private:
   friend class MLVertexColumnBuilder;
   friend class MLVertexColumnBuilderOpt;
-  neug::vector<VertexRecord> vertices_;
+  neug::vector_t<VertexRecord> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -388,7 +388,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   std::shared_ptr<IContextColumn> finish() override;
 
  private:
-  neug::vector<VertexRecord> vertices_;
+  neug::vector_t<VertexRecord> vertices_;
   std::set<label_t> labels_;
   bool is_optional_ = false;
 };
@@ -440,8 +440,8 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   __attribute__((always_inline)) size_t cur_size() { return vertices_.size(); }
 
  private:
-  neug::vector<VertexRecord> vertices_;
-  neug::vector<bool> labels_bitmap_;
+  neug::vector_t<VertexRecord> vertices_;
+  neug::vector_t<bool> labels_bitmap_;
   bool is_optional_ = false;
 };
 

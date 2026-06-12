@@ -38,7 +38,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
   sel_vec_t offset;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
-    neug::vector<char> bytes;
+    neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.right_columns.size(); i++) {
       auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
@@ -51,7 +51,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
 
   size_t left_size = ctx.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
-    neug::vector<char> bytes;
+    neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
@@ -282,7 +282,7 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
   flat_hash_map<std::string, sel_vec_t> right_set;
 
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
-    neug::vector<char> bytes;
+    neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.right_columns.size(); i++) {
@@ -303,7 +303,7 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
 
   size_t left_size = ctx.row_num();
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
-    neug::vector<char> bytes;
+    neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
@@ -414,7 +414,7 @@ static Context single_vertex_column_left_outer_join(Context&& ctx,
       }
     }
   } else {
-    flat_hash_map<VertexRecord, neug::vector<vid_t>> right_map;
+    flat_hash_map<VertexRecord, neug::vector_t<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         right_map[casted_right_col->get_vertex(r_i)].emplace_back(r_i);
@@ -497,7 +497,7 @@ static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
       }
     }
   } else {
-    flat_hash_map<vertex_pair, neug::vector<vid_t>> right_map;
+    flat_hash_map<vertex_pair, neug::vector_t<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         vertex_pair cur(casted_right_col0->get_vertex(r_i),
@@ -536,10 +536,10 @@ static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
 static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
                                        const JoinParams& params) {
   size_t right_size = ctx2.row_num();
-  flat_hash_map<std::string, neug::vector<vid_t>> right_map;
+  flat_hash_map<std::string, neug::vector_t<vid_t>> right_map;
   if (ctx.row_num() > 0) {
     for (size_t r_i = 0; r_i < right_size; r_i++) {
-      neug::vector<char> bytes;
+      neug::vector_t<char> bytes;
       Encoder encoder(bytes);
       for (size_t i = 0; i < params.right_columns.size(); i++) {
         auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
@@ -555,7 +555,7 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
   sel_vec_t right_offsets;
   size_t left_size = ctx.row_num();
   for (size_t r_i = 0; r_i < left_size; r_i++) {
-    neug::vector<char> bytes;
+    neug::vector_t<char> bytes;
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);

@@ -99,7 +99,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
 std::shared_ptr<IContextColumn> ListColumn::shuffle(
     const sel_vec_t& offsets) const {
   auto ptr = std::make_shared<ListColumn>(elem_type_);
-  neug::vector<list_item> new_items(offsets.size());
+  neug::vector_t<list_item> new_items(offsets.size());
   for (size_t i = 0; i < offsets.size(); ++i) {
     new_items[i] = items_[offsets[i]];
   }

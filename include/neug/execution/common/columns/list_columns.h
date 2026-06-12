@@ -62,11 +62,11 @@ class ListColumn : public IContextColumn {
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
 
-  const neug::vector<list_item>& items() const { return items_; }
+  const neug::vector_t<list_item>& items() const { return items_; }
 
   std::shared_ptr<IContextColumn> reorder() const {
     auto ptr = std::make_shared<ListColumn>(elem_type_);
-    neug::vector<list_item> new_items(items_.size());
+    neug::vector_t<list_item> new_items(items_.size());
     size_t cur_offset = 0;
     sel_vec_t indices;
     indices.reserve(datas_->size());
@@ -106,7 +106,7 @@ class ListColumn : public IContextColumn {
   friend class ListColumnBuilder;
   DataType elem_type_;
   DataType type_;
-  neug::vector<list_item> items_;
+  neug::vector_t<list_item> items_;
   std::shared_ptr<IContextColumn> datas_;
 };
 
@@ -141,7 +141,7 @@ class ListColumnBuilder : public IContextColumnBuilder {
   DataType type_;
   size_t cur_offset_;
 
-  neug::vector<list_item> items_;
+  neug::vector_t<list_item> items_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 

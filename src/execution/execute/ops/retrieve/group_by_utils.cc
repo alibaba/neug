@@ -27,19 +27,19 @@ namespace ops {
 struct GKey : public KeyBase {
   GKey(const std::vector<std::pair<int, int>>& tag_alias)
       : tag_alias_(tag_alias) {}
-  std::pair<sel_vec_t, neug::vector<sel_vec_t>> group(
+  std::pair<sel_vec_t, neug::vector_t<sel_vec_t>> group(
       const Context& ctx) override {
     std::vector<std::shared_ptr<IContextColumn>> exprs;
     for (size_t i = 0; i < tag_alias_.size(); ++i) {
       exprs.push_back(ctx.get(tag_alias_[i].first));
     }
     size_t row_num = ctx.row_num();
-    neug::vector<sel_vec_t> groups;
+    neug::vector_t<sel_vec_t> groups;
     sel_vec_t offsets;
     flat_hash_map<std::string_view, sel_t> sig_to_root;
-    neug::vector<neug::vector<char>> root_list;
+    neug::vector_t<neug::vector_t<char>> root_list;
     for (size_t i = 0; i < row_num; ++i) {
-      neug::vector<char> buf;
+      neug::vector_t<char> buf;
       ::neug::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i]->get_elem(i);
@@ -170,7 +170,7 @@ struct SumReducer<EXPR, IS_OPTIONAL,
   explicit SumReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -219,7 +219,7 @@ struct CountDistinctReducer : public ReducerBase {
   explicit CountDistinctReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -282,7 +282,7 @@ struct CountReducer : public ReducerBase {
   explicit CountReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -314,7 +314,7 @@ struct CountStarReducer : public ReducerBase {
   using V = int64_t;
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -336,7 +336,7 @@ struct MinReducer : public ReducerBase {
   explicit MinReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -381,7 +381,7 @@ struct MaxReducer : public ReducerBase {
   explicit MaxReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -425,7 +425,7 @@ struct FirstReducer : public ReducerBase {
   explicit FirstReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -464,7 +464,7 @@ struct ToSetReducer : public ReducerBase {
       : expr(std::move(expr)), type(type) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
@@ -513,7 +513,7 @@ struct ToListReducer : public ReducerBase {
       : expr(std::move(expr)), type(type) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
@@ -556,7 +556,7 @@ struct AvgReducer<EXPR, IS_OPTIONAL,
   explicit AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
   std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) override {
+      const neug::vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<double> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {

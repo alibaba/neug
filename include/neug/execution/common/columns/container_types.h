@@ -41,9 +41,9 @@ template <typename T, typename H = phmap::priv::hash_default_hash<T>,
 using flat_hash_set = phmap::flat_hash_set<T, H, E, A>;
 
 template <typename T, typename A = neug_allocator<T>>
-using vector = std::vector<T, A>;
+using vector_t = std::vector<T, A>;
 
 using sel_t = uint32_t;
-using sel_vec_t = vector<sel_t>;
+using sel_vec_t = vector_t<sel_t>;
 
 }  // namespace neug

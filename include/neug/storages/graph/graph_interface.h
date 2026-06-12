@@ -41,15 +41,15 @@ class VertexArray {
     data_.resize(keys.size(), val);
   }
 
-  inline typename neug::vector<T>::reference operator[](vid_t v) {
+  inline typename neug::vector_t<T>::reference operator[](vid_t v) {
     return data_[v];
   }
-  inline typename neug::vector<T>::const_reference operator[](vid_t v) const {
+  inline typename neug::vector_t<T>::const_reference operator[](vid_t v) const {
     return data_[v];
   }
 
  private:
-  neug::vector<T> data_;
+  neug::vector_t<T> data_;
 };
 
 }  // namespace graph_interface_impl

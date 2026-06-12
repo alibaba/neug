@@ -41,8 +41,8 @@ iterative_expand_vertex_on_graph_view(const CsrView& view,
     return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
-  neug::vector<std::pair<vid_t, vid_t>> input_list;
-  neug::vector<std::pair<vid_t, vid_t>> output_list;
+  neug::vector_t<std::pair<vid_t, vid_t>> input_list;
+  neug::vector_t<std::pair<vid_t, vid_t>> output_list;
 
   {
     vid_t idx = 0;
@@ -106,8 +106,8 @@ iterative_expand_vertex_on_dual_graph_view(const CsrView& iview,
     return std::make_pair(builder.finish(), std::move(offsets));
   }
   // upper >= 2
-  neug::vector<std::pair<vid_t, vid_t>> input_list;
-  neug::vector<std::pair<vid_t, vid_t>> output_list;
+  neug::vector_t<std::pair<vid_t, vid_t>> input_list;
+  neug::vector_t<std::pair<vid_t, vid_t>> output_list;
 
   {
     vid_t idx = 0;

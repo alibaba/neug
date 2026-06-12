@@ -23,7 +23,7 @@ namespace execution {
 
 struct KeyBase {
   virtual ~KeyBase() = default;
-  virtual std::pair<sel_vec_t, neug::vector<sel_vec_t>> group(
+  virtual std::pair<sel_vec_t, neug::vector_t<sel_vec_t>> group(
       const Context& ctx) = 0;
   virtual const std::vector<std::pair<int, int>>& tag_alias() const = 0;
 };
@@ -31,10 +31,10 @@ template <typename EXPR>
 struct Key : public KeyBase {
   Key(EXPR&& expr, const std::vector<std::pair<int, int>>& tag_alias)
       : expr(std::move(expr)), tag_alias_(tag_alias) {}
-  std::pair<sel_vec_t, neug::vector<sel_vec_t>> group(
+  std::pair<sel_vec_t, neug::vector_t<sel_vec_t>> group(
       const Context& ctx) override {
     size_t row_num = ctx.row_num();
-    neug::vector<sel_vec_t> groups;
+    neug::vector_t<sel_vec_t> groups;
     sel_vec_t offsets;
     flat_hash_map<typename EXPR::V, size_t> group_map;
     for (size_t i = 0; i < row_num; ++i) {
@@ -62,7 +62,7 @@ struct Key : public KeyBase {
 struct ReducerBase {
   virtual ~ReducerBase() = default;
   virtual std::shared_ptr<IContextColumn> reduce(
-      const neug::vector<sel_vec_t>& groups) = 0;
+      const neug::vector_t<sel_vec_t>& groups) = 0;
 };
 
 struct ReduceOp {
@@ -70,7 +70,7 @@ struct ReduceOp {
       : reducer_(std::move(reducer)), alias_(alias) {}
 
   void reduce(const Context& ctx, Context& ret,
-              const neug::vector<sel_vec_t>& groups) {
+              const neug::vector_t<sel_vec_t>& groups) {
     auto col = reducer_->reduce(groups);
     ret.set(alias_, col);
   }

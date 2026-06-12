@@ -25,7 +25,7 @@ namespace execution {
 class ColumnsUtils {
  public:
   template <typename T>
-  static void generate_dedup_offset(const neug::vector<T>& vec,
+  static void generate_dedup_offset(const neug::vector_t<T>& vec,
                                     sel_vec_t& offsets) {
     sel_vec_t row_indices(vec.size());
     if (vec.empty()) {

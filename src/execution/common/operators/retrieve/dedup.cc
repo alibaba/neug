@@ -38,7 +38,7 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
     offsets.clear();
     flat_hash_set<std::string> set;
     for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      neug::vector<char> bytes;
+      neug::vector_t<char> bytes;
       Encoder encoder(bytes);
       for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
         auto val = ctx.get(cols[c_i])->get_elem(r_i);
