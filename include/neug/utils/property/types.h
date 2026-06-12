@@ -556,7 +556,6 @@ struct convert<neug::DataType> {
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["var_char"]) {
-          LOG(WARNING) << "var_char is deprecated, use long_text instead.";
           property_type = neug::DataType(
               neug::DataTypeId::kVarchar,
               std::make_shared<neug::StringTypeInfo>(
