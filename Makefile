@@ -9,7 +9,7 @@ NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
               || echo 4)
 JOBS  ?= $(NPROC)
 
-.PHONY: help check-tools cpp-build cpp-test python-dev python-wheel python-clean clean dist-clean format-check full-check
+.PHONY: help check-tools cpp-build cpp-test python-dev python-wheel python-clean node-dev node-pack node-clean clean dist-clean format-check full-check
 
 .DEFAULT_GOAL := help
 
@@ -36,9 +36,18 @@ python-wheel: check-tools  ## Build the neug python wheel package
 python-clean:  ## Clean Python build artifacts (does NOT touch <repo>/build)
 	@cd tools/python_bind && $(MAKE) clean
 
-clean: python-clean  ## Clean Python build artifacts (alias for python-clean)
+node-dev: check-tools  ## Build Node.js binding (bootstraps root build)
+	@cd tools/nodejs_bind && $(MAKE) dev
 
-dist-clean: python-clean  ## Clean Python artifacts AND the root build dir
+node-pack: check-tools  ## Create per-platform npm tarball
+	@cd tools/nodejs_bind && $(MAKE) pack
+
+node-clean:  ## Clean Node.js build artifacts (does NOT touch <repo>/build)
+	@cd tools/nodejs_bind && $(MAKE) clean
+
+clean: python-clean node-clean  ## Clean Python + Node.js build artifacts (does NOT touch <repo>/build)
+
+dist-clean: python-clean node-clean  ## Clean Python + Node.js artifacts AND the root build dir
 	rm -rf $(ROOT_BUILD)
 
 format-check:  ## Run format checks only (C++ and Python)

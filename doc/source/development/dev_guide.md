@@ -53,9 +53,9 @@ sudo dnf -y groupinstall "Development Tools"
 sudo dnf -y install git python3 python3-pip cmake gcc-c++ make
 ```
 
-### Building NeuG
+### Building NeuG with Python
 
-With the environment ready, you can proceed to build NeuG.
+With the environment ready, you can proceed to build NeuG with Python and use Python client.
 
 **Build model**: NeuG uses a single root build tree at `<repo>/build/`. The
 core engine is compiled once into a shared library `libneug.{dylib,so}`, and
@@ -193,6 +193,46 @@ The `format-check` validates C++ (clang-format) and Python (isort, black, flake8
 The `full-check` additionally compiles the code and runs unit tests.
 
 For more options, see `./scripts/pre_commit_check.sh --help`.
+
+### Building NeuG with NodeJS
+
+We also provide NodeJS client. Both clients share a single root build tree at `<repo>/build/`.
+If you have already built NeuG with Python, the library `libneug.{dylib,so}` can be shared.
+
+> **NOTE**: The NodeJS binding only supports **AP mode**. Exposing a raw HTTP port directly from a Node.js process to run TP mode is considered a dangerous practice — it bypasses the typical security layers (authentication, TLS termination, rate limiting, etc.) that a production server should have behind a proper reverse proxy or gateway. Therefore, the `serve()` / `Session` APIs have been intentionally removed from the NodeJS binding.  
+If you really need TP mode, please deploy a dedicated NeuG server using the **C++** or **Python** binding, and then connect to it from Node.js via standard HTTP clients.
+
+#### For Development Purposes
+
+From repo root:
+```bash
+make node-dev
+```
+
+Or from `tools/nodejs_bind/`:
+```bash
+cd tools/nodejs_bind && make dev
+```
+
+`make dev` handles everything: installs npm deps (skipped if already installed),
+configures cmake (cmake reuses cache internally if unchanged), builds, and stages
+artifacts. Safe to run repeatedly.
+
+Then NodeJS can automatically load these modules:
+```bash
+cd tools/nodejs_bind
+const { Database } = require('./lib');
+```
+
+#### Building NPM Package
+
+The npm package is written to `tools/nodejs_bind/neug-<version>-<platform>-<arch>.tgz`,
+which packs `neug_node_bind.node` and `libneug.{dylib, so}`.
+```bash
+make node-pack
+# or:
+cd tools/nodejs_bind && make pack
+```
 
 ### FAQ
 

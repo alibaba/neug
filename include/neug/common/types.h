@@ -175,6 +175,7 @@ struct DataType {
   static constexpr const DataTypeId VERTEX = DataTypeId::kVertex;
   static constexpr const DataTypeId EDGE = DataTypeId::kEdge;
   static constexpr const DataTypeId PATH = DataTypeId::kPath;
+  static constexpr const DataTypeId EMPTY = DataTypeId::kEmpty;
 };
 
 struct ListType {

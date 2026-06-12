@@ -40,6 +40,7 @@ option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, de
 
 # Options to control the building of tools
 option(BUILD_PYTHON "Whether to build python embedded" ON)
+option(BUILD_NODEJS "Whether to build nodejs embedded" OFF)
 option(BUILD_COMPILER "Whether to build compiler" ON)
 #---------------------------------------------------------------------------------
 #-------------------------------Compiler related options-------------------------------
