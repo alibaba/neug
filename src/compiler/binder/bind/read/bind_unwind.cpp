@@ -40,16 +40,16 @@ namespace binder {
 // actual parameter.
 static bool skipDataTypeValidation(const Expression& expr) {
   return expr.expressionType == ExpressionType::PARAMETER &&
-         expr.getDataType().getLogicalTypeID() == LogicalTypeID::ANY;
+         expr.getDataType().id() == DataTypeId::kUnknown;
 }
 
 std::shared_ptr<Expression> Binder::createAlias(
-    const std::string& name, const LogicalType& dataType,
+    const std::string& name, const DataType& dataType,
     std::shared_ptr<binder::Expression> boundExpr) {
   if (scope.contains(name)) {
     THROW_BINDER_EXCEPTION("Variable " + name + " already exists.");
   }
-  if (dataType.getLogicalTypeID() == LogicalTypeID::NODE) {
+  if (dataType.id() == DataTypeId::kVertex) {
     auto nodeExpr = createChildNodeExpr(boundExpr, dataType,
                                         getUniqueExpressionName(name), name);
     addToScope(name, nodeExpr);
@@ -69,20 +69,21 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
       expressionBinder.bindExpression(*unwindClause.getExpression());
   auto aliasName = unwindClause.getAlias();
   std::shared_ptr<Expression> alias;
-  if (boundExpression->getDataType().getLogicalTypeID() ==
-      LogicalTypeID::ARRAY) {
-    auto targetType = LogicalType::LIST(
-        ArrayType::getChildType(boundExpression->dataType).copy());
+  if (boundExpression->getDataType().id() == DataTypeId::kArray) {
+    auto targetType = DataType::List(
+        ArrayType::GetChildType(boundExpression->dataType).copy());
     boundExpression =
         expressionBinder.implicitCast(boundExpression, targetType);
   }
   if (!skipDataTypeValidation(*boundExpression)) {
-    ExpressionUtil::validateDataType(*boundExpression, LogicalTypeID::LIST);
-    alias = createAlias(aliasName,
-                        neug::common::ListType::getChildType(boundExpression->dataType),
-                        boundExpression);
+    ExpressionUtil::validateDataType(*boundExpression, DataTypeId::kList);
+    alias = createAlias(
+        aliasName,
+        neug::common::ListType::GetChildType(boundExpression->dataType),
+        boundExpression);
   } else {
-    alias = createAlias(aliasName, LogicalType::ANY(), boundExpression);
+    alias =
+        createAlias(aliasName, DataType(DataTypeId::kUnknown), boundExpression);
   }
   std::shared_ptr<Expression> idExpr = nullptr;
   if (scope.hasMemorizedTableIDs(boundExpression->getAlias())) {

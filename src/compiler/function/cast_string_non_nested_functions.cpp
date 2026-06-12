@@ -26,7 +26,6 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/compiler/common/types/timestamp_t.h"
-#include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "re2/include/re2.h"
 
@@ -117,16 +116,12 @@ static bool isDate(std::string_view str) {
   return RE2::FullMatch(str, Date::regexPattern());
 }
 
-static bool isUUID(std::string_view str) {
-  return RE2::FullMatch(str, UUID::regexPattern());
-}
-
 static bool isInterval(std::string_view str) {
   return RE2::FullMatch(str, Interval::regexPattern1()) ||
          RE2::FullMatch(str, Interval::regexPattern2());
 }
 
-static LogicalType inferMapOrStruct(std::string_view str) {
+static DataType inferMapOrStruct(std::string_view str) {
   auto split = StringUtils::smartSplit(str.substr(1, str.size() - 2), ',');
   bool isMap = true, isStruct = true;  // Default match to map if both are true
   for (auto& ele : split) {
@@ -138,8 +133,8 @@ static LogicalType inferMapOrStruct(std::string_view str) {
     }
   }
   if (isMap) {
-    auto childKeyType = LogicalType::ANY();
-    auto childValueType = LogicalType::ANY();
+    auto childKeyType = DataType(DataTypeId::kUnknown);
+    auto childValueType = DataType(DataTypeId::kUnknown);
     for (auto& ele : split) {
       auto split = StringUtils::smartSplit(ele, '=', 2);
       auto& key = split[0];
@@ -149,9 +144,10 @@ static LogicalType inferMapOrStruct(std::string_view str) {
       childValueType = LogicalTypeUtils::combineTypes(
           childValueType, inferMinimalTypeFromString(value));
     }
-    return LogicalType::MAP(std::move(childKeyType), std::move(childValueType));
+    return DataType::Map(std::move(childKeyType), std::move(childValueType));
   } else if (isStruct) {
-    std::vector<StructField> fields;
+    std::vector<std::string> fieldNames;
+    std::vector<DataType> fieldTypes;
     for (auto& ele : split) {
       auto split = StringUtils::smartSplit(ele, ':', 2);
       auto fieldKey = StringUtils::ltrim(StringUtils::rtrim(split[0]));
@@ -162,15 +158,16 @@ static LogicalType inferMapOrStruct(std::string_view str) {
         fieldKey = fieldKey.substr(0, fieldKey.size() - 1);
       }
       auto fieldType = inferMinimalTypeFromString(split[1]);
-      fields.emplace_back(std::string(fieldKey), std::move(fieldType));
+      fieldNames.push_back(std::string(fieldKey));
+      fieldTypes.push_back(std::move(fieldType));
     }
-    return LogicalType::STRUCT(std::move(fields));
+    return DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
   } else {
-    return LogicalType::STRING();
+    return DataType::Varchar();
   }
 }
 
-LogicalType inferMinimalTypeFromString(const std::string& str) {
+DataType inferMinimalTypeFromString(const std::string& str) {
   return inferMinimalTypeFromString(std::string_view(str));
 }
 
@@ -201,22 +198,22 @@ bool isINF(std::string_view cpy) {
          StringUtils::caseInsensitiveEquals(cpy, "-INFINITY");
 }
 
-LogicalType inferMinimalTypeFromString(std::string_view str) {
+DataType inferMinimalTypeFromString(std::string_view str) {
   constexpr char array_begin =
       common::CopyConstants::DEFAULT_CSV_LIST_BEGIN_CHAR;
   constexpr char array_end = common::CopyConstants::DEFAULT_CSV_LIST_END_CHAR;
   auto cpy = StringUtils::ltrim(StringUtils::rtrim(str));
   // Check special double literals
   if (isINF(cpy)) {
-    return LogicalType::DOUBLE();
+    return DataType(DataTypeId::kDouble);
   }
   // Any
   if (isAnyType(cpy)) {
-    return LogicalType::ANY();
+    return DataType(DataTypeId::kUnknown);
   }
   // Boolean
   if (RE2::FullMatch(cpy, boolPattern())) {
-    return LogicalType::BOOL();
+    return DataType(DataTypeId::kBoolean);
   }
   // The reason we're not going to try to match to a minimal width integer
   // is because if we're infering the type of integer from a sequence of
@@ -226,67 +223,52 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
   // integer
   if (RE2::FullMatch(cpy, intPattern())) {
     if (cpy.size() >= 1 + NumericLimits<int128_t>::digits()) {
-      return LogicalType::DOUBLE();
+      return DataType(DataTypeId::kDouble);
     }
     int128_t val = 0;
     if (!trySimpleInt128Cast(cpy.data(), cpy.length(), val)) {
-      return LogicalType::STRING();
+      return DataType::Varchar();
     }
     if (NumericLimits<int64_t>::isInBounds(val)) {
-      return LogicalType::INT64();
+      return DataType(DataTypeId::kInt64);
     }
-    return LogicalType::INT128();
+    return DataType(DataTypeId::kInt64);
   }
   // Real value checking
   if (RE2::FullMatch(cpy, realPattern())) {
-    if (cpy[0] == '-') {
-      cpy = cpy.substr(1);
-    }
-    if (cpy.size() <= DECIMAL_PRECISION_LIMIT) {
-      auto decimalPoint = cpy.find('.');
-      NEUG_ASSERT(decimalPoint != std::string::npos);
-      return LogicalType::DECIMAL(cpy.size() - 1,
-                                  cpy.size() - decimalPoint - 1);
-    } else {
-      return LogicalType::DOUBLE();
-    }
+    return DataType(DataTypeId::kDouble);
   }
   // date
   if (isDate(cpy)) {
-    return LogicalType::DATE();
+    return DataType(DataTypeId::kDate);
   }
   // It might just be quicker to try cast to timestamp.
   neug::common::timestamp_t tmp;
   if (common::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(), tmp)) {
-    return LogicalType::TIMESTAMP();
-  }
-
-  // UUID
-  if (isUUID(cpy)) {
-    return LogicalType::UUID();
+    return DataType(DataTypeId::kTimestampMs);
   }
 
   // interval checking
   if (isInterval(cpy)) {
-    return LogicalType::INTERVAL();
+    return DataType(DataTypeId::kInterval);
   }
 
   // array_begin and array_end are constants
   if (cpy.front() == array_begin && cpy.back() == array_end) {
     auto split = StringUtils::smartSplit(cpy.substr(1, cpy.size() - 2), ',');
-    auto childType = LogicalType::ANY();
+    auto childType = DataType(DataTypeId::kUnknown);
     for (auto& ele : split) {
       childType = LogicalTypeUtils::combineTypes(
           childType, inferMinimalTypeFromString(ele));
     }
-    return LogicalType::LIST(std::move(childType));
+    return DataType::List(std::move(childType));
   }
 
   if (cpy.front() == '{' && cpy.back() == '}') {
     return inferMapOrStruct(cpy);
   }
 
-  return LogicalType::STRING();
+  return DataType::Varchar();
 }
 
 }  // namespace function

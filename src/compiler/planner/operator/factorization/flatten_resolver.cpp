@@ -197,13 +197,13 @@ void GroupDependencyAnalyzer::visitNodeOrRel(
   for (auto& p : expr->constCast<NodeOrRelExpression>().getPropertyExprs()) {
     visit(p);
   }
-  switch (expr->getDataType().getLogicalTypeID()) {
-  case LogicalTypeID::NODE: {
+  switch (expr->getDataType().id()) {
+  case DataTypeId::kVertex: {
     auto& node = expr->constCast<NodeExpression>();
     visit(node.getInternalID());
   } break;
-  case LogicalTypeID::REL:
-  case LogicalTypeID::RECURSIVE_REL: {
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath: {
     auto& rel = expr->constCast<RelExpression>();
     visit(rel.getSrcNode()->getInternalID());
     visit(rel.getDstNode()->getInternalID());

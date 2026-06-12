@@ -75,8 +75,7 @@ bool FunctionExpressionEvaluator::selectInternal(SelectionVector& selVector) {
   // interface is not implemented (e.g. list_contains). We should remove this if
   // statement eventually.
   if (function->selectFunc == nullptr) {
-    NEUG_ASSERT(resultVector->dataType.getLogicalTypeID() ==
-                LogicalTypeID::BOOL);
+    NEUG_ASSERT(resultVector->dataType.id() == DataTypeId::kBoolean);
     runExecFunc();
     return updateSelectedPos(selVector);
   }

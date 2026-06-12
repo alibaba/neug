@@ -36,7 +36,6 @@
 namespace neug {
 namespace common {
 class FileSystem;
-enum class LogicalTypeID : uint8_t;
 }  // namespace common
 
 namespace catalog {

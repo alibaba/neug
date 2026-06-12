@@ -32,7 +32,7 @@ namespace binder {
 std::string ScalarFunctionExpression::toStringInternal() const {
   if (function->name.starts_with("CAST")) {
     return stringFormat("CAST({}, {})", ExpressionUtil::toString(children),
-                        bindData->resultType.toString());
+                        bindData->resultType.ToString());
   }
   return stringFormat("{}({})", function->name,
                       ExpressionUtil::toString(children));

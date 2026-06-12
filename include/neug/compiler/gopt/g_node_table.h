@@ -44,8 +44,8 @@ class GNodeTable : public NodeTable {
 
   TableStats getStats(
       const transaction::Transaction* transaction) const override {
-    std::vector<common::LogicalType> types;
-    auto stats = TableStats{std::span<common::LogicalType>(types)};
+    std::vector<common::DataType> types;
+    auto stats = TableStats{std::span<common::DataType>(types)};
     stats.incrementCardinality(numRows);
     return stats;
   }

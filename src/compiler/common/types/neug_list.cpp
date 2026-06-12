@@ -27,11 +27,10 @@
 namespace neug {
 namespace common {
 
-void neug_list_t::set(const uint8_t* values,
-                      const LogicalType& dataType) const {}
+void neug_list_t::set(const uint8_t* values, const DataType& dataType) const {}
 
 void neug_list_t::set(const std::vector<uint8_t*>& parameters,
-                      LogicalTypeID childTypeId) {}
+                      DataTypeId childTypeId) {}
 
 }  // namespace common
 }  // namespace neug

@@ -33,14 +33,14 @@ class TypeCatalogEntry : public CatalogEntry {
   // constructors
   //===--------------------------------------------------------------------===//
   TypeCatalogEntry() = default;
-  TypeCatalogEntry(std::string name, common::LogicalType type)
+  TypeCatalogEntry(std::string name, common::DataType type)
       : CatalogEntry{CatalogEntryType::TYPE_ENTRY, std::move(name)},
         type{std::move(type)} {}
 
   //===--------------------------------------------------------------------===//
   // getter & setter
   //===--------------------------------------------------------------------===//
-  const common::LogicalType& getLogicalType() const { return type; }
+  const common::DataType& getLogicalType() const { return type; }
 
   //===--------------------------------------------------------------------===//
   // serialization & deserialization
@@ -50,7 +50,7 @@ class TypeCatalogEntry : public CatalogEntry {
       common::Deserializer& deserializer);
 
  private:
-  common::LogicalType type;
+  common::DataType type;
 };
 
 }  // namespace catalog

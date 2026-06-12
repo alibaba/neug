@@ -118,23 +118,23 @@ class Binder {
                            const transaction::Transaction* transaction);
 
   NEUG_API std::shared_ptr<Expression> createVariable(
-      const std::string& name, const common::LogicalType& dataType);
+      const std::string& name, const common::DataType& dataType);
   NEUG_API std::shared_ptr<Expression> createInvisibleVariable(
-      const std::string& name, const common::LogicalType& dataType) const;
+      const std::string& name, const common::DataType& dataType) const;
   NEUG_API expression_vector
   createVariables(const std::vector<std::string>& names,
-                  const std::vector<common::LogicalType>& types);
+                  const std::vector<common::DataType>& types);
   NEUG_API expression_vector
   createInvisibleVariables(const std::vector<std::string>& names,
-                           const std::vector<common::LogicalType>& types) const;
+                           const std::vector<common::DataType>& types) const;
 
   std::shared_ptr<Expression> bindWhereExpression(
       const parser::ParsedExpression& parsedExpression);
 
   std::shared_ptr<Expression> createVariable(std::string_view name,
-                                             common::LogicalTypeID typeID);
-  std::shared_ptr<Expression> createVariable(
-      const std::string& name, common::LogicalTypeID logicalTypeID);
+                                             common::DataTypeId typeID);
+  std::shared_ptr<Expression> createVariable(const std::string& name,
+                                             common::DataTypeId logicalTypeID);
 
   /*** bind DDL ***/
   BoundCreateTableInfo bindCreateTableInfo(const parser::CreateTableInfo* info);
@@ -173,7 +173,7 @@ class Binder {
       const std::string& tableName);
 
   std::unique_ptr<parser::ParsedExpression> resolvePropertyDefault(
-      parser::ParsedExpression* parsedDefault, const common::LogicalType& type,
+      parser::ParsedExpression* parsedDefault, const common::DataType& type,
       const std::string& tableName, const std::string& propertyName);
 
   /*** bind copy ***/
@@ -206,27 +206,27 @@ class Binder {
   std::unique_ptr<BoundBaseScanSource> bindScanSource(
       const parser::BaseScanSource* source, const parser::options_t& options,
       const std::vector<std::string>& columnNames,
-      const std::vector<common::LogicalType>& columnTypes);
+      const std::vector<common::DataType>& columnTypes);
   std::unique_ptr<BoundBaseScanSource> bindFileScanSource(
       const parser::BaseScanSource& scanSource,
       const parser::options_t& options,
       const std::vector<std::string>& columnNames,
-      const std::vector<common::LogicalType>& columnTypes);
+      const std::vector<common::DataType>& columnTypes);
   std::unique_ptr<BoundBaseScanSource> bindQueryScanSource(
       const parser::BaseScanSource& scanSource,
       const parser::options_t& options,
       const std::vector<std::string>& columnNames,
-      const std::vector<common::LogicalType>& columnTypes);
+      const std::vector<common::DataType>& columnTypes);
   std::unique_ptr<BoundBaseScanSource> bindObjectScanSource(
       const parser::BaseScanSource& scanSource,
       const parser::options_t& options,
       const std::vector<std::string>& columnNames,
-      const std::vector<common::LogicalType>& columnTypes);
+      const std::vector<common::DataType>& columnTypes);
   std::unique_ptr<BoundBaseScanSource> bindTableFuncScanSource(
       const parser::BaseScanSource& scanSource,
       const parser::options_t& options,
       const std::vector<std::string>& columnNames,
-      const std::vector<common::LogicalType>& columnTypes);
+      const std::vector<common::DataType>& columnTypes);
 
   common::case_insensitive_map_t<common::Value> bindParsingOptions(
       const parser::options_t& parsingOptions);
@@ -386,7 +386,7 @@ class Binder {
   /*** validations ***/
   static void validateOrderByFollowedBySkipOrLimitInWithClause(
       const BoundProjectionBody& boundProjectionBody);
-  static bool isOrderByKeyTypeSupported(const common::LogicalType& dataType);
+  static bool isOrderByKeyTypeSupported(const common::DataType& dataType);
 
   NEUG_API static void validateTableExistence(
       const main::ClientContext& context, const std::string& tableName);
@@ -430,12 +430,12 @@ class Binder {
   ExpressionBinder* getExpressionBinder() { return &expressionBinder; }
 
   std::shared_ptr<Expression> createAlias(
-      const std::string& name, const common::LogicalType& dataType,
+      const std::string& name, const common::DataType& dataType,
       std::shared_ptr<binder::Expression> boundExpr);
 
   std::shared_ptr<binder::NodeExpression> createChildNodeExpr(
       std::shared_ptr<binder::Expression> inputExpr,
-      const common::LogicalType& outDataType, const std::string& uniqueName,
+      const common::DataType& outDataType, const std::string& uniqueName,
       const std::string& aliasName);
 
  private:

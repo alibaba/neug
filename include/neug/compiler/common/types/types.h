@@ -29,8 +29,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include "neug/common/extra_type_info.h"
+#include "neug/common/types.h"
 #include "neug/compiler/common/cast.h"
-#include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/utils/api.h"
 
@@ -39,10 +40,6 @@ namespace main {
 class ClientContext;
 }
 
-namespace gopt {
-struct GNodeType;
-struct GRelType;
-}  // namespace gopt
 namespace processor {
 class ParquetReader;
 }
@@ -51,8 +48,6 @@ class NodeTableCatalogEntry;
 }
 namespace common {
 
-class Serializer;
-class Deserializer;
 struct FileInfo;
 
 using sel_t = uint64_t;
@@ -76,7 +71,6 @@ constexpr idx_t INVALID_IDX = UINT32_MAX;
 using block_idx_t = uint64_t;
 constexpr block_idx_t INVALID_BLOCK_IDX = UINT64_MAX;
 using struct_field_idx_t = uint8_t;
-using union_field_idx_t = struct_field_idx_t;
 constexpr struct_field_idx_t INVALID_STRUCT_FIELD_IDX = UINT8_MAX;
 using row_idx_t = uint64_t;
 constexpr row_idx_t INVALID_ROW_IDX = UINT64_MAX;
@@ -149,10 +143,6 @@ struct map_entry_t {
   list_entry_t entry;
 };
 
-struct union_entry_t {
-  struct_entry_t entry;
-};
-
 struct int128_t;
 struct neug_string_t;
 
@@ -204,51 +194,29 @@ concept HashableNestedTypes = (std::is_same_v<T, list_entry_t> ||
 template <typename T>
 concept HashableTypes = (HashableNestedTypes<T> || HashableNonNestedTypes<T>);
 
-enum class LogicalTypeID : uint8_t {
-  ANY = 0,
-  NODE = 10,
-  REL = 11,
-  RECURSIVE_REL = 12,
-  SERIAL = 13,
+// ============================================================================
+// Bring engine types into neug::common namespace.
+// All compiler code uses these instead of the old DataType/DataTypeId.
+// ============================================================================
+using neug::ArrayType;
+using neug::ArrayTypeInfo;
+using neug::DataType;
+using neug::DataTypeId;
+using neug::ExtraTypeInfo;
+using neug::ExtraTypeInfoType;
+using neug::GNodeTypeInfo;
+using neug::GRelTypeInfo;
+using neug::ListType;
+using neug::ListTypeInfo;
+using neug::MapType;
+using neug::MapTypeInfo;
+using neug::StringTypeInfo;
+using neug::StructType;
+using neug::StructTypeInfo;
 
-  BOOL = 22,
-  INT64 = 23,
-  INT32 = 24,
-  INT16 = 25,
-  INT8 = 26,
-  UINT64 = 27,
-  UINT32 = 28,
-  UINT16 = 29,
-  UINT8 = 30,
-  INT128 = 31,
-  DOUBLE = 32,
-  FLOAT = 33,
-  DATE = 34,
-  TIMESTAMP = 35,
-  TIMESTAMP_SEC = 36,
-  TIMESTAMP_MS = 37,
-  TIMESTAMP_NS = 38,
-  TIMESTAMP_TZ = 39,
-  INTERVAL = 40,
-  DECIMAL = 41,
-  INTERNAL_ID = 42,
+using logical_type_vec_t = std::vector<DataType>;
 
-  STRING = 50,
-  BLOB = 51,
-
-  LIST = 52,
-  ARRAY = 53,
-  STRUCT = 54,
-  MAP = 55,
-  UNION = 56,
-  POINTER = 58,
-
-  UUID = 59,
-
-  DATE32 = 60,      // return i32 in storage without any format
-  TIMESTAMP64 = 61  // return i64 in storage without any format
-};
-
+// PhysicalTypeID remains a compiler-only concept for physical storage layout.
 enum class PhysicalTypeID : uint8_t {
   ANY = 0,
   BOOL = 1,
@@ -272,455 +240,6 @@ enum class PhysicalTypeID : uint8_t {
   LIST = 22,
   ARRAY = 23,
   STRUCT = 24,
-  POINTER = 25,
-};
-
-class ExtraTypeInfo;
-class StructField;
-class StructTypeInfo;
-class StringTypeInfo;
-
-enum class TypeCategory : uint8_t { INTERNAL = 0, UDT = 1 };
-
-class LogicalType {
-  friend struct LogicalTypeUtils;
-  friend struct DecimalType;
-  friend struct StructType;
-  friend struct ListType;
-  friend struct ArrayType;
-
-  NEUG_API LogicalType(const LogicalType& other);
-
- public:
-  NEUG_API LogicalType() : typeID{LogicalTypeID::ANY}, extraTypeInfo{nullptr} {
-    physicalType = getPhysicalType(this->typeID);
-  };
-  explicit NEUG_API LogicalType(LogicalTypeID typeID,
-                                TypeCategory info = TypeCategory::INTERNAL);
-  EXPLICIT_COPY_DEFAULT_MOVE(LogicalType);
-
-  NEUG_API bool operator==(const LogicalType& other) const;
-  NEUG_API bool operator!=(const LogicalType& other) const;
-
-  NEUG_API std::string toString() const;
-  static bool isBuiltInType(const std::string& str);
-  static LogicalType convertFromString(const std::string& str,
-                                       main::ClientContext* context);
-
-  NEUG_API LogicalTypeID getLogicalTypeID() const { return typeID; }
-  bool containsAny() const;
-  bool isInternalType() const { return category == TypeCategory::INTERNAL; }
-
-  NEUG_API PhysicalTypeID getPhysicalType() const { return physicalType; }
-  NEUG_API static PhysicalTypeID getPhysicalType(
-      LogicalTypeID logicalType,
-      const std::unique_ptr<ExtraTypeInfo>& extraTypeInfo = nullptr);
-
-  void setExtraTypeInfo(std::unique_ptr<ExtraTypeInfo> typeInfo) {
-    extraTypeInfo = std::move(typeInfo);
-  }
-
-  const ExtraTypeInfo* getExtraTypeInfo() const { return extraTypeInfo.get(); }
-
-  ExtraTypeInfo* getExtraTypeInfoRef() const { return extraTypeInfo.get(); }
-
-  void serialize(Serializer& serializer) const;
-
-  static LogicalType deserialize(Deserializer& deserializer);
-
-  NEUG_API static std::vector<LogicalType> copy(
-      const std::vector<LogicalType>& types);
-  NEUG_API static std::vector<LogicalType> copy(
-      const std::vector<LogicalType*>& types);
-
-  static LogicalType ANY() { return LogicalType(LogicalTypeID::ANY); }
-
-  static LogicalType ANY(PhysicalTypeID physicalType) {
-    auto ret = LogicalType(LogicalTypeID::ANY);
-    ret.physicalType = physicalType;
-    return ret;
-  }
-
-  // default max_length value of VARCHAR type if max_length is not defined
-  // explicitly
-  static size_t getDefaultStringMaxLen() { return 256; }
-
-  // maximum limit of max_length value of VARCHAR type
-  static size_t getMaxStringMaxLen() { return 65536; }
-
-  static LogicalType BOOL() { return LogicalType(LogicalTypeID::BOOL); }
-  static LogicalType HASH() { return LogicalType(LogicalTypeID::UINT64); }
-  static LogicalType INT64() { return LogicalType(LogicalTypeID::INT64); }
-  static LogicalType INT32() { return LogicalType(LogicalTypeID::INT32); }
-  static LogicalType INT16() { return LogicalType(LogicalTypeID::INT16); }
-  static LogicalType INT8() { return LogicalType(LogicalTypeID::INT8); }
-  static LogicalType UINT64() { return LogicalType(LogicalTypeID::UINT64); }
-  static LogicalType UINT32() { return LogicalType(LogicalTypeID::UINT32); }
-  static LogicalType UINT16() { return LogicalType(LogicalTypeID::UINT16); }
-  static LogicalType UINT8() { return LogicalType(LogicalTypeID::UINT8); }
-  static LogicalType INT128() { return LogicalType(LogicalTypeID::INT128); }
-  static LogicalType DOUBLE() { return LogicalType(LogicalTypeID::DOUBLE); }
-  static LogicalType FLOAT() { return LogicalType(LogicalTypeID::FLOAT); }
-  static LogicalType DATE() { return LogicalType(LogicalTypeID::DATE); }
-  static LogicalType TIMESTAMP_NS() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_NS);
-  }
-  static LogicalType TIMESTAMP_MS() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_MS);
-  }
-  static LogicalType TIMESTAMP_SEC() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_SEC);
-  }
-  static LogicalType TIMESTAMP_TZ() {
-    return LogicalType(LogicalTypeID::TIMESTAMP_TZ);
-  }
-  static LogicalType TIMESTAMP() {
-    return LogicalType(LogicalTypeID::TIMESTAMP);
-  }
-  static LogicalType INTERVAL() { return LogicalType(LogicalTypeID::INTERVAL); }
-  static NEUG_API LogicalType DECIMAL(uint32_t precision, uint32_t scale);
-  static LogicalType INTERNAL_ID() {
-    return LogicalType(LogicalTypeID::INTERNAL_ID);
-  }
-  static LogicalType SERIAL() { return LogicalType(LogicalTypeID::SERIAL); }
-  static LogicalType STRING();
-  static LogicalType STRING(size_t max_length);
-  static LogicalType BLOB() { return LogicalType(LogicalTypeID::BLOB); }
-  static LogicalType UUID() { return LogicalType(LogicalTypeID::UUID); }
-  static LogicalType POINTER() { return LogicalType(LogicalTypeID::POINTER); }
-  static NEUG_API LogicalType STRUCT(std::vector<StructField>&& fields);
-
-  static NEUG_API LogicalType
-  RECURSIVE_REL(std::unique_ptr<StructTypeInfo> typeInfo);
-
-  static NEUG_API LogicalType NODE(std::unique_ptr<StructTypeInfo> typeInfo);
-
-  static NEUG_API LogicalType REL(std::unique_ptr<StructTypeInfo> typeInfo);
-
-  static NEUG_API LogicalType UNION(std::vector<StructField>&& fields);
-
-  static NEUG_API LogicalType LIST(LogicalType childType);
-  template <class T>
-  static inline LogicalType LIST(T&& childType) {
-    return LogicalType::LIST(LogicalType(std::forward<T>(childType)));
-  }
-
-  static NEUG_API LogicalType MAP(LogicalType keyType, LogicalType valueType);
-  template <class T>
-  static LogicalType MAP(T&& keyType, T&& valueType) {
-    return LogicalType::MAP(LogicalType(std::forward<T>(keyType)),
-                            LogicalType(std::forward<T>(valueType)));
-  }
-
-  static NEUG_API LogicalType ARRAY(LogicalType childType,
-                                    uint64_t numElements);
-  template <class T>
-  static LogicalType ARRAY(T&& childType, uint64_t numElements) {
-    return LogicalType::ARRAY(LogicalType(std::forward<T>(childType)),
-                              numElements);
-  }
-
- private:
-  friend struct CAPIHelper;
-  friend struct JavaAPIHelper;
-  friend class neug::processor::ParquetReader;
-  explicit LogicalType(LogicalTypeID typeID,
-                       std::unique_ptr<ExtraTypeInfo> extraTypeInfo);
-
- private:
-  LogicalTypeID typeID;
-  PhysicalTypeID physicalType;
-  std::unique_ptr<ExtraTypeInfo> extraTypeInfo;
-  TypeCategory category = TypeCategory::INTERNAL;
-};
-
-class NEUG_API ExtraTypeInfo {
- public:
-  virtual ~ExtraTypeInfo() = default;
-
-  void serialize(Serializer& serializer) const {
-    serializeInternal(serializer);
-  }
-
-  virtual bool containsAny() const = 0;
-
-  virtual bool operator==(const ExtraTypeInfo& other) const = 0;
-
-  virtual std::unique_ptr<ExtraTypeInfo> copy() const = 0;
-
-  template <class TARGET>
-  const TARGET* constPtrCast() const {
-    return common::neug_dynamic_cast<const TARGET*>(this);
-  }
-
- protected:
-  virtual void serializeInternal(Serializer& serializer) const = 0;
-};
-
-class NEUG_API StringTypeInfo : public ExtraTypeInfo {
- public:
-  explicit StringTypeInfo(size_t max_length) : max_length(max_length) {}
-
-  size_t getMaxLength() const { return max_length; }
-
-  bool containsAny() const override { return false; }
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  virtual void serializeInternal(Serializer& serializer) const override;
-  size_t max_length;
-};
-
-class NEUG_API UDTTypeInfo : public ExtraTypeInfo {
- public:
-  explicit UDTTypeInfo(std::string typeName) : typeName{std::move(typeName)} {}
-
-  std::string getTypeName() const { return typeName; }
-
-  bool containsAny() const override { return false; }
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-
- private:
-  void serializeInternal(Serializer& serializer) const override;
-
- private:
-  std::string typeName;
-};
-
-class DecimalTypeInfo final : public ExtraTypeInfo {
- public:
-  explicit DecimalTypeInfo(uint32_t precision = 18, uint32_t scale = 3)
-      : precision(precision), scale(scale) {}
-
-  uint32_t getPrecision() const { return precision; }
-  uint32_t getScale() const { return scale; }
-
-  bool containsAny() const override { return false; }
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-
- protected:
-  void serializeInternal(Serializer& serializer) const override;
-
-  uint32_t precision, scale;
-};
-
-class NEUG_API ListTypeInfo : public ExtraTypeInfo {
- public:
-  ListTypeInfo() = default;
-  explicit ListTypeInfo(LogicalType childType)
-      : childType{std::move(childType)} {}
-
-  const LogicalType& getChildType() const { return childType; }
-
-  bool containsAny() const override;
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-
- protected:
-  void serializeInternal(Serializer& serializer) const override;
-
- protected:
-  LogicalType childType;
-};
-
-class NEUG_API ArrayTypeInfo final : public ListTypeInfo {
- public:
-  ArrayTypeInfo() : numElements{0} {};
-  explicit ArrayTypeInfo(LogicalType childType, uint64_t numElements)
-      : ListTypeInfo{std::move(childType)}, numElements{numElements} {}
-
-  uint64_t getNumElements() const { return numElements; }
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  void serializeInternal(Serializer& serializer) const override;
-
- private:
-  uint64_t numElements;
-};
-
-class StructField {
- public:
-  StructField() : type{LogicalType()} {}
-  StructField(std::string name, LogicalType type)
-      : name{std::move(name)}, type{std::move(type)} {};
-
-  DELETE_COPY_DEFAULT_MOVE(StructField);
-
-  std::string getName() const { return name; }
-
-  const LogicalType& getType() const { return type; }
-
-  bool containsAny() const;
-
-  bool operator==(const StructField& other) const;
-  bool operator!=(const StructField& other) const { return !(*this == other); }
-
-  void serialize(Serializer& serializer) const;
-
-  static StructField deserialize(Deserializer& deserializer);
-
-  StructField copy() const;
-
- private:
-  std::string name;
-  LogicalType type;
-};
-
-class StructTypeInfo : public ExtraTypeInfo {
- public:
-  StructTypeInfo() = default;
-  explicit StructTypeInfo(std::vector<StructField>&& fields);
-  StructTypeInfo(const std::vector<std::string>& fieldNames,
-                 const std::vector<LogicalType>& fieldTypes);
-
-  bool hasField(const std::string& fieldName) const;
-  struct_field_idx_t getStructFieldIdx(std::string fieldName) const;
-  const StructField& getStructField(struct_field_idx_t idx) const;
-  const StructField& getStructField(const std::string& fieldName) const;
-  const std::vector<StructField>& getStructFields() const;
-
-  const LogicalType& getChildType(struct_field_idx_t idx) const;
-  std::vector<const LogicalType*> getChildrenTypes() const;
-  std::vector<std::string> getChildrenNames() const;
-
-  bool containsAny() const override;
-
-  bool operator==(const ExtraTypeInfo& other) const override;
-
-  static std::unique_ptr<ExtraTypeInfo> deserialize(Deserializer& deserializer);
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  void serializeInternal(Serializer& serializer) const override;
-
- private:
-  std::vector<StructField> fields;
-  std::unordered_map<std::string, struct_field_idx_t> fieldNameToIdxMap;
-};
-
-class GNodeTypeInfo : public StructTypeInfo {
- public:
-  explicit GNodeTypeInfo(std::vector<StructField>&& fields,
-                         std::shared_ptr<gopt::GNodeType> nodeType);
-  ~GNodeTypeInfo();  // Explicitly declared to allow incomplete type in header
-
-  gopt::GNodeType* getNodeType() const { return nodeType.get(); }
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  // To ensure that when the type of a child expression changes, the type of the
-  // parent expression can be automatically updated, we use a shared_ptr to
-  // refer to the same GNodeType object, thus avoiding synchronization issues.
-  std::shared_ptr<gopt::GNodeType> nodeType;
-};
-
-class GRelTypeInfo : public StructTypeInfo {
- public:
-  explicit GRelTypeInfo(std::vector<StructField>&& fields,
-                        std::shared_ptr<gopt::GRelType> relType);
-  ~GRelTypeInfo();  // Explicitly declared to allow incomplete type in header
-
-  gopt::GRelType* getRelType() const { return relType.get(); }
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  std::shared_ptr<gopt::GRelType> relType;
-};
-
-using logical_type_vec_t = std::vector<LogicalType>;
-
-struct NEUG_API DecimalType {
-  static uint32_t getPrecision(const LogicalType& type);
-  static uint32_t getScale(const LogicalType& type);
-  static std::string insertDecimalPoint(const std::string& value,
-                                        uint32_t posFromEnd);
-};
-
-struct NEUG_API ListType {
-  static const LogicalType& getChildType(const LogicalType& type);
-};
-
-struct NEUG_API ArrayType {
-  static const LogicalType& getChildType(const LogicalType& type);
-  static uint64_t getNumElements(const LogicalType& type);
-};
-
-struct NEUG_API StructType {
-  static std::vector<const LogicalType*> getFieldTypes(const LogicalType& type);
-
-  static const LogicalType& getFieldType(const LogicalType& type,
-                                         struct_field_idx_t idx);
-
-  static const LogicalType& getFieldType(const LogicalType& type,
-                                         const std::string& key);
-
-  static std::vector<std::string> getFieldNames(const LogicalType& type);
-
-  static uint64_t getNumFields(const LogicalType& type);
-
-  static const std::vector<StructField>& getFields(const LogicalType& type);
-
-  static bool hasField(const LogicalType& type, const std::string& key);
-
-  static const StructField& getField(const LogicalType& type,
-                                     struct_field_idx_t idx);
-
-  static const StructField& getField(const LogicalType& type,
-                                     const std::string& key);
-
-  static struct_field_idx_t getFieldIdx(const LogicalType& type,
-                                        const std::string& key);
-
-  static LogicalType getNodeType(const catalog::NodeTableCatalogEntry& entry);
-};
-
-struct NEUG_API MapType {
-  static const LogicalType& getKeyType(const LogicalType& type);
-
-  static const LogicalType& getValueType(const LogicalType& type);
-};
-
-struct NEUG_API UnionType {
-  static constexpr union_field_idx_t TAG_FIELD_IDX = 0;
-
-  static constexpr auto TAG_FIELD_TYPE = LogicalTypeID::INT8;
-
-  static constexpr char TAG_FIELD_NAME[] = "tag";
-
-  static union_field_idx_t getInternalFieldIdx(union_field_idx_t idx);
-
-  static std::string getFieldName(const LogicalType& type,
-                                  union_field_idx_t idx);
-
-  static const LogicalType& getFieldType(const LogicalType& type,
-                                         union_field_idx_t idx);
-
-  static uint64_t getNumFields(const LogicalType& type);
 };
 
 struct PhysicalTypeUtils {
@@ -728,47 +247,50 @@ struct PhysicalTypeUtils {
   static uint32_t getFixedTypeSize(PhysicalTypeID physicalType);
 };
 
+// Maps DataTypeId to its physical storage type.
+PhysicalTypeID getPhysicalType(DataTypeId typeId);
+
 struct NEUG_API LogicalTypeUtils {
-  static std::string toString(LogicalTypeID dataTypeID);
-  static std::string toString(const std::vector<LogicalType>& dataTypes);
-  static std::string toString(const std::vector<LogicalTypeID>& dataTypeIDs);
-  static uint32_t getRowLayoutSize(const LogicalType& logicalType);
-  static bool isDate(const LogicalType& dataType);
-  static bool isDate(const LogicalTypeID& dataType);
-  static bool isTimestamp(const LogicalType& dataType);
-  static bool isTimestamp(const LogicalTypeID& dataType);
-  static bool isUnsigned(const LogicalType& dataType);
-  static bool isUnsigned(const LogicalTypeID& dataType);
-  static bool isIntegral(const LogicalType& dataType);
-  static bool isIntegral(const LogicalTypeID& dataType);
-  static bool isNumerical(const LogicalType& dataType);
-  static bool isNumerical(const LogicalTypeID& dataType);
-  static bool isFloatingPoint(const LogicalTypeID& dataType);
-  static bool isNested(const LogicalType& dataType);
-  static bool isNested(LogicalTypeID logicalTypeID);
-  static std::vector<LogicalTypeID> getAllValidComparableLogicalTypes();
-  static std::vector<LogicalTypeID> getNumericalLogicalTypeIDs();
-  static std::vector<LogicalTypeID> getIntegerTypeIDs();
-  static std::vector<LogicalTypeID> getFloatingPointTypeIDs();
-  static std::vector<LogicalTypeID> getAllValidLogicTypeIDs();
-  static std::vector<LogicalType> getAllValidLogicTypes();
-  static bool tryGetMaxLogicalType(const LogicalType& left,
-                                   const LogicalType& right,
-                                   LogicalType& result);
-  static bool tryGetMaxLogicalType(const std::vector<LogicalType>& types,
-                                   LogicalType& result);
+  static std::string toString(DataTypeId dataTypeID);
+  static std::string toString(const std::vector<DataType>& dataTypes);
+  static std::string toString(const std::vector<DataTypeId>& dataTypeIDs);
+  static uint32_t getRowLayoutSize(const DataType& dataType);
+  static bool isDate(const DataType& dataType);
+  static bool isDate(DataTypeId dataType);
+  static bool isTimestamp(const DataType& dataType);
+  static bool isTimestamp(DataTypeId dataType);
+  static bool isUnsigned(const DataType& dataType);
+  static bool isUnsigned(DataTypeId dataType);
+  static bool isIntegral(const DataType& dataType);
+  static bool isIntegral(DataTypeId dataType);
+  static bool isNumerical(const DataType& dataType);
+  static bool isNumerical(DataTypeId dataType);
+  static bool isFloatingPoint(DataTypeId dataType);
+  static bool isNested(const DataType& dataType);
+  static bool isNested(DataTypeId dataType);
+  static std::vector<DataTypeId> getAllValidComparableLogicalTypes();
+  static std::vector<DataTypeId> getNumericalDataTypeIds();
+  static std::vector<DataTypeId> getIntegerTypeIDs();
+  static std::vector<DataTypeId> getFloatingPointTypeIDs();
+  static std::vector<DataTypeId> getAllValidLogicTypeIDs();
+  static std::vector<DataType> getAllValidLogicTypes();
+  static bool tryGetMaxLogicalType(const DataType& left, const DataType& right,
+                                   DataType& result);
+  static bool tryGetMaxLogicalType(const std::vector<DataType>& types,
+                                   DataType& result);
 
-  static LogicalType combineTypes(const LogicalType& left,
-                                  const LogicalType& right);
+  static DataType combineTypes(const DataType& left, const DataType& right);
 
-  static LogicalType purgeAny(const LogicalType& type,
-                              const LogicalType& replacement);
+  static DataType purgeAny(const DataType& type, const DataType& replacement);
 
  private:
-  static bool tryGetMaxLogicalTypeID(const LogicalTypeID& left,
-                                     const LogicalTypeID& right,
-                                     LogicalTypeID& result);
+  static bool tryGetMaxDataTypeId(DataTypeId left, DataTypeId right,
+                                  DataTypeId& result);
 };
+
+DataType convertFromString(const std::string& str,
+                           main::ClientContext* context = nullptr);
+bool isBuiltInType(const std::string& str);
 
 enum class FileVersionType : uint8_t { ORIGINAL = 0, WAL_VERSION = 1 };
 

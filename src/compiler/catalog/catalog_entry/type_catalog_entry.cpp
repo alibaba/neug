@@ -30,7 +30,7 @@ namespace catalog {
 void TypeCatalogEntry::serialize(common::Serializer& serializer) const {
   CatalogEntry::serialize(serializer);
   serializer.writeDebuggingInfo("type");
-  type.serialize(serializer);
+  serializer.serializeValue(static_cast<uint8_t>(type.id()));
 }
 
 std::unique_ptr<TypeCatalogEntry> TypeCatalogEntry::deserialize(
@@ -38,7 +38,10 @@ std::unique_ptr<TypeCatalogEntry> TypeCatalogEntry::deserialize(
   std::string debuggingInfo;
   auto typeCatalogEntry = std::make_unique<TypeCatalogEntry>();
   deserializer.validateDebuggingInfo(debuggingInfo, "type");
-  typeCatalogEntry->type = common::LogicalType::deserialize(deserializer);
+  uint8_t typeIdVal;
+  deserializer.deserializeValue(typeIdVal);
+  typeCatalogEntry->type =
+      common::DataType(static_cast<common::DataTypeId>(typeIdVal));
   return typeCatalogEntry;
 }
 

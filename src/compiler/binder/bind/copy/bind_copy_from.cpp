@@ -260,11 +260,11 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
 static void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
                                     const CopyFromColumnInfo& info,
                                     std::vector<std::string>& columnNames,
-                                    std::vector<LogicalType>& columnTypes);
+                                    std::vector<DataType>& columnTypes);
 static void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
                                    const CopyFromColumnInfo& info,
                                    std::vector<std::string>& columnNames,
-                                   std::vector<LogicalType>& columnTypes,
+                                   std::vector<DataType>& columnTypes,
                                    const main::ClientContext* context);
 
 static std::pair<ColumnEvaluateType, std::shared_ptr<Expression>>
@@ -290,7 +290,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   // Bind expected columns based on catalog information.
   std::vector<std::string> expectedColumnNames;
-  std::vector<LogicalType> expectedColumnTypes;
+  std::vector<DataType> expectedColumnTypes;
   bindExpectedNodeColumns(nodeTableEntry, copyStatement.getCopyColumnInfo(),
                           expectedColumnNames, expectedColumnTypes);
   auto boundSource = bindScanSource(copyStatement.getSource(),
@@ -300,7 +300,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
   std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
                                                 ColumnEvaluateType::REFERENCE);
   auto offset = createInvisibleVariable(
-      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   auto boundCopyFromInfo = BoundCopyFromInfo(
       nodeTableEntry, std::move(boundSource), std::move(offset),
       std::move(columns), std::move(evaluateTypes), nullptr /* extraInfo */);
@@ -329,7 +329,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   }
   // Bind expected columns based on catalog information.
   std::vector<std::string> expectedColumnNames;
-  std::vector<LogicalType> expectedColumnTypes;
+  std::vector<DataType> expectedColumnTypes;
   bindExpectedRelColumns(relTableEntry, copyStatement.getCopyColumnInfo(),
                          expectedColumnNames, expectedColumnTypes,
                          clientContext);
@@ -338,14 +338,14 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
                                     expectedColumnNames, expectedColumnTypes);
   expression_vector warningDataExprs;
   auto offset = createInvisibleVariable(
-      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   auto srcTableID = relTableEntry->getSrcTableID();
   auto dstTableID = relTableEntry->getDstTableID();
 
   auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
-                                  LogicalType::INT64());
+                                  DataType(DataTypeId::kInt64));
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
-                                  LogicalType::INT64());
+                                  DataType(DataTypeId::kInt64));
   expression_vector columns = boundSource->getColumns();
   std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
                                                 ColumnEvaluateType::REFERENCE);
@@ -385,7 +385,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
   std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
                                                 ColumnEvaluateType::REFERENCE);
   auto offset = createInvisibleVariable(
-      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   const auto& labelName = copyStatement.getTableName();
   if (columns.empty()) {
     THROW_BINDER_EXCEPTION(stringFormat(
@@ -429,14 +429,14 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
       copyStatement.getSource(), getScanSourceOptions(copyStatement), {}, {});
   expression_vector warningDataExprs;
   auto offset = createInvisibleVariable(
-      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   auto srcTableID = srcNode->getTableID();
   auto dstTableID = dstNode->getTableID();
 
   auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
-                                  LogicalType::INT64());
+                                  DataType(DataTypeId::kInt64));
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
-                                  LogicalType::INT64());
+                                  DataType(DataTypeId::kInt64));
   expression_vector columns = boundSource->getColumns();
   if (columns.size() < 2u) {
     THROW_BINDER_EXCEPTION(
@@ -475,9 +475,6 @@ static bool skipPropertyInFile(const PropertyDefinition& property) {
 }
 
 static bool skipPropertyInSchema(const PropertyDefinition& property) {
-  if (property.getType().getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    return true;
-  }
   if (property.getName() == InternalKeyword::ID) {
     return true;
   }
@@ -496,7 +493,7 @@ static bool skipPropertyInSchema(const PropertyDefinition& property) {
 static void bindExpectedColumns(const TableCatalogEntry* tableEntry,
                                 const CopyFromColumnInfo& info,
                                 std::vector<std::string>& columnNames,
-                                std::vector<LogicalType>& columnTypes) {
+                                std::vector<DataType>& columnTypes) {
   for (auto& property : tableEntry->getProperties()) {
     if (skipPropertyInSchema(property)) {
       continue;
@@ -509,7 +506,7 @@ static void bindExpectedColumns(const TableCatalogEntry* tableEntry,
 void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
                              const CopyFromColumnInfo& info,
                              std::vector<std::string>& columnNames,
-                             std::vector<LogicalType>& columnTypes) {
+                             std::vector<DataType>& columnTypes) {
   NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   bindExpectedColumns(nodeTableEntry, info, columnNames, columnTypes);
 }
@@ -517,7 +514,7 @@ void bindExpectedNodeColumns(const NodeTableCatalogEntry* nodeTableEntry,
 void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
                             const CopyFromColumnInfo& info,
                             std::vector<std::string>& columnNames,
-                            std::vector<LogicalType>& columnTypes,
+                            std::vector<DataType>& columnTypes,
                             const main::ClientContext* context) {
   NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   auto catalog = context->getCatalog();
@@ -531,13 +528,7 @@ void bindExpectedRelColumns(const RelTableCatalogEntry* relTableEntry,
   columnNames.push_back("from");
   columnNames.push_back("to");
   auto srcPKColumnType = srcTable->getPrimaryKeyDefinition().getType().copy();
-  if (srcPKColumnType.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    srcPKColumnType = LogicalType::INT64();
-  }
   auto dstPKColumnType = dstTable->getPrimaryKeyDefinition().getType().copy();
-  if (dstPKColumnType.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-    dstPKColumnType = LogicalType::INT64();
-  }
   columnTypes.push_back(std::move(srcPKColumnType));
   columnTypes.push_back(std::move(dstPKColumnType));
   bindExpectedColumns(relTableEntry, info, columnNames, columnTypes);

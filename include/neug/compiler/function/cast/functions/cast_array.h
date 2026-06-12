@@ -31,14 +31,14 @@ namespace neug {
 namespace function {
 
 struct CastArrayHelper {
-  static bool checkCompatibleNestedTypes(LogicalTypeID sourceTypeID,
-                                         LogicalTypeID targetTypeID);
+  static bool checkCompatibleNestedTypes(DataTypeId sourceTypeID,
+                                         DataTypeId targetTypeID);
 
-  static bool containsListToArray(const LogicalType& srcType,
-                                  const LogicalType& dstType);
+  static bool containsListToArray(const DataType& srcType,
+                                  const DataType& dstType);
 
   static void validateListEntry(ValueVector* inputVector,
-                                const LogicalType& resultType, uint64_t pos);
+                                const DataType& resultType, uint64_t pos);
 };
 
 }  // namespace function

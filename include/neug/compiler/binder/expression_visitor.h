@@ -172,7 +172,7 @@ class ResetVarUseNameVisitor final : public ExpressionVisitor {
 class VariableCastTypeCollector final : public ExpressionVisitor {
  public:
   VariableCastTypeCollector(
-      std::unordered_map<std::string, common::LogicalType>& variableTypes,
+      std::unordered_map<std::string, common::DataType>& variableTypes,
       main::ClientContext* ctx)
       : variableTypes{variableTypes}, ctx{ctx} {}
 
@@ -191,8 +191,7 @@ class VariableCastTypeCollector final : public ExpressionVisitor {
       if (child0->expressionType == common::ExpressionType::VARIABLE &&
           child1->expressionType == common::ExpressionType::LITERAL) {
         auto literalExpr = child1->ptrCast<binder::LiteralExpression>();
-        auto type = common::LogicalType::convertFromString(
-            literalExpr->toString(), ctx);
+        auto type = common::convertFromString(literalExpr->toString(), ctx);
         variableTypes[child0->getUniqueName()] = type.copy();
       }
     } else if (functionExpr->getNumChildren() == 1) {
@@ -202,7 +201,7 @@ class VariableCastTypeCollector final : public ExpressionVisitor {
         auto CAST_TO_PREFIX = "CAST_TO_";
         int prefixPos = functionName.find_first_of(CAST_TO_PREFIX);
         if (prefixPos != std::string::npos) {
-          auto type = common::LogicalType::convertFromString(
+          auto type = common::convertFromString(
               functionName.substr(prefixPos + strlen(CAST_TO_PREFIX)), ctx);
           variableTypes[child0->getUniqueName()] = type.copy();
         }
@@ -211,7 +210,7 @@ class VariableCastTypeCollector final : public ExpressionVisitor {
   }
 
  private:
-  std::unordered_map<std::string, common::LogicalType>& variableTypes;
+  std::unordered_map<std::string, common::DataType>& variableTypes;
   main::ClientContext* ctx;
 };
 }  // namespace binder

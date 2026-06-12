@@ -33,9 +33,9 @@ class TestShowExtensionsFunction : public function::NeugCallFunction {
  public:
   TestShowExtensionsFunction()
       : NeugCallFunction("TEST_SHOW_LOADED_EXTENSIONS", {},
-                         {{"name", common::LogicalTypeID::STRING},
-                          {"description", common::LogicalTypeID::STRING},
-                          {"path", common::LogicalTypeID::STRING}}) {}
+                         {{"name", ::neug::DataTypeId::kVarchar},
+                          {"description", ::neug::DataTypeId::kVarchar},
+                          {"path", ::neug::DataTypeId::kVarchar}}) {}
 };
 
 struct TestShowExtensionsFunctionSet {

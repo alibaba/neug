@@ -31,7 +31,7 @@ namespace neug {
 namespace function {
 
 std::unique_ptr<FunctionBindData> FunctionBindData::getSimpleBindData(
-    const expression_vector& params, const LogicalType& resultType) {
+    const expression_vector& params, const DataType& resultType) {
   auto paramTypes = ExpressionUtil::getDataTypes(params);
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             resultType.copy());

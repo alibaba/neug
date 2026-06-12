@@ -52,17 +52,17 @@ void ProjectJoinConditionOptimizer::visitOperator(LogicalOperator* op) {
   }
 }
 
-std::unique_ptr<common::LogicalType> ProjectJoinConditionOptimizer::getDataType(
+std::unique_ptr<common::DataType> ProjectJoinConditionOptimizer::getDataType(
     const std::string& uniqueVarName, LogicalOperator* op) {
   if (op->getOperatorType() == planner::LogicalOperatorType::SCAN_NODE_TABLE) {
     auto scan = op->cast<planner::LogicalScanNodeTable>();
     if (uniqueVarName == scan.getAliasName()) {
       auto nodeType = scan.getNodeType(ctx->getCatalog());
-      auto fields = std::vector<common::StructField>();
-      auto extraInfo = std::make_unique<common::GNodeTypeInfo>(
-          std::move(fields), std::move(nodeType));
+      auto extraInfo = std::make_shared<common::GNodeTypeInfo>(
+          std::vector<std::string>{}, std::vector<common::DataType>{},
+          std::move(nodeType));
       auto dataType =
-          std::make_unique<common::LogicalType>(common::LogicalTypeID::NODE);
+          std::make_unique<common::DataType>(common::DataTypeId::kVertex);
       dataType->setExtraTypeInfo(std::move(extraInfo));
       return dataType;
     }
@@ -70,11 +70,11 @@ std::unique_ptr<common::LogicalType> ProjectJoinConditionOptimizer::getDataType(
     auto& getV = op->cast<planner::LogicalGetV>();
     if (uniqueVarName == getV.getAliasName()) {
       auto nodeType = getV.getNodeType(ctx->getCatalog());
-      auto fields = std::vector<common::StructField>();
-      auto extraInfo = std::make_unique<common::GNodeTypeInfo>(
-          std::move(fields), std::move(nodeType));
+      auto extraInfo = std::make_shared<common::GNodeTypeInfo>(
+          std::vector<std::string>{}, std::vector<common::DataType>{},
+          std::move(nodeType));
       auto dataType =
-          std::make_unique<common::LogicalType>(common::LogicalTypeID::NODE);
+          std::make_unique<common::DataType>(common::DataTypeId::kVertex);
       dataType->setExtraTypeInfo(std::move(extraInfo));
       return dataType;
     }
@@ -83,16 +83,14 @@ std::unique_ptr<common::LogicalType> ProjectJoinConditionOptimizer::getDataType(
     auto nbrNode = extend.getNbrNode();
     if (extend.getExtendOpt() == planner::ExtendOpt::VERTEX &&
         uniqueVarName == nbrNode->getUniqueName()) {
-      return std::make_unique<common::LogicalType>(
-          nbrNode->getDataType().copy());
+      return std::make_unique<common::DataType>(nbrNode->getDataType().copy());
     }
   } else {
     auto schema = op->getSchema();
     if (schema) {
       for (auto& expr : schema->getExpressionsInScope()) {
         if (expr->getUniqueName() == uniqueVarName) {
-          return std::make_unique<common::LogicalType>(
-              expr->getDataType().copy());
+          return std::make_unique<common::DataType>(expr->getDataType().copy());
         }
       }
     }
@@ -133,8 +131,7 @@ void ProjectJoinConditionOptimizer::visitHashJoin(LogicalOperator* op) {
   // convert join conditions: convert internal id to node it self in that NeuG
   // can support join by nodes directly
   for (auto& [probeKey, buildKey] : joinConditions) {
-    if (probeKey->getDataType().getLogicalTypeID() ==
-            common::LogicalTypeID::INTERNAL_ID &&
+    if (probeKey->getDataType().id() == common::DataTypeId::kInternalId &&
         !containsAliasName(probeAliasNames, probeKey->getUniqueName())) {
       // convert internal id to node it self
       auto probeIDExpr = probeKey->ptrCast<binder::PropertyExpression>();
@@ -146,8 +143,7 @@ void ProjectJoinConditionOptimizer::visitHashJoin(LogicalOperator* op) {
           probeType->copy(), probeVarName, probeVarName);
       probeKey = varExpr;
     }
-    if (buildKey->getDataType().getLogicalTypeID() ==
-            common::LogicalTypeID::INTERNAL_ID &&
+    if (buildKey->getDataType().id() == common::DataTypeId::kInternalId &&
         !containsAliasName(buildAliasNames, buildKey->getUniqueName())) {
       // convert internal id to node it self
       auto buildIDExpr = buildKey->ptrCast<binder::PropertyExpression>();

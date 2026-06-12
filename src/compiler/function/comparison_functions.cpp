@@ -34,7 +34,7 @@ template <typename OP>
 static void executeNestedOperation(uint8_t& result, ValueVector* leftVector,
                                    ValueVector* rightVector, uint64_t leftPos,
                                    uint64_t rightPos) {
-  switch (leftVector->dataType.getPhysicalType()) {
+  switch (getPhysicalType(leftVector->dataType.id())) {
   case PhysicalTypeID::BOOL: {
     OP::operation(leftVector->getValue<uint8_t>(leftPos),
                   rightVector->getValue<uint8_t>(rightPos), result,
@@ -183,11 +183,10 @@ void Equals::operation(const struct_entry_t& left, const struct_entry_t& right,
   }
   result = true;
   // For STRUCT type, we also need to check their field names
-  if (result ||
-      leftVector->dataType.getLogicalTypeID() == LogicalTypeID::STRUCT ||
-      rightVector->dataType.getLogicalTypeID() == LogicalTypeID::STRUCT) {
-    auto leftTypeNames = StructType::getFieldNames(leftVector->dataType);
-    auto rightTypeNames = StructType::getFieldNames(rightVector->dataType);
+  if (result || leftVector->dataType.id() == DataTypeId::kStruct ||
+      rightVector->dataType.id() == DataTypeId::kStruct) {
+    auto leftTypeNames = StructType::GetFieldNames(leftVector->dataType);
+    auto rightTypeNames = StructType::GetFieldNames(rightVector->dataType);
     for (auto i = 0u; i < leftTypeNames.size(); i++) {
       if (leftTypeNames[i] != rightTypeNames[i]) {
         result = false;

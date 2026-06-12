@@ -2111,8 +2111,8 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(
-      std::move(neug::common::LogicalType(neug::common::LogicalTypeID::ANY)),
-      pk, pk);
+      std::move(neug::common::DataType(neug::common::DataTypeId::kUnknown)), pk,
+      pk);
 }
 
 std::unique_ptr<::common::NameOrId> convertVertexType(
