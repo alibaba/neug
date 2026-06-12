@@ -43,7 +43,7 @@ namespace neug {
 // Tune mimalloc to minimize page faults under the explicit-allocator approach
 // used in the Python binding (no global override / no LD_PRELOAD).
 //
-// Rationale: with explicit allocate_shared / vector_t / flat_hash_map_t, the
+// Rationale: with explicit allocate_shared / neug::vector / neug::flat_hash_map, the
 // process working set is split between glibc (Python/Arrow/numpy) and mimalloc
 // (neug containers). Default mimalloc settings aggressively decommit/reset
 // idle pages, causing extra minor page faults on re-touch. We disable that
