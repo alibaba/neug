@@ -19,7 +19,6 @@
 #include <tuple>
 
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/context.h"
 #include "neug/utils/encoder.h"
 #include "parallel_hashmap/phmap.h"
 
@@ -27,14 +26,14 @@ namespace neug {
 
 namespace execution {
 
-neug::result<Context> Dedup::dedup(Context&& ctx,
-                                   const std::vector<size_t>& cols) {
-  size_t row_num = ctx.row_num();
+neug::result<ContextChunk> Dedup::dedup(ContextChunk&& chunk,
+                                        const std::vector<size_t>& cols) {
+  size_t row_num = chunk.row_num();
   std::vector<size_t> offsets;
   if (cols.size() == 0) {
-    return ctx;
+    return chunk;
   }
-  if (cols.size() == 1 && ctx.get(cols[0])->generate_dedup_offset(offsets)) {
+  if (cols.size() == 1 && chunk.get(cols[0])->generate_dedup_offset(offsets)) {
   } else {
     offsets.clear();
     phmap::flat_hash_set<std::string> set;
@@ -42,7 +41,7 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
       std::vector<char> bytes;
       Encoder encoder(bytes);
       for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
-        auto val = ctx.get(cols[c_i])->get_elem(r_i);
+        auto val = chunk.get(cols[c_i])->get_elem(r_i);
         encode_value(val, encoder);
         encoder.put_byte('#');
       }
@@ -53,12 +52,14 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
       }
     }
   }
-  Context ret;
+  DataChunk ret;
   for (size_t i = 0; i < cols.size(); i++) {
-    ret.set(cols[i], ctx.get(cols[i]));
+    ret.set(cols[i], chunk.get(cols[i]));
   }
   ret.reshuffle(offsets);
-  return ret;
+  chunk.chunk() = std::move(ret);
+  chunk.head().reset();
+  return chunk;
 }
 
 }  // namespace execution

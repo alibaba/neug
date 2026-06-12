@@ -42,11 +42,18 @@ class UnfoldOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     if (key_.has_value()) {
-      return Unfold::unfold(std::move(ctx), key_.value(), alias_);
+      auto key_val = key_.value();
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Unfold::unfold(std::move(chunk), key_val, alias_);
+          });
     } else {
       auto expr = expr_->bind(&graph, params);
       auto& record_expr = expr->Cast<RecordExprBase>();
-      return Unfold::unfold(std::move(ctx), record_expr, alias_);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Unfold::unfold(std::move(chunk), record_expr, alias_);
+          });
     }
   }
 

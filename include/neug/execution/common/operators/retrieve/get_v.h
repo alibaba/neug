@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/result.h"
@@ -291,13 +291,13 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static neug::result<Context> get_vertex_from_path(
-      const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
-      const PRED_T& pred) {
+  static neug::result<ContextChunk> get_vertex_from_path(
+      const IStorageInterface& graph, ContextChunk&& chunk,
+      const GetVParams& params, const PRED_T& pred) {
     std::vector<bool> required_label(graph.schema().vertex_label_frontier(),
                                      false);
     std::vector<size_t> shuffle_offset;
-    auto col = ctx.get(params.tag);
+    auto col = chunk.get(params.tag);
     std::set<label_t> required_label_set;
     for (auto label : params.tables) {
       required_label[label] = true;
@@ -314,20 +314,20 @@ class GetV {
         shuffle_offset.push_back(index);
       }
     });
-    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-    return ctx;
+    chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return chunk;
   }
 
   template <typename PRED_T>
-  static neug::result<Context> get_vertex_from_edges(
-      const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
-      const PRED_T& pred) {
+  static neug::result<ContextChunk> get_vertex_from_edges(
+      const IStorageInterface& graph, ContextChunk&& chunk,
+      const GetVParams& params, const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
-    auto col = ctx.get(params.tag);
+    auto col = chunk.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
-      return get_vertex_from_path(graph, std::move(ctx), params, pred);
+      return get_vertex_from_path(graph, std::move(chunk), params, pred);
     }
-    auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
+    auto column = std::dynamic_pointer_cast<IEdgeColumn>(chunk.get(params.tag));
     if (!column) {
       LOG(ERROR) << "Unsupported column type: "
                  << static_cast<int>(col->column_type());
@@ -339,13 +339,13 @@ class GetV {
     if (column->is_optional()) {
       auto pair =
           get_vertex_from_edges_impl<PRED_T, true>(*column, params, pred);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
+      chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return chunk;
     } else {
       auto pair =
           get_vertex_from_edges_impl<PRED_T, false>(*column, params, pred);
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
+      chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+      return chunk;
     }
   }
 };

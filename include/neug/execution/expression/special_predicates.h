@@ -327,7 +327,7 @@ bool is_special_vertex_predicate(const Schema& schema,
                                  SpecialPredicateConfig& config);
 
 template <typename OP_T, typename CMP_T, typename... Args>
-static neug::result<Context> dispatch_vertex_predicate_impl_cmp_type(
+static neug::result<ContextChunk> dispatch_vertex_predicate_impl_cmp_type(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialPredicateConfig& config, const ParamsMap& params,
     const CMP_T& cmp_val, Args&&... args) {
@@ -354,7 +354,7 @@ static neug::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 }
 
 template <typename OP_T, typename T, typename... Args>
-static neug::result<Context> dispatch_vertex_predicate_impl_typed(
+static neug::result<ContextChunk> dispatch_vertex_predicate_impl_typed(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
@@ -417,7 +417,7 @@ static neug::result<Context> dispatch_vertex_predicate_impl_typed(
 }
 
 template <typename OP_T, typename... Args>
-neug::result<Context> dispatch_vertex_predicate(
+neug::result<ContextChunk> dispatch_vertex_predicate(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {

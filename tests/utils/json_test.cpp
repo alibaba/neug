@@ -155,7 +155,7 @@ TEST_F(JsonTest, TestJsonArray) {
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
 
-  auto col0 = ctx.columns[0];
+  auto col0 = ctx.chunk(0).columns()[0];
   ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn0 =
       std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col0);
@@ -163,7 +163,7 @@ TEST_F(JsonTest, TestJsonArray) {
   EXPECT_TRUE(arrowType0->Equals(arrow::uint32()))
       << "Expected uint32, but got: " << arrowType0->ToString();
 
-  auto col2 = ctx.columns[2];
+  auto col2 = ctx.chunk(0).columns()[2];
   ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn2 =
       std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col2);

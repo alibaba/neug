@@ -42,7 +42,11 @@ class DedupOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    return Dedup::dedup(std::move(ctx), tag_ids_);
+    ctx.ensure_single_chunk("DedupOpr");
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Dedup::dedup(std::move(chunk), tag_ids_);
+        });
   }
 
   std::vector<size_t> tag_ids_;

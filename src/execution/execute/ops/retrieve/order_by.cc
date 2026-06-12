@@ -39,21 +39,25 @@ class OrderByOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    int keys_num = keys_.size();
-    GeneralComparer cmp;
-    for (int i = 0; i < keys_num; ++i) {
-      cmp.add_keys(ctx.get(keys_[i].first), keys_[i].second);
-    }
-    std::vector<size_t> indices;
-    int32_t tag = keys_[0].first;
-    bool order = keys_[0].second;
-    if (ctx.get(tag)->order_by_limit(order, upper_, indices)) {
-      return OrderBy::staged_order_by_with_limit<GeneralComparer>(
-          graph, std::move(ctx), cmp, lower_, upper_, indices);
-    }
+    ctx.ensure_single_chunk("OrderByOpr");
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          int keys_num = keys_.size();
+          GeneralComparer cmp;
+          for (int i = 0; i < keys_num; ++i) {
+            cmp.add_keys(chunk.get(keys_[i].first), keys_[i].second);
+          }
+          std::vector<size_t> indices;
+          int32_t tag = keys_[0].first;
+          bool order = keys_[0].second;
+          if (chunk.get(tag)->order_by_limit(order, upper_, indices)) {
+            return OrderBy::staged_order_by_with_limit<GeneralComparer>(
+                graph, std::move(chunk), cmp, lower_, upper_, indices);
+          }
 
-    return OrderBy::order_by_with_limit<GeneralComparer>(graph, std::move(ctx),
-                                                         cmp, lower_, upper_);
+          return OrderBy::order_by_with_limit<GeneralComparer>(
+              graph, std::move(chunk), cmp, lower_, upper_);
+        });
   }
 
  private:

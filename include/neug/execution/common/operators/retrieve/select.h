@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -24,17 +24,18 @@ namespace execution {
 class Select {
  public:
   template <typename PRED_T>
-  static neug::result<Context> select(Context&& ctx, const PRED_T& pred) {
-    size_t row_num = ctx.row_num();
+  static neug::result<ContextChunk> select(ContextChunk&& chunk,
+                                           const PRED_T& pred) {
+    size_t row_num = chunk.row_num();
     std::vector<size_t> offsets;
     for (size_t k = 0; k < row_num; ++k) {
-      if (pred(ctx, k)) {
+      if (pred(chunk.chunk(), k)) {
         offsets.push_back(k);
       }
     }
 
-    ctx.reshuffle(offsets);
-    return ctx;
+    chunk.reshuffle(offsets);
+    return chunk;
   }
 };
 
