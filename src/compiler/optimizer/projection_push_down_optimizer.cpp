@@ -251,11 +251,31 @@ void ProjectionPushDownOptimizer::visitSetProperty(LogicalOperator* op) {
 
 void ProjectionPushDownOptimizer::visitCopyFrom(LogicalOperator* op) {
   auto& copyFrom = op->constCast<LogicalCopyFrom>();
-  for (auto& expr : copyFrom.getInfo()->getSourceColumns()) {
-    collectExpressionsInUse(expr);
+  const auto* info = copyFrom.getInfo();
+  if (!info->returnColumns.empty()) {
+    // LOAD AS with RETURN: only mark return columns as in use.
+    // WHERE-referenced columns are collected by visitTableFunctionCall
+    // via the rowSkips expression.
+    const auto& sourceCols = info->getSourceColumns();
+    for (const auto& retCol : info->returnColumns) {
+      for (const auto& srcCol : sourceCols) {
+        if (srcCol->rawName() == retCol) {
+          collectExpressionsInUse(srcCol);
+          break;
+        }
+      }
+    }
+  } else {
+    for (auto& expr : info->getSourceColumns()) {
+      collectExpressionsInUse(expr);
+    }
   }
-  if (copyFrom.getInfo()->offset) {
-    collectExpressionsInUse(copyFrom.getInfo()->offset);
+  if (info->offset) {
+    collectExpressionsInUse(info->offset);
+  }
+  // Also collect WHERE predicate columns so they are not pruned.
+  if (info->wherePredicate) {
+    collectExpressionsInUse(info->wherePredicate);
   }
 }
 

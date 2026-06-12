@@ -2,9 +2,11 @@
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/copy/bound_copy_to.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/logical_partitioner.h"
+#include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/scan/logical_index_look_up.h"
@@ -50,6 +52,27 @@ static void appendCopyFrom(const BoundCopyFromInfo& info,
   plan.setLastOperator(std::move(op));
 }
 
+static void pushLoadAsFilterAndProjection(const BoundCopyFromInfo& info,
+                                          LogicalPlan& plan) {
+  auto* op = plan.getLastOperator();
+  if (!op || op->getOperatorType() != LogicalOperatorType::TABLE_FUNCTION_CALL) {
+    return;
+  }
+  auto* funcCall = op->ptrCast<LogicalTableFunctionCall>();
+  auto* bindData = funcCall->getBindData();
+
+  // Push WHERE predicate as row filter.
+  if (info.wherePredicate) {
+    auto predicate = info.wherePredicate;
+    ResetVarUseNameVisitor visitor(true);
+    visitor.visit(predicate);
+    bindData->setRowSkips(predicate);
+  }
+
+  // RETURN projection is handled by ProjectionPushDownOptimizer, which
+  // computes the union of RETURN columns and WHERE-referenced columns.
+}
+
 std::unique_ptr<LogicalPlan> Planner::planCopyFrom(
     const BoundStatement& statement) {
   auto& copyFrom = statement.constCast<BoundCopyFrom>();
@@ -86,6 +109,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
   case ScanSourceType::OBJECT: {
     auto& scanSource = info->source->constCast<BoundTableScanSource>();
     appendTableFunctionCall(scanSource.info, *plan);
+    pushLoadAsFilterAndProjection(*info, *plan);
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();
@@ -133,6 +157,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
   case ScanSourceType::OBJECT: {
     auto& fileSource = info->source->constCast<BoundTableScanSource>();
     appendTableFunctionCall(fileSource.info, *plan);
+    pushLoadAsFilterAndProjection(*info, *plan);
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();

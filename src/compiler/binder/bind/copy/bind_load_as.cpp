@@ -65,6 +65,73 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
         "No columns found for LOAD AS `{}`, cannot infer schema", labelName));
   }
 
+  // Validate RETURN columns early so they can filter DDL properties.
+  std::vector<std::string> validatedReturnCols;
+  if (loadAs.hasReturnColumns()) {
+    const auto& returnCols = loadAs.getReturnColumns();
+    for (const auto& retCol : returnCols) {
+      bool found = false;
+      for (const auto& srcCol : columns) {
+        if (srcCol->rawName() == retCol) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        THROW_BINDER_EXCEPTION(stringFormat(
+            "RETURN column `{}` not found in source data for LOAD AS `{}`",
+            retCol, labelName));
+      }
+    }
+    validatedReturnCols = returnCols;
+  }
+
+  // When RETURN is specified, only those columns become vertex/edge properties.
+  expression_vector ddlColumns = columns;
+  if (!validatedReturnCols.empty()) {
+    ddlColumns.clear();
+    if (loadAs.isRelLoad()) {
+      // For edges, from_col and to_col must come first in DDL order.
+      auto fromCol = extractStringOption(parsingOptions, "from_col");
+      auto toCol = extractStringOption(parsingOptions, "to_col");
+      if (!fromCol.empty()) {
+        for (const auto& srcCol : columns) {
+          if (srcCol->rawName() == fromCol) {
+            ddlColumns.push_back(srcCol);
+            break;
+          }
+        }
+      }
+      if (!toCol.empty()) {
+        for (const auto& srcCol : columns) {
+          if (srcCol->rawName() == toCol) {
+            ddlColumns.push_back(srcCol);
+            break;
+          }
+        }
+      }
+      // Append remaining return columns.
+      for (const auto& retCol : validatedReturnCols) {
+        if (retCol == fromCol || retCol == toCol) continue;
+        for (const auto& srcCol : columns) {
+          if (srcCol->rawName() == retCol) {
+            ddlColumns.push_back(srcCol);
+            break;
+          }
+        }
+      }
+    } else {
+      for (const auto& retCol : validatedReturnCols) {
+        for (const auto& srcCol : columns) {
+          if (srcCol->rawName() == retCol) {
+            ddlColumns.push_back(srcCol);
+            break;
+          }
+        }
+      }
+    }
+  }
+
   std::unique_ptr<ExtraBoundCopyFromInfo> extraInfo;
   std::unique_ptr<DDLTableInfo> ddlTableInfo;
 
@@ -74,8 +141,24 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
     if (primaryKey.empty()) {
       primaryKey = columns[0]->rawName();
     }
+    // Validate RETURN includes primary key.
+    if (!validatedReturnCols.empty()) {
+      bool pkFound = false;
+      for (const auto& retCol : validatedReturnCols) {
+        if (retCol == primaryKey) {
+          pkFound = true;
+          break;
+        }
+      }
+      if (!pkFound) {
+        THROW_BINDER_EXCEPTION(stringFormat(
+            "RETURN must include primary key column `{}` for LOAD NODE "
+            "TABLE AS `{}`",
+            primaryKey, labelName));
+      }
+    }
     ddlTableInfo = std::make_unique<DDLVertexInfo>(
-        labelName, primaryKey, columns, expressionBinder,
+        labelName, primaryKey, ddlColumns, expressionBinder,
         /*temporary=*/true);
   } else {
     // --- LOAD REL TABLE ---
@@ -101,6 +184,40 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
           "(source key, destination key)."));
     }
 
+    // Validate RETURN includes from_col and to_col.
+    if (!validatedReturnCols.empty()) {
+      auto fromCol = extractStringOption(parsingOptions, "from_col");
+      auto toCol = extractStringOption(parsingOptions, "to_col");
+      if (!fromCol.empty()) {
+        bool fromFound = false;
+        for (const auto& retCol : validatedReturnCols) {
+          if (retCol == fromCol) {
+            fromFound = true;
+            break;
+          }
+        }
+        if (!fromFound) {
+          THROW_BINDER_EXCEPTION(stringFormat(
+              "RETURN must include from_col `{}` for LOAD REL TABLE AS `{}`",
+              fromCol, labelName));
+        }
+      }
+      if (!toCol.empty()) {
+        bool toFound = false;
+        for (const auto& retCol : validatedReturnCols) {
+          if (retCol == toCol) {
+            toFound = true;
+            break;
+          }
+        }
+        if (!toFound) {
+          THROW_BINDER_EXCEPTION(stringFormat(
+              "RETURN must include to_col `{}` for LOAD REL TABLE AS `{}`",
+              toCol, labelName));
+        }
+      }
+    }
+
     auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
                                     LogicalType::INT64());
     auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
@@ -119,7 +236,7 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
         internalIDColumnIndices, lookupInfos);
 
     ddlTableInfo = std::make_unique<DDLEdgeInfo>(
-        labelName, fromLabel, toLabel, srcTableID, dstTableID, columns,
+        labelName, fromLabel, toLabel, srcTableID, dstTableID, ddlColumns,
         expressionBinder, /*temporary=*/true);
   }
 
@@ -134,75 +251,9 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
     boundCopyFromInfo.wherePredicate = std::move(wherePredicate);
   }
 
-  // Validate optional RETURN columns for projection pushdown.
-  if (loadAs.hasReturnColumns()) {
-    const auto& returnCols = loadAs.getReturnColumns();
-    auto sourceColumns = boundCopyFromInfo.getSourceColumns();
-    for (const auto& retCol : returnCols) {
-      bool found = false;
-      for (const auto& srcCol : sourceColumns) {
-        if (srcCol->rawName() == retCol) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        THROW_BINDER_EXCEPTION(stringFormat(
-            "RETURN column `{}` not found in source data for LOAD AS `{}`",
-            retCol, labelName));
-      }
-    }
-    // Validate required columns are included in RETURN.
-    if (!loadAs.isRelLoad()) {
-      auto primaryKey = extractStringOption(parsingOptions, "primary_key");
-      if (!primaryKey.empty()) {
-        bool pkFound = false;
-        for (const auto& retCol : returnCols) {
-          if (retCol == primaryKey) {
-            pkFound = true;
-            break;
-          }
-        }
-        if (!pkFound) {
-          THROW_BINDER_EXCEPTION(stringFormat(
-              "RETURN must include primary key column `{}` for LOAD NODE "
-              "TABLE AS `{}`",
-              primaryKey, labelName));
-        }
-      }
-    } else {
-      // LOAD REL TABLE
-      auto fromCol = extractStringOption(parsingOptions, "from_col");
-      auto toCol = extractStringOption(parsingOptions, "to_col");
-      if (!fromCol.empty()) {
-        bool fromFound = false;
-        for (const auto& retCol : returnCols) {
-          if (retCol == fromCol) {
-            fromFound = true;
-            break;
-          }
-        }
-        if (!fromFound) {
-          THROW_BINDER_EXCEPTION(stringFormat(
-              "RETURN must include from_col `{}` for LOAD REL TABLE AS `{}`",
-              fromCol, labelName));
-        }
-      }
-      if (!toCol.empty()) {
-        bool toFound = false;
-        for (const auto& retCol : returnCols) {
-          if (retCol == toCol) {
-            toFound = true;
-            break;
-          }
-        }
-        if (!toFound) {
-          THROW_BINDER_EXCEPTION(stringFormat(
-              "RETURN must include to_col `{}` for LOAD REL TABLE AS `{}`",
-              toCol, labelName));
-        }
-      }
-    }
+  // Store validated return columns for projection pushdown.
+  if (!validatedReturnCols.empty()) {
+    boundCopyFromInfo.returnColumns = std::move(validatedReturnCols);
   }
 
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
