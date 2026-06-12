@@ -331,7 +331,6 @@ if (WITH_MIMALLOC)
     set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
     set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
     set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
-    # Keep MI_OVERRIDE=ON to let it take effect.
     set(MI_OVERRIDE OFF CACHE BOOL "Override malloc with mimalloc" FORCE)
     set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
     # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
