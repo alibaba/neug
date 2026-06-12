@@ -117,7 +117,6 @@ To build only the C++ libraries and executables without the Python bindings:
 
 ```bash
 make cpp-build   # configures with -DBUILD_PYTHON=OFF, then builds
-make cpp-test    # additionally enables -DBUILD_TEST=ON and runs ctest
 ```
 
 Both targets accept `BUILD_TYPE` (default `Release`) and `EXTRA_CMAKE_FLAGS`:
