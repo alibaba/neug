@@ -21,6 +21,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "neug/utils/property/types.h"
 

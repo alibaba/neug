@@ -74,7 +74,7 @@ class ContextChunk {
   std::shared_ptr<IContextColumn> get(int alias) const;
 
   void set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
-                          const std::vector<size_t>& offsets);
+                          const sel_vec_t& offsets);
 
   void remove(int alias);
 
@@ -93,9 +93,9 @@ class ContextChunk {
   /// Reshuffles every column in the chunk and the head column. If head is
   /// aliased to one of the named columns the shuffled column is reused so
   /// that pointer identity is preserved for subsequent get(-1).
-  void reshuffle(const std::vector<size_t>& offsets);
+  void reshuffle(const sel_vec_t& offsets);
 
-  void optional_reshuffle(const std::vector<size_t>& offsets);
+  void optional_reshuffle(const sel_vec_t& offsets);
 
   /// Concatenates `other` into this ContextChunk. Heads are merged in
   /// lock-step, preserving alias-to-head pointer identity if possible.

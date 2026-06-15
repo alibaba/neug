@@ -28,7 +28,7 @@ namespace execution {
 void EdgeExpand::remove_null_from_chunk(ContextChunk& chunk, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
       std::dynamic_pointer_cast<IVertexColumn>(chunk.get(tag_id));
-  std::vector<size_t> selected_offsets;
+  sel_vec_t selected_offsets;
   size_t num = vertex_col->size();
   for (size_t k = 0; k < num; ++k) {
     if (vertex_col->has_value(k)) {
@@ -44,7 +44,7 @@ neug::result<ContextChunk> EdgeExpand::expand_degree(
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(chunk.get(params.v_tag).get());
 
-  std::unordered_map<label_t, std::vector<CsrView>> mps;
+  flat_hash_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -61,7 +61,7 @@ neug::result<ContextChunk> EdgeExpand::expand_degree(
     }
   }
   ValueColumnBuilder<int64_t> builder;
-  std::vector<size_t> shuffle_offset;
+  sel_vec_t shuffle_offset;
   if (mps.empty()) {
     chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return chunk;
@@ -97,7 +97,7 @@ neug::result<ContextChunk> EdgeExpand::expand_count(
       std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
   const auto* vertex_col = vertex_col_owner.get();
 
-  std::unordered_map<label_t, std::vector<CsrView>> mps;
+  flat_hash_map<label_t, std::vector<CsrView>> mps;
   const auto& vertex_labels = vertex_col->get_labels_set();
   for (auto label : params.labels) {
     if (params.dir == Direction::kOut || params.dir == Direction::kBoth) {
@@ -263,10 +263,10 @@ template <typename T>
 void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
                                const SLVertexColumn& input_column,
                                MSVertexColumnBuilder& builder,
-                               std::vector<size_t>& offsets,
-                               label_t input_label, label_t nbr_label,
-                               label_t edge_label, Direction dir,
-                               const Value& cmp_value, SPPredicateType tp) {
+                               sel_vec_t& offsets, label_t input_label,
+                               label_t nbr_label, label_t edge_label,
+                               Direction dir, const Value& cmp_value,
+                               SPPredicateType tp) {
   T cmp_val = [&cmp_value]() -> T {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return StringValue::Get(cmp_value);
@@ -409,7 +409,7 @@ neug::result<ContextChunk> EdgeExpand::expand_vertex_ep_cmp(
       ed_types.push_back(pt);
     }
     MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     size_t ld_idx = 0;
     for (auto& label_dir : label_dirs) {
       label_t nbr_label = std::get<0>(label_dir);

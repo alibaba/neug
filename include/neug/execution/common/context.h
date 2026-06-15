@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "neug/common/types.h"
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/data_chunk.h"
 #include "neug/utils/result.h"

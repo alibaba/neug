@@ -74,7 +74,7 @@ size_t DataChunk::row_num() const {
 
 size_t DataChunk::col_num() const { return columns.size(); }
 
-void DataChunk::reshuffle(const std::vector<size_t>& offsets) {
+void DataChunk::reshuffle(const sel_vec_t& offsets) {
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
   new_cols.reserve(columns.size());
   for (size_t i = 0; i < columns.size(); ++i) {
@@ -97,7 +97,7 @@ void DataChunk::reshuffle(const std::vector<size_t>& offsets) {
   columns = std::move(new_cols);
 }
 
-void DataChunk::optional_reshuffle(const std::vector<size_t>& offsets) {
+void DataChunk::optional_reshuffle(const sel_vec_t& offsets) {
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
   new_cols.reserve(columns.size());
   for (size_t i = 0; i < columns.size(); ++i) {

@@ -66,9 +66,9 @@ class DataChunk {
 
   size_t col_num() const;
 
-  void reshuffle(const std::vector<size_t>& offsets);
+  void reshuffle(const sel_vec_t& offsets);
 
-  void optional_reshuffle(const std::vector<size_t>& offsets);
+  void optional_reshuffle(const sel_vec_t& offsets);
 
   DataChunk union_chunk(const DataChunk& other) const;
 

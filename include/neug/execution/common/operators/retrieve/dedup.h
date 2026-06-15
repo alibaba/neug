@@ -26,7 +26,7 @@ namespace execution {
 class Dedup {
  public:
   static neug::result<ContextChunk> dedup(ContextChunk&& chunk,
-                                          const std::vector<size_t>& cols);
+                                          const std::vector<int32_t>& cols);
 };
 
 }  // namespace execution

@@ -31,7 +31,7 @@ struct CacheValue {
   physical::ExecutionFlag flags;
 
   CacheValue(Pipeline pipeline, ParamsMetaMap params_type,
-             const neug::MetaDatas& result_schema,  // ← 注意：const&
+             const neug::MetaDatas& result_schema,
              physical::ExecutionFlag flags)
       : pipeline(std::move(pipeline)),
         params_type(std::move(params_type)),
