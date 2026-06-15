@@ -541,19 +541,26 @@ class TestLoadAs:
     # ------------------------------------------------------------------
 
     def test_load_rel_table_dangling_reference(self):
-        """Edge referencing a vertex key that does not exist must fail."""
+        """Edge referencing a vertex key that does not exist is silently
+        skipped (consistent with the persist-graph COPY FROM path)."""
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
             f"(primary_key = 'id', header = true) AS TempPersonD;"
         )
         # dangling_edges.csv has src_id=99 which does not exist.
-        with pytest.raises(Exception):
-            self.conn.execute(
-                f'LOAD REL TABLE FROM "{self.dangling_edges_csv}" '
-                f"(header = true, "
-                f"from = 'TempPersonD', to = 'TempPersonD', "
-                f"from_col = 'src_id', to_col = 'dst_id') AS TempDanglingEdge;"
-            )
+        # Storage silently skips the dangling edge; only (1→2) is inserted.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.dangling_edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempPersonD', to = 'TempPersonD', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempDanglingEdge;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempPersonD)-[r:TempDanglingEdge]->(b:TempPersonD) "
+            "RETURN a.id, b.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 1, f"Expected 1 valid edge, got {len(rows)}"
 
     def test_multiple_temp_tables_all_cleaned(self):
         """Multiple temp tables created on the same connection must all

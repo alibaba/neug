@@ -456,6 +456,7 @@ TEST_F(LoadAsTest, ReloadAfterCleanup) {
         "MATCH (n:TempReusable) RETURN count(n);");
     EXPECT_TRUE(match_res) << match_res.error().ToString();
     conn->Close();
+    db_->RemoveConnection(conn);
   }
 
   // Phase 2: reconnect and load the same label again — should succeed.
@@ -470,6 +471,7 @@ TEST_F(LoadAsTest, ReloadAfterCleanup) {
         "MATCH (n:TempReusable) RETURN count(n);");
     EXPECT_TRUE(match_res) << match_res.error().ToString();
     conn2->Close();
+    db_->RemoveConnection(conn2);
   }
 }
 
@@ -573,13 +575,21 @@ TEST_F(LoadAsTest, LoadRelTableDanglingReference) {
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // dangling_edges.csv has src_id=99 which does not exist in TempPersonD.
+  // Storage silently skips edges with unresolved endpoints (consistent with
+  // the persist-graph COPY FROM path).
   std::string dangling_csv = std::string(CSV_DIR) + "/dangling_edges.csv";
   auto load_edges_res = conn->Query(
       "LOAD REL TABLE FROM \"" + dangling_csv +
       "\" (header = true, from = 'TempPersonD', to = 'TempPersonD', "
       "from_col = 'src_id', to_col = 'dst_id') AS TempDanglingEdge;");
-  // Should fail or skip the dangling row depending on implementation.
-  EXPECT_FALSE(load_edges_res);
+  EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
+
+  // Only the valid edge (1→2) should be inserted; (99→3) is skipped.
+  auto match_res = conn->Query(
+      "MATCH (a:TempPersonD)-[r:TempDanglingEdge]->(b:TempPersonD) "
+      "RETURN a.id, b.id;");
+  EXPECT_TRUE(match_res) << match_res.error().ToString();
+  EXPECT_EQ(match_res.value().response().row_count(), 1);
   conn->Close();
 }
 
