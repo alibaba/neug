@@ -236,7 +236,7 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   return buffer.GetString();
 }
 
-static std::string BoolVectorToBitmap(const std::vector<bool>& flags) {
+static std::string BoolVectorToBitmap(const vector_t<bool>& flags) {
   size_t num_bytes = (flags.size() + 7) / 8;
   std::string bitmap(num_bytes, 0x00);
   for (size_t i = 0; i < flags.size(); ++i) {
@@ -403,7 +403,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       vertex_col->add_values(convert_vertex_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -421,7 +421,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       edge_col->add_values(convert_edge_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -439,7 +439,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       path_col->add_values(convert_path_to_json(graph, path));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }

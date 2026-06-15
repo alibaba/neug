@@ -21,7 +21,7 @@ namespace neug {
 namespace execution {
 
 std::shared_ptr<IContextColumn> PathColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   if (is_optional_) {
     PathColumnBuilder builder(true);
     builder.reserve(offsets.size());
@@ -45,11 +45,11 @@ std::shared_ptr<IContextColumn> PathColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> PathColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   PathColumnBuilder builder(true);
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max() ||
+    if (offset == std::numeric_limits<sel_t>::max() ||
         data_[offset].is_null()) {
       builder.push_back_null();
     } else {

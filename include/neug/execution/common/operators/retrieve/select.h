@@ -27,7 +27,7 @@ class Select {
   static neug::result<ContextChunk> select(ContextChunk&& chunk,
                                            const PRED_T& pred) {
     size_t row_num = chunk.row_num();
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
     for (size_t k = 0; k < row_num; ++k) {
       if (pred(chunk.chunk(), k)) {
         offsets.push_back(k);
