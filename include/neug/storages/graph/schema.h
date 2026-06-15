@@ -806,6 +806,13 @@ class Schema {
   Bitset elabel_tomb_;          // tombstone for edge label
   Bitset elabel_triplet_tomb_;  // tombstone for edge label triplet
 
+  // Free lists for label id reuse after physical deletion.
+  // When a label is physically deleted, its lid is pushed here.
+  // When a new label is added, we prefer reusing a lid from the
+  // free list over allocating a new one via IdIndexer::add().
+  std::vector<label_t> vlabel_free_list_;
+  std::vector<label_t> elabel_free_list_;
+
   friend class PropertyGraph;
 };
 

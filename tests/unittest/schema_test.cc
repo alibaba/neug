@@ -970,3 +970,67 @@ TEST(SchemaCloneTest, CloneIsDeepCopyAndIndependent) {
   EXPECT_FALSE(original.is_edge_label_valid("KNOWS"));
   EXPECT_TRUE(snapshot.is_edge_label_valid("KNOWS"));
 }
+
+TEST(SchemaTest, RepeatedAddDeleteVertexLabel512Times) {
+  neug::Schema schema;
+
+  constexpr int kIterations = 512;
+  for (int i = 0; i < kIterations; ++i) {
+    std::string label = "V_" + std::to_string(i);
+    schema.AddVertexLabel(label, {DataTypeId::kVarchar}, {"name"},
+                          VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+    EXPECT_TRUE(schema.is_vertex_label_valid(label));
+
+    schema.DeleteVertexLabel(label);
+    EXPECT_FALSE(schema.is_vertex_label_valid(label));
+  }
+
+  // After 512 rounds of add+delete with distinct labels, re-add a new label
+  // should still succeed without label_id exhaustion issues
+  schema.AddVertexLabel("V_final", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_TRUE(schema.is_vertex_label_valid("V_final"));
+
+  auto vid = schema.get_vertex_label_id("V_final");
+  EXPECT_EQ(schema.get_vertex_label_name(vid), "V_final");
+  ASSERT_EQ(schema.get_vertex_property_names("V_final").size(), 1u);
+  EXPECT_EQ(schema.get_vertex_property_names("V_final")[0], "name");
+}
+
+TEST(SchemaTest, RepeatedAddDeleteEdgeLabel512Times) {
+  neug::Schema schema;
+
+  constexpr int kIterations = 512;
+
+  // Need vertex labels as edge endpoints
+  schema.AddVertexLabel("Src", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("Dst", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+
+  for (int i = 0; i < kIterations; ++i) {
+    std::string edge_label = "E_" + std::to_string(i);
+    schema.AddEdgeLabel("Src", "Dst", edge_label, {DataTypeId::kInt32},
+                        {"w"}, EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
+                        true, true, std::nullopt, "");
+    EXPECT_TRUE(schema.is_edge_label_valid(edge_label));
+    EXPECT_TRUE(schema.is_edge_triplet_valid("Src", "Dst", edge_label));
+
+    schema.DeleteEdgeLabel("Src", "Dst", edge_label);
+    EXPECT_FALSE(schema.is_edge_triplet_valid("Src", "Dst", edge_label));
+  }
+
+  // After 512 rounds of add+delete with distinct edge labels, re-add a new
+  // edge label should still succeed without label_id exhaustion issues
+  schema.AddEdgeLabel("Src", "Dst", "E_final", {DataTypeId::kInt32}, {"w"},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, std::nullopt, "");
+  EXPECT_TRUE(schema.is_edge_label_valid("E_final"));
+  EXPECT_TRUE(schema.is_edge_triplet_valid("Src", "Dst", "E_final"));
+
+  auto eid = schema.get_edge_label_id("E_final");
+  EXPECT_EQ(schema.get_edge_label_name(eid), "E_final");
+  ASSERT_EQ(schema.get_edge_property_names("Src", "Dst", "E_final").size(),
+            1u);
+  EXPECT_EQ(schema.get_edge_property_names("Src", "Dst", "E_final")[0], "w");
+}

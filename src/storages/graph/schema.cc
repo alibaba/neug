@@ -398,10 +398,22 @@ void Schema::AddVertexLabel(
     const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
     size_t max_vnum, const std::string& description,
     const std::vector<Value>& default_property_values) {
-  label_t v_label_id = vertex_label_to_index(label);
-  if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
+  label_t v_label_id;
+
+  // Reuse a freed lid if available (physical deletion recycled slot)
+  if (!vlabel_free_list_.empty()) {
+    v_label_id = vlabel_free_list_.back();
+    vlabel_free_list_.pop_back();
+    // Bind the new label name to the recycled lid in the indexer
+    vlabel_indexer_.reassign(v_label_id, label);
     vlabel_tomb_.reset(v_label_id);
+  } else {
+    v_label_id = vertex_label_to_index(label);
+    if (vlabel_tomb_.get(v_label_id)) {  // Add back a soft-deleted label
+      vlabel_tomb_.reset(v_label_id);
+    }
   }
+
   // Only grow, never shrink: a lower label_id being re-added must not
   // truncate entries for higher (possibly tombstoned) label_ids.
   if (v_schemas_.size() <= v_label_id) {
@@ -423,9 +435,18 @@ void Schema::AddEdgeLabel(
     const std::vector<Value>& default_property_values) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
-  label_t edge_label_id = edge_label_to_index(edge_label);
-  if (elabel_tomb_.get(edge_label_id)) {  // Add back a deleted label
+  label_t edge_label_id;
+
+  if (!elabel_free_list_.empty()) {
+    edge_label_id = elabel_free_list_.back();
+    elabel_free_list_.pop_back();
+    elabel_indexer_.reassign(edge_label_id, edge_label);
     elabel_tomb_.reset(edge_label_id);
+  } else {
+    edge_label_id = edge_label_to_index(edge_label);
+    if (elabel_tomb_.get(edge_label_id)) {  // Add back a soft-deleted label
+      elabel_tomb_.reset(edge_label_id);
+    }
   }
 
   uint32_t label_id =
@@ -451,7 +472,7 @@ label_t Schema::vertex_label_num() const {
 }
 
 label_t Schema::vertex_label_frontier() const {
-  return static_cast<label_t>(vlabel_indexer_.size());
+  return static_cast<label_t>(vlabel_indexer_.num_slots());
 }
 
 label_t Schema::edge_label_num() const {
@@ -459,7 +480,7 @@ label_t Schema::edge_label_num() const {
 }
 
 label_t Schema::edge_label_frontier() const {
-  return static_cast<label_t>(elabel_indexer_.size());
+  return static_cast<label_t>(elabel_indexer_.num_slots());
 }
 
 bool Schema::is_vertex_label_valid(const std::string& label) const {
@@ -473,11 +494,11 @@ bool Schema::is_edge_label_valid(const std::string& label) const {
 }
 
 bool Schema::is_vertex_label_valid(label_t label_id) const {
-  return label_id < vlabel_indexer_.size() && !vlabel_tomb_.get(label_id);
+  return label_id < vlabel_indexer_.num_slots() && !vlabel_tomb_.get(label_id);
 }
 
 bool Schema::is_edge_label_valid(label_t label_id) const {
-  return label_id < elabel_indexer_.size() && !elabel_tomb_.get(label_id);
+  return label_id < elabel_indexer_.num_slots() && !elabel_tomb_.get(label_id);
 }
 
 label_t Schema::get_vertex_label_id(const std::string& label) const {
@@ -504,7 +525,7 @@ label_t Schema::get_edge_label_id(const std::string& label) const {
 
 std::vector<label_t> Schema::get_vertex_label_ids() const {
   std::vector<label_t> ret;
-  for (label_t i = 0; i < vlabel_indexer_.size(); i++) {
+  for (label_t i = 0; i < vlabel_indexer_.num_slots(); i++) {
     if (!vlabel_tomb_.get(i)) {
       ret.push_back(i);
     }
@@ -514,7 +535,7 @@ std::vector<label_t> Schema::get_vertex_label_ids() const {
 
 std::vector<label_t> Schema::get_edge_label_ids() const {
   std::vector<label_t> ret;
-  for (label_t i = 0; i < elabel_indexer_.size(); i++) {
+  for (label_t i = 0; i < elabel_indexer_.num_slots(); i++) {
     if (!elabel_tomb_.get(i)) {
       ret.push_back(i);
     }
@@ -824,6 +845,15 @@ void Schema::Serialize(std::ostream& os) const {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
   arc << description_ << name_ << id_;
+  // Serialize free lists for label id reuse
+  arc << static_cast<uint32_t>(vlabel_free_list_.size());
+  for (const auto& lid : vlabel_free_list_) {
+    arc << lid;
+  }
+  arc << static_cast<uint32_t>(elabel_free_list_.size());
+  for (const auto& lid : elabel_free_list_) {
+    arc << lid;
+  }
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
   os.write(arc.GetBuffer(), size);
@@ -857,6 +887,19 @@ void Schema::Deserialize(std::istream& is) {
   }
 
   arc >> description_ >> name_ >> id_;
+  // Deserialize free lists for label id reuse
+  uint32_t v_free_size;
+  arc >> v_free_size;
+  vlabel_free_list_.resize(v_free_size);
+  for (uint32_t i = 0; i < v_free_size; ++i) {
+    arc >> vlabel_free_list_[i];
+  }
+  uint32_t e_free_size;
+  arc >> e_free_size;
+  elabel_free_list_.resize(e_free_size);
+  for (uint32_t i = 0; i < e_free_size; ++i) {
+    arc >> elabel_free_list_[i];
+  }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
   elabel_triplet_tomb_.Deserialize(is);
@@ -1955,18 +1998,23 @@ void Schema::DeleteVertexLabel(label_t v_label_id, bool is_soft) {
   assert(v_label_id < v_schemas_.size());
   if (!is_soft) {
     v_schemas_[v_label_id]->clear();
+    // Physical deletion: remove the label name from the indexer
+    // so that its lid can be reused by a future AddVertexLabel.
+    const std::string& old_name = vlabel_indexer_.get_key(v_label_id);
+    vlabel_indexer_.remove_from_hash(old_name);
+    vlabel_free_list_.push_back(v_label_id);
   }
   vlabel_tomb_.set(v_label_id);
 }
 
 void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
   auto e_label_id = get_edge_label_id_internal(label);
-  for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.size();
+  for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.num_slots();
        src_v_label++) {
     if (vlabel_tomb_.get(src_v_label)) {
       continue;
     }
-    for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.size();
+    for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.num_slots();
          dst_v_label++) {
       if (vlabel_tomb_.get(dst_v_label)) {
         continue;
@@ -1983,6 +2031,12 @@ void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
   }
 
   elabel_tomb_.set(e_label_id);
+  if (!is_soft) {
+    // Physical deletion: remove from indexer and recycle lid
+    const std::string& old_name = elabel_indexer_.get_key(e_label_id);
+    elabel_indexer_.remove_from_hash(old_name);
+    elabel_free_list_.push_back(e_label_id);
+  }
 }
 
 void Schema::DeleteEdgeLabel(const std::string& src_label,
@@ -2015,6 +2069,12 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
     }
     if (!edge_label_still_used) {
       elabel_tomb_.set(edge);
+      if (!is_soft) {
+        // Physical deletion: remove from indexer and recycle lid
+        const std::string& old_name = elabel_indexer_.get_key(edge);
+        elabel_indexer_.remove_from_hash(old_name);
+        elabel_free_list_.push_back(edge);
+      }
     }
   }
 }
@@ -2211,7 +2271,7 @@ Schema Schema::Compact() const {
     new_schema.v_schemas_.push_back(v_schemas_[v_label]);
   }
 
-  for (label_t e_label = 0; e_label < elabel_indexer_.size(); ++e_label) {
+  for (label_t e_label = 0; e_label < elabel_indexer_.num_slots(); ++e_label) {
     if (elabel_tomb_.get(e_label)) {
       continue;
     }
@@ -2220,7 +2280,7 @@ Schema Schema::Compact() const {
     if (!new_schema.elabel_indexer_.add(elabel_name, new_label)) {
       THROW_RUNTIME_ERROR("Failed to add edge label: " + elabel_name);
     }
-    assert(new_label == new_schema.elabel_indexer_.size() - 1);
+    assert(new_label == new_schema.elabel_indexer_.num_slots() - 1);
   }
 
   uint32_t max_e_triplet_index = 0;
@@ -2252,7 +2312,7 @@ Schema Schema::Compact() const {
     new_schema.e_schemas_[new_index] = pair.second;
   }
   new_schema.vlabel_tomb_.resize(new_schema.v_schemas_.size());
-  new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.size());
+  new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.num_slots());
   new_schema.elabel_triplet_tomb_.resize(max_e_triplet_index + 1);
   return new_schema;
 }
@@ -2278,6 +2338,8 @@ Schema Schema::Clone() const {
   cloned.vlabel_tomb_ = vlabel_tomb_;
   cloned.elabel_tomb_ = elabel_tomb_;
   cloned.elabel_triplet_tomb_ = elabel_triplet_tomb_;
+  cloned.vlabel_free_list_ = vlabel_free_list_;
+  cloned.elabel_free_list_ = elabel_free_list_;
 
   return cloned;
 }

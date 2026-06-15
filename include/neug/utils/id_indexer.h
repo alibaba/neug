@@ -547,7 +547,78 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     return true;
   }
 
-  bool remove(const KEY_T& oid) {
+  /// Remove a key from the hash table only (lid-stable).
+  /// Clears the hash slot and performs robin-hood backward shift to
+  /// maintain probe-chain integrity. Does NOT modify keys_[lid] or
+  /// shrink keys_ — the lid slot becomes "vacant" and can be reused
+  /// by reassign(). Returns the lid of the removed key, or -1 if not found.
+  INDEX_T remove_from_hash(const KEY_T& oid) {
+    if (num_elements_ == 0) {
+      return static_cast<INDEX_T>(-1);
+    }
+    size_t index =
+        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+
+    int8_t distance_from_desired = 0;
+    for (; distances_[index] >= distance_from_desired;
+         ++index, ++distance_from_desired) {
+      INDEX_T cur_lid = indices_[index];
+      if (keys_[cur_lid] == oid) {
+        // Robin-hood backward shift: move subsequent entries forward
+        // to fill the gap, maintaining probe-chain correctness.
+        for (size_t next = index + 1; distances_[next] > 0; ++next) {
+          // An entry at distance > 0 means it was displaced from its
+          // ideal position. Shifting it forward reduces its distance
+          // by 1, preserving the robin-hood invariant.
+          indices_[index] = indices_[next];
+          distances_[index] = distances_[next] - 1;
+          index = next;
+        }
+        // The final shifted-out slot is now empty
+        indices_[index] = std::numeric_limits<INDEX_T>::max();
+        distances_[index] = -1;
+        --num_elements_;
+        return cur_lid;
+      }
+    }
+    return static_cast<INDEX_T>(-1);
+  }
+
+  /// Reassign: bind a new key name to an existing lid slot.
+  /// Removes the old key's hash mapping and inserts the new key's
+  /// hash mapping, both pointing to the same lid. keys_[lid] is
+  /// updated to new_key. num_elements_ stays unchanged.
+  void reassign(INDEX_T lid, const KEY_T& new_key) {
+    // 1) Remove old key from hash table.
+    // remove_from_hash may fail (return -1) if the old key was already
+    // removed — e.g. after a physical deletion that called
+    // remove_from_hash, then checkpoint serialization/deserialization,
+    // and then reassign on the recycled lid.  When it fails, it does
+    // NOT decrement num_elements_, so we must not compensate.
+    KEY_T old_key = keys_[lid];
+    bool removed = (remove_from_hash(old_key) != static_cast<INDEX_T>(-1));
+
+    // 2) Update keys_[lid] with the new name
+    keys_[lid] = new_key;
+
+    // 3) Insert new key into hash table pointing to the same lid.
+    // If remove_from_hash succeeded, it decremented num_elements_ by 1.
+    // emplace_new_value will increment num_elements_ by 1, so the net
+    // change is zero — same as before reassign.  We pre-increment here
+    // so that emplace_new_value's load-factor check sees the correct
+    // count.  If remove_from_hash failed, num_elements_ was unchanged,
+    // so we skip the pre-increment; emplace_new_value will still
+    // increment by 1, correctly reflecting the new entry.
+    if (removed) {
+      ++num_elements_;
+    }
+    emplace(lid);
+  }
+
+  /// Legacy remove: unstable lid version (swap-with-back).
+  /// DO NOT USE for Schema label management — it changes other keys'
+  /// lid positions, breaking label-id stability.
+  bool remove_unstable(const KEY_T& oid) {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
 
@@ -680,8 +751,14 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   size_t size() const override { return num_elements_; }
 
+  /// Number of lid slots allocated in keys_.  After physical deletion
+  /// (remove_from_hash), num_elements_ < keys_.size() because the slot
+  /// stays allocated but is no longer counted as "active".  Use this
+  /// when iterating over *all* lid positions, including vacant ones.
+  size_t num_slots() const { return keys_.size(); }
+
   bool get_key(INDEX_T lid, KEY_T& oid) const {
-    if (static_cast<size_t>(lid) >= num_elements_) {
+    if (static_cast<size_t>(lid) >= keys_.size()) {
       return false;
     }
     oid = keys_[lid];
@@ -689,10 +766,10 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   }
 
   const KEY_T& get_key(INDEX_T lid) const {
-    if (static_cast<size_t>(lid) >= num_elements_) {
+    if (static_cast<size_t>(lid) >= keys_.size()) {
       THROW_INDEX_EXCEPTION("Index out of range in IdIndexer::get_key " +
                             std::to_string(lid) + " with size " +
-                            std::to_string(num_elements_));
+                            std::to_string(keys_.size()));
     }
     return keys_[lid];
   }
