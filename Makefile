@@ -2,6 +2,7 @@ SHELL := /bin/bash
 
 ROOT_BUILD         := $(CURDIR)/build
 BUILD_TYPE         ?= Release
+BUILD_TEST         ?= OFF
 EXTRA_CMAKE_FLAGS  ?=
 
 NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
@@ -9,7 +10,7 @@ NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
               || echo 4)
 JOBS  ?= $(NPROC)
 
-.PHONY: help check-tools cpp-build cpp-test python-dev python-wheel python-clean node-dev node-pack node-clean clean dist-clean format-check full-check
+.PHONY: help check-tools cpp-build python-dev python-wheel python-clean node-dev node-pack node-clean clean dist-clean format-check full-check
 
 .DEFAULT_GOAL := help
 
@@ -17,13 +18,8 @@ check-tools:
 	@command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but not found."; exit 1; }
 
 cpp-build: check-tools  ## Build C++ core only (no Python bindings)
-	cmake -S . -B $(ROOT_BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_PYTHON=OFF $(EXTRA_CMAKE_FLAGS)
+	cmake -S . -B $(ROOT_BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_PYTHON=OFF -DBUILD_TEST=$(BUILD_TEST) $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) -j$(JOBS)
-
-cpp-test: check-tools  ## Build C++ with tests enabled + run ctest
-	cmake -S . -B $(ROOT_BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_PYTHON=OFF -DBUILD_TEST=ON $(EXTRA_CMAKE_FLAGS)
-	cmake --build $(ROOT_BUILD) -j$(JOBS)
-	ctest --test-dir $(ROOT_BUILD) --output-on-failure
 
 python-dev: check-tools  ## Install Python dev environment (bootstraps root build)
 	@cd tools/python_bind && \
