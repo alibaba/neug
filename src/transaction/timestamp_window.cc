@@ -15,6 +15,8 @@
 
 #include "neug/transaction/timestamp_window.h"
 
+#include "glog/logging.h"
+
 TimestampWindow::TimestampWindow() {
   // Initialize completed timestamp bitmap
   completed_ts_ = std::make_unique<std::atomic<bool>[]>(kWindowSize);
@@ -34,6 +36,8 @@ void TimestampWindow::init() {
 
 void TimestampWindow::mark_completed(uint32_t ts) {
   size_t idx = ts_index(ts);
+  CHECK(!completed_ts_[idx].load())
+      << "Timestamp " << ts << " already marked, maybe overflow?";
   completed_ts_[idx].store(true, std::memory_order_release);
 }
 

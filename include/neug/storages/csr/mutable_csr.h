@@ -197,8 +197,15 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
     auto cap = caps[vid];
+    if (cap == 0) {
+      cap = 8;  // initial capacity
+    }
     void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
-    memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * cap);
+    if (caps[vid] > 0) {
+      memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * cap);
+    } else {
+      caps[vid] = cap;
+    }
     buffers[vid] = static_cast<nbr_t*>(new_adj_list);
     locks_[vid].unlock();
   }

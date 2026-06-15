@@ -157,7 +157,7 @@ void StorageStore::releaseSnapshotByIndex(int slot_index) {
 }
 
 const PropertyGraph& StorageStore::currentSnapshot() const {
-  int slot_index = cur_slot_index_.load();
+  int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   CHECK(slots_[slot_index].storage_ != nullptr);
   return *slots_[slot_index].storage_;
 }

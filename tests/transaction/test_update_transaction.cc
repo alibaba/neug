@@ -942,6 +942,434 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   db.Close();
 }
 
+// ============================================================================
+// Regression tests for Issue #2 and Issue #3 (fork_bitmap_ consistency
+// after DDL operations that change table structure).
+//
+// Issue #2: After DeleteVertexProperties / DeleteEdgeProperties the
+// columns_forked vector was not updated to reflect column index shifting
+// caused by Table::delete_column().  This led to out-of-bounds ForkColumn
+// calls (crash) or wrong columns being marked as forked.
+//
+// Issue #3: After DeleteVertexType / DeleteEdgeType the fork_bitmap_
+// still contained entries for the deleted types, which could interfere
+// with subsequent DDL/DML in the same transaction.
+// ============================================================================
+
+// Issue #2 (vertex): delete a property then insert a vertex.
+// ensureVertexTableForkedForInsert iterates columns_forked — stale
+// entries cause ForkColumn(out-of-bounds) -> crash without the fix.
+TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    // person has name(0), age(1) — 2 non-PK columns
+    // Delete "name" -> table now has age(0) — 1 column
+    EXPECT_TRUE(interface.DeleteVertexProperties(
+        BuildDeleteVertexPropertiesParam("person", {"name"})));
+
+    // Insert a new person vertex — triggers ensureVertexTableForkedForInsert
+    // which iterates columns_forked.  Without the fix columns_forked still
+    // has 2 entries -> ForkColumn(1) on a 1-column table -> crash.
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    EXPECT_TRUE(interface.AddVertex(person_label,
+                                    neug::execution::Value::INT64(3),
+                                    {neug::execution::Value::INT64(28)}, vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify the new vertex is readable and "name" is gone.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
+    neug::vid_t vid;
+    ASSERT_TRUE(
+        gi.GetVertexIndex(person_label, neug::execution::Value::INT64(3), vid));
+    auto age_col = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<int64_t>>(
+        gi.GetVertexPropColumn(person_label, "age"));
+    ASSERT_TRUE(age_col);
+    EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 28);
+  }
+  db.Close();
+}
+
+// Issue #2 (vertex, column index shift): add extra properties, fork one,
+// delete a middle property (shifting indices), then update a remaining
+// property and insert a vertex.  Without the fix, stale columns_forked
+// causes either wrong-fork or out-of-bounds ForkColumn -> crash.
+TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // First transaction: add two more properties to person.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
+        std::make_pair("email",
+                       neug::execution::Value::STRING(std::string(""))),
+        std::make_pair("score", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(txn.AddVertexProperties(
+        BuildAddVertexPropertiesParam("person", new_props)));
+    // Set initial values for person id=1
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             vid));
+    // name(0), age(1), email(2), score(3)
+    EXPECT_TRUE(txn.UpdateVertexProperty(
+        person_label, vid, 2,
+        neug::execution::Value::STRING(std::string("alice@test.com"))));
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 3,
+                                         neug::execution::Value::DOUBLE(95.5)));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
+  // In this transaction:
+  //   1. Update "age" (col 1) -> columns_forked[1] = true
+  //   2. Delete "name" (col 0) -> age shifts to 0, email to 1, score to 2
+  //   3. Without fix: columns_forked = [false, true, false, false] (4 entries)
+  //      Update email (now col 1) -> columns_forked[1] = stale true -> skip
+  //      fork Insert vertex -> ForkColumn(3) on 3-column table -> crash
+  //   4. With fix: columns_forked correctly has 3 entries after deletion
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             vid));
+
+    // Step 1: update "age" (col 1) to trigger forking
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 1,
+                                         neug::execution::Value::INT64(31)));
+
+    // Step 2: delete "name" (col 0) — shifts column indices
+    EXPECT_TRUE(interface.DeleteVertexProperties(
+        BuildDeleteVertexPropertiesParam("person", {"name"})));
+
+    // After deletion: age(0), email(1), score(2) — 3 non-PK columns
+    // Step 3: update remaining properties with shifted indices
+    EXPECT_TRUE(txn.UpdateVertexProperty(
+        person_label, vid, 1,
+        neug::execution::Value::STRING(std::string("new@test.com"))));
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 2,
+                                         neug::execution::Value::DOUBLE(88.0)));
+
+    // Step 4: insert a new vertex — without the fix, ensureVertexTable-
+    // ForkedForInsert iterates stale columns_forked (4 entries for 3 cols)
+    // and calls ForkColumn(3) -> out-of-bounds crash.
+    neug::vid_t new_vid;
+    EXPECT_TRUE(interface.AddVertex(
+        person_label, neug::execution::Value::INT64(3),
+        {neug::execution::Value::INT64(22),
+         neug::execution::Value::STRING(std::string("charlie@test.com")),
+         neug::execution::Value::DOUBLE(77.0)},
+        new_vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify data correctness
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+
+    // "name" is gone
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
+
+    // person id=1: age=31, email=new@test.com, score=88.0
+    {
+      neug::vid_t vid;
+      CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                              vid));
+      auto age_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label, "age"));
+      ASSERT_TRUE(age_col);
+      EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 31);
+      auto email_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<std::string_view>>(
+          gi.GetVertexPropColumn(person_label, "email"));
+      ASSERT_TRUE(email_col);
+      EXPECT_EQ(email_col->get_any(vid).GetValue<std::string>(),
+                "new@test.com");
+      auto score_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<double>>(
+          gi.GetVertexPropColumn(person_label, "score"));
+      ASSERT_TRUE(score_col);
+      EXPECT_EQ(score_col->get_any(vid).GetValue<double>(), 88.0);
+    }
+
+    // person id=3: age=22, email=charlie@test.com, score=77.0
+    {
+      neug::vid_t vid;
+      CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(3),
+                              vid));
+      auto age_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label, "age"));
+      ASSERT_TRUE(age_col);
+      EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 22);
+    }
+  }
+  db.Close();
+}
+
+// Issue #2 (edge): delete an edge property then insert an edge.
+// ensureEdgeTableForkedForInsert iterates columns_forked — stale
+// entries cause ForkColumn(out-of-bounds) -> crash without the fix.
+TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // First, add a third property to "created" so that deleting one still
+  // leaves 2 properties (avoids bundled<->unbundled conversion path).
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
+        std::make_pair("rating", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(txn.AddEdgeProperties(BuildAddEdgePropertiesParam(
+        "person", "software", "created", new_props)));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Now "created" has weight(0), since(1), rating(2) — 3 columns
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "since" -> table now has weight(0), rating(1) — 2 columns
+    EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
+        "person", "software", "created", {"since"})));
+
+    // Insert a new edge.  ensureEdgeTableForkedForInsert iterates
+    // columns_forked.  Without the fix columns_forked still has 3 entries
+    // -> ForkColumn(2) on a 2-column table -> crash.
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    neug::vid_t p1_vid, s1_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    CHECK(txn.GetVertexIndex(software_label, neug::execution::Value::INT64(1),
+                             s1_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, software_label, s1_vid,
+                                  created_label,
+                                  {neug::execution::Value::DOUBLE(0.9),
+                                   neug::execution::Value::DOUBLE(4.5)},
+                                  edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify the new edge data is correct
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+
+    // "since" is gone
+    EXPECT_EQ(gi.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("since"),
+              -1);
+
+    // weight and rating should be accessible
+    auto weight_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+    auto rating_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 1);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
+    neug::vid_t p1_vid;
+    CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                            p1_vid));
+    int edge_count = 0;
+    auto edge_iter = view.get_edges(p1_vid);
+    for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+      edge_count++;
+      if (it.get_vertex() == [&]() {
+            neug::vid_t s1_vid;
+            CHECK(gi.GetVertexIndex(software_label,
+                                    neug::execution::Value::INT64(1), s1_vid));
+            return s1_vid;
+          }()) {
+        // One of the edges to software(1) should have the new values
+        double w = weight_accessor.get_data(it).GetValue<double>();
+        double r = rating_accessor.get_data(it).GetValue<double>();
+        if (w == 0.9) {
+          EXPECT_EQ(r, 4.5);
+        }
+      }
+    }
+    EXPECT_EQ(edge_count, 2);  // original + new
+  }
+  db.Close();
+}
+
+// Issue #3 (vertex): DeleteVertexType with edges then create new types
+// and insert data in the same transaction.  Without the fix,
+// fork_bitmap_ retains stale entries for the deleted vertex table and
+// its related edge tables, which can interfere with subsequent DML.
+TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "software" — this also removes "created" edges
+    EXPECT_TRUE(interface.DeleteVertexType("software"));
+
+    // Create a new vertex type "company" and edge type "employed_by"
+    std::vector<std::pair<std::string, neug::execution::Value>> v_props = {
+        std::make_pair("id", neug::execution::Value::INT64(0)),
+        std::make_pair("name",
+                       neug::execution::Value::STRING(std::string("")))};
+    EXPECT_TRUE(interface.CreateVertexType(
+        BuildCreateVertexTypeParam("company", v_props, {"id"})));
+    EXPECT_TRUE(interface.CreateEdgeType(
+        BuildCreateEdgeTypeParam("person", "company", "employed_by", {})));
+
+    // Insert data into the new types
+    auto company_label = interface.schema().get_vertex_label_id("company");
+    neug::vid_t cmp_vid;
+    EXPECT_TRUE(interface.AddVertex(
+        company_label, neug::execution::Value::INT64(1),
+        {neug::execution::Value::STRING(std::string("TechCorp"))}, cmp_vid));
+
+    auto person_label = interface.schema().get_vertex_label_id("person");
+    auto employ_label = interface.schema().get_edge_label_id("employed_by");
+    neug::vid_t p1_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, company_label, cmp_vid,
+                                  employ_label, {}, edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify: "software" and "created" are gone; new types work correctly
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    EXPECT_FALSE(gi.schema().is_vertex_label_valid("software"));
+    EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
+    EXPECT_TRUE(gi.schema().is_vertex_label_valid("company"));
+    EXPECT_TRUE(gi.schema().is_edge_label_valid("employed_by"));
+
+    auto company_label = gi.schema().get_vertex_label_id("company");
+    EXPECT_EQ(count_vertices(gi, company_label), 1);
+
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto employ_label = gi.schema().get_edge_label_id("employed_by");
+    EXPECT_EQ(count_edges(gi, person_label, company_label, employ_label, true),
+              1);
+  }
+  db.Close();
+}
+
+// Issue #3 (edge): DeleteEdgeType then create a new edge type and
+// insert data in the same transaction.  Without the fix, fork_bitmap_
+// retains stale entries for the deleted edge table.
+TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "knows" edge type
+    EXPECT_TRUE(interface.DeleteEdgeType("person", "person", "knows"));
+
+    // Create a new edge type "friend_of" between person and person
+    std::vector<std::pair<std::string, neug::execution::Value>> e_props = {
+        std::make_pair("closeness", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(interface.CreateEdgeType(
+        BuildCreateEdgeTypeParam("person", "person", "friend_of", e_props)));
+
+    // Insert a new edge
+    auto person_label = interface.schema().get_vertex_label_id("person");
+    auto friend_label = interface.schema().get_edge_label_id("friend_of");
+    neug::vid_t p1_vid, p2_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
+                             p2_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(
+        person_label, p1_vid, person_label, p2_vid, friend_label,
+        {neug::execution::Value::DOUBLE(0.75)}, edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify: "knows" is gone; "friend_of" works correctly
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    EXPECT_FALSE(gi.schema().is_edge_label_valid("knows"));
+    EXPECT_TRUE(gi.schema().is_edge_label_valid("friend_of"));
+
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto friend_label = gi.schema().get_edge_label_id("friend_of");
+    EXPECT_EQ(count_edges(gi, person_label, person_label, friend_label, true),
+              1);
+
+    // Verify edge property value
+    auto ed_accessor =
+        gi.GetEdgeDataAccessor(person_label, person_label, friend_label, 0);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, person_label,
+                                               friend_label);
+    neug::vid_t p1_vid;
+    CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                            p1_vid));
+    auto edges = view.get_edges(p1_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.75);
+    }
+  }
+  db.Close();
+}
+
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   // Update a bundled edge property and abort the transaction
   neug::NeugDB db;

@@ -253,7 +253,8 @@ void NeugDB::openGraphAndIngestWals() {
     ingestWals(*wal_parser, *graph);
 
     // Create StorageStore with the graph at timestamp 0
-    snapshot_store_ = std::make_unique<StorageStore>(128, graph);
+    snapshot_store_ =
+        std::make_unique<StorageStore>(config_.storage_slot_num, graph);
 
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();

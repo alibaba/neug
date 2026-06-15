@@ -77,6 +77,10 @@ class IVersionManager {
  * - update_state_: 0=normal, 1=update-exec (inserters drained),
  *   2=update-commit (new reads block; existing reads continue) /
  *   compact (readers+inserters drained).
+ * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
+ *   + post-check) to prevent ABA races with start_commit_update_timestamp.
+ * - start_commit_update_timestamp uses seq_cst store + drain spin to ensure
+ *   any reader in the ABA window has rolled back before proceeding.
  * - SpinLock lock_: serializes read_ts advancement (check-and-advance
  *   in release_insert/update_timestamp).
  * - TimestampWindow ts_window_: tracks completed timestamps for read_ts

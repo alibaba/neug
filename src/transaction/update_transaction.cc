@@ -440,11 +440,33 @@ Status UpdateTransaction::DeleteVertexProperties(
                         vertex_type_name + "].");
     }
   }
+
+  // Collect column IDs before deletion — Table::delete_column() shifts
+  // indices of subsequent columns, so we must resolve them while the
+  // table still has its pre-deletion layout.
+  std::vector<int> del_col_ids;
+  auto& v_table = cow_storage_->get_vertex_table(v_label);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    int col_id = v_table.get_table().get_column_id_by_name(prop_name);
+    if (col_id >= 0) {
+      del_col_ids.push_back(col_id);
+    }
+  }
+
   DeleteVertexPropertiesRedo::Serialize(arc_, config);
   op_num_ += 1;
   auto status = cow_storage_->DeleteVertexProperties(config);
   if (status.ok()) {
     schema_changed_ = true;
+    // Erase deleted column entries from columns_forked in descending
+    // order so that erasing a higher index doesn't shift lower ones.
+    std::sort(del_col_ids.rbegin(), del_col_ids.rend());
+    auto& columns_forked = fork_bitmap_.vertex_tables[v_label].columns_forked;
+    for (int col_id : del_col_ids) {
+      if (static_cast<size_t>(col_id) < columns_forked.size()) {
+        columns_forked.erase(columns_forked.begin() + col_id);
+      }
+    }
   }
   return status;
 }
@@ -467,11 +489,62 @@ Status UpdateTransaction::DeleteEdgeProperties(
                         dst_type + "].");
     }
   }
+
+  // Collect pre-deletion state so we can update fork_bitmap_ correctly.
+  // EdgeTable::DeleteProperties may recreate the table entirely
+  // (bundled↔unbundled conversion) in which case we must reset the
+  // entire fork state rather than erasing individual entries.
+  uint32_t triplet_id = cow_storage_->schema().generate_edge_label(
+      src_label_id, dst_label_id, edge_label_id);
+  auto& edge_table = cow_storage_->get_edge_table_by_index(triplet_id);
+  bool was_bundled = edge_table.get_edge_schema_ptr()->is_bundled();
+  size_t old_col_count =
+      fork_bitmap_.edge_tables.count(triplet_id)
+          ? fork_bitmap_.edge_tables.at(triplet_id).columns_forked.size()
+          : 0;
+  std::vector<int> del_col_ids;
+  if (!was_bundled) {
+    auto* table = edge_table.table();
+    if (table) {
+      for (const auto& prop_name : config.GetDeleteProperties()) {
+        int col_id = table->get_column_id_by_name(prop_name);
+        if (col_id >= 0) {
+          del_col_ids.push_back(col_id);
+        }
+      }
+    }
+  }
+
   DeleteEdgePropertiesRedo::Serialize(arc_, config);
   op_num_ += 1;
   auto status = cow_storage_->DeleteEdgeProperties(config);
   if (status.ok()) {
     schema_changed_ = true;
+    auto& state = fork_bitmap_.edge_tables[triplet_id];
+    auto edge_schema = cow_storage_->schema().get_edge_schema(
+        src_label_id, dst_label_id, edge_label_id);
+    size_t new_col_count = edge_schema ? edge_schema->property_names.size() : 0;
+    bool is_now_bundled = edge_schema && edge_schema->is_bundled();
+
+    if (was_bundled != is_now_bundled ||
+        new_col_count != old_col_count - del_col_ids.size()) {
+      // Table structure was recreated (bundled↔unbundled conversion or
+      // all columns deleted).  All new structures are fresh in the COW
+      // copy, so mark everything as already forked.
+      state.out_csr_forked = true;
+      state.in_csr_forked = true;
+      state.columns_forked.assign(new_col_count, true);
+      state.out_adjlists_forked.clear();
+      state.in_adjlists_forked.clear();
+    } else {
+      // Simple column deletion — erase entries in descending order.
+      std::sort(del_col_ids.rbegin(), del_col_ids.rend());
+      for (int col_id : del_col_ids) {
+        if (static_cast<size_t>(col_id) < state.columns_forked.size()) {
+          state.columns_forked.erase(state.columns_forked.begin() + col_id);
+        }
+      }
+    }
   }
   return status;
 }
@@ -481,11 +554,40 @@ Status UpdateTransaction::DeleteVertexType(
   label_t v_label;
   RETURN_IF_NOT_OK(
       resolveVertexLabel(cow_storage_->schema(), vertex_type_name, v_label));
+
+  // Collect related edge triplet IDs before deletion.
+  // PropertyGraph::DeleteVertexType removes them from edge_tables_, so
+  // we must capture them while the schema is still intact.
+  std::vector<uint32_t> related_edge_ids;
+  const auto& schema = cow_storage_->schema();
+  auto v_label_count = schema.vertex_label_frontier();
+  auto e_label_count = schema.edge_label_frontier();
+  for (label_t i = 0; i < v_label_count; ++i) {
+    if (!schema.is_vertex_label_valid(i)) {
+      continue;
+    }
+    for (label_t e = 0; e < e_label_count; ++e) {
+      if (schema.is_edge_triplet_valid(v_label, i, e)) {
+        related_edge_ids.push_back(schema.generate_edge_label(v_label, i, e));
+      }
+      if (v_label != i && schema.is_edge_triplet_valid(i, v_label, e)) {
+        related_edge_ids.push_back(schema.generate_edge_label(i, v_label, e));
+      }
+    }
+  }
+
   DeleteVertexTypeRedo::Serialize(arc_, vertex_type_name);
   op_num_ += 1;
   auto status = cow_storage_->DeleteVertexType(v_label);
   if (status.ok()) {
     schema_changed_ = true;
+    // Reset the vertex table's fork state (tombstoned, no longer usable).
+    fork_bitmap_.vertex_tables[v_label] = VertexTableForkState();
+    // Remove related edge table fork states (they were erased from
+    // PropertyGraph::edge_tables_ by DeleteVertexType).
+    for (uint32_t edge_id : related_edge_ids) {
+      fork_bitmap_.edge_tables.erase(edge_id);
+    }
   }
   return status;
 }
@@ -497,12 +599,19 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   RETURN_IF_NOT_OK(resolveEdgeTriplet(cow_storage_->schema(), src_type,
                                       dst_type, edge_type, src_label_id,
                                       dst_label_id, edge_label_id));
+  // Capture the triplet ID before deletion so we can clean up fork_bitmap_.
+  uint32_t triplet_id = cow_storage_->schema().generate_edge_label(
+      src_label_id, dst_label_id, edge_label_id);
+
   DeleteEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type);
   op_num_ += 1;
   auto status =
       cow_storage_->DeleteEdgeType(src_label_id, dst_label_id, edge_label_id);
   if (status.ok()) {
     schema_changed_ = true;
+    // Remove the edge table's fork state entry (it was erased from
+    // PropertyGraph::edge_tables_ by DeleteEdgeType).
+    fork_bitmap_.edge_tables.erase(triplet_id);
   }
   return status;
 }

@@ -43,15 +43,22 @@ void SLVersionManager::init_ts(uint32_t ts, int thread_num) {
 }
 
 uint32_t SLVersionManager::acquire_read_timestamp() {
-  // Fast path: optimistically increment counter
+  // Pre-check: avoid incrementing if in commit phase
+  int state = update_state_.load(std::memory_order_acquire);
+  if (state == 2)
+    [[unlikely]] { return acquire_read_timestamp_slow(); }
+
+  // Optimistically increment counter
   active_readers_.fetch_add(1, std::memory_order_acq_rel);
 
-  // Single check: only block during update commit phase
-  int state = update_state_.load(std::memory_order_acquire);
+  // Double-check: ensure commit didn't start between pre-check and increment.
+  // This eliminates the ABA race where a reader increments active_readers_
+  // but misses a concurrent update_state_ 0->1->2 transition.
+  state = update_state_.load(std::memory_order_acquire);
   if (state != 2)
     [[likely]] { return read_ts_.load(std::memory_order_acquire); }
 
-  // Rollback counter
+  // Rollback: commit started while we were incrementing
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 
   // Slow path
@@ -163,8 +170,27 @@ void SLVersionManager::start_commit_update_timestamp(uint32_t ts) {
   (void) ts;
 
   // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing
-  // readers
-  update_state_.store(2, std::memory_order_release);
+  // readers. Use seq_cst to ensure the store is globally visible before we
+  // proceed, which closes the ABA window for concurrent acquire_read_timestamp
+  // callers that may have passed their pre-check but not yet reached their
+  // double-check.
+  update_state_.store(2, std::memory_order_seq_cst);
+
+  // Drain ABA-window readers: any reader that incremented active_readers_
+  // just before this store will see update_state_==2 in their double-check
+  // and roll back (decrement active_readers_). We wait until active_readers_
+  // stops decreasing to ensure all such readers have completed their rollback.
+  // This does NOT wait for legitimate existing readers — they may hold their
+  // timestamps for an arbitrarily long time. The drain is fast because ABA-
+  // window readers roll back within nanoseconds (one atomic decrement).
+  int prev = active_readers_.load(std::memory_order_acquire);
+  while (true) {
+    int curr = active_readers_.load(std::memory_order_acquire);
+    if (curr >= prev) {
+      break;
+    }
+    prev = curr;
+  }
 }
 
 void SLVersionManager::release_update_timestamp(uint32_t ts) {
