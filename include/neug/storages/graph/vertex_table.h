@@ -126,19 +126,6 @@ class VertexTable {
     std::swap(memory_level_, other.memory_level_);
   }
 
-  VertexTable& operator=(VertexTable&& other) noexcept {
-    if (this != &other) {
-      ckp_ = std::move(other.ckp_);
-      indexer_ = std::move(other.indexer_);
-      table_ = std::move(other.table_);
-      pk_type_ = other.pk_type_;
-      vertex_schema_ = std::move(other.vertex_schema_);
-      v_ts_ = std::move(other.v_ts_);
-      memory_level_ = other.memory_level_;
-    }
-    return *this;
-  }
-
   void Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
   // --- Snapshot key builders (flat manifest convention) ---

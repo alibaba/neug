@@ -260,22 +260,22 @@ class UpdateTransaction {
   void release();
 
   // --- ForkBitmap-driven lazy fork helpers ---
-  void EnsureVertexTableForkedForInsert(label_t label);
-  void EnsureVertexTableForkedForDelete(label_t label);
-  void EnsureVertexColumnForked(label_t label, int32_t col_id);
-  void EnsureEdgeTableForkedForInsert(uint32_t edge_triplet_id);
-  void EnsureEdgeTableForkedForDelete(uint32_t edge_triplet_id);
-  void EnsureEdgeColumnForked(uint32_t edge_triplet_id, int32_t col_id);
-  void EnsureAdjlistMutable(uint32_t edge_triplet_id, vid_t src_lid,
+  void ensureVertexTableForkedForInsert(label_t label);
+  void ensureVertexTableForkedForDelete(label_t label);
+  void ensureVertexColumnForked(label_t label, int32_t col_id);
+  void ensureEdgeTableForkedForInsert(uint32_t edge_triplet_id);
+  void ensureEdgeTableForkedForDelete(uint32_t edge_triplet_id);
+  void ensureEdgeColumnForked(uint32_t edge_triplet_id, int32_t col_id);
+  void ensureAdjlistMutable(uint32_t edge_triplet_id, vid_t src_lid,
                             vid_t dst_lid, Allocator& alloc);
-  void EnsureVertexCapacity(label_t label, size_t capacity);
-  void EnsureEdgeCapacity(label_t src_label, label_t dst_label,
+  void ensureVertexCapacity(label_t label, size_t capacity);
+  void ensureEdgeCapacity(label_t src_label, label_t dst_label,
                           label_t edge_label, size_t capacity);
 
   /// Prepare COW for deleting vertices: fork vertex timestamp, related edge
   /// CSRs, and per-vertex adjlists so that the storage layer can safely
   /// mutate them under snapshot isolation.
-  void EnsureVertexDeleteCOW(label_t label, const std::vector<vid_t>& lids);
+  void ensureVertexDeleteCOW(label_t label, const std::vector<vid_t>& lids);
 
   // COW storage - the forked PropertyGraph
   std::shared_ptr<PropertyGraph> cow_storage_;

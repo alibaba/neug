@@ -531,7 +531,7 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
   if (v_table.Size() >= v_table.Capacity()) {
     size_t new_capacity =
         v_table.Size() < 4096 ? 4096 : v_table.Size() + v_table.Size() / 4;
-    EnsureVertexCapacity(label, new_capacity);
+    ensureVertexCapacity(label, new_capacity);
     auto status = cow_storage_->EnsureCapacity(label, new_capacity);
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space for vertex of label "
@@ -541,7 +541,7 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
     }
   }
 
-  EnsureVertexTableForkedForInsert(label);
+  ensureVertexTableForkedForInsert(label);
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
   auto status =
@@ -563,7 +563,7 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   RemoveVertexRedo::Serialize(arc_, label, oid);
   op_num_ += 1;
 
-  EnsureVertexDeleteCOW(label, {lid});
+  ensureVertexDeleteCOW(label, {lid});
 
   auto status = cow_storage_->DeleteVertex(label, lid, timestamp_);
   if (!status.ok()) {
@@ -586,7 +586,7 @@ Status UpdateTransaction::AddEdge(
         edge_table.PropTableSize() < 4096
             ? 4096
             : edge_table.PropTableSize() + edge_table.PropTableSize() / 4;
-    EnsureEdgeCapacity(src_label, dst_label, edge_label, new_capacity);
+    ensureEdgeCapacity(src_label, dst_label, edge_label, new_capacity);
     auto status = cow_storage_->EnsureCapacity(src_label, dst_label, edge_label,
                                                new_capacity);
     if (!status.ok()) {
@@ -597,8 +597,8 @@ Status UpdateTransaction::AddEdge(
   }
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeTableForkedForInsert(edge_idx);
-  EnsureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
+  ensureEdgeTableForkedForInsert(edge_idx);
+  ensureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
@@ -621,7 +621,7 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
 
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeTableForkedForDelete(edge_idx);
+  ensureEdgeTableForkedForDelete(edge_idx);
 
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src_lid);
@@ -639,7 +639,7 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
           arc_, src_label, GetVertexId(src_label, src_lid), dst_label,
           GetVertexId(dst_label, dst_lid), edge_label, oe_offset, ie_offset);
       op_num_ += 1;
-      EnsureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
+      ensureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
       auto status = cow_storage_->DeleteEdge(src_label, src_lid, dst_label,
                                              dst_lid, edge_label, oe_offset,
                                              ie_offset, timestamp_);
@@ -667,14 +667,14 @@ bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
 
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeTableForkedForDelete(edge_idx);
+  ensureEdgeTableForkedForDelete(edge_idx);
 
   RemoveEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, oe_offset, ie_offset);
   op_num_ += 1;
 
-  EnsureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
+  ensureAdjlistMutable(edge_idx, src_lid, dst_lid, alloc_);
   auto status =
       cow_storage_->DeleteEdge(src_label, src_lid, dst_label, dst_lid,
                                edge_label, oe_offset, ie_offset, timestamp_);
@@ -726,7 +726,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   if (types[col_id].id() != value.type().id()) {
     return false;
   }
-  EnsureVertexColumnForked(label, col_id);
+  ensureVertexColumnForked(label, col_id);
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
                                   value);
 
@@ -753,7 +753,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
 
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeColumnForked(edge_idx, col_id);
+  ensureEdgeColumnForked(edge_idx, col_id);
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
@@ -772,7 +772,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
                                     GetVertexId(dst_label, dst), edge_label,
                                     oe_offset, ie_offset, col_id, value);
       op_num_ += 1;
-      EnsureAdjlistMutable(edge_idx, src, dst, alloc_);
+      ensureAdjlistMutable(edge_idx, src, dst, alloc_);
       auto status = cow_storage_->UpdateEdgeProperty(
           src_label, src, dst_label, dst, edge_label, oe_offset, ie_offset,
           col_id, value, timestamp_);
@@ -801,13 +801,13 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   }
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeColumnForked(edge_idx, col_id);
+  ensureEdgeColumnForked(edge_idx, col_id);
   UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
                                 dst_label, GetVertexId(dst_label, dst),
                                 edge_label, oe_offset, ie_offset, col_id,
                                 value);
   op_num_ += 1;
-  EnsureAdjlistMutable(edge_idx, src, dst, alloc_);
+  ensureAdjlistMutable(edge_idx, src, dst, alloc_);
   auto status = cow_storage_->UpdateEdgeProperty(
       src_label, src, dst_label, dst, edge_label, oe_offset, ie_offset, col_id,
       value, timestamp_);
@@ -979,7 +979,7 @@ void UpdateTransaction::release() {
 
 // --- ForkBitmap-driven lazy fork helpers ---
 
-void UpdateTransaction::EnsureVertexTableForkedForInsert(label_t label) {
+void UpdateTransaction::ensureVertexTableForkedForInsert(label_t label) {
   auto& state = fork_bitmap_.vertex_tables[label];
   auto& vertex_table = cow_storage_->get_vertex_table(label);
   bool did_fork = false;
@@ -1006,7 +1006,7 @@ void UpdateTransaction::EnsureVertexTableForkedForInsert(label_t label) {
   }
 }
 
-void UpdateTransaction::EnsureVertexTableForkedForDelete(label_t label) {
+void UpdateTransaction::ensureVertexTableForkedForDelete(label_t label) {
   auto& state = fork_bitmap_.vertex_tables[label];
   if (!state.vertex_timestamp_forked) {
     cow_storage_->get_vertex_table(label).ForkVertexTimestamp();
@@ -1015,7 +1015,7 @@ void UpdateTransaction::EnsureVertexTableForkedForDelete(label_t label) {
   }
 }
 
-void UpdateTransaction::EnsureVertexColumnForked(label_t label,
+void UpdateTransaction::ensureVertexColumnForked(label_t label,
                                                  int32_t col_id) {
   auto& state = fork_bitmap_.vertex_tables[label];
   if (col_id >= 0 &&
@@ -1029,7 +1029,7 @@ void UpdateTransaction::EnsureVertexColumnForked(label_t label,
   }
 }
 
-void UpdateTransaction::EnsureEdgeTableForkedForInsert(
+void UpdateTransaction::ensureEdgeTableForkedForInsert(
     uint32_t edge_triplet_id) {
   if (!cow_storage_->HasEdgeTable(edge_triplet_id)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -1062,7 +1062,7 @@ void UpdateTransaction::EnsureEdgeTableForkedForInsert(
   }
 }
 
-void UpdateTransaction::EnsureEdgeTableForkedForDelete(
+void UpdateTransaction::ensureEdgeTableForkedForDelete(
     uint32_t edge_triplet_id) {
   if (!cow_storage_->HasEdgeTable(edge_triplet_id)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -1086,9 +1086,9 @@ void UpdateTransaction::EnsureEdgeTableForkedForDelete(
   }
 }
 
-void UpdateTransaction::EnsureEdgeColumnForked(uint32_t edge_triplet_id,
+void UpdateTransaction::ensureEdgeColumnForked(uint32_t edge_triplet_id,
                                                int32_t col_id) {
-  EnsureEdgeTableForkedForDelete(edge_triplet_id);
+  ensureEdgeTableForkedForDelete(edge_triplet_id);
   auto& state = fork_bitmap_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_storage_->get_edge_table_by_index(edge_triplet_id);
   if (!edge_table.get_edge_schema_ptr()->is_bundled() && edge_table.table() &&
@@ -1101,7 +1101,7 @@ void UpdateTransaction::EnsureEdgeColumnForked(uint32_t edge_triplet_id,
   }
 }
 
-void UpdateTransaction::EnsureAdjlistMutable(uint32_t edge_triplet_id,
+void UpdateTransaction::ensureAdjlistMutable(uint32_t edge_triplet_id,
                                              vid_t src_lid, vid_t dst_lid,
                                              Allocator& alloc) {
   auto& state = fork_bitmap_.edge_tables[edge_triplet_id];
@@ -1118,12 +1118,12 @@ void UpdateTransaction::EnsureAdjlistMutable(uint32_t edge_triplet_id,
   }
 }
 
-void UpdateTransaction::EnsureVertexCapacity(label_t label, size_t capacity) {
+void UpdateTransaction::ensureVertexCapacity(label_t label, size_t capacity) {
   const auto& vertex_table = cow_storage_->get_vertex_table(label);
   if (capacity <= vertex_table.Capacity()) {
     return;
   }
-  EnsureVertexTableForkedForInsert(label);
+  ensureVertexTableForkedForInsert(label);
   // Fork CSRs of all related edge tables (capacity resize mutates CSR)
   const auto& schema = cow_storage_->schema();
   auto vertex_label_count = schema.vertex_label_frontier();
@@ -1135,28 +1135,28 @@ void UpdateTransaction::EnsureVertexCapacity(label_t label, size_t capacity) {
     for (label_t e = 0; e < edge_label_count; ++e) {
       if (schema.is_edge_triplet_valid(label, dst, e)) {
         uint32_t idx = schema.generate_edge_label(label, dst, e);
-        EnsureEdgeTableForkedForDelete(idx);
+        ensureEdgeTableForkedForDelete(idx);
       }
       if (label != dst && schema.is_edge_triplet_valid(dst, label, e)) {
         uint32_t idx = schema.generate_edge_label(dst, label, e);
-        EnsureEdgeTableForkedForDelete(idx);
+        ensureEdgeTableForkedForDelete(idx);
       }
     }
   }
 }
 
-void UpdateTransaction::EnsureEdgeCapacity(label_t src_label, label_t dst_label,
+void UpdateTransaction::ensureEdgeCapacity(label_t src_label, label_t dst_label,
                                            label_t edge_label,
                                            size_t capacity) {
   uint32_t idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  EnsureEdgeTableForkedForInsert(idx);
+  ensureEdgeTableForkedForInsert(idx);
 }
 
-void UpdateTransaction::EnsureVertexDeleteCOW(label_t label,
+void UpdateTransaction::ensureVertexDeleteCOW(label_t label,
                                               const std::vector<vid_t>& lids) {
   // Step 1: Fork vertex table (timestamp) for delete
-  EnsureVertexTableForkedForDelete(label);
+  ensureVertexTableForkedForDelete(label);
 
   // Step 2: Fork all related edge tables' CSRs (structure-level COW)
   const auto& schema = cow_storage_->schema();
@@ -1168,11 +1168,11 @@ void UpdateTransaction::EnsureVertexDeleteCOW(label_t label,
     for (label_t e = 0; e < edge_label_count; ++e) {
       if (schema.is_edge_triplet_valid(i, label, e)) {
         uint32_t idx = schema.generate_edge_label(i, label, e);
-        EnsureEdgeTableForkedForDelete(idx);
+        ensureEdgeTableForkedForDelete(idx);
       }
       if (schema.is_edge_triplet_valid(label, i, e)) {
         uint32_t idx = schema.generate_edge_label(label, i, e);
-        EnsureEdgeTableForkedForDelete(idx);
+        ensureEdgeTableForkedForDelete(idx);
       }
     }
   }
@@ -1187,7 +1187,7 @@ void UpdateTransaction::EnsureVertexDeleteCOW(label_t label,
         fetch_edges_related_to_vertex(*this, label, lid, timestamp_);
     for (auto& [edge_triplet_id, edges] : related_edges) {
       for (auto& [src, dst, oe_off, ie_off] : edges) {
-        EnsureAdjlistMutable(edge_triplet_id, src, dst, alloc_);
+        ensureAdjlistMutable(edge_triplet_id, src, dst, alloc_);
       }
     }
   }
@@ -1212,7 +1212,7 @@ Status StorageTPUpdateInterface::BatchAddEdges(
 
 Status UpdateTransaction::BatchDeleteVertices(label_t v_label_id,
                                               const std::vector<vid_t>& vids) {
-  EnsureVertexDeleteCOW(v_label_id, vids);
+  ensureVertexDeleteCOW(v_label_id, vids);
   return cow_storage_->BatchDeleteVertices(v_label_id, vids);
 }
 

@@ -347,7 +347,7 @@ TEST_F(StorageStoreConcurrencyTest, CowIsolationAfterForkMutateInstall) {
 
   // Phase 2: Fork → Mutate → Install (simulates UpdateTxn commit).
   // Explicitly fork shared modules before mutation, mirroring
-  // UpdateTransaction::EnsureVertexTableForkedForInsert.
+  // UpdateTransaction::ensureVertexTableForkedForInsert.
   auto cow1 = initial_pg_->Fork();
   auto& vt1 = cow1->get_vertex_table(0);
   vt1.ForkIndexer();
