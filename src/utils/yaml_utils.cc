@@ -49,7 +49,7 @@ template YAML::detail::node& YAML::detail::node_data::get<char[9]>(
 namespace neug {
 
 YAML::Node property_type_to_yaml(const DataType& type) {
-  auto type_info = type.RawExtraTypeInfo();
+  auto type_info = type.getExtraTypeInfo();
   YAML::Node node;
   switch (type.id()) {
   case DataTypeId::kBoolean:

@@ -36,7 +36,7 @@ class SubqueryExpression final : public Expression {
 
  public:
   SubqueryExpression(common::SubqueryType subqueryType,
-                     common::LogicalType dataType,
+                     common::DataType dataType,
                      QueryGraphCollection queryGraphCollection,
                      std::string uniqueName, std::string rawName)
       : Expression{expressionType_, std::move(dataType), std::move(uniqueName)},

@@ -61,7 +61,7 @@ class ProjectJoinConditionOptimizer : public LogicalOperatorVisitor {
   main::ClientContext* ctx;
 
  private:
-  std::unique_ptr<common::LogicalType> getDataType(
+  std::unique_ptr<common::DataType> getDataType(
       const std::string& uniqueVarName, planner::LogicalOperator* op);
 };
 

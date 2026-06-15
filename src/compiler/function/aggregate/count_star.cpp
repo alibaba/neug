@@ -49,7 +49,7 @@ void CountStarFunction::updatePos(uint8_t* state_, ValueVector* input,
 function_set CountStarFunction::getFunctionSet() {
   function_set result;
   result.push_back(std::make_unique<AggregateFunction>(
-      name, std::vector<LogicalTypeID>{}, LogicalTypeID::INT64, initialize,
+      name, std::vector<DataTypeId>{}, DataTypeId::kInt64, initialize,
       updateAll, updatePos, combine, finalize, false));
   return result;
 }

@@ -328,7 +328,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>>
 create_record_batch_supplier_from_arrow_array_column(
-    const Context& ctx,
+    const DataChunk& chunk,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrays;
@@ -339,7 +339,7 @@ create_record_batch_supplier_from_arrow_array_column(
     auto mapping = prop_mappings[i];
     auto tag_id = mapping.first;
     auto prop_name = mapping.second;
-    auto column = ctx.get(tag_id);
+    auto column = chunk.get(tag_id);
     if (column == nullptr) {
       THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
                                std::to_string(tag_id));
@@ -377,11 +377,11 @@ create_record_batch_supplier_from_arrow_array_column(
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>>
 create_record_batch_supplier_from_arrow_stream_column(
-    const Context& ctx,
+    const DataChunk& chunk,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
   for (const auto& mapping : prop_mappings) {
     auto tag_id = mapping.first;
-    auto column = ctx.get(tag_id);
+    auto column = chunk.get(tag_id);
     if (column == nullptr) {
       LOG(ERROR) << "Column not found for tag id: " << tag_id;
       THROW_RUNTIME_ERROR("Column not found for tag id: " +
@@ -406,13 +406,13 @@ create_record_batch_supplier_from_arrow_stream_column(
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
-    const Context& ctx,
+    const DataChunk& chunk,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
   // We expect all columns are of same type.
   ContextColumnType column_type = ContextColumnType::kNone;
   for (const auto& mapping : prop_mappings) {
     auto tag_id = mapping.first;
-    auto column = ctx.get(tag_id);
+    auto column = chunk.get(tag_id);
     if (column == nullptr) {
       LOG(ERROR) << "Column not found for tag id: " << tag_id;
       THROW_RUNTIME_ERROR("Column not found for tag id: " +
@@ -427,10 +427,10 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
     }
   }
   if (column_type == ContextColumnType::kArrowArray) {
-    return create_record_batch_supplier_from_arrow_array_column(ctx,
+    return create_record_batch_supplier_from_arrow_array_column(chunk,
                                                                 prop_mappings);
   } else if (column_type == ContextColumnType::kArrowStream) {
-    return create_record_batch_supplier_from_arrow_stream_column(ctx,
+    return create_record_batch_supplier_from_arrow_stream_column(chunk,
                                                                  prop_mappings);
   } else {
     LOG(ERROR) << "Unsupported column type: " << static_cast<int>(column_type);

@@ -48,7 +48,7 @@ struct RelationshipsFunction {
 struct PropertiesBindData : public FunctionBindData {
   common::idx_t childIdx;
 
-  PropertiesBindData(common::LogicalType dataType, common::idx_t childIdx)
+  PropertiesBindData(common::DataType dataType, common::idx_t childIdx)
       : FunctionBindData{std::move(dataType)}, childIdx{childIdx} {}
 
   inline std::unique_ptr<FunctionBindData> copy() const override {

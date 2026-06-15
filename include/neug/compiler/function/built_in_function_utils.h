@@ -46,77 +46,69 @@ class BuiltInFunctionsUtils {
     return matchFunction(name, {}, catalogEntry);
   }
   static NEUG_API Function* matchFunction(
-      const std::string& name,
-      const std::vector<common::LogicalType>& inputTypes,
+      const std::string& name, const std::vector<common::DataType>& inputTypes,
       const catalog::FunctionCatalogEntry* functionEntry);
 
   static AggregateFunction* matchAggregateFunction(
-      const std::string& name,
-      const std::vector<common::LogicalType>& inputTypes, bool isDistinct,
-      const catalog::FunctionCatalogEntry* functionEntry);
+      const std::string& name, const std::vector<common::DataType>& inputTypes,
+      bool isDistinct, const catalog::FunctionCatalogEntry* functionEntry);
 
-  static NEUG_API uint32_t getCastCost(common::LogicalTypeID inputTypeID,
-                                       common::LogicalTypeID targetTypeID);
+  static NEUG_API uint32_t getCastCost(common::DataTypeId inputTypeID,
+                                       common::DataTypeId targetTypeID);
 
  private:
   // TODO(Xiyang): move casting cost related functions to binder.
-  static uint32_t getTargetTypeCost(common::LogicalTypeID typeID);
+  static uint32_t getTargetTypeCost(common::DataTypeId typeID);
 
-  static uint32_t castInt64(common::LogicalTypeID targetTypeID);
+  static uint32_t castInt64(common::DataTypeId targetTypeID);
 
-  static uint32_t castInt32(common::LogicalTypeID targetTypeID);
+  static uint32_t castInt32(common::DataTypeId targetTypeID);
 
-  static uint32_t castInt16(common::LogicalTypeID targetTypeID);
+  static uint32_t castInt16(common::DataTypeId targetTypeID);
 
-  static uint32_t castInt8(common::LogicalTypeID targetTypeID);
+  static uint32_t castInt8(common::DataTypeId targetTypeID);
 
-  static uint32_t castUInt64(common::LogicalTypeID targetTypeID);
+  static uint32_t castUInt64(common::DataTypeId targetTypeID);
 
-  static uint32_t castUInt32(common::LogicalTypeID targetTypeID);
+  static uint32_t castUInt32(common::DataTypeId targetTypeID);
 
-  static uint32_t castUInt16(common::LogicalTypeID targetTypeID);
+  static uint32_t castUInt16(common::DataTypeId targetTypeID);
 
-  static uint32_t castUInt8(common::LogicalTypeID targetTypeID);
+  static uint32_t castUInt8(common::DataTypeId targetTypeID);
 
-  static uint32_t castInt128(common::LogicalTypeID targetTypeID);
+  static uint32_t castInt128(common::DataTypeId targetTypeID);
 
-  static uint32_t castDouble(common::LogicalTypeID targetTypeID);
+  static uint32_t castDouble(common::DataTypeId targetTypeID);
 
-  static uint32_t castFloat(common::LogicalTypeID targetTypeID);
+  static uint32_t castFloat(common::DataTypeId targetTypeID);
 
-  static uint32_t castDecimal(common::LogicalTypeID targetTypeID);
+  static uint32_t castDate(common::DataTypeId targetTypeID);
 
-  static uint32_t castDate(common::LogicalTypeID targetTypeID);
+  static uint32_t castTimestamp(common::DataTypeId targetTypeID);
 
-  static uint32_t castSerial(common::LogicalTypeID targetTypeID);
+  static uint32_t castFromString(common::DataTypeId inputTypeID);
 
-  static uint32_t castTimestamp(common::LogicalTypeID targetTypeID);
+  static uint32_t castList(common::DataTypeId targetTypeID);
 
-  static uint32_t castFromString(common::LogicalTypeID inputTypeID);
-
-  static uint32_t castUUID(common::LogicalTypeID targetTypeID);
-
-  static uint32_t castList(common::LogicalTypeID targetTypeID);
-
-  static uint32_t castArray(common::LogicalTypeID targetTypeID);
+  static uint32_t castArray(common::DataTypeId targetTypeID);
 
   static Function* getBestMatch(std::vector<Function*>& functions);
 
   static uint32_t getFunctionCost(
-      const std::vector<common::LogicalType>& inputTypes, Function* function);
+      const std::vector<common::DataType>& inputTypes, Function* function);
   static uint32_t matchParameters(
-      const std::vector<common::LogicalType>& inputTypes,
-      const std::vector<common::LogicalTypeID>& targetTypeIDs);
+      const std::vector<common::DataType>& inputTypes,
+      const std::vector<common::DataTypeId>& targetTypeIDs);
   static uint32_t matchVarLengthParameters(
-      const std::vector<common::LogicalType>& inputTypes,
-      common::LogicalTypeID targetTypeID);
+      const std::vector<common::DataType>& inputTypes,
+      common::DataTypeId targetTypeID);
   static uint32_t getAggregateFunctionCost(
-      const std::vector<common::LogicalType>& inputTypes, bool isDistinct,
+      const std::vector<common::DataType>& inputTypes, bool isDistinct,
       AggregateFunction* function);
 
   static void validateSpecialCases(
       std::vector<Function*>& candidateFunctions, const std::string& name,
-      const std::vector<common::LogicalType>& inputTypes,
+      const std::vector<common::DataType>& inputTypes,
       const function::function_set& set);
 };
 

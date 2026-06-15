@@ -29,10 +29,11 @@ bool BuildGroupByUtils(const physical::GroupBy& group_by,
 
 std::unique_ptr<KeyBase> create_key_func(
     const std::vector<std::pair<int, int>>& mappings,
-    const IStorageInterface& graph, const Context& ctx);
+    const IStorageInterface& graph, const DataChunk& chunk);
 
 ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,
-                          const IStorageInterface& graph, const Context& ctx);
+                          const IStorageInterface& graph,
+                          const DataChunk& chunk);
 
 }  // namespace ops
 

@@ -86,8 +86,7 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
 }
 
 execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
-                                     neug::IStorageInterface& g,
-                                     const neug::execution::Context& ctx) {
+                                     neug::IStorageInterface& g) {
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
@@ -106,11 +105,11 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set BFSFunction::getFunctionSet() {
   function::function_set funcSet;
-  std::vector<common::LogicalTypeID> inputTypes = {
-      common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
+  std::vector<common::DataTypeId> inputTypes = {
+      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
   function::call_output_columns outputColumns = {
-      {"node", common::LogicalTypeID::NODE},
-      {"distance", common::LogicalTypeID::INT64}};
+      {"node", common::DataTypeId::kVertex},
+      {"distance", common::DataTypeId::kInt64}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);

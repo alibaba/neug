@@ -44,7 +44,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
   auto source = loadFrom.getSource();
   std::unique_ptr<BoundLoadFrom> boundLoadFrom;
   std::vector<std::string> columnNames;
-  std::vector<LogicalType> columnTypes;
+  std::vector<DataType> columnTypes;
   switch (source->type) {
   case ScanSourceType::OBJECT: {
     auto objectSource = source->ptrCast<ObjectScanSource>();

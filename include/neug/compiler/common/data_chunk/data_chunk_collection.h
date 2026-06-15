@@ -61,7 +61,7 @@ class DataChunkCollection {
 
  private:
   storage::MemoryManager* mm;
-  std::vector<LogicalType> types;
+  std::vector<DataType> types;
   std::vector<DataChunk> chunks;
 };
 

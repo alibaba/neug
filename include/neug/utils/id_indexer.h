@@ -479,7 +479,13 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   IdIndexer() : hasher_() { reset_to_empty_state(); }
   ~IdIndexer() {}
 
-  DataTypeId get_type() const override { return PropUtils<KEY_T>::prop_type(); }
+  DataTypeId get_type() const override {
+    if constexpr (std::is_same_v<KEY_T, std::string_view>) {
+      return DataTypeId::kVarchar;
+    } else {
+      return execution::ValueConverter<KEY_T>::type().id();
+    }
+  }
 
   void _add(const execution::Value& oid) override {
     assert(get_type() == oid.type().id());

@@ -27,10 +27,10 @@ namespace function {
 function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowLoadedExtensionsFunction::name,
-      std::vector<neug::common::LogicalTypeID>{},
-      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
-          {"name", neug::common::LogicalTypeID::STRING},
-          {"description", common::LogicalTypeID::STRING}});
+      std::vector<neug::common::DataTypeId>{},
+      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
+          {"name", neug::common::DataTypeId::kVarchar},
+          {"description", common::DataTypeId::kVarchar}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -39,11 +39,10 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
     return std::make_unique<ShowLoadedExtensionsFuncInput>();
   };
 
-  function->execFunc = [](const CallFuncInputBase& /*input*/,
-                          neug::IStorageInterface& /*graph*/,
-                          const neug::execution::Context& /*in_ctx*/) {
+  function->execFunc = [](const CallFuncInputBase& input,
+                          neug::IStorageInterface& graph) {
     try {
-      neug::execution::Context out;
+      neug::execution::Context ctx;
       const auto& ext_map =
           neug::extension::ExtensionAPI::getLoadedExtensions();
 
@@ -60,10 +59,12 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
         desc_builder.push_back_opt(desc_view);
       }
 
-      out.set(0, name_builder.finish());
-      out.set(1, desc_builder.finish());
-      out.tag_ids = {0, 1};
-      return out;
+      neug::execution::DataChunk chunk;
+      chunk.set(0, name_builder.finish());
+      chunk.set(1, desc_builder.finish());
+      ctx.append_chunk(std::move(chunk));
+      ctx.tag_ids = {0, 1};
+      return ctx;
     } catch (const std::exception& e) {
       LOG(ERROR) << "ShowLoadedExtensions failed: " << e.what();
       THROW_EXTENSION_EXCEPTION("ShowLoadedExtensions failed: " +

@@ -140,11 +140,11 @@ expression_vector ExpressionChildrenCollector::collectChildren(
     return collectSubqueryChildren(expression);
   }
   case ExpressionType::PATTERN: {
-    switch (expression.dataType.getLogicalTypeID()) {
-    case LogicalTypeID::NODE: {
+    switch (expression.dataType.id()) {
+    case DataTypeId::kVertex: {
       return collectNodeChildren(expression);
     }
-    case LogicalTypeID::REL: {
+    case DataTypeId::kEdge: {
       return collectRelChildren(expression);
     }
     default: {
@@ -246,7 +246,7 @@ void DependentVarNameCollector::visitPropertyExpr(
 void DependentVarNameCollector::visitNodeRelExpr(
     std::shared_ptr<Expression> expr) {
   varNames.insert(expr->getUniqueName());
-  if (expr->getDataType().getLogicalTypeID() == LogicalTypeID::REL) {
+  if (expr->getDataType().id() == DataTypeId::kEdge) {
     auto& rel = expr->constCast<RelExpression>();
     varNames.insert(rel.getSrcNodeName());
     varNames.insert(rel.getDstNodeName());

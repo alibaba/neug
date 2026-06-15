@@ -32,7 +32,8 @@ namespace neug {
 namespace function {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  std::vector<StructField> fields;
+  std::vector<std::string> fieldNames;
+  std::vector<DataType> fieldTypes;
   if (input.arguments.size() > INVALID_STRUCT_FIELD_IDX - 1) {
     THROW_BINDER_EXCEPTION(
         stringFormat("Too many fields in STRUCT literal (max {}, got {})",
@@ -41,8 +42,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   std::unordered_set<std::string> fieldNameSet;
   for (auto i = 0u; i < input.arguments.size(); i++) {
     auto& argument = input.arguments[i];
-    if (argument->getDataType().getLogicalTypeID() == LogicalTypeID::ANY) {
-      argument->cast(LogicalType::STRING());
+    if (argument->getDataType().id() == DataTypeId::kUnknown) {
+      argument->cast(DataType::Varchar());
     }
     if (i >= input.optionalArguments.size()) {
       THROW_BINDER_EXCEPTION(stringFormat("Cannot infer field name for {}.",
@@ -55,9 +56,10 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     } else {
       fieldNameSet.insert(fieldName);
     }
-    fields.emplace_back(fieldName, argument->getDataType().copy());
+    fieldNames.push_back(fieldName);
+    fieldTypes.push_back(argument->getDataType().copy());
   }
-  const auto resultType = LogicalType::STRUCT(std::move(fields));
+  const auto resultType = DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
   return FunctionBindData::getSimpleBindData(input.arguments, resultType);
 }
 
@@ -102,8 +104,8 @@ void StructPackFunctions::execFunc(
 function_set StructPackFunctions::getFunctionSet() {
   function_set functions;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::ANY},
-      LogicalTypeID::STRUCT, execFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kUnknown},
+      DataTypeId::kStruct, execFunc);
   function->bindFunc = bindFunc;
   function->isVarLength = true;
   functions.push_back(std::move(function));

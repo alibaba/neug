@@ -24,8 +24,7 @@ namespace gds {
 struct NEUG_API PersonalizedPageRankFunction {
   static constexpr const char* name = "PERSONALIZED_PAGE_RANK";
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& graph,
-                                       const neug::execution::Context& ctx);
+                                       neug::IStorageInterface& graph);
 
   static std::unique_ptr<function::CallFuncInputBase> bind(
       const Schema& schema, const execution::ContextMeta& ctx_meta,

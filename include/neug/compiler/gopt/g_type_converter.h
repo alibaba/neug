@@ -42,15 +42,15 @@ class GPhysicalTypeConverter {
       const GRelType& relType);
 
   std::unique_ptr<::common::IrDataType> convertArrayType(
-      const common::LogicalType& type);
+      const common::DataType& type);
   std::unique_ptr<::common::IrDataType> convertStructType(
-      const common::LogicalType& type);
+      const common::DataType& type);
 
   std::unique_ptr<::common::IrDataType> convertSimpleLogicalType(
-      const common::LogicalType& type);
+      const common::DataType& type);
 
   std::unique_ptr<::common::IrDataType> convertLogicalType(
-      const common::LogicalType& type);
+      const common::DataType& type);
 
  private:
   std::unique_ptr<::common::GraphDataType::GraphElementType> convertNodeTable(
@@ -64,7 +64,7 @@ class GLogicalTypeConverter {
   GLogicalTypeConverter() = default;
 
   // convert physical type to logical type
-  common::LogicalType convertDataType(const ::common::DataType& type);
+  common::DataType convertDataType(const ::common::DataType& type);
 };
 
 }  // namespace gopt

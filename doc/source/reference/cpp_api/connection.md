@@ -12,8 +12,10 @@ Database connection for executing Cypher queries.
 auto conn = db.Connect();
 // Execute a read query
 auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
-for (auto& record : result.value()) {
-  // Process record...
+auto& qr = result.value();
+while (qr.hasNext()) {
+  std::cout << qr.GetCurrentRowAsString() << std::endl;
+  qr.next();
 }
 // Execute an insert query
 conn->Query("CREATE (p:Person {name: 'Alice', age: 30})", "insert");
@@ -61,8 +63,10 @@ result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
 "read", params);
 // Process results
 if (result.has_value()) {
-  for (auto& record : result.value()) {
-    // Access columns via record.entries()
+  auto& qr = result.value();
+  while (qr.hasNext()) {
+    // Access columns via qr.GetString(0), qr.GetInt32(1), etc.
+    qr.next();
   }
 } else {
   std::cerr << "Query failed: " << result.error().message() << std::endl;

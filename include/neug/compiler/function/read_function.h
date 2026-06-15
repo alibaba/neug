@@ -44,7 +44,7 @@ struct ReadFunction : public TableFunction {
   read_exec_func_t execFunc = nullptr;
   read_sniff_func_t sniffFunc = nullptr;
 
-  ReadFunction(std::string name, std::vector<common::LogicalTypeID> inputTypes)
+  ReadFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
       : TableFunction{std::move(name), std::move(inputTypes)} {}
 };
 }  // namespace function

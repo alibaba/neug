@@ -60,8 +60,7 @@ class GeneralComparer {
 bool vertex_property_topN(bool asc, size_t limit,
                           const std::shared_ptr<IVertexColumn>& col,
                           const StorageReadInterface& graph,
-                          const std::string& prop_name,
-                          std::vector<size_t>& offsets);
+                          const std::string& prop_name, sel_vec_t& offsets);
 }  // namespace ops
 }  // namespace execution
 }  // namespace neug

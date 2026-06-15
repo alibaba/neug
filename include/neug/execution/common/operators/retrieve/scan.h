@@ -15,7 +15,7 @@
 #pragma once
 
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/special_predicates.h"
@@ -30,10 +30,10 @@ namespace execution {
 class Scan {
  public:
   template <typename PRED_T>
-  static neug::result<Context> scan_vertex(Context&& ctx,
-                                           const IStorageInterface& gi,
-                                           const ScanParams& params,
-                                           const PRED_T& predicate) {
+  static neug::result<ContextChunk> scan_vertex(ContextChunk&& chunk,
+                                                const IStorageInterface& gi,
+                                                const ScanParams& params,
+                                                const PRED_T& predicate) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     MSVertexColumnBuilder builder(params.tables[0]);
     for (auto label : params.tables) {
@@ -45,20 +45,20 @@ class Scan {
         }
       }
     }
-    ctx.set(params.alias, builder.finish());
-    return ctx;
+    chunk.set(params.alias, builder.finish());
+    return chunk;
   }
 
-  static neug::result<Context> scan_vertex_with_special_vertex_predicate(
-      Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
-      const SpecialPredicateConfig& config, const ParamsMap& query_params);
+  static neug::result<ContextChunk> scan_vertex_with_special_vertex_predicate(
+      ContextChunk&& chunk, const IStorageInterface& graph,
+      const ScanParams& params, const SpecialPredicateConfig& config,
+      const ParamsMap& query_params);
 
   template <typename PRED_T>
-  static neug::result<Context> filter_oids(Context&& ctx,
-                                           const IStorageInterface& graph,
-                                           const ScanParams& params,
-                                           const PRED_T& predicate,
-                                           const std::vector<Value>& oids) {
+  static neug::result<ContextChunk> filter_oids(
+      ContextChunk&& chunk, const IStorageInterface& graph,
+      const ScanParams& params, const PRED_T& predicate,
+      const std::vector<Value>& oids) {
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
       MSVertexColumnBuilder builder(label);
@@ -70,7 +70,7 @@ class Scan {
           }
         }
       }
-      ctx.set(params.alias, builder.finish());
+      chunk.set(params.alias, builder.finish());
     } else if (params.tables.size() > 1) {
       // TODO(luoxiaojian): use MSVertexColumnBuilder
       std::vector<std::pair<label_t, vid_t>> vids;
@@ -88,20 +88,20 @@ class Scan {
       if (vids.size() == 1) {
         MSVertexColumnBuilder builder(vids[0].first);
         builder.push_back_opt(vids[0].second);
-        ctx.set(params.alias, builder.finish());
+        chunk.set(params.alias, builder.finish());
       } else {
         MLVertexColumnBuilder builder;
         for (auto& pair : vids) {
           builder.push_back_vertex({pair.first, pair.second});
         }
-        ctx.set(params.alias, builder.finish());
+        chunk.set(params.alias, builder.finish());
       }
     }
-    return ctx;
+    return chunk;
   }
 
-  static neug::result<Context> find_vertex_with_oid(
-      Context&& ctx, const IStorageInterface& graph, label_t label,
+  static neug::result<ContextChunk> find_vertex_with_oid(
+      ContextChunk&& chunk, const IStorageInterface& graph, label_t label,
       const Value& pk, int32_t alias);
 };
 

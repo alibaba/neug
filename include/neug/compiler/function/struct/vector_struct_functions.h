@@ -31,7 +31,7 @@ namespace function {
 struct StructExtractBindData : public FunctionBindData {
   common::idx_t childIdx;
 
-  StructExtractBindData(common::LogicalType dataType, common::idx_t childIdx)
+  StructExtractBindData(common::DataType dataType, common::idx_t childIdx)
       : FunctionBindData{std::move(dataType)}, childIdx{childIdx} {}
 
   std::unique_ptr<FunctionBindData> copy() const override {

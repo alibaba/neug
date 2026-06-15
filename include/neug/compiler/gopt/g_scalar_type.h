@@ -116,14 +116,14 @@ class GScalarType {
       return ScalarType::PROPERTIES;
     } else if (func.name == function::ListCreationFunction::name) {
       const auto& type = expr.getDataType();
-      if (type.getLogicalTypeID() == common::LogicalTypeID::LIST) {
+      if (type.id() == common::DataTypeId::kList) {
         LOG(INFO) << "type is list";
         return ScalarType::TO_LIST;
-      } else if (type.getLogicalTypeID() == common::LogicalTypeID::STRUCT) {
+      } else if (type.id() == common::DataTypeId::kStruct) {
         LOG(INFO) << "type is struct";
         return ScalarType::TO_TUPLE;
       }
-      THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.toString() +
+      THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.ToString() +
                                      " for function: " + func.name);
     } else if (func.name == function::UpperFunction::name) {
       return ScalarType::UPPER;

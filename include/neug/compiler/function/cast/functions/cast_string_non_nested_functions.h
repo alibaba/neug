@@ -39,8 +39,8 @@ namespace function {
 
 bool isAnyType(std::string_view cpy);
 
-LogicalType NEUG_API inferMinimalTypeFromString(const std::string& str);
-LogicalType NEUG_API inferMinimalTypeFromString(std::string_view str);
+DataType NEUG_API inferMinimalTypeFromString(const std::string& str);
+DataType NEUG_API inferMinimalTypeFromString(std::string_view str);
 // Infer the type that the string represents.
 // Note: minimal integer width is int64
 // Used for sniffing
@@ -231,7 +231,7 @@ NEUG_API inline bool trySimpleIntegerCast(const char* input, uint64_t len,
 template <class T, bool IS_SIGNED = true>
 NEUG_API inline void simpleIntegerCast(
     const char* input, uint64_t len, T& result,
-    LogicalTypeID typeID = LogicalTypeID::ANY) {
+    DataTypeId typeID = DataTypeId::kUnknown) {
   if (!trySimpleIntegerCast<T, IS_SIGNED>(input, len, result)) {
     THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. Could not convert \"{}\" to {}.",
@@ -261,7 +261,7 @@ inline bool tryDoubleCast(const char* input, uint64_t len, T& result) {
 
 template <class T>
 inline void doubleCast(const char* input, uint64_t len, T& result,
-                       LogicalTypeID typeID = LogicalTypeID::ANY) {
+                       DataTypeId typeID = DataTypeId::kUnknown) {
   if (!tryDoubleCast<T>(input, len, result)) {
     THROW_CONVERSION_EXCEPTION(stringFormat(
         "Cast failed. {} is not in {} range.", std::string{input, (size_t) len},
@@ -277,7 +277,7 @@ struct TryCastStringToTimestamp {
 
   template <typename T>
   static void cast(const char* input, uint64_t len,
-                   neug::common::timestamp_t& result, LogicalTypeID typeID) {
+                   neug::common::timestamp_t& result, DataTypeId typeID) {
     if (!tryCast<T>(input, len, result)) {
       THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
           input, len, LogicalTypeUtils::toString(typeID)));
@@ -286,104 +286,8 @@ struct TryCastStringToTimestamp {
 };
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result);
-
-template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
     const char* input, uint64_t len, neug::common::timestamp_t& result);
-
-template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result);
-
-template <>
-bool inline TryCastStringToTimestamp::tryCast<neug::common::timestamp_tz_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result) {
-  return Timestamp::tryConvertTimestamp(input, len, result);
-}
-
-// ---------------------- cast String to Decimal -------------------- //
-
-template <typename T>
-bool tryDecimalCast(const char* input, uint64_t len, T& result,
-                    uint32_t precision, uint32_t scale) {
-  constexpr auto pow10s = pow10Sequence<T>();
-  using CAST_OP = typename std::conditional<std::is_same<T, int128_t>::value,
-                                            Int128CastOperation,
-                                            IntegerCastOperation>::type;
-  using CAST_DATA =
-      typename std::conditional<std::is_same<T, int128_t>::value,
-                                Int128CastData, IntegerCastData<T>>::type;
-  StringUtils::removeCStringWhiteSpaces(input, len);
-  if (len == 0) {
-    return false;
-  }
-
-  bool negativeFlag = input[0] == '-';
-  if (negativeFlag) {
-    input++;
-    len -= 1;
-  }
-
-  CAST_DATA res;
-  res.result = 0;
-  auto pos = 0u;
-  auto periodPos = len - 1u;
-  while (pos < len) {
-    auto chr = input[pos];
-    if (input[pos] == '.') {
-      periodPos = pos;
-    } else if (pos > periodPos && pos - periodPos > scale) {
-      // we've parsed the digit limit
-      break;
-    } else if (!StringUtils::CharacterIsDigit(chr) ||
-               !CAST_OP::template handleDigit<CAST_DATA, false>(res,
-                                                                chr - '0')) {
-      return false;
-    }
-    pos++;
-  }
-  if (pos < len) {
-    // then we parsed the digit limit, so round the final digit
-    if (!StringUtils::CharacterIsDigit(input[pos])) {
-      return false;
-    }
-    if (!CAST_OP::template finalize<CAST_DATA, false>(res)) {
-      return false;
-    }
-    // then determine rounding
-    if (input[pos] >= '5') {
-      res.result += 1;
-    }
-  }
-  while (pos - periodPos < scale + 1) {
-    // trailing 0's
-    if (!CAST_OP::template handleDigit<CAST_DATA, false>(res, 0)) {
-      return false;
-    }
-    pos++;
-  }
-  if (!CAST_OP::template finalize<CAST_DATA, false>(res)) {
-    return false;
-  }
-  if (res.result >= pow10s[precision]) {
-    return false;
-  }
-  result = negativeFlag ? -res.result : res.result;
-  return true;
-}
-
-template <typename T>
-void decimalCast(const char* input, uint64_t len, T& result,
-                 const LogicalType& type) {
-  if (!tryDecimalCast(input, len, result, DecimalType::getPrecision(type),
-                      DecimalType::getScale(type))) {
-    THROW_CONVERSION_EXCEPTION(
-        stringFormat("Cast failed. {} is not in {} range.",
-                     std::string{input, (size_t) len}, type.toString()));
-  }
-}
 
 }  // namespace function
 }  // namespace neug

@@ -79,8 +79,7 @@ std::unique_ptr<function::CallFuncInputBase> WCCFunction::bind(
 }
 
 execution::Context WCCFunction::exec(
-    const function::CallFuncInputBase& input_base, neug::IStorageInterface& g,
-    const neug::execution::Context& ctx) {
+    const function::CallFuncInputBase& input_base, neug::IStorageInterface& g) {
   const auto& input = dynamic_cast<const WCCInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
@@ -97,14 +96,14 @@ function::function_set WCCFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::LogicalTypeID> inputTypes = {
-      common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
+  std::vector<common::DataTypeId> inputTypes = {
+      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
   // two output columns:
   // 1. node type
   // 2. label id in int64
   function::call_output_columns outputColumns = {
-      {"node", common::LogicalTypeID::NODE},
-      {"comp", common::LogicalTypeID::INT64}};
+      {"node", common::DataTypeId::kVertex},
+      {"comp", common::DataTypeId::kInt64}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;

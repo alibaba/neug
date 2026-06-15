@@ -54,7 +54,7 @@ struct RewriteFunction final : Function {
   rewrite_func_rewrite_t rewriteFunc;
 
   RewriteFunction(std::string name,
-                  std::vector<common::LogicalTypeID> parameterTypeIDs,
+                  std::vector<common::DataTypeId> parameterTypeIDs,
                   rewrite_func_rewrite_t rewriteFunc)
       : Function{std::move(name), std::move(parameterTypeIDs)},
         rewriteFunc{std::move(rewriteFunc)} {}

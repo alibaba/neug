@@ -32,16 +32,16 @@ namespace neug {
 namespace common {
 
 StructAuxiliaryBuffer::StructAuxiliaryBuffer(
-    const LogicalType& type, storage::MemoryManager* memoryManager) {
-  auto fieldTypes = StructType::getFieldTypes(type);
+    const DataType& type, storage::MemoryManager* memoryManager) {
+  const auto& fieldTypes = StructType::GetChildTypes(type);
   childrenVectors.reserve(fieldTypes.size());
   for (const auto& fieldType : fieldTypes) {
     childrenVectors.push_back(
-        std::make_shared<ValueVector>(fieldType->copy(), memoryManager));
+        std::make_shared<ValueVector>(fieldType.copy(), memoryManager));
   }
 }
 
-ListAuxiliaryBuffer::ListAuxiliaryBuffer(const LogicalType& dataVectorType,
+ListAuxiliaryBuffer::ListAuxiliaryBuffer(const DataType& dataVectorType,
                                          storage::MemoryManager* memoryManager)
     : capacity{DEFAULT_VECTOR_CAPACITY},
       size{0},
@@ -85,7 +85,7 @@ void ListAuxiliaryBuffer::resizeDataVector(ValueVector* dataVector) {
   dataVector->valueBuffer = std::move(buffer);
   dataVector->nullMask.resize(capacity);
   // If the dataVector is a struct vector, we need to resize its field vectors.
-  if (dataVector->dataType.getPhysicalType() == PhysicalTypeID::STRUCT) {
+  if (getPhysicalType(dataVector->dataType.id()) == PhysicalTypeID::STRUCT) {
     resizeStructDataVector(dataVector);
   }
 }
@@ -104,17 +104,17 @@ void ListAuxiliaryBuffer::resizeStructDataVector(ValueVector* dataVector) {
 }
 
 std::unique_ptr<AuxiliaryBuffer> AuxiliaryBufferFactory::getAuxiliaryBuffer(
-    LogicalType& type, storage::MemoryManager* memoryManager) {
-  switch (type.getPhysicalType()) {
+    DataType& type, storage::MemoryManager* memoryManager) {
+  switch (getPhysicalType(type.id())) {
   case PhysicalTypeID::STRING:
     return std::make_unique<StringAuxiliaryBuffer>(memoryManager);
   case PhysicalTypeID::STRUCT:
     return std::make_unique<StructAuxiliaryBuffer>(type, memoryManager);
   case PhysicalTypeID::LIST:
-    return std::make_unique<ListAuxiliaryBuffer>(ListType::getChildType(type),
+    return std::make_unique<ListAuxiliaryBuffer>(ListType::GetChildType(type),
                                                  memoryManager);
   case PhysicalTypeID::ARRAY:
-    return std::make_unique<ListAuxiliaryBuffer>(ArrayType::getChildType(type),
+    return std::make_unique<ListAuxiliaryBuffer>(ArrayType::GetChildType(type),
                                                  memoryManager);
   default:
     return nullptr;

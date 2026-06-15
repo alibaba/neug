@@ -59,7 +59,7 @@ NEUG_API std::unique_ptr<TableFuncBindData> bindGDSFunction(
 // [`TableFunction::bindFunc`] to [`bindGDSFunction`].
 struct NEUG_API GDSAlgoFunction : public NeugCallFunction {
   GDSAlgoFunction(std::string name,
-                  std::vector<common::LogicalTypeID> inputTypes,
+                  std::vector<common::DataTypeId> inputTypes,
                   call_output_columns outputColumns);
 };
 }  // namespace function

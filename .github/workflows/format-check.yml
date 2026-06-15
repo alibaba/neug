@@ -50,6 +50,7 @@ jobs:
         scopes: |
           core
           python
+          nodejs
           src
         # A scope can be not provided.
         requireScope: false

@@ -54,7 +54,7 @@ struct ProjectedGraphInfoCallInput : public CallFuncInputBase {
 };
 
 static std::string getStringVal(const common::Value& value) {
-  value.validateType(common::LogicalTypeID::STRING);
+  value.validateType(common::DataTypeId::kVarchar);
   return value.getValue<std::string>();
 }
 
@@ -70,17 +70,17 @@ static std::vector<std::string> getListVal(const common::Value& value) {
 static std::vector<graph::ParsedGraphEntryTableInfo>
 extractGraphEntryTableInfos(const common::Value& value) {
   std::vector<graph::ParsedGraphEntryTableInfo> infos;
-  switch (value.getDataType().getLogicalTypeID()) {
-  case common::LogicalTypeID::LIST: {
+  switch (value.getDataType().id()) {
+  case common::DataTypeId::kList: {
     for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
       const auto& childValue = *common::NestedVal::getChildVal(&value, i);
       const auto& type = childValue.getDataType();
-      switch (type.getLogicalTypeID()) {
-      case common::LogicalTypeID::STRING: {
+      switch (type.id()) {
+      case common::DataTypeId::kVarchar: {
         auto tableName = getStringVal(childValue);
         infos.emplace_back(tableName, "" /* empty predicate */);
       } break;
-      case common::LogicalTypeID::LIST: {
+      case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
         if (triplets.size() < 3) {
           THROW_BINDER_EXCEPTION(
@@ -99,20 +99,19 @@ extractGraphEntryTableInfos(const common::Value& value) {
       }
     }
   } break;
-  case common::LogicalTypeID::STRUCT: {
+  case common::DataTypeId::kStruct: {
     for (auto i = 0u; i < common::StructType::getNumFields(value.getDataType());
          ++i) {
-      auto& field = common::StructType::getField(value.getDataType(), i);
-      auto tableName = field.getName();
+      auto tableName = common::StructType::GetChildName(value.getDataType(), i);
       auto predicate = getStringVal(*common::NestedVal::getChildVal(&value, i));
       infos.emplace_back(tableName, predicate);
     }
   } break;
-  case common::LogicalTypeID::MAP: {
+  case common::DataTypeId::kMap: {
     for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
       const auto& childValue = *common::NestedVal::getChildVal(&value, i);
       const auto& childType = childValue.getDataType();
-      if (childType.getLogicalTypeID() != common::LogicalTypeID::STRUCT) {
+      if (childType.id() != common::DataTypeId::kStruct) {
         THROW_BINDER_EXCEPTION(
             "Invalid map type, each map entry should be struct type, but is: " +
             childType.toString());
@@ -129,12 +128,12 @@ extractGraphEntryTableInfos(const common::Value& value) {
       // key field for table names
       const auto& tableField = *common::NestedVal::getChildVal(&childValue, 0);
       const auto& tableType = tableField.getDataType();
-      switch (tableType.getLogicalTypeID()) {
-      case common::LogicalTypeID::STRING: {
+      switch (tableType.id()) {
+      case common::DataTypeId::kVarchar: {
         auto tableName = getStringVal(tableField);
         infos.emplace_back(tableName, predicate);
       } break;
-      case common::LogicalTypeID::LIST: {
+      case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
         if (triplets.size() < 3) {
           THROW_BINDER_EXCEPTION(
@@ -203,9 +202,9 @@ static std::unique_ptr<TableFuncBindData> bindDropProjectedGraph(
 
 function_set ProjectGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
-      name, std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING,
-                                               common::LogicalTypeID::ANY,
-                                               common::LogicalTypeID::ANY});
+      name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
+                                               common::DataTypeId::kUnknown,
+                                               common::DataTypeId::kUnknown});
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindProjectGraph;
@@ -230,7 +229,7 @@ function_set ProjectGraphFunction::getFunctionSet() {
 
 function_set DropProjectedGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
-      name, std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING});
+      name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar});
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindDropProjectedGraph;
@@ -256,9 +255,9 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
 function_set ShowProjectedGraphsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowProjectedGraphsFunction::name,
-      std::vector<neug::common::LogicalTypeID>{},
-      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
-          {"name", neug::common::LogicalTypeID::STRING}});
+      std::vector<neug::common::DataTypeId>{},
+      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
+          {"name", neug::common::DataTypeId::kVarchar}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -295,10 +294,10 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
 function_set ProjectedGraphInfoFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ProjectedGraphInfoFunction::name,
-      std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING},
-      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
-          {"label", neug::common::LogicalTypeID::STRING},
-          {"predicate", neug::common::LogicalTypeID::STRING}});
+      std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
+      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
+          {"label", neug::common::DataTypeId::kVarchar},
+          {"predicate", neug::common::DataTypeId::kVarchar}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,

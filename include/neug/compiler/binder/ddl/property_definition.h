@@ -31,10 +31,10 @@ namespace binder {
 
 struct NEUG_API ColumnDefinition {
   std::string name;
-  common::LogicalType type;
+  common::DataType type;
 
   ColumnDefinition() = default;
-  ColumnDefinition(std::string name, common::LogicalType type)
+  ColumnDefinition(std::string name, common::DataType type)
       : name{std::move(name)}, type{std::move(type)} {}
   EXPLICIT_COPY_DEFAULT_MOVE(ColumnDefinition);
 
@@ -65,7 +65,7 @@ struct NEUG_API PropertyDefinition {
   EXPLICIT_COPY_DEFAULT_MOVE(PropertyDefinition);
 
   std::string getName() const { return columnDefinition.name; }
-  const common::LogicalType& getType() const { return columnDefinition.type; }
+  const common::DataType& getType() const { return columnDefinition.type; }
   std::string getDefaultExpressionName() const {
     return defaultExpr->getRawName();
   }

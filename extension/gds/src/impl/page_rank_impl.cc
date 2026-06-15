@@ -122,8 +122,10 @@ void DirectedPageRank::sink(execution::Context& ctx, int node_alias,
     builder.push_back_opt(v);
     pr_builder.push_back_opt(pr_[v]);
   }
-  ctx.set(node_alias, builder.finish());
-  ctx.set(pr_alias, pr_builder.finish());
+  execution::DataChunk chunk;
+  chunk.set(node_alias, builder.finish());
+  chunk.set(pr_alias, pr_builder.finish());
+  ctx.append_chunk(std::move(chunk));
 }
 
 UndirectedPageRank::UndirectedPageRank(const StorageReadInterface& graph,
@@ -231,8 +233,10 @@ void UndirectedPageRank::sink(execution::Context& ctx, int node_alias,
   }
 
   builder.append(vertex_label_, std::move(valid_vertices_));
-  ctx.set(node_alias, builder.finish());
-  ctx.set(pr_alias, pr_builder.finish());
+  execution::DataChunk chunk;
+  chunk.set(node_alias, builder.finish());
+  chunk.set(pr_alias, pr_builder.finish());
+  ctx.append_chunk(std::move(chunk));
 }
 
 }  // namespace gds

@@ -18,6 +18,7 @@
 
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/execution/common/context.h"
 #include "utils/option_utils.h"
 #include "utils/parallel_utils.h"
 #include "utils/subgraph_utils.h"
@@ -130,8 +131,10 @@ class PersonalizedPageRank {
       builder.push_back_opt(v);
       pr_builder.push_back_opt(pr_[v]);
     }
-    ctx.set(node_alias, builder.finish());
-    ctx.set(pr_alias, pr_builder.finish());
+    execution::DataChunk chunk;
+    chunk.set(node_alias, builder.finish());
+    chunk.set(pr_alias, pr_builder.finish());
+    ctx.append_chunk(std::move(chunk));
   }
 
  private:
@@ -268,8 +271,7 @@ std::unique_ptr<function::CallFuncInputBase> PersonalizedPageRankFunction::bind(
 }
 
 execution::Context PersonalizedPageRankFunction::exec(
-    const function::CallFuncInputBase& input, neug::IStorageInterface& g,
-    const neug::execution::Context& ctx) {
+    const function::CallFuncInputBase& input, neug::IStorageInterface& g) {
   const auto& func_input =
       dynamic_cast<const PersonalizedPageRankInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
@@ -289,14 +291,14 @@ function::function_set PersonalizedPageRankFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::LogicalTypeID> inputTypes = {
-      common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
+  std::vector<common::DataTypeId> inputTypes = {
+      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
   // two output columns:
   // 1. node type
   // 2. personalized page rank value in double
   function::call_output_columns outputColumns = {
-      {"node", common::LogicalTypeID::NODE},
-      {"personalized_page_rank", common::LogicalTypeID::DOUBLE}};
+      {"node", common::DataTypeId::kVertex},
+      {"personalized_page_rank", common::DataTypeId::kDouble}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;

@@ -153,8 +153,10 @@ void WCC::sink(execution::Context& ctx, int node_alias, int component_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  ctx.set(node_alias, node_builder.finish());
-  ctx.set(component_alias, component_builder.finish());
+  execution::DataChunk chunk;
+  chunk.set(node_alias, node_builder.finish());
+  chunk.set(component_alias, component_builder.finish());
+  ctx.append_chunk(std::move(chunk));
 }
 }  // namespace gds
 }  // namespace neug

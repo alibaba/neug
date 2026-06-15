@@ -259,8 +259,10 @@ void LabelPropagation::sink(execution::Context& ctx, int32_t node_alias,
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  ctx.set(node_alias, node_builder.finish());
-  ctx.set(label_alias, label_builder.finish());
+  execution::DataChunk chunk;
+  chunk.set(node_alias, node_builder.finish());
+  chunk.set(label_alias, label_builder.finish());
+  ctx.append_chunk(std::move(chunk));
 }
 
 }  // namespace gds

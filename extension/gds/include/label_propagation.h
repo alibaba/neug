@@ -28,8 +28,7 @@ struct NEUG_API LabelPropagationFunction {
       const Schema& schema, const execution::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& graph,
-                                       const neug::execution::Context& ctx);
+                                       neug::IStorageInterface& graph);
 
   static function::function_set getFunctionSet();
 };

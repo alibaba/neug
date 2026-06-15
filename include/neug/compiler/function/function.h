@@ -36,16 +36,16 @@ class ClientContext;
 namespace function {
 
 struct NEUG_API FunctionBindData {
-  std::vector<common::LogicalType> paramTypes;
-  common::LogicalType resultType;
+  std::vector<common::DataType> paramTypes;
+  common::DataType resultType;
   // TODO: the following two fields should be moved to FunctionLocalState.
   main::ClientContext* clientContext;
   int64_t count;
 
-  explicit FunctionBindData(common::LogicalType dataType)
+  explicit FunctionBindData(common::DataType dataType)
       : resultType{std::move(dataType)}, clientContext{nullptr}, count{1} {}
-  FunctionBindData(std::vector<common::LogicalType> paramTypes,
-                   common::LogicalType resultType)
+  FunctionBindData(std::vector<common::DataType> paramTypes,
+                   common::DataType resultType)
       : paramTypes{std::move(paramTypes)},
         resultType{std::move(resultType)},
         clientContext{nullptr},
@@ -55,7 +55,7 @@ struct NEUG_API FunctionBindData {
 
   static std::unique_ptr<FunctionBindData> getSimpleBindData(
       const binder::expression_vector& params,
-      const common::LogicalType& resultType);
+      const common::DataType& resultType);
 
   template <class TARGET>
   TARGET& cast() {
@@ -63,8 +63,7 @@ struct NEUG_API FunctionBindData {
   }
 
   virtual std::unique_ptr<FunctionBindData> copy() const {
-    return std::make_unique<FunctionBindData>(
-        common::LogicalType::copy(paramTypes), resultType.copy());
+    return std::make_unique<FunctionBindData>(paramTypes, resultType.copy());
   }
 };
 
@@ -91,7 +90,7 @@ using scalar_bind_func = std::function<std::unique_ptr<FunctionBindData>(
 
 struct NEUG_API Function {
   std::string name;
-  std::vector<common::LogicalTypeID> parameterTypeIDs;
+  std::vector<common::DataTypeId> parameterTypeIDs;
   std::string signatureName;
   // Currently we only one variable-length function which is list creation. The
   // expectation is that all parameters must have the same type as
@@ -101,8 +100,7 @@ struct NEUG_API Function {
   bool isReadOnly = true;
 
   Function() : isVarLength{false}, isListLambda{false}, isReadOnly{true} {};
-  Function(std::string name,
-           std::vector<common::LogicalTypeID> parameterTypeIDs)
+  Function(std::string name, std::vector<common::DataTypeId> parameterTypeIDs)
       : name{std::move(name)},
         parameterTypeIDs{std::move(parameterTypeIDs)},
         isVarLength{false},
@@ -131,18 +129,18 @@ struct NEUG_API Function {
 };
 
 struct ScalarOrAggregateFunction : Function {
-  common::LogicalTypeID returnTypeID = common::LogicalTypeID::ANY;
+  common::DataTypeId returnTypeID = common::DataTypeId::kUnknown;
   scalar_bind_func bindFunc = nullptr;
 
   ScalarOrAggregateFunction() : Function{} {}
   ScalarOrAggregateFunction(std::string name,
-                            std::vector<common::LogicalTypeID> parameterTypeIDs,
-                            common::LogicalTypeID returnTypeID)
+                            std::vector<common::DataTypeId> parameterTypeIDs,
+                            common::DataTypeId returnTypeID)
       : Function{std::move(name), std::move(parameterTypeIDs)},
         returnTypeID{returnTypeID} {}
   ScalarOrAggregateFunction(std::string name,
-                            std::vector<common::LogicalTypeID> parameterTypeIDs,
-                            common::LogicalTypeID returnTypeID,
+                            std::vector<common::DataTypeId> parameterTypeIDs,
+                            common::DataTypeId returnTypeID,
                             scalar_bind_func bindFunc)
       : Function{std::move(name), std::move(parameterTypeIDs)},
         returnTypeID{returnTypeID},

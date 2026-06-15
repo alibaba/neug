@@ -81,7 +81,7 @@ struct NEUG_API TableFuncBindInput {
 struct NEUG_API ExtraScanTableFuncBindInput : ExtraTableFuncBindInput {
   common::FileScanInfo fileScanInfo;
   std::vector<std::string> expectedColumnNames;
-  std::vector<common::LogicalType> expectedColumnTypes;
+  std::vector<common::DataType> expectedColumnTypes;
   TableFunction* tableFunction = nullptr;
 };
 

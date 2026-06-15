@@ -113,6 +113,9 @@ void CheckpointManifest::Load(const std::string& file_path) {
 
   if (doc.HasMember("schema") && doc["schema"].IsObject()) {
     schema_.FromJson(doc["schema"].GetObject());
+    has_schema_ = true;
+  } else {
+    has_schema_ = false;
   }
 
   modules_.clear();
@@ -196,6 +199,9 @@ void CheckpointManifest::GenerateEmptyMeta(const std::string& path) {
 
 const Schema& CheckpointManifest::GetSchema() const { return schema_; }
 
-void CheckpointManifest::SetSchema(const Schema& schema) { schema_ = schema; }
+void CheckpointManifest::SetSchema(const Schema& schema) {
+  schema_ = schema;
+  has_schema_ = true;
+}
 
 }  // namespace neug

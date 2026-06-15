@@ -89,8 +89,7 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
 }
 
 execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
-                                      neug::IStorageInterface& g,
-                                      const neug::execution::Context& ctx) {
+                                      neug::IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
@@ -111,11 +110,11 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set SSSPFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::LogicalTypeID> input_types = {
-      common::LogicalTypeID::STRING, common::LogicalTypeID::ANY};
+  std::vector<common::DataTypeId> input_types = {
+      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
   function::call_output_columns output_columns = {
-      {"node", common::LogicalTypeID::NODE},
-      {"distance", common::LogicalTypeID::DOUBLE}};
+      {"node", common::DataTypeId::kVertex},
+      {"distance", common::DataTypeId::kDouble}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);

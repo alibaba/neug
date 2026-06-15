@@ -360,20 +360,23 @@ static execution::Context louvain_exec(const CallFuncInputBase& input_base,
   }
 
   // Set output columns using aliases
+  execution::DataChunk chunk;
   size_t num_outputs = has_extra_props ? 3 : 2;
   if (input.output_aliases.size() >= num_outputs) {
-    ctx.set(input.output_aliases[0], node_id_builder.finish());
-    ctx.set(input.output_aliases[1], community_builder.finish());
+    chunk.set(input.output_aliases[0], node_id_builder.finish());
+    chunk.set(input.output_aliases[1], community_builder.finish());
     if (has_extra_props) {
-      ctx.set(input.output_aliases[2], props_builder->finish());
+      chunk.set(input.output_aliases[2], props_builder->finish());
     }
   } else {
-    ctx.set(0, node_id_builder.finish());
-    ctx.set(1, community_builder.finish());
+    chunk.set(0, node_id_builder.finish());
+    chunk.set(1, community_builder.finish());
     if (has_extra_props) {
-      ctx.set(2, props_builder->finish());
+      chunk.set(2, props_builder->finish());
     }
   }
+  ctx.append_chunk(std::move(chunk));
+  ctx.tag_ids = {0, 1};
 
   LOG(INFO) << "[louvain] found " << result.num_communities
             << " communities, modularity=" << result.modularity;
@@ -387,8 +390,8 @@ static execution::Context louvain_exec(const CallFuncInputBase& input_base,
 function_set LouvainFunction::getFunctionSet() {
   // Output columns: node_id, community
   call_output_columns outputCols = {
-      {"node_id", common::LogicalTypeID::INT64},
-      {"community", common::LogicalTypeID::INT64},
+      {"node_id", common::DataTypeId::kInt64},
+      {"community", common::DataTypeId::kInt64},
   };
 
   function_set set;
@@ -396,7 +399,7 @@ function_set LouvainFunction::getFunctionSet() {
   // Overload 0: CALL louvain() — all defaults
   {
     auto func = std::make_unique<NeugCallFunction>(
-        name, std::vector<common::LogicalTypeID>{}, outputCols);
+        name, std::vector<common::DataTypeId>{}, outputCols);
     func->bindFunc = louvain_bind;
     func->execFunc = louvain_exec;
     set.push_back(std::move(func));
@@ -405,7 +408,7 @@ function_set LouvainFunction::getFunctionSet() {
   {
     auto func = std::make_unique<NeugCallFunction>(
         name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::DOUBLE},
+        std::vector<common::DataTypeId>{common::DataTypeId::kDouble},
         outputCols);
     func->bindFunc = louvain_bind;
     func->execFunc = louvain_exec;
@@ -415,8 +418,8 @@ function_set LouvainFunction::getFunctionSet() {
   {
     auto func = std::make_unique<NeugCallFunction>(
         name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::DOUBLE,
-                                           common::LogicalTypeID::BOOL},
+        std::vector<common::DataTypeId>{common::DataTypeId::kDouble,
+                                           common::DataTypeId::kBoolean},
         outputCols);
     func->bindFunc = louvain_bind;
     func->execFunc = louvain_exec;
@@ -426,9 +429,9 @@ function_set LouvainFunction::getFunctionSet() {
   {
     auto func = std::make_unique<NeugCallFunction>(
         name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::DOUBLE,
-                                           common::LogicalTypeID::BOOL,
-                                           common::LogicalTypeID::DOUBLE},
+        std::vector<common::DataTypeId>{common::DataTypeId::kDouble,
+                                           common::DataTypeId::kBoolean,
+                                           common::DataTypeId::kDouble},
         outputCols);
     func->bindFunc = louvain_bind;
     func->execFunc = louvain_exec;
@@ -439,16 +442,16 @@ function_set LouvainFunction::getFunctionSet() {
   // Extra properties returned as JSON string in 'properties' column.
   {
     call_output_columns outputColsWithProps = {
-        {"node_id", common::LogicalTypeID::INT64},
-        {"community", common::LogicalTypeID::INT64},
-        {"properties", common::LogicalTypeID::STRING},
+        {"node_id", common::DataTypeId::kInt64},
+        {"community", common::DataTypeId::kInt64},
+        {"properties", common::DataTypeId::kVarchar},
     };
     auto func = std::make_unique<NeugCallFunction>(
         name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::DOUBLE,
-                                           common::LogicalTypeID::BOOL,
-                                           common::LogicalTypeID::DOUBLE,
-                                           common::LogicalTypeID::STRING},
+        std::vector<common::DataTypeId>{common::DataTypeId::kDouble,
+                                           common::DataTypeId::kBoolean,
+                                           common::DataTypeId::kDouble,
+                                           common::DataTypeId::kVarchar},
         outputColsWithProps);
     func->bindFunc = louvain_bind;
     func->execFunc = louvain_exec;

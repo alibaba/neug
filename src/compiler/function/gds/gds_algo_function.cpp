@@ -33,8 +33,8 @@ namespace {
 static common::case_insensitive_map_t<std::string> extractStringOptions(
     const common::Value& value) {
   common::case_insensitive_map_t<std::string> out;
-  const auto typeId = value.getDataType().getLogicalTypeID();
-  if (typeId == common::LogicalTypeID::STRUCT) {
+  const auto typeId = value.getDataType().id();
+  if (typeId == common::DataTypeId::kStruct) {
     for (auto i = 0u; i < common::StructType::getNumFields(value.getDataType());
          ++i) {
       auto& field = common::StructType::getField(value.getDataType(), i);
@@ -43,11 +43,11 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
     }
     return out;
   }
-  if (typeId == common::LogicalTypeID::MAP) {
+  if (typeId == common::DataTypeId::kMap) {
     for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
       const auto& entry = *common::NestedVal::getChildVal(&value, i);
       const auto& entryType = entry.getDataType();
-      if (entryType.getLogicalTypeID() != common::LogicalTypeID::STRUCT) {
+      if (entryType.id() != common::DataTypeId::kStruct) {
         THROW_BINDER_EXCEPTION(
             "GDS options map entries must be structs (key/value pairs).");
       }
@@ -57,7 +57,7 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
       }
       const auto& keyVal = *common::NestedVal::getChildVal(&entry, 0);
       const auto& valVal = *common::NestedVal::getChildVal(&entry, 1);
-      keyVal.validateType(common::LogicalTypeID::STRING);
+      keyVal.validateType(common::DataTypeId::kVarchar);
       out.emplace(keyVal.getValue<std::string>(), valVal.toString());
     }
     return out;
@@ -99,7 +99,7 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
           alias = var.alias;
         }
         std::shared_ptr<binder::Expression> columnExpr;
-        if (column->second == common::LogicalTypeID::NODE) {
+        if (column->second == common::DataTypeId::kVertex) {
           columnExpr = graph::GDSFunction::bindNodeOutput(
               *input, graphEntry.getNodeEntries(), alias);
         } else {
@@ -115,7 +115,7 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
     for (auto& outputColumn : outputColumns) {
       // add ouput columns to scope if exists
       std::shared_ptr<binder::Expression> columnExpr;
-      if (outputColumn.second == common::LogicalTypeID::NODE) {
+      if (outputColumn.second == common::DataTypeId::kVertex) {
         columnExpr = graph::GDSFunction::bindNodeOutput(
             *input, graphEntry.getNodeEntries(), outputColumn.first);
       } else {
@@ -131,7 +131,7 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
 }
 
 GDSAlgoFunction::GDSAlgoFunction(std::string name,
-                                 std::vector<common::LogicalTypeID> inputTypes,
+                                 std::vector<common::DataTypeId> inputTypes,
                                  call_output_columns outputColumns)
     : NeugCallFunction(std::move(name), std::move(inputTypes),
                        std::move(outputColumns)) {
