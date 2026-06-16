@@ -35,11 +35,11 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
   common::case_insensitive_map_t<std::string> out;
   const auto typeId = value.getDataType().id();
   if (typeId == common::DataTypeId::kStruct) {
-    for (auto i = 0u; i < common::StructType::getNumFields(value.getDataType());
+    for (auto i = 0u; i < common::StructType::GetNumFields(value.getDataType());
          ++i) {
-      auto& field = common::StructType::getField(value.getDataType(), i);
+      auto& fieldName = common::StructType::GetChildName(value.getDataType(), i);
       const auto* child = common::NestedVal::getChildVal(&value, i);
-      out.emplace(field.getName(), child->toString());
+      out.emplace(fieldName, child->toString());
     }
     return out;
   }
@@ -51,7 +51,7 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
         THROW_BINDER_EXCEPTION(
             "GDS options map entries must be structs (key/value pairs).");
       }
-      if (common::StructType::getNumFields(entryType) != 2) {
+      if (common::StructType::GetNumFields(entryType) != 2) {
         THROW_BINDER_EXCEPTION(
             "GDS options map entry must have exactly two fields.");
       }
@@ -64,7 +64,7 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
   }
   THROW_BINDER_EXCEPTION(
       "Second argument to GDS CALL must be a map literal, got " +
-      value.getDataType().toString() + ".");
+      value.getDataType().ToString() + ".");
 }
 
 }  // namespace

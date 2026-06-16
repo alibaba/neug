@@ -75,8 +75,7 @@ std::unique_ptr<function::CallFuncInputBase> LCCFunction::bind(
     THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for LCC");
   }
 
-  input->directed =
-      get_option_value<std::string>(options, "directed", "false") == "true";
+  input->directed = get_option_value<bool>(options, "directed", false);
 
   input->degree_threshold = get_option_value<int32_t>(
       options, "degree_threshold", std::numeric_limits<int32_t>::max());

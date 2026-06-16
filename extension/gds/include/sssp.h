@@ -22,7 +22,7 @@
 namespace neug {
 namespace gds {
 struct NEUG_API SSSPFunction {
-  static constexpr const char* name = "SSSP";
+  static constexpr const char* name = "sssp";
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
                                        neug::IStorageInterface& graph);
 

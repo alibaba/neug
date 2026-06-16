@@ -54,13 +54,19 @@ KCore::KCore(const StorageReadInterface& graph, label_t vertex_label,
 void KCore::compute() {
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
+  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
+                                                    vertex_label_, edge_label_);
 
   ParallelUtils::parallel_for(
       vertices_.data(), vertices_.size(),
       [&](vid_t v, int tid) {
         int32_t deg = 0;
-        auto edges = oe_view.get_edges(v);
-        for (auto it = edges.begin(); it != edges.end(); ++it) {
+        auto oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          ++deg;
+        }
+        auto ie_edges = ie_view.get_edges(v);
+        for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
           ++deg;
         }
         degree_[v].store(deg, std::memory_order_relaxed);
@@ -83,8 +89,27 @@ void KCore::compute() {
     ParallelUtils::parallel_for(
         frontier.data(), frontier.size(),
         [&](vid_t v, int tid) {
-          auto edges = oe_view.get_edges(v);
-          for (auto it = edges.begin(); it != edges.end(); ++it) {
+          auto oe_edges = oe_view.get_edges(v);
+          for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+            vid_t u = *it;
+            if (removed_[u].load(std::memory_order_relaxed) != 0) {
+              continue;
+            }
+
+            int32_t old_degree =
+                degree_[u].fetch_sub(1, std::memory_order_relaxed);
+            int32_t new_degree = old_degree - 1;
+            if (old_degree >= k_ && new_degree < k_) {
+              uint8_t expected = 0;
+              if (removed_[u].compare_exchange_strong(
+                      expected, 1, std::memory_order_relaxed,
+                      std::memory_order_relaxed)) {
+                local_next[tid].push_back(u);
+              }
+            }
+          }
+          auto ie_edges = ie_view.get_edges(v);
+          for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
             vid_t u = *it;
             if (removed_[u].load(std::memory_order_relaxed) != 0) {
               continue;

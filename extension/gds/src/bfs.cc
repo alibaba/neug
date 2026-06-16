@@ -76,8 +76,7 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
   input->source = get_option_value<std::string>(options, "source", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
-  input->directed =
-      get_option_value<std::string>(options, "directed", "false") == "true";
+  input->directed = get_option_value<bool>(options, "directed", false);
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();

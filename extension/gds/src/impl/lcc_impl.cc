@@ -106,7 +106,7 @@ LCCUndirected::LCCUndirected(const StorageReadInterface& graph,
     vertices_.push_back(v);
   }
 
-  degrees_.reset(new int32_t[4 * vertex_set.size()]);
+  degrees_.reset(new int32_t[vertex_set.size()]);
   triangles_.reset(new int64_t[vertex_set.size()]);
   lcc_.reset(new double[vertex_set.size()]);
 }

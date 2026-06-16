@@ -76,7 +76,7 @@ void DirectedPageRank::compute(int max_iterations) {
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   std::vector<double> dangling_sums(concurrency_, 0.0);
-  for (int iter = 0; iter <= max_iterations; ++iter) {
+  for (int iter = 0; iter < max_iterations; ++iter) {
     double base = (1.0 - damping_factor_) / vertex_count_ +
                   damping_factor_ * dangling_sum_ / vertex_count_;
     ParallelUtils::parallel_for(
@@ -190,7 +190,7 @@ void UndirectedPageRank::compute(int max_iterations) {
                                                     vertex_label_, edge_label_);
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
-  for (int iter = 0; iter <= max_iterations; ++iter) {
+  for (int iter = 0; iter < max_iterations; ++iter) {
     double base = (1.0 - damping_factor_) / vertex_count_ +
                   damping_factor_ * dangling_sum_ / vertex_count_;
     dangling_sum_ = base * dangling_count_;

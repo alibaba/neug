@@ -22,7 +22,7 @@
 namespace neug {
 namespace gds {
 struct NEUG_API WCCFunction {
-  static constexpr const char* name = "WCC";
+  static constexpr const char* name = "wcc";
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
                                        neug::IStorageInterface& graph);
 

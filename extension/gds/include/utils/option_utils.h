@@ -64,6 +64,12 @@ T get_option_value(
       return static_cast<char>(std::tolower(c));
     });
     return s;
+  } else if constexpr (std::is_same_v<T, bool>) {
+    std::string s = it->second;
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return static_cast<char>(std::tolower(c));
+    });
+    return s == "true" || s == "1" || s == "yes";
   } else {
     static_assert(dependent_false<T>::value, "Unsupported option value type");
   }

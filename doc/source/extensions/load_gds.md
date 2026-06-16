@@ -385,6 +385,85 @@ Propagation also supports heterogeneous vertex labels in the projected subgraph
 
 ---
 
+### Louvain
+
+A community detection algorithm that optimizes modularity by iteratively moving
+vertices between communities and aggregating the graph into super-nodes.
+
+```cypher
+CALL louvain('<graph_name>', {<options>})
+RETURN node, community;
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `resolution` | DOUBLE | `1.0` | Resolution parameter (gamma). Values > 1 favor smaller communities, < 1 favor larger communities |
+| `directed` | BOOL | `false` | Whether to treat the graph as directed |
+| `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
+
+**Output columns:**
+
+| Column | Type | Description |
+|---|---|---|
+| `node` | NODE | The vertex |
+| `community` | INT64 | Community ID (0-based) |
+
+**Example:**
+
+```cypher
+CALL louvain('social', {resolution: 1.0})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Predicate support:** Neither vertex nor edge predicates are supported.
+
+---
+
+### Leiden
+
+A community detection algorithm that improves upon Louvain by adding a refinement
+phase. This refinement allows communities to be split during execution, leading
+to better detection of small communities and higher-quality partitions.
+
+```cypher
+CALL leiden('<graph_name>', {<options>})
+RETURN node, community;
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `resolution` | DOUBLE | `1.0` | Resolution parameter (gamma). Values > 1 favor smaller communities, < 1 favor larger communities |
+| `directed` | BOOL | `false` | Whether to treat the graph as directed |
+| `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
+
+**Output columns:**
+
+| Column | Type | Description |
+|---|---|---|
+| `node` | NODE | The vertex |
+| `community` | INT64 | Community ID (0-based) |
+
+**Example:**
+
+```cypher
+CALL leiden('social', {resolution: 1.5})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Predicate support:** Neither vertex nor edge predicates are supported.
+
+**Leiden vs. Louvain:** Use Leiden when you need higher-quality community partitions
+or better detection of small communities. Use Louvain when you need the fastest
+possible execution.
+
+---
+
 ### Personalized PageRank
 
 > **Status:** Implemented but not yet registered in the extension. Available in
@@ -429,6 +508,8 @@ RETURN node, personalized_page_rank;
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | Label Propagation | `label_propagation` | `node`, `label` | `max_iterations` |
+| Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold` |
+| Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold` |
 | Personalized PageRank* | `personalized_page_rank` | `node`, `personalized_page_rank` | `edge_weight`, `node_weight` |
 
 \* Not yet registered in the extension; available in a future release.

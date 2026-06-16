@@ -76,8 +76,7 @@ std::unique_ptr<function::CallFuncInputBase> PageRankFunction::bind(
       get_option_value<int32_t>(options, "max_iterations", 20);
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
-  input->directed =
-      get_option_value<std::string>(options, "directed", "false") == "true";
+  input->directed = get_option_value<bool>(options, "directed", false);
 
   return input;
 }
@@ -86,16 +85,13 @@ execution::Context PageRankFunction::exec(
     const function::CallFuncInputBase& input, neug::IStorageInterface& g) {
   const auto& func_input = dynamic_cast<const PageRankInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  auto start = std::chrono::high_resolution_clock::now();
   execution::Context ret;
   if (func_input.directed) {
     DirectedPageRank pagerank(graph, func_input.vertex_label,
                               func_input.edge_label, func_input.damping_factor,
                               func_input.concurrency,
                               func_input.vertex_predicate.get());
-    start = std::chrono::high_resolution_clock::now();
     pagerank.compute(func_input.max_iterations);
-    start = std::chrono::high_resolution_clock::now();
 
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
   } else {

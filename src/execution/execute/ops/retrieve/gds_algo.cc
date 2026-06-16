@@ -42,7 +42,7 @@ neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
   if (algo_input_ == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
   }
-  return algo_func_->execFunc(*algo_input_, graph_interface, ctx);
+  return algo_func_->execFunc(*algo_input_, graph_interface);
 }
 
 neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
@@ -73,6 +73,13 @@ neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
   }
 
   ContextMeta ret_meta = ctx_meta;
+  const auto& outputColumns = algo_func->outputColumns;
+  for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
+    auto alias = plan.plan(op_idx).meta_data(i).alias();
+    if (static_cast<size_t>(i) < outputColumns.size()) {
+      ret_meta.set(alias, common::DataType(outputColumns[i].second));
+    }
+  }
   return std::make_pair(
       std::make_unique<GDSAlgoOpr>(std::move(algo_input), algo_func), ret_meta);
 }

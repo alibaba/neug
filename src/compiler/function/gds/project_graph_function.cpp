@@ -83,9 +83,10 @@ extractGraphEntryTableInfos(const common::Value& value) {
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
         if (triplets.size() < 3) {
-          THROW_BINDER_EXCEPTION(
-              "Invalid triplet names, should be at least 3 elements, but is: " +
-              triplets.size());
+          THROW_BINDER_EXCEPTION(common::stringFormat(
+              "Invalid triplet names, should be at least 3 elements, but is: "
+              "{}",
+              triplets.size()));
         }
         infos.emplace_back(triplets[0], triplets[1], triplets[2],
                            "" /* empty predicate */);
@@ -94,14 +95,14 @@ extractGraphEntryTableInfos(const common::Value& value) {
         THROW_BINDER_EXCEPTION(common::stringFormat(
             "Cannot extract graph entry from value {}, has data type {}. LIST "
             "or STRING was expected.",
-            value.toString(), value.getDataType().toString()));
+            value.toString(), value.getDataType().ToString()));
       }
       }
     }
   } break;
   case common::DataTypeId::kStruct: {
-    for (auto i = 0u; i < common::StructType::getNumFields(value.getDataType());
-         ++i) {
+    for (auto i = 0u;
+         i < common::StructType::GetNumFields(value.getDataType()); ++i) {
       auto tableName = common::StructType::GetChildName(value.getDataType(), i);
       auto predicate = getStringVal(*common::NestedVal::getChildVal(&value, i));
       infos.emplace_back(tableName, predicate);
@@ -112,15 +113,17 @@ extractGraphEntryTableInfos(const common::Value& value) {
       const auto& childValue = *common::NestedVal::getChildVal(&value, i);
       const auto& childType = childValue.getDataType();
       if (childType.id() != common::DataTypeId::kStruct) {
-        THROW_BINDER_EXCEPTION(
-            "Invalid map type, each map entry should be struct type, but is: " +
-            childType.toString());
+        THROW_BINDER_EXCEPTION(common::stringFormat(
+            "Invalid map type, each map entry should be struct type, but is: "
+            "{}",
+            childType.ToString()));
       }
-      auto childFields = common::StructType::getNumFields(childType);
+      auto childFields = common::StructType::GetNumFields(childType);
       if (childFields != 2) {
-        THROW_BINDER_EXCEPTION(
-            "Invalid map type, each map entry should have 2 fields, but is: " +
-            childFields);
+        THROW_BINDER_EXCEPTION(common::stringFormat(
+            "Invalid map type, each map entry should have 2 fields, but is: "
+            "{}",
+            childFields));
       }
       // value field for predicates
       auto predicate =
@@ -136,9 +139,10 @@ extractGraphEntryTableInfos(const common::Value& value) {
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
         if (triplets.size() < 3) {
-          THROW_BINDER_EXCEPTION(
-              "Invalid triplet names, should be at least 3 elements, but is: " +
-              triplets.size());
+          THROW_BINDER_EXCEPTION(common::stringFormat(
+              "Invalid triplet names, should be at least 3 elements, but is: "
+              "{}",
+              triplets.size()));
         }
         infos.emplace_back(triplets[0], triplets[1], triplets[2], predicate);
       } break;
@@ -146,7 +150,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
         THROW_BINDER_EXCEPTION(common::stringFormat(
             "Cannot extract graph entry from value {}, has data type {}. "
             "LIST or STRING was expected.",
-            tableField.toString(), tableType.toString()));
+            tableField.toString(), tableType.ToString()));
       }
       }
     }
@@ -154,7 +158,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
   default:
     THROW_BINDER_EXCEPTION(common::stringFormat(
         "Argument {} has data type {}. LIST or STRUCT or MAP was expected.",
-        value.toString(), value.getDataType().toString()));
+        value.toString(), value.getDataType().ToString()));
   }
   return infos;
 }
@@ -217,8 +221,7 @@ function_set ProjectGraphFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/,
-                      const neug::execution::Context& /*ctx*/) {
+                      neug::IStorageInterface& /*graph*/) {
     return execution::Context{};
   };
 
@@ -242,8 +245,7 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/,
-                      const neug::execution::Context& /*ctx*/) {
+                      neug::IStorageInterface& /*graph*/) {
     return execution::Context{};
   };
 
@@ -267,8 +269,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& /*input*/,
-                          neug::IStorageInterface& /*graph*/,
-                          const neug::execution::Context& /*ctx*/) {
+                          neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
@@ -281,7 +282,9 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
     for (const auto& [name, _] : nameToEntryMap) {
       name_builder.push_back_opt(name);
     }
-    out.set(0, name_builder.finish());
+    execution::DataChunk chunk;
+    chunk.set(0, name_builder.finish());
+    out.append_chunk(std::move(chunk));
     out.tag_ids = {0};
     return out;
   };
@@ -319,8 +322,7 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& /*graph*/,
-                          const neug::execution::Context& /*ctx*/) {
+                          neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
     neug::execution::ValueColumnBuilder<std::string> name_builder;
     neug::execution::ValueColumnBuilder<std::string> predicate_builder;
@@ -347,8 +349,10 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
       name_builder.push_back_opt(std::move(triplets));
       predicate_builder.push_back_opt(relInfo.predicate);
     }
-    out.set(0, name_builder.finish());
-    out.set(1, predicate_builder.finish());
+    execution::DataChunk chunk;
+    chunk.set(0, name_builder.finish());
+    chunk.set(1, predicate_builder.finish());
+    out.append_chunk(std::move(chunk));
     out.tag_ids = {0, 1};
     return out;
   };

@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <bthread/bthread.h>
-
 #include <algorithm>
 #include <atomic>
 #include <thread>
@@ -54,16 +52,16 @@ struct ParallelUtils {
     size_t vertex_count = vertex_set.size();
     size_t thread_num = std::min(static_cast<size_t>(concurrency),
                                  (vertex_count + chunk_size - 1) / chunk_size);
-    std::vector<bthread_t> threads(thread_num - 1);
+
+    std::vector<std::thread> threads;
     std::vector<WorkerArgs> args(thread_num - 1);
+    threads.reserve(thread_num - 1);
 
     for (size_t i = 0; i < thread_num - 1; ++i) {
       args[i] = WorkerArgs{&vertex_set, &current, chunk_size, &func,
                            static_cast<int>(i + 1)};
-      bthread_start_urgent(
-          &threads[i], nullptr,
-          [](void* arg) -> void* {
-            auto* params = static_cast<WorkerArgs*>(arg);
+      threads.emplace_back(
+          [](WorkerArgs* params) {
             size_t vertex_count = params->vertex_set->size();
             const auto& vertex_set = *params->vertex_set;
             while (true) {
@@ -80,10 +78,10 @@ struct ParallelUtils {
                 }
               }
             }
-            return nullptr;
           },
           &args[i]);
     }
+    // Main thread also works
     while (true) {
       size_t local_start = current.fetch_add(chunk_size);
       if (local_start >= vertex_count) {
@@ -97,7 +95,9 @@ struct ParallelUtils {
       }
     }
     for (auto& thread : threads) {
-      bthread_join(thread, nullptr);
+      if (thread.joinable()) {
+        thread.join();
+      }
     }
   }
 
@@ -124,15 +124,16 @@ struct ParallelUtils {
     std::atomic<size_t> current(0);
     size_t thread_num = std::min(static_cast<size_t>(concurrency),
                                  (size + chunk_size - 1) / chunk_size);
-    std::vector<bthread_t> threads(thread_num - 1);
+
+    std::vector<std::thread> threads;
     std::vector<WorkerArgs> args(thread_num - 1);
+    threads.reserve(thread_num - 1);
+
     for (size_t i = 0; i < thread_num - 1; ++i) {
       args[i] = WorkerArgs{items,      &current, size,
                            chunk_size, &func,    static_cast<int>(i + 1)};
-      bthread_start_urgent(
-          &threads[i], nullptr,
-          [](void* arg) -> void* {
-            auto* params = static_cast<WorkerArgs*>(arg);
+      threads.emplace_back(
+          [](WorkerArgs* params) {
             while (true) {
               size_t local_start =
                   params->current->fetch_add(params->chunk_size);
@@ -145,10 +146,10 @@ struct ParallelUtils {
                 (*params->func)(params->items[offset], params->thread_id);
               }
             }
-            return nullptr;
           },
           &args[i]);
     }
+    // Main thread also works
     while (true) {
       size_t local_start = current.fetch_add(chunk_size);
       if (local_start >= size) {
@@ -160,7 +161,9 @@ struct ParallelUtils {
       }
     }
     for (auto& thread : threads) {
-      bthread_join(thread, nullptr);
+      if (thread.joinable()) {
+        thread.join();
+      }
     }
   }
 };

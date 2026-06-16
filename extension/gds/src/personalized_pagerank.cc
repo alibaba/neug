@@ -46,20 +46,22 @@ class PersonalizedPageRank {
     size_t vertex_count = graph.GetVertexSet(vertex_label).size();
     normalized_node_weights_ = std::make_unique<double[]>(vertex_count);
     sum_of_outgoing_weights_ = std::make_unique<double[]>(vertex_count);
+    pr_ = std::make_unique<double[]>(vertex_count);
     valid_vertices_.reserve(vertex_count);
     for (vid_t v : graph.GetVertexSet(vertex_label)) {
       valid_vertices_.push_back(v);
     }
-    double sum_of_node_weights = 0.0;
     auto oe_view = graph.GetGenericOutgoingGraphView(vertex_label, vertex_label,
                                                      edge_label);
     auto dangling_flag = std::make_unique<bool[]>(vertex_count);
 
+    // Use per-thread local sums to avoid data race
+    std::vector<double> local_sums(concurrency_, 0.0);
     ParallelUtils::parallel_for(
         valid_vertices_.data(), valid_vertices_.size(),
         [&](vid_t v, int thread_id) {
           normalized_node_weights_[v] = node_weight_column_->get_view(v);
-          sum_of_node_weights += normalized_node_weights_[v];
+          local_sums[thread_id] += normalized_node_weights_[v];
           double sum_weights = 0.0;
           auto oes = oe_view.get_edges(v);
           for (auto it = oes.begin(); it != oes.end(); ++it) {
@@ -75,6 +77,8 @@ class PersonalizedPageRank {
           pr_[v] = normalized_node_weights_[v];
         },
         concurrency_);
+    double sum_of_node_weights = 0.0;
+    for (auto s : local_sums) sum_of_node_weights += s;
     for (vid_t v = 0; v < vertex_count; ++v) {
       if (dangling_flag[v]) {
         dangling_vertices_.push_back(v);

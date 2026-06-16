@@ -139,3 +139,109 @@ def test_run_label_propagation(tmp_path):
                 label;
             """
         )
+
+
+@contextmanager
+def tinysnb_simple_connection(tmp_path):
+    """Open a writable DB with tinysnb loaded and a simple projected graph
+    (single vertex label 'person', single edge label 'knows')."""
+    db_dir = tmp_path / "gds_simple_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_knows', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        yield conn
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_run_louvain(tmp_path):
+    """Run louvain community detection on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_knows', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "louvain must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, community)"
+            assert isinstance(row[1], int), "community should be an integer"
+
+
+def test_run_leiden(tmp_path):
+    """Run leiden community detection on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_knows', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "leiden must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, community)"
+            assert isinstance(row[1], int), "community should be an integer"
+
+
+def test_run_louvain_with_resolution(tmp_path):
+    """Run louvain with custom resolution parameter."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows_low = list(
+            conn.execute(
+                """
+                CALL louvain('person_knows', {resolution: 0.1, concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        rows_high = list(
+            conn.execute(
+                """
+                CALL louvain('person_knows', {resolution: 10.0, concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_low) > 0
+        assert len(rows_high) > 0
+        low_communities = {row[1] for row in rows_low}
+        high_communities = {row[1] for row in rows_high}
+        assert len(high_communities) >= len(
+            low_communities
+        ), "Higher resolution should produce >= communities"
+
+
+def test_run_leiden_with_resolution(tmp_path):
+    """Run leiden with custom resolution parameter."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_knows', {resolution: 1.0, concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0
+        communities = {row[1] for row in rows}
+        assert len(communities) >= 1, "leiden should detect at least one community"

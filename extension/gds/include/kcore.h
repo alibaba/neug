@@ -22,7 +22,7 @@
 namespace neug {
 namespace gds {
 struct NEUG_API KCoreFunction {
-  static constexpr const char* name = "KCore";
+  static constexpr const char* name = "kcore";
   static neug::execution::Context exec(const function::CallFuncInputBase& input,
                                        neug::IStorageInterface& graph);
 

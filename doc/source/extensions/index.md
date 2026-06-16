@@ -15,9 +15,7 @@ The following extensions are currently supported or planned to be supported in N
 | Data Source     | [JSON](load_json.md)                | Import & export data from JSON file format (built-in since v0.1.2)        | v0.1          |
 | Data Source     | [PARQUET](load_parquet.md)          | Import & Export data from PARQUET format files                            | v0.1.1        |
 | File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md) | Provide data source based on HTTP/HTTPS/S3/OSS protocol                   | v0.1.2        |
-| Graph Algorithm | [GDS](load_gds.md)               | Graph Data Science algorithms (PageRank, BFS, SSSP, WCC, LCC, K-Core, Label Propagation) | v0.2 |
-| Graph Algorithm | [Louvain](load_louvain.md)        | Louvain community detection algorithm for graph clustering                | v0.1.2        |
-| Graph Algorithm | [Leiden](load_leiden.md)          | Leiden community detection algorithm (improved Louvain with refinement)   | v0.1.2        |
+| Graph Algorithm | [GDS](load_gds.md)               | Graph Data Science algorithms (PageRank, BFS, SSSP, WCC, LCC, K-Core, Label Propagation, Louvain, Leiden) | v0.2 |
 
 ## Using Extensions
 

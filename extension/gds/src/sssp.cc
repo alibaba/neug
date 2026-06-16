@@ -76,8 +76,7 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
   }
 
   input->source = get_option_value<std::string>(options, "source", "");
-  input->directed =
-      get_option_value<std::string>(options, "directed", "false") == "true";
+  input->directed = get_option_value<bool>(options, "directed", false);
   input->edge_weight = get_option_value<std::string>(options, "weight", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());

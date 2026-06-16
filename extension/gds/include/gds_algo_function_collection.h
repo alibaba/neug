@@ -24,6 +24,8 @@
 #include "kcore.h"
 #include "label_propagation.h"
 #include "lcc.h"
+#include "leiden.h"
+#include "louvain.h"
 #include "page_rank.h"
 #include "sssp.h"
 #include "wcc.h"

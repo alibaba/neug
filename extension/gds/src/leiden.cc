@@ -14,94 +14,98 @@
  * limitations under the License.
  */
 
-#include "wcc.h"
+#include "leiden.h"
 
-#include "impl/wcc_impl.h"
+#include "community/leiden_algorithm.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {
 
-struct WCCInput : public function::CallFuncInputBase {
-  ~WCCInput() = default;
-  WCCInput() = default;
+struct LeidenInput : public function::CallFuncInputBase {
+  ~LeidenInput() = default;
+  LeidenInput() = default;
+
   bool parse_subgraph(const ::physical::Subgraph& subgraph,
                       const execution::ContextMeta& ctx_meta) {
     ParsedSubgraph parsed;
     if (!parse_subgraph_entries(subgraph, ctx_meta, parsed)) {
       return false;
     }
-    if (!check_simple_graph_subgraph(parsed, "WCC")) {
+    if (!check_simple_graph_subgraph(parsed, "leiden")) {
       return false;
     }
-
     if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in WCC.";
+      LOG(ERROR) << "Vertex predicates are not supported in leiden.";
       return false;
     }
     if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in WCC.";
+      LOG(ERROR) << "Edge predicates are not supported in leiden.";
       return false;
     }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
     return true;
   }
+
   label_t vertex_label;
   label_t edge_label;
-  int32_t node_alias;
-  int32_t comp_alias;
+  double resolution = 1.0;
+  bool directed = false;
+  double threshold = 1e-7;
   int32_t concurrency;
+  int32_t node_alias;
+  int32_t community_alias;
 };
 
-std::unique_ptr<function::CallFuncInputBase> WCCFunction::bind(
+std::unique_ptr<function::CallFuncInputBase> LeidenFunction::bind(
     const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr();
   const auto& subgraph = opr.gds_algo().sub_graph();
   const auto& options = opr.gds_algo().options();
 
-  auto input = std::make_unique<WCCInput>();
+  auto input = std::make_unique<LeidenInput>();
   if (!input->parse_subgraph(subgraph, ctx_meta)) {
-    LOG(ERROR) << "Failed to parse subgraph for WCC.";
-    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for WCC");
+    LOG(ERROR) << "Failed to parse subgraph for leiden.";
+    THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for leiden");
   }
-  input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->comp_alias = plan.plan(op_idx).meta_data(1).alias();
+
+  input->resolution = get_option_value<double>(options, "resolution", 1.0);
+  input->directed = get_option_value<bool>(options, "directed", false);
+  input->threshold = get_option_value<double>(options, "threshold", 1e-7);
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
+
+  input->node_alias = plan.plan(op_idx).meta_data(0).alias();
+  input->community_alias = plan.plan(op_idx).meta_data(1).alias();
 
   return input;
 }
 
-execution::Context WCCFunction::exec(
+execution::Context LeidenFunction::exec(
     const function::CallFuncInputBase& input_base, neug::IStorageInterface& g) {
-  const auto& input = dynamic_cast<const WCCInput&>(input_base);
+  const auto& input = dynamic_cast<const LeidenInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  WCC wcc(graph, input.vertex_label, input.edge_label, input.concurrency);
-  wcc.compute();
+  community::Leiden leiden(graph, input.vertex_label, input.edge_label,
+                           input.resolution, input.threshold,
+                           input.concurrency);
+  leiden.compute();
 
-  execution::Context ret;
-  wcc.sink(ret, input.node_alias, input.comp_alias);
-  return ret;
+  execution::Context ctx;
+  leiden.sink(ctx, input.node_alias, input.community_alias);
+  return ctx;
 }
 
-function::function_set WCCFunction::getFunctionSet() {
+function::function_set LeidenFunction::getFunctionSet() {
   function::function_set funcSet;
-  // two input params:
-  // 1. subgraph name in string
-  // 2. options in map
   std::vector<common::DataTypeId> inputTypes = {
       common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
-  // two output columns:
-  // 1. node type
-  // 2. label id in int64
   function::call_output_columns outputColumns = {
       {"node", common::DataTypeId::kVertex},
-      {"comp", common::DataTypeId::kInt64}};
+      {"community", common::DataTypeId::kInt64}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;
@@ -110,5 +114,6 @@ function::function_set WCCFunction::getFunctionSet() {
   funcSet.emplace_back(std::move(function));
   return funcSet;
 }
+
 }  // namespace gds
 }  // namespace neug
