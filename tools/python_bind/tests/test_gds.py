@@ -491,8 +491,17 @@ class TestSmallGraph:
                 assert isinstance(row[1], int), "community should be an integer"
 
     def test_cdlp_small(self, tmp_path):
-        """CDLP is not implemented in the current GDS extension."""
-        pytest.skip("CDLP algorithm is not available in the GDS extension")
+        """CDLP (Community Detection using Label Propagation) on a small graph."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL label_propagation('g', {max_iterations: 5}) "
+                    "YIELD node, label RETURN node.id, label;"
+                )
+            )
+            assert len(rows) == 2, "CDLP should return 2 rows"
+            for row in rows:
+                assert isinstance(row[1], int), "label should be an integer"
 
 
 # ---- (b) BFS with non-existent source ------------------------------------
