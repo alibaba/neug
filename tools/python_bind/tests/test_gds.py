@@ -577,9 +577,9 @@ class TestEmptyGraph:
             )
             assert len(rows) == 3, "WCC should return one row per node"
             comps = [r[1] for r in rows]
-            assert len(set(comps)) == 3, (
-                "With no edges, every node should be in its own component"
-            )
+            assert (
+                len(set(comps)) == 3
+            ), "With no edges, every node should be in its own component"
 
     def test_page_rank_empty_graph(self, tmp_path):
         """PageRank on an edgeless graph should converge to uniform distribution."""
@@ -661,13 +661,9 @@ class TestSelfLoopGraph:
             assert dist_map.get(1) == 0, "Source node should have distance 0"
             # Node 2 should be reachable at distance 1, node 3 at distance 2
             if 2 in dist_map:
-                assert dist_map[2] == 1, (
-                    "Node 2 should be at distance 1 from source"
-                )
+                assert dist_map[2] == 1, "Node 2 should be at distance 1 from source"
             if 3 in dist_map:
-                assert dist_map[3] == 2, (
-                    "Node 3 should be at distance 2 from source"
-                )
+                assert dist_map[3] == 2, "Node 3 should be at distance 2 from source"
 
 
 # ---- (e) Large graph cross-validation with tinysnb ------------------------
@@ -697,8 +693,7 @@ class TestCrossValidationTinysnb:
             # Query actual edges and verify connected nodes share component
             edge_rows = list(
                 conn.execute(
-                    "MATCH (a:person)-[:knows]->(b:person)"
-                    " RETURN a.id, b.id;"
+                    "MATCH (a:person)-[:knows]->(b:person)" " RETURN a.id, b.id;"
                 )
             )
             for src_id, dst_id in edge_rows:
@@ -720,9 +715,7 @@ class TestCrossValidationTinysnb:
         with tinysnb_simple_connection(tmp_path) as conn:
             # Pick the first person as source
             source_rows = list(
-                conn.execute(
-                    "MATCH (p:person) RETURN p.id ORDER BY p.id LIMIT 1;"
-                )
+                conn.execute("MATCH (p:person) RETURN p.id ORDER BY p.id LIMIT 1;")
             )
             assert len(source_rows) > 0, "tinysnb should have at least one person"
             source_id = str(source_rows[0][0])
@@ -740,9 +733,9 @@ class TestCrossValidationTinysnb:
             # Separate reachable (distance >= 0) from unreachable (-1)
             reachable = [(nid, d) for nid, d in bfs_rows if d >= 0]
             unreachable = [(nid, d) for nid, d in bfs_rows if d < 0]
-            assert len(reachable) >= 1, (
-                "BFS must return at least the source as reachable"
-            )
+            assert (
+                len(reachable) >= 1
+            ), "BFS must return at least the source as reachable"
 
             # The source should have distance 0
             source_row = [r for r in reachable if r[0] == int(source_id)]
@@ -769,7 +762,8 @@ class TestCrossValidationTinysnb:
 
             # All unreachable nodes should report distance -1
             for node_id, dist in unreachable:
-                assert dist == -1, (
-                    "Unreachable node {} should have distance -1,"
-                    " got {}".format(node_id, dist)
+                assert (
+                    dist == -1
+                ), "Unreachable node {} should have distance -1," " got {}".format(
+                    node_id, dist
                 )
