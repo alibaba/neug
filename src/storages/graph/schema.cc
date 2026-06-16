@@ -468,7 +468,8 @@ void Schema::AddEdgeLabel(
 }
 
 label_t Schema::vertex_label_num() const {
-  return static_cast<label_t>(vlabel_indexer_.size() - vlabel_tomb_.count());
+  return static_cast<label_t>(vlabel_indexer_.num_slots() -
+                              vlabel_tomb_.count());
 }
 
 label_t Schema::vertex_label_frontier() const {
@@ -476,7 +477,8 @@ label_t Schema::vertex_label_frontier() const {
 }
 
 label_t Schema::edge_label_num() const {
-  return static_cast<label_t>(elabel_indexer_.size() - elabel_tomb_.count());
+  return static_cast<label_t>(elabel_indexer_.num_slots() -
+                              elabel_tomb_.count());
 }
 
 label_t Schema::edge_label_frontier() const {

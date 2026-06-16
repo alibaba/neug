@@ -1010,9 +1010,9 @@ TEST(SchemaTest, RepeatedAddDeleteEdgeLabel512Times) {
 
   for (int i = 0; i < kIterations; ++i) {
     std::string edge_label = "E_" + std::to_string(i);
-    schema.AddEdgeLabel("Src", "Dst", edge_label, {DataTypeId::kInt32},
-                        {"w"}, EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-                        true, true, std::nullopt, "");
+    schema.AddEdgeLabel("Src", "Dst", edge_label, {DataTypeId::kInt32}, {"w"},
+                        EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                        true, std::nullopt, "");
     EXPECT_TRUE(schema.is_edge_label_valid(edge_label));
     EXPECT_TRUE(schema.is_edge_triplet_valid("Src", "Dst", edge_label));
 
@@ -1030,7 +1030,138 @@ TEST(SchemaTest, RepeatedAddDeleteEdgeLabel512Times) {
 
   auto eid = schema.get_edge_label_id("E_final");
   EXPECT_EQ(schema.get_edge_label_name(eid), "E_final");
-  ASSERT_EQ(schema.get_edge_property_names("Src", "Dst", "E_final").size(),
-            1u);
+  ASSERT_EQ(schema.get_edge_property_names("Src", "Dst", "E_final").size(), 1u);
   EXPECT_EQ(schema.get_edge_property_names("Src", "Dst", "E_final")[0], "w");
+}
+
+// Test: re-adding same name after physical deletion recycles the lid
+TEST(SchemaTest, ReAddSameNameAfterPhysicalDeletion) {
+  neug::Schema schema;
+
+  schema.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t orig_id = schema.get_vertex_label_id("Person");
+  EXPECT_EQ(schema.vertex_label_num(), 1);
+
+  // Physical delete
+  schema.DeleteVertexLabel("Person");
+  EXPECT_FALSE(schema.is_vertex_label_valid("Person"));
+  EXPECT_EQ(schema.vertex_label_num(), 0);
+
+  // Re-add same name — should reuse the recycled lid
+  schema.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_TRUE(schema.is_vertex_label_valid("Person"));
+  neug::label_t new_id = schema.get_vertex_label_id("Person");
+  EXPECT_EQ(new_id, orig_id);  // lid recycled
+  EXPECT_EQ(schema.vertex_label_num(), 1);
+}
+
+// Test: vertex_label_num correct after physical deletion with remaining labels
+TEST(SchemaTest, VertexLabelNumAfterPhysicalDeletion) {
+  neug::Schema schema;
+
+  schema.AddVertexLabel("A", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("B", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("C", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_EQ(schema.vertex_label_num(), 3);
+
+  // Physical delete B only
+  schema.DeleteVertexLabel("B");
+  EXPECT_FALSE(schema.is_vertex_label_valid("B"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("A"));
+  EXPECT_TRUE(schema.is_vertex_label_valid("C"));
+  EXPECT_EQ(schema.vertex_label_num(), 2);  // A and C still active
+}
+
+// Test: edge_label_num correct after physical deletion
+TEST(SchemaTest, EdgeLabelNumAfterPhysicalDeletion) {
+  neug::Schema schema;
+  schema.AddVertexLabel("A", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("B", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+
+  schema.AddEdgeLabel("A", "B", "E1", {DataTypeId::kInt32}, {"w"},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, std::nullopt, "");
+  schema.AddEdgeLabel("A", "B", "E2", {DataTypeId::kInt32}, {"w"},
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, std::nullopt, "");
+  EXPECT_EQ(schema.edge_label_num(), 2);
+
+  // Physical delete E1
+  schema.DeleteEdgeLabel("A", "B", "E1");
+  EXPECT_FALSE(schema.is_edge_triplet_valid("A", "B", "E1"));
+  EXPECT_TRUE(schema.is_edge_triplet_valid("A", "B", "E2"));
+  EXPECT_EQ(schema.edge_label_num(), 1);  // E2 still active
+}
+
+// Test: Serialize/Deserialize with free list (vacant slots)
+TEST(SchemaTest, SerializeDeserializeWithFreeList) {
+  neug::Schema schema;
+  schema.AddVertexLabel("A", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("B", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_EQ(schema.vertex_label_num(), 2);
+
+  // Physical delete B — free list now holds lid=1
+  schema.DeleteVertexLabel("B");
+  EXPECT_EQ(schema.vertex_label_num(), 1);
+
+  // Serialize
+  std::ostringstream oss;
+  schema.Serialize(oss);
+
+  // Deserialize
+  neug::Schema loaded;
+  std::istringstream iss(oss.str());
+  loaded.Deserialize(iss);
+  EXPECT_EQ(loaded.vertex_label_num(), 1);
+  EXPECT_TRUE(loaded.is_vertex_label_valid("A"));
+  EXPECT_FALSE(loaded.is_vertex_label_valid("B"));
+
+  // Re-add a label — should reuse recycled lid=1
+  loaded.AddVertexLabel("C", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_TRUE(loaded.is_vertex_label_valid("C"));
+  neug::label_t c_id = loaded.get_vertex_label_id("C");
+  EXPECT_EQ(c_id, 1);  // recycled from B
+  EXPECT_EQ(loaded.vertex_label_num(), 2);
+}
+
+// Test: multiple vacant slots are reassigned correctly
+TEST(SchemaTest, MultipleVacantSlotsReassign) {
+  neug::Schema schema;
+  schema.AddVertexLabel("A", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t a_id = schema.get_vertex_label_id("A");
+  schema.AddVertexLabel("B", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t b_id = schema.get_vertex_label_id("B");
+  schema.AddVertexLabel("C", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t c_id = schema.get_vertex_label_id("C");
+
+  // Physical delete B and C
+  schema.DeleteVertexLabel("B");
+  schema.DeleteVertexLabel("C");
+  EXPECT_EQ(schema.vertex_label_num(), 1);
+
+  // Re-add — should reuse lids in reverse order (C then B)
+  schema.AddVertexLabel("D", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_EQ(schema.get_vertex_label_id("D"), c_id);
+
+  schema.AddVertexLabel("E", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  EXPECT_EQ(schema.get_vertex_label_id("E"), b_id);
+
+  // A should still have its original lid
+  EXPECT_EQ(schema.get_vertex_label_id("A"), a_id);
+  EXPECT_EQ(schema.vertex_label_num(), 3);
 }
