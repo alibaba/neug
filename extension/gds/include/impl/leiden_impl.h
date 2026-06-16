@@ -64,9 +64,11 @@ class Leiden {
   std::unique_ptr<double[]> degree_;
   std::unique_ptr<double[]> stot_;
 
-  // Scratch arrays — avoids per-vertex unordered_map allocation
-  std::unique_ptr<double[]> comm_weight_;
-  std::unique_ptr<uint32_t[]> gen_;
+  // Per-thread scratch arrays for parallel moving phase and refine
+  // Flat arrays indexed as [tid * array_size_ + community_id]
+  std::unique_ptr<double[]> thread_comm_weight_;
+  std::unique_ptr<uint32_t[]> thread_gen_;
+  int num_threads_ = 1;
   // For refine(): sub-community assignment and membership check
   static constexpr uint32_t kInvalidSubCom = UINT32_MAX;
   std::unique_ptr<uint32_t[]> sub_com_flat_;  // sub-community ID per vid_t

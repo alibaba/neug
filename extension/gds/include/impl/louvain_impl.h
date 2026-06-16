@@ -64,9 +64,11 @@ class Louvain {
   std::unique_ptr<double[]> degree_;       // degree[vid]
   std::unique_ptr<double[]> stot_;         // community total degree
 
-  // Scratch arrays for one_level() — avoids per-vertex unordered_map allocation
-  std::unique_ptr<double[]> comm_weight_;   // aggregated neighbor weight per community
-  std::unique_ptr<uint32_t[]> gen_;         // generation counter (avoids clearing)
+  // Per-thread scratch arrays for parallel one_level()
+  // Flat arrays indexed as [tid * array_size_ + community_id]
+  std::unique_ptr<double[]> thread_comm_weight_;
+  std::unique_ptr<uint32_t[]> thread_gen_;
+  int num_threads_ = 1;
 
   double m_ = 0.0;       // total edge weight (undirected: count each edge once)
   double modularity_ = 0.0;

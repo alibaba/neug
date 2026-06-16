@@ -52,13 +52,18 @@ Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
   community_ = std::make_unique<uint32_t[]>(array_size_);
   degree_ = std::make_unique<double[]>(array_size_);
   stot_ = std::make_unique<double[]>(array_size_);
-  comm_weight_ = std::make_unique<double[]>(array_size_);
-  gen_ = std::make_unique<uint32_t[]>(array_size_);
   sub_com_flat_ = std::make_unique<uint32_t[]>(array_size_);
 
+  num_threads_ = concurrency_ > 0 ? concurrency_
+                                  : static_cast<int>(std::thread::hardware_concurrency());
+  if (num_threads_ < 1) num_threads_ = 1;
+  size_t total_scratch = static_cast<size_t>(num_threads_) * array_size_;
+  thread_comm_weight_ = std::make_unique<double[]>(total_scratch);
+  thread_gen_ = std::make_unique<uint32_t[]>(total_scratch);
+  std::fill_n(thread_comm_weight_.get(), total_scratch, 0.0);
+  std::fill_n(thread_gen_.get(), total_scratch, 0);
+
   for (size_t i = 0; i < array_size_; ++i) {
-    comm_weight_[i] = 0.0;
-    gen_[i] = 0;
     sub_com_flat_[i] = kInvalidSubCom;
   }
   for (vid_t v : valid_vertices_) {
@@ -150,64 +155,108 @@ bool Leiden::local_moving_phase() {
   std::shuffle(order.begin(), order.end(), rng);
 
   bool improved = false;
-  uint32_t current_gen = 0;
-  std::vector<uint32_t> touched_comms;
-  touched_comms.reserve(256);
+  const size_t n = order.size();
+  const size_t chunk = 4096;
+  const size_t num_batches = (n + chunk - 1) / chunk;
+  const int nt = num_threads_;
+
+  std::vector<uint32_t> best_com(n);
+  std::vector<std::vector<uint32_t>> touched(nt);
+  for (int t = 0; t < nt; ++t) touched[t].reserve(256);
 
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
-    for (vid_t u : order) {
-      uint32_t cur_com = community_[u];
-      double deg_u = degree_[u];
-      stot_[cur_com] -= deg_u;
 
-      ++current_gen;
-      touched_comms.clear();
+    for (size_t batch = 0; batch < num_batches; ++batch) {
+      size_t batch_start = batch * chunk;
+      size_t batch_end = std::min(batch_start + chunk, n);
 
-      auto process_neighbor = [&](vid_t v) {
-        if (v == u) return;
-        uint32_t com = community_[v];
-        if (gen_[com] != current_gen) {
-          gen_[com] = current_gen;
-          comm_weight_[com] = 0.0;
-          touched_comms.push_back(com);
+      // Phase 1: Compute best move in parallel
+      {
+        std::atomic<size_t> cursor(batch_start);
+        std::vector<std::thread> threads;
+        threads.reserve(nt - 1);
+
+        auto worker = [&](int tid) {
+          uint32_t* my_gen = thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
+          double* my_cw = thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
+          uint32_t gen_val = 0;
+          auto& my_touched = touched[tid];
+
+          while (true) {
+            size_t start = cursor.fetch_add(64);
+            if (start >= batch_end) break;
+            size_t end = std::min(start + size_t(64), batch_end);
+
+            for (size_t i = start; i < end; ++i) {
+              vid_t u = order[i];
+              uint32_t cur_com = community_[u];
+              double deg_u = degree_[u];
+
+              ++gen_val;
+              my_touched.clear();
+
+              auto process_nbr = [&](vid_t v) {
+                if (v == u) return;
+                uint32_t com = community_[v];
+                if (my_gen[com] != gen_val) {
+                  my_gen[com] = gen_val;
+                  my_cw[com] = 0.0;
+                  my_touched.push_back(com);
+                }
+                my_cw[com] += 1.0;
+              };
+
+              auto oes = oe_view.get_edges(u);
+              for (auto it = oes.begin(); it != oes.end(); ++it)
+                process_nbr(*it);
+              auto ies = ie_view.get_edges(u);
+              for (auto it = ies.begin(); it != ies.end(); ++it)
+                process_nbr(*it);
+
+              double w_self =
+                  (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
+
+              uint32_t best = cur_com;
+              double best_gain = 0.0;
+
+              for (uint32_t com : my_touched) {
+                double w_com = my_cw[com];
+                double gain = (w_com - w_self) / m_ +
+                              resolution_ * (stot_[cur_com] - stot_[com]) *
+                                  deg_u / (2.0 * m_ * m_);
+                if (gain > best_gain) {
+                  best_gain = gain;
+                  best = com;
+                }
+              }
+
+              best_com[i] = best;
+            }
+          }
+        };
+
+        for (int t = 1; t < nt; ++t)
+          threads.emplace_back(worker, t);
+        worker(0);
+        for (auto& th : threads) th.join();
+      }
+
+      // Phase 2: Apply moves sequentially
+      for (size_t i = batch_start; i < batch_end; ++i) {
+        vid_t u = order[i];
+        uint32_t cur_com = community_[u];
+        uint32_t new_com = best_com[i];
+        if (new_com != cur_com) {
+          stot_[cur_com] -= degree_[u];
+          stot_[new_com] += degree_[u];
+          community_[u] = new_com;
+          moved = true;
+          improved = true;
         }
-        comm_weight_[com] += 1.0;
-      };
-
-      auto oes = oe_view.get_edges(u);
-      for (auto it = oes.begin(); it != oes.end(); ++it) {
-        process_neighbor(*it);
-      }
-      auto ies = ie_view.get_edges(u);
-      for (auto it = ies.begin(); it != ies.end(); ++it) {
-        process_neighbor(*it);
-      }
-
-      double w_self =
-          (gen_[cur_com] == current_gen) ? comm_weight_[cur_com] : 0.0;
-
-      uint32_t best_com = cur_com;
-      double best_gain = 0.0;
-
-      for (uint32_t com : touched_comms) {
-        double w_com = comm_weight_[com];
-        double gain = (w_com - w_self) / m_ +
-                      resolution_ * (stot_[cur_com] - stot_[com]) * deg_u /
-                          (2.0 * m_ * m_);
-        if (gain > best_gain) {
-          best_gain = gain;
-          best_com = com;
-        }
-      }
-
-      stot_[best_com] += deg_u;
-      if (best_com != cur_com) {
-        community_[u] = best_com;
-        moved = true;
-        improved = true;
       }
     }
+
     if (!moved) break;
   }
 
@@ -225,6 +274,10 @@ void Leiden::refine() {
 
   auto oe_view = graph_.GetGenericOutgoingGraphView(
       vertex_label_, vertex_label_, edge_label_);
+
+  // Use thread 0's scratch arrays for sequential refine
+  uint32_t* r_gen = thread_gen_.get();
+  double* r_cw = thread_comm_weight_.get();
 
   uint32_t next_com = 0;
   uint32_t refine_gen = 0;
@@ -285,22 +338,22 @@ void Leiden::refine() {
           vid_t v = *it;
           if (v == u || sub_com_flat_[v] == kInvalidSubCom) continue;
           uint32_t sc = sub_com_flat_[v];
-          if (gen_[sc] != refine_gen) {
-            gen_[sc] = refine_gen;
-            comm_weight_[sc] = 0.0;
+          if (r_gen[sc] != refine_gen) {
+            r_gen[sc] = refine_gen;
+            r_cw[sc] = 0.0;
             touched_scs.push_back(sc);
           }
-          comm_weight_[sc] += 1.0;
+          r_cw[sc] += 1.0;
         }
 
         double w_self =
-            (gen_[cur_sc] == refine_gen) ? comm_weight_[cur_sc] : 0.0;
+            (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
 
         uint32_t best_sc = cur_sc;
         double best_gain = 0.0;
 
         for (uint32_t sc : touched_scs) {
-          double w_sc = comm_weight_[sc];
+          double w_sc = r_cw[sc];
           double gain = w_sc - w_self;
           if (gain > best_gain) {
             best_gain = gain;
