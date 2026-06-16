@@ -49,12 +49,18 @@ Louvain::Louvain(const StorageReadInterface& graph, label_t vertex_label,
 
   // Allocate arrays indexed by vid_t
   // For contiguous vid_t values, size = max_vid + 1 ≈ vertex_count_
-  size_t array_size = static_cast<size_t>(max_vid) + 1;
-  community_ = std::make_unique<uint32_t[]>(array_size);
-  degree_ = std::make_unique<double[]>(array_size);
-  stot_ = std::make_unique<double[]>(array_size);
+  array_size_ = static_cast<size_t>(max_vid) + 1;
+  community_ = std::make_unique<uint32_t[]>(array_size_);
+  degree_ = std::make_unique<double[]>(array_size_);
+  stot_ = std::make_unique<double[]>(array_size_);
+  comm_weight_ = std::make_unique<double[]>(array_size_);
+  gen_ = std::make_unique<uint32_t[]>(array_size_);
 
   // Initialize: each vertex in its own community
+  for (size_t i = 0; i < array_size_; ++i) {
+    comm_weight_[i] = 0.0;
+    gen_[i] = 0;
+  }
   for (vid_t v : valid_vertices_) {
     community_[v] = v;
     stot_[v] = 0;
@@ -132,6 +138,9 @@ bool Louvain::one_level() {
   std::shuffle(order.begin(), order.end(), rng);
 
   bool improved = false;
+  uint32_t current_gen = 0;
+  std::vector<uint32_t> touched_comms;
+  touched_comms.reserve(256);
 
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
@@ -142,29 +151,39 @@ bool Louvain::one_level() {
       // Remove u from its community
       stot_[cur_com] -= deg_u;
 
-      // Aggregate neighbor weights by community
-      std::unordered_map<uint32_t, double> nbr_com_wt;
+      // Aggregate neighbor weights by community using flat array + gen counter
+      ++current_gen;
+      touched_comms.clear();
+
+      auto process_neighbor = [&](vid_t v) {
+        if (v == u) return;
+        uint32_t com = community_[v];
+        if (gen_[com] != current_gen) {
+          gen_[com] = current_gen;
+          comm_weight_[com] = 0.0;
+          touched_comms.push_back(com);
+        }
+        comm_weight_[com] += 1.0;
+      };
 
       auto oes = oe_view.get_edges(u);
       for (auto it = oes.begin(); it != oes.end(); ++it) {
-        vid_t v = *it;
-        if (v == u) continue;
-        nbr_com_wt[community_[v]] += 1.0;
+        process_neighbor(*it);
       }
       auto ies = ie_view.get_edges(u);
       for (auto it = ies.begin(); it != ies.end(); ++it) {
-        vid_t v = *it;
-        if (v == u) continue;
-        nbr_com_wt[community_[v]] += 1.0;
+        process_neighbor(*it);
       }
 
-      double w_self = nbr_com_wt.count(cur_com) ? nbr_com_wt[cur_com] : 0.0;
+      double w_self =
+          (gen_[cur_com] == current_gen) ? comm_weight_[cur_com] : 0.0;
 
       // Find best community
       uint32_t best_com = cur_com;
       double best_gain = 0.0;
 
-      for (auto& [com, w_com] : nbr_com_wt) {
+      for (uint32_t com : touched_comms) {
+        double w_com = comm_weight_[com];
         double gain = (w_com - w_self) / m_ +
                       resolution_ * (stot_[cur_com] - stot_[com]) * deg_u /
                           (2.0 * m_ * m_);

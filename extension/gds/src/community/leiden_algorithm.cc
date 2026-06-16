@@ -47,11 +47,19 @@ Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
   }
   vertex_count_ = valid_vertices_.size();
 
-  size_t array_size = static_cast<size_t>(max_vid) + 1;
-  community_ = std::make_unique<uint32_t[]>(array_size);
-  degree_ = std::make_unique<double[]>(array_size);
-  stot_ = std::make_unique<double[]>(array_size);
+  array_size_ = static_cast<size_t>(max_vid) + 1;
+  community_ = std::make_unique<uint32_t[]>(array_size_);
+  degree_ = std::make_unique<double[]>(array_size_);
+  stot_ = std::make_unique<double[]>(array_size_);
+  comm_weight_ = std::make_unique<double[]>(array_size_);
+  gen_ = std::make_unique<uint32_t[]>(array_size_);
+  sub_com_flat_ = std::make_unique<uint32_t[]>(array_size_);
 
+  for (size_t i = 0; i < array_size_; ++i) {
+    comm_weight_[i] = 0.0;
+    gen_[i] = 0;
+    sub_com_flat_[i] = kInvalidSubCom;
+  }
   for (vid_t v : valid_vertices_) {
     community_[v] = v;
     stot_[v] = 0;
@@ -123,6 +131,9 @@ bool Leiden::local_moving_phase() {
   std::shuffle(order.begin(), order.end(), rng);
 
   bool improved = false;
+  uint32_t current_gen = 0;
+  std::vector<uint32_t> touched_comms;
+  touched_comms.reserve(256);
 
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
@@ -131,24 +142,37 @@ bool Leiden::local_moving_phase() {
       double deg_u = degree_[u];
       stot_[cur_com] -= deg_u;
 
-      std::unordered_map<uint32_t, double> nbr_com_wt;
+      ++current_gen;
+      touched_comms.clear();
+
+      auto process_neighbor = [&](vid_t v) {
+        if (v == u) return;
+        uint32_t com = community_[v];
+        if (gen_[com] != current_gen) {
+          gen_[com] = current_gen;
+          comm_weight_[com] = 0.0;
+          touched_comms.push_back(com);
+        }
+        comm_weight_[com] += 1.0;
+      };
+
       auto oes = oe_view.get_edges(u);
       for (auto it = oes.begin(); it != oes.end(); ++it) {
-        vid_t v = *it;
-        if (v != u) nbr_com_wt[community_[v]] += 1.0;
+        process_neighbor(*it);
       }
       auto ies = ie_view.get_edges(u);
       for (auto it = ies.begin(); it != ies.end(); ++it) {
-        vid_t v = *it;
-        if (v != u) nbr_com_wt[community_[v]] += 1.0;
+        process_neighbor(*it);
       }
 
-      double w_self = nbr_com_wt.count(cur_com) ? nbr_com_wt[cur_com] : 0.0;
+      double w_self =
+          (gen_[cur_com] == current_gen) ? comm_weight_[cur_com] : 0.0;
 
       uint32_t best_com = cur_com;
       double best_gain = 0.0;
 
-      for (auto& [com, w_com] : nbr_com_wt) {
+      for (uint32_t com : touched_comms) {
+        double w_com = comm_weight_[com];
         double gain = (w_com - w_self) / m_ +
                       resolution_ * (stot_[cur_com] - stot_[com]) * deg_u /
                           (2.0 * m_ * m_);
@@ -172,25 +196,54 @@ bool Leiden::local_moving_phase() {
 }
 
 void Leiden::refine() {
-  std::unordered_map<uint32_t, std::vector<vid_t>> com_nodes;
+  // Group vertices by community using sorted pairs (avoids unordered_map)
+  std::vector<std::pair<uint32_t, vid_t>> com_vertex_pairs;
+  com_vertex_pairs.reserve(valid_vertices_.size());
   for (vid_t v : valid_vertices_) {
-    com_nodes[community_[v]].push_back(v);
+    com_vertex_pairs.emplace_back(community_[v], v);
   }
+  std::sort(com_vertex_pairs.begin(), com_vertex_pairs.end());
 
   auto oe_view = graph_.GetGenericOutgoingGraphView(
       vertex_label_, vertex_label_, edge_label_);
 
   uint32_t next_com = 0;
+  uint32_t refine_gen = 0;
+  std::vector<uint32_t> touched_scs;
+  touched_scs.reserve(64);
+  // Small flat array for sub-community → new community ID mapping
+  // Sub-community IDs are always < 50, so size 64 is safe.
+  uint32_t sc_to_new[64];
 
-  for (auto& [com_id, nodes] : com_nodes) {
-    if (nodes.size() <= 1) {
-      for (vid_t v : nodes) community_[v] = next_com++;
+  size_t i = 0;
+  size_t n = com_vertex_pairs.size();
+  while (i < n) {
+    // Find community boundary
+    uint32_t com_id = com_vertex_pairs[i].first;
+    size_t j = i;
+    while (j < n && com_vertex_pairs[j].first == com_id) ++j;
+    size_t com_size = j - i;
+
+    if (com_size <= 1) {
+      for (size_t k = i; k < j; ++k) {
+        community_[com_vertex_pairs[k].second] = next_com++;
+      }
+      i = j;
       continue;
     }
 
-    // Build sub-community map
-    std::unordered_map<vid_t, uint32_t> sub_com;
-    for (vid_t v : nodes) sub_com[v] = 0;
+    // Mark community membership and init sub-communities to 0
+    for (size_t k = i; k < j; ++k) {
+      vid_t v = com_vertex_pairs[k].second;
+      sub_com_flat_[v] = 0;
+    }
+
+    // Collect nodes for this community
+    std::vector<vid_t> nodes;
+    nodes.reserve(com_size);
+    for (size_t k = i; k < j; ++k) {
+      nodes.push_back(com_vertex_pairs[k].second);
+    }
 
     std::vector<vid_t> order = nodes;
     std::mt19937 rng(42);
@@ -202,23 +255,33 @@ void Leiden::refine() {
     while (improved && next_sub < 50) {
       improved = false;
       for (vid_t u : order) {
-        uint32_t cur_sc = sub_com[u];
+        uint32_t cur_sc = sub_com_flat_[u];
 
-        std::unordered_map<uint32_t, double> nbr_sc_wt;
+        // Aggregate neighbor sub-community weights using gen counter
+        ++refine_gen;
+        touched_scs.clear();
+
         auto oes = oe_view.get_edges(u);
         for (auto it = oes.begin(); it != oes.end(); ++it) {
           vid_t v = *it;
-          if (v != u && sub_com.count(v)) {
-            nbr_sc_wt[sub_com[v]] += 1.0;
+          if (v == u || sub_com_flat_[v] == kInvalidSubCom) continue;
+          uint32_t sc = sub_com_flat_[v];
+          if (gen_[sc] != refine_gen) {
+            gen_[sc] = refine_gen;
+            comm_weight_[sc] = 0.0;
+            touched_scs.push_back(sc);
           }
+          comm_weight_[sc] += 1.0;
         }
 
-        double w_self = nbr_sc_wt.count(cur_sc) ? nbr_sc_wt[cur_sc] : 0.0;
+        double w_self =
+            (gen_[cur_sc] == refine_gen) ? comm_weight_[cur_sc] : 0.0;
 
         uint32_t best_sc = cur_sc;
         double best_gain = 0.0;
 
-        for (auto& [sc, w_sc] : nbr_sc_wt) {
+        for (uint32_t sc : touched_scs) {
+          double w_sc = comm_weight_[sc];
           double gain = w_sc - w_self;
           if (gain > best_gain) {
             best_gain = gain;
@@ -234,22 +297,34 @@ void Leiden::refine() {
         }
 
         if (best_sc != cur_sc) {
-          sub_com[u] = best_sc;
+          sub_com_flat_[u] = best_sc;
           if (best_sc == next_sub) next_sub++;
           improved = true;
         }
       }
     }
 
-    // Map sub-communities to new community IDs
-    std::unordered_map<uint32_t, uint32_t> sc_to_new;
+    // Map sub-communities to new community IDs using small flat array
+    uint32_t max_sc_seen = 0;
     for (vid_t v : nodes) {
-      uint32_t sc = sub_com[v];
-      if (sc_to_new.find(sc) == sc_to_new.end()) {
+      uint32_t sc = sub_com_flat_[v];
+      if (sc > max_sc_seen) max_sc_seen = sc;
+      sc_to_new[sc] = UINT32_MAX;  // sentinel: unassigned
+    }
+    for (vid_t v : nodes) {
+      uint32_t sc = sub_com_flat_[v];
+      if (sc_to_new[sc] == UINT32_MAX) {
         sc_to_new[sc] = next_com++;
       }
       community_[v] = sc_to_new[sc];
     }
+
+    // Reset sub_com_flat_ for these vertices
+    for (vid_t v : nodes) {
+      sub_com_flat_[v] = kInvalidSubCom;
+    }
+
+    i = j;
   }
 }
 

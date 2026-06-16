@@ -59,9 +59,14 @@ class Louvain {
   size_t vertex_count_ = 0;
 
   // Arrays indexed by vid_t (vid_t values are contiguous for loaded data)
+  size_t array_size_ = 0;
   std::unique_ptr<uint32_t[]> community_;  // community[vid]
   std::unique_ptr<double[]> degree_;       // degree[vid]
   std::unique_ptr<double[]> stot_;         // community total degree
+
+  // Scratch arrays for one_level() — avoids per-vertex unordered_map allocation
+  std::unique_ptr<double[]> comm_weight_;   // aggregated neighbor weight per community
+  std::unique_ptr<uint32_t[]> gen_;         // generation counter (avoids clearing)
 
   double m_ = 0.0;       // total edge weight (undirected: count each edge once)
   double modularity_ = 0.0;

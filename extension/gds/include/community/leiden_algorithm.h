@@ -59,9 +59,17 @@ class Leiden {
   size_t vertex_count_ = 0;
 
   // Arrays indexed by vid_t
+  size_t array_size_ = 0;
   std::unique_ptr<uint32_t[]> community_;
   std::unique_ptr<double[]> degree_;
   std::unique_ptr<double[]> stot_;
+
+  // Scratch arrays — avoids per-vertex unordered_map allocation
+  std::unique_ptr<double[]> comm_weight_;
+  std::unique_ptr<uint32_t[]> gen_;
+  // For refine(): sub-community assignment and membership check
+  static constexpr uint32_t kInvalidSubCom = UINT32_MAX;
+  std::unique_ptr<uint32_t[]> sub_com_flat_;  // sub-community ID per vid_t
 
   double m_ = 0.0;
   double modularity_ = 0.0;
