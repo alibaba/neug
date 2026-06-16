@@ -528,16 +528,20 @@ TEST_F(PropertyGraphLogicalDeleteTest,
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props_workat));
   graph_.CreateEdgeType(BuildCreateEdgeTypeParam(
       "Company", "Location", "LocatedAt", e_props_locatedat));
-  // Logical delete vertex label
-  graph_.DeleteVertexType("Person");
-  // Logical delete edge label
-  graph_.DeleteEdgeType("Person", "Company", "WorksAt");
-  // Logical delete vertex property
-  graph_.DeleteVertexProperties(
-      BuildDeleteVertexPropertiesParam("Company", {"Name"}));
-  // Logical delete edge property
+  // Deletion order matters: edge operations referencing "Person" must
+  // happen before DeleteVertexType("Person"), because physical deletion
+  // removes the label name from the hash table, making name-based
+  // lookups fail thereafter.
+  // 1) Delete edge property (needs Person, WorksAt resolvable)
   graph_.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
       "Person", "Company", "WorksAt", {"years"}));
+  // 2) Delete edge type (needs Person resolvable)
+  graph_.DeleteEdgeType("Person", "Company", "WorksAt");
+  // 3) Delete vertex property (needs Company resolvable)
+  graph_.DeleteVertexProperties(
+      BuildDeleteVertexPropertiesParam("Company", {"Name"}));
+  // 4) Delete vertex type last (no name lookups needed after this)
+  graph_.DeleteVertexType("Person");
   // Get statistics json string
   auto schema_json_ =
       neug::get_json_string_from_yaml(graph_.schema().to_yaml().value());
@@ -598,11 +602,14 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
   EXPECT_TRUE(stats.find("\"vertex_type_statistics\"") != std::string::npos);
   EXPECT_TRUE(stats.find("\"edge_type_statistics\"") != std::string::npos);
 
-  graph_.DeleteVertexType("Person");
-  graph_.DeleteVertexProperties(
-      BuildDeleteVertexPropertiesParam("Company", {"Name"}));
+  // Deletion order matters: edge operations referencing "Person" must
+  // happen before DeleteVertexType("Person"), because physical deletion
+  // removes the label name from the hash table.
   graph_.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
       "Person", "Company", "WorksAt", {"years"}));
+  graph_.DeleteVertexProperties(
+      BuildDeleteVertexPropertiesParam("Company", {"Name"}));
+  graph_.DeleteVertexType("Person");
   // Get statistics json string
   auto after_delete_stats = graph_.get_statistics_json();
   EXPECT_EQ(after_delete_stats,

@@ -66,6 +66,106 @@ std::vector<T> extract_with_invalid_flags(
   return out;
 }
 
+bool LabelIndexer::add(const std::string& name, label_t& lid) {
+  auto it = index_.find(name);
+  if (it != index_.end()) {
+    lid = it->second;
+    return false;
+  }
+
+  if (!free_list_.empty()) {
+    lid = free_list_.back();
+    free_list_.pop_back();
+    keys_[lid] = name;
+  } else {
+    lid = static_cast<label_t>(keys_.size());
+    keys_.push_back(name);
+  }
+  index_.emplace(name, lid);
+  return true;
+}
+
+bool LabelIndexer::get_index(const std::string& name, label_t& lid) const {
+  auto it = index_.find(name);
+  if (it == index_.end()) {
+    return false;
+  }
+  lid = it->second;
+  return true;
+}
+
+const std::string& LabelIndexer::get_key(label_t lid) const {
+  if (static_cast<size_t>(lid) >= keys_.size()) {
+    THROW_INDEX_EXCEPTION("Index out of range in LabelIndexer::get_key " +
+                          std::to_string(lid) + " with size " +
+                          std::to_string(keys_.size()));
+  }
+  return keys_[lid];
+}
+
+label_t LabelIndexer::remove(const std::string& name) {
+  auto it = index_.find(name);
+  if (it == index_.end()) {
+    return static_cast<label_t>(-1);
+  }
+  label_t lid = it->second;
+  index_.erase(it);
+  free_list_.push_back(lid);
+  return lid;
+}
+
+size_t LabelIndexer::num_slots() const { return keys_.size(); }
+
+size_t LabelIndexer::size() const { return index_.size(); }
+
+bool LabelIndexer::empty() const { return index_.empty(); }
+
+void LabelIndexer::Clear() {
+  keys_.clear();
+  index_.clear();
+  free_list_.clear();
+}
+
+void LabelIndexer::Serialize(std::ostream& os) const {
+  static constexpr uint32_t kVersion = 1;
+  InArchive arc;
+  arc << kVersion << keys_ << free_list_;
+  size_t size = arc.GetSize();
+  os.write(reinterpret_cast<char*>(&size), sizeof(size));
+  os.write(arc.GetBuffer(), size);
+}
+
+void LabelIndexer::Deserialize(std::istream& is) {
+  OutArchive arc;
+  size_t size;
+  is.read(reinterpret_cast<char*>(&size), sizeof(size));
+  arc.Allocate(size);
+  is.read(arc.GetBuffer(), size);
+
+  uint32_t version;
+  arc >> version;
+  if (version != 1) {
+    THROW_RUNTIME_ERROR("Unsupported LabelIndexer version: " +
+                        std::to_string(version));
+  }
+  arc >> keys_ >> free_list_;
+
+  std::vector<bool> vacant(keys_.size(), false);
+  for (auto lid : free_list_) {
+    if (static_cast<size_t>(lid) >= keys_.size()) {
+      THROW_RUNTIME_ERROR("Invalid free label id: " + std::to_string(lid));
+    }
+    vacant[lid] = true;
+  }
+
+  index_.clear();
+  for (size_t i = 0; i < keys_.size(); ++i) {
+    if (!vacant[i]) {
+      index_.emplace(keys_[i], static_cast<label_t>(i));
+    }
+  }
+}
+
 void VertexSchema::clear() {
   property_types.clear();
   property_names.clear();
@@ -402,6 +502,7 @@ void Schema::AddVertexLabel(
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
   }
+
   // Only grow, never shrink: a lower label_id being re-added must not
   // truncate entries for higher (possibly tombstoned) label_ids.
   if (v_schemas_.size() <= v_label_id) {
@@ -447,19 +548,21 @@ void Schema::AddEdgeLabel(
 }
 
 label_t Schema::vertex_label_num() const {
-  return static_cast<label_t>(vlabel_indexer_.size() - vlabel_tomb_.count());
+  return static_cast<label_t>(vlabel_indexer_.num_slots() -
+                              vlabel_tomb_.count());
 }
 
 label_t Schema::vertex_label_frontier() const {
-  return static_cast<label_t>(vlabel_indexer_.size());
+  return static_cast<label_t>(vlabel_indexer_.num_slots());
 }
 
 label_t Schema::edge_label_num() const {
-  return static_cast<label_t>(elabel_indexer_.size() - elabel_tomb_.count());
+  return static_cast<label_t>(elabel_indexer_.num_slots() -
+                              elabel_tomb_.count());
 }
 
 label_t Schema::edge_label_frontier() const {
-  return static_cast<label_t>(elabel_indexer_.size());
+  return static_cast<label_t>(elabel_indexer_.num_slots());
 }
 
 bool Schema::is_vertex_label_valid(const std::string& label) const {
@@ -473,11 +576,11 @@ bool Schema::is_edge_label_valid(const std::string& label) const {
 }
 
 bool Schema::is_vertex_label_valid(label_t label_id) const {
-  return label_id < vlabel_indexer_.size() && !vlabel_tomb_.get(label_id);
+  return label_id < vlabel_indexer_.num_slots() && !vlabel_tomb_.get(label_id);
 }
 
 bool Schema::is_edge_label_valid(label_t label_id) const {
-  return label_id < elabel_indexer_.size() && !elabel_tomb_.get(label_id);
+  return label_id < elabel_indexer_.num_slots() && !elabel_tomb_.get(label_id);
 }
 
 label_t Schema::get_vertex_label_id(const std::string& label) const {
@@ -504,7 +607,7 @@ label_t Schema::get_edge_label_id(const std::string& label) const {
 
 std::vector<label_t> Schema::get_vertex_label_ids() const {
   std::vector<label_t> ret;
-  for (label_t i = 0; i < vlabel_indexer_.size(); i++) {
+  for (label_t i = 0; i < vlabel_indexer_.num_slots(); i++) {
     if (!vlabel_tomb_.get(i)) {
       ret.push_back(i);
     }
@@ -514,7 +617,7 @@ std::vector<label_t> Schema::get_vertex_label_ids() const {
 
 std::vector<label_t> Schema::get_edge_label_ids() const {
   std::vector<label_t> ret;
-  for (label_t i = 0; i < elabel_indexer_.size(); i++) {
+  for (label_t i = 0; i < elabel_indexer_.num_slots(); i++) {
     if (!elabel_tomb_.get(i)) {
       ret.push_back(i);
     }
@@ -1953,20 +2056,27 @@ void Schema::DeleteVertexLabel(const std::string& label, bool is_soft) {
 
 void Schema::DeleteVertexLabel(label_t v_label_id, bool is_soft) {
   assert(v_label_id < v_schemas_.size());
+  // Guard against duplicate deletion — tomb is set both for soft and
+  // physical deletes, so a second call would hit this check.
+  if (vlabel_tomb_.get(v_label_id)) {
+    return;
+  }
   if (!is_soft) {
     v_schemas_[v_label_id]->clear();
+    const std::string& old_name = vlabel_indexer_.get_key(v_label_id);
+    vlabel_indexer_.remove(old_name);
   }
   vlabel_tomb_.set(v_label_id);
 }
 
 void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
   auto e_label_id = get_edge_label_id_internal(label);
-  for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.size();
+  for (label_t src_v_label = 0; src_v_label < vlabel_indexer_.num_slots();
        src_v_label++) {
     if (vlabel_tomb_.get(src_v_label)) {
       continue;
     }
-    for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.size();
+    for (label_t dst_v_label = 0; dst_v_label < vlabel_indexer_.num_slots();
          dst_v_label++) {
       if (vlabel_tomb_.get(dst_v_label)) {
         continue;
@@ -1983,6 +2093,10 @@ void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
   }
 
   elabel_tomb_.set(e_label_id);
+  if (!is_soft) {
+    const std::string& old_name = elabel_indexer_.get_key(e_label_id);
+    elabel_indexer_.remove(old_name);
+  }
 }
 
 void Schema::DeleteEdgeLabel(const std::string& src_label,
@@ -2014,7 +2128,14 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
       }
     }
     if (!edge_label_still_used) {
+      if (elabel_tomb_.get(edge)) {
+        return;  // already deleted, avoid duplicate free_list entry
+      }
       elabel_tomb_.set(edge);
+      if (!is_soft) {
+        const std::string& old_name = elabel_indexer_.get_key(edge);
+        elabel_indexer_.remove(old_name);
+      }
     }
   }
 }
@@ -2211,7 +2332,7 @@ Schema Schema::Compact() const {
     new_schema.v_schemas_.push_back(v_schemas_[v_label]);
   }
 
-  for (label_t e_label = 0; e_label < elabel_indexer_.size(); ++e_label) {
+  for (label_t e_label = 0; e_label < elabel_indexer_.num_slots(); ++e_label) {
     if (elabel_tomb_.get(e_label)) {
       continue;
     }
@@ -2220,7 +2341,7 @@ Schema Schema::Compact() const {
     if (!new_schema.elabel_indexer_.add(elabel_name, new_label)) {
       THROW_RUNTIME_ERROR("Failed to add edge label: " + elabel_name);
     }
-    assert(new_label == new_schema.elabel_indexer_.size() - 1);
+    assert(new_label == new_schema.elabel_indexer_.num_slots() - 1);
   }
 
   uint32_t max_e_triplet_index = 0;
@@ -2252,7 +2373,7 @@ Schema Schema::Compact() const {
     new_schema.e_schemas_[new_index] = pair.second;
   }
   new_schema.vlabel_tomb_.resize(new_schema.v_schemas_.size());
-  new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.size());
+  new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.num_slots());
   new_schema.elabel_triplet_tomb_.resize(max_e_triplet_index + 1);
   return new_schema;
 }
