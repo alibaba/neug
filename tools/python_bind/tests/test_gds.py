@@ -264,7 +264,8 @@ def test_run_bfs(tmp_path):
         for row in rows:
             assert len(row) == 2, "each row should have (node_id, distance)"
             assert isinstance(row[1], int), "distance should be an integer"
-            assert row[1] >= 0, "distance should be non-negative"
+            # -1 indicates unreachable from source
+            assert row[1] >= -1, "distance should be >= -1 (-1 = unreachable)"
 
 
 def test_run_sssp(tmp_path):
@@ -283,7 +284,8 @@ def test_run_sssp(tmp_path):
         for row in rows:
             assert len(row) == 2, "each row should have (node_id, distance)"
             assert isinstance(row[1], float), "distance should be a float"
-            assert row[1] >= 0.0, "distance should be non-negative"
+            # -1.0 indicates unreachable from source
+            assert row[1] >= -1.0, "distance should be >= -1.0 (-1.0 = unreachable)"
 
 
 def test_run_wcc(tmp_path):
@@ -339,4 +341,435 @@ def test_run_kcore(tmp_path):
         for row in rows:
             assert len(row) == 2, "each row should have (node_id, core)"
             assert isinstance(row[1], int), "core should be an integer"
-            assert row[1] >= 0, "core should be non-negative"
+            # -1 indicates a node whose core number is below the k threshold
+            assert row[1] >= -1, "core should be >= -1 (-1 = below threshold)"
+
+
+# ---------------------------------------------------------------------------
+# Boundary condition & stability tests
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def custom_graph_connection(
+    tmp_path,
+    db_name,
+    create_node_ddl,
+    create_rel_ddl,
+    node_inserts,
+    edge_inserts,
+    graph_name,
+    vertex_entries,
+    edge_entries,
+):
+    """Helper: create a DB, define schema, insert data, project a graph, load GDS.
+
+    Yields the connection.  Always closes conn + db on exit.
+    """
+    db_dir = tmp_path / db_name
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(create_node_ddl)
+        conn.execute(create_rel_ddl)
+        for stmt in node_inserts:
+            conn.execute(stmt)
+        for stmt in edge_inserts:
+            conn.execute(stmt)
+        conn.execute(
+            "CALL project_graph("
+            "'{}', {}, {});".format(graph_name, vertex_entries, edge_entries)
+        )
+        conn.execute("LOAD gds;")
+        yield conn
+    finally:
+        conn.close()
+        db.close()
+
+
+# ---- (a) Small graph: 2 nodes, 1 edge -- all algorithms ------------------
+
+
+class TestSmallGraph:
+    """Create a minimal graph (2 nodes, 1 edge) and run every available
+    GDS algorithm to verify it does not crash and returns non-empty results."""
+
+    def _small_graph_ctx(self, tmp_path):
+        return custom_graph_connection(
+            tmp_path,
+            db_name="small_graph_db",
+            create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+            create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+            node_inserts=[
+                "CREATE (:n {id: 1});",
+                "CREATE (:n {id: 2});",
+            ],
+            edge_inserts=[
+                "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2"
+                " CREATE (a)-[:e]->(b);",
+            ],
+            graph_name="g",
+            vertex_entries="['n']",
+            edge_entries="{'[n, e, n]': ''}",
+        )
+
+    def test_wcc_small(self, tmp_path):
+        """WCC on a 2-node, 1-edge graph should produce 2 rows in 1 component."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL wcc('g', {concurrency: 1})"
+                    " YIELD node, comp RETURN node.id, comp;"
+                )
+            )
+            assert len(rows) == 2, "WCC on 2-node graph should return 2 rows"
+            comps = {r[1] for r in rows}
+            assert len(comps) == 1, "Both nodes should be in the same component"
+
+    def test_bfs_small(self, tmp_path):
+        """BFS from node 1 in a 2-node graph should find the source at dist 0."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL bfs('g', {source: '1'})"
+                    " YIELD node, distance RETURN node.id, distance;"
+                )
+            )
+            assert len(rows) >= 1, "BFS should return at least the source node"
+            dist_map = {r[0]: r[1] for r in rows}
+            assert dist_map.get(1) == 0, "Source node distance should be 0"
+
+    def test_page_rank_small(self, tmp_path):
+        """PageRank on a 2-node graph should produce positive ranks for both."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL page_rank('g', {max_iterations: 10, concurrency: 1})"
+                    " YIELD node, rank RETURN node.id, rank;"
+                )
+            )
+            assert len(rows) == 2, "PageRank should return 2 rows"
+            for row in rows:
+                assert isinstance(row[1], float), "rank should be a float"
+                assert row[1] > 0, "rank should be positive"
+
+    def test_lcc_small(self, tmp_path):
+        """LCC on a 2-node graph should return 2 rows."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL lcc('g', {concurrency: 1})"
+                    " YIELD node, lcc RETURN node.id, lcc;"
+                )
+            )
+            assert len(rows) == 2, "LCC should return 2 rows"
+
+    def test_louvain_small(self, tmp_path):
+        """Louvain on a 2-node graph should assign community labels to both."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL louvain('g', {concurrency: 1})"
+                    " YIELD node, community RETURN node.id, community;"
+                )
+            )
+            assert len(rows) == 2, "Louvain should return 2 rows"
+            for row in rows:
+                assert isinstance(row[1], int), "community should be an integer"
+
+    def test_leiden_small(self, tmp_path):
+        """Leiden on a 2-node graph should assign community labels to both."""
+        with self._small_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL leiden('g', {concurrency: 1})"
+                    " YIELD node, community RETURN node.id, community;"
+                )
+            )
+            assert len(rows) == 2, "Leiden should return 2 rows"
+            for row in rows:
+                assert isinstance(row[1], int), "community should be an integer"
+
+    def test_cdlp_small(self, tmp_path):
+        """CDLP is not implemented in the current GDS extension."""
+        pytest.skip("CDLP algorithm is not available in the GDS extension")
+
+
+# ---- (b) BFS with non-existent source ------------------------------------
+
+
+class TestBFSNonExistentSource:
+    """Calling BFS with a source vertex that does not exist should raise
+    an exception, not crash the database."""
+
+    def test_bfs_missing_source_custom_graph(self, tmp_path):
+        """BFS with source 999999 on a tiny custom graph must raise."""
+        with custom_graph_connection(
+            tmp_path,
+            db_name="bfs_missing_src_db",
+            create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+            create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+            node_inserts=[
+                "CREATE (:n {id: 1});",
+                "CREATE (:n {id: 2});",
+            ],
+            edge_inserts=[
+                "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2"
+                " CREATE (a)-[:e]->(b);",
+            ],
+            graph_name="g",
+            vertex_entries="['n']",
+            edge_entries="{'[n, e, n]': ''}",
+        ) as conn:
+            with pytest.raises(Exception):
+                list(
+                    conn.execute(
+                        "CALL bfs('g', {source: '999999'})"
+                        " YIELD node, distance RETURN node.id, distance;"
+                    )
+                )
+
+    def test_bfs_missing_source_tinysnb(self, tmp_path):
+        """BFS with source 999999 on tinysnb must raise, not crash."""
+        with tinysnb_simple_connection(tmp_path) as conn:
+            with pytest.raises(Exception):
+                list(
+                    conn.execute(
+                        "CALL bfs('person_knows', {source: '999999'})"
+                        " YIELD node, distance RETURN node.id, distance;"
+                    )
+                )
+
+
+# ---- (c) Empty graph: nodes only, no edges --------------------------------
+
+
+class TestEmptyGraph:
+    """A graph with nodes but zero edges should not crash.  WCC should assign
+    each node its own component; PageRank should converge to a uniform
+    distribution."""
+
+    def _empty_graph_ctx(self, tmp_path):
+        return custom_graph_connection(
+            tmp_path,
+            db_name="empty_graph_db",
+            create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+            create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+            node_inserts=[
+                "CREATE (:n {id: 1});",
+                "CREATE (:n {id: 2});",
+                "CREATE (:n {id: 3});",
+            ],
+            edge_inserts=[],  # no edges at all
+            graph_name="g",
+            vertex_entries="['n']",
+            edge_entries="{'[n, e, n]': ''}",
+        )
+
+    def test_wcc_empty_graph(self, tmp_path):
+        """Each isolated node should form its own component."""
+        with self._empty_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL wcc('g', {concurrency: 1})"
+                    " YIELD node, comp RETURN node.id, comp;"
+                )
+            )
+            assert len(rows) == 3, "WCC should return one row per node"
+            comps = [r[1] for r in rows]
+            assert len(set(comps)) == 3, (
+                "With no edges, every node should be in its own component"
+            )
+
+    def test_page_rank_empty_graph(self, tmp_path):
+        """PageRank on an edgeless graph should converge to uniform distribution."""
+        with self._empty_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL page_rank('g', {max_iterations: 20, concurrency: 1})"
+                    " YIELD node, rank RETURN node.id, rank;"
+                )
+            )
+            assert len(rows) == 3, "PageRank should return 3 rows"
+            ranks = [r[1] for r in rows]
+            expected = 1.0 / 3.0
+            for rank in ranks:
+                assert abs(rank - expected) < 0.05, (
+                    "PageRank on edgeless graph should be ~{:.3f},"
+                    " got {:.4f}".format(expected, rank)
+                )
+
+
+# ---- (d) Self-loop graph --------------------------------------------------
+
+
+class TestSelfLoopGraph:
+    """A graph containing self-loop edges should not cause infinite loops
+    or crashes in WCC or BFS."""
+
+    def _selfloop_graph_ctx(self, tmp_path):
+        return custom_graph_connection(
+            tmp_path,
+            db_name="selfloop_graph_db",
+            create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+            create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+            node_inserts=[
+                "CREATE (:n {id: 1});",
+                "CREATE (:n {id: 2});",
+                "CREATE (:n {id: 3});",
+            ],
+            edge_inserts=[
+                # A->A (self-loop), A->B, B->C
+                "MATCH (a:n) WHERE a.id = 1 CREATE (a)-[:e]->(a);",
+                "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2"
+                " CREATE (a)-[:e]->(b);",
+                "MATCH (a:n), (b:n) WHERE a.id = 2 AND b.id = 3"
+                " CREATE (a)-[:e]->(b);",
+            ],
+            graph_name="g",
+            vertex_entries="['n']",
+            edge_entries="{'[n, e, n]': ''}",
+        )
+
+    def test_wcc_selfloop(self, tmp_path):
+        """WCC should complete without hanging on a graph with self-loops."""
+        with self._selfloop_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL wcc('g', {concurrency: 1})"
+                    " YIELD node, comp RETURN node.id, comp;"
+                )
+            )
+            assert len(rows) == 3, "WCC should return 3 rows"
+            comps = {r[1] for r in rows}
+            assert len(comps) == 1, (
+                "All 3 nodes connected (ignoring self-loop) should be"
+                " in one component"
+            )
+
+    def test_bfs_selfloop(self, tmp_path):
+        """BFS should complete without hanging on a graph with self-loops."""
+        with self._selfloop_graph_ctx(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL bfs('g', {source: '1'})"
+                    " YIELD node, distance RETURN node.id, distance;"
+                )
+            )
+            assert len(rows) >= 1, "BFS should return at least the source"
+            dist_map = {r[0]: r[1] for r in rows}
+            assert dist_map.get(1) == 0, "Source node should have distance 0"
+            # Node 2 should be reachable at distance 1, node 3 at distance 2
+            if 2 in dist_map:
+                assert dist_map[2] == 1, (
+                    "Node 2 should be at distance 1 from source"
+                )
+            if 3 in dist_map:
+                assert dist_map[3] == 2, (
+                    "Node 3 should be at distance 2 from source"
+                )
+
+
+# ---- (e) Large graph cross-validation with tinysnb ------------------------
+
+
+class TestCrossValidationTinysnb:
+    """Cross-validate algorithm results on the tinysnb dataset:
+    - WCC: nodes in the same connected component must share the same comp value
+    - BFS: distances should be non-decreasing when ordered by distance
+    """
+
+    def test_wcc_consistency(self, tmp_path):
+        """Nodes connected by an edge must share the same WCC component."""
+        with tinysnb_simple_connection(tmp_path) as conn:
+            # Run WCC
+            wcc_rows = list(
+                conn.execute(
+                    "CALL wcc('person_knows', {concurrency: 1})"
+                    " YIELD node, comp RETURN node.id, comp;"
+                )
+            )
+            assert len(wcc_rows) > 0, "WCC must return results"
+
+            # Build node -> comp mapping
+            node_comp = {r[0]: r[1] for r in wcc_rows}
+
+            # Query actual edges and verify connected nodes share component
+            edge_rows = list(
+                conn.execute(
+                    "MATCH (a:person)-[:knows]->(b:person)"
+                    " RETURN a.id, b.id;"
+                )
+            )
+            for src_id, dst_id in edge_rows:
+                if src_id in node_comp and dst_id in node_comp:
+                    assert node_comp[src_id] == node_comp[dst_id], (
+                        "Connected nodes {} and {} should have the same WCC "
+                        "component, got {} vs {}".format(
+                            src_id,
+                            dst_id,
+                            node_comp[src_id],
+                            node_comp[dst_id],
+                        )
+                    )
+
+    def test_bfs_distance_non_decreasing(self, tmp_path):
+        """BFS distances from a source should be non-decreasing among
+        reachable nodes.  Nodes with distance == -1 are unreachable and
+        are excluded from the ordering checks."""
+        with tinysnb_simple_connection(tmp_path) as conn:
+            # Pick the first person as source
+            source_rows = list(
+                conn.execute(
+                    "MATCH (p:person) RETURN p.id ORDER BY p.id LIMIT 1;"
+                )
+            )
+            assert len(source_rows) > 0, "tinysnb should have at least one person"
+            source_id = str(source_rows[0][0])
+
+            bfs_rows = list(
+                conn.execute(
+                    "CALL bfs('person_knows', {{source: '{}'}})"
+                    " YIELD node, distance"
+                    " RETURN node.id, distance"
+                    " ORDER BY distance;".format(source_id)
+                )
+            )
+            assert len(bfs_rows) > 0, "BFS should return at least the source"
+
+            # Separate reachable (distance >= 0) from unreachable (-1)
+            reachable = [(nid, d) for nid, d in bfs_rows if d >= 0]
+            unreachable = [(nid, d) for nid, d in bfs_rows if d < 0]
+            assert len(reachable) >= 1, (
+                "BFS must return at least the source as reachable"
+            )
+
+            # The source should have distance 0
+            source_row = [r for r in reachable if r[0] == int(source_id)]
+            assert len(source_row) == 1, "Source node must appear in results"
+            assert source_row[0][1] == 0, "Source node distance should be 0"
+
+            # Reachable distances must be non-decreasing (already ordered)
+            prev_dist = -1
+            for node_id, dist in reachable:
+                assert dist > prev_dist or dist == prev_dist, (
+                    "BFS distances should be non-decreasing,"
+                    " but got {} after {}".format(dist, prev_dist)
+                )
+                prev_dist = dist
+
+            # Each distance step should be at most +1 from the previous
+            # (BFS explores level by level)
+            dist_set = sorted({d for _, d in reachable})
+            for i in range(1, len(dist_set)):
+                assert dist_set[i] - dist_set[i - 1] == 1, (
+                    "BFS distance levels should be contiguous,"
+                    " gap between {} and {}".format(dist_set[i - 1], dist_set[i])
+                )
+
+            # All unreachable nodes should report distance -1
+            for node_id, dist in unreachable:
+                assert dist == -1, (
+                    "Unreachable node {} should have distance -1,"
+                    " got {}".format(node_id, dist)
+                )
