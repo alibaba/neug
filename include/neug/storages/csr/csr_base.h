@@ -92,7 +92,8 @@ class CsrBase : public Module {
   /// Fork (deep-copy) the adjacency list of vertex vid so subsequent writes
   /// are isolated from the parent CSR.  Must only be called on a forked CSR
   /// for a vertex whose adjlist has not yet been forked.  The caller (e.g.
-  /// ForkBitmap) is responsible for tracking which adjlists have been forked.
+  /// PropertyGraphForkState) is responsible for tracking which adjlists have
+  /// been forked.
   virtual void ForkAdjlist(vid_t vid, Allocator& alloc) = 0;
 
   std::shared_ptr<CsrBase> ForkAsShared(Checkpoint& ckp, MemoryLevel level) {

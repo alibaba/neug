@@ -31,11 +31,11 @@ namespace neug {
  * a timestamp and to coordinate exclusive/shared access with other
  * transaction types.
  *
- * The current implementation is SLVersionManager, which uses an atomic
+ * The current implementation is VersionManager, which uses an atomic
  * state machine (update_state_) plus atomic counters for concurrency
  * control, replacing the earlier rw_mutex_-based design.
  *
- * @see SLVersionManager for the concrete implementation and its
+ * @see VersionManager for the concrete implementation and its
  *      concurrency matrix.
  */
 class IVersionManager {
@@ -55,7 +55,7 @@ class IVersionManager {
 };
 
 /**
- * @brief SLVersionManager — concurrency control via atomic state machine.
+ * @brief VersionManager — concurrency control via atomic state machine.
  *
  * update_state_ transitions: 0→1 (update-exec) →2 (update-commit);
  *                            0→2 (compact).
@@ -86,10 +86,10 @@ class IVersionManager {
  * - TimestampWindow ts_window_: tracks completed timestamps for read_ts
  * reclamation.
  */
-class SLVersionManager : public IVersionManager {
+class VersionManager : public IVersionManager {
  public:
-  SLVersionManager();
-  ~SLVersionManager();
+  VersionManager();
+  ~VersionManager();
 
   void init_ts(uint32_t ts, int thread_num) override;
 

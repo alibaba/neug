@@ -184,8 +184,8 @@ class EdgeTable {
   std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
 
   /// Fork (deep-copy) the outgoing adjlist of vertex vid.
-  /// Called by UpdateTransaction via ForkBitmap when the adjlist has not yet
-  /// been forked in the current transaction.
+  /// Called by UpdateTransaction via PropertyGraphForkState when the adjlist
+  /// has not yet been forked in the current transaction.
   void ForkOutAdjlist(vid_t vid, Allocator& alloc);
 
   /// Fork (deep-copy) the incoming adjlist of vertex vid.
@@ -219,11 +219,42 @@ class EdgeTable {
 };
 
 namespace internal {
-std::pair<int32_t, const void*> AddEdgeImpl(
-    CsrBase& out_csr, CsrBase& in_csr, Table* table,
+template <typename TABLE>
+std::pair<int32_t, const void*> insert_edge_into_csr_internal(
+    CsrBase& out_csr, CsrBase& in_csr, TABLE& table,
     std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
     vid_t dst_lid, const std::vector<execution::Value>& properties,
-    timestamp_t ts, Allocator& alloc, bool insert_safe);
+    timestamp_t ts, Allocator& alloc, bool insert_safe) {
+  int32_t oe_offset;
+  const void* data_ptr = nullptr;
+  if (meta.is_bundled()) {
+    assert(
+        properties.size() == 1 ||
+        (properties.size() == 0 && (meta.properties.empty() ||
+                                    meta.properties[0] == DataTypeId::kEmpty)));
+    execution::Value bundled_data =
+        properties.empty() ? execution::Value(DataType::EMPTY) : properties[0];
+    in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
+    auto out_ret =
+        out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
+  } else {
+    if (meta.properties.size() != properties.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "edge data size not match edge table property size");
+    }
+    size_t row_id = table_idx.fetch_add(1);
+    execution::Value prop = execution::Value::UINT64(row_id);
+    in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
+    auto out_ret = out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
+    table.insert(row_id, properties, insert_safe);
+  }
+  return {oe_offset, data_ptr};
+}
+
 }  // namespace internal
 
 }  // namespace neug

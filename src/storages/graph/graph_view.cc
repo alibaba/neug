@@ -23,47 +23,55 @@ namespace neug {
 
 // ── TableView ──
 
-TableView::TableView(const Table& table) : table_(&table) {}
+TableView::TableView(const Table& table) : col_id_map_(&table.col_id_map_) {
+  columns_.reserve(table.col_num());
+  for (int i = 0; i < table.col_num(); i++) {
+    columns_.emplace_back(table.get_column_by_id(i));
+  }
+}
 
 std::shared_ptr<RefColumnBase> TableView::get_column(int col_id) const {
-  auto ptr = table_ ? table_->get_column_by_id(col_id) : nullptr;
-  if (!ptr) {
+  if (col_id < 0 || col_id >= columns_.size()) {
     return nullptr;
   }
-  return CreateRefColumn(*ptr);
+  if (columns_[col_id]) {
+    return CreateRefColumn(*columns_[col_id]);
+  }
+  return nullptr;
 }
 
 std::shared_ptr<RefColumnBase> TableView::get_column(
     const std::string& name) const {
-  auto col_id = table_ ? table_->get_column_id_by_name(name) : -1;
-  if (col_id < 0) {
+  auto it = col_id_map_->find(name);
+  if (it == col_id_map_->end()) {
     return nullptr;
   }
+  int col_id = it->second;
   return get_column(col_id);
 }
 
-size_t TableView::column_count() const {
-  return table_ ? table_->col_num() : 0;
+std::shared_ptr<ColumnBase> TableView::get_raw_column(int col_id) const {
+  assert(col_id >= 0 && col_id < columns_.size());
+  return columns_[col_id];
+}
+
+void TableView::insert(size_t index,
+                       const std::vector<execution::Value>& values,
+                       bool insert_safe) {
+  assert(!insert_safe);
+  assert(values.size() == columns_.size());
+  for (size_t i = 0; i < values.size(); i++) {
+    columns_[i]->set_any(index, values[i], false);
+  }
 }
 
 // ── VertexTableView ──
 
-VertexTableView::VertexTableView(const VertexTable& table)
-    : indexer_(&table.get_indexer()),
-      v_ts_(&table.get_vertex_timestamp()),
-      table_(&table.get_table()),
-      pk_type_(std::get<0>(table.get_vertex_schema_ptr()->primary_keys[0])),
-      schema_(table.get_vertex_schema_ptr()) {}
-
-VertexTableView::VertexTableView(VertexTable& table, bool)
-    : indexer_(&table.get_indexer()),
-      v_ts_(&table.get_vertex_timestamp()),
-      table_(&table.get_table_mut()),
-      pk_type_(std::get<0>(table.get_vertex_schema_ptr()->primary_keys[0])),
-      schema_(table.get_vertex_schema_ptr()),
-      mut_indexer_(&table.get_indexer_mut()),
-      mut_v_ts_(&table.get_v_ts_mut()),
-      mut_table_(&table.get_table_mut()) {}
+VertexTableView::VertexTableView(VertexTable& table)
+    : pk_name_(std::get<1>(table.get_vertex_schema_ptr()->primary_keys[0])),
+      indexer_(&table.get_indexer()),
+      v_ts_(&table.get_v_ts_mut()),
+      view_(table.get_table_mut()) {}
 
 bool VertexTableView::get_lid(const execution::Value& oid, vid_t& lid,
                               timestamp_t ts) const {
@@ -98,53 +106,38 @@ VertexSet VertexTableView::GetVertexSet(timestamp_t ts) const {
 
 std::shared_ptr<RefColumnBase> VertexTableView::GetPropertyColumn(
     int col_id) const {
-  auto ptr = table_ ? table_->get_column_by_id(col_id) : nullptr;
-  if (!ptr) {
-    return nullptr;
-  }
-  return CreateRefColumn(*ptr);
+  return view_.get_column(col_id);
 }
 
 std::shared_ptr<RefColumnBase> VertexTableView::GetPropertyColumn(
     const std::string& prop) const {
-  if (!schema_) {
-    return nullptr;
-  }
-  auto pk = schema_->primary_keys[0];
-  if (prop == std::get<1>(pk)) {
+  if (prop == pk_name_) {
     return CreateRefColumn(indexer_->get_keys());
   }
-  auto ptr = table_ ? table_->get_column(prop) : nullptr;
-  if (!ptr) {
-    return nullptr;
-  }
-  return CreateRefColumn(*ptr);
+  return view_.get_column(prop);
 }
 
 bool VertexTableView::AddVertex(const execution::Value& id,
                                 const std::vector<execution::Value>& props,
                                 vid_t& ret, timestamp_t ts, bool insert_safe) {
-  return internal::AddVertexImpl(*mut_indexer_, *mut_v_ts_, *mut_table_, id,
-                                 props, ret, ts, insert_safe);
+  assert(!insert_safe);  // insert_safe should be false
+  if (indexer_->capacity() <= indexer_->size()) {
+    return false;
+  }
+  ret = internal::insert_vertex_pk_internal(*indexer_, *v_ts_, id, ts,
+                                            insert_safe);
+  view_.insert(ret, props, insert_safe);
+  return true;
 }
 
 // ── EdgeTableView ──
 
-EdgeTableView::EdgeTableView(const EdgeTable& table)
-    : out_csr_(&table.get_out_csr()),
-      in_csr_(&table.get_in_csr()),
-      table_(table.get_table_ptr()),
-      meta_(table.get_edge_schema_ptr()) {}
-
-EdgeTableView::EdgeTableView(EdgeTable& table, bool)
-    : out_csr_(&table.get_out_csr()),
-      in_csr_(&table.get_in_csr()),
-      table_(table.get_table_ptr()),
-      meta_(table.get_edge_schema_ptr()),
-      mut_out_csr_(&table.get_out_csr_mut()),
-      mut_in_csr_(&table.get_in_csr_mut()),
-      mut_table_(table.get_table_ptr_mut()),
-      mut_table_idx_(&table.get_table_idx()) {}
+EdgeTableView::EdgeTableView(EdgeTable& table)
+    : meta_(table.get_edge_schema_ptr()),
+      out_csr_(&table.get_out_csr_mut()),
+      in_csr_(&table.get_in_csr_mut()),
+      table_idx_(&table.get_table_idx()),
+      view_(*table.table()) {}
 
 CsrView EdgeTableView::GetOutgoingView(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
@@ -164,7 +157,7 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {
   if (!meta_->is_bundled()) {
     return EdgeDataAccessor(
         meta_->properties[prop_id].id(),
-        const_cast<ColumnBase*>(table_->get_column_by_id(prop_id).get()));
+        const_cast<ColumnBase*>(view_.get_raw_column(prop_id).get()));
   } else {
     if (prop_id != 0) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -190,23 +183,19 @@ std::pair<int32_t, const void*> EdgeTableView::AddEdge(
     vid_t src_lid, vid_t dst_lid,
     const std::vector<execution::Value>& properties, timestamp_t ts,
     Allocator& alloc, bool insert_safe) {
-  return internal::AddEdgeImpl(*mut_out_csr_, *mut_in_csr_, mut_table_,
-                               *mut_table_idx_, *meta_, src_lid, dst_lid,
-                               properties, ts, alloc, insert_safe);
+  return internal::insert_edge_into_csr_internal(
+      *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
+      properties, ts, alloc, insert_safe);
 }
 
 // ── GraphView ──
 
-GraphView::GraphView(PropertyGraph& storage, bool mutable_access)
-    : schema_(&storage.schema()), pg_(&storage), mutable_(mutable_access) {
-  Rebuild();
+GraphView::GraphView(PropertyGraph& storage) : schema_(&storage.schema()) {
+  Rebuild(storage);
 }
 
-void GraphView::Rebuild() {
-  if (!pg_) {
-    return;
-  }
-  schema_ = &pg_->schema();
+void GraphView::Rebuild(PropertyGraph& pg) {
+  schema_ = &pg.schema();
   vertex_views_.clear();
   edge_views_.clear();
   // Use vertex_label_frontier() (total label-id space) instead of
@@ -219,23 +208,12 @@ void GraphView::Rebuild() {
     if (!schema_->is_vertex_label_valid(static_cast<label_t>(i))) {
       continue;  // keep the default-constructed empty view
     }
-    if (mutable_) {
-      vertex_views_[i] =
-          VertexTableView(pg_->get_vertex_table(static_cast<label_t>(i)), true);
-    } else {
-      vertex_views_[i] =
-          VertexTableView(pg_->get_vertex_table(static_cast<label_t>(i)));
-    }
+    vertex_views_[i] =
+        VertexTableView(pg.get_vertex_table(static_cast<label_t>(i)));
   }
 
-  if (mutable_) {
-    for (auto& [key, edge_table] : pg_->edge_tables_) {
-      edge_views_.emplace(key, EdgeTableView(edge_table, true));
-    }
-  } else {
-    for (const auto& [key, edge_table] : pg_->edge_tables_) {
-      edge_views_.emplace(key, EdgeTableView(edge_table));
-    }
+  for (auto& [key, edge_table] : pg.edge_tables_) {
+    edge_views_.emplace(key, EdgeTableView(edge_table));
   }
 }
 

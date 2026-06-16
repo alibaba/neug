@@ -833,48 +833,13 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
   }
 }
 
-std::pair<int32_t, const void*> internal::AddEdgeImpl(
-    CsrBase& out_csr, CsrBase& in_csr, Table* table,
-    std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
-    vid_t dst_lid, const std::vector<execution::Value>& edge_data,
-    timestamp_t ts, Allocator& alloc, bool insert_safe) {
-  int32_t oe_offset;
-  const void* data_ptr = nullptr;
-  if (meta.is_bundled()) {
-    assert(
-        edge_data.size() == 1 ||
-        (edge_data.size() == 0 && (meta.properties.empty() ||
-                                   meta.properties[0] == DataTypeId::kEmpty)));
-    execution::Value bundled_data =
-        edge_data.empty() ? execution::Value(DataType::EMPTY) : edge_data[0];
-    in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
-    auto out_ret =
-        out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
-    oe_offset = out_ret.first;
-    data_ptr = out_ret.second;
-  } else {
-    if (meta.properties.size() != edge_data.size()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "edge data size not match edge table property size");
-    }
-    size_t row_id = table_idx.fetch_add(1);
-    execution::Value prop = execution::Value::UINT64(row_id);
-    in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    auto out_ret = out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
-    oe_offset = out_ret.first;
-    data_ptr = out_ret.second;
-    table->insert(row_id, edge_data, insert_safe);
-  }
-  return {oe_offset, data_ptr};
-}
-
 std::pair<int32_t, const void*> EdgeTable::AddEdge(
     vid_t src_lid, vid_t dst_lid,
     const std::vector<execution::Value>& edge_data, timestamp_t ts,
     Allocator& alloc, bool insert_safe) {
-  return internal::AddEdgeImpl(*out_csr_, *in_csr_, table_.get(), table_idx_,
-                               *meta_, src_lid, dst_lid, edge_data, ts, alloc,
-                               insert_safe);
+  return internal::insert_edge_into_csr_internal(
+      *out_csr_, *in_csr_, *table_.get(), table_idx_, *meta_, src_lid, dst_lid,
+      edge_data, ts, alloc, insert_safe);
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,

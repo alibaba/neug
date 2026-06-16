@@ -3010,7 +3010,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     // deployment target which this build doesn't set).
     //
     // The UpdateTransaction must be fully owned by the writer thread:
-    // GetUpdateTransaction acquires SLVersionManager's update_state_
+    // GetUpdateTransaction acquires VersionManager's update_state_
     // exclusively (CAS 0→1) and Commit resets it (→0).
     // Acquire+stage before the barrier preserves the
     // "post-race value staged in cow_storage" timing the test wants.

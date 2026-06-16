@@ -106,13 +106,10 @@ size_t VertexTable::VertexNum(timestamp_t ts) const {
 
 size_t VertexTable::LidNum() const { return indexer_->size(); }
 
-bool internal::AddVertexImpl(IndexerType& indexer, VertexTimestamp& v_ts,
-                             Table& table, const execution::Value& id,
-                             const std::vector<execution::Value>& props,
-                             vid_t& ret, timestamp_t ts, bool insert_safe) {
-  if (indexer.capacity() <= indexer.size()) {
-    return false;
-  }
+vid_t internal::insert_vertex_pk_internal(IndexerType& indexer,
+                                          VertexTimestamp& v_ts,
+                                          const execution::Value& id,
+                                          timestamp_t ts, bool insert_safe) {
   vid_t vid;
   if (NEUG_UNLIKELY(indexer.get_index(id, vid))) {
     if (NEUG_UNLIKELY(v_ts.IsVertexValid(vid, ts))) {
@@ -124,23 +121,26 @@ bool internal::AddVertexImpl(IndexerType& indexer, VertexTimestamp& v_ts,
     vid = indexer.insert(id, insert_safe);
   }
   v_ts.InsertVertex(vid, ts);
-  ret = vid;
-  assert([&]() {
-    if (table.col_num() > 0) {
-      return vid < table.get_column_by_id(0)->size();
-    } else {
-      return true;
-    }
-  }());
-  table.insert(vid, props, insert_safe);
-  return true;
+  return vid;
 }
 
 bool VertexTable::AddVertex(const execution::Value& id,
                             const std::vector<execution::Value>& props,
                             vid_t& vid, timestamp_t ts, bool insert_safe) {
-  return internal::AddVertexImpl((*indexer_), (*v_ts_), *table_, id, props, vid,
-                                 ts, insert_safe);
+  if (indexer_->capacity() <= indexer_->size()) {
+    return false;
+  }
+  vid = internal::insert_vertex_pk_internal(*indexer_, *v_ts_, id, ts,
+                                            insert_safe);
+  assert([&]() {
+    if (table_->col_num() > 0) {
+      return vid < table_->get_column_by_id(0)->size();
+    } else {
+      return true;
+    }
+  }());
+  table_->insert(vid, props, insert_safe);
+  return true;
 }
 
 bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
@@ -264,18 +264,8 @@ void VertexTable::Compact(timestamp_t ts) {
 
 vid_t VertexTable::insert_vertex_pk(const execution::Value& id, timestamp_t ts,
                                     bool insert_safe) {
-  vid_t vid;
-  if (NEUG_UNLIKELY(indexer_->get_index(id, vid))) {
-    if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vid, ts))) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Vertex with id " + id.to_string() +
-                                       " already exists with lid " +
-                                       std::to_string(vid));
-    }
-  } else {
-    vid = indexer_->insert(id, insert_safe);
-  }
-  v_ts_->InsertVertex(vid, ts);
-  return vid;
+  return internal::insert_vertex_pk_internal(*indexer_, *v_ts_, id, ts,
+                                             insert_safe);
 }
 
 // --- Static key builders ---

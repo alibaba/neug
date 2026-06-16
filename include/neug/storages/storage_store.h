@@ -41,7 +41,7 @@ namespace neug {
  *
  * Concurrency:
  * - Lock-free acquireSnapshot via optimistic pin + verify loop.
- * - Concurrent installs are NOT safe — SLVersionManager serializes
+ * - Concurrent installs are NOT safe — VersionManager serializes
  *   updates via start_commit_update_timestamp (CAS 0→1), ensuring only one
  *   update/compact can be in progress at a time.
  * - installSnapshot publishes the new slot BEFORE VersionManager advances
@@ -95,7 +95,7 @@ class StorageStore {
   void releaseSnapshot(const StorageSlot& slot);
 
   /// Current PropertyGraph (for UpdateTransaction to Fork).
-  /// No lock — SLVersionManager guarantees exclusive update access
+  /// No lock — VersionManager guarantees exclusive update access
   /// (update_state_==1, all inserters drained).
   const PropertyGraph& currentSnapshot() const;
 

@@ -399,10 +399,9 @@ class VertexTable {
 };
 
 namespace internal {
-bool AddVertexImpl(IndexerType& indexer, VertexTimestamp& v_ts, Table& table,
-                   const execution::Value& id,
-                   const std::vector<execution::Value>& props, vid_t& ret,
-                   timestamp_t ts, bool insert_safe);
+vid_t insert_vertex_pk_internal(IndexerType& indexer, VertexTimestamp& v_ts,
+                                const execution::Value& id, timestamp_t ts,
+                                bool insert_safe);
 }  // namespace internal
 
 }  // namespace neug

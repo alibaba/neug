@@ -31,9 +31,9 @@
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/storages/graph/fork_bitmap.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_view.h"
+#include "neug/storages/graph/pg_fork_state.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/storage_store.h"
 #include "neug/transaction/transaction_utils.h"
@@ -259,7 +259,7 @@ class UpdateTransaction {
 
   void release();
 
-  // --- ForkBitmap-driven lazy fork helpers ---
+  // --- PropertyGraphForkState-driven lazy fork helpers ---
   void ensureVertexTableForkedForInsert(label_t label);
   void ensureVertexTableForkedForDelete(label_t label);
   void ensureVertexColumnForked(label_t label, int32_t col_id);
@@ -279,7 +279,7 @@ class UpdateTransaction {
 
   // COW storage - the forked PropertyGraph
   std::shared_ptr<PropertyGraph> cow_storage_;
-  ForkBitmap fork_bitmap_;
+  PropertyGraphForkState fork_bitmap_;
   GraphView view_;
 
   Allocator& alloc_;

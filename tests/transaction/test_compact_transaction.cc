@@ -294,7 +294,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // Concurrency exclusion tests: CompactTransaction blocks all other
 // transaction types (Read, Insert, Update, and another Compact).
 //
-// Tests at SLVersionManager level to avoid SessionPool size constraints.
+// Tests at VersionManager level to avoid SessionPool size constraints.
 // Strategy: main thread acquires compact timestamp (holds exclusive lock),
 // worker thread tries to acquire another timestamp type — should be blocked
 // until main thread releases compact.
@@ -303,9 +303,9 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // Helper: verify that `acquire_fn` is blocked while compact timestamp is
 // held, and proceeds once released.
 static void AssertCompactBlocksAcquire(
-    neug::SLVersionManager& vm,
-    std::function<void(neug::SLVersionManager&)> acquire_fn,
-    std::function<void(neug::SLVersionManager&, uint32_t)> release_fn) {
+    neug::VersionManager& vm,
+    std::function<void(neug::VersionManager&)> acquire_fn,
+    std::function<void(neug::VersionManager&, uint32_t)> release_fn) {
   std::atomic<bool> worker_started{false};
   std::atomic<bool> worker_acquired{false};
 
@@ -338,40 +338,40 @@ static void AssertCompactBlocksAcquire(
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksRead) {
-  neug::SLVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
 
   AssertCompactBlocksAcquire(
-      vm, [](neug::SLVersionManager& v) { v.acquire_read_timestamp(); },
-      [](neug::SLVersionManager& v, uint32_t) { v.release_read_timestamp(); });
+      vm, [](neug::VersionManager& v) { v.acquire_read_timestamp(); },
+      [](neug::VersionManager& v, uint32_t) { v.release_read_timestamp(); });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksInsert) {
-  neug::SLVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::SLVersionManager& v) { v.acquire_insert_timestamp(); },
-      [](neug::SLVersionManager& v, uint32_t ts) {
+      vm, [](neug::VersionManager& v) { v.acquire_insert_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
         v.release_insert_timestamp(ts);
       });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
-  neug::SLVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::SLVersionManager& v) { v.acquire_update_timestamp(); },
-      [](neug::SLVersionManager& v, uint32_t ts) {
+      vm, [](neug::VersionManager& v) { v.acquire_update_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
         v.release_update_timestamp(ts);
       });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksCompact) {
-  neug::SLVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::SLVersionManager& v) { v.acquire_compact_timestamp(); },
-      [](neug::SLVersionManager& v, uint32_t ts) {
+      vm, [](neug::VersionManager& v) { v.acquire_compact_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
         v.release_compact_timestamp(ts);
       });
 }

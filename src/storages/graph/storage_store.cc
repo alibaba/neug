@@ -35,7 +35,7 @@ StorageStore::StorageStore(int slot_num,
   // being cleaned up) without mistaking a live cur slot for a dead one,
   // because a live cur slot always has count >= 1.
   slots_[0].storage_ = std::move(initial_pg);
-  slots_[0].view_ = GraphView(*slots_[0].storage_, true);
+  slots_[0].view_ = GraphView(*slots_[0].storage_);
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -184,7 +184,7 @@ Status StorageStore::installSnapshot(
                                          std::memory_order_relaxed);
 
   slots_[slot_index].storage_ = new_pg;
-  slots_[slot_index].view_ = GraphView(*new_pg, true);
+  slots_[slot_index].view_ = GraphView(*new_pg);
 
   // Release the write-guard: bump reader_count_ from kCleanupSentinel to 1
   // (the prep-pin) atomically with a release fence so that all prior writes

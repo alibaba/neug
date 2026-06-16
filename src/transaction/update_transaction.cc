@@ -188,7 +188,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_storage,
                                      execution::LocalQueryCache& cache,
                                      timestamp_t timestamp)
     : cow_storage_(std::move(cow_storage)),
-      fork_bitmap_(ForkBitmap::FromSchema(cow_storage_->schema())),
+      fork_bitmap_(PropertyGraphForkState::FromSchema(cow_storage_->schema())),
       view_(*cow_storage_),
       alloc_(alloc),
       logger_(logger),
@@ -286,6 +286,7 @@ Status UpdateTransaction::CreateVertexType(
   new_state.columns_forked.assign(col_count, true);
 
   schema_changed_ = true;
+  view_.Rebuild(*cow_storage_);
   return status;
 }
 
@@ -325,6 +326,7 @@ Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
   fork_bitmap_.edge_tables.emplace(triplet_id, std::move(new_edge_state));
 
   schema_changed_ = true;
+  view_.Rebuild(*cow_storage_);
   return status;
 }
 
@@ -351,6 +353,7 @@ Status UpdateTransaction::AddVertexProperties(
   vt_state.columns_forked.resize(new_col_count, true);
 
   schema_changed_ = true;
+  view_.Rebuild(*cow_storage_);
   return status;
 }
 
@@ -383,6 +386,7 @@ Status UpdateTransaction::AddEdgeProperties(
   et_state.columns_forked.resize(edge_schema->property_names.size(), true);
 
   schema_changed_ = true;
+  view_.Rebuild(*cow_storage_);
   return status;
 }
 
@@ -467,6 +471,7 @@ Status UpdateTransaction::DeleteVertexProperties(
         columns_forked.erase(columns_forked.begin() + col_id);
       }
     }
+    view_.Rebuild(*cow_storage_);
   }
   return status;
 }
@@ -545,6 +550,7 @@ Status UpdateTransaction::DeleteEdgeProperties(
         }
       }
     }
+    view_.Rebuild(*cow_storage_);
   }
   return status;
 }
@@ -588,6 +594,7 @@ Status UpdateTransaction::DeleteVertexType(
     for (uint32_t edge_id : related_edge_ids) {
       fork_bitmap_.edge_tables.erase(edge_id);
     }
+    view_.Rebuild(*cow_storage_);
   }
   return status;
 }
@@ -612,6 +619,7 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
     // Remove the edge table's fork state entry (it was erased from
     // PropertyGraph::edge_tables_ by DeleteEdgeType).
     fork_bitmap_.edge_tables.erase(triplet_id);
+    view_.Rebuild(*cow_storage_);
   }
   return status;
 }
@@ -1086,7 +1094,7 @@ void UpdateTransaction::release() {
   cow_storage_.reset();
 }
 
-// --- ForkBitmap-driven lazy fork helpers ---
+// --- PropertyGraphForkState-driven lazy fork helpers ---
 
 void UpdateTransaction::ensureVertexTableForkedForInsert(label_t label) {
   auto& state = fork_bitmap_.vertex_tables[label];
@@ -1111,7 +1119,7 @@ void UpdateTransaction::ensureVertexTableForkedForInsert(label_t label) {
     }
   }
   if (did_fork) {
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 
@@ -1120,7 +1128,7 @@ void UpdateTransaction::ensureVertexTableForkedForDelete(label_t label) {
   if (!state.vertex_timestamp_forked) {
     cow_storage_->get_vertex_table(label).ForkVertexTimestamp();
     state.vertex_timestamp_forked = true;
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 
@@ -1134,7 +1142,7 @@ void UpdateTransaction::ensureVertexColumnForked(label_t label,
     vertex_table.get_table_mut().ForkColumn(col_id, *ckp_,
                                             cow_storage_->memory_level());
     state.columns_forked[col_id] = true;
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 
@@ -1167,7 +1175,7 @@ void UpdateTransaction::ensureEdgeTableForkedForInsert(
     }
   }
   if (did_fork) {
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 
@@ -1191,7 +1199,7 @@ void UpdateTransaction::ensureEdgeTableForkedForDelete(
     did_fork = true;
   }
   if (did_fork) {
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 
@@ -1206,7 +1214,7 @@ void UpdateTransaction::ensureEdgeColumnForked(uint32_t edge_triplet_id,
       !state.columns_forked[col_id]) {
     edge_table.table()->ForkColumn(col_id, *ckp_, cow_storage_->memory_level());
     state.columns_forked[col_id] = true;
-    view_.Rebuild();
+    view_.Rebuild(*cow_storage_);
   }
 }
 

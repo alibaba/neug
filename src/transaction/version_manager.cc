@@ -25,13 +25,13 @@
 
 namespace neug {
 
-// SLVersionManager implementation
+// VersionManager implementation
 
-SLVersionManager::SLVersionManager() {}
+VersionManager::VersionManager() {}
 
-SLVersionManager::~SLVersionManager() {}
+VersionManager::~VersionManager() {}
 
-void SLVersionManager::init_ts(uint32_t ts, int thread_num) {
+void VersionManager::init_ts(uint32_t ts, int thread_num) {
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
@@ -42,7 +42,7 @@ void SLVersionManager::init_ts(uint32_t ts, int thread_num) {
   thread_num_ = thread_num;
 }
 
-uint32_t SLVersionManager::acquire_read_timestamp() {
+uint32_t VersionManager::acquire_read_timestamp() {
   // Pre-check: avoid incrementing if in commit phase
   int state = update_state_.load(std::memory_order_acquire);
   if (state == 2)
@@ -65,7 +65,7 @@ uint32_t SLVersionManager::acquire_read_timestamp() {
   return acquire_read_timestamp_slow();
 }
 
-uint32_t SLVersionManager::acquire_read_timestamp_slow() {
+uint32_t VersionManager::acquire_read_timestamp_slow() {
   // Spin wait until update commit completes
   while (update_state_.load(std::memory_order_acquire) == 2) {
     // Tight spin loop for minimal latency
@@ -75,11 +75,11 @@ uint32_t SLVersionManager::acquire_read_timestamp_slow() {
   return acquire_read_timestamp();
 }
 
-void SLVersionManager::release_read_timestamp() {
+void VersionManager::release_read_timestamp() {
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 }
 
-uint32_t SLVersionManager::acquire_insert_timestamp() {
+uint32_t VersionManager::acquire_insert_timestamp() {
   // Check state first (fast path)
   int state = update_state_.load(std::memory_order_acquire);
   if (state != 0)
@@ -98,7 +98,7 @@ uint32_t SLVersionManager::acquire_insert_timestamp() {
   return acquire_insert_timestamp_slow();
 }
 
-uint32_t SLVersionManager::acquire_insert_timestamp_slow() {
+uint32_t VersionManager::acquire_insert_timestamp_slow() {
   // Spin wait until update completes
   while (update_state_.load(std::memory_order_acquire) != 0) {
     // Tight spin loop for minimal latency
@@ -108,7 +108,7 @@ uint32_t SLVersionManager::acquire_insert_timestamp_slow() {
   return acquire_insert_timestamp();
 }
 
-void SLVersionManager::release_insert_timestamp(uint32_t ts) {
+void VersionManager::release_insert_timestamp(uint32_t ts) {
   // Mark completion (lock-free atomic operation)
   ts_window_.mark_completed(ts);
 
@@ -125,7 +125,7 @@ void SLVersionManager::release_insert_timestamp(uint32_t ts) {
   active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
 }
 
-void SLVersionManager::advance_read_ts_locked() {
+void VersionManager::advance_read_ts_locked() {
   uint32_t current = read_ts_.load(std::memory_order_relaxed);
 
   // Advance read_ts
@@ -146,7 +146,7 @@ void SLVersionManager::advance_read_ts_locked() {
   ts_window_.slide_window(current);
 }
 
-uint32_t SLVersionManager::acquire_update_timestamp() {
+uint32_t VersionManager::acquire_update_timestamp() {
   // Wait to enter update state (0 -> 1)
   while (true) {
     int expected = 0;
@@ -166,7 +166,7 @@ uint32_t SLVersionManager::acquire_update_timestamp() {
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
 
-void SLVersionManager::start_commit_update_timestamp(uint32_t ts) {
+void VersionManager::start_commit_update_timestamp(uint32_t ts) {
   (void) ts;
 
   // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing
@@ -193,7 +193,7 @@ void SLVersionManager::start_commit_update_timestamp(uint32_t ts) {
   }
 }
 
-void SLVersionManager::release_update_timestamp(uint32_t ts) {
+void VersionManager::release_update_timestamp(uint32_t ts) {
   // Mark completion (lock-free atomic operation)
   ts_window_.mark_completed(ts);
 
@@ -210,7 +210,7 @@ void SLVersionManager::release_update_timestamp(uint32_t ts) {
   update_state_.store(0, std::memory_order_release);
 }
 
-uint32_t SLVersionManager::acquire_compact_timestamp() {
+uint32_t VersionManager::acquire_compact_timestamp() {
   // Wait to enter compact state (0 -> 2)
   while (true) {
     int expected = 0;
@@ -235,7 +235,7 @@ uint32_t SLVersionManager::acquire_compact_timestamp() {
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
 
-void SLVersionManager::release_compact_timestamp(uint32_t ts) {
+void VersionManager::release_compact_timestamp(uint32_t ts) {
   // Compact must be in state 2
   if (update_state_.load(std::memory_order_acquire) != 2) {
     THROW_INTERNAL_EXCEPTION(

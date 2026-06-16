@@ -35,7 +35,7 @@ void NeugDBService::init(const ServiceConfig& config) {
     return;
   }
 
-  version_manager_ = std::make_shared<neug::SLVersionManager>();
+  version_manager_ = std::make_shared<neug::VersionManager>();
   version_manager_->init_ts(
       db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
 

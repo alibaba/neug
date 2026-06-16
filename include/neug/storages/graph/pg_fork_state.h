@@ -45,11 +45,11 @@ struct EdgeTableForkState {
 /// A structure isomorphic to PropertyGraph's module organization.
 /// Each bool tracks whether the corresponding module has been forked
 /// (deep-copied) in the current transaction's COW copy.
-struct ForkBitmap {
+struct PropertyGraphForkState {
   std::vector<VertexTableForkState> vertex_tables;
   std::unordered_map<uint32_t, EdgeTableForkState> edge_tables;
 
-  static ForkBitmap FromSchema(const Schema& schema);
+  static PropertyGraphForkState FromSchema(const Schema& schema);
 };
 
 }  // namespace neug

@@ -65,7 +65,7 @@ static void IngestWalRange(PropertyGraph& graph,
   // read_ts = MAX_TIMESTAMP so vertices inserted earlier in the loop are
   // visible to later edge-resolution lookups regardless of the per-unit
   // commit timestamp.
-  GraphView view(graph, true);
+  GraphView view(graph);
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
     InsertTransaction::IngestWal(view, j, unit.ptr, unit.size, *allocators[0]);
@@ -332,7 +332,7 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
     // Dump with reopen=true rebuilds the PropertyGraph in-place (Clear + Open),
     // invalidating raw pointers held by the GraphView. Rebuild the view so it
     // points to the freshly loaded internal structures.
-    guard.get().mutable_view().Rebuild();
+    guard.get().mutable_view().Rebuild(*guard.get().pg());
   }
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }

@@ -31,6 +31,8 @@
 
 namespace neug {
 
+class TableView;
+
 class Table {
  public:
   Table();
@@ -116,6 +118,8 @@ class Table {
   std::vector<std::string> col_names_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
+
+  friend class TableView;
 };
 
 }  // namespace neug

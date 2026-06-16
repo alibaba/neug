@@ -38,17 +38,22 @@ class TableView {
 
   std::shared_ptr<RefColumnBase> get_column(int col_id) const;
   std::shared_ptr<RefColumnBase> get_column(const std::string& name) const;
-  size_t column_count() const;
+  std::shared_ptr<ColumnBase> get_raw_column(int col_id) const;
+
+  // Note: insert_safe is kept for compatibility with the old interface.
+  // It must be false for TableView.
+  void insert(size_t index, const std::vector<execution::Value>& values,
+              bool insert_safe);
 
  private:
-  const Table* table_{nullptr};
+  const std::unordered_map<std::string, int>* col_id_map_{nullptr};
+  std::vector<std::shared_ptr<ColumnBase>> columns_;
 };
 
 class VertexTableView {
  public:
   VertexTableView() = default;
-  explicit VertexTableView(const VertexTable& table);
-  VertexTableView(VertexTable& table, bool mutable_access);
+  explicit VertexTableView(VertexTable& table);
 
   bool get_lid(const execution::Value& oid, vid_t& lid, timestamp_t ts) const;
   vid_t LidNum() const;
@@ -64,22 +69,18 @@ class VertexTableView {
                  timestamp_t ts, bool insert_safe);
 
  private:
-  const IndexerType* indexer_{nullptr};
-  const VertexTimestamp* v_ts_{nullptr};
-  const Table* table_{nullptr};
-  DataType pk_type_;
-  std::shared_ptr<const VertexSchema> schema_;
+  std::string pk_name_;
 
-  IndexerType* mut_indexer_{nullptr};
-  VertexTimestamp* mut_v_ts_{nullptr};
-  Table* mut_table_{nullptr};
+  IndexerType* indexer_{nullptr};
+  VertexTimestamp* v_ts_{nullptr};
+
+  TableView view_;
 };
 
 class EdgeTableView {
  public:
   EdgeTableView() = default;
-  explicit EdgeTableView(const EdgeTable& table);
-  EdgeTableView(EdgeTable& table, bool mutable_access);
+  explicit EdgeTableView(EdgeTable& table);
 
   CsrView GetOutgoingView(timestamp_t ts) const;
   CsrView GetIncomingView(timestamp_t ts) const;
@@ -92,20 +93,17 @@ class EdgeTableView {
       Allocator& alloc, bool insert_safe);
 
  private:
-  const CsrBase* out_csr_{nullptr};
-  const CsrBase* in_csr_{nullptr};
-  const Table* table_{nullptr};
   std::shared_ptr<const EdgeSchema> meta_;
+  CsrBase* out_csr_{nullptr};
+  CsrBase* in_csr_{nullptr};
+  std::atomic<uint64_t>* table_idx_{nullptr};
 
-  CsrBase* mut_out_csr_{nullptr};
-  CsrBase* mut_in_csr_{nullptr};
-  Table* mut_table_{nullptr};
-  std::atomic<uint64_t>* mut_table_idx_{nullptr};
+  TableView view_;
 };
 
 class GraphView {
  public:
-  explicit GraphView(PropertyGraph& storage, bool mutable_access = false);
+  explicit GraphView(PropertyGraph& storage);
 
   GraphView() = default;
   ~GraphView() = default;
@@ -159,12 +157,11 @@ class GraphView {
                  timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
                  const void*& prop);
 
-  void Rebuild();
+  void Rebuild(PropertyGraph& pg);
 
  private:
+  // needed by api schema().
   const Schema* schema_{nullptr};
-  PropertyGraph* pg_{nullptr};
-  bool mutable_{false};
   std::vector<VertexTableView> vertex_views_;
   std::unordered_map<uint32_t, EdgeTableView> edge_views_;
 };

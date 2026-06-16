@@ -13,14 +13,15 @@
  * limitations under the License.
  */
 
-#include "neug/storages/graph/fork_bitmap.h"
+#include "neug/storages/graph/pg_fork_state.h"
 
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
 
-ForkBitmap ForkBitmap::FromSchema(const Schema& schema) {
-  ForkBitmap bitmap;
+PropertyGraphForkState PropertyGraphForkState::FromSchema(
+    const Schema& schema) {
+  PropertyGraphForkState bitmap;
 
   // Build vertex table fork states from schema — one per vertex label slot.
   const auto& vertex_schemas = schema.get_all_vertex_schemas();

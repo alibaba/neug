@@ -58,7 +58,7 @@ class Schema;
  * readers. Adding a new read API on GraphView without propagating `read_ts`
  * is a correctness bug, not a performance optimization.
  *
- * **Concurrency contract** (SLVersionManager state machine):
+ * **Concurrency contract** (VersionManager state machine):
  * - Insert requires update_state_==0 (normal); multiple concurrent inserts
  *   allowed (active_inserters_ counter). Update/compact transitions state
  *   away from 0, blocking new inserts.

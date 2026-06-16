@@ -59,8 +59,9 @@ bool CompactTransaction::Commit() {
 
     LOG(INFO) << "before compact - " << timestamp_;
     // In-place compact
-    guard_.get().pg()->Compact(compact_csr_, reserve_ratio_, timestamp_);
-    guard_.get().mutable_view().Rebuild();
+    auto& slot = guard_.get();
+    slot.pg()->Compact(compact_csr_, reserve_ratio_, timestamp_);
+    slot.mutable_view().Rebuild(*slot.pg());
     LOG(INFO) << "after compact - " << timestamp_;
 
     vm_.release_compact_timestamp(timestamp_);
