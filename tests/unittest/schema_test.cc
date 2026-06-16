@@ -1165,3 +1165,79 @@ TEST(SchemaTest, MultipleVacantSlotsReassign) {
   EXPECT_EQ(schema.get_vertex_label_id("A"), a_id);
   EXPECT_EQ(schema.vertex_label_num(), 3);
 }
+
+// Test: Serialize/Deserialize preserves both vertex and edge free lists,
+// and recycled lids work correctly after round-trip.
+TEST(SchemaTest, SerializeDeserializePreservesFreeListAndRecycling) {
+  neug::Schema schema;
+
+  // --- Vertex labels ---
+  schema.AddVertexLabel("VA", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("VB", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  schema.AddVertexLabel("VC", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t va_id = schema.get_vertex_label_id("VA");  // 0
+  neug::label_t vb_id = schema.get_vertex_label_id("VB");  // 1
+  neug::label_t vc_id = schema.get_vertex_label_id("VC");  // 2
+
+  // --- Edge labels ---
+  schema.AddEdgeLabel("VA", "VB", "E1", {DataTypeId::kInt32}, {"w"});
+  schema.AddEdgeLabel("VB", "VC", "E2", {DataTypeId::kInt32}, {"w"});
+  neug::label_t e1_id = schema.get_edge_label_id("E1");  // 0
+  neug::label_t e2_id = schema.get_edge_label_id("E2");  // 1
+
+  // --- Physical deletes to populate free lists ---
+  // Delete edge E1 first (must be before deleting vertex labels it
+  // references, because physical deletion removes the name from the
+  // hash table).
+  schema.DeleteEdgeLabel("E1");
+  EXPECT_EQ(schema.edge_label_num(), 1);  // E2 still active
+
+  // Delete vertex VB — free list: [1]
+  schema.DeleteVertexLabel("VB");
+  EXPECT_EQ(schema.vertex_label_num(), 2);  // VA, VC
+
+  // --- Serialize ---
+  std::ostringstream oss;
+  schema.Serialize(oss);
+
+  // --- Deserialize ---
+  neug::Schema loaded;
+  std::istringstream iss(oss.str());
+  loaded.Deserialize(iss);
+
+  // Verify post-deserialization state
+  EXPECT_EQ(loaded.vertex_label_num(), 2);
+  EXPECT_EQ(loaded.edge_label_num(), 1);
+  EXPECT_TRUE(loaded.is_vertex_label_valid("VA"));
+  EXPECT_FALSE(loaded.is_vertex_label_valid("VB"));
+  EXPECT_TRUE(loaded.is_vertex_label_valid("VC"));
+  EXPECT_TRUE(loaded.is_edge_label_valid("E2"));
+  EXPECT_FALSE(loaded.is_edge_label_valid("E1"));
+
+  // Existing labels must retain their original lids
+  EXPECT_EQ(loaded.get_vertex_label_id("VA"), va_id);
+  EXPECT_EQ(loaded.get_vertex_label_id("VC"), vc_id);
+  EXPECT_EQ(loaded.get_edge_label_id("E2"), e2_id);
+
+  // --- Re-add vertex label — should recycle VB's lid ---
+  loaded.AddVertexLabel("VD", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+  neug::label_t vd_id = loaded.get_vertex_label_id("VD");
+  EXPECT_EQ(vd_id, vb_id);  // recycled from VB
+  EXPECT_TRUE(loaded.is_vertex_label_valid("VD"));
+  EXPECT_EQ(loaded.vertex_label_num(), 3);
+
+  // --- Re-add edge label — should recycle E1's lid ---
+  // Need valid vertex labels for the edge triplet
+  loaded.AddEdgeLabel("VA", "VC", "E3", {DataTypeId::kInt32}, {"w"});
+  neug::label_t e3_id = loaded.get_edge_label_id("E3");
+  EXPECT_EQ(e3_id, e1_id);  // recycled from E1
+  EXPECT_TRUE(loaded.is_edge_label_valid("E3"));
+  EXPECT_EQ(loaded.edge_label_num(), 2);  // E2 + E3
+
+  // Verify the new edge triplet is valid
+  EXPECT_TRUE(loaded.is_edge_triplet_valid("VA", "VC", "E3"));
+}

@@ -1998,13 +1998,22 @@ void Schema::DeleteVertexLabel(const std::string& label, bool is_soft) {
 
 void Schema::DeleteVertexLabel(label_t v_label_id, bool is_soft) {
   assert(v_label_id < v_schemas_.size());
+  // Guard against duplicate deletion — tomb is set both for soft and
+  // physical deletes, so a second call would hit this check.
+  if (vlabel_tomb_.get(v_label_id)) {
+    return;
+  }
   if (!is_soft) {
     v_schemas_[v_label_id]->clear();
     // Physical deletion: remove the label name from the indexer
     // so that its lid can be reused by a future AddVertexLabel.
+    // Only push to free_list if remove_from_hash succeeds (returns
+    // the lid), otherwise the lid was already removed and recycled.
     const std::string& old_name = vlabel_indexer_.get_key(v_label_id);
-    vlabel_indexer_.remove_from_hash(old_name);
-    vlabel_free_list_.push_back(v_label_id);
+    label_t removed_lid = vlabel_indexer_.remove_from_hash(old_name);
+    if (removed_lid != static_cast<label_t>(-1)) {
+      vlabel_free_list_.push_back(v_label_id);
+    }
   }
   vlabel_tomb_.set(v_label_id);
 }
@@ -2034,10 +2043,13 @@ void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
 
   elabel_tomb_.set(e_label_id);
   if (!is_soft) {
-    // Physical deletion: remove from indexer and recycle lid
+    // Physical deletion: remove from indexer and recycle lid.
+    // Only push to free_list if remove_from_hash succeeds.
     const std::string& old_name = elabel_indexer_.get_key(e_label_id);
-    elabel_indexer_.remove_from_hash(old_name);
-    elabel_free_list_.push_back(e_label_id);
+    label_t removed_lid = elabel_indexer_.remove_from_hash(old_name);
+    if (removed_lid != static_cast<label_t>(-1)) {
+      elabel_free_list_.push_back(e_label_id);
+    }
   }
 }
 
@@ -2070,12 +2082,18 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
       }
     }
     if (!edge_label_still_used) {
+      if (elabel_tomb_.get(edge)) {
+        return;  // already deleted, avoid duplicate free_list entry
+      }
       elabel_tomb_.set(edge);
       if (!is_soft) {
-        // Physical deletion: remove from indexer and recycle lid
+        // Physical deletion: remove from indexer and recycle lid.
+        // Only push to free_list if remove_from_hash succeeds.
         const std::string& old_name = elabel_indexer_.get_key(edge);
-        elabel_indexer_.remove_from_hash(old_name);
-        elabel_free_list_.push_back(edge);
+        label_t removed_lid = elabel_indexer_.remove_from_hash(old_name);
+        if (removed_lid != static_cast<label_t>(-1)) {
+          elabel_free_list_.push_back(edge);
+        }
       }
     }
   }
