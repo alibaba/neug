@@ -19,29 +19,34 @@
 namespace neug {
 namespace gds {
 
-static execution::Value get_property_from_string(const std::string& str,
-                                                 const DataType& data_type) {
-  switch (data_type.id()) {
-  case DataTypeId::kInt32:
-    return execution::Value::INT32(std::stoi(str));
-  case DataTypeId::kInt64:
-    return execution::Value::INT64(std::atoll(str.c_str()));
-  case DataTypeId::kUInt32:
-    return execution::Value::UINT32(std::stoul(str));
-  case DataTypeId::kUInt64:
-    return execution::Value::UINT64(std::stoull(str));
-  case DataTypeId::kVarchar:
-    return execution::Value::STRING(str);
-  default:
-    throw std::runtime_error("Unsupported data type: " + str);
-  }
-}
 vid_t parse_source_vertex(const StorageReadInterface& graph,
                           label_t vertex_label, const std::string& source_str) {
   auto pk_type =
       std::get<0>(graph.schema().get_vertex_primary_key(vertex_label)[0]);
   vid_t source;
-  auto oid = get_property_from_string(source_str, pk_type);
+  
+  // Create Value with owned string data to avoid dangling reference
+  execution::Value oid;
+  switch (pk_type.id()) {
+  case DataTypeId::kInt32:
+    oid = execution::Value::INT32(std::stoi(source_str));
+    break;
+  case DataTypeId::kInt64:
+    oid = execution::Value::INT64(std::atoll(source_str.c_str()));
+    break;
+  case DataTypeId::kUInt32:
+    oid = execution::Value::UINT32(std::stoul(source_str));
+    break;
+  case DataTypeId::kUInt64:
+    oid = execution::Value::UINT64(std::stoull(source_str));
+    break;
+  case DataTypeId::kVarchar:
+    oid = execution::Value::CreateValue(source_str);
+    break;
+  default:
+    throw std::runtime_error("Unsupported primary key type for source vertex lookup");
+  }
+  
   if (!graph.GetVertexIndex(vertex_label, oid, source)) {
     throw std::runtime_error("Source vertex not found: " + source_str);
   }

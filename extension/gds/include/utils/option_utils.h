@@ -35,37 +35,44 @@ template <typename T>
 T get_option_value(
     const google::protobuf::Map<std::string, std::string>& options,
     const std::string& key, T default_value) {
-  auto it = options.find(key);
-  if (it == options.end()) {
+  // Use manual iteration instead of options.find() to avoid
+  // protobuf static library duplication causing hash table inconsistency
+  const std::string* found_value = nullptr;
+  for (const auto& kv : options) {
+    if (kv.first == key) {
+      found_value = &kv.second;
+      break;
+    }
+  }
+  if (found_value == nullptr) {
     return default_value;
   }
 
   if constexpr (std::is_same_v<T, int32_t>) {
     try {
-      return std::stoi(it->second);
+      return std::stoi(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + it->second);
+      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
     }
   } else if constexpr (std::is_same_v<T, int64_t>) {
     try {
-      return std::stoll(it->second);
+      return std::stoll(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + it->second);
+      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
     }
   } else if constexpr (std::is_same_v<T, double>) {
     try {
-      return std::stod(it->second);
+      return std::stod(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + it->second);
+      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
     }
   } else if constexpr (std::is_same_v<T, std::string>) {
-    std::string s = it->second;
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return static_cast<char>(std::tolower(c));
-    });
-    return s;
+    // Preserve original casing: string options are used for PK values (source)
+    // and property names (weight), both of which are case-sensitive.
+    // Bool options that need case-insensitive matching use the bool specialization.
+    return *found_value;
   } else if constexpr (std::is_same_v<T, bool>) {
-    std::string s = it->second;
+    std::string s = *found_value;
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return static_cast<char>(std::tolower(c));
     });
