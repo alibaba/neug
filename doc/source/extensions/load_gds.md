@@ -133,7 +133,7 @@ RETURN node, rank;
 | `damping_factor` | DOUBLE | `0.85` | Probability of following a link (vs. random jump) |
 | `max_iterations` | INT | `20` | Maximum number of iterations |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
-| `directed` | STRING | `"false"` | `"true"` to treat edges as directed |
+| `directed` | BOOL | `false` | Whether to treat edges as directed |
 
 **Output columns:**
 
@@ -172,7 +172,7 @@ RETURN node, distance;
 |---|---|---|---|
 | `source` | STRING | *(required)* | The source vertex's primary key value |
 | `concurrency` | INT | CPU cores | Number of threads |
-| `directed` | STRING | `"false"` | `"true"` to follow edges in their stored direction only |
+| `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
 
 **Output columns:**
 
@@ -209,7 +209,7 @@ RETURN node, distance;
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `source` | STRING | *(required)* | The source vertex's primary key value |
-| `directed` | STRING | `"false"` | `"true"` to follow edges in their stored direction only |
+| `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
 | `weight` | STRING | `""` | Edge property name to use as weight (empty = unit weight) |
 | `concurrency` | INT | CPU cores | Number of threads |
 
@@ -223,7 +223,7 @@ RETURN node, distance;
 **Example:**
 
 ```cypher
-CALL sssp('social', {source: '0', weight: 'cost', directed: 'true'})
+CALL sssp('social', {source: '0', weight: 'cost', directed: true})
 RETURN node.fName, distance;
 ```
 
@@ -280,7 +280,7 @@ RETURN node, lcc;
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `directed` | STRING | `"false"` | `"true"` to compute the directed clustering coefficient |
+| `directed` | BOOL | `false` | Whether to compute the directed clustering coefficient |
 | `degree_threshold` | INT | MAX_INT | Skip vertices with degree above this threshold |
 | `concurrency` | INT | CPU cores | Number of threads |
 
@@ -527,6 +527,5 @@ threads used for parallel computation. The default depends on the algorithm:
 - Most algorithms require a **homogeneous graph** subgraph (exactly one vertex
   label and one edge triplet `[A, edge, A]`). Label Propagation is the exception.
 - Edge predicates are only supported by Label Propagation.
-- The `directed` option is a string (`"true"` / `"false"`), not a boolean.
 - Personalized PageRank requires that both `edge_weight` and `node_weight`
   properties exist and are of type `DOUBLE`.
