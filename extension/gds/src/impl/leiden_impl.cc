@@ -16,6 +16,7 @@
 #include "impl/leiden_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <numeric>
 #include <random>
@@ -85,10 +86,19 @@ void Leiden::compute() {
       },
       concurrency_);
 
-  m_ = 0;
-  for (vid_t v : valid_vertices_) {
-    auto oes = oe_view.get_edges(v);
-    for (auto it = oes.begin(); it != oes.end(); ++it) m_ += 1.0;
+  {
+    std::vector<double> local_m(concurrency_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v);
+          double cnt = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
+          local_m[tid] += cnt;
+        },
+        concurrency_);
+    m_ = 0;
+    for (int i = 0; i < concurrency_; ++i) m_ += local_m[i];
   }
 
   if (m_ == 0) {
@@ -96,7 +106,9 @@ void Leiden::compute() {
     return;
   }
 
-  for (vid_t v : valid_vertices_) stot_[v] = degree_[v];
+  ParallelUtils::parallel_for(
+      valid_vertices_.data(), valid_vertices_.size(),
+      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, concurrency_);
 
   for (int level = 0; level < 100; ++level) {
     bool improved = local_moving_phase();
@@ -104,17 +116,24 @@ void Leiden::compute() {
 
     refine();
 
+    std::vector<double> local_mod(concurrency_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v);
+          double lm = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            vid_t u = *it;
+            if (community_[v] == community_[u]) {
+              lm += 1.0 / (2.0 * m_) -
+                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
+            }
+          }
+          local_mod[tid] += lm;
+        },
+        concurrency_);
     double new_mod = 0;
-    for (vid_t v : valid_vertices_) {
-      auto oes = oe_view.get_edges(v);
-      for (auto it = oes.begin(); it != oes.end(); ++it) {
-        vid_t u = *it;
-        if (community_[v] == community_[u]) {
-          new_mod += 1.0 / (2.0 * m_) -
-                     degree_[v] * degree_[u] / (4.0 * m_ * m_);
-        }
-      }
-    }
+    for (int i = 0; i < concurrency_; ++i) new_mod += local_mod[i];
     if (std::abs(new_mod - modularity_) < threshold_) break;
     modularity_ = new_mod;
   }

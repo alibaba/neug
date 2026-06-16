@@ -16,6 +16,7 @@
 #include "impl/louvain_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <numeric>
 #include <random>
@@ -89,41 +90,84 @@ void Louvain::compute() {
 
   // Compute total edge weight m (for undirected: each edge counted once)
   // We count out-edges only, which gives us m for undirected graphs
-  m_ = 0;
-  for (vid_t v : valid_vertices_) {
-    auto oes = oe_view.get_edges(v);
-    for (auto it = oes.begin(); it != oes.end(); ++it) m_ += 1.0;
+  {
+    std::vector<double> local_m(concurrency_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v);
+          double cnt = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
+          local_m[tid] += cnt;
+        },
+        concurrency_);
+    m_ = 0;
+    for (int i = 0; i < concurrency_; ++i) m_ += local_m[i];
   }
-  // For undirected: m = total_edges (not 2 * total_edges)
-  // The out-degree counts each edge once, so m_ is correct.
 
   if (m_ == 0) {
     modularity_ = 0;
     return;
   }
 
-  // Initialize stot
-  for (vid_t v : valid_vertices_) {
-    stot_[v] = degree_[v];
-  }
+  // Initialize stot in parallel
+  ParallelUtils::parallel_for(
+      valid_vertices_.data(), valid_vertices_.size(),
+      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, concurrency_);
 
-  // Iterate
+  // Iterate with convergence detection using threshold_
+  double prev_mod = -1.0;
   for (int level = 0; level < 100; ++level) {
     bool improved = one_level();
     if (!improved) break;
+
+    // Compute modularity to check convergence
+    std::vector<double> local_mod(concurrency_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v);
+          double lm = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            vid_t u = *it;
+            if (community_[v] == community_[u]) {
+              lm += 1.0 / (2.0 * m_) -
+                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
+            }
+          }
+          local_mod[tid] += lm;
+        },
+        concurrency_);
+    modularity_ = 0;
+    for (int i = 0; i < concurrency_; ++i) modularity_ += local_mod[i];
+
+    if (prev_mod >= 0 &&
+        std::abs(modularity_ - prev_mod) < threshold_ * m_) {
+      break;
+    }
+    prev_mod = modularity_;
   }
 
-  // Compute final modularity
-  modularity_ = 0;
-  for (vid_t v : valid_vertices_) {
-    auto oes = oe_view.get_edges(v);
-    for (auto it = oes.begin(); it != oes.end(); ++it) {
-      vid_t u = *it;
-      if (community_[v] == community_[u]) {
-        modularity_ += 1.0 / (2.0 * m_) -
-                       degree_[v] * degree_[u] / (4.0 * m_ * m_);
-      }
-    }
+  // Compute final modularity (if not already up-to-date)
+  if (prev_mod < 0) {
+    std::vector<double> local_mod(concurrency_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v);
+          double lm = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            vid_t u = *it;
+            if (community_[v] == community_[u]) {
+              lm += 1.0 / (2.0 * m_) -
+                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
+            }
+          }
+          local_mod[tid] += lm;
+        },
+        concurrency_);
+    modularity_ = 0;
+    for (int i = 0; i < concurrency_; ++i) modularity_ += local_mod[i];
   }
 }
 

@@ -84,10 +84,25 @@ void LabelPropagation::init_communities(const PRED_T& vertex_pred) {
         concurrency_);
   }
 
-  for (size_t i = 0; i < vertex_set.size(); ++i) {
-    if (community_[i] != std::numeric_limits<int64_t>::max()) {
-      vertices_.push_back(i);
+  // Parallel collection of valid vertices using thread-local vectors
+  {
+    std::vector<std::vector<vid_t>> local_vertices(concurrency_);
+    for (auto& lv : local_vertices) lv.reserve(vertex_set.size() / concurrency_);
+    ParallelUtils::parallel_for(
+        vertex_set,
+        [&](vid_t v, int tid) {
+          if (community_[v] != std::numeric_limits<int64_t>::max()) {
+            local_vertices[tid].push_back(v);
+          }
+        },
+        concurrency_);
+    size_t total = 0;
+    for (const auto& lv : local_vertices) total += lv.size();
+    vertices_.reserve(total);
+    for (auto& lv : local_vertices) {
+      vertices_.insert(vertices_.end(), lv.begin(), lv.end());
     }
+    std::sort(vertices_.begin(), vertices_.end());
   }
 }
 
