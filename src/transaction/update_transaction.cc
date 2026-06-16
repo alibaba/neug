@@ -150,6 +150,14 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
         related_edges[edge_triplet_id] =
             fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
                                                     lid, true, ts);
+        // For self-loop triplets (src_label == dst_label), also collect edges
+        // where lid is the destination so that their source adjlists get COW'd.
+        if (other_label_id == v_label) {
+          auto incoming = fetch_edges_related_to_vertex_from_view(
+              props, oe_view, ie_view, lid, false, ts);
+          auto& existing = related_edges[edge_triplet_id];
+          existing.insert(existing.end(), incoming.begin(), incoming.end());
+        }
       }
       if (other_label_id != v_label &&
           schema.is_edge_triplet_valid(other_label_id, v_label, e_label_id)) {
