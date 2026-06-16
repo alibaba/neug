@@ -1316,3 +1316,40 @@ TEST(SchemaTest, SerializeDeserializePreservesFreeListAndRecycling) {
   // Verify the new edge triplet is valid
   EXPECT_TRUE(loaded.is_edge_triplet_valid("VA", "VC", "E3"));
 }
+
+TEST(SchemaTest, VertexLabelOverflowThrows) {
+  neug::Schema schema;
+  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+
+  // Fill all 256 vertex label slots (0..255)
+  for (int i = 0; i < 256; ++i) {
+    std::string label = "V_" + std::to_string(i);
+    schema.AddVertexLabel(label, {DataTypeId::kVarchar}, {"name"}, pk, 1024,
+                          "");
+  }
+
+  // The 257th vertex label should throw OverflowException
+  EXPECT_THROW(schema.AddVertexLabel("V_overflow", {DataTypeId::kVarchar},
+                                     {"name"}, pk, 1024, ""),
+               neug::exception::OverflowException);
+}
+
+TEST(SchemaTest, EdgeLabelOverflowThrows) {
+  neug::Schema schema;
+
+  // Two vertex labels as edge endpoints
+  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  schema.AddVertexLabel("Src", {DataTypeId::kVarchar}, {"name"}, pk, 1024, "");
+  schema.AddVertexLabel("Dst", {DataTypeId::kVarchar}, {"name"}, pk, 1024, "");
+
+  // Fill all 256 edge label slots (0..255)
+  for (int i = 0; i < 256; ++i) {
+    std::string edge_label = "E_" + std::to_string(i);
+    schema.AddEdgeLabel("Src", "Dst", edge_label, {DataTypeId::kInt32}, {"w"});
+  }
+
+  // The 257th edge label should throw OverflowException
+  EXPECT_THROW(schema.AddEdgeLabel("Src", "Dst", "E_overflow",
+                                   {DataTypeId::kInt32}, {"w"}),
+               neug::exception::OverflowException);
+}

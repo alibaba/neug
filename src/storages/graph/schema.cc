@@ -23,6 +23,7 @@
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <filesystem>
+#include <limits>
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
@@ -78,6 +79,11 @@ bool LabelIndexer::add(const std::string& name, label_t& lid) {
     free_list_.pop_back();
     keys_[lid] = name;
   } else {
+    if (keys_.size() >=
+        static_cast<size_t>(std::numeric_limits<label_t>::max()) + 1) {
+      THROW_OVERFLOW_EXCEPTION(
+          "Label overflow: cannot create more than 256 labels");
+    }
     lid = static_cast<label_t>(keys_.size());
     keys_.push_back(name);
   }
