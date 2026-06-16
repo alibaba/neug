@@ -66,6 +66,106 @@ std::vector<T> extract_with_invalid_flags(
   return out;
 }
 
+bool LabelIndexer::add(const std::string& name, label_t& lid) {
+  auto it = index_.find(name);
+  if (it != index_.end()) {
+    lid = it->second;
+    return false;
+  }
+
+  if (!free_list_.empty()) {
+    lid = free_list_.back();
+    free_list_.pop_back();
+    keys_[lid] = name;
+  } else {
+    lid = static_cast<label_t>(keys_.size());
+    keys_.push_back(name);
+  }
+  index_.emplace(name, lid);
+  return true;
+}
+
+bool LabelIndexer::get_index(const std::string& name, label_t& lid) const {
+  auto it = index_.find(name);
+  if (it == index_.end()) {
+    return false;
+  }
+  lid = it->second;
+  return true;
+}
+
+const std::string& LabelIndexer::get_key(label_t lid) const {
+  if (static_cast<size_t>(lid) >= keys_.size()) {
+    THROW_INDEX_EXCEPTION("Index out of range in LabelIndexer::get_key " +
+                          std::to_string(lid) + " with size " +
+                          std::to_string(keys_.size()));
+  }
+  return keys_[lid];
+}
+
+label_t LabelIndexer::remove(const std::string& name) {
+  auto it = index_.find(name);
+  if (it == index_.end()) {
+    return static_cast<label_t>(-1);
+  }
+  label_t lid = it->second;
+  index_.erase(it);
+  free_list_.push_back(lid);
+  return lid;
+}
+
+size_t LabelIndexer::num_slots() const { return keys_.size(); }
+
+size_t LabelIndexer::size() const { return index_.size(); }
+
+bool LabelIndexer::empty() const { return index_.empty(); }
+
+void LabelIndexer::Clear() {
+  keys_.clear();
+  index_.clear();
+  free_list_.clear();
+}
+
+void LabelIndexer::Serialize(std::ostream& os) const {
+  static constexpr uint32_t kVersion = 1;
+  InArchive arc;
+  arc << kVersion << keys_ << free_list_;
+  size_t size = arc.GetSize();
+  os.write(reinterpret_cast<char*>(&size), sizeof(size));
+  os.write(arc.GetBuffer(), size);
+}
+
+void LabelIndexer::Deserialize(std::istream& is) {
+  OutArchive arc;
+  size_t size;
+  is.read(reinterpret_cast<char*>(&size), sizeof(size));
+  arc.Allocate(size);
+  is.read(arc.GetBuffer(), size);
+
+  uint32_t version;
+  arc >> version;
+  if (version != 1) {
+    THROW_RUNTIME_ERROR("Unsupported LabelIndexer version: " +
+                        std::to_string(version));
+  }
+  arc >> keys_ >> free_list_;
+
+  std::vector<bool> vacant(keys_.size(), false);
+  for (auto lid : free_list_) {
+    if (static_cast<size_t>(lid) >= keys_.size()) {
+      THROW_RUNTIME_ERROR("Invalid free label id: " + std::to_string(lid));
+    }
+    vacant[lid] = true;
+  }
+
+  index_.clear();
+  for (size_t i = 0; i < keys_.size(); ++i) {
+    if (!vacant[i]) {
+      index_.emplace(keys_[i], static_cast<label_t>(i));
+    }
+  }
+}
+
 void VertexSchema::clear() {
   property_types.clear();
   property_names.clear();
@@ -398,20 +498,9 @@ void Schema::AddVertexLabel(
     const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
     size_t max_vnum, const std::string& description,
     const std::vector<Value>& default_property_values) {
-  label_t v_label_id;
-
-  // Reuse a freed lid if available (physical deletion recycled slot)
-  if (!vlabel_free_list_.empty()) {
-    v_label_id = vlabel_free_list_.back();
-    vlabel_free_list_.pop_back();
-    // Bind the new label name to the recycled lid in the indexer
-    vlabel_indexer_.reassign(v_label_id, label);
+  label_t v_label_id = vertex_label_to_index(label);
+  if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
-  } else {
-    v_label_id = vertex_label_to_index(label);
-    if (vlabel_tomb_.get(v_label_id)) {  // Add back a soft-deleted label
-      vlabel_tomb_.reset(v_label_id);
-    }
   }
 
   // Only grow, never shrink: a lower label_id being re-added must not
@@ -435,18 +524,9 @@ void Schema::AddEdgeLabel(
     const std::vector<Value>& default_property_values) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
-  label_t edge_label_id;
-
-  if (!elabel_free_list_.empty()) {
-    edge_label_id = elabel_free_list_.back();
-    elabel_free_list_.pop_back();
-    elabel_indexer_.reassign(edge_label_id, edge_label);
+  label_t edge_label_id = edge_label_to_index(edge_label);
+  if (elabel_tomb_.get(edge_label_id)) {  // Add back a deleted label
     elabel_tomb_.reset(edge_label_id);
-  } else {
-    edge_label_id = edge_label_to_index(edge_label);
-    if (elabel_tomb_.get(edge_label_id)) {  // Add back a soft-deleted label
-      elabel_tomb_.reset(edge_label_id);
-    }
   }
 
   uint32_t label_id =
@@ -847,15 +927,6 @@ void Schema::Serialize(std::ostream& os) const {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
   arc << description_ << name_ << id_;
-  // Serialize free lists for label id reuse
-  arc << static_cast<uint32_t>(vlabel_free_list_.size());
-  for (const auto& lid : vlabel_free_list_) {
-    arc << lid;
-  }
-  arc << static_cast<uint32_t>(elabel_free_list_.size());
-  for (const auto& lid : elabel_free_list_) {
-    arc << lid;
-  }
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
   os.write(arc.GetBuffer(), size);
@@ -889,19 +960,6 @@ void Schema::Deserialize(std::istream& is) {
   }
 
   arc >> description_ >> name_ >> id_;
-  // Deserialize free lists for label id reuse
-  uint32_t v_free_size;
-  arc >> v_free_size;
-  vlabel_free_list_.resize(v_free_size);
-  for (uint32_t i = 0; i < v_free_size; ++i) {
-    arc >> vlabel_free_list_[i];
-  }
-  uint32_t e_free_size;
-  arc >> e_free_size;
-  elabel_free_list_.resize(e_free_size);
-  for (uint32_t i = 0; i < e_free_size; ++i) {
-    arc >> elabel_free_list_[i];
-  }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
   elabel_triplet_tomb_.Deserialize(is);
@@ -2005,15 +2063,8 @@ void Schema::DeleteVertexLabel(label_t v_label_id, bool is_soft) {
   }
   if (!is_soft) {
     v_schemas_[v_label_id]->clear();
-    // Physical deletion: remove the label name from the indexer
-    // so that its lid can be reused by a future AddVertexLabel.
-    // Only push to free_list if remove_from_hash succeeds (returns
-    // the lid), otherwise the lid was already removed and recycled.
     const std::string& old_name = vlabel_indexer_.get_key(v_label_id);
-    label_t removed_lid = vlabel_indexer_.remove_from_hash(old_name);
-    if (removed_lid != static_cast<label_t>(-1)) {
-      vlabel_free_list_.push_back(v_label_id);
-    }
+    vlabel_indexer_.remove(old_name);
   }
   vlabel_tomb_.set(v_label_id);
 }
@@ -2043,13 +2094,8 @@ void Schema::DeleteEdgeLabel(const std::string& label, bool is_soft) {
 
   elabel_tomb_.set(e_label_id);
   if (!is_soft) {
-    // Physical deletion: remove from indexer and recycle lid.
-    // Only push to free_list if remove_from_hash succeeds.
     const std::string& old_name = elabel_indexer_.get_key(e_label_id);
-    label_t removed_lid = elabel_indexer_.remove_from_hash(old_name);
-    if (removed_lid != static_cast<label_t>(-1)) {
-      elabel_free_list_.push_back(e_label_id);
-    }
+    elabel_indexer_.remove(old_name);
   }
 }
 
@@ -2087,13 +2133,8 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
       }
       elabel_tomb_.set(edge);
       if (!is_soft) {
-        // Physical deletion: remove from indexer and recycle lid.
-        // Only push to free_list if remove_from_hash succeeds.
         const std::string& old_name = elabel_indexer_.get_key(edge);
-        label_t removed_lid = elabel_indexer_.remove_from_hash(old_name);
-        if (removed_lid != static_cast<label_t>(-1)) {
-          elabel_free_list_.push_back(edge);
-        }
+        elabel_indexer_.remove(old_name);
       }
     }
   }
@@ -2358,8 +2399,6 @@ Schema Schema::Clone() const {
   cloned.vlabel_tomb_ = vlabel_tomb_;
   cloned.elabel_tomb_ = elabel_tomb_;
   cloned.elabel_triplet_tomb_ = elabel_triplet_tomb_;
-  cloned.vlabel_free_list_ = vlabel_free_list_;
-  cloned.elabel_free_list_ = elabel_free_list_;
 
   return cloned;
 }

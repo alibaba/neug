@@ -518,7 +518,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     keys_.clear();
     indices_.clear();
     distances_.clear();
-    vacant_.clear();
     num_elements_ = 0;
     num_slots_minus_one_ = 0;
     hash_policy_.reset();
@@ -542,92 +541,13 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(oid);
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
     return true;
   }
 
-  /// Remove a key from the hash table only (lid-stable).
-  /// Clears the hash slot and performs robin-hood backward shift to
-  /// maintain probe-chain integrity. Does NOT shrink keys_ — the
-  /// lid slot becomes "vacant" (marked in vacant_ Bitset) and can be
-  /// reused by reassign(). Returns the lid of the removed key, or -1
-  /// if not found.
-  INDEX_T remove_from_hash(const KEY_T& oid) {
-    if (num_elements_ == 0) {
-      return static_cast<INDEX_T>(-1);
-    }
-    ensure_vacant_size();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-
-    int8_t distance_from_desired = 0;
-    for (; distances_[index] >= distance_from_desired;
-         ++index, ++distance_from_desired) {
-      INDEX_T cur_lid = indices_[index];
-      if (keys_[cur_lid] == oid) {
-        // Robin-hood backward shift: move subsequent entries forward
-        // to fill the gap, maintaining probe-chain correctness.
-        for (size_t next = index + 1; distances_[next] > 0; ++next) {
-          // An entry at distance > 0 means it was displaced from its
-          // ideal position. Shifting it forward reduces its distance
-          // by 1, preserving the robin-hood invariant.
-          indices_[index] = indices_[next];
-          distances_[index] = distances_[next] - 1;
-          index = next;
-        }
-        // The final shifted-out slot is now empty
-        indices_[index] = std::numeric_limits<INDEX_T>::max();
-        distances_[index] = -1;
-        --num_elements_;
-        // Mark the lid as vacant so rehash() skips it.
-        vacant_.set(cur_lid);
-        return cur_lid;
-      }
-    }
-    return static_cast<INDEX_T>(-1);
-  }
-
-  /// Reassign: bind a new key name to an existing lid slot.
-  /// Removes the old key's hash mapping and inserts the new key's
-  /// hash mapping, both pointing to the same lid. keys_[lid] is
-  /// updated to new_key. num_elements_ net change is zero when
-  /// the old key was still in the hash (removed=true: -1+1=0),
-  /// or +1 when the slot was already vacant (removed=false: +1).
-  void reassign(INDEX_T lid, const KEY_T& new_key) {
-    if (static_cast<size_t>(lid) >= keys_.size()) {
-      THROW_INDEX_EXCEPTION("reassign: lid out of range " +
-                            std::to_string(lid) + " with size " +
-                            std::to_string(keys_.size()));
-    }
-    ensure_vacant_size();
-    // 1) Remove old key from hash table.
-    // remove_from_hash may return -1 if the old key was already
-    // removed (e.g. by a prior remove_from_hash call). When it
-    // fails, it does NOT decrement num_elements_, so
-    // emplace_new_value's +1 correctly reflects the newly inserted
-    // entry.
-    KEY_T old_key = keys_[lid];
-    remove_from_hash(old_key);
-
-    // 2) Update keys_[lid] with the new name and clear vacant mark
-    keys_[lid] = new_key;
-    vacant_.reset(lid);
-
-    // 3) Insert new key into hash table pointing to the same lid.
-    // No pre-increment needed: remove_from_hash decremented by 1
-    // when it succeeded; emplace_new_value increments by 1, so the
-    // net change is 0. If remove_from_hash failed, num_elements_
-    // was unchanged and emplace_new_value's +1 correctly reflects
-    // the new entry.
-    emplace(lid);
-  }
-
-  /// Legacy remove: unstable lid version (swap-with-back).
-  /// DO NOT USE for Schema label management — it changes other keys'
-  /// lid positions, breaking label-id stability.
-  bool remove_unstable(const KEY_T& oid) {
+  bool remove(const KEY_T& oid) {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
 
@@ -664,9 +584,9 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(std::move(oid));
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
     return true;
   }
 
@@ -686,9 +606,9 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(oid);
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
     return true;
   }
 
@@ -708,9 +628,9 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(std::move(oid));
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
     return true;
   }
 
@@ -728,9 +648,9 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     INDEX_T lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(oid);
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
   }
 
   void _add(KEY_T&& oid) {
@@ -747,9 +667,9 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     INDEX_T lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(std::move(oid));
-    assert(keys_.size() >= num_elements_ + 1);
+    assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
-    assert(keys_.size() >= num_elements_);
+    assert(keys_.size() == num_elements_);
   }
 
   size_t bucket_count() const {
@@ -760,14 +680,8 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   size_t size() const override { return num_elements_; }
 
-  /// Number of lid slots allocated in keys_.  After physical deletion
-  /// (remove_from_hash), num_elements_ < keys_.size() because the slot
-  /// stays allocated but is no longer counted as "active".  Use this
-  /// when iterating over *all* lid positions, including vacant ones.
-  size_t num_slots() const { return keys_.size(); }
-
   bool get_key(INDEX_T lid, KEY_T& oid) const {
-    if (static_cast<size_t>(lid) >= keys_.size()) {
+    if (static_cast<size_t>(lid) >= num_elements_) {
       return false;
     }
     oid = keys_[lid];
@@ -775,10 +689,10 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   }
 
   const KEY_T& get_key(INDEX_T lid) const {
-    if (static_cast<size_t>(lid) >= keys_.size()) {
+    if (static_cast<size_t>(lid) >= num_elements_) {
       THROW_INDEX_EXCEPTION("Index out of range in IdIndexer::get_key " +
                             std::to_string(lid) + " with size " +
-                            std::to_string(keys_.size()));
+                            std::to_string(num_elements_));
     }
     return keys_[lid];
   }
@@ -821,7 +735,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     std::swap(num_slots_minus_one_, rhs.num_slots_minus_one_);
 
     std::swap(hasher_, rhs.hasher_);
-    std::swap(vacant_, rhs.vacant_);
   }
 
   const key_buffer_t& keys() const { return keys_; }
@@ -848,8 +761,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
       os.write(reinterpret_cast<const char*>(distances_.data()),
                distances_.size() * sizeof(int8_t));
     }
-    // Serialize the vacant bitset
-    vacant_.Serialize(os);
   }
 
   void Deserialize(std::istream& is) {
@@ -876,22 +787,11 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
       is.read(reinterpret_cast<char*>(distances_.data()),
               distances_.size() * sizeof(int8_t));
     }
-    // Deserialize the vacant bitset
-    vacant_.Deserialize(is);
   }
 
   void _rehash(size_t num) { rehash(num); }
 
  private:
-  /// Ensure vacant_ Bitset is large enough to cover all keys_
-  /// lid positions. Called lazily before accessing vacant_
-  /// (in remove_from_hash, reassign, rehash).
-  void ensure_vacant_size() {
-    if (vacant_.size() < keys_.size()) {
-      vacant_.resize(keys_.size());
-    }
-  }
-
   void emplace(INDEX_T lid) {
     KEY_T key = keys_[lid];
     size_t index =
@@ -982,14 +882,8 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     max_lookups_ = new_max_lookups;
 
     num_elements_ = 0;
-    ensure_vacant_size();
     INDEX_T elem_num = static_cast<INDEX_T>(keys_.size());
     for (INDEX_T lid = 0; lid < elem_num; ++lid) {
-      // Skip vacant slots — they have stale keys that should not
-      // be reinserted into the hash table.
-      if (vacant_.get(lid)) {
-        continue;
-      }
       emplace(lid);
     }
   }
@@ -999,7 +893,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
     indices_.clear();
     distances_.clear();
-    vacant_.clear();
     indices_.resize(id_indexer_impl::min_lookups,
                     std::numeric_limits<INDEX_T>::max());
     distances_.resize(id_indexer_impl::min_lookups, -1);
@@ -1019,11 +912,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   key_buffer_t keys_;
   ind_buffer_t indices_;
   dist_buffer_t distances_;
-
-  /// Bitset tracking which lid slots are vacant (physically deleted
-  /// but not yet reassigned). remove_from_hash sets the bit;
-  /// reassign/add resets it. rehash() skips vacant slots.
-  Bitset vacant_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
   int8_t max_lookups_ = id_indexer_impl::min_lookups - 1;
