@@ -20,6 +20,16 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/wal/local_wal_parser.h"
+#include "neug/transaction/wal/wal.h"
+#include "neug/utils/exception/exception.h"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <filesystem>
+#include <string>
+#include <vector>
 
 #include "glog/logging.h"
 #include "gtest/gtest.h"
@@ -204,4 +214,131 @@ TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
     EXPECT_EQ(interface.BatchAddEdges(0, 0, 0, nullptr).error_code(),
               neug::StatusCode::ERR_NOT_SUPPORTED);
   }
+}
+
+class LocalWalParserTest : public ::testing::Test {
+ protected:
+  std::string wal_dir_;
+
+  void SetUp() override {
+    auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    auto dir_name = std::string("neug_wal_parser_test_") +
+                    std::to_string(::getpid()) + "_" + info->test_suite_name() +
+                    "_" + info->name();
+    wal_dir_ = (std::filesystem::temp_directory_path() / dir_name).string();
+    if (std::filesystem::exists(wal_dir_)) {
+      std::filesystem::remove_all(wal_dir_);
+    }
+    std::filesystem::create_directories(wal_dir_);
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(wal_dir_)) {
+      std::filesystem::remove_all(wal_dir_);
+    }
+  }
+
+  // Write a single WAL entry (header + payload) into a buffer.
+  void AppendWalEntry(std::vector<char>& buf, uint32_t ts, uint8_t type,
+                      const std::string& payload) {
+    neug::WalHeader header;
+    header.timestamp = ts;
+    header.type = type;
+    header.length = static_cast<int32_t>(payload.size());
+    const char* hdr = reinterpret_cast<const char*>(&header);
+    buf.insert(buf.end(), hdr, hdr + sizeof(neug::WalHeader));
+    buf.insert(buf.end(), payload.begin(), payload.end());
+  }
+
+  // Append a terminator entry (timestamp=0) to mark end of WAL stream.
+  void AppendWalTerminator(std::vector<char>& buf) {
+    neug::WalHeader terminator;
+    terminator.timestamp = 0;
+    terminator.type = 0;
+    terminator.length = 0;
+    const char* hdr = reinterpret_cast<const char*>(&terminator);
+    buf.insert(buf.end(), hdr, hdr + sizeof(neug::WalHeader));
+  }
+
+  // Write buffer contents to a .wal file in the WAL directory.
+  void WriteWalFile(const std::string& filename, const std::vector<char>& buf) {
+    auto path = wal_dir_ + "/" + filename;
+    int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+    ASSERT_NE(fd, -1);
+    ASSERT_EQ(static_cast<size_t>(write(fd, buf.data(), buf.size())),
+              buf.size());
+    ::close(fd);
+  }
+};
+
+// Test: LocalWalParser can correctly parse a valid WAL file.
+TEST_F(LocalWalParserTest, OpenAndParseValidWalFile) {
+  std::vector<char> buf;
+  std::string payload = "insert_vertex_data";
+  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, payload);  // insert WAL
+  AppendWalTerminator(buf);
+  WriteWalFile("thread_0_0.wal", buf);
+
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 1);
+  const auto& unit = parser.get_insert_wal(1);
+  EXPECT_EQ(unit.size, payload.size());
+  // The ptr should point to the payload data within the mmap region.
+  EXPECT_NE(unit.ptr, nullptr);
+  EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+}
+
+// Test: LocalWalParser throws IOException when ::open() on a WAL file fails
+// (e.g. permission denied). This covers the fd == -1 check.
+TEST_F(LocalWalParserTest, OpenUnreadableWalFileThrowsIOException) {
+  auto file_path = wal_dir_ + "/unreadable.wal";
+  int fd = ::open(file_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+  ASSERT_NE(fd, -1);
+  const char data[] = "some wal data";
+  ASSERT_EQ(static_cast<size_t>(write(fd, data, sizeof(data))), sizeof(data));
+  ::close(fd);
+
+  ASSERT_EQ(chmod(file_path.c_str(), 0000), 0);
+
+  try {
+    neug::LocalWalParser parser(wal_dir_);
+    FAIL() << "Expected IOException but none was thrown";
+  } catch (const neug::exception::IOException& e) {
+    EXPECT_NE(std::string(e.what()).find("Failed to open wal file"),
+              std::string::npos);
+  }
+
+  chmod(file_path.c_str(), 0644);
+}
+
+// Test: LocalWalParser throws IOException when mmap() fails.
+TEST_F(LocalWalParserTest, MmapFailureThrowsIOException) {
+  auto file_path = wal_dir_ + "/huge.wal";
+  int fd = ::open(file_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+  ASSERT_NE(fd, -1);
+
+  off_t huge_size =
+      static_cast<off_t>(128ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL);
+  ASSERT_EQ(ftruncate(fd, huge_size), 0);
+  ::close(fd);
+
+  try {
+    neug::LocalWalParser parser(wal_dir_);
+    FAIL() << "Expected IOException but none was thrown";
+  } catch (const neug::exception::IOException& e) {
+    EXPECT_NE(std::string(e.what()).find("Failed to mmap wal file"),
+              std::string::npos);
+  }
+
+  fd = ::open(file_path.c_str(), O_RDWR);
+  if (fd != -1) {
+    ftruncate(fd, 0);
+    ::close(fd);
+  }
+}
+
+// Test: Opening an empty WAL directory does not throw and last_ts is 0.
+TEST_F(LocalWalParserTest, OpenEmptyWalDirNoThrow) {
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 0);
 }
