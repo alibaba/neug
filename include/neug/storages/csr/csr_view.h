@@ -418,8 +418,15 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_gt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const nbr_t* ptr = adjlists[v] + degrees[v] - 1;
-    const nbr_t* end = adjlists[v] - 1;
+    // Atomic loads for torn-read safety: snapshot degree and buffer pointer
+    const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
+        std::memory_order_acquire);
+    const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
+    const nbr_t* ptr = base + deg - 1;
+    const nbr_t* end = base - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -445,8 +452,15 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_lt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const nbr_t* ptr = adjlists[v] + degrees[v] - 1;
-    const nbr_t* end = adjlists[v] - 1;
+    // Atomic load for torn-read safety: snapshot degree
+    const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
+        std::memory_order_acquire);
+    const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
+    const nbr_t* ptr = base + deg - 1;
+    const nbr_t* end = base - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -464,7 +478,7 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
       return;
     }
     ptr = std::lower_bound(
-              adjlists[v], ptr + 1, threshold,
+              base, ptr + 1, threshold,
               [](const nbr_t& b, const T& a) { return b.data < a; }) -
           1;
     while (ptr != end) {
@@ -605,6 +619,15 @@ struct CsrView {
       ret.start_ptr = start_ptr;
       ret.end_ptr = start_ptr + cfg_.stride;
     } else {
+      int deg;
+      if (cfg_.ts_offset != 0) {
+        // Mutable CSR: atomic load for torn-read safety (concurrent writers)
+        deg = reinterpret_cast<const std::atomic<int>*>(degrees_)[v].load(
+            std::memory_order_acquire);
+      } else {
+        // Immutable CSR: plain read (no concurrent writers)
+        deg = degrees_[v];
+      }
       const char* start_ptr = reinterpret_cast<const char*>(
           reinterpret_cast<const int64_t*>(adjlists_)[v]);
       if (start_ptr == nullptr) {
@@ -612,7 +635,7 @@ struct CsrView {
         ret.end_ptr = nullptr;
       } else {
         ret.start_ptr = start_ptr;
-        ret.end_ptr = start_ptr + degrees_[v] * cfg_.stride;
+        ret.end_ptr = start_ptr + deg * cfg_.stride;
       }
     }
     ret.cfg = cfg_;
