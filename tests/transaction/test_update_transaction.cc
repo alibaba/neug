@@ -882,10 +882,10 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
 }
 
-// Regression test for: DeleteVertex with self-loop edges must collect incoming
-// self-loop edges in the COW undo log so that Abort() can properly restore
+// Regression test for: DeleteVertex with intra-label edges must collect incoming
+// intra-label edges in the COW undo log so that Abort() can properly restore
 // them. See https://github.com/alibaba/neug/issues/558
-TEST_F(UpdateTransactionTest, DeleteVertexWithSelfLoopEdgeAbort) {
+TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -908,9 +908,9 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithSelfLoopEdgeAbort) {
               1);
   }
 
-  // Delete person2 (the destination of a self-loop "knows" edge) then abort.
+  // Delete person2 (the destination of an intra-label "knows" edge) then abort.
   // The bug was that fetch_edges_related_to_vertex only collected outgoing
-  // self-loop edges (where lid is src), missing incoming ones (where lid is
+  // intra-label edges (where lid is src), missing incoming ones (where lid is
   // dst). Without the fix, the "knows" edge from person1 to person2 would not
   // be properly reverted on abort.
   {
@@ -924,7 +924,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithSelfLoopEdgeAbort) {
     txn.Abort();
   }
 
-  // After abort, all self-loop "knows" edges must be restored.
+  // After abort, all intra-label "knows" edges must be restored.
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
@@ -933,7 +933,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithSelfLoopEdgeAbort) {
     auto knows_label = gi.schema().get_edge_label_id("knows");
     // Both vertices must still exist
     EXPECT_EQ(count_vertices(gi, person_label), 2);
-    // Both outgoing and incoming self-loop edges must be fully restored
+    // Both outgoing and incoming intra-label edges must be fully restored
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
               1);
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
