@@ -275,22 +275,19 @@ void Leiden::refine() {
   auto oe_view = graph_.GetGenericOutgoingGraphView(
       vertex_label_, vertex_label_, edge_label_);
 
-  // Use thread 0's scratch arrays for sequential refine
-  uint32_t* r_gen = thread_gen_.get();
-  double* r_cw = thread_comm_weight_.get();
-
-  uint32_t next_com = 0;
-  uint32_t refine_gen = 0;
-  std::vector<uint32_t> touched_scs;
-  touched_scs.reserve(64);
-  // Small flat array for sub-community → new community ID mapping
-  // Sub-community IDs are always < 50, so size 64 is safe.
-  uint32_t sc_to_new[64];
+  // Collect multi-vertex communities for parallel processing
+  struct CommunityRange {
+    size_t start;
+    size_t end;
+  };
+  std::vector<CommunityRange> multi_comms;
 
   size_t i = 0;
   size_t n = com_vertex_pairs.size();
+  uint32_t next_com = 0;
+
+  // Assign new community IDs to single-vertex communities immediately
   while (i < n) {
-    // Find community boundary
     uint32_t com_id = com_vertex_pairs[i].first;
     size_t j = i;
     while (j < n && com_vertex_pairs[j].first == com_id) ++j;
@@ -300,104 +297,136 @@ void Leiden::refine() {
       for (size_t k = i; k < j; ++k) {
         community_[com_vertex_pairs[k].second] = next_com++;
       }
-      i = j;
-      continue;
+    } else {
+      multi_comms.push_back({i, j});
     }
-
-    // Mark community membership and init sub-communities to 0
-    for (size_t k = i; k < j; ++k) {
-      vid_t v = com_vertex_pairs[k].second;
-      sub_com_flat_[v] = 0;
-    }
-
-    // Collect nodes for this community
-    std::vector<vid_t> nodes;
-    nodes.reserve(com_size);
-    for (size_t k = i; k < j; ++k) {
-      nodes.push_back(com_vertex_pairs[k].second);
-    }
-
-    std::vector<vid_t> order = nodes;
-    std::mt19937 rng(42);
-    std::shuffle(order.begin(), order.end(), rng);
-
-    bool improved = true;
-    uint32_t next_sub = 1;
-
-    while (improved && next_sub < 50) {
-      improved = false;
-      for (vid_t u : order) {
-        uint32_t cur_sc = sub_com_flat_[u];
-
-        // Aggregate neighbor sub-community weights using gen counter
-        ++refine_gen;
-        touched_scs.clear();
-
-        auto oes = oe_view.get_edges(u);
-        for (auto it = oes.begin(); it != oes.end(); ++it) {
-          vid_t v = *it;
-          if (v == u || sub_com_flat_[v] == kInvalidSubCom) continue;
-          uint32_t sc = sub_com_flat_[v];
-          if (r_gen[sc] != refine_gen) {
-            r_gen[sc] = refine_gen;
-            r_cw[sc] = 0.0;
-            touched_scs.push_back(sc);
-          }
-          r_cw[sc] += 1.0;
-        }
-
-        double w_self =
-            (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
-
-        uint32_t best_sc = cur_sc;
-        double best_gain = 0.0;
-
-        for (uint32_t sc : touched_scs) {
-          double w_sc = r_cw[sc];
-          double gain = w_sc - w_self;
-          if (gain > best_gain) {
-            best_gain = gain;
-            best_sc = sc;
-          }
-        }
-
-        // Try new sub-community
-        double gain_new = -w_self;
-        if (gain_new > best_gain) {
-          best_gain = gain_new;
-          best_sc = next_sub;
-        }
-
-        if (best_sc != cur_sc) {
-          sub_com_flat_[u] = best_sc;
-          if (best_sc == next_sub) next_sub++;
-          improved = true;
-        }
-      }
-    }
-
-    // Map sub-communities to new community IDs using small flat array
-    uint32_t max_sc_seen = 0;
-    for (vid_t v : nodes) {
-      uint32_t sc = sub_com_flat_[v];
-      if (sc > max_sc_seen) max_sc_seen = sc;
-      sc_to_new[sc] = UINT32_MAX;  // sentinel: unassigned
-    }
-    for (vid_t v : nodes) {
-      uint32_t sc = sub_com_flat_[v];
-      if (sc_to_new[sc] == UINT32_MAX) {
-        sc_to_new[sc] = next_com++;
-      }
-      community_[v] = sc_to_new[sc];
-    }
-
-    // Reset sub_com_flat_ for these vertices
-    for (vid_t v : nodes) {
-      sub_com_flat_[v] = kInvalidSubCom;
-    }
-
     i = j;
   }
+
+  // Process multi-vertex communities in parallel
+  std::atomic<uint32_t> atomic_next_com(next_com);
+  const int nt = num_threads_;
+
+  if (multi_comms.empty()) return;
+
+  std::atomic<size_t> cursor(0);
+  std::vector<std::thread> threads;
+  threads.reserve(nt - 1);
+
+  auto worker = [&](int tid) {
+    // Each thread uses its own scratch arrays
+    uint32_t* r_gen = thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
+    double* r_cw = thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
+    std::vector<uint32_t> touched_scs;
+    touched_scs.reserve(64);
+    uint32_t sc_to_new[64];
+
+    while (true) {
+      size_t idx = cursor.fetch_add(1);
+      if (idx >= multi_comms.size()) break;
+
+      auto& range = multi_comms[idx];
+      size_t com_start = range.start;
+      size_t com_end = range.end;
+      size_t com_size = com_end - com_start;
+
+      // Mark community membership and init sub-communities to 0
+      for (size_t k = com_start; k < com_end; ++k) {
+        vid_t v = com_vertex_pairs[k].second;
+        sub_com_flat_[v] = 0;
+      }
+
+      // Collect nodes for this community
+      std::vector<vid_t> nodes;
+      nodes.reserve(com_size);
+      for (size_t k = com_start; k < com_end; ++k) {
+        nodes.push_back(com_vertex_pairs[k].second);
+      }
+
+      std::vector<vid_t> order = nodes;
+      std::mt19937 rng(42 + static_cast<uint32_t>(idx));
+      std::shuffle(order.begin(), order.end(), rng);
+
+      bool improved = true;
+      uint32_t next_sub = 1;
+      uint32_t refine_gen = 0;
+
+      while (improved && next_sub < 50) {
+        improved = false;
+        for (vid_t u : order) {
+          uint32_t cur_sc = sub_com_flat_[u];
+
+          ++refine_gen;
+          touched_scs.clear();
+
+          auto oes = oe_view.get_edges(u);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            vid_t v = *it;
+            if (v == u || sub_com_flat_[v] == kInvalidSubCom) continue;
+            uint32_t sc = sub_com_flat_[v];
+            if (r_gen[sc] != refine_gen) {
+              r_gen[sc] = refine_gen;
+              r_cw[sc] = 0.0;
+              touched_scs.push_back(sc);
+            }
+            r_cw[sc] += 1.0;
+          }
+
+          double w_self =
+              (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
+
+          uint32_t best_sc = cur_sc;
+          double best_gain = 0.0;
+
+          for (uint32_t sc : touched_scs) {
+            double w_sc = r_cw[sc];
+            double gain = w_sc - w_self;
+            if (gain > best_gain) {
+              best_gain = gain;
+              best_sc = sc;
+            }
+          }
+
+          double gain_new = -w_self;
+          if (gain_new > best_gain) {
+            best_gain = gain_new;
+            best_sc = next_sub;
+          }
+
+          if (best_sc != cur_sc) {
+            sub_com_flat_[u] = best_sc;
+            if (best_sc == next_sub) next_sub++;
+            improved = true;
+          }
+        }
+      }
+
+      // Map sub-communities to new community IDs
+      uint32_t max_sc_seen = 0;
+      for (vid_t v : nodes) {
+        uint32_t sc = sub_com_flat_[v];
+        if (sc > max_sc_seen) max_sc_seen = sc;
+        sc_to_new[sc] = UINT32_MAX;
+      }
+      for (vid_t v : nodes) {
+        uint32_t sc = sub_com_flat_[v];
+        if (sc_to_new[sc] == UINT32_MAX) {
+          sc_to_new[sc] = atomic_next_com.fetch_add(1);
+        }
+        community_[v] = sc_to_new[sc];
+      }
+
+      // Reset sub_com_flat_ for these vertices
+      for (vid_t v : nodes) {
+        sub_com_flat_[v] = kInvalidSubCom;
+      }
+    }
+  };
+
+  for (int t = 1; t < nt; ++t)
+    threads.emplace_back(worker, t);
+  worker(0);
+  for (auto& th : threads) th.join();
 }
 
 void Leiden::sink(execution::Context& ctx, int node_alias,
