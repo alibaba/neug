@@ -42,6 +42,13 @@
 
 namespace neug {
 
+// std::atomic<int> must have the same size as int on supported platforms
+// so that the degree_list buffer (persisted as int[]) can be safely
+// reinterpreted as atomic<int>[] for concurrent access.
+static_assert(
+    sizeof(std::atomic<int>) == sizeof(int),
+    "atomic<int> must have the same size as int on supported platforms");
+
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
  public:
@@ -130,12 +137,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       buffers[src] = new_buffer;
       caps[src] = cap;
     }
-    // Release fetch_add: acts as synchronization anchor for readers.
-    // The degree increment is sequenced after any buffer pointer update
-    // above, so an acquire load of degree on the reader side guarantees
-    // visibility of the new buffer pointer.
-    int32_t prev_size = sizes[src].fetch_add(1, std::memory_order_release);
-    auto& nbr = buffers[src][prev_size];
+    auto& nbr = buffers[src][sz];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
@@ -145,8 +147,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       unsorted_since_ = 0;
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
+    sizes[src].store(sz + 1, std::memory_order_release);
     locks_[src].unlock();
-    return {prev_size, data_ptr};
+    return {sz, data_ptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(

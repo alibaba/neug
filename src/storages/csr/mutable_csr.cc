@@ -506,7 +506,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     new_offset += old_deg;
     offset += cap_arr[i];
     buf_arr[i] = new_buffer;
-    sz_arr[i].store(old_deg, std::memory_order_relaxed);
+    sz_arr[i].store(old_deg, std::memory_order_release);
   }
   size_t added_edge_num = 0;
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -516,7 +516,8 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     }
     vid_t dst = dst_list[i];
     const EDATA_T& data = data_list[i];
-    auto& nbr = buf_arr[src][sz_arr[src].fetch_add(1, std::memory_order_relaxed)];
+    auto& nbr =
+        buf_arr[src][sz_arr[src].fetch_add(1, std::memory_order_relaxed)];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);

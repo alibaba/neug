@@ -422,6 +422,9 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
     const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
         std::memory_order_acquire);
     const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
     const nbr_t* ptr = base + deg - 1;
     const nbr_t* end = base - 1;
     while (ptr != end) {
@@ -453,6 +456,9 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
     const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
         std::memory_order_acquire);
     const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
     const nbr_t* ptr = base + deg - 1;
     const nbr_t* end = base - 1;
     while (ptr != end) {
@@ -613,10 +619,15 @@ struct CsrView {
       ret.start_ptr = start_ptr;
       ret.end_ptr = start_ptr + cfg_.stride;
     } else {
-      // multiple — use atomic loads for torn-read safety
-      const int deg =
-          reinterpret_cast<const std::atomic<int>*>(degrees_)[v].load(
-              std::memory_order_acquire);
+      int deg;
+      if (cfg_.ts_offset != 0) {
+        // Mutable CSR: atomic load for torn-read safety (concurrent writers)
+        deg = reinterpret_cast<const std::atomic<int>*>(degrees_)[v].load(
+            std::memory_order_acquire);
+      } else {
+        // Immutable CSR: plain read (no concurrent writers)
+        deg = degrees_[v];
+      }
       const char* start_ptr = reinterpret_cast<const char*>(
           reinterpret_cast<const int64_t*>(adjlists_)[v]);
       if (start_ptr == nullptr) {
