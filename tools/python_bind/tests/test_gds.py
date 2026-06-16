@@ -127,18 +127,19 @@ def test_run_label_propagation(tmp_path):
         conn.execute("LOAD gds;")
 
         # node labels: person, organisation
-        conn.execute(
-            """
-            CALL label_propagation('my_subgraph', {concurrency: 10})
-            RETURN
-                node.id,
-                node.age,
-                node.fName,
-                node.name,
-                node.orgCode,
-                label;
-            """
+        rows = list(
+            conn.execute(
+                """
+                CALL label_propagation('my_subgraph', {concurrency: 10})
+                YIELD node, label
+                RETURN node.id, node.fName, node.name, label;
+                """
+            )
         )
+        assert len(rows) > 0, "label_propagation must return at least one row"
+        for row in rows:
+            assert len(row) == 4, "each row should have (id, fName, name, label)"
+            assert isinstance(row[3], int), "label should be an integer"
 
 
 @contextmanager
@@ -245,3 +246,97 @@ def test_run_leiden_with_resolution(tmp_path):
         assert len(rows) > 0
         communities = {row[1] for row in rows}
         assert len(communities) >= 1, "leiden should detect at least one community"
+
+
+def test_run_bfs(tmp_path):
+    """Run BFS on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL bfs('person_knows', {source: '0'})
+                YIELD node, distance
+                RETURN node.id, distance;
+                """
+            )
+        )
+        assert len(rows) > 0, "bfs must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, distance)"
+            assert isinstance(row[1], int), "distance should be an integer"
+            assert row[1] >= 0, "distance should be non-negative"
+
+
+def test_run_sssp(tmp_path):
+    """Run SSSP on a simple projected graph (unit weights)."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL sssp('person_knows', {source: '0'})
+                YIELD node, distance
+                RETURN node.id, distance;
+                """
+            )
+        )
+        assert len(rows) > 0, "sssp must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, distance)"
+            assert isinstance(row[1], float), "distance should be a float"
+            assert row[1] >= 0.0, "distance should be non-negative"
+
+
+def test_run_wcc(tmp_path):
+    """Run WCC on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL wcc('person_knows', {concurrency: 2})
+                YIELD node, comp
+                RETURN node.id, comp;
+                """
+            )
+        )
+        assert len(rows) > 0, "wcc must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, comp)"
+            assert isinstance(row[1], int), "comp should be an integer"
+
+
+def test_run_lcc(tmp_path):
+    """Run LCC on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL lcc('person_knows', {concurrency: 2})
+                YIELD node, lcc
+                RETURN node.id, lcc;
+                """
+            )
+        )
+        assert len(rows) > 0, "lcc must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, lcc)"
+            assert isinstance(row[1], float), "lcc should be a float"
+            assert 0.0 <= row[1] <= 1.0, "lcc should be between 0 and 1"
+
+
+def test_run_kcore(tmp_path):
+    """Run K-Core decomposition on a simple projected graph."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL kcore('person_knows', {k: 1})
+                YIELD node, core
+                RETURN node.id, core;
+                """
+            )
+        )
+        assert len(rows) > 0, "kcore must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, core)"
+            assert isinstance(row[1], int), "core should be an integer"
+            assert row[1] >= 0, "core should be non-negative"
