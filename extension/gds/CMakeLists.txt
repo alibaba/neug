@@ -2,8 +2,7 @@
 file(GLOB GDS_EXTENSION_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/impl/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/community/*.cc")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/*.cc")
 set(GDS_EXTENSION_OBJECT_FILES ${GDS_EXTENSION_SOURCES})
 
 # Use the extension build system (should be called before add_subdirectory(test))

@@ -16,7 +16,7 @@
 
 #include "leiden.h"
 
-#include "community/leiden_algorithm.h"
+#include "impl/leiden_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 

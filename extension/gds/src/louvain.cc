@@ -16,7 +16,7 @@
 
 #include "louvain.h"
 
-#include "community/louvain_algorithm.h"
+#include "impl/louvain_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 

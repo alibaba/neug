@@ -162,7 +162,7 @@ ORDER BY rank DESC;
 Computes the shortest hop distance from a source vertex to all reachable vertices.
 
 ```cypher
-CALL bfs('<graph_name>', {source: <primary_key_value>, <options>})
+CALL bfs('<graph_name>', {<options>})
 RETURN node, distance;
 ```
 
@@ -170,7 +170,7 @@ RETURN node, distance;
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | STRING or INT | *(required)* | The primary key of the source vertex. Must match the primary key type of the vertex label (e.g., use an integer for `INT64` keys, a string for `STRING` keys) |
+| `source` | STRING | *(required)* | The source vertex's primary key value |
 | `concurrency` | INT | CPU cores | Number of threads |
 | `directed` | STRING | `"false"` | `"true"` to follow edges in their stored direction only |
 
@@ -184,14 +184,9 @@ RETURN node, distance;
 **Example:**
 
 ```cypher
--- INT64 primary key
-CALL bfs('social', {source: 0})
+CALL bfs('social', {source: '0'})
 RETURN node.fName, distance
 ORDER BY distance;
-
--- STRING primary key
-CALL bfs('social', {source: 'Alice'})
-RETURN node.fName, distance;
 ```
 
 **Predicate support:** Neither vertex nor edge predicates are supported.
@@ -205,7 +200,7 @@ reachable vertices. Without a weight property, it behaves like BFS but returns
 `DOUBLE` distances.
 
 ```cypher
-CALL sssp('<graph_name>', {source: <primary_key_value>, <options>})
+CALL sssp('<graph_name>', {<options>})
 RETURN node, distance;
 ```
 
@@ -213,7 +208,7 @@ RETURN node, distance;
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | STRING or INT | *(required)* | The primary key of the source vertex. Must match the primary key type of the vertex label |
+| `source` | STRING | *(required)* | The source vertex's primary key value |
 | `directed` | STRING | `"false"` | `"true"` to follow edges in their stored direction only |
 | `weight` | STRING | `""` | Edge property name to use as weight (empty = unit weight) |
 | `concurrency` | INT | CPU cores | Number of threads |
