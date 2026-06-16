@@ -32,15 +32,15 @@ class BindedCaseWhenExpr : public VertexExprBase,
         else_expr_(std::move(else_expr)) {}
   ~BindedCaseWhenExpr() override = default;
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
     for (const auto& when_then : when_then_exprs_) {
       Value when_val =
-          when_then.first->Cast<RecordExprBase>().eval_record(ctx, idx);
+          when_then.first->Cast<RecordExprBase>().eval_record(chunk, idx);
       if (when_val.IsTrue()) {
-        return when_then.second->Cast<RecordExprBase>().eval_record(ctx, idx);
+        return when_then.second->Cast<RecordExprBase>().eval_record(chunk, idx);
       }
     }
-    return else_expr_->Cast<RecordExprBase>().eval_record(ctx, idx);
+    return else_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
   }
 
   Value eval_vertex(label_t v_label, vid_t v_id) const override {

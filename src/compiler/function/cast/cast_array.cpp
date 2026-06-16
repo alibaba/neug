@@ -28,27 +28,27 @@
 namespace neug {
 namespace function {
 
-bool CastArrayHelper::checkCompatibleNestedTypes(LogicalTypeID sourceTypeID,
-                                                 LogicalTypeID targetTypeID) {
+bool CastArrayHelper::checkCompatibleNestedTypes(DataTypeId sourceTypeID,
+                                                 DataTypeId targetTypeID) {
   switch (sourceTypeID) {
-  case LogicalTypeID::ANY: {
+  case DataTypeId::kUnknown: {
     return true;
   }
-  case LogicalTypeID::LIST: {
-    if (targetTypeID == LogicalTypeID::ARRAY ||
-        targetTypeID == LogicalTypeID::LIST) {
+  case DataTypeId::kList: {
+    if (targetTypeID == DataTypeId::kArray ||
+        targetTypeID == DataTypeId::kList) {
       return true;
     }
   } break;
-  case LogicalTypeID::MAP:
-  case LogicalTypeID::STRUCT: {
-    if (sourceTypeID == targetTypeID || targetTypeID == LogicalTypeID::UNION) {
+  case DataTypeId::kMap:
+  case DataTypeId::kStruct: {
+    if (sourceTypeID == targetTypeID) {
       return true;
     }
   } break;
-  case LogicalTypeID::ARRAY: {
-    if (targetTypeID == LogicalTypeID::LIST ||
-        targetTypeID == LogicalTypeID::ARRAY) {
+  case DataTypeId::kArray: {
+    if (targetTypeID == DataTypeId::kList ||
+        targetTypeID == DataTypeId::kArray) {
       return true;
     }
   } break;
@@ -58,36 +58,35 @@ bool CastArrayHelper::checkCompatibleNestedTypes(LogicalTypeID sourceTypeID,
   return false;
 }
 
-bool CastArrayHelper::containsListToArray(const LogicalType& srcType,
-                                          const LogicalType& dstType) {
-  if ((srcType.getLogicalTypeID() == LogicalTypeID::LIST ||
-       srcType.getLogicalTypeID() == LogicalTypeID::ARRAY) &&
-      dstType.getLogicalTypeID() == LogicalTypeID::ARRAY) {
+bool CastArrayHelper::containsListToArray(const DataType& srcType,
+                                          const DataType& dstType) {
+  if ((srcType.id() == DataTypeId::kList ||
+       srcType.id() == DataTypeId::kArray) &&
+      dstType.id() == DataTypeId::kArray) {
     return true;
   }
 
-  if (checkCompatibleNestedTypes(srcType.getLogicalTypeID(),
-                                 dstType.getLogicalTypeID())) {
-    switch (srcType.getPhysicalType()) {
+  if (checkCompatibleNestedTypes(srcType.id(), dstType.id())) {
+    switch (getPhysicalType(srcType.id())) {
     case PhysicalTypeID::LIST: {
-      return containsListToArray(ListType::getChildType(srcType),
-                                 ListType::getChildType(dstType));
+      return containsListToArray(ListType::GetChildType(srcType),
+                                 ListType::GetChildType(dstType));
     }
     case PhysicalTypeID::ARRAY: {
-      return containsListToArray(ArrayType::getChildType(srcType),
-                                 ListType::getChildType(dstType));
+      return containsListToArray(ArrayType::GetChildType(srcType),
+                                 ListType::GetChildType(dstType));
     }
     case PhysicalTypeID::STRUCT: {
-      auto srcFieldTypes = StructType::getFieldTypes(srcType);
-      auto dstFieldTypes = StructType::getFieldTypes(dstType);
+      const auto& srcFieldTypes = StructType::GetChildTypes(srcType);
+      const auto& dstFieldTypes = StructType::GetChildTypes(dstType);
       if (srcFieldTypes.size() != dstFieldTypes.size()) {
         THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
-                         srcType.toString(), dstType.toString()));
+                         srcType.ToString(), dstType.ToString()));
       }
 
       for (auto i = 0u; i < srcFieldTypes.size(); i++) {
-        if (containsListToArray(*srcFieldTypes[i], *dstFieldTypes[i])) {
+        if (containsListToArray(srcFieldTypes[i], dstFieldTypes[i])) {
           return true;
         }
       }
@@ -100,66 +99,66 @@ bool CastArrayHelper::containsListToArray(const LogicalType& srcType,
 }
 
 void CastArrayHelper::validateListEntry(ValueVector* inputVector,
-                                        const LogicalType& resultType,
+                                        const DataType& resultType,
                                         uint64_t pos) {
   if (inputVector->isNull(pos)) {
     return;
   }
   const auto& inputType = inputVector->dataType;
 
-  switch (resultType.getPhysicalType()) {
+  switch (getPhysicalType(resultType.id())) {
   case PhysicalTypeID::ARRAY: {
-    if (inputType.getPhysicalType() == PhysicalTypeID::LIST) {
+    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST) {
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
-      if (listEntry.size != ArrayType::getNumElements(resultType)) {
+      if (listEntry.size != ArrayType::GetNumElements(resultType)) {
         THROW_CONVERSION_EXCEPTION(stringFormat(
             "Unsupported casting LIST with incorrect list entry to ARRAY. "
             "Expected: {}, Actual: {}.",
-            ArrayType::getNumElements(resultType),
+            ArrayType::GetNumElements(resultType),
             inputVector->getValue<list_entry_t>(pos).size));
       }
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
            i++) {
-        validateListEntry(inputChildVector, ArrayType::getChildType(resultType),
+        validateListEntry(inputChildVector, ArrayType::GetChildType(resultType),
                           i);
       }
-    } else if (inputType.getPhysicalType() == PhysicalTypeID::ARRAY) {
-      if (ArrayType::getNumElements(inputType) !=
-          ArrayType::getNumElements(resultType)) {
+    } else if (getPhysicalType(inputType.id()) == PhysicalTypeID::ARRAY) {
+      if (ArrayType::GetNumElements(inputType) !=
+          ArrayType::GetNumElements(resultType)) {
         THROW_CONVERSION_EXCEPTION(
             stringFormat("Unsupported casting function from {} to {}.",
-                         inputType.toString(), resultType.toString()));
+                         inputType.ToString(), resultType.ToString()));
       }
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
            i++) {
-        validateListEntry(inputChildVector, ArrayType::getChildType(resultType),
+        validateListEntry(inputChildVector, ArrayType::GetChildType(resultType),
                           i);
       }
     }
   } break;
   case PhysicalTypeID::LIST: {
-    if (inputType.getPhysicalType() == PhysicalTypeID::LIST ||
-        inputType.getPhysicalType() == PhysicalTypeID::ARRAY) {
+    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST ||
+        getPhysicalType(inputType.id()) == PhysicalTypeID::ARRAY) {
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
            i++) {
-        validateListEntry(inputChildVector, ListType::getChildType(resultType),
+        validateListEntry(inputChildVector, ListType::GetChildType(resultType),
                           i);
       }
     }
   } break;
   case PhysicalTypeID::STRUCT: {
-    if (inputType.getPhysicalType() == PhysicalTypeID::STRUCT) {
+    if (getPhysicalType(inputType.id()) == PhysicalTypeID::STRUCT) {
       auto fieldVectors = StructVector::getFieldVectors(inputVector);
-      auto fieldTypes = StructType::getFieldTypes(resultType);
+      const auto& fieldTypes = StructType::GetChildTypes(resultType);
 
       auto structEntry = inputVector->getValue<struct_entry_t>(pos);
       for (auto i = 0u; i < fieldVectors.size(); i++) {
-        validateListEntry(fieldVectors[i].get(), *fieldTypes[i],
+        validateListEntry(fieldVectors[i].get(), fieldTypes[i],
                           structEntry.pos);
       }
     }

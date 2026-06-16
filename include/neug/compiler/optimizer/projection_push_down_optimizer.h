@@ -93,7 +93,7 @@ class ProjectionPushDownOptimizer : public LogicalOperatorVisitor {
   binder::expression_set nodeOrRelInUse;
   common::PathSemantic semantic;
   // To store the type info of variables in use.
-  std::unordered_map<std::string, common::LogicalType> variableTypes;
+  std::unordered_map<std::string, common::DataType> variableTypes;
   main::ClientContext* ctx;
 };
 

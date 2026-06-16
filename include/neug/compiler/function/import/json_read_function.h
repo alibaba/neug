@@ -39,7 +39,7 @@ struct JsonReadFunction {
 
   static function_set getFunctionSet() {
     auto typeIDs =
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING};
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonExecFunc;
     readFunction->sniffFunc = jsonSniffFunc;
@@ -111,7 +111,7 @@ struct JsonLReadFunction {
 
   static function_set getFunctionSet() {
     auto typeIDs =
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING};
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonLExecFunc;
     readFunction->sniffFunc = jsonLSniffFunc;

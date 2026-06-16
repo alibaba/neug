@@ -74,8 +74,7 @@ static std::shared_ptr<Expression> rewriteFunc(
 function_set LengthFunction::getFunctionSet() {
   function_set result;
   auto function = std::make_unique<RewriteFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::RECURSIVE_REL},
-      rewriteFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, rewriteFunc);
   result.push_back(std::move(function));
   return result;
 }

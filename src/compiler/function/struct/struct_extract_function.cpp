@@ -45,25 +45,25 @@ std::unique_ptr<FunctionBindData> StructExtractFunctions::bindFunc(
                  ->constPtrCast<LiteralExpression>()
                  ->getValue()
                  .getValue<std::string>();
-  auto fieldIdx = StructType::getFieldIdx(structType, key);
+  auto fieldIdx = StructType::GetFieldIdx(structType, key);
   if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
     THROW_BINDER_EXCEPTION(stringFormat("Invalid struct field name: {}.", key));
   }
   auto paramTypes = ExpressionUtil::getDataTypes(input.arguments);
-  auto resultType = StructType::getField(structType, fieldIdx).getType().copy();
+  auto resultType = StructType::GetChildType(structType, fieldIdx).copy();
   // the default type of START_NODE(e) is the INNER_ID of the source vertex, but
   // in NEUG, we support it as the source vertex directly, here convert the type
   // from INNER_ID to NODE. END_NODE(e) is the same.
   if ((key == common::InternalKeyword::SRC ||
        key == common::InternalKeyword::DST) &&
-      resultType.getLogicalTypeID() == common::LogicalTypeID::INTERNAL_ID) {
-    resultType = LogicalType(common::LogicalTypeID::NODE);
+      resultType.id() == common::DataTypeId::kInternalId) {
+    resultType = DataType(common::DataTypeId::kVertex);
   }
   auto bindData =
       std::make_unique<StructExtractBindData>(std::move(resultType), fieldIdx);
   bindData->paramTypes.push_back(input.arguments[0]->getDataType().copy());
   bindData->paramTypes.push_back(
-      LogicalType(input.definition->parameterTypeIDs[1]));
+      DataType(input.definition->parameterTypeIDs[1]));
   return bindData;
 }
 
@@ -71,7 +71,7 @@ void StructExtractFunctions::compileFunc(
     FunctionBindData* bindData,
     const std::vector<std::shared_ptr<ValueVector>>& parameters,
     std::shared_ptr<ValueVector>& result) {
-  NEUG_ASSERT(parameters[0]->dataType.getPhysicalType() ==
+  NEUG_ASSERT(getPhysicalType(parameters[0]->dataType.id()) ==
               PhysicalTypeID::STRUCT);
   auto& structBindData = bindData->cast<StructExtractBindData>();
   result = StructVector::getFieldVector(parameters[0].get(),
@@ -80,11 +80,11 @@ void StructExtractFunctions::compileFunc(
 }
 
 static std::unique_ptr<ScalarFunction> getStructExtractFunction(
-    LogicalTypeID logicalTypeID) {
+    DataTypeId logicalTypeID) {
   auto function = std::make_unique<ScalarFunction>(
       StructExtractFunctions::name,
-      std::vector<LogicalTypeID>{logicalTypeID, LogicalTypeID::STRING},
-      LogicalTypeID::ANY);
+      std::vector<DataTypeId>{logicalTypeID, DataTypeId::kVarchar},
+      DataTypeId::kUnknown);
   function->bindFunc = StructExtractFunctions::bindFunc;
   function->compileFunc = StructExtractFunctions::compileFunc;
   return function;
@@ -92,8 +92,8 @@ static std::unique_ptr<ScalarFunction> getStructExtractFunction(
 
 function_set StructExtractFunctions::getFunctionSet() {
   function_set functions;
-  auto inputTypeIDs = std::vector<LogicalTypeID>{
-      LogicalTypeID::STRUCT, LogicalTypeID::NODE, LogicalTypeID::REL};
+  auto inputTypeIDs = std::vector<DataTypeId>{
+      DataTypeId::kStruct, DataTypeId::kVertex, DataTypeId::kEdge};
   for (auto inputTypeID : inputTypeIDs) {
     functions.push_back(getStructExtractFunction(inputTypeID));
   }

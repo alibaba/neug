@@ -24,6 +24,8 @@
 #include <stdint.h>
 #include <memory>
 #include <ostream>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace common {
@@ -60,11 +62,13 @@ enum class DataTypeId : uint8_t {
 
   // kStringLiteral = 37,
 
+  kInternalId = 40,
+
   kStruct = 100,
   kList = 101,
-  // kMap = 102,
+  kMap = 102,
 
-  // kArray = 108,
+  kArray = 108,
 
   kVertex = 200,
   kEdge = 201,
@@ -112,14 +116,32 @@ struct DataType {
   ~DataType();
 
   static DataType Struct(std::vector<DataType> children);
+  static DataType Struct(std::vector<std::string> field_names,
+                         std::vector<DataType> field_types);
   static DataType List(const DataType& child_type);
-  static DataType Varchar(size_t max_length);
+  static DataType Array(const DataType& child_type, uint64_t num_elements);
+  static DataType Map(const DataType& key_type, const DataType& value_type);
+  static DataType Varchar(size_t max_length = 256);
+  static DataType InternalId();
+
+  bool containsAny() const;
 
   inline DataTypeId id() const { return id_; }
 
-  const ExtraTypeInfo* RawExtraTypeInfo() const {
+  void setExtraTypeInfo(std::shared_ptr<ExtraTypeInfo> info) {
+    type_info_ = std::move(info);
+  }
+
+  // Backward-compatible convenience methods (match LogicalType API).
+  DataType copy() const { return *this; }
+
+  const ExtraTypeInfo* getExtraTypeInfo() const {
     return type_info_ ? type_info_.get() : nullptr;
   }
+  ExtraTypeInfo* getExtraTypeInfoRef() const {
+    return type_info_ ? type_info_.get() : nullptr;
+  }
+  bool isInternalType() const { return true; }  // all engine types are internal
 
   bool EqualTypeInfo(const DataType& rhs) const;
 
@@ -172,19 +194,40 @@ struct DataType {
   static constexpr const DataTypeId UINT16 = DataTypeId::kUInt16;
   static constexpr const DataTypeId UINT32 = DataTypeId::kUInt32;
   static constexpr const DataTypeId UINT64 = DataTypeId::kUInt64;
+  static constexpr const DataTypeId INTERNAL_ID = DataTypeId::kInternalId;
+  static constexpr const DataTypeId STRUCT = DataTypeId::kStruct;
+  static constexpr const DataTypeId LIST = DataTypeId::kList;
+  static constexpr const DataTypeId MAP = DataTypeId::kMap;
+  static constexpr const DataTypeId ARRAY = DataTypeId::kArray;
   static constexpr const DataTypeId VERTEX = DataTypeId::kVertex;
   static constexpr const DataTypeId EDGE = DataTypeId::kEdge;
   static constexpr const DataTypeId PATH = DataTypeId::kPath;
   static constexpr const DataTypeId EMPTY = DataTypeId::kEmpty;
+
+  std::shared_ptr<ExtraTypeInfo> getExtraTypeInfoSPtr() const {
+    return type_info_;
+  }
 };
 
 struct ListType {
   static const DataType& GetChildType(const DataType& type);
 };
+struct ArrayType {
+  static const DataType& GetChildType(const DataType& type);
+  static uint64_t GetNumElements(const DataType& type);
+};
 struct StructType {
   static const std::vector<DataType>& GetChildTypes(const DataType& type);
   static const DataType& GetChildType(const DataType& type, size_t index);
-  // static const std::string& GetChildName(const DataType& type, size_t index);
+  static const std::string& GetChildName(const DataType& type, size_t index);
+  static const std::vector<std::string>& GetFieldNames(const DataType& type);
+  static bool HasField(const DataType& type, const std::string& name);
+  static size_t GetFieldIdx(const DataType& type, const std::string& name);
+  static uint64_t GetNumFields(const DataType& type);
+};
+struct MapType {
+  static const DataType& GetKeyType(const DataType& type);
+  static const DataType& GetValueType(const DataType& type);
 };
 
 DataType parse_from_data_type(const ::common::DataType& ddt);

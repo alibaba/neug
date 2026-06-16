@@ -55,11 +55,11 @@ static std::shared_ptr<Expression> rewriteFunc(
 
 function_set IDFunction::getFunctionSet() {
   function_set functionSet;
-  auto inputTypes = std::vector<LogicalTypeID>{
-      LogicalTypeID::NODE, LogicalTypeID::REL, LogicalTypeID::STRUCT};
+  auto inputTypes = std::vector<DataTypeId>{
+      DataTypeId::kVertex, DataTypeId::kEdge, DataTypeId::kStruct};
   for (auto& inputType : inputTypes) {
     auto function = std::make_unique<RewriteFunction>(
-        name, std::vector<LogicalTypeID>{inputType}, rewriteFunc);
+        name, std::vector<DataTypeId>{inputType}, rewriteFunc);
     functionSet.push_back(std::move(function));
   }
   return functionSet;

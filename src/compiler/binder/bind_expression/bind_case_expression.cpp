@@ -36,17 +36,17 @@ std::shared_ptr<Expression> ExpressionBinder::bindCaseExpression(
     const ParsedExpression& parsedExpression) {
   auto& parsedCaseExpression =
       parsedExpression.constCast<ParsedCaseExpression>();
-  auto resultType = LogicalType::ANY();
+  auto resultType = DataType(DataTypeId::kUnknown);
   // Resolve result type by checking each then expression type.
   for (auto i = 0u; i < parsedCaseExpression.getNumCaseAlternative(); ++i) {
     auto alternative = parsedCaseExpression.getCaseAlternative(i);
     auto boundThen = bindExpression(*alternative->thenExpression);
-    if (boundThen->getDataType().getLogicalTypeID() != LogicalTypeID::ANY) {
+    if (boundThen->getDataType().id() != DataTypeId::kUnknown) {
       resultType = boundThen->getDataType().copy();
     }
   }
   // Resolve result type by else expression if above resolving fails.
-  if (resultType.getLogicalTypeID() == LogicalTypeID::ANY &&
+  if (resultType.id() == DataTypeId::kUnknown &&
       parsedCaseExpression.hasElseExpression()) {
     auto elseExpression =
         bindExpression(*parsedCaseExpression.getElseExpression());
@@ -86,7 +86,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindCaseExpression(
     for (auto i = 0u; i < parsedCaseExpression.getNumCaseAlternative(); ++i) {
       auto caseAlternative = parsedCaseExpression.getCaseAlternative(i);
       auto boundWhen = bindExpression(*caseAlternative->whenExpression);
-      boundWhen = implicitCastIfNecessary(boundWhen, LogicalType::BOOL());
+      boundWhen =
+          implicitCastIfNecessary(boundWhen, DataType(DataTypeId::kBoolean));
       auto boundThen = bindExpression(*caseAlternative->thenExpression);
       boundThen = implicitCastIfNecessary(boundThen, resultType);
       boundCaseExpression->addCaseAlternative(boundWhen, boundThen);

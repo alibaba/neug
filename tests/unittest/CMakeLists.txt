@@ -22,6 +22,8 @@ add_neug_test(test_mmap_container test_mmap_container.cc)
 
 add_neug_test(test_connection test_connection.cc)
 
+add_neug_test(test_query_result test_query_result.cc)
+
 if (BUILD_HTTP_SERVER)
     add_neug_test(test_http_server test_http_server.cc)
     add_neug_test(test_db_svc test_db_svc.cc)

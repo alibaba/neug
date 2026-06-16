@@ -28,10 +28,10 @@ class BindedTupleExpr : public VertexExprBase,
       : exprs_(std::move(exprs)), type_(type) {}
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
     std::vector<Value> values;
     for (const auto& expr : exprs_) {
-      values.push_back(expr->Cast<RecordExprBase>().eval_record(ctx, idx));
+      values.push_back(expr->Cast<RecordExprBase>().eval_record(chunk, idx));
     }
     return Value::STRUCT(type_, std::move(values));
   }
@@ -80,10 +80,10 @@ class BindedListExpr : public VertexExprBase,
       : exprs_(std::move(exprs)), type_(type) {}
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
     std::vector<Value> values;
     for (const auto& expr : exprs_) {
-      values.push_back(expr->Cast<RecordExprBase>().eval_record(ctx, idx));
+      values.push_back(expr->Cast<RecordExprBase>().eval_record(chunk, idx));
     }
     const DataType& child = ListType::GetChildType(type_);
     return Value::LIST(child, std::move(values));

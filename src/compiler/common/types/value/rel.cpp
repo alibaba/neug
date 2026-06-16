@@ -33,7 +33,7 @@ std::vector<std::pair<std::string, std::unique_ptr<Value>>>
 RelVal::getProperties(const Value* val) {
   throwIfNotRel(val);
   std::vector<std::pair<std::string, std::unique_ptr<Value>>> properties;
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   for (auto i = 0u; i < val->childrenSize; ++i) {
     auto currKey = fieldNames[i];
     if (currKey == InternalKeyword::ID || currKey == InternalKeyword::LABEL ||
@@ -48,13 +48,13 @@ RelVal::getProperties(const Value* val) {
 
 uint64_t RelVal::getNumProperties(const Value* val) {
   throwIfNotRel(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   return fieldNames.size() - OFFSET;
 }
 
 std::string RelVal::getPropertyName(const Value* val, uint64_t index) {
   throwIfNotRel(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
     return "";
   }
@@ -63,7 +63,7 @@ std::string RelVal::getPropertyName(const Value* val, uint64_t index) {
 
 Value* RelVal::getPropertyVal(const Value* val, uint64_t index) {
   throwIfNotRel(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
     return nullptr;
   }
@@ -71,23 +71,23 @@ Value* RelVal::getPropertyVal(const Value* val, uint64_t index) {
 }
 
 Value* RelVal::getIDVal(const Value* val) {
-  auto fieldIdx = StructType::getFieldIdx(val->dataType, InternalKeyword::ID);
+  auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::ID);
   return val->children[fieldIdx].get();
 }
 
 Value* RelVal::getSrcNodeIDVal(const Value* val) {
-  auto fieldIdx = StructType::getFieldIdx(val->dataType, InternalKeyword::SRC);
+  auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::SRC);
   return val->children[fieldIdx].get();
 }
 
 Value* RelVal::getDstNodeIDVal(const Value* val) {
-  auto fieldIdx = StructType::getFieldIdx(val->dataType, InternalKeyword::DST);
+  auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::DST);
   return val->children[fieldIdx].get();
 }
 
 Value* RelVal::getLabelVal(const Value* val) {
   auto fieldIdx =
-      StructType::getFieldIdx(val->dataType, InternalKeyword::LABEL);
+      StructType::GetFieldIdx(val->dataType, InternalKeyword::LABEL);
   return val->children[fieldIdx].get();
 }
 
@@ -98,9 +98,9 @@ std::string RelVal::toString(const Value* val) {
 
 void RelVal::throwIfNotRel(const Value* val) {
   // LCOV_EXCL_START
-  if (val->dataType.getLogicalTypeID() != LogicalTypeID::REL) {
+  if (val->dataType.id() != DataTypeId::kEdge) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(
-        "Expected REL type, but got {} type", val->dataType.toString()));
+        "Expected REL type, but got {} type", val->dataType.ToString()));
   }
   // LCOV_EXCL_STOP
 }

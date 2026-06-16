@@ -43,13 +43,13 @@ struct CastFunction {
   // This function is only used by expression binder when implicit cast is
   // needed. The expression binder should consider reusing the existing
   // matchFunction() API.
-  static bool hasImplicitCast(const common::LogicalType& srcType,
-                              const common::LogicalType& dstType);
+  static bool hasImplicitCast(const common::DataType& srcType,
+                              const common::DataType& dstType);
 
   template <CastExecutor EXECUTOR = UnaryFunctionExecutor>
   static std::unique_ptr<ScalarFunction> bindCastFunction(
-      const std::string& functionName, const common::LogicalType& sourceType,
-      const common::LogicalType& targetType);
+      const std::string& functionName, const common::DataType& sourceType,
+      const common::DataType& targetType);
 };
 
 struct CastToDateFunction {

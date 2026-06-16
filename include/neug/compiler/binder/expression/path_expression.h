@@ -29,9 +29,9 @@ namespace binder {
 
 class PathExpression final : public Expression {
  public:
-  PathExpression(common::LogicalType dataType, std::string uniqueName,
-                 std::string variableName, common::LogicalType nodeType,
-                 common::LogicalType relType, expression_vector children)
+  PathExpression(common::DataType dataType, std::string uniqueName,
+                 std::string variableName, common::DataType nodeType,
+                 common::DataType relType, expression_vector children)
       : Expression{common::ExpressionType::PATH, std::move(dataType),
                    std::move(children), std::move(uniqueName)},
         variableName{std::move(variableName)},
@@ -39,15 +39,15 @@ class PathExpression final : public Expression {
         relType{std::move(relType)} {}
 
   inline std::string getVariableName() const { return variableName; }
-  inline const common::LogicalType& getNodeType() const { return nodeType; }
-  inline const common::LogicalType& getRelType() const { return relType; }
+  inline const common::DataType& getNodeType() const { return nodeType; }
+  inline const common::DataType& getRelType() const { return relType; }
 
   inline std::string toStringInternal() const override { return variableName; }
 
  private:
   std::string variableName;
-  common::LogicalType nodeType;
-  common::LogicalType relType;
+  common::DataType nodeType;
+  common::DataType relType;
 };
 
 }  // namespace binder

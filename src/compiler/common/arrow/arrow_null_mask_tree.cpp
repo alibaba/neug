@@ -123,7 +123,6 @@ ArrowNullMaskTree::ArrowNullMaskTree(const ArrowSchema* schema,
     return;
   }
   const char* arrowType = schema->format;
-  std::vector<common::StructField> structFields;
   switch (arrowType[0]) {
   case 'n':
     mask->setAllNull();

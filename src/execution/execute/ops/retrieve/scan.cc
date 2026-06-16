@@ -41,6 +41,7 @@ class FilterOidsGPredOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     ctx = Context();
+    ctx.append_chunk(DataChunk());
     DataTypeId type =
         std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
             .id();
@@ -50,17 +51,26 @@ class FilterOidsGPredOpr : public IOperator {
 
     if (pred_ == nullptr) {
       if (params_.tables.size() == 1 && oid_values.size() == 1) {
-        return Scan::find_vertex_with_oid(std::move(ctx), graph,
-                                          params_.tables[0], oid_values[0],
-                                          params_.alias);
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return Scan::find_vertex_with_oid(std::move(chunk), graph,
+                                                params_.tables[0],
+                                                oid_values[0], params_.alias);
+            });
       }
-      return Scan::filter_oids(std::move(ctx), graph, params_, DummyPred(),
-                               oid_values);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Scan::filter_oids(std::move(chunk), graph, params_,
+                                     DummyPred(), oid_values);
+          });
     } else {
       auto pred = pred_->bind(&graph, params);
       GeneralPred predicate_wrapper(std::move(pred));
-      return Scan::filter_oids(std::move(ctx), graph, params_,
-                               predicate_wrapper, oid_values);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Scan::filter_oids(std::move(chunk), graph, params_,
+                                     predicate_wrapper, oid_values);
+          });
     }
   }
 
@@ -87,9 +97,13 @@ class ScanWithSPredOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     ctx = Context();
+    ctx.append_chunk(DataChunk());
 
-    return Scan::scan_vertex_with_special_vertex_predicate(
-        std::move(ctx), graph, scan_params_, config_, params);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Scan::scan_vertex_with_special_vertex_predicate(
+              std::move(chunk), graph, scan_params_, config_, params);
+        });
   }
 
  private:
@@ -107,16 +121,21 @@ class ScanWithGPredOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     ctx = Context();
+    ctx.append_chunk(DataChunk());
     if (pred_ == nullptr) {
-      return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
-                               DummyPred());
-
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
+                                     DummyPred());
+          });
     } else {
       auto pred = pred_->bind(&graph, params);
       GeneralPred pred_wrapper(std::move(pred));
-      auto ret =
-          Scan::scan_vertex(std::move(ctx), graph, scan_params_, pred_wrapper);
-      return ret;
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
+                                     pred_wrapper);
+          });
     }
   }
   std::string get_operator_name() const override { return "ScanWithGPredOpr"; }
@@ -200,11 +219,13 @@ class DummySourceOpr : public IOperator {
       IStorageInterface& graph_interface, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    ctx = Context();
+    Context out;
+    ContextChunk chunk;
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);
-    ctx.set(-1, builder.finish());
-    return ctx;
+    chunk.set(-1, builder.finish());
+    out.append_chunk(std::move(chunk));
+    return out;
   }
 
   std::string get_operator_name() const override { return "DummySourceOpr"; }

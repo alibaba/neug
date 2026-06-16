@@ -27,6 +27,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/copy_constructors.h"
+#include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/types/types.h"
 

@@ -47,7 +47,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
   switch (id) {
   case DataTypeId::kStruct: {
     std::vector<std::shared_ptr<arrow::Field>> field_types;
-    auto casted = dynamic_cast<const StructTypeInfo*>(type.RawExtraTypeInfo());
+    auto casted = dynamic_cast<const StructTypeInfo*>(type.getExtraTypeInfo());
     assert(casted != nullptr);
     for (int i = 0; i < casted->child_types.size(); ++i) {
       field_types.push_back(
@@ -57,7 +57,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
     return arrow::struct_(field_types);
   }
   case DataTypeId::kList: {
-    auto casted = dynamic_cast<const ListTypeInfo*>(type.RawExtraTypeInfo());
+    auto casted = dynamic_cast<const ListTypeInfo*>(type.getExtraTypeInfo());
     assert(casted != nullptr);
     auto value_type = PropertyTypeToArrowType(casted->child_type);
     return arrow::list(value_type);

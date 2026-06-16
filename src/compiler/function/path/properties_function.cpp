@@ -43,25 +43,25 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   auto literalExpr = input.arguments[1]->constPtrCast<LiteralExpression>();
   auto key = literalExpr->getValue().getValue<std::string>();
   const auto& listType = input.arguments[0]->getDataType();
-  const auto& childType = ListType::getChildType(listType);
+  const auto& childType = ListType::GetChildType(listType);
   struct_field_idx_t fieldIdx = 0;
-  if (childType.getLogicalTypeID() == LogicalTypeID::NODE ||
-      childType.getLogicalTypeID() == LogicalTypeID::REL) {
-    fieldIdx = StructType::getFieldIdx(childType, key);
+  if (childType.id() == DataTypeId::kVertex ||
+      childType.id() == DataTypeId::kEdge) {
+    fieldIdx = StructType::GetFieldIdx(childType, key);
     if (fieldIdx == INVALID_STRUCT_FIELD_IDX) {
       THROW_BINDER_EXCEPTION(stringFormat("Invalid property name: {}.", key));
     }
   } else {
     THROW_BINDER_EXCEPTION(stringFormat("Cannot extract properties from {}.",
-                                        listType.toString()));
+                                        listType.ToString()));
   }
-  const auto& field = StructType::getField(childType, fieldIdx);
-  auto returnType = LogicalType::LIST(field.getType().copy());
+  auto returnType =
+      DataType::List(StructType::GetChildType(childType, fieldIdx).copy());
   auto bindData =
       std::make_unique<PropertiesBindData>(std::move(returnType), fieldIdx);
   bindData->paramTypes.push_back(input.arguments[0]->getDataType().copy());
   bindData->paramTypes.push_back(
-      LogicalType(input.definition->parameterTypeIDs[1]));
+      DataType(input.definition->parameterTypeIDs[1]));
   return bindData;
 }
 
@@ -69,7 +69,7 @@ static void compileFunc(
     FunctionBindData* bindData,
     const std::vector<std::shared_ptr<ValueVector>>& parameters,
     std::shared_ptr<ValueVector>& result) {
-  NEUG_ASSERT(parameters[0]->dataType.getPhysicalType() ==
+  NEUG_ASSERT(getPhysicalType(parameters[0]->dataType.id()) ==
               PhysicalTypeID::LIST);
   auto& propertiesBindData = bindData->cast<PropertiesBindData>();
   auto fieldVector = StructVector::getFieldVector(
@@ -90,9 +90,8 @@ static void execFunc(
 function_set PropertiesFunction::getFunctionSet() {
   function_set functions;
   auto function = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::STRING},
-      LogicalTypeID::ANY, execFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kVarchar},
+      DataTypeId::kUnknown, execFunc);
   function->bindFunc = bindFunc;
   function->compileFunc = compileFunc;
   functions.push_back(std::move(function));

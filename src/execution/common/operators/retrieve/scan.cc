@@ -21,39 +21,38 @@
 namespace neug {
 namespace execution {
 
-neug::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
-                                                 const IStorageInterface& graph,
-                                                 label_t label,
-                                                 const Value& oid,
-                                                 int32_t alias) {
+neug::result<ContextChunk> Scan::find_vertex_with_oid(
+    ContextChunk&& chunk, const IStorageInterface& graph, label_t label,
+    const Value& oid, int32_t alias) {
   MSVertexColumnBuilder builder(label);
   vid_t vid;
   if (graph.GetVertexIndex(label, oid, vid)) {
     builder.push_back_opt(vid);
   }
-  ctx.set(alias, builder.finish());
-  return ctx;
+  chunk.set(alias, builder.finish());
+  return chunk;
 }
 
 struct ScanVertexSPOp {
   template <typename PRED_T>
-  static neug::result<Context> eval_with_predicate(
-      const PRED_T& pred, const IStorageInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> eval_with_predicate(
+      const PRED_T& pred, const IStorageInterface& graph, ContextChunk&& chunk,
       const ScanParams& params) {
-    return Scan::scan_vertex<PRED_T>(std::move(ctx), graph, params, pred);
+    return Scan::scan_vertex<PRED_T>(std::move(chunk), graph, params, pred);
   }
 };
 
-neug::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
-    Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
-    const SpecialPredicateConfig& config, const ParamsMap& query_params) {
+neug::result<ContextChunk> Scan::scan_vertex_with_special_vertex_predicate(
+    ContextChunk&& chunk, const IStorageInterface& graph,
+    const ScanParams& params, const SpecialPredicateConfig& config,
+    const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (auto label : params.tables) {
     expected_labels.insert(label);
   }
   return dispatch_vertex_predicate<ScanVertexSPOp>(graph, expected_labels,
                                                    config, query_params, graph,
-                                                   std::move(ctx), params);
+                                                   std::move(chunk), params);
 }
 
 }  // namespace execution

@@ -42,20 +42,21 @@ std::shared_ptr<Expression> ExpressionBinder::bindBooleanExpression(
 std::shared_ptr<Expression> ExpressionBinder::bindBooleanExpression(
     ExpressionType expressionType, const expression_vector& children) {
   expression_vector childrenAfterCast;
-  std::vector<LogicalTypeID> inputTypeIDs;
+  std::vector<DataTypeId> inputTypeIDs;
   for (auto& child : children) {
     childrenAfterCast.push_back(
-        implicitCastIfNecessary(child, LogicalType::BOOL()));
-    inputTypeIDs.push_back(LogicalTypeID::BOOL);
+        implicitCastIfNecessary(child, DataType(DataTypeId::kBoolean)));
+    inputTypeIDs.push_back(DataTypeId::kBoolean);
   }
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   scalar_func_exec_t execFunc = nullptr;
   scalar_func_select_t selectFunc = nullptr;
-  auto bindData = std::make_unique<FunctionBindData>(LogicalType::BOOL());
+  auto bindData =
+      std::make_unique<FunctionBindData>(DataType(DataTypeId::kBoolean));
   auto uniqueExpressionName =
       ScalarFunctionExpression::getUniqueName(functionName, childrenAfterCast);
   auto func = std::make_unique<ScalarFunction>(
-      functionName, inputTypeIDs, LogicalTypeID::BOOL, execFunc, selectFunc);
+      functionName, inputTypeIDs, DataTypeId::kBoolean, execFunc, selectFunc);
   return std::make_shared<ScalarFunctionExpression>(
       expressionType, std::move(func), std::move(bindData),
       std::move(childrenAfterCast), uniqueExpressionName);

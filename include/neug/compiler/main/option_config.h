@@ -27,10 +27,6 @@
 #include "neug/compiler/common/types/value/value.h"
 
 namespace neug {
-namespace common {
-class Value;
-enum class LogicalTypeID : uint8_t;
-}  // namespace common
 
 namespace main {
 
@@ -45,11 +41,11 @@ enum class OptionType : uint8_t { CONFIGURATION = 0, EXTENSION = 1 };
 
 struct Option {
   std::string name;
-  common::LogicalTypeID parameterType;
+  common::DataTypeId parameterType;
   OptionType optionType;
   bool isConfidential;
 
-  Option(std::string name, common::LogicalTypeID parameterType,
+  Option(std::string name, common::DataTypeId parameterType,
          OptionType optionType, bool isConfidential)
       : name{std::move(name)},
         parameterType{parameterType},
@@ -63,7 +59,7 @@ struct ConfigurationOption final : Option {
   set_context setContext;
   get_setting getSetting;
 
-  ConfigurationOption(std::string name, common::LogicalTypeID parameterType,
+  ConfigurationOption(std::string name, common::DataTypeId parameterType,
                       set_context setContext, get_setting getSetting)
       : Option{std::move(name), parameterType, OptionType::CONFIGURATION,
                false /* isConfidential */},
@@ -74,7 +70,7 @@ struct ConfigurationOption final : Option {
 struct ExtensionOption final : Option {
   common::Value defaultValue;
 
-  ExtensionOption(std::string name, common::LogicalTypeID parameterType,
+  ExtensionOption(std::string name, common::DataTypeId parameterType,
                   common::Value defaultValue, bool isConfidential)
       : Option{std::move(name), parameterType, OptionType::EXTENSION,
                isConfidential},

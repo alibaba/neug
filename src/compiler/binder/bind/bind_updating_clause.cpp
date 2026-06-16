@@ -143,9 +143,9 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindMergeClause(
   // Rewrite key value pairs in MATCH clause as predicate
   rewriteMatchPattern(boundGraphPattern);
   auto existenceMark = expressionBinder.createVariableExpression(
-      LogicalType::BOOL(), std::string("__existence"));
+      DataType(DataTypeId::kBoolean), std::string("__existence"));
   auto distinctMark = expressionBinder.createVariableExpression(
-      LogicalType::BOOL(), std::string("__distinct"));
+      DataType(DataTypeId::kBoolean), std::string("__distinct"));
   auto createInfos =
       bindInsertInfos(boundGraphPattern.queryGraphCollection, patternsScope);
   auto boundMergeClause = std::make_unique<BoundMergeClause>(

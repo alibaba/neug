@@ -148,9 +148,9 @@ std::string convert_vertex_to_json(const StorageReadInterface& graph,
 
 std::string convert_edge_to_json(const StorageReadInterface& graph,
                                  const EdgeRecord& record) {
-  if (record.label.src_label == std::numeric_limits<vid_t>::max() ||
-      record.label.dst_label == std::numeric_limits<vid_t>::max() ||
-      record.label.edge_label == std::numeric_limits<vid_t>::max() ||
+  if (record.label.src_label == std::numeric_limits<label_t>::max() ||
+      record.label.dst_label == std::numeric_limits<label_t>::max() ||
+      record.label.edge_label == std::numeric_limits<label_t>::max() ||
       record.src == std::numeric_limits<vid_t>::max() ||
       record.dst == std::numeric_limits<vid_t>::max()) {
     return "";
@@ -236,7 +236,7 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   return buffer.GetString();
 }
 
-static std::string BoolVectorToBitmap(const std::vector<bool>& flags) {
+static std::string BoolVectorToBitmap(const vector_t<bool>& flags) {
   size_t num_bytes = (flags.size() + 7) / 8;
   std::string bitmap(num_bytes, 0x00);
   for (size_t i = 0; i < flags.size(); ++i) {
@@ -403,7 +403,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       vertex_col->add_values(convert_vertex_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -421,7 +421,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       edge_col->add_values(convert_edge_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -439,7 +439,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       path_col->add_values(convert_path_to_json(graph, path));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -459,14 +459,25 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
 
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
-    auto col = ctx.get(i);
-    if (col == nullptr) {
+    // Merge column across all chunks via union_col.
+    std::shared_ptr<IContextColumn> merged;
+    for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+      auto col = ctx.chunk(c).get(i);
+      if (col == nullptr)
+        continue;
+      if (!merged) {
+        merged = col;
+      } else {
+        merged = merged->union_col(col);
+      }
+    }
+    if (merged == nullptr) {
       continue;
     }
-    if (col->column_type() != ContextColumnType::kArrowArray) {
-      add_column(col, graph, response->add_arrays());
+    if (merged->column_type() != ContextColumnType::kArrowArray) {
+      add_column(merged, graph, response->add_arrays());
     } else {
-      auto casted = dynamic_cast<ArrowArrayContextColumn*>(col.get())
+      auto casted = dynamic_cast<ArrowArrayContextColumn*>(merged.get())
                         ->cast_to_value_column();
       add_column(casted, graph, response->add_arrays());
     }

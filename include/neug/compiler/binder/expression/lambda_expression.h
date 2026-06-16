@@ -35,11 +35,12 @@ class LambdaExpression final : public Expression {
  public:
   LambdaExpression(std::unique_ptr<parser::ParsedExpression> parsedLambdaExpr,
                    std::string uniqueName)
-      : Expression{type_, common::LogicalType::ANY(), std::move(uniqueName)},
+      : Expression{type_, common::DataType(DataTypeId::kUnknown),
+                   std::move(uniqueName)},
         parsedLambdaExpr{std::move(parsedLambdaExpr)} {}
 
-  void cast(const common::LogicalType& type_) override {
-    NEUG_ASSERT(dataType.getLogicalTypeID() == common::LogicalTypeID::ANY);
+  void cast(const common::DataType& type_) override {
+    NEUG_ASSERT(dataType.id() == common::DataTypeId::kUnknown);
     dataType = type_.copy();
   }
 

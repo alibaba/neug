@@ -67,45 +67,43 @@ struct ArrowVector {
 // An arrow data chunk consisting of N rows in columnar format.
 class ArrowRowBatch {
  public:
-  ArrowRowBatch(std::vector<LogicalType> types, std::int64_t capacity);
+  ArrowRowBatch(std::vector<DataType> types, std::int64_t capacity);
 
   //! Append a data chunk to the underlying arrow array
   ArrowArray append(main::QueryResult& queryResult, std::int64_t chunkSize);
 
  private:
-  static std::unique_ptr<ArrowVector> createVector(const LogicalType& type,
+  static std::unique_ptr<ArrowVector> createVector(const DataType& type,
                                                    std::int64_t capacity);
-  static void appendValue(ArrowVector* vector, const LogicalType& type,
+  static void appendValue(ArrowVector* vector, const DataType& type,
                           Value* value);
 
   static ArrowArray* convertVectorToArray(ArrowVector& vector,
-                                          const LogicalType& type);
+                                          const DataType& type);
   static ArrowArray* convertStructVectorToArray(ArrowVector& vector,
-                                                const LogicalType& type);
+                                                const DataType& type);
   static ArrowArray* convertInternalIDVectorToArray(ArrowVector& vector,
-                                                    const LogicalType& type);
+                                                    const DataType& type);
 
-  static void copyNonNullValue(ArrowVector* vector, const LogicalType& type,
+  static void copyNonNullValue(ArrowVector* vector, const DataType& type,
                                Value* value, std::int64_t pos);
   static void copyNullValue(ArrowVector* vector, Value* value,
                             std::int64_t pos);
 
-  template <LogicalTypeID DT>
+  template <DataTypeId DT>
   static void templateCopyNonNullValue(ArrowVector* vector,
-                                       const LogicalType& type, Value* value,
+                                       const DataType& type, Value* value,
                                        std::int64_t pos);
-  template <LogicalTypeID DT>
+  template <DataTypeId DT>
   static void templateCopyNullValue(ArrowVector* vector, std::int64_t pos);
-  static void copyNullValueUnion(ArrowVector* vector, Value* value,
-                                 std::int64_t pos);
-  template <LogicalTypeID DT>
+  template <DataTypeId DT>
   static ArrowArray* templateCreateArray(ArrowVector& vector,
-                                         const LogicalType& type);
+                                         const DataType& type);
 
   ArrowArray toArray();
 
  private:
-  std::vector<LogicalType> types;
+  std::vector<DataType> types;
   std::vector<std::unique_ptr<ArrowVector>> vectors;
   std::int64_t numTuples;
 };

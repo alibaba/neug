@@ -556,7 +556,6 @@ struct convert<neug::DataType> {
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["var_char"]) {
-          LOG(WARNING) << "var_char is deprecated, use long_text instead.";
           property_type = neug::DataType(
               neug::DataTypeId::kVarchar,
               std::make_shared<neug::StringTypeInfo>(
@@ -604,7 +603,7 @@ struct convert<neug::DataType> {
       node["primitive_type"] =
           neug::config_parsing::PrimitivePropertyTypeToString(type.id());
     } else if (type == neug::DataTypeId::kVarchar) {
-      const auto* extra_type_info = type.RawExtraTypeInfo();
+      const auto* extra_type_info = type.getExtraTypeInfo();
       const auto* string_type_info =
           dynamic_cast<const neug::StringTypeInfo*>(extra_type_info);
       node["string"]["varchar"]["max_length"] =

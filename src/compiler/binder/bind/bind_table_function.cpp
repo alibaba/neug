@@ -42,7 +42,7 @@ BoundTableScanInfo Binder::bindTableFunc(
       clientContext->getTransaction(), tableFuncName,
       clientContext->useInternalCatalogEntry());
   expression_vector positionalParams;
-  std::vector<LogicalType> positionalParamTypes;
+  std::vector<DataType> positionalParamTypes;
   optional_params_t optionalParams;
   expression_vector optionalParamsLegacy;
   for (auto i = 0u; i < expr.getNumChildren(); i++) {
@@ -68,22 +68,22 @@ BoundTableScanInfo Binder::bindTableFunc(
       tableFuncName, positionalParamTypes,
       entry->ptrCast<catalog::FunctionCatalogEntry>());
   auto callFunc = func->constPtrCast<NeugCallFunction>();
-  std::vector<common::LogicalType> inputTypes;
+  std::vector<common::DataType> inputTypes;
   // For functions which don't have nested type parameters, we can simply use
   // the types declared in the function signature.
   for (auto i = 0u; i < callFunc->parameterTypeIDs.size(); i++) {
-    inputTypes.push_back(common::LogicalType(callFunc->parameterTypeIDs[i]));
+    inputTypes.push_back(common::DataType(callFunc->parameterTypeIDs[i]));
   }
   for (auto i = 0u; i < positionalParams.size(); ++i) {
     auto parameterTypeID = callFunc->parameterTypeIDs[i];
     if (positionalParams[i]->expressionType == ExpressionType::LITERAL &&
-        parameterTypeID != LogicalTypeID::ANY) {
+        parameterTypeID != DataTypeId::kUnknown) {
       positionalParams[i] = expressionBinder.implicitCastIfNecessary(
           positionalParams[i], inputTypes[i]);
       // A bare LITERAL already holds its final value — fold would only
       // re-materialize it through a ValueVector. We skip that round-trip
       // because the literal-fold path currently trips NEUG_UNREACHABLE in
-      // LogicalType::getPhysicalType (types.cpp:990) for at least
+      // DataType::getPhysicalType (types.cpp:990) for at least
       // JSON_SCAN's STRING parameter. When the cast above wrapped the
       // literal in a CAST function expression we still need to fold to
       // evaluate the cast.
