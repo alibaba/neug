@@ -508,11 +508,11 @@ class TestSmallGraph:
 
 
 class TestBFSNonExistentSource:
-    """Calling BFS with a source vertex that does not exist should raise
-    an exception, not crash the database."""
+    """Calling BFS or SSSP with a source vertex that does not exist should log
+    an error and return an empty result, not crash the database."""
 
     def test_bfs_missing_source_custom_graph(self, tmp_path):
-        """BFS with source 999999 on a tiny custom graph must raise."""
+        """BFS with source 999999 on a tiny custom graph returns no rows."""
         with custom_graph_connection(
             tmp_path,
             db_name="bfs_missing_src_db",
@@ -530,24 +530,35 @@ class TestBFSNonExistentSource:
             vertex_entries="['n']",
             edge_entries="{'[n, e, n]': ''}",
         ) as conn:
-            with pytest.raises(Exception):
-                list(
-                    conn.execute(
-                        "CALL bfs('g', {source: '999999'})"
-                        " YIELD node, distance RETURN node.id, distance;"
-                    )
+            rows = list(
+                conn.execute(
+                    "CALL bfs('g', {source: '999999'})"
+                    " YIELD node, distance RETURN node.id, distance;"
                 )
+            )
+            assert rows == [], "missing BFS source should yield no rows"
 
     def test_bfs_missing_source_tinysnb(self, tmp_path):
-        """BFS with source 999999 on tinysnb must raise, not crash."""
+        """BFS with source 999999 on tinysnb returns no rows, not crash."""
         with tinysnb_simple_connection(tmp_path) as conn:
-            with pytest.raises(Exception):
-                list(
-                    conn.execute(
-                        "CALL bfs('person_knows', {source: '999999'})"
-                        " YIELD node, distance RETURN node.id, distance;"
-                    )
+            rows = list(
+                conn.execute(
+                    "CALL bfs('person_knows', {source: '999999'})"
+                    " YIELD node, distance RETURN node.id, distance;"
                 )
+            )
+            assert rows == [], "missing BFS source should yield no rows"
+
+    def test_sssp_missing_source_tinysnb(self, tmp_path):
+        """SSSP with source 999999 on tinysnb returns no rows, not crash."""
+        with tinysnb_simple_connection(tmp_path) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL sssp('person_knows', {source: '999999'})"
+                    " YIELD node, distance RETURN node.id, distance;"
+                )
+            )
+            assert rows == [], "missing SSSP source should yield no rows"
 
 
 # ---- (c) Empty graph: nodes only, no edges --------------------------------

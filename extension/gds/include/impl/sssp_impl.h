@@ -30,7 +30,7 @@ namespace gds {
 class SSSP {
  public:
   SSSP(const StorageReadInterface& graph, label_t vertex_label,
-       label_t edge_label, const std::string& source, bool directed,
+       label_t edge_label, vid_t source, bool directed,
        const std::string& edge_weight_prop, int concurrency);
 
   void compute();

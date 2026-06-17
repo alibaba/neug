@@ -47,12 +47,12 @@ inline bool relax_distance(std::atomic<double>* ptr, double candidate) {
 }  // namespace
 
 SSSP::SSSP(const StorageReadInterface& graph, label_t vertex_label,
-           label_t edge_label, const std::string& source, bool directed,
+           label_t edge_label, vid_t source, bool directed,
            const std::string& edge_weight_prop, int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),
-      source_(parse_source_vertex(graph, vertex_label, source)),
+      source_(source),
       directed_(directed),
       has_edge_weight_(!edge_weight_prop.empty()),
       concurrency_(concurrency) {

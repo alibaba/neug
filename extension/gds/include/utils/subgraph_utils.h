@@ -49,10 +49,12 @@ bool check_simple_graph_subgraph(const ParsedSubgraph& parsed,
                                  const std::string& algo_name);
 
 // Resolve a source vertex given its primary-key value (as a string) to its
-// internal vertex id. Throws if the primary-key type is unsupported or the
-// vertex does not exist.
-vid_t parse_source_vertex(const StorageReadInterface& graph,
-                          label_t vertex_label, const std::string& source_str);
+// internal vertex id. On success returns true and writes the internal vertex
+// id to `out`; on failure (unparseable id, unsupported primary-key type, or
+// missing vertex) logs an error and returns false.
+bool try_parse_source_vertex(const StorageReadInterface& graph,
+                             label_t vertex_label,
+                             const std::string& source_str, vid_t& out);
 
 }  // namespace gds
 }  // namespace neug

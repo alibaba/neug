@@ -89,12 +89,17 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  auto vertex_count = graph.GetVertexSet(bfs_input.vertex_label).size();
-  if (vertex_count == 0) {
-    THROW_RUNTIME_ERROR("BFS requires a non-empty vertex set");
+  // An empty vertex set is handled uniformly below: the source lookup fails
+  // and we return an empty context.
+  vid_t source_vid;
+  if (!try_parse_source_vertex(graph, bfs_input.vertex_label, bfs_input.source,
+                               source_vid)) {
+    LOG(ERROR) << "BFS: source vertex '" << bfs_input.source
+               << "' does not exist; returning empty result.";
+    return execution::Context{};
   }
 
-  BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, bfs_input.source,
+  BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
           bfs_input.directed, bfs_input.concurrency);
   bfs.compute();
   execution::Context ret;

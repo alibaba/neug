@@ -31,14 +31,13 @@ namespace neug {
 namespace gds {
 
 BFS::BFS(const StorageReadInterface& graph, label_t vertex_label,
-         label_t edge_label, const std::string& source_str, bool directed,
-         int concurrency)
+         label_t edge_label, vid_t source, bool directed, int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),
+      source_(source),
       directed_(directed),
       concurrency_(concurrency) {
-  source_ = parse_source_vertex(graph, vertex_label, source_str);
   const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
   size_t vertex_count = vertex_set.size();
   distances_.reset(new uint32_t[vertex_count]);

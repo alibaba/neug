@@ -92,13 +92,18 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  auto vertex_count = graph.GetVertexSet(sssp_input.vertex_label).size();
-  if (vertex_count == 0) {
-    THROW_RUNTIME_ERROR("SSSP requires a non-empty vertex set");
+  // An empty vertex set is handled uniformly below: the source lookup fails
+  // and we return an empty context.
+  vid_t source_vid;
+  if (!try_parse_source_vertex(graph, sssp_input.vertex_label,
+                               sssp_input.source, source_vid)) {
+    LOG(ERROR) << "SSSP: source vertex '" << sssp_input.source
+               << "' does not exist; returning empty result.";
+    return execution::Context{};
   }
 
-  SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
-            sssp_input.source, sssp_input.directed, sssp_input.edge_weight,
+  SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
+            sssp_input.directed, sssp_input.edge_weight,
             sssp_input.concurrency);
   sssp.compute();
 
