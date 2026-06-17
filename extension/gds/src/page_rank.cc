@@ -17,6 +17,7 @@
 #include "page_rank.h"
 
 #include "impl/page_rank_directed_impl.h"
+#include "impl/page_rank_pred_impl.h"
 #include "impl/page_rank_undirected_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
@@ -37,22 +38,17 @@ struct PageRankInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in PageRank.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in PageRank.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
 
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   int max_iterations;
   double damping_factor;
   int concurrency;
@@ -89,7 +85,15 @@ execution::Context PageRankFunction::exec(
   const auto& func_input = dynamic_cast<const PageRankInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
   execution::Context ret;
-  if (func_input.directed) {
+  if (func_input.vertex_pred != nullptr || func_input.edge_pred != nullptr) {
+    PageRankPred pagerank(graph, func_input.vertex_label, func_input.edge_label,
+                          func_input.damping_factor, func_input.max_iterations,
+                          func_input.concurrency, func_input.directed,
+                          func_input.vertex_pred.get(),
+                          func_input.edge_pred.get());
+    pagerank.compute();
+    pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
+  } else if (func_input.directed) {
     DirectedPageRank pagerank(graph, func_input.vertex_label,
                               func_input.edge_label, func_input.damping_factor,
                               func_input.concurrency);

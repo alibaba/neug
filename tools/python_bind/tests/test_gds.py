@@ -447,22 +447,61 @@ def test_sssp_with_edge_predicate(tmp_path):
         assert reachable == [(0, 0.0)]
 
 
-def test_page_rank_rejects_vertex_predicate(tmp_path):
-    """PageRank does not support vertex predicates; passing one must raise
-    rather than silently ignore the filter."""
+def test_page_rank_with_vertex_predicate(tmp_path):
+    """PageRank with a vertex predicate restricts the output to subgraph
+    vertices and produces a valid (normalized) distribution over them."""
     with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
         conn.execute(
             "CALL project_graph('g', {'person': 'n.age > 20'}, "
             "{'[person, knows, person]': ''});"
         )
         conn.execute("LOAD gds;")
-        with pytest.raises(Exception):
-            list(
-                conn.execute(
-                    "CALL page_rank('g', {max_iterations: 5}) "
-                    "YIELD node, rank RETURN node.id, rank;"
-                )
+        rows = list(
+            conn.execute(
+                "CALL page_rank('g', {max_iterations: 20}) "
+                "YIELD node, rank RETURN node.id, rank;"
             )
+        )
+        assert len(rows) == len(expected)
+        assert abs(sum(r[1] for r in rows) - 1.0) < 1e-6
+
+
+def test_kcore_with_edge_predicate(tmp_path):
+    """KCore honors an edge predicate: excluding every edge drops every degree
+    to 0, so all vertices fall below k and report core -1."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL kcore('g', {k: 1}) YIELD node, core " "RETURN node.id, core;"
+            )
+        )
+        assert len(rows) > 0
+        assert all(core == -1 for _, core in rows)
+
+
+def test_lcc_with_edge_predicate(tmp_path):
+    """LCC honors an edge predicate: excluding every edge leaves every vertex
+    with no neighbors and a coefficient of 0."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL lcc('g', {concurrency: 1}) YIELD node, lcc "
+                "RETURN node.id, lcc;"
+            )
+        )
+        assert len(rows) > 0
+        assert all(value == 0.0 for _, value in rows)
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@
 #include <thread>
 
 #include "impl/kcore_impl.h"
+#include "impl/kcore_pred_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -38,22 +39,17 @@ struct KCoreInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in KCore.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in KCore.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
 
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t k;
   int32_t concurrency;
   int32_t node_alias;
@@ -91,12 +87,20 @@ execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
   const auto& kcore_input = dynamic_cast<const KCoreInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  KCore runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
-               kcore_input.k, kcore_input.concurrency);
-  runner.compute();
 
   execution::Context ret;
-  runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
+  if (kcore_input.vertex_pred != nullptr || kcore_input.edge_pred != nullptr) {
+    KCorePred runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
+                     kcore_input.k, kcore_input.concurrency,
+                     kcore_input.vertex_pred.get(), kcore_input.edge_pred.get());
+    runner.compute();
+    runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
+  } else {
+    KCore runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
+                 kcore_input.k, kcore_input.concurrency);
+    runner.compute();
+    runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
+  }
   return ret;
 }
 

@@ -20,6 +20,7 @@
 #include <thread>
 
 #include "impl/lcc_directed_impl.h"
+#include "impl/lcc_pred_impl.h"
 #include "impl/lcc_undirected_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
@@ -40,22 +41,17 @@ struct LCCInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in LCC.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in LCC.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
 
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t degree_threshold;
   int32_t concurrency;
   bool directed;
@@ -94,25 +90,24 @@ execution::Context LCCFunction::exec(const function::CallFuncInputBase& input,
   const auto& lcc_input = dynamic_cast<const LCCInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  std::unique_ptr<LCCUndirected> undirected;
-  std::unique_ptr<LCCDirected> directed;
-  if (lcc_input.directed) {
-    directed = std::make_unique<LCCDirected>(
-        graph, lcc_input.vertex_label, lcc_input.edge_label,
-        lcc_input.degree_threshold, lcc_input.concurrency);
-    directed->compute();
-  } else {
-    undirected = std::make_unique<LCCUndirected>(
-        graph, lcc_input.vertex_label, lcc_input.edge_label,
-        lcc_input.degree_threshold, lcc_input.concurrency);
-    undirected->compute();
-  }
-
   execution::Context ret;
-  if (lcc_input.directed) {
-    directed->sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
+  if (lcc_input.vertex_pred != nullptr || lcc_input.edge_pred != nullptr) {
+    LCCPred runner(graph, lcc_input.vertex_label, lcc_input.edge_label,
+                   lcc_input.directed, lcc_input.concurrency,
+                   lcc_input.vertex_pred.get(), lcc_input.edge_pred.get());
+    runner.compute();
+    runner.sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
+  } else if (lcc_input.directed) {
+    LCCDirected directed(graph, lcc_input.vertex_label, lcc_input.edge_label,
+                         lcc_input.degree_threshold, lcc_input.concurrency);
+    directed.compute();
+    directed.sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
   } else {
-    undirected->sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
+    LCCUndirected undirected(graph, lcc_input.vertex_label,
+                             lcc_input.edge_label, lcc_input.degree_threshold,
+                             lcc_input.concurrency);
+    undirected.compute();
+    undirected.sink(ret, lcc_input.node_alias, lcc_input.lcc_alias);
   }
   return ret;
 }
