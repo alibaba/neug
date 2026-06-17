@@ -153,7 +153,7 @@ RETURN node.fName, rank
 ORDER BY rank DESC;
 ```
 
-**Predicate support:** Node predicates are supported; edge predicates are **not**.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -189,7 +189,7 @@ RETURN node.fName, distance
 ORDER BY distance;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -227,7 +227,7 @@ CALL sssp('social', {source: '0', weight: 'cost', directed: true})
 RETURN node.fName, distance;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -262,7 +262,7 @@ RETURN node.fName, comp
 ORDER BY comp;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -299,7 +299,7 @@ RETURN node.fName, lcc
 ORDER BY lcc DESC;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -336,7 +336,7 @@ RETURN node.fName, core
 ORDER BY core DESC;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -492,6 +492,7 @@ threads used for parallel computation. The default depends on the algorithm:
 - All algorithms require a **homogeneous graph** subgraph (exactly one node
   label and one edge triplet `[A, edge, A]`). Support for heterogeneous graphs
   is planned for a future release.
-- Edge predicates are only supported by CDLP.
+- Node and edge predicates are supported by all algorithms except Louvain and
+  Leiden. 
 - CDLP does not actually support heterogeneous graphs yet — it only processes
   the first node label and edge triplet. True multi-label support is planned.
