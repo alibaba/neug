@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -46,7 +47,7 @@ class SSSP {
 
   std::unique_ptr<EdgeDataAccessor> edge_weight_accessor_;
   std::unique_ptr<std::atomic<double>[]> distances_;
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
 };
 
 }  // namespace gds

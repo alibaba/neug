@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -41,7 +42,7 @@ class LCCUndirected {
   int degree_threshold_;
   int concurrency_;
 
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
   std::unique_ptr<int32_t[]> degrees_;
   std::unique_ptr<int64_t[]> triangles_;
   std::unique_ptr<double[]> lcc_;
@@ -62,7 +63,7 @@ class LCCDirected {
   int degree_threshold_;
   int concurrency_;
 
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
   std::vector<int32_t> degrees_;
   std::vector<int32_t> unique_degrees_;
   std::vector<std::vector<vid_t>> neighbors_;

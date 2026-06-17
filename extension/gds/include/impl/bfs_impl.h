@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
@@ -40,7 +41,7 @@ class BFS {
   bool directed_;
   int concurrency_;
   std::unique_ptr<uint32_t[]> distances_;
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
 };
 
 }  // namespace gds

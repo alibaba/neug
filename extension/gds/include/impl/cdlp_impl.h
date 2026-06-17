@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/execution/expression/predicates.h"
@@ -58,7 +59,7 @@ class CDLP {
 
   std::unique_ptr<int64_t[]> community_;
   std::unique_ptr<int64_t[]> next_community_;
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
 };
 
 }  // namespace gds

@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -41,7 +42,7 @@ class KCore {
   int32_t k_;
   int32_t concurrency_;
 
-  std::vector<vid_t> vertices_;
+  vector_t<vid_t> vertices_;
   std::vector<std::atomic<int32_t>> degree_;
   std::vector<std::atomic<uint8_t>> removed_;
 };

@@ -19,6 +19,7 @@
 #include <memory>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
@@ -39,7 +40,7 @@ class DirectedPageRank {
   label_t edge_label_;
   std::unique_ptr<double[]> pr_;
   std::unique_ptr<uint32_t[]> out_degree_;
-  std::vector<vid_t> valid_vertices_;
+  vector_t<vid_t> valid_vertices_;
   double damping_factor_;
   int concurrency_;
   uint32_t dangling_count_;
@@ -63,7 +64,7 @@ class UndirectedPageRank {
   std::unique_ptr<double[]> pr_;
 
   std::unique_ptr<uint32_t[]> out_degree_;
-  std::vector<vid_t> valid_vertices_;
+  vector_t<vid_t> valid_vertices_;
   double damping_factor_;
   int concurrency_;
   uint32_t dangling_count_;
