@@ -1035,6 +1035,110 @@ class TestLoadAs:
         assert rows[0][0] == 1
         assert rows[1][0] == 2
 
+    # ------------------------------------------------------------------
+    # DROP temporary table tests
+    # ------------------------------------------------------------------
+
+    def test_drop_temporary_node_table(self):
+        """DROP TABLE removes a temporary node table; MATCH on it
+        must fail afterwards, and Close() must still succeed."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempToDrop;"
+        )
+        # Exists before DROP.
+        result = self.conn.execute(
+            "MATCH (n:TempToDrop) RETURN count(n);"
+        )
+        assert list(result)[0][0] == 4
+
+        self.conn.execute("DROP TABLE TempToDrop;")
+
+        with pytest.raises(Exception):
+            self.conn.execute("MATCH (n:TempToDrop) RETURN n.id;")
+
+    def test_drop_temporary_edge_table(self):
+        """DROP TABLE removes a temporary edge table; the node table
+        must remain accessible afterwards."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempNodeKeep;"
+        )
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempNodeKeep', to = 'TempNodeKeep', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempEdgeToDrop;"
+        )
+        # Edge query works before DROP.
+        result = self.conn.execute(
+            "MATCH (a:TempNodeKeep)-[r:TempEdgeToDrop]->(b:TempNodeKeep) "
+            "RETURN count(r);"
+        )
+        assert list(result)[0][0] == 3
+
+        self.conn.execute("DROP TABLE TempEdgeToDrop;")
+
+        # Edge query must now fail.
+        with pytest.raises(Exception):
+            self.conn.execute(
+                "MATCH (a:TempNodeKeep)-[r:TempEdgeToDrop]->(b:TempNodeKeep) "
+                "RETURN a.id;"
+            )
+
+        # Node table must still be accessible.
+        result = self.conn.execute(
+            "MATCH (n:TempNodeKeep) RETURN count(n);"
+        )
+        assert list(result)[0][0] == 4
+
+    def test_drop_temporary_node_then_recreate(self):
+        """After DROPping a temporary node table, re-LOADing the same
+        label name must succeed."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempRecycle;"
+        )
+        self.conn.execute("DROP TABLE TempRecycle;")
+
+        # Re-LOAD same label name.
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempRecycle;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempRecycle) RETURN count(n);"
+        )
+        assert list(result)[0][0] == 4
+
+    def test_drop_temporary_edge_then_recreate(self):
+        """After DROPping a temporary edge table, re-LOADing the same
+        edge label name must succeed."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.people_csv}" '
+            f"(primary_key = 'id', header = true) AS TempReEdgeNode;"
+        )
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempReEdgeNode', to = 'TempReEdgeNode', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempEdgeRecycle;"
+        )
+        self.conn.execute("DROP TABLE TempEdgeRecycle;")
+
+        # Re-LOAD same edge label name.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'TempReEdgeNode', to = 'TempReEdgeNode', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempEdgeRecycle;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempReEdgeNode)-[r:TempEdgeRecycle]->(b:TempReEdgeNode) "
+            "RETURN count(r);"
+        )
+        assert list(result)[0][0] == 3
+
 
 # ---------------------------------------------------------------------------
 # LOAD AS from JSONL / Parquet (using tinysnb dataset)
