@@ -82,14 +82,13 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
   labels.resize(maxTableID + 1);
   for (auto i = 0u; i < labels.size(); ++i) {
     if (map.contains(i)) {
-      labels[i] = std::make_unique<Value>(LogicalType::STRING(), map.at(i));
+      labels[i] = std::make_unique<Value>(DataType::Varchar(), map.at(i));
     } else {
-      labels[i] =
-          std::make_unique<Value>(LogicalType::STRING(), std::string(""));
+      labels[i] = std::make_unique<Value>(DataType::Varchar(), std::string(""));
     }
   }
   auto labelsValue =
-      Value(LogicalType::LIST(LogicalType::STRING()), std::move(labels));
+      Value(DataType::List(DataType::Varchar()), std::move(labels));
   return expressionBinder->createLiteralExpression(labelsValue);
 }
 
@@ -143,10 +142,10 @@ std::shared_ptr<Expression> LabelFunction::rewriteFunc(
   NEUG_ASSERT(children.size() == 2);
   auto function = std::make_unique<ScalarFunction>(
       LabelFunction::name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING, execFunction);
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kInt64},
+      DataTypeId::kVarchar, execFunction);
   auto bindData =
-      std::make_unique<function::FunctionBindData>(LogicalType::STRING());
+      std::make_unique<function::FunctionBindData>(DataType::Varchar());
   auto uniqueName =
       ScalarFunctionExpression::getUniqueName(LabelFunction::name, children);
   return std::make_shared<ScalarFunctionExpression>(
@@ -156,11 +155,11 @@ std::shared_ptr<Expression> LabelFunction::rewriteFunc(
 
 function_set LabelFunction::getFunctionSet() {
   function_set set;
-  auto inputTypes = std::vector<LogicalTypeID>{
-      LogicalTypeID::NODE, LogicalTypeID::REL, LogicalTypeID::STRUCT};
+  auto inputTypes = std::vector<DataTypeId>{
+      DataTypeId::kVertex, DataTypeId::kEdge, DataTypeId::kStruct};
   for (auto& inputType : inputTypes) {
     auto function = std::make_unique<RewriteFunction>(
-        name, std::vector<LogicalTypeID>{inputType}, rewriteFunc);
+        name, std::vector<DataTypeId>{inputType}, rewriteFunc);
     set.push_back(std::move(function));
   }
   return set;

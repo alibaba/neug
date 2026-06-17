@@ -35,15 +35,14 @@ namespace function {
 
 static void validateNonEmptyCandidateFunctions(
     std::vector<AggregateFunction*>& candidateFunctions,
-    const std::string& name, const std::vector<LogicalType>& inputTypes,
+    const std::string& name, const std::vector<DataType>& inputTypes,
     bool isDistinct, const function::function_set& set);
 static void validateNonEmptyCandidateFunctions(
     std::vector<Function*>& candidateFunctions, const std::string& name,
-    const std::vector<LogicalType>& inputTypes,
-    const function::function_set& set);
+    const std::vector<DataType>& inputTypes, const function::function_set& set);
 
 Function* BuiltInFunctionsUtils::matchFunction(
-    const std::string& name, const std::vector<LogicalType>& inputTypes,
+    const std::string& name, const std::vector<DataType>& inputTypes,
     const catalog::FunctionCatalogEntry* functionEntry) {
   auto& functionSet = functionEntry->getFunctionSet();
   std::vector<Function*> candidateFunctions;
@@ -72,7 +71,7 @@ Function* BuiltInFunctionsUtils::matchFunction(
 }
 
 AggregateFunction* BuiltInFunctionsUtils::matchAggregateFunction(
-    const std::string& name, const std::vector<common::LogicalType>& inputTypes,
+    const std::string& name, const std::vector<common::DataType>& inputTypes,
     bool isDistinct, const catalog::FunctionCatalogEntry* functionEntry) {
   auto& functionSet = functionEntry->getFunctionSet();
   std::vector<AggregateFunction*> candidateFunctions;
@@ -91,312 +90,245 @@ AggregateFunction* BuiltInFunctionsUtils::matchAggregateFunction(
   return candidateFunctions[0];
 }
 
-uint32_t BuiltInFunctionsUtils::getCastCost(LogicalTypeID inputTypeID,
-                                            LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::getCastCost(DataTypeId inputTypeID,
+                                            DataTypeId targetTypeID) {
   if (inputTypeID == targetTypeID) {
     return 0;
   }
-  if (inputTypeID == LogicalTypeID::ANY || targetTypeID == LogicalTypeID::ANY) {
+  if (inputTypeID == DataTypeId::kUnknown ||
+      targetTypeID == DataTypeId::kUnknown) {
     return 1;
   }
-  if (targetTypeID == LogicalTypeID::STRING) {
+  if (targetTypeID == DataTypeId::kVarchar) {
     return castFromString(inputTypeID);
   }
   switch (inputTypeID) {
-  case LogicalTypeID::INT64:
+  case DataTypeId::kInt64:
     return castInt64(targetTypeID);
-  case LogicalTypeID::INT32:
+  case DataTypeId::kInt32:
     return castInt32(targetTypeID);
-  case LogicalTypeID::INT16:
+  case DataTypeId::kInt16:
     return castInt16(targetTypeID);
-  case LogicalTypeID::INT8:
+  case DataTypeId::kInt8:
     return castInt8(targetTypeID);
-  case LogicalTypeID::UINT64:
+  case DataTypeId::kUInt64:
     return castUInt64(targetTypeID);
-  case LogicalTypeID::UINT32:
+  case DataTypeId::kUInt32:
     return castUInt32(targetTypeID);
-  case LogicalTypeID::UINT16:
+  case DataTypeId::kUInt16:
     return castUInt16(targetTypeID);
-  case LogicalTypeID::UINT8:
+  case DataTypeId::kUInt8:
     return castUInt8(targetTypeID);
-  case LogicalTypeID::INT128:
-    return castInt128(targetTypeID);
-  case LogicalTypeID::DOUBLE:
+  // INT128 removed — no engine equivalent
+  case DataTypeId::kDouble:
     return castDouble(targetTypeID);
-  case LogicalTypeID::FLOAT:
+  case DataTypeId::kFloat:
     return castFloat(targetTypeID);
-  case LogicalTypeID::DECIMAL:
-    return castDecimal(targetTypeID);
-  case LogicalTypeID::DATE:
+  case DataTypeId::kDate:
     return castDate(targetTypeID);
-  case LogicalTypeID::UUID:
-    return castUUID(targetTypeID);
-  case LogicalTypeID::SERIAL:
-    return castSerial(targetTypeID);
-  case LogicalTypeID::TIMESTAMP_SEC:
-  case LogicalTypeID::TIMESTAMP_MS:
-  case LogicalTypeID::TIMESTAMP_NS:
-  case LogicalTypeID::TIMESTAMP_TZ:
+  case DataTypeId::kTimestampMs:
     return castTimestamp(targetTypeID);
-  case LogicalTypeID::LIST:
+  case DataTypeId::kList:
     return castList(targetTypeID);
-  case LogicalTypeID::ARRAY:
+  case DataTypeId::kArray:
     return castArray(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::getTargetTypeCost(LogicalTypeID typeID) {
+uint32_t BuiltInFunctionsUtils::getTargetTypeCost(DataTypeId typeID) {
   switch (typeID) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT16:
+  case DataTypeId::kInt16:
     return 100;
-  case LogicalTypeID::INT64:
+  case DataTypeId::kInt64:
     return 101;
-  case LogicalTypeID::INT32:
+  case DataTypeId::kInt32:
     return 102;
-  case LogicalTypeID::INT128:
-    return 103;
-  case LogicalTypeID::DECIMAL:
-    return 104;
-  case LogicalTypeID::DOUBLE:
+  case DataTypeId::kDouble:
     return 105;
-  case LogicalTypeID::TIMESTAMP:
+  case DataTypeId::kTimestampMs:
     return 120;
-  case LogicalTypeID::STRING:
+  case DataTypeId::kVarchar:
     return 149;
-  case LogicalTypeID::STRUCT:
-  case LogicalTypeID::MAP:
-  case LogicalTypeID::ARRAY:
-  case LogicalTypeID::LIST:
-  case LogicalTypeID::UNION:
+  case DataTypeId::kStruct:
+  case DataTypeId::kMap:
+  case DataTypeId::kArray:
+  case DataTypeId::kList:
     return 160;
   default:
     return 110;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castInt64(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castInt64(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
-    return getTargetTypeCost(targetTypeID);
-  case LogicalTypeID::SERIAL:
-    return 0;
-  default:
-    return UNDEFINED_CAST_COST;
-  }
-}
-
-uint32_t BuiltInFunctionsUtils::castInt32(LogicalTypeID targetTypeID) {
-  switch (targetTypeID) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castInt16(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castInt32(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT32:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castInt8(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castInt16(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT16:
-  case LogicalTypeID::INT32:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castUInt64(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castInt8(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt16:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castUInt32(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castUInt64(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::UINT64:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castUInt16(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castUInt32(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::INT32:
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::UINT32:
-  case LogicalTypeID::UINT64:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castUInt8(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castUInt16(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::INT16:
-  case LogicalTypeID::INT32:
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64:
-  case LogicalTypeID::INT128:
-  case LogicalTypeID::UINT16:
-  case LogicalTypeID::UINT32:
-  case LogicalTypeID::UINT64:
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castInt128(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castUInt8(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
-  case LogicalTypeID::DECIMAL:
+  case DataTypeId::kInt16:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt16:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castUUID(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castInt128(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::STRING:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castDouble(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castDouble(DataTypeId targetTypeID) {
   switch (targetTypeID) {
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castFloat(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castFloat(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::DOUBLE:
+  case DataTypeId::kDouble:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castDecimal(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castDate(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::FLOAT:
-  case LogicalTypeID::DOUBLE:
+  case DataTypeId::kTimestampMs:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castDate(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castTimestamp(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::TIMESTAMP:
+  case DataTypeId::kTimestampMs:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castSerial(LogicalTypeID targetTypeID) {
-  switch (targetTypeID) {
-  case LogicalTypeID::INT64:
-    return 0;
-  default:
-    return UNDEFINED_CAST_COST;
-  }
-}
-
-uint32_t BuiltInFunctionsUtils::castTimestamp(LogicalTypeID targetTypeID) {
-  switch (targetTypeID) {
-  case LogicalTypeID::TIMESTAMP:
-    return getTargetTypeCost(targetTypeID);
-  default:
-    return UNDEFINED_CAST_COST;
-  }
-}
-
-uint32_t BuiltInFunctionsUtils::castFromString(LogicalTypeID inputTypeID) {
+uint32_t BuiltInFunctionsUtils::castFromString(DataTypeId inputTypeID) {
   switch (inputTypeID) {
-  case LogicalTypeID::BLOB:
-  case LogicalTypeID::INTERNAL_ID:
-  case LogicalTypeID::NODE:
-  case LogicalTypeID::REL:
-  case LogicalTypeID::RECURSIVE_REL:
+  case DataTypeId::kInternalId:
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
     return UNDEFINED_CAST_COST;
   default:
-    return getTargetTypeCost(LogicalTypeID::STRING);
+    return getTargetTypeCost(DataTypeId::kVarchar);
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castList(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castList(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::ARRAY:
+  case DataTypeId::kArray:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
   }
 }
 
-uint32_t BuiltInFunctionsUtils::castArray(LogicalTypeID targetTypeID) {
+uint32_t BuiltInFunctionsUtils::castArray(DataTypeId targetTypeID) {
   switch (targetTypeID) {
-  case LogicalTypeID::LIST:
+  case DataTypeId::kList:
     return getTargetTypeCost(targetTypeID);
   default:
     return UNDEFINED_CAST_COST;
@@ -410,9 +342,9 @@ Function* BuiltInFunctionsUtils::getBestMatch(
   auto cost = UNDEFINED_CAST_COST;
   for (auto& function : functionsToMatch) {
     auto currentCost = 0u;
-    std::unordered_set<LogicalTypeID> distinctParameterTypes;
+    std::unordered_set<DataTypeId> distinctParameterTypes;
     for (auto& parameterTypeID : function->parameterTypeIDs) {
-      if (parameterTypeID != LogicalTypeID::STRING) {
+      if (parameterTypeID != DataTypeId::kVarchar) {
         currentCost++;
       }
       if (!distinctParameterTypes.contains(parameterTypeID)) {
@@ -430,7 +362,7 @@ Function* BuiltInFunctionsUtils::getBestMatch(
 }
 
 uint32_t BuiltInFunctionsUtils::getFunctionCost(
-    const std::vector<LogicalType>& inputTypes, Function* function) {
+    const std::vector<DataType>& inputTypes, Function* function) {
   if (function->isVarLength) {
     NEUG_ASSERT(function->parameterTypeIDs.size() == 1);
     return matchVarLengthParameters(inputTypes, function->parameterTypeIDs[0]);
@@ -439,17 +371,16 @@ uint32_t BuiltInFunctionsUtils::getFunctionCost(
 }
 
 uint32_t BuiltInFunctionsUtils::getAggregateFunctionCost(
-    const std::vector<LogicalType>& inputTypes, bool isDistinct,
+    const std::vector<DataType>& inputTypes, bool isDistinct,
     AggregateFunction* function) {
   if (inputTypes.size() != function->parameterTypeIDs.size() ||
       isDistinct != function->isDistinct) {
     return UINT32_MAX;
   }
   for (auto i = 0u; i < inputTypes.size(); ++i) {
-    if (function->parameterTypeIDs[i] == LogicalTypeID::ANY) {
+    if (function->parameterTypeIDs[i] == DataTypeId::kUnknown) {
       continue;
-    } else if (inputTypes[i].getLogicalTypeID() !=
-               function->parameterTypeIDs[i]) {
+    } else if (inputTypes[i].id() != function->parameterTypeIDs[i]) {
       return UINT32_MAX;
     }
   }
@@ -457,15 +388,14 @@ uint32_t BuiltInFunctionsUtils::getAggregateFunctionCost(
 }
 
 uint32_t BuiltInFunctionsUtils::matchParameters(
-    const std::vector<LogicalType>& inputTypes,
-    const std::vector<LogicalTypeID>& targetTypeIDs) {
+    const std::vector<DataType>& inputTypes,
+    const std::vector<DataTypeId>& targetTypeIDs) {
   if (inputTypes.size() != targetTypeIDs.size()) {
     return UINT32_MAX;
   }
   auto cost = 0u;
   for (auto i = 0u; i < inputTypes.size(); ++i) {
-    auto castCost =
-        getCastCost(inputTypes[i].getLogicalTypeID(), targetTypeIDs[i]);
+    auto castCost = getCastCost(inputTypes[i].id(), targetTypeIDs[i]);
     if (castCost == UNDEFINED_CAST_COST) {
       return UINT32_MAX;
     }
@@ -475,10 +405,10 @@ uint32_t BuiltInFunctionsUtils::matchParameters(
 }
 
 uint32_t BuiltInFunctionsUtils::matchVarLengthParameters(
-    const std::vector<LogicalType>& inputTypes, LogicalTypeID targetTypeID) {
+    const std::vector<DataType>& inputTypes, DataTypeId targetTypeID) {
   auto cost = 0u;
   for (const auto& inputType : inputTypes) {
-    auto castCost = getCastCost(inputType.getLogicalTypeID(), targetTypeID);
+    auto castCost = getCastCost(inputType.id(), targetTypeID);
     if (castCost == UNDEFINED_CAST_COST) {
       return UINT32_MAX;
     }
@@ -489,17 +419,17 @@ uint32_t BuiltInFunctionsUtils::matchVarLengthParameters(
 
 void BuiltInFunctionsUtils::validateSpecialCases(
     std::vector<Function*>& candidateFunctions, const std::string& name,
-    const std::vector<LogicalType>& inputTypes,
+    const std::vector<DataType>& inputTypes,
     const function::function_set& set) {
   if (name == AddFunction::name) {
     auto targetType0 = candidateFunctions[0]->parameterTypeIDs[0];
     auto targetType1 = candidateFunctions[0]->parameterTypeIDs[1];
-    auto inputType0 = inputTypes[0].getLogicalTypeID();
-    auto inputType1 = inputTypes[1].getLogicalTypeID();
-    if ((inputType0 != LogicalTypeID::STRING ||
-         inputType1 != LogicalTypeID::STRING) &&
-        targetType0 == LogicalTypeID::STRING &&
-        targetType1 == LogicalTypeID::STRING) {
+    auto inputType0 = inputTypes[0].id();
+    auto inputType1 = inputTypes[1].id();
+    if ((inputType0 != DataTypeId::kVarchar ||
+         inputType1 != DataTypeId::kVarchar) &&
+        targetType0 == DataTypeId::kVarchar &&
+        targetType1 == DataTypeId::kVarchar) {
       std::string supportedInputsString;
       for (auto& function : set) {
         supportedInputsString += function->signatureToString() + "\n";
@@ -513,7 +443,7 @@ void BuiltInFunctionsUtils::validateSpecialCases(
 }
 
 static std::string getFunctionMatchFailureMsg(
-    const std::string name, const std::vector<LogicalType>& inputTypes,
+    const std::string name, const std::vector<DataType>& inputTypes,
     const std::string& supportedInputs, bool isDistinct = false) {
   auto result = stringFormat(
       "Cannot match a built-in function for given function {}{}{}.", name,
@@ -528,7 +458,7 @@ static std::string getFunctionMatchFailureMsg(
 
 void validateNonEmptyCandidateFunctions(
     std::vector<AggregateFunction*>& candidateFunctions,
-    const std::string& name, const std::vector<LogicalType>& inputTypes,
+    const std::string& name, const std::vector<DataType>& inputTypes,
     bool isDistinct, const function::function_set& set) {
   if (candidateFunctions.empty()) {
     std::string supportedInputsString;
@@ -546,7 +476,7 @@ void validateNonEmptyCandidateFunctions(
 
 void validateNonEmptyCandidateFunctions(
     std::vector<Function*>& candidateFunctions, const std::string& name,
-    const std::vector<LogicalType>& inputTypes,
+    const std::vector<DataType>& inputTypes,
     const function::function_set& set) {
   if (candidateFunctions.empty()) {
     std::string supportedInputsString;

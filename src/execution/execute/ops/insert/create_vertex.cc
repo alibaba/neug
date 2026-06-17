@@ -55,9 +55,12 @@ class CreateVertexOpr : public IOperator {
       }
       expr_properties.emplace_back(std::move(expr_props));
     }
-    return CreateVertex::insert_vertex(
-        dynamic_cast<StorageInsertInterface&>(graph_interface), std::move(ctx),
-        labels_, std::move(expr_properties), alias_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return CreateVertex::insert_vertex(
+              dynamic_cast<StorageInsertInterface&>(graph_interface),
+              std::move(chunk), labels_, std::move(expr_properties), alias_);
+        });
   }
   std::string get_operator_name() const override { return "CreateVertexOpr"; }
 

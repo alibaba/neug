@@ -29,7 +29,7 @@ using namespace neug::common;
 namespace neug {
 namespace binder {
 
-void Expression::cast(const LogicalType&) {
+void Expression::cast(const DataType&) {
   // LCOV_EXCL_START
   THROW_BINDER_EXCEPTION(stringFormat(
       "Data type of expression {} should not be modified.", toString()));

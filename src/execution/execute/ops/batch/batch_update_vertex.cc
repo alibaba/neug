@@ -36,9 +36,9 @@ class UpdateVertexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateVertexOpr"; }
 
-  neug::result<Context> eval_impl(StorageUpdateInterface& graph,
-                                  const ParamsMap& params, Context&& ctx,
-                                  OprTimer* timer);
+  neug::result<ContextChunk> eval_impl(StorageUpdateInterface& graph,
+                                       const ParamsMap& params,
+                                       ContextChunk&& chunk, OprTimer* timer);
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override;
@@ -48,15 +48,14 @@ class UpdateVertexOpr : public IOperator {
   vertex_prop_vec_t vertex_data_;
 };
 
-neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
-                                                 const ParamsMap& params,
-                                                 Context&& ctx,
-                                                 OprTimer* timer) {
+neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
+    StorageUpdateInterface& graph, const ParamsMap& params,
+    ContextChunk&& chunk, OprTimer* timer) {
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
     const auto& expression = std::get<2>(entry);
-    auto col = ctx.get(tag_id);
+    auto col = chunk.get(tag_id);
     if (!col) {
       LOG(ERROR) << "Column " << tag_id << " not found in context.";
     }
@@ -71,7 +70,7 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
     const auto& expr_ref = expr->Cast<RecordExprBase>();
 
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
-      auto value = expr_ref.eval_record(ctx, ind);
+      auto value = expr_ref.eval_record(chunk.chunk(), ind);
       auto vr = vertex_col->get_vertex(ind);
       auto label_id = vr.label();
       // Restricts: 0. Could not set primary key; 1. Could not set empty
@@ -113,14 +112,16 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }
   }
-  return neug::result<Context>(std::move(ctx));
+  return chunk;
 }
 
 neug::result<Context> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
                                             const ParamsMap& params,
                                             Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  return eval_impl(graph, params, std::move(ctx), timer);
+  return ctx.apply_chunks([&](ContextChunk&& chunk) {
+    return eval_impl(graph, params, std::move(chunk), timer);
+  });
 }
 
 neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(

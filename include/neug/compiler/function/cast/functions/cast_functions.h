@@ -190,26 +190,6 @@ inline void CastToInt64::operation(common::int128_t& input, int64_t& result) {
   };
 }
 
-struct CastToSerial {
-  template <typename T>
-  static inline void operation(T& input, int64_t& result) {
-    if (!tryCastWithOverflowCheck(input, result)) {
-      THROW_OVERFLOW_EXCEPTION(
-          common::stringFormat("Value {} is not within INT64 range",
-                               common::TypeUtils::toString(input)));
-    }
-  }
-};
-
-template <>
-inline void CastToSerial::operation(common::int128_t& input, int64_t& result) {
-  if (!common::Int128_t::tryCast(input, result)) {
-    THROW_OVERFLOW_EXCEPTION(
-        common::stringFormat("Value {} is not within INT64 range",
-                             common::TypeUtils::toString(input)));
-  };
-}
-
 struct CastToInt32 {
   template <typename T>
   static inline void operation(T& input, int32_t& result) {

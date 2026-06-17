@@ -55,7 +55,7 @@ std::string_view truncate_utf8(std::string_view str, size_t length) {
 
 std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
   auto type_id = type.id();
-  auto extra_type_info = type.RawExtraTypeInfo();
+  auto extra_type_info = type.getExtraTypeInfo();
   switch (type_id) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \

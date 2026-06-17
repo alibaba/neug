@@ -43,7 +43,11 @@ class LimitOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    return Limit::limit(std::move(ctx), lower_, upper_);
+    ctx.ensure_single_chunk("LimitOpr");
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Limit::limit(std::move(chunk), lower_, upper_);
+        });
   }
 
  private:

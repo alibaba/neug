@@ -297,10 +297,10 @@ class ReaderTest : public ::testing::Test {
   // batches from suppliers
   int64_t count_batch_row_num(const execution::Context& ctx) {
     // Get the first column from context
-    if (ctx.columns.empty()) {
+    if (ctx.chunk_num() == 0 || ctx.chunk(0).columns().empty()) {
       return -1;  // Error: no columns
     }
-    auto firstColumn = ctx.columns[0];
+    auto firstColumn = ctx.chunk(0).columns()[0];
     if (!firstColumn) {
       return -1;  // Error: first column is null
     }

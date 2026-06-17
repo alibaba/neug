@@ -19,13 +19,13 @@
 
 namespace neug {
 namespace execution {
-class Context;
+class ContextChunk;
 class BindedExprBase;
 namespace ops {
 class CreateVertex {
  public:
-  static neug::result<Context> insert_vertex(
-      StorageInsertInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> insert_vertex(
+      StorageInsertInterface& graph, ContextChunk&& chunk,
       const std::vector<label_t>& labels,
       std::vector<std::vector<
           std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&& props,

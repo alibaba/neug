@@ -89,7 +89,7 @@ _ENV_FLAGS = {
     "BUILD_HTTP_SERVER": "ON",
     "BUILD_COMPILER": "ON",
     "ENABLE_BACKTRACES": "OFF",
-    "WITH_MIMALLOC": "OFF",
+    "WITH_MIMALLOC": "ON",
     "BUILD_TEST": "OFF",
     "ENABLE_GCOV": "OFF",
 }

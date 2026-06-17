@@ -14,29 +14,28 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/utils/result.h"
-#include "parallel_hashmap/phmap.h"
 
 namespace neug {
 namespace execution {
 
 struct KeyBase {
   virtual ~KeyBase() = default;
-  virtual std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>>
-  group(const Context& ctx) = 0;
+  virtual std::pair<sel_vec_t, vector_t<sel_vec_t>> group(
+      const ContextChunk& chunk) = 0;
   virtual const std::vector<std::pair<int, int>>& tag_alias() const = 0;
 };
 template <typename EXPR>
 struct Key : public KeyBase {
   Key(EXPR&& expr, const std::vector<std::pair<int, int>>& tag_alias)
       : expr(std::move(expr)), tag_alias_(tag_alias) {}
-  std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>> group(
-      const Context& ctx) override {
-    size_t row_num = ctx.row_num();
-    std::vector<std::vector<size_t>> groups;
-    std::vector<size_t> offsets;
+  std::pair<sel_vec_t, vector_t<sel_vec_t>> group(
+      const ContextChunk& chunk) override {
+    size_t row_num = chunk.row_num();
+    vector_t<sel_vec_t> groups;
+    sel_vec_t offsets;
     phmap::flat_hash_map<typename EXPR::V, size_t> group_map;
     for (size_t i = 0; i < row_num; ++i) {
       auto val = expr(i);
@@ -63,15 +62,14 @@ struct Key : public KeyBase {
 struct ReducerBase {
   virtual ~ReducerBase() = default;
   virtual std::shared_ptr<IContextColumn> reduce(
-      const std::vector<std::vector<size_t>>& groups) = 0;
+      const vector_t<sel_vec_t>& groups) = 0;
 };
 
 struct ReduceOp {
   ReduceOp(std::unique_ptr<ReducerBase>&& reducer, int alias)
       : reducer_(std::move(reducer)), alias_(alias) {}
 
-  void reduce(const Context& ctx, Context& ret,
-              const std::vector<std::vector<size_t>>& groups) {
+  void reduce(ContextChunk& ret, const vector_t<sel_vec_t>& groups) {
     auto col = reducer_->reduce(groups);
     ret.set(alias_, col);
   }
@@ -82,9 +80,9 @@ struct ReduceOp {
 
 class GroupBy {
  public:
-  static neug::result<Context> group_by(Context&& ctx,
-                                        std::unique_ptr<KeyBase>&& key,
-                                        std::vector<ReduceOp>&& aggrs);
+  static neug::result<ContextChunk> group_by(ContextChunk&& chunk,
+                                             std::unique_ptr<KeyBase>&& key,
+                                             std::vector<ReduceOp>&& aggrs);
 };
 
 }  // namespace execution

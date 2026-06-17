@@ -52,7 +52,7 @@ void Planner::planMatchClause(
         auto correlatedExprs = getCorrelatedExprs(
             *queryGraphCollection, {}, this->preQueryPlan->getSchema());
         auto joinNodeIDs = ExpressionUtil::getExpressionsWithDataType(
-            correlatedExprs, LogicalTypeID::INTERNAL_ID);
+            correlatedExprs, DataTypeId::kInternalId);
         info.corrExprs = joinNodeIDs;
         info.subqueryType = SubqueryPlanningType::COMMON_PAT_REUSE;
         info.corrExprsCard = this->preQueryPlan->getCardinality();

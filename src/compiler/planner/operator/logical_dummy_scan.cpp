@@ -20,7 +20,7 @@ void LogicalDummyScan::computeFlatSchema() {
 
 std::shared_ptr<binder::Expression> LogicalDummyScan::getDummyExpression() {
   return std::make_shared<binder::LiteralExpression>(
-      Value::createNullValue(LogicalType::STRING()),
+      Value::createNullValue(DataType::Varchar()),
       InternalKeyword::PLACE_HOLDER);
 }
 

@@ -25,9 +25,9 @@ namespace execution {
 class ColumnsUtils {
  public:
   template <typename T>
-  static void generate_dedup_offset(const std::vector<T>& vec,
-                                    std::vector<size_t>& offsets) {
-    std::vector<size_t> row_indices(vec.size());
+  static void generate_dedup_offset(const vector_t<T>& vec,
+                                    sel_vec_t& offsets) {
+    sel_vec_t row_indices(vec.size());
     if (vec.empty()) {
       offsets.clear();
       return;

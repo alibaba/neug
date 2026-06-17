@@ -49,8 +49,8 @@ class BoundStatementResult {
   }
   expression_vector getColumns() const { return columns; }
   std::vector<std::string> getColumnNames() const { return columnNames; }
-  std::vector<common::LogicalType> getColumnTypes() const {
-    std::vector<common::LogicalType> columnTypes;
+  std::vector<common::DataType> getColumnTypes() const {
+    std::vector<common::DataType> columnTypes;
     for (auto& column : columns) {
       columnTypes.push_back(column->getDataType().copy());
     }

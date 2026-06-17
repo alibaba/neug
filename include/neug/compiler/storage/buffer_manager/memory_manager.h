@@ -28,6 +28,7 @@
 #include <stack>
 
 #include <span>
+#include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
 

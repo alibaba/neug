@@ -72,8 +72,17 @@ class JoinOpr : public IOperator {
       timer->add_child(std::move(left_timer));
       timer->add_child(std::move(right_timer));
     }
-    return Join::join(std::move(left_ctx.value()), std::move(right_ctx.value()),
-                      params_);
+    left_ctx.value().ensure_single_chunk("JoinOpr::left");
+    right_ctx.value().ensure_single_chunk("JoinOpr::right");
+    auto join_result =
+        Join::join(std::move(left_ctx.value().chunk(0)),
+                   std::move(right_ctx.value().chunk(0)), params_);
+    if (!join_result) {
+      return tl::make_unexpected(join_result.error());
+    }
+    Context out;
+    out.append_chunk(std::move(join_result.value()));
+    return out;
   }
 
  private:
@@ -190,8 +199,15 @@ class PrimaryKeyJoinOpr : public IOperator {
     if (NEUG_UNLIKELY(timer != nullptr)) {
       timer->add_child(std::move(right_timer));
     }
-    return Join::pk_join(graph, std::move(right_ctx.value()), labels_, tag_,
-                         alias_);
+    right_ctx.value().ensure_single_chunk("PrimaryKeyJoinOpr");
+    auto pk_result = Join::pk_join(graph, std::move(right_ctx.value().chunk(0)),
+                                   labels_, tag_, alias_);
+    if (!pk_result) {
+      return tl::make_unexpected(pk_result.error());
+    }
+    Context out;
+    out.append_chunk(std::move(pk_result.value()));
+    return out;
   }
 
  private:

@@ -40,7 +40,6 @@ struct ComparisonFunction {
       functionSet.push_back(
           getFunction<OP>(name, comparableType, comparableType));
     }
-    functionSet.push_back(getDecimalCompare<OP>(name));
     return functionSet;
   }
 
@@ -72,42 +71,17 @@ struct ComparisonFunction {
 
   template <typename FUNC>
   static std::unique_ptr<ScalarFunction> getFunction(
-      const std::string& name, common::LogicalTypeID leftType,
-      common::LogicalTypeID rightType) {
-    auto leftPhysical = common::LogicalType::getPhysicalType(leftType);
-    auto rightPhysical = common::LogicalType::getPhysicalType(rightType);
+      const std::string& name, common::DataTypeId leftType,
+      common::DataTypeId rightType) {
+    auto leftPhysical = common::getPhysicalType(leftType);
+    auto rightPhysical = common::getPhysicalType(rightType);
     scalar_func_exec_t execFunc;
     getExecFunc<FUNC>(leftPhysical, rightPhysical, execFunc);
     scalar_func_select_t selectFunc;
     getSelectFunc<FUNC>(leftPhysical, rightPhysical, selectFunc);
     return std::make_unique<ScalarFunction>(
-        name, std::vector<common::LogicalTypeID>{leftType, rightType},
-        common::LogicalTypeID::BOOL, execFunc, selectFunc);
-  }
-
-  template <typename FUNC>
-  static std::unique_ptr<FunctionBindData> bindDecimalCompare(
-      ScalarBindFuncInput bindInput) {
-    auto func = bindInput.definition->ptrCast<ScalarFunction>();
-    // assumes input types are identical
-    auto physicalType = bindInput.arguments[0]->dataType.getPhysicalType();
-    getExecFunc<FUNC>(physicalType, physicalType, func->execFunc);
-    getSelectFunc<FUNC>(physicalType, physicalType, func->selectFunc);
-    return nullptr;
-  }
-
-  template <typename FUNC>
-  static std::unique_ptr<ScalarFunction> getDecimalCompare(
-      const std::string& name) {
-    scalar_bind_func bindFunc = bindDecimalCompare<FUNC>;
-    auto func = std::make_unique<ScalarFunction>(
-        name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::DECIMAL,
-                                           common::LogicalTypeID::DECIMAL},
-        common::LogicalTypeID::BOOL);  // necessary because decimal physical
-                                       // type is not known from the ID
-    func->bindFunc = bindFunc;
-    return func;
+        name, std::vector<common::DataTypeId>{leftType, rightType},
+        common::DataTypeId::kBoolean, execFunc, selectFunc);
   }
 
   // When comparing two values, we guarantee that they must have the same

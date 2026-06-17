@@ -38,8 +38,8 @@ execution::Value get_default_value(const DataType& type) {
     return execution::Value::DOUBLE(0.0);
   case DataTypeId::kVarchar: {
     int32_t width =
-        type.RawExtraTypeInfo()
-            ? type.RawExtraTypeInfo()->Cast<StringTypeInfo>().max_length
+        type.getExtraTypeInfo()
+            ? type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length
             : STRING_DEFAULT_MAX_LENGTH;
     return execution::Value::VARCHAR("", width);
   }

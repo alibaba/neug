@@ -28,12 +28,63 @@
 #include <cpptrace/cpptrace.hpp>
 #endif
 
+#ifdef NEUG_WITH_MIMALLOC
+#include <mimalloc.h>
+#endif
+
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 namespace py = pybind11;
 
 namespace neug {
+
+#ifdef NEUG_WITH_MIMALLOC
+// Tune mimalloc to minimize page faults under the explicit-allocator approach
+// used in the Python binding (no global override / no LD_PRELOAD).
+//
+// Rationale: with explicit allocate_shared / neug::vector_t /
+// neug::flat_hash_map, the process working set is split between glibc
+// (Python/Arrow/numpy) and mimalloc (neug containers). Default mimalloc
+// settings aggressively decommit/reset idle pages, causing extra minor page
+// faults on re-touch. We disable that here, eagerly commit, and pre-warm the
+// heap so segments are committed up front and stay resident.
+static void tune_mimalloc_for_pybind() {
+  // Read env overrides first; otherwise apply our defaults.
+  //
+  // Strategy: keep hot paths fault-free, but auto-return idle memory to OS
+  // after a quiet period — no manual trim_memory() needed.
+  //
+  //   page_reset = 0          → do NOT MADV_FREE on every free; keeps pages
+  //                              hot during high-frequency alloc/free loops.
+  //   eager_commit = 1        → segment is fully committed when created so
+  //                              first-touch faults amortize at warmup time.
+  //   allow_decommit = 1      → allow decommit, BUT only after a delay…
+  //   *_decommit_delay = 30s  → …so steady-state hot path never sees it; only
+  //                              idle/quiescent segments are returned to OS.
+  if (std::getenv("MIMALLOC_PAGE_RESET") == nullptr) {
+    mi_option_set(mi_option_page_reset, 0);  // keep pages resident on free
+  }
+  if (std::getenv("MIMALLOC_EAGER_COMMIT") == nullptr) {
+    mi_option_set(mi_option_eager_commit, 1);  // commit segment up front
+  }
+  // Auto-decommit idle segments after 30s of inactivity. This makes RSS
+  // self-trim without any application-side calls.
+  if (std::getenv("MIMALLOC_ALLOW_DECOMMIT") == nullptr) {
+    mi_option_set(mi_option_allow_decommit, 1);
+  }
+  if (std::getenv("MIMALLOC_DECOMMIT_DELAY") == nullptr) {
+    mi_option_set(mi_option_decommit_delay, 30000);  // ms
+  }
+  if (std::getenv("MIMALLOC_SEGMENT_DECOMMIT_DELAY") == nullptr) {
+    mi_option_set(mi_option_segment_decommit_delay, 30000);  // ms
+  }
+  // Try to use 2 MiB *explicit* hugetlb OS pages (MAP_HUGETLB on Linux)
+  if (std::getenv("MIMALLOC_LARGE_OS_PAGES") == nullptr) {
+    mi_option_set(mi_option_large_os_pages, 1);
+  }
+}
+#endif  // NEUG_WITH_MIMALLOC
 
 void setup_logging() {
   google::InitGoogleLogging("neug");
@@ -70,6 +121,11 @@ PYBIND11_MODULE(neug_py_bind, m) {
     )pbdoc";
 
   m.attr("__version__") = MACRO_STRINGIFY(NEUG_VERSION);
+#ifdef NEUG_WITH_MIMALLOC
+  // Configure mimalloc *before* any neug type is registered so the first
+  // container allocations already see the tuned options.
+  neug::tune_mimalloc_for_pybind();
+#endif
   neug::PyDatabase::initialize(m);
   neug::PyConnection::initialize(m);
   neug::PyQueryResult::initialize(m);

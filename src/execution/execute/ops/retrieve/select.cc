@@ -45,43 +45,48 @@ class SelectIdNeOpr : public IOperator {
       IStorageInterface& graph_interface, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    auto col = ctx.get(tag_);
-    const auto& name = prop_name_;
-    if ((!col->is_optional()) &&
-        col->column_type() == ContextColumnType::kVertex) {
-      auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-      auto labels = vertex_col->get_labels_set();
-      if (labels.size() == 1 &&
-          name == graph_interface.schema().get_vertex_primary_key_name(
-                      *labels.begin())) {
-        auto label = *labels.begin();
-        int64_t oid = params.at(param_name_).GetValue<int64_t>();
-        vid_t vid;
-        if (graph_interface.GetVertexIndex(label, execution::Value::INT64(oid),
-                                           vid)) {
-          if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-            const SLVertexColumn& sl_vertex_col =
-                *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
-
-            return Select::select(
-                std::move(ctx),
-                [&sl_vertex_col, vid](const Context& ctx, size_t i) {
-                  return sl_vertex_col.get_vertex(i).vid_ != vid;
-                });
-          } else {
-            return Select::select(
-                std::move(ctx),
-                [&vertex_col, vid](const Context& ctx, size_t i) {
-                  return vertex_col->get_vertex(i).vid_ != vid;
-                });
-          }
-        }
-      }
-    }
-
     auto expr = pred_->bind(&graph_interface, params);
-    neug::execution::GeneralPred expr_wrapper(std::move(expr));
-    return Select::select(std::move(ctx), expr_wrapper);
+    neug::execution::GeneralPred fallback_pred(std::move(expr));
+    const auto& name = prop_name_;
+    int64_t oid = params.count(param_name_)
+                      ? params.at(param_name_).GetValue<int64_t>()
+                      : 0;
+
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          auto col = chunk.get(tag_);
+          if ((!col->is_optional()) &&
+              col->column_type() == ContextColumnType::kVertex) {
+            auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
+            auto labels = vertex_col->get_labels_set();
+            if (labels.size() == 1 &&
+                name == graph_interface.schema().get_vertex_primary_key_name(
+                            *labels.begin())) {
+              auto label = *labels.begin();
+              vid_t vid;
+              if (graph_interface.GetVertexIndex(
+                      label, execution::Value::INT64(oid), vid)) {
+                if (vertex_col->vertex_column_type() ==
+                    VertexColumnType::kSingle) {
+                  const SLVertexColumn& sl_vertex_col =
+                      *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
+                  return Select::select(
+                      std::move(chunk),
+                      [&sl_vertex_col, vid](const DataChunk&, size_t i) {
+                        return sl_vertex_col.get_vertex(i).vid_ != vid;
+                      });
+                } else {
+                  return Select::select(
+                      std::move(chunk),
+                      [&vertex_col, vid](const DataChunk&, size_t i) {
+                        return vertex_col->get_vertex(i).vid_ != vid;
+                      });
+                }
+              }
+            }
+          }
+          return Select::select(std::move(chunk), fallback_pred);
+        });
   }
 
  private:
@@ -103,9 +108,11 @@ class SelectOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     auto expr = pred_->bind(&graph, params);
-
     neug::execution::GeneralPred expr_wrapper(std::move(expr));
-    return Select::select(std::move(ctx), expr_wrapper);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return Select::select(std::move(chunk), expr_wrapper);
+        });
   }
 
  private:

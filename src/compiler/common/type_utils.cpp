@@ -27,96 +27,57 @@
 namespace neug {
 namespace common {
 
-std::string TypeUtils::entryToString(const LogicalType& dataType,
+std::string TypeUtils::entryToString(const DataType& dataType,
                                      const uint8_t* value,
                                      ValueVector* vector) {
   auto valueVector = reinterpret_cast<ValueVector*>(vector);
-  switch (dataType.getLogicalTypeID()) {
-  case LogicalTypeID::BOOL:
+  switch (dataType.id()) {
+  case DataTypeId::kBoolean:
     return TypeUtils::toString(*reinterpret_cast<const bool*>(value));
-  case LogicalTypeID::SERIAL:
-  case LogicalTypeID::INT64:
+  case DataTypeId::kInt64:
     return TypeUtils::toString(*reinterpret_cast<const int64_t*>(value));
-  case LogicalTypeID::INT32:
+  case DataTypeId::kInt32:
     return TypeUtils::toString(*reinterpret_cast<const int32_t*>(value));
-  case LogicalTypeID::INT16:
+  case DataTypeId::kInt16:
     return TypeUtils::toString(*reinterpret_cast<const int16_t*>(value));
-  case LogicalTypeID::INT8:
+  case DataTypeId::kInt8:
     return TypeUtils::toString(*reinterpret_cast<const int8_t*>(value));
-  case LogicalTypeID::UINT64:
+  case DataTypeId::kUInt64:
     return TypeUtils::toString(*reinterpret_cast<const uint64_t*>(value));
-  case LogicalTypeID::UINT32:
+  case DataTypeId::kUInt32:
     return TypeUtils::toString(*reinterpret_cast<const uint32_t*>(value));
-  case LogicalTypeID::UINT16:
+  case DataTypeId::kUInt16:
     return TypeUtils::toString(*reinterpret_cast<const uint16_t*>(value));
-  case LogicalTypeID::UINT8:
+  case DataTypeId::kUInt8:
     return TypeUtils::toString(*reinterpret_cast<const uint8_t*>(value));
-  case LogicalTypeID::INT128:
-    return TypeUtils::toString(*reinterpret_cast<const int128_t*>(value));
-  case LogicalTypeID::DOUBLE:
+  case DataTypeId::kDouble:
     return TypeUtils::toString(*reinterpret_cast<const double*>(value));
-  case LogicalTypeID::FLOAT:
+  case DataTypeId::kFloat:
     return TypeUtils::toString(*reinterpret_cast<const float*>(value));
-  case LogicalTypeID::DECIMAL:
-    switch (dataType.getPhysicalType()) {
-    case PhysicalTypeID::INT16:
-      return DecimalType::insertDecimalPoint(
-          TypeUtils::toString(*reinterpret_cast<const int16_t*>(value)),
-          DecimalType::getScale(dataType));
-    case PhysicalTypeID::INT32:
-      return DecimalType::insertDecimalPoint(
-          TypeUtils::toString(*reinterpret_cast<const int32_t*>(value)),
-          DecimalType::getScale(dataType));
-    case PhysicalTypeID::INT64:
-      return DecimalType::insertDecimalPoint(
-          TypeUtils::toString(*reinterpret_cast<const int64_t*>(value)),
-          DecimalType::getScale(dataType));
-    case PhysicalTypeID::INT128:
-      return DecimalType::insertDecimalPoint(
-          TypeUtils::toString(*reinterpret_cast<const int128_t*>(value)),
-          DecimalType::getScale(dataType));
-    default:
-      // decimals should always be backed by one of these four
-      NEUG_UNREACHABLE;
-    }
-  case LogicalTypeID::DATE:
+  case DataTypeId::kDate:
     return TypeUtils::toString(*reinterpret_cast<const date_t*>(value));
-  case LogicalTypeID::TIMESTAMP_NS:
-    return TypeUtils::toString(*reinterpret_cast<const timestamp_ns_t*>(value));
-  case LogicalTypeID::TIMESTAMP_MS:
+  case DataTypeId::kTimestampMs:
     return TypeUtils::toString(*reinterpret_cast<const timestamp_ms_t*>(value));
-  case LogicalTypeID::TIMESTAMP_SEC:
-    return TypeUtils::toString(
-        *reinterpret_cast<const timestamp_sec_t*>(value));
-  case LogicalTypeID::TIMESTAMP_TZ:
-    return TypeUtils::toString(*reinterpret_cast<const timestamp_tz_t*>(value));
-  case LogicalTypeID::TIMESTAMP:
-    return TypeUtils::toString(*reinterpret_cast<const timestamp_t*>(value));
-  case LogicalTypeID::INTERVAL:
+  case DataTypeId::kInterval:
     return TypeUtils::toString(*reinterpret_cast<const interval_t*>(value));
-  case LogicalTypeID::STRING:
+  case DataTypeId::kVarchar:
     return TypeUtils::toString(*reinterpret_cast<const neug_string_t*>(value));
-  case LogicalTypeID::INTERNAL_ID:
+  case DataTypeId::kInternalId:
     return TypeUtils::toString(*reinterpret_cast<const internalID_t*>(value));
-  case LogicalTypeID::ARRAY:
-  case LogicalTypeID::LIST:
+  case DataTypeId::kArray:
+  case DataTypeId::kList:
     return TypeUtils::toString(*reinterpret_cast<const list_entry_t*>(value),
                                valueVector);
-  case LogicalTypeID::MAP:
+  case DataTypeId::kMap:
     return TypeUtils::toString(*reinterpret_cast<const map_entry_t*>(value),
                                valueVector);
-  case LogicalTypeID::STRUCT:
+  case DataTypeId::kStruct:
     return TypeUtils::toString(*reinterpret_cast<const struct_entry_t*>(value),
                                valueVector);
-  case LogicalTypeID::UNION:
-    return TypeUtils::toString(*reinterpret_cast<const union_entry_t*>(value),
-                               valueVector);
-  case LogicalTypeID::UUID:
-    return TypeUtils::toString(*reinterpret_cast<const neug_uuid_t*>(value));
-  case LogicalTypeID::NODE:
+  case DataTypeId::kVertex:
     return TypeUtils::nodeToString(
         *reinterpret_cast<const struct_entry_t*>(value), valueVector);
-  case LogicalTypeID::REL:
+  case DataTypeId::kEdge:
     return TypeUtils::relToString(
         *reinterpret_cast<const struct_entry_t*>(value), valueVector);
   default:
@@ -155,27 +116,9 @@ std::string TypeUtils::toString(const date_t& val, void* /*valueVector*/) {
 }
 
 template <>
-std::string TypeUtils::toString(const timestamp_ns_t& val,
-                                void* /*valueVector*/) {
-  return toString(Timestamp::fromEpochNanoSeconds(val.value));
-}
-
-template <>
 std::string TypeUtils::toString(const timestamp_ms_t& val,
                                 void* /*valueVector*/) {
   return toString(Timestamp::fromEpochMilliSeconds(val.value));
-}
-
-template <>
-std::string TypeUtils::toString(const timestamp_sec_t& val,
-                                void* /*valueVector*/) {
-  return toString(Timestamp::fromEpochSeconds(val.value));
-}
-
-template <>
-std::string TypeUtils::toString(const timestamp_tz_t& val,
-                                void* /*valueVector*/) {
-  return toString(static_cast<timestamp_t>(val)) + "+00";
 }
 
 template <>
@@ -192,16 +135,6 @@ template <>
 std::string TypeUtils::toString(const neug_string_t& val,
                                 void* /*valueVector*/) {
   return val.getAsString();
-}
-
-template <>
-std::string TypeUtils::toString(const blob_t& val, void* /*valueVector*/) {
-  return Blob::toString(val.value.getData(), val.value.len);
-}
-
-template <>
-std::string TypeUtils::toString(const neug_uuid_t& val, void* /*valueVector*/) {
-  return UUID::toString(val);
 }
 
 template <>
@@ -255,13 +188,13 @@ std::string TypeUtils::toString(const map_entry_t& val, void* valueVector) {
 template <bool SKIP_NULL_ENTRY>
 static std::string structToString(const struct_entry_t& val,
                                   ValueVector* vector) {
-  const auto& fields = StructType::getFields(vector->dataType);
-  if (fields.size() == 0) {
+  const auto& fieldNames = StructType::GetFieldNames(vector->dataType);
+  if (fieldNames.size() == 0) {
     return "{}";
   }
   std::string result = "{";
   auto i = 0u;
-  for (; i < fields.size() - 1; ++i) {
+  for (; i < fieldNames.size() - 1; ++i) {
     auto fieldVector = StructVector::getFieldVector(vector, i);
     if constexpr (SKIP_NULL_ENTRY) {
       if (fieldVector->isNull(val.pos)) {
@@ -271,7 +204,7 @@ static std::string structToString(const struct_entry_t& val,
     if (i != 0) {
       result += ", ";
     }
-    result += StructType::getField(vector->dataType, i).getName();
+    result += StructType::GetChildName(vector->dataType, i);
     result += ": ";
     result += entryToStringWithPos(val.pos, fieldVector.get());
   }
@@ -285,7 +218,7 @@ static std::string structToString(const struct_entry_t& val,
   if (i != 0) {
     result += ", ";
   }
-  result += StructType::getField(vector->dataType, i).getName();
+  result += StructType::GetChildName(vector->dataType, i);
   result += ": ";
   result += entryToStringWithPos(val.pos, fieldVector.get());
   result += "}";
@@ -313,16 +246,6 @@ std::string TypeUtils::relToString(const struct_entry_t& val,
 template <>
 std::string TypeUtils::toString(const struct_entry_t& val, void* valVector) {
   return structToString<false>(val, (ValueVector*) valVector);
-}
-
-template <>
-std::string TypeUtils::toString(const union_entry_t& val, void* valVector) {
-  auto structVector = (ValueVector*) valVector;
-  auto unionFieldIdx = UnionVector::getTagVector(structVector)
-                           ->getValue<union_field_idx_t>(val.entry.pos);
-  auto unionFieldVector =
-      UnionVector::getValVector(structVector, unionFieldIdx);
-  return entryToStringWithPos(val.entry.pos, unionFieldVector);
 }
 
 }  // namespace common

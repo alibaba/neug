@@ -52,72 +52,75 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
-  for (const auto& entry : edge_data_) {
-    auto tag_id = std::get<0>(entry);
-    const auto& prop_name = std::get<1>(entry);
-    const auto& expression = std::get<2>(entry);
+  return ctx.apply_chunks([&](ContextChunk&& chunk)
+                              -> neug::result<ContextChunk> {
+    for (const auto& entry : edge_data_) {
+      auto tag_id = std::get<0>(entry);
+      const auto& prop_name = std::get<1>(entry);
+      const auto& expression = std::get<2>(entry);
 
-    auto col = ctx.get(tag_id);
-    if (!col) {
-      LOG(ERROR) << "Column " << tag_id << " not found in context.";
-      THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
-                          " not found in context.");
-    }
-    auto edge_col = std::dynamic_pointer_cast<IEdgeColumn>(col);
-    if (!edge_col) {
-      LOG(ERROR) << "Column " << tag_id << " is not an edge column.";
-      THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
-                          " is not an edge column.");
-    }
+      auto col = chunk.get(tag_id);
+      if (!col) {
+        LOG(ERROR) << "Column " << tag_id << " not found in context.";
+        THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                            " not found in context.");
+      }
+      auto edge_col = std::dynamic_pointer_cast<IEdgeColumn>(col);
+      if (!edge_col) {
+        LOG(ERROR) << "Column " << tag_id << " is not an edge column.";
+        THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                            " is not an edge column.");
+      }
 
-    auto expr = expression->bind(&graph, params);
-    const auto& expr_ref = expr->Cast<RecordExprBase>();
-    for (size_t ind = 0; ind < edge_col->size(); ++ind) {
-      auto value = expr_ref.eval_record(ctx, ind);
-      auto er = edge_col->get_edge(ind);
-      auto label_id = er.label.edge_label;
-      auto src_label = er.label.src_label;
-      auto dst_label = er.label.dst_label;
-      auto property_names = graph.schema().get_edge_property_names(
-          src_label, dst_label, label_id);
-      int col_id = -1;
-      for (size_t i = 0; i < property_names.size(); ++i) {
-        if (property_names[i] == prop_name) {
-          col_id = static_cast<int>(i);
-          break;
+      auto expr = expression->bind(&graph, params);
+      const auto& expr_ref = expr->Cast<RecordExprBase>();
+      for (size_t ind = 0; ind < edge_col->size(); ++ind) {
+        auto value = expr_ref.eval_record(chunk.chunk(), ind);
+        auto er = edge_col->get_edge(ind);
+        auto label_id = er.label.edge_label;
+        auto src_label = er.label.src_label;
+        auto dst_label = er.label.dst_label;
+        auto property_names = graph.schema().get_edge_property_names(
+            src_label, dst_label, label_id);
+        int col_id = -1;
+        for (size_t i = 0; i < property_names.size(); ++i) {
+          if (property_names[i] == prop_name) {
+            col_id = static_cast<int>(i);
+            break;
+          }
         }
+        if (col_id == -1) {
+          LOG(ERROR) << "Property " << prop_name
+                     << " does not exist for edge label "
+                     << static_cast<int>(label_id);
+          THROW_RUNTIME_ERROR(
+              "Property " + prop_name +
+              " does not exist for edge label: " + std::to_string(label_id));
+        }
+        auto val_type = value.type();
+        if (val_type.id() != DataTypeId::kEmpty &&
+            val_type.id() != DataTypeId::kInt32 &&
+            val_type.id() != DataTypeId::kInt64 &&
+            val_type.id() != DataTypeId::kVarchar &&
+            val_type.id() != DataTypeId::kDouble) {
+          THROW_RUNTIME_ERROR("Unsupported property type: " +
+                              std::to_string(static_cast<int>(val_type.id())));
+        }
+        auto oe_view =
+            graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);
+        auto ie_view =
+            graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
+        auto prop_types =
+            graph.schema().get_edge_properties(src_label, dst_label, label_id);
+        auto offset_pair =
+            record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
+        graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
+                                 offset_pair.first, offset_pair.second, col_id,
+                                 value);
       }
-      if (col_id == -1) {
-        LOG(ERROR) << "Property " << prop_name
-                   << " does not exist for edge label "
-                   << static_cast<int>(label_id);
-        THROW_RUNTIME_ERROR(
-            "Property " + prop_name +
-            " does not exist for edge label: " + std::to_string(label_id));
-      }
-      auto val_type = value.type();
-      if (val_type.id() != DataTypeId::kEmpty &&
-          val_type.id() != DataTypeId::kInt32 &&
-          val_type.id() != DataTypeId::kInt64 &&
-          val_type.id() != DataTypeId::kVarchar &&
-          val_type.id() != DataTypeId::kDouble) {
-        THROW_RUNTIME_ERROR("Unsupported property type: " +
-                            std::to_string(static_cast<int>(val_type.id())));
-      }
-      auto oe_view =
-          graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);
-      auto ie_view =
-          graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
-      auto prop_types =
-          graph.schema().get_edge_properties(src_label, dst_label, label_id);
-      auto offset_pair =
-          record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
-      graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
-                               offset_pair.first, offset_pair.second, col_id,
-                               value);
     }
-  }
-  return neug::result<Context>(std::move(ctx));
+    return chunk;
+  });
 }
 
 neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(

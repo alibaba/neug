@@ -286,6 +286,20 @@ Transformer::transformUnaryAddSubtractOrFactorialExpression(
         FactorialFunction::name, std::move(result), std::move(raw));
   }
   if (!ctx.MINUS().empty()) {
+    // When a single unary minus is applied to an integer literal that didn't
+    // fit in int64_t (e.g., 9223372036854775808), try parsing the negated
+    // string directly as int64_t. This correctly handles INT64_MIN
+    // (-9223372036854775808) which cannot be expressed as negate(positive).
+    if (ctx.MINUS().size() % 2 == 1 &&
+        result->getExpressionType() == ExpressionType::LITERAL) {
+      auto negStr = "-" + result->toString();
+      neug_string_t literal{negStr.c_str(), negStr.length()};
+      int64_t negResult = 0;
+      if (CastString::tryCast(literal, negResult)) {
+        return std::make_unique<ParsedLiteralExpression>(Value(negResult),
+                                                         negStr);
+      }
+    }
     for ([[maybe_unused]] auto& _ : ctx.MINUS()) {
       auto raw = "-" + result->toString();
       result = std::make_unique<ParsedFunctionExpression>(
@@ -434,7 +448,7 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
     return transformBooleanLiteral(*ctx.oC_BooleanLiteral());
   } else if (ctx.StringLiteral()) {
     return std::make_unique<ParsedLiteralExpression>(
-        Value(LogicalType::STRING(),
+        Value(DataType::Varchar(),
               transformStringLiteral(*ctx.StringLiteral())),
         ctx.getText());
   } else if (ctx.NULL_()) {
@@ -704,6 +718,14 @@ std::unique_ptr<ParsedExpression> Transformer::transformIntegerLiteral(
   int64_t result = 0;
   if (function::CastString::tryCast(literal, result)) {
     return std::make_unique<ParsedLiteralExpression>(Value(result),
+                                                     ctx.getText());
+  }
+  // Value exceeds INT64_MAX; try uint64_t before falling back to int128_t.
+  // This avoids the broken Value(int128_t) constructor which sets kInt64 type
+  // but stores data in the int128Val union member.
+  uint64_t resultU64 = 0;
+  if (function::CastString::tryCast(literal, resultU64)) {
+    return std::make_unique<ParsedLiteralExpression>(Value(resultU64),
                                                      ctx.getText());
   }
   int128_t result128 = 0;

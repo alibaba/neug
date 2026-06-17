@@ -40,14 +40,16 @@ PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
 
 void PropertyDefinition::serialize(Serializer& serializer) const {
   serializer.serializeValue(columnDefinition.name);
-  columnDefinition.type.serialize(serializer);
+  serializer.serializeValue(static_cast<uint8_t>(columnDefinition.type.id()));
   defaultExpr->serialize(serializer);
 }
 
 PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
   std::string name;
   deserializer.deserializeValue(name);
-  auto type = LogicalType::deserialize(deserializer);
+  uint8_t typeIdVal;
+  deserializer.deserializeValue(typeIdVal);
+  auto type = DataType(static_cast<DataTypeId>(typeIdVal));
   auto columnDefinition = ColumnDefinition(name, std::move(type));
   auto defaultExpr = ParsedExpression::deserialize(deserializer);
   return PropertyDefinition(std::move(columnDefinition),

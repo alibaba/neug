@@ -35,8 +35,7 @@ static std::shared_ptr<Expression> rewriteFunc(
     const RewriteFunctionBindInput& input) {
   NEUG_ASSERT(input.arguments.size() == 1);
   auto param = input.arguments[0].get();
-  NEUG_ASSERT(param->getDataType().getLogicalTypeID() ==
-              LogicalTypeID::RECURSIVE_REL);
+  NEUG_ASSERT(param->getDataType().id() == DataTypeId::kPath);
   auto recursiveInfo = param->ptrCast<RelExpression>()->getRecursiveInfo();
   if (recursiveInfo->bindData->weightOutputExpr == nullptr) {
     THROW_BINDER_EXCEPTION(
@@ -48,8 +47,7 @@ static std::shared_ptr<Expression> rewriteFunc(
 function_set CostFunction::getFunctionSet() {
   function_set functionSet;
   auto function = std::make_unique<RewriteFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::RECURSIVE_REL},
-      rewriteFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, rewriteFunc);
   functionSet.push_back(std::move(function));
   return functionSet;
 }
