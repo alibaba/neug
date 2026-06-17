@@ -16,14 +16,16 @@
 #include "neug/transaction/wal/local_wal_parser.h"
 
 #include <fcntl.h>
-#include <glog/logging.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -32,6 +34,7 @@ LocalWalParser::LocalWalParser(const std::string& wal_uri) {
 }
 
 void LocalWalParser::open(const std::string& wal_uri) {
+  close();
   auto wal_dir = get_wal_uri_path(wal_uri);
   if (!std::filesystem::exists(wal_dir)) {
     std::filesystem::create_directory(wal_dir);
@@ -47,9 +50,18 @@ void LocalWalParser::open(const std::string& wal_uri) {
       continue;
     }
     int fd = ::open(path.c_str(), O_RDONLY);
-    void* mmapped_buffer = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (fd == -1) {
+      close();
+      THROW_IO_EXCEPTION("Failed to open wal file: " + path + ": " +
+                         strerror(errno));
+    }
+    void* mmapped_buffer =
+        ::mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (mmapped_buffer == MAP_FAILED) {
-      LOG(FATAL) << "mmap failed...";
+      ::close(fd);
+      close();
+      THROW_IO_EXCEPTION("Failed to mmap wal file: " + path + ": " +
+                         strerror(errno));
     }
 
     fds_.push_back(fd);
@@ -103,6 +115,11 @@ void LocalWalParser::close() {
   for (auto fd : fds_) {
     ::close(fd);
   }
+  fds_.clear();
+  mmapped_ptrs_.clear();
+  mmapped_size_.clear();
+  update_wal_list_.clear();
+  last_ts_ = 0;
 }
 
 uint32_t LocalWalParser::last_ts() const { return last_ts_; }
