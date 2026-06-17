@@ -99,7 +99,7 @@ def _parse_properties(path, name):
             key, value = line.split("=", 1)
             key, value = key.strip(), value.strip()
             if key.startswith(prefix):
-                props[key[len(prefix):]] = value
+                props[key[len(prefix) :]] = value
     return props
 
 
@@ -234,8 +234,8 @@ def _check_sssp(conn, props, directed, expected):
             )
         else:
             exp = float(raw)
-            assert got is not None and not unreachable(got) and _floats_close(
-                got, exp
+            assert (
+                got is not None and not unreachable(got) and _floats_close(got, exp)
             ), "vertex {} expected distance {}, got {}".format(vid, exp, got)
 
 
