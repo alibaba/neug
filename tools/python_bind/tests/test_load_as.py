@@ -1303,3 +1303,151 @@ class TestLoadAsParquet:
             self.conn.execute(
                 "MATCH (n:TempPqWR) RETURN n.age;"
             )
+
+
+@extension_test
+class TestLoadAsRemoteHttpfs:
+    """LOAD NODE/REL TABLE AS from remote Parquet files via httpfs.
+
+    Uses public OSS-hosted tinysnb dataset:
+      - vPerson.parquet (8 rows, 16 columns)
+      - eMeets.parquet  (7 rows: from, to, location, times, data)
+    """
+
+    VERTEX_URL = (
+        "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+    )
+    EDGE_URL = (
+        "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+    )
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        self.db_dir = str(tmp_path / "test_load_as_remote_db")
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        self.conn.execute("load httpfs")
+        self.conn.execute("load parquet")
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_load_node_table_from_remote_parquet(self):
+        """Basic LOAD NODE TABLE from remote Parquet via HTTP."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
+            f"(primary_key = 'ID') AS TempRemotePerson;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempRemotePerson) RETURN n.fName ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        assert rows[0][0] == "Alice"
+
+    def test_load_node_table_from_remote_with_where(self):
+        """LOAD NODE TABLE from remote with WHERE filter."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
+            f"(primary_key = 'ID') WHERE age >= 40 AS TempRemoteOld;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempRemoteOld) RETURN n.fName, n.age ORDER BY n.age;"
+        )
+        rows = list(result)
+        assert len(rows) >= 2
+        for row in rows:
+            assert row[1] >= 40
+
+    def test_load_node_table_from_remote_with_return(self):
+        """LOAD NODE TABLE from remote with RETURN projection."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
+            f"(primary_key = 'ID') RETURN ID, fName, height AS TempRemoteSlim;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempRemoteSlim) RETURN n.fName, n.height ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        # age should NOT be a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempRemoteSlim) RETURN n.age;"
+            )
+
+    def test_load_node_table_from_remote_where_and_return(self):
+        """WHERE + RETURN combined on remote: WHERE col not in RETURN."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
+            f"(primary_key = 'ID') "
+            f"WHERE age >= 40 "
+            f"RETURN ID, fName, gender AS TempRemoteWR;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempRemoteWR) RETURN n.fName, n.gender ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) >= 2
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempRemoteWR) RETURN n.age;"
+            )
+
+    def test_load_rel_table_from_remote_parquet(self):
+        """LOAD REL TABLE from remote Parquet (eMeets)."""
+        # First load vertex table.
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
+            f"(primary_key = 'ID') AS TempRemoteSrc;"
+        )
+        # Load edge table: eMeets has columns 'from', 'to', ...
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.EDGE_URL}" '
+            f"(from = 'TempRemoteSrc', to = 'TempRemoteSrc', "
+            f"from_col = 'from', to_col = 'to') AS TempRemoteMeets;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:TempRemoteSrc)-[r:TempRemoteMeets]->(b:TempRemoteSrc) "
+            "RETURN a.fName, b.fName, r.location ORDER BY a.ID;"
+        )
+        rows = list(result)
+        assert len(rows) >= 1
+
+    def test_mixed_persistent_and_remote_temp_query(self):
+        """Persistent graph + remote temp graph joint query.
+
+        Creates a persistent Person table with local data, then loads a
+        temporary edge table from remote Parquet (eMeets), and performs a
+        cross-table MATCH spanning both.
+        """
+        # Create persistent vertex table with the same IDs as vPerson.parquet.
+        self.conn.execute(
+            "CREATE NODE TABLE Person(ID INT64, name STRING, PRIMARY KEY(ID));"
+        )
+        for vid, name in [(0, "Alice"), (2, "Bob"), (3, "Carol"),
+                          (5, "Dan"), (7, "Elizabeth"), (8, "Farooq"),
+                          (9, "Greg"), (10, "Hubert")]:
+            self.conn.execute(
+                f"CREATE (p:Person {{ID: {vid}, name: '{name}'}});"
+            )
+
+        # Load remote edge table referencing persistent Person vertices.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.EDGE_URL}" '
+            f"(from = 'Person', to = 'Person', "
+            f"from_col = 'from', to_col = 'to') AS TempRemoteEdge;"
+        )
+
+        # Joint query: persistent vertices + temporary remote edges.
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempRemoteEdge]->(b:Person) "
+            "RETURN a.name, b.name, r.location ORDER BY a.ID;"
+        )
+        rows = list(result)
+        # eMeets.parquet has 7 edges among the 8 person IDs.
+        assert len(rows) >= 1
+        # Verify we get actual names from the persistent table.
+        assert all(isinstance(row[0], str) for row in rows)
+        assert all(isinstance(row[1], str) for row in rows)
