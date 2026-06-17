@@ -253,4 +253,15 @@ void VersionManager::release_compact_timestamp(uint32_t ts) {
   update_state_.store(0, std::memory_order_release);
 }
 
+void VersionManager::revert_compact_timestamp(uint32_t ts) {
+  // Compact must be in state 2
+  if (update_state_.load(std::memory_order_acquire) != 2) {
+    THROW_INTERNAL_EXCEPTION(
+        "revert_compact_timestamp called while not in compact state");
+  }
+
+  // Revert to normal state (2 -> 0)
+  update_state_.store(0, std::memory_order_release);
+}
+
 }  // namespace neug

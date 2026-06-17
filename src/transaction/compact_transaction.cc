@@ -74,7 +74,7 @@ bool CompactTransaction::Commit() {
 void CompactTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
-    vm_.release_compact_timestamp(timestamp_);
+    vm_.revert_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }
   guard_.release();

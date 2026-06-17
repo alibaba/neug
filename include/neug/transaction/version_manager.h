@@ -50,6 +50,7 @@ class IVersionManager {
   virtual void release_update_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
+  virtual void revert_compact_timestamp(uint32_t ts) = 0;
 
   virtual ~IVersionManager() {}
 };
@@ -102,6 +103,7 @@ class VersionManager : public IVersionManager {
   void release_update_timestamp(uint32_t ts) override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
+  void revert_compact_timestamp(uint32_t ts) override;
 
  private:
   int thread_num_;
