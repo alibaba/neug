@@ -345,23 +345,106 @@ def test_run_kcore(tmp_path):
             assert row[1] >= -1, "core should be >= -1 (-1 = below threshold)"
 
 
-def test_cdlp_rejects_edge_predicate(tmp_path):
-    """CDLP supports vertex predicates but not edge predicates; passing an
-    edge predicate must raise rather than silently ignore it."""
+def test_cdlp_with_edge_predicate(tmp_path):
+    """CDLP propagates labels only along edges satisfying the edge predicate.
+    A predicate that excludes every edge leaves each vertex in its own
+    community (no propagation), which also guards against silently ignoring
+    the predicate."""
     with tinysnb_connection(tmp_path) as conn:
         conn.execute(
-            "CALL project_graph('my_subgraph', "
-            "['person'], "
-            "{'[person, knows, person]': 'r.date > Date(\"2021-01-01\")'});"
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
         )
         conn.execute("LOAD gds;")
-        with pytest.raises(Exception):
-            list(
-                conn.execute(
-                    "CALL cdlp('my_subgraph', {max_iterations: 2}) "
-                    "YIELD node, label RETURN node.id, label;"
-                )
+        rows = list(
+            conn.execute(
+                "CALL cdlp('g', {max_iterations: 5}) "
+                "YIELD node, label RETURN node.id, label;"
             )
+        )
+        assert len(rows) > 0
+        labels = [r[1] for r in rows]
+        # No edge survives the predicate, so no labels propagate and every
+        # vertex keeps its own initial (distinct) community.
+        assert len(set(labels)) == len(rows)
+
+
+def test_wcc_with_edge_predicate(tmp_path):
+    """WCC honors an edge predicate: excluding every edge leaves each vertex
+    in its own component."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL wcc('g', {concurrency: 1}) YIELD node, comp "
+                "RETURN node.id, comp;"
+            )
+        )
+        assert len(rows) > 0
+        comps = [r[1] for r in rows]
+        assert len(set(comps)) == len(rows)
+
+
+def test_wcc_with_vertex_predicate(tmp_path):
+    """WCC with a vertex predicate restricts the output to subgraph vertices."""
+    with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL wcc('g', {concurrency: 1}) YIELD node, comp "
+                "RETURN node.id, comp;"
+            )
+        )
+        assert len(rows) == len(expected)
+
+
+def test_bfs_with_edge_predicate(tmp_path):
+    """BFS honors an edge predicate: excluding every edge leaves only the
+    source reachable."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL bfs('g', {source: '0'}) YIELD node, distance "
+                "RETURN node.id, distance;"
+            )
+        )
+        assert len(rows) > 0
+        reachable = [(nid, d) for nid, d in rows if d >= 0]
+        assert reachable == [(0, 0)]
+
+
+def test_sssp_with_edge_predicate(tmp_path):
+    """SSSP honors an edge predicate: excluding every edge leaves only the
+    source reachable at distance 0."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL sssp('g', {source: '0'}) YIELD node, distance "
+                "RETURN node.id, distance;"
+            )
+        )
+        assert len(rows) > 0
+        reachable = [(nid, d) for nid, d in rows if d >= 0]
+        assert reachable == [(0, 0.0)]
 
 
 def test_page_rank_rejects_vertex_predicate(tmp_path):

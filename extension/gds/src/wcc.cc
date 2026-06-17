@@ -17,6 +17,7 @@
 #include "wcc.h"
 
 #include "impl/wcc_impl.h"
+#include "impl/wcc_pred_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -36,21 +37,16 @@ struct WCCInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in WCC.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in WCC.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t node_alias;
   int32_t comp_alias;
   int32_t concurrency;
@@ -81,11 +77,19 @@ execution::Context WCCFunction::exec(
   const auto& input = dynamic_cast<const WCCInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  WCC wcc(graph, input.vertex_label, input.edge_label, input.concurrency);
-  wcc.compute();
-
   execution::Context ret;
-  wcc.sink(ret, input.node_alias, input.comp_alias);
+  // The plain WCC has no predicate support; dispatch to the predicate-aware
+  // variant when a vertex or edge predicate is present.
+  if (input.vertex_pred != nullptr || input.edge_pred != nullptr) {
+    WCCPred wcc(graph, input.vertex_label, input.edge_label, input.concurrency,
+                input.vertex_pred.get(), input.edge_pred.get());
+    wcc.compute();
+    wcc.sink(ret, input.node_alias, input.comp_alias);
+  } else {
+    WCC wcc(graph, input.vertex_label, input.edge_label, input.concurrency);
+    wcc.compute();
+    wcc.sink(ret, input.node_alias, input.comp_alias);
+  }
   return ret;
 }
 

@@ -16,6 +16,7 @@
 
 #include "cdlp.h"
 #include "impl/cdlp_impl.h"
+#include "impl/cdlp_pred_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -42,15 +43,14 @@ struct CDLPInput : public function::CallFuncInputBase {
     if (parsed.edge_entries.empty()) {
       throw std::runtime_error("CDLP requires exactly one edge label.");
     }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      throw std::runtime_error("Edge predicates are not supported in CDLP.");
-    }
     edge_triplet = parsed.edge_entries[0].triplet;
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
   }
 
   label_t vertex_label;
   std::unique_ptr<execution::ExprBase> vertex_pred;
   execution::LabelTriplet edge_triplet;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t max_iterations;
   int32_t node_alias, label_alias;
   int32_t concurrency;
@@ -80,13 +80,22 @@ execution::Context CDLPFunction::exec(
   const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  CDLP runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
-              lp_input.max_iterations, lp_input.concurrency,
-              lp_input.vertex_pred.get());
-  runner.compute();
-
   execution::Context ret;
-  runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
+  // The plain CDLP only supports a vertex predicate; when an edge predicate is
+  // present, dispatch to the predicate-aware variant that filters edges.
+  if (lp_input.edge_pred != nullptr) {
+    CDLPPred runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
+                    lp_input.max_iterations, lp_input.concurrency,
+                    lp_input.vertex_pred.get(), lp_input.edge_pred.get());
+    runner.compute();
+    runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
+  } else {
+    CDLP runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
+                lp_input.max_iterations, lp_input.concurrency,
+                lp_input.vertex_pred.get());
+    runner.compute();
+    runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
+  }
   return ret;
 }
 

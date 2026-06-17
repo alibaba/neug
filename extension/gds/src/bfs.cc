@@ -17,6 +17,7 @@
 #include "bfs.h"
 
 #include "impl/bfs_impl.h"
+#include "impl/bfs_pred_impl.h"
 #include "neug/execution/common/context.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
@@ -37,22 +38,17 @@ struct BFSInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in BFS.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in BFS.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
 
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   std::string source;
   int32_t concurrency;
   bool directed;
@@ -99,11 +95,21 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
-  BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
-          bfs_input.directed, bfs_input.concurrency);
-  bfs.compute();
   execution::Context ret;
-  bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias);
+  // The plain BFS has no predicate support; dispatch to the predicate-aware
+  // variant when a vertex or edge predicate is present.
+  if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
+    BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
+                bfs_input.directed, bfs_input.concurrency,
+                bfs_input.vertex_pred.get(), bfs_input.edge_pred.get());
+    bfs.compute();
+    bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias);
+  } else {
+    BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
+            bfs_input.directed, bfs_input.concurrency);
+    bfs.compute();
+    bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias);
+  }
   return ret;
 }
 

@@ -19,6 +19,7 @@
 #include <thread>
 
 #include "impl/sssp_impl.h"
+#include "impl/sssp_pred_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -38,22 +39,17 @@ struct SSSPInput : public function::CallFuncInputBase {
       return false;
     }
 
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in SSSP.";
-      return false;
-    }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in SSSP.";
-      return false;
-    }
-
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
+    vertex_pred = std::move(parsed.vertex_entries[0].predicate);
+    edge_pred = std::move(parsed.edge_entries[0].predicate);
     return true;
   }
 
   label_t vertex_label;
   label_t edge_label;
+  std::unique_ptr<execution::ExprBase> vertex_pred;
+  std::unique_ptr<execution::ExprBase> edge_pred;
   std::string source;
   bool directed;
   std::string edge_weight;
@@ -102,13 +98,23 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
-  SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
-            sssp_input.directed, sssp_input.edge_weight,
-            sssp_input.concurrency);
-  sssp.compute();
-
   execution::Context ret;
-  sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+  // The plain SSSP has no predicate support; dispatch to the predicate-aware
+  // variant when a vertex or edge predicate is present.
+  if (sssp_input.vertex_pred != nullptr || sssp_input.edge_pred != nullptr) {
+    SSSPPred sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
+                  source_vid, sssp_input.directed, sssp_input.edge_weight,
+                  sssp_input.concurrency, sssp_input.vertex_pred.get(),
+                  sssp_input.edge_pred.get());
+    sssp.compute();
+    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+  } else {
+    SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
+              sssp_input.directed, sssp_input.edge_weight,
+              sssp_input.concurrency);
+    sssp.compute();
+    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+  }
   return ret;
 }
 
