@@ -132,8 +132,8 @@ RETURN node, rank;
 |---|---|---|---|
 | `damping_factor` | DOUBLE | `0.85` | Probability of following a link (vs. random jump) |
 | `max_iterations` | INT | `20` | Maximum number of iterations |
-| `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 | `directed` | BOOL | `false` | Whether to treat edges as directed |
+| `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 
 **Output columns:**
 
@@ -171,8 +171,8 @@ RETURN node, distance;
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `source` | STRING | *(required)* | The source vertex's primary key value |
-| `concurrency` | INT | CPU cores | Number of threads |
 | `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
+| `concurrency` | INT | CPU cores | Number of threads |
 
 **Output columns:**
 
@@ -282,7 +282,7 @@ RETURN node, lcc;
 |---|---|---|---|
 | `directed` | BOOL | `false` | Whether to compute the directed clustering coefficient |
 | `degree_threshold` | INT | MAX_INT | Skip vertices with degree above this threshold |
-| `concurrency` | INT | CPU cores | Number of threads |
+| `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 
 **Output columns:**
 
@@ -356,7 +356,7 @@ RETURN node, label;
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `max_iterations` | INT | `5` | Maximum number of propagation iterations |
-| `concurrency` | INT | `1` | Number of threads |
+| `concurrency` | INT | `1` | Number of threads for parallel execution |
 
 **Output columns:**
 
@@ -402,6 +402,7 @@ RETURN node, community;
 | `resolution` | DOUBLE | `1.0` | Resolution parameter (gamma). Values > 1 favor smaller communities, < 1 favor larger communities |
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
+| `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 
 **Output columns:**
 
@@ -413,7 +414,7 @@ RETURN node, community;
 **Example:**
 
 ```cypher
-CALL louvain('social', {resolution: 1.0})
+CALL louvain('social', {resolution: 1.0, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
 ```
@@ -440,6 +441,7 @@ RETURN node, community;
 | `resolution` | DOUBLE | `1.0` | Resolution parameter (gamma). Values > 1 favor smaller communities, < 1 favor larger communities |
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
+| `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 
 **Output columns:**
 
@@ -451,7 +453,7 @@ RETURN node, community;
 **Example:**
 
 ```cypher
-CALL leiden('social', {resolution: 1.5})
+CALL leiden('social', {resolution: 1.5, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
 ```
@@ -508,8 +510,8 @@ RETURN node, personalized_page_rank;
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | Label Propagation | `label_propagation` | `node`, `label` | `max_iterations` |
-| Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold` |
-| Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold` |
+| Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
+| Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
 | Personalized PageRank* | `personalized_page_rank` | `node`, `personalized_page_rank` | `edge_weight`, `node_weight` |
 
 \* Not yet registered in the extension; available in a future release.
