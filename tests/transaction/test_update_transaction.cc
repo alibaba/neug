@@ -882,9 +882,9 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
 }
 
-// Regression test for: DeleteVertex with intra-label edges must collect incoming
-// intra-label edges in the COW undo log so that Abort() can properly restore
-// them. See https://github.com/alibaba/neug/issues/558
+// Regression test for: DeleteVertex with intra-label edges must collect
+// incoming intra-label edges in the COW undo log so that Abort() can properly
+// restore them. See https://github.com/alibaba/neug/issues/558
 TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
