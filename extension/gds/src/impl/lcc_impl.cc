@@ -282,7 +282,6 @@ void LCCDirected::compute() {
                                                     vertex_label_, edge_label_);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
-  size_t vertex_count = graph_.GetVertexSet(vertex_label_).size();
 
   ParallelUtils::parallel_for(
       vertices_.data(), vertices_.size(),
@@ -351,75 +350,38 @@ void LCCDirected::compute() {
       },
       concurrency_);
 
-  std::vector<std::vector<vid_t>> oriented(vertex_count);
+  // The directed local clustering coefficient of v is the number of directed
+  // edges a->b between distinct members a, b of its neighborhood N(v), divided
+  // by |N(v)| * (|N(v)| - 1).  N(v) is the set of vertices adjacent to v via an
+  // in- or out-edge (neighbors_[v], already deduplicated and sorted).  Counting
+  // directed edges among the neighborhood cannot be reduced to undirected
+  // triangle enumeration, so we evaluate the definition directly.
   ParallelUtils::parallel_for(
       vertices_.data(), vertices_.size(),
       [&](vid_t v, int tid) {
-        if (degrees_[v] > degree_threshold_) {
+        int32_t d = unique_degrees_[v];
+        if (d <= 1 || degrees_[v] > degree_threshold_) {
+          triangles_[v] = 0;
+          lcc_[v] = 0.0;
           return;
         }
-        auto& out = oriented[v];
         const auto& nbrs = neighbors_[v];
-        out.reserve(nbrs.size());
-        for (vid_t u : nbrs) {
-          if (degrees_[u] > degree_threshold_) {
-            continue;
-          }
-          if (degrees_[u] > degrees_[v] ||
-              (degrees_[u] == degrees_[v] && u < v)) {
-            out.push_back(u);
+        int64_t edge_count = 0;
+        for (vid_t a : nbrs) {
+          const auto& a_oe = oe_view.get_edges(a);
+          for (auto it = a_oe.begin(); it != a_oe.end(); ++it) {
+            vid_t b = *it;
+            if (b != a &&
+                std::binary_search(nbrs.begin(), nbrs.end(), b)) {
+              ++edge_count;
+            }
           }
         }
-        std::sort(out.begin(), out.end());
+        triangles_[v] = edge_count;
+        lcc_[v] = static_cast<double>(edge_count) /
+                  (static_cast<double>(d) * static_cast<double>(d - 1));
       },
       concurrency_);
-
-  std::vector<std::atomic<int64_t>> atomic_tri(vertex_count);
-  for (auto& t : atomic_tri) {
-    t.store(0, std::memory_order_relaxed);
-  }
-
-  ParallelUtils::parallel_for(
-      vertices_.data(), vertices_.size(),
-      [&](vid_t v, int tid) {
-        if (degrees_[v] <= 1 || degrees_[v] > degree_threshold_) {
-          return;
-        }
-        const auto& v_list = oriented[v];
-        const auto& v_weights = neighbor_weights_[v];
-        for (size_t vi = 0; vi < v_list.size(); ++vi) {
-          vid_t u = v_list[vi];
-          const auto& u_list = oriented[u];
-          const auto& u_weights = neighbor_weights_[u];
-          int64_t pair_triangles = 0;
-
-          intersect_sorted_adaptive(
-              v_list.data(), v_list.size(), u_list.data(), u_list.size(),
-              [&](vid_t w, size_t i, size_t j) {
-                int64_t contribution = static_cast<int64_t>(v_weights[i]) *
-                                       static_cast<int64_t>(u_weights[j]);
-                pair_triangles += contribution;
-                atomic_tri[w].fetch_add(contribution,
-                                        std::memory_order_relaxed);
-              });
-          if (pair_triangles > 0) {
-            atomic_tri[v].fetch_add(pair_triangles, std::memory_order_relaxed);
-            atomic_tri[u].fetch_add(pair_triangles, std::memory_order_relaxed);
-          }
-        }
-      },
-      concurrency_);
-
-  for (vid_t v : vertices_) {
-    triangles_[v] = atomic_tri[v].load(std::memory_order_relaxed);
-    if (unique_degrees_[v] <= 1 || degrees_[v] > degree_threshold_) {
-      lcc_[v] = 0.0;
-    } else {
-      lcc_[v] = static_cast<double>(triangles_[v]) /
-                (static_cast<double>(unique_degrees_[v]) *
-                 static_cast<double>(unique_degrees_[v] - 1));
-    }
-  }
 }
 
 void LCCDirected::sink(execution::Context& ctx, int node_alias, int lcc_alias) {

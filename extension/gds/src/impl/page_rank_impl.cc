@@ -211,7 +211,10 @@ void UndirectedPageRank::compute(int max_iterations) {
           uint32_t degree = out_degree_[v];
           new_pr[v] =
               degree > 0 ? (base + damping_factor_ * rank_sum) / degree : base;
-          if (iter == max_iterations) {
+          // Ranks are kept divided by degree so neighbors can be summed
+          // directly; on the final iteration undo that normalization to
+          // recover the actual PageRank value.
+          if (iter == max_iterations - 1) {
             double pr = new_pr[v];
             new_pr[v] = degree > 0 ? pr * degree : pr;
           }

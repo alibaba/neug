@@ -111,10 +111,14 @@ void BFS::compute() {
               return;
             }
 
+            // Pull mode: a vertex joins this level only if it has a neighbor in
+            // the *current* frontier (distance == level - 1).  Checking for any
+            // visited neighbor instead would collapse every remaining reachable
+            // vertex into a single level.
             bool reachable = false;
             auto ie_edges = ie_view.get_edges(dst);
             for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
-              if (distances_[*it] != std::numeric_limits<uint32_t>::max()) {
+              if (distances_[*it] == level - 1) {
                 reachable = true;
                 break;
               }
@@ -123,7 +127,7 @@ void BFS::compute() {
             if (!reachable && !directed_) {
               auto oe_edges = oe_view.get_edges(dst);
               for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-                if (distances_[*it] != std::numeric_limits<uint32_t>::max()) {
+                if (distances_[*it] == level - 1) {
                   reachable = true;
                   break;
                 }
