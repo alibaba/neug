@@ -115,8 +115,7 @@ result<QueryResult> QueryProcessor::execute_internal(
     std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
   StorageAPUpdateInterface graph(g_, 0, allocator_);
-  std::unique_ptr<execution::OprTimer> timer_ptr =
-      std::make_unique<execution::OprTimer>();
+  std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
   auto ctx_res = cache_value->pipeline.Execute(graph, execution::Context(),
                                                parameters, timer_ptr.get());
   if (!ctx_res) {
@@ -125,7 +124,6 @@ result<QueryResult> QueryProcessor::execute_internal(
                << ", message: " << ctx_res.error().error_message();
     RETURN_ERROR(ctx_res.error());
   }
-  timer_ptr->output("", std::cout);
 
   google::protobuf::Arena arena;
   // Create a QueryResponse message on the arena to hold the results.
