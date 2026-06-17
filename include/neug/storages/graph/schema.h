@@ -30,7 +30,6 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/bitset.h"
-#include "neug/utils/id_indexer.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
