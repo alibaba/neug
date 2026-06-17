@@ -16,19 +16,19 @@
 
 #pragma once
 
+#include <vector>
+
 #include "neug/compiler/function/gds/gds_algo_function.h"
-#include "neug/compiler/function/neug_call_function.h"
 
 namespace neug {
 namespace gds {
-struct NEUG_API PersonalizedPageRankFunction {
-  static constexpr const char* name = "personalized_page_rank";
-  static neug::execution::Context exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& graph);
-
+struct NEUG_API CDLPFunction {
+  static constexpr const char* name = "cdlp";
   static std::unique_ptr<function::CallFuncInputBase> bind(
       const Schema& schema, const execution::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);
+  static neug::execution::Context exec(const function::CallFuncInputBase& input,
+                                       neug::IStorageInterface& graph);
 
   static function::function_set getFunctionSet();
 };

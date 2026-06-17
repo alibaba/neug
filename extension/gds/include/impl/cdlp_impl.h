@@ -27,13 +27,12 @@
 namespace neug {
 namespace gds {
 
-class LabelPropagation {
+class CDLP {
  public:
-  LabelPropagation(const StorageReadInterface& graph, label_t vertex_label,
-                   const execution::LabelTriplet& edge_triplet,
-                   int max_iterations, int concurrency,
-                   execution::ExprBase* vertex_pred,
-                   execution::ExprBase* edge_pred);
+  CDLP(const StorageReadInterface& graph, label_t vertex_label,
+       const execution::LabelTriplet& edge_triplet, int max_iterations,
+       int concurrency, execution::ExprBase* vertex_pred,
+       execution::ExprBase* edge_pred);
 
   void compute();
   void sink(execution::Context& ctx, int32_t node_alias, int32_t label_alias);

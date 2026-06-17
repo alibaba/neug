@@ -25,7 +25,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "utils/parallel_utils.h"
-#include "utils/source_vertex_utils.h"
+#include "utils/subgraph_utils.h"
 
 namespace neug {
 namespace gds {

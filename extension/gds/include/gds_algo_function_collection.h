@@ -21,8 +21,8 @@
 #include "neug/compiler/function/gds/gds_algo_function.h"
 
 #include "bfs.h"
+#include "cdlp.h"
 #include "kcore.h"
-#include "label_propagation.h"
 #include "lcc.h"
 #include "leiden.h"
 #include "louvain.h"
