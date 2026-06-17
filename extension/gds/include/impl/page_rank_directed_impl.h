@@ -28,8 +28,7 @@ namespace gds {
 class DirectedPageRank {
  public:
   DirectedPageRank(const StorageReadInterface& graph, label_t vertex_label,
-                   label_t edge_label, double damping_factor, int concurrency,
-                   execution::ExprBase* vertex_predicate);
+                   label_t edge_label, double damping_factor, int concurrency);
 
   void compute(int max_iterations);
   void sink(execution::Context& ctx, int node_alias, int pr_alias);

@@ -26,8 +26,7 @@ namespace gds {
 
 DirectedPageRank::DirectedPageRank(const StorageReadInterface& graph,
                                    label_t vertex_label, label_t edge_label,
-                                   double damping_factor, int concurrency,
-                                   execution::ExprBase* vertex_predicate)
+                                   double damping_factor, int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),

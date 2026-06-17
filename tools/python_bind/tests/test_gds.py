@@ -121,7 +121,7 @@ def test_run_cdlp(tmp_path):
             "CALL project_graph("
             "'my_subgraph', "
             "{'person': 'n.age > 20', 'organisation': 'n.name = \"MIT\"'}, "
-            "{'[person, studyat, organisation]': 'r.year > 2010'}"
+            "{'[person, studyat, organisation]': ''}"
             ");"
         )
         conn.execute("LOAD gds;")
@@ -343,6 +343,43 @@ def test_run_kcore(tmp_path):
             assert isinstance(row[1], int), "core should be an integer"
             # -1 indicates a node whose core number is below the k threshold
             assert row[1] >= -1, "core should be >= -1 (-1 = below threshold)"
+
+
+def test_cdlp_rejects_edge_predicate(tmp_path):
+    """CDLP supports vertex predicates but not edge predicates; passing an
+    edge predicate must raise rather than silently ignore it."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('my_subgraph', "
+            "['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2021-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        with pytest.raises(Exception):
+            list(
+                conn.execute(
+                    "CALL cdlp('my_subgraph', {max_iterations: 2}) "
+                    "YIELD node, label RETURN node.id, label;"
+                )
+            )
+
+
+def test_page_rank_rejects_vertex_predicate(tmp_path):
+    """PageRank does not support vertex predicates; passing one must raise
+    rather than silently ignore the filter."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        with pytest.raises(Exception):
+            list(
+                conn.execute(
+                    "CALL page_rank('g', {max_iterations: 5}) "
+                    "YIELD node, rank RETURN node.id, rank;"
+                )
+            )
 
 
 # ---------------------------------------------------------------------------

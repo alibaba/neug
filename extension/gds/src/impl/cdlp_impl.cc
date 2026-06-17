@@ -31,15 +31,13 @@ namespace gds {
 
 CDLP::CDLP(const StorageReadInterface& graph, label_t vertex_label,
            const execution::LabelTriplet& edge_triplet, int max_iterations,
-           int concurrency, execution::ExprBase* vertex_pred,
-           execution::ExprBase* edge_pred)
+           int concurrency, execution::ExprBase* vertex_pred)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_triplet_(edge_triplet),
       max_iterations_(max_iterations),
       concurrency_(concurrency),
-      vertex_pred_(vertex_pred),
-      edge_pred_(edge_pred) {}
+      vertex_pred_(vertex_pred) {}
 
 template <typename PRED_T>
 void CDLP::init_communities(const PRED_T& vertex_pred) {
@@ -203,8 +201,6 @@ bool CDLP::run_single_iteration(int64_t* buffer, const size_t* offsets,
 }
 
 void CDLP::compute() {
-  (void) edge_pred_;
-
   if (vertex_pred_) {
     auto expr = vertex_pred_->bind(&graph_, {});
     execution::GeneralPred vertex_pred(std::move(expr));

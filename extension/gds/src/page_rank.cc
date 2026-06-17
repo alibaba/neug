@@ -37,12 +37,15 @@ struct PageRankInput : public function::CallFuncInputBase {
       return false;
     }
 
+    if (parsed.vertex_entries[0].predicate != nullptr) {
+      LOG(ERROR) << "Vertex predicates are not supported in PageRank.";
+      return false;
+    }
     if (parsed.edge_entries[0].predicate != nullptr) {
       LOG(ERROR) << "Edge predicates are not supported in PageRank.";
       return false;
     }
 
-    vertex_predicate = std::move(parsed.vertex_entries[0].predicate);
     vertex_label = parsed.vertex_entries[0].label;
     edge_label = parsed.edge_entries[0].triplet.edge_label;
     return true;
@@ -50,7 +53,6 @@ struct PageRankInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   label_t edge_label;
-  std::unique_ptr<execution::ExprBase> vertex_predicate;
   int max_iterations;
   double damping_factor;
   int concurrency;
@@ -90,16 +92,15 @@ execution::Context PageRankFunction::exec(
   if (func_input.directed) {
     DirectedPageRank pagerank(graph, func_input.vertex_label,
                               func_input.edge_label, func_input.damping_factor,
-                              func_input.concurrency,
-                              func_input.vertex_predicate.get());
+                              func_input.concurrency);
     pagerank.compute(func_input.max_iterations);
 
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
   } else {
-    UndirectedPageRank pagerank(
-        graph, func_input.vertex_label, func_input.edge_label,
-        func_input.damping_factor, func_input.concurrency,
-        func_input.vertex_predicate.get());
+    UndirectedPageRank pagerank(graph, func_input.vertex_label,
+                                func_input.edge_label,
+                                func_input.damping_factor,
+                                func_input.concurrency);
     pagerank.compute(func_input.max_iterations);
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
   }

@@ -42,14 +42,15 @@ struct CDLPInput : public function::CallFuncInputBase {
     if (parsed.edge_entries.empty()) {
       throw std::runtime_error("CDLP requires exactly one edge label.");
     }
+    if (parsed.edge_entries[0].predicate != nullptr) {
+      throw std::runtime_error("Edge predicates are not supported in CDLP.");
+    }
     edge_triplet = parsed.edge_entries[0].triplet;
-    edge_pred = std::move(parsed.edge_entries[0].predicate);
   }
 
   label_t vertex_label;
   std::unique_ptr<execution::ExprBase> vertex_pred;
   execution::LabelTriplet edge_triplet;
-  std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t max_iterations;
   int32_t node_alias, label_alias;
   int32_t concurrency;
@@ -81,7 +82,7 @@ execution::Context CDLPFunction::exec(
 
   CDLP runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
               lp_input.max_iterations, lp_input.concurrency,
-              lp_input.vertex_pred.get(), lp_input.edge_pred.get());
+              lp_input.vertex_pred.get());
   runner.compute();
 
   execution::Context ret;

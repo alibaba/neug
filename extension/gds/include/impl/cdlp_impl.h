@@ -32,8 +32,7 @@ class CDLP {
  public:
   CDLP(const StorageReadInterface& graph, label_t vertex_label,
        const execution::LabelTriplet& edge_triplet, int max_iterations,
-       int concurrency, execution::ExprBase* vertex_pred,
-       execution::ExprBase* edge_pred);
+       int concurrency, execution::ExprBase* vertex_pred);
 
   void compute();
   void sink(execution::Context& ctx, int32_t node_alias, int32_t label_alias);
@@ -55,7 +54,6 @@ class CDLP {
   int max_iterations_;
   int concurrency_;
   execution::ExprBase* vertex_pred_;
-  execution::ExprBase* edge_pred_;
 
   std::unique_ptr<int64_t[]> community_;
   std::unique_ptr<int64_t[]> next_community_;

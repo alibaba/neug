@@ -26,14 +26,12 @@ namespace gds {
 
 UndirectedPageRank::UndirectedPageRank(const StorageReadInterface& graph,
                                        label_t vertex_label, label_t edge_label,
-                                       double damping_factor, int concurrency,
-                                       execution::ExprBase* vertex_predicate)
+                                       double damping_factor, int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),
       damping_factor_(damping_factor),
       concurrency_(concurrency) {
-  (void) vertex_predicate;
   vertex_count_ = graph.GetVertexSet(vertex_label).size();
   pr_.reset(new double[vertex_count_]);
   out_degree_.reset(new uint32_t[vertex_count_]);
