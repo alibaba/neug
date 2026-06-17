@@ -104,7 +104,14 @@ void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
     LOG(ERROR) << "Schema YAML node is not a map";
     return;
   }
-  database->updateSchema(schema_yaml_node);
+  auto schemaResult = Schema::LoadFromYamlNode(schema_yaml_node);
+  if (!schemaResult) {
+    LOG(ERROR) << "Failed to parse schema YAML node: "
+               << schemaResult.error().ToString();
+    return;
+  }
+  currentSchema = std::move(schemaResult).value();
+  database->updateSchema(&currentSchema);
 }
 
 void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {

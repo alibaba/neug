@@ -15,6 +15,8 @@
 
 #include "neug/storages/graph/schema.h"
 
+#include "neug/compiler/catalog/catalog.h"
+
 #include <ctype.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
@@ -26,6 +28,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/compiler/common/constants.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/pb_utils.h"
@@ -38,6 +41,81 @@
 namespace neug {
 
 using execution::Value;
+
+namespace {
+binder::PropertyDefinition MakePropertyDefinition(const std::string& name,
+                                                  const DataType& type) {
+  return binder::PropertyDefinition(
+      binder::ColumnDefinition(name, common::DataType(type)));
+}
+
+std::vector<binder::PropertyDefinition> GetVertexSchemaProperties(
+    const VertexSchema& schema) {
+  std::vector<binder::PropertyDefinition> result;
+  result.emplace_back(MakePropertyDefinition(
+      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
+  result.emplace_back(MakePropertyDefinition(common::InternalKeyword::LABEL,
+                                             common::DataType::Varchar()));
+  std::vector<std::tuple<size_t, std::string, DataType>> user_properties;
+  user_properties.reserve(schema.primary_keys.size() +
+                          schema.property_names.size());
+  for (const auto& [type, name, index] : schema.primary_keys) {
+    user_properties.emplace_back(index, name, type);
+  }
+  for (size_t i = 0; i < schema.property_names.size(); ++i) {
+    size_t original_index = i;
+    for (const auto& [_, __, pk_index] : schema.primary_keys) {
+      if (original_index >= pk_index) {
+        ++original_index;
+      }
+    }
+    user_properties.emplace_back(original_index, schema.property_names[i],
+                                 schema.property_types[i]);
+  }
+  std::sort(user_properties.begin(), user_properties.end(),
+            [](const auto& lhs, const auto& rhs) {
+              return std::get<0>(lhs) < std::get<0>(rhs);
+            });
+  for (const auto& [_, name, type] : user_properties) {
+    result.emplace_back(MakePropertyDefinition(name, type));
+  }
+  return result;
+}
+
+std::vector<binder::PropertyDefinition> GetEdgeSchemaProperties(
+    const EdgeSchema& schema) {
+  std::vector<binder::PropertyDefinition> result;
+  result.emplace_back(MakePropertyDefinition(
+      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
+  result.emplace_back(MakePropertyDefinition(
+      common::InternalKeyword::SRC, common::DataType(DataTypeId::kInternalId)));
+  result.emplace_back(MakePropertyDefinition(
+      common::InternalKeyword::DST, common::DataType(DataTypeId::kInternalId)));
+  result.emplace_back(MakePropertyDefinition(common::InternalKeyword::LABEL,
+                                             common::DataType::Varchar()));
+  for (size_t i = 0; i < schema.property_names.size(); ++i) {
+    result.emplace_back(
+        MakePropertyDefinition(schema.property_names[i], schema.properties[i]));
+  }
+  return result;
+}
+
+common::property_id_t GetPropertyID(
+    const std::vector<binder::PropertyDefinition>& properties,
+    const std::string& propertyName) {
+  for (common::idx_t i = 0; i < properties.size(); ++i) {
+    if (properties[i].getName() == propertyName) {
+      return i;
+    }
+  }
+  THROW_RUNTIME_ERROR("Cannot find property " + propertyName + ".");
+}
+}  // namespace
+
+common::column_id_t catalog::SchemaEntry::getColumnID(
+    const std::string& propertyName) const {
+  return getPropertyID(propertyName);
+}
 
 std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
   try {
@@ -233,6 +311,56 @@ bool VertexSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
+common::column_id_t VertexSchema::getMaxColumnID() const {
+  auto properties = GetVertexSchemaProperties(*this);
+  return properties.empty() ? 0 : properties.size() - 1;
+}
+
+std::vector<binder::PropertyDefinition> VertexSchema::getProperties() const {
+  return GetVertexSchemaProperties(*this);
+}
+
+common::idx_t VertexSchema::getNumProperties() const {
+  return GetVertexSchemaProperties(*this).size();
+}
+
+bool VertexSchema::containsProperty(const std::string& propertyName) const {
+  auto properties = GetVertexSchemaProperties(*this);
+  return std::any_of(
+      properties.begin(), properties.end(),
+      [&](const auto& property) { return property.getName() == propertyName; });
+}
+
+common::property_id_t VertexSchema::getPropertyID(
+    const std::string& propertyName) const {
+  return GetPropertyID(GetVertexSchemaProperties(*this), propertyName);
+}
+
+binder::PropertyDefinition VertexSchema::getProperty(
+    const std::string& propertyName) const {
+  auto properties = GetVertexSchemaProperties(*this);
+  return properties.at(GetPropertyID(properties, propertyName)).copy();
+}
+
+const binder::PropertyDefinition VertexSchema::getProperty(
+    common::idx_t idx) const {
+  return GetVertexSchemaProperties(*this).at(idx).copy();
+}
+
+std::string VertexSchema::getLabel(
+    const catalog::Catalog* /*catalog*/,
+    const transaction::Transaction* /*transaction*/) {
+  return label_name;
+}
+
+common::property_id_t VertexSchema::getPrimaryKeyID() const {
+  return getPropertyID(getPrimaryKeyName());
+}
+
+std::string VertexSchema::getPrimaryKeyName() const {
+  return primary_keys.empty() ? "" : std::get<1>(primary_keys[0]);
+}
+
 bool EdgeSchema::is_bundled() const {
   if (properties.empty()) {
     return true;
@@ -379,6 +507,48 @@ bool EdgeSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
+common::column_id_t EdgeSchema::getMaxColumnID() const {
+  auto properties = GetEdgeSchemaProperties(*this);
+  return properties.empty() ? 0 : properties.size() - 1;
+}
+
+std::vector<binder::PropertyDefinition> EdgeSchema::getProperties() const {
+  return GetEdgeSchemaProperties(*this);
+}
+
+common::idx_t EdgeSchema::getNumProperties() const {
+  return GetEdgeSchemaProperties(*this).size();
+}
+
+bool EdgeSchema::containsProperty(const std::string& propertyName) const {
+  auto properties = GetEdgeSchemaProperties(*this);
+  return std::any_of(
+      properties.begin(), properties.end(),
+      [&](const auto& property) { return property.getName() == propertyName; });
+}
+
+common::property_id_t EdgeSchema::getPropertyID(
+    const std::string& propertyName) const {
+  return GetPropertyID(GetEdgeSchemaProperties(*this), propertyName);
+}
+
+binder::PropertyDefinition EdgeSchema::getProperty(
+    const std::string& propertyName) const {
+  auto properties = GetEdgeSchemaProperties(*this);
+  return properties.at(GetPropertyID(properties, propertyName)).copy();
+}
+
+const binder::PropertyDefinition EdgeSchema::getProperty(
+    common::idx_t idx) const {
+  return GetEdgeSchemaProperties(*this).at(idx).copy();
+}
+
+std::string EdgeSchema::getLabel(
+    const catalog::Catalog* /*catalog*/,
+    const transaction::Transaction* /*transaction*/) {
+  return edge_label_name;
+}
+
 Schema::Schema() = default;
 Schema::~Schema() = default;
 
@@ -410,6 +580,7 @@ void Schema::AddVertexLabel(
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
       label, property_types, property_names, primary_key,
       default_property_values, description, max_vnum);
+  v_schemas_[v_label_id]->label_id = v_label_id;
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
            << ", prop size: " << v_schemas_[v_label_id]->property_names.size();
 }
@@ -435,6 +606,10 @@ void Schema::AddEdgeLabel(
                     src_label, dst_label, edge_label, sort_key_for_nbr,
                     description, ie_mutable, oe_mutable, oe, ie, properties,
                     prop_names, default_property_values));
+  e_schemas_.at(label_id)->table_id = label_id;
+  e_schemas_.at(label_id)->src_label_id = src_label_id;
+  e_schemas_.at(label_id)->dst_label_id = dst_label_id;
+  e_schemas_.at(label_id)->edge_label_id = edge_label_id;
   if (label_id >= elabel_triplet_tomb_.size()) {
     elabel_triplet_tomb_.resize(label_id + 1);
   }

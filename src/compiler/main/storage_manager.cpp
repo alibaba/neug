@@ -3,17 +3,43 @@
 #include "neug/compiler/storage/stats_manager.h"
 
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_node_table.h"
 #include "neug/compiler/gopt/g_rel_table.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace storage {
+
+namespace {
+StatsTableKey getStatsTableKey(catalog::SchemaEntry* entry) {
+  return {entry->getTableType(), entry->getTableID()};
+}
+
+catalog::SchemaEntry* getTableCatalogEntry(
+    const catalog::Catalog& catalog,
+    const transaction::Transaction* transaction, common::table_id_t tableID,
+    common::TableType tableType) {
+  if (tableType == common::TableType::NODE) {
+    for (auto* entry : catalog.getNodeTableEntries(transaction)) {
+      if (entry->getTableID() == tableID) {
+        return entry;
+      }
+    }
+  } else {
+    for (auto* entry : catalog.getRelTableEntries(transaction)) {
+      if (entry->getTableID() == tableID) {
+        return entry;
+      }
+    }
+  }
+  THROW_EXCEPTION_WITH_FILE_LINE("Cannot find table catalog entry with id " +
+                                 std::to_string(tableID));
+}
+}  // namespace
 
 StatsManager::StatsManager(const std::string& statsData,
                            main::MetadataManager* database,
@@ -28,9 +54,11 @@ StatsManager::StatsManager(const std::string& statsData,
 }
 
 bool StatsManager::checkTableConsistency(Table* oldTable,
-                                         catalog::TableCatalogEntry* curEntry) {
+                                         catalog::SchemaEntry* curEntry) {
   if (oldTable->getTableType() != curEntry->getTableType() ||
-      oldTable->getTableName() != curEntry->getName()) {
+      oldTable->getTableName() !=
+          curEntry->getLabel(database->getCatalog(),
+                             &neug::Constants::DEFAULT_TRANSACTION)) {
     return false;
   }
   if (oldTable->getTableType() == common::TableType::REL) {
@@ -46,15 +74,18 @@ bool StatsManager::checkTableConsistency(Table* oldTable,
         &transaction, oldRelTable->getSrcTableId());
     auto oldDstEntry = catalog->getTableCatalogEntry(
         &transaction, oldRelTable->getDstTableId());
-    auto curRelEntry = curEntry->ptrCast<catalog::RelTableCatalogEntry>();
+    auto* curRelEntry = dynamic_cast<EdgeSchema*>(curEntry);
+    NEUG_ASSERT(curRelEntry != nullptr);
     auto curSrcEntry = catalog->getTableCatalogEntry(
         &transaction, curRelEntry->getSrcTableID());
     auto curDstEntry = catalog->getTableCatalogEntry(
         &transaction, curRelEntry->getDstTableID());
     if (curSrcEntry->getTableType() != oldSrcEntry->getTableType() ||
         curDstEntry->getTableType() != oldDstEntry->getTableType() ||
-        curSrcEntry->getName() != oldSrcEntry->getName() ||
-        curDstEntry->getName() != oldDstEntry->getName()) {
+        curSrcEntry->getLabel(catalog, &transaction) !=
+            oldSrcEntry->getLabel(catalog, &transaction) ||
+        curDstEntry->getLabel(catalog, &transaction) !=
+            oldDstEntry->getLabel(catalog, &transaction)) {
       return false;
     }
   }
@@ -63,10 +94,10 @@ bool StatsManager::checkTableConsistency(Table* oldTable,
 
 // check if cached table data is consistent with the schema, return false if
 // not, otherwise return true
-Table* StatsManager::getTableByName(common::table_id_t tableID,
-                                    catalog::TableCatalogEntry* curEntry) {
-  if (tables.contains(tableID)) {
-    auto oldTable = tables.at(tableID).get();
+Table* StatsManager::getTableByEntry(catalog::SchemaEntry* curEntry) {
+  auto tableKey = getStatsTableKey(curEntry);
+  if (tables.contains(tableKey)) {
+    auto oldTable = tables.at(tableKey).get();
     if (checkTableConsistency(oldTable, curEntry)) {
       return oldTable;
     }
@@ -87,21 +118,39 @@ Table* StatsManager::getTable(common::table_id_t tableID) {
   }
   NEUG_ASSERT(catalog->containsTable(&transaction, tableID));
   auto curEntry = catalog->getTableCatalogEntry(&transaction, tableID);
-  Table* oldTable = getTableByName(tableID, curEntry);
+  return getTable(curEntry);
+}
+
+Table* StatsManager::getTable(common::table_id_t tableID,
+                              common::TableType tableType) {
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
+  auto catalog = database->getCatalog();
+  if (!catalog) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
+  }
+  auto curEntry =
+      getTableCatalogEntry(*catalog, &transaction, tableID, tableType);
+  return getTable(curEntry);
+}
+
+Table* StatsManager::getTable(catalog::SchemaEntry* curEntry) {
+  Table* oldTable = getTableByEntry(curEntry);
   if (oldTable) {
     return oldTable;
   }
   switch (curEntry->getTableType()) {
   case common::TableType::NODE: {
-    auto defaultNode = std::make_unique<GNodeTable>(
-        curEntry->ptrCast<catalog::NodeTableCatalogEntry>(), this,
-        &memoryManager, 1);
+    auto* vertexSchema = dynamic_cast<VertexSchema*>(curEntry);
+    NEUG_ASSERT(vertexSchema != nullptr);
+    auto defaultNode =
+        std::make_unique<GNodeTable>(vertexSchema, this, &memoryManager, 1);
     return defaultNode.release();
   }
   case common::TableType::REL:
   default: {
-    auto defaultRel = std::make_unique<GRelTable>(
-        1, curEntry->ptrCast<catalog::RelTableCatalogEntry>(), this);
+    auto* edgeSchema = dynamic_cast<EdgeSchema*>(curEntry);
+    NEUG_ASSERT(edgeSchema != nullptr);
+    auto defaultRel = std::make_unique<GRelTable>(1, edgeSchema, this);
     return defaultRel.release();
   }
   }
@@ -165,7 +214,6 @@ void StatsManager::getCardMap(
             relStat["type_name"].IsString() &&
             relStat["vertex_type_pair_statistics"].IsArray()) {
           auto relName = relStat["type_name"].GetString();
-          common::row_idx_t totalCount = 0;
 
           for (const auto& srcDst :
                relStat["vertex_type_pair_statistics"].GetArray()) {
@@ -177,15 +225,12 @@ void StatsManager::getCardMap(
                 srcDst["count"].IsInt64()) {
               auto srcName = srcDst["source_vertex"].GetString();
               auto dstName = srcDst["destination_vertex"].GetString();
-              auto childName =
-                  neug::catalog::RelGroupCatalogEntry::getChildTableName(
-                      relName, srcName, dstName);
+              auto childName = catalog::RelGroupCatalogEntry::getChildTableName(
+                  relName, srcName, dstName);
               auto count = srcDst["count"].GetInt64();
               countMap[childName] = count;
-              totalCount += count;
             }
           }
-          countMap[relName] = totalCount;
         }
       }
     }
@@ -202,21 +247,23 @@ void StatsManager::loadStats(
 
   // Process all node tables from catalog
   for (auto& tableEntry : catalog.getTableEntries(&transaction)) {
-    if (tableEntry->getType() == catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
-      auto* nodeTableEntry =
-          dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
-      auto nodeName = nodeTableEntry->getName();
+    if (tableEntry->getTableType() == common::TableType::NODE) {
+      auto* nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
+      NEUG_ASSERT(nodeTableEntry != nullptr);
+      auto nodeName = nodeTableEntry->getLabel(&catalog, &transaction);
       auto count = countMap.count(nodeName) ? countMap.at(nodeName) : 1;
-      tables[nodeTableEntry->getTableID()] = std::make_unique<GNodeTable>(
+      tables[getStatsTableKey(nodeTableEntry)] = std::make_unique<GNodeTable>(
           nodeTableEntry, this, &memoryManager, count);
-    } else if (tableEntry->getType() ==
-               catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-      auto* relTableEntry =
-          dynamic_cast<catalog::RelTableCatalogEntry*>(tableEntry);
-      auto relName = relTableEntry->getName();
+    } else if (tableEntry->getTableType() == common::TableType::REL) {
+      auto* relTableEntry = dynamic_cast<EdgeSchema*>(tableEntry);
+      NEUG_ASSERT(relTableEntry != nullptr);
+      auto relName = catalog::RelGroupCatalogEntry::getChildTableName(
+          relTableEntry->getEdgeLabelName(), relTableEntry->src_label_name,
+          relTableEntry->dst_label_name);
       auto count = countMap.count(relName) ? countMap.at(relName) : 1;
-      tables[relTableEntry->getTableID()] =
-          std::make_unique<neug::storage::GRelTable>(count, relTableEntry, this);
+      tables[getStatsTableKey(relTableEntry)] =
+          std::make_unique<neug::storage::GRelTable>(count, relTableEntry,
+                                                     this);
     }
   }
 }

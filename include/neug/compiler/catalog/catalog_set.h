@@ -29,10 +29,6 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 
 namespace neug {
-namespace binder {
-struct BoundAlterInfo;
-}  // namespace binder
-
 namespace storage {
 class UndoBuffer;
 }  // namespace storage
@@ -59,11 +55,6 @@ class NEUG_API CatalogSet {
 
   void dropEntry(transaction::Transaction* transaction, const std::string& name,
                  common::oid_t oid);
-
-  void alterTableEntry(transaction::Transaction* transaction,
-                       const binder::BoundAlterInfo& alterInfo);
-  void alterRelGroupEntry(transaction::Transaction* transaction,
-                          const binder::BoundAlterInfo& alterInfo);
 
   CatalogEntrySet getEntries(const transaction::Transaction* transaction);
   CatalogEntry* getEntryOfOID(const transaction::Transaction* transaction,

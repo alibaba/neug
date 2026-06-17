@@ -83,11 +83,11 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
   for (const auto& entry : opr.entries()) {
     label_t label;
     switch (entry.vertex_type().item_case()) {
-    case common::NameOrId::kId: {
+    case ::common::NameOrId::kId: {
       label = entry.vertex_type().id();
       break;
     }
-    case common::NameOrId::kName: {
+    case ::common::NameOrId::kName: {
       label = schema.get_vertex_label_id(entry.vertex_type().name());
       break;
     }

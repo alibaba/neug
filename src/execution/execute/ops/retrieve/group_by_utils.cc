@@ -720,7 +720,7 @@ static std::unique_ptr<ReducerBase> create_pair_reducer(
 
 static std::unique_ptr<ReducerBase> create_reducer(
     const IStorageInterface& graph, const DataChunk& chunk,
-    const common::Variable& var, AggrKind kind) {
+    const ::common::Variable& var, AggrKind kind) {
   if (!var.has_property() && var.has_tag()) {
     int tag = var.has_tag() ? var.tag().id() : -1;
     auto col = chunk.get(tag);

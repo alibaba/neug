@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/mask.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace evaluator {
@@ -38,13 +38,14 @@ class LocalTable;
 class StatsManager;
 class NEUG_API Table {
  public:
-  Table(const catalog::TableCatalogEntry* tableEntry,
+  Table(const catalog::SchemaEntry* tableEntry,
         const StatsManager* storageManager)
       : tableType{tableEntry->getTableType()},
         tableID{tableEntry->getTableID()},
-        tableName{tableEntry->getName()} {}
+        tableName{const_cast<catalog::SchemaEntry*>(tableEntry)
+                      ->getLabel(nullptr, nullptr)} {}
 
-  Table(const catalog::TableCatalogEntry* tableEntry,
+  Table(const catalog::SchemaEntry* tableEntry,
         const StatsManager* storageManager, MemoryManager* memoryManager);
   virtual ~Table() = default;
 

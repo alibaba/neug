@@ -77,8 +77,8 @@ static bool is_shortest_path_with_order_by_limit(
       return false;
     }
     if (!pred.operators(0).has_var() ||
-        !(pred.operators(1).item_case() == common::ExprOpr::kLogical) ||
-        pred.operators(1).logical() != common::Logical::NE ||
+        !(pred.operators(1).item_case() == ::common::ExprOpr::kLogical) ||
+        pred.operators(1).logical() != ::common::Logical::NE ||
         !pred.operators(2).has_var()) {
       return false;
     }

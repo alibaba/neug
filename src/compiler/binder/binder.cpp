@@ -330,7 +330,7 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
     }
     inputExpr = inputExpr->getChild(0);
   }
-  std::vector<catalog::TableCatalogEntry*> entries;
+  std::vector<catalog::SchemaEntry*> entries;
   if (inputExpr &&
       inputExpr->expressionType == common::ExpressionType::PATTERN &&
       inputExpr->getDataType().id() == common::DataTypeId::kVertex) {

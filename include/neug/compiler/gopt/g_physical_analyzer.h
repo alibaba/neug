@@ -35,6 +35,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace gopt {
@@ -66,13 +67,13 @@ class GPhysicalAnalyzer {
     for (auto& tableId : tableIds) {
       auto tableEntry = catalog->getTableCatalogEntry(
           &neug::Constants::DEFAULT_TRANSACTION, tableId);
-      auto nodeTableEntry =
-          dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+      auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
       if (!nodeTableEntry) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Primary key scan is only supported for node "
             "tables, but got: " +
-            tableEntry->getName());
+            tableEntry->getLabel(catalog,
+                                 &neug::Constants::DEFAULT_TRANSACTION));
       }
       result.insert(nodeTableEntry->getPrimaryKeyName());
     }

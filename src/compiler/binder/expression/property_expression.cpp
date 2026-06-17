@@ -23,7 +23,7 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::common;
 using namespace neug::catalog;
@@ -70,8 +70,7 @@ bool PropertyExpression::hasProperty(common::table_id_t tableID) const {
   return infos.at(tableID).exists;
 }
 
-column_id_t PropertyExpression::getColumnID(
-    const TableCatalogEntry& entry) const {
+column_id_t PropertyExpression::getColumnID(const SchemaEntry& entry) const {
   if (!hasProperty(entry.getTableID())) {
     return INVALID_COLUMN_ID;
   }

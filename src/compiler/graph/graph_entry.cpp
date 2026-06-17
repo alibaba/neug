@@ -41,8 +41,8 @@ std::string GraphEntryTableInfo::toString() const {
   return result;
 }
 
-GraphEntry::GraphEntry(std::vector<TableCatalogEntry*> nodeEntries,
-                       std::vector<TableCatalogEntry*> relEntries) {
+GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
+                       std::vector<SchemaEntry*> relEntries) {
   for (auto& entry : nodeEntries) {
     nodeInfos.emplace_back(entry);
   }
@@ -67,16 +67,16 @@ std::vector<table_id_t> GraphEntry::getRelTableIDs() const {
   return result;
 }
 
-std::vector<TableCatalogEntry*> GraphEntry::getNodeEntries() const {
-  std::vector<TableCatalogEntry*> result;
+std::vector<SchemaEntry*> GraphEntry::getNodeEntries() const {
+  std::vector<SchemaEntry*> result;
   for (auto& info : nodeInfos) {
     result.push_back(info.entry);
   }
   return result;
 }
 
-std::vector<TableCatalogEntry*> GraphEntry::getRelEntries() const {
-  std::vector<TableCatalogEntry*> result;
+std::vector<SchemaEntry*> GraphEntry::getRelEntries() const {
+  std::vector<SchemaEntry*> result;
   for (auto& info : relInfos) {
     result.push_back(info.entry);
   }

@@ -52,12 +52,12 @@ class NEUG_API NodeTable : public Table {
  public:
   NodeTable() = delete;
   NodeTable(const StatsManager* storageManager,
-            const catalog::NodeTableCatalogEntry* nodeTableEntry)
+            const VertexSchema* nodeTableEntry)
       : Table(nodeTableEntry, storageManager) {}
   NodeTable(const StatsManager* storageManager,
-            const catalog::NodeTableCatalogEntry* nodeTableEntry,
-            MemoryManager* memoryManager, common::VirtualFileSystem* vfs,
-            main::ClientContext* context, common::Deserializer* deSer = nullptr)
+            const VertexSchema* nodeTableEntry, MemoryManager* memoryManager,
+            common::VirtualFileSystem* vfs, main::ClientContext* context,
+            common::Deserializer* deSer = nullptr)
       : Table(nodeTableEntry, storageManager, memoryManager) {}
 
   ~NodeTable() = default;

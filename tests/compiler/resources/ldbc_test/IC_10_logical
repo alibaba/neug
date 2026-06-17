@@ -1,5 +1,5 @@
 PROJECTION[friend.id,personFirstName,personLastName,score,personGender,personCityName]
-EXTEND[friend-ISLOCATEDIN_PERSON_PLACE,->city Cardinality: 1]
+EXTEND[friend-ISLOCATEDIN,->city Cardinality: 1]
 PROJECTION[friend,score]
 ORDER_BY[score,friend.id SKIP 0 LIMIT 10]
 PROJECTION[friend,score,friend.id]
@@ -10,7 +10,7 @@ CHILD:
     PROJECTION[friend,postCount]
     AGGREGATE[Group By [friend, ], Aggregate [postCount, ]]
     PROJECTION[post,friend]
-    EXTEND[friend<-HASCREATOR_POST_PERSON,-post Cardinality: 88 OPTIONAL]
+    EXTEND[friend<-HASCREATOR,-post Cardinality: 88 OPTIONAL]
     FILTER[OR(AND(EQUALS(DATE_PART(month,birthday),$month),GREATER_THAN_EQUALS(DATE_PART(day,birthday),21)),AND(EQUALS(DATE_PART(month,birthday),+(%($month,12),1)),LESS_THAN(DATE_PART(day,birthday),22))) Cardinality: 1]
     PROJECTION[friend,birthday]
     DISTINCT[friend]
@@ -34,8 +34,8 @@ CHILD:
     HASH_JOIN[_38_tag=_38_tag, SIP: PROHIBIT_PROBE_TO_BUILD, Join Type: INNER, Join Conditions: _38_tag=_38_tag]
     CHILD:
         PROJECTION[friend,postCount,post,tag]
-        EXTEND[post-HASTAG_POST_TAG,->tag Cardinality: 167]
-        EXTEND[friend<-HASCREATOR_POST_PERSON,-post Cardinality: 444]
+        EXTEND[post-HASTAG,->tag Cardinality: 167]
+        EXTEND[friend<-HASCREATOR,-post Cardinality: 444]
         EXPRESSIONS_SCAN[friend._ID]
     CHILD:
         EXTEND[person-HASINTEREST,->tag Cardinality: 23]

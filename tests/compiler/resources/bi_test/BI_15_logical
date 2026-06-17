@@ -10,10 +10,10 @@ CHILD:
         EXTEND[pA<-knowsKNOWS,->pB Cardinality: 14073]
         SCAN_NODE_TABLE[pA._ID pA.locationIP,pA.browserUsed,pA.language,pA.birthday,pA.id,pA.firstName,pA.lastName,pA.gender,pA.email,pA._LABEL,pA.creationDateType: INTERNAL_ID Cardinality: 1528]
     CHILD:
-        EXTEND[m2-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->pB Cardinality: 151043]
-        EXTEND[m1-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->pA Cardinality: 151043]
+        EXTEND[m2-HASCREATOR,HASCREATOR,->pB Cardinality: 151043]
+        EXTEND[m1-HASCREATOR,HASCREATOR,->pA Cardinality: 151043]
         GET_V[GET_V() Cardinality: 151043]
-        EXTEND[m1<-rREPLYOF_COMMENT_COMMENT,REPLYOF_COMMENT_POST,->m2 Cardinality: 151043]
+        EXTEND[m1<-rREPLYOF,REPLYOF,->m2 Cardinality: 151043]
         SCAN_NODE_TABLE[m1._ID Type: INTERNAL_ID Cardinality: 286744]
 CHILD:
     GET_V[GET_V() Cardinality: 135701]

@@ -28,10 +28,8 @@
 #include "neug/compiler/binder/ddl/bound_drop.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/system_config.h"
@@ -144,32 +142,7 @@ static void validatePrimaryKey(
 }
 
 void Binder::validateNoIndexOnProperty(const std::string& tableName,
-                                       const std::string& propertyName) const {
-  auto transaction = clientContext->getTransaction();
-  auto catalog = clientContext->getCatalog();
-  if (catalog->containsRelGroup(transaction, tableName)) {
-    // RelGroup does not have indexes.
-    return;
-  }
-  auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (!tableEntry->containsProperty(propertyName)) {
-    return;
-  }
-  auto propertyID = tableEntry->getPropertyID(propertyName);
-  for (auto indexCatalogEntry : catalog->getIndexEntries(transaction)) {
-    auto propertiesWithIndex = indexCatalogEntry->getPropertyIDs();
-    if (indexCatalogEntry->getTableID() == tableEntry->getTableID() &&
-        std::find(propertiesWithIndex.begin(), propertiesWithIndex.end(),
-                  propertyID) != propertiesWithIndex.end()) {
-      THROW_BINDER_EXCEPTION(
-          stringFormat("Cannot drop property {} in table {} because it is used "
-                       "in one or more indexes. "
-                       "Please remove the associated indexes before attempting "
-                       "to drop this property.",
-                       propertyName, tableName));
-    }
-  }
-}
+                                       const std::string& propertyName) const {}
 
 BoundCreateTableInfo Binder::bindCreateTableInfo(const CreateTableInfo* info) {
   switch (info->type) {
@@ -201,10 +174,10 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
       std::move(boundExtraInfo), clientContext->useInternalCatalogEntry());
 }
 
-void Binder::validateNodeTableType(const TableCatalogEntry* entry) {
-  if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("{} is not of type NODE.", entry->getName()));
+void Binder::validateNodeTableType(SchemaEntry* entry) {
+  if (entry->getTableType() != TableType::NODE) {
+    THROW_BINDER_EXCEPTION(stringFormat("{} is not of type NODE.",
+                                        entry->getLabel(nullptr, nullptr)));
   }
 }
 
@@ -216,11 +189,12 @@ void Binder::validateTableExistence(const main::ClientContext& context,
   }
 }
 
-void Binder::validateColumnExistence(const TableCatalogEntry* entry,
+void Binder::validateColumnExistence(SchemaEntry* entry,
                                      const std::string& columnName) {
   if (!entry->containsProperty(columnName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Column {} does not exist in table {}.",
-                                        columnName, entry->getName()));
+                                        columnName,
+                                        entry->getLabel(nullptr, nullptr)));
   }
 }
 
@@ -338,16 +312,6 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   int64_t increment = 0;
   int64_t minValue = 0;
   int64_t maxValue = 0;
-  switch (info.onConflict) {
-  case ConflictAction::ON_CONFLICT_THROW: {
-    if (clientContext->getCatalog()->containsSequence(
-            clientContext->getTransaction(), sequenceName)) {
-      THROW_BINDER_EXCEPTION(sequenceName + " already exists in catalog.");
-    }
-  } break;
-  default:
-    break;
-  }
   auto literal = neug_string_t{info.increment.c_str(), info.increment.length()};
   if (!function::CastString::tryCast(literal, increment)) {
     THROW_BINDER_EXCEPTION(
