@@ -38,6 +38,20 @@ import pytest
 from neug import Database
 
 
+# Extension tests require parquet extension to be compiled and
+# NEUG_RUN_EXTENSION_TESTS=1 to be set.
+EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+extension_test = pytest.mark.skipif(
+    not EXTENSION_TESTS_ENABLED,
+    reason="Extension tests disabled by default; set NEUG_RUN_EXTENSION_TESTS=1 to enable.",
+)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -733,3 +747,282 @@ class TestLoadAs:
         rows = list(result)
         # Only edges with weight >= 0.8: (2→3, 1.0) and (3→4, 0.8).
         assert len(rows) == 2, f"Expected 2 edges, got {len(rows)}"
+
+
+# ---------------------------------------------------------------------------
+# LOAD AS from JSONL / Parquet (using tinysnb dataset)
+# ---------------------------------------------------------------------------
+
+def _get_tinysnb_path():
+    """Resolve the tinysnb dataset path from the workspace root."""
+    current_file = os.path.abspath(__file__)
+    tests_dir = os.path.dirname(current_file)
+    python_bind_dir = os.path.dirname(tests_dir)
+    tools_dir = os.path.dirname(python_bind_dir)
+    workspace_root = os.path.dirname(tools_dir)
+    path = os.path.join(workspace_root, "example_dataset", "tinysnb")
+    return path if os.path.exists(path) else None
+
+
+class TestLoadAsJsonl:
+    """LOAD NODE TABLE AS from JSONL files."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        tinysnb = _get_tinysnb_path()
+        if not tinysnb:
+            pytest.skip("tinysnb dataset not found")
+        self.jsonl_path = os.path.join(tinysnb, "json", "vPerson.jsonl")
+        if not os.path.exists(self.jsonl_path):
+            pytest.skip(f"JSONL file not found: {self.jsonl_path}")
+
+        self.db_dir = str(tmp_path / "test_load_as_jsonl_db")
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_load_node_table_from_jsonl(self):
+        """Basic LOAD NODE TABLE from JSONL."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.jsonl_path}" '
+            f"(primary_key = 'ID') AS TempJsonPerson;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonPerson) RETURN n.fName ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        assert rows[0][0] == "Alice"
+
+    def test_load_node_table_from_jsonl_with_where(self):
+        """LOAD NODE TABLE from JSONL with WHERE filter."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.jsonl_path}" '
+            f"(primary_key = 'ID') WHERE age >= 35 AS TempJsonOld;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonOld) RETURN n.fName, n.age ORDER BY n.age;"
+        )
+        rows = list(result)
+        # age >= 35: Alice(35), Carol(45), Dan(40), Elizabeth(20->no),
+        # Farooq(25->no), Greg(40), Hubert Blaine(83)
+        assert len(rows) >= 3
+        for row in rows:
+            assert row[1] >= 35
+
+    def test_load_node_table_from_jsonl_with_return(self):
+        """LOAD NODE TABLE from JSONL with RETURN projection."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.jsonl_path}" '
+            f"(primary_key = 'ID') RETURN ID, fName, age AS TempJsonSlim;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonSlim) RETURN n.ID, n.fName, n.age "
+            "ORDER BY n.ID;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        # Verify projected columns exist.
+        assert rows[0][1] == "Alice"
+        # eyeSight should NOT be a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempJsonSlim) RETURN n.eyeSight;"
+            )
+
+    def test_load_node_table_from_jsonl_where_and_return(self):
+        """WHERE + RETURN combined on JSONL: WHERE col not in RETURN."""
+        # WHERE filters on age, but RETURN only projects ID, fName, gender.
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.jsonl_path}" '
+            f"(primary_key = 'ID') "
+            f"WHERE age >= 35 "
+            f"RETURN ID, fName, gender AS TempJsonWR;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonWR) RETURN n.fName, n.gender ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) >= 3
+        # age is NOT a property (not in RETURN).
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempJsonWR) RETURN n.age;"
+            )
+
+
+class TestLoadAsJson:
+    """LOAD NODE TABLE AS from JSON (array-of-objects) files."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        tinysnb = _get_tinysnb_path()
+        if not tinysnb:
+            pytest.skip("tinysnb dataset not found")
+        self.json_path = os.path.join(tinysnb, "json", "vPerson.json")
+        if not os.path.exists(self.json_path):
+            pytest.skip(f"JSON file not found: {self.json_path}")
+
+        self.db_dir = str(tmp_path / "test_load_as_json_db")
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_load_node_table_from_json(self):
+        """Basic LOAD NODE TABLE from JSON."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.json_path}" '
+            f"(primary_key = 'ID') AS TempJsonArrPerson;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonArrPerson) RETURN n.fName ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        assert rows[0][0] == "Alice"
+
+    def test_load_node_table_from_json_with_where(self):
+        """LOAD NODE TABLE from JSON with WHERE filter."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.json_path}" '
+            f"(primary_key = 'ID') WHERE age >= 35 AS TempJsonArrOld;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonArrOld) RETURN n.fName, n.age ORDER BY n.age;"
+        )
+        rows = list(result)
+        assert len(rows) >= 3
+        for row in rows:
+            assert row[1] >= 35
+
+    def test_load_node_table_from_json_with_return(self):
+        """LOAD NODE TABLE from JSON with RETURN projection."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.json_path}" '
+            f"(primary_key = 'ID') RETURN ID, fName, age AS TempJsonArrSlim;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonArrSlim) RETURN n.ID, n.fName, n.age "
+            "ORDER BY n.ID;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        assert rows[0][1] == "Alice"
+        # eyeSight should NOT be a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempJsonArrSlim) RETURN n.eyeSight;"
+            )
+
+    def test_load_node_table_from_json_where_and_return(self):
+        """WHERE + RETURN combined on JSON: WHERE col not in RETURN."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.json_path}" '
+            f"(primary_key = 'ID') "
+            f"WHERE age >= 35 "
+            f"RETURN ID, fName, gender AS TempJsonArrWR;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempJsonArrWR) RETURN n.fName, n.gender ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) >= 3
+        # age is NOT a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempJsonArrWR) RETURN n.age;"
+            )
+
+
+@extension_test
+class TestLoadAsParquet:
+    """LOAD NODE TABLE AS from Parquet files (requires parquet extension)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        tinysnb = _get_tinysnb_path()
+        if not tinysnb:
+            pytest.skip("tinysnb dataset not found")
+        self.parquet_path = os.path.join(tinysnb, "parquet", "vPerson.parquet")
+        if not os.path.exists(self.parquet_path):
+            pytest.skip(f"Parquet file not found: {self.parquet_path}")
+
+        self.db_dir = str(tmp_path / "test_load_as_parquet_db")
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        self.conn.execute("load parquet")
+
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_load_node_table_from_parquet(self):
+        """Basic LOAD NODE TABLE from Parquet."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.parquet_path}" '
+            f"(primary_key = 'ID') AS TempPqPerson;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempPqPerson) RETURN n.fName ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        assert rows[0][0] == "Alice"
+
+    def test_load_node_table_from_parquet_with_where(self):
+        """LOAD NODE TABLE from Parquet with WHERE filter."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.parquet_path}" '
+            f"(primary_key = 'ID') WHERE age >= 40 AS TempPqOld;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempPqOld) RETURN n.fName, n.age ORDER BY n.age;"
+        )
+        rows = list(result)
+        assert len(rows) >= 2
+        for row in rows:
+            assert row[1] >= 40
+
+    def test_load_node_table_from_parquet_with_return(self):
+        """LOAD NODE TABLE from Parquet with RETURN projection."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.parquet_path}" '
+            f"(primary_key = 'ID') RETURN ID, fName, height AS TempPqSlim;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempPqSlim) RETURN n.ID, n.fName, n.height "
+            "ORDER BY n.ID;"
+        )
+        rows = list(result)
+        assert len(rows) == 8
+        # age should NOT be a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempPqSlim) RETURN n.age;"
+            )
+
+    def test_load_node_table_from_parquet_where_and_return(self):
+        """WHERE + RETURN combined on Parquet: WHERE col not in RETURN."""
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.parquet_path}" '
+            f"(primary_key = 'ID') "
+            f"WHERE age >= 40 "
+            f"RETURN ID, fName, gender AS TempPqWR;"
+        )
+        result = self.conn.execute(
+            "MATCH (n:TempPqWR) RETURN n.fName, n.gender ORDER BY n.fName;"
+        )
+        rows = list(result)
+        assert len(rows) >= 2
+        # age is NOT a property.
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                "MATCH (n:TempPqWR) RETURN n.age;"
+            )
