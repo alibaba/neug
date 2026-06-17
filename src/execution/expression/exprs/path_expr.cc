@@ -31,7 +31,7 @@ class BindedPathNodesExpr : public RecordExprBase {
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<VertexRecord> nodes = path.nodes();
+    const auto& nodes = path.nodes();
     std::vector<Value> node_values;
     for (const auto& node : nodes) {
       node_values.push_back(Value::VERTEX(node));
@@ -62,7 +62,7 @@ class BindedPathRelationsExpr : public RecordExprBase {
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<edge_t> edges = path.relationships();
+    const auto& edges = path.relationships();
     std::vector<Value> edge_values;
     for (const auto& edge : edges) {
       edge_values.push_back(Value::EDGE(edge));
@@ -95,7 +95,7 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = chunk.get(tag_)->get_elem(idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<vertex_t> vertices = path.nodes();
+    const auto& vertices = path.nodes();
     std::vector<Value> prop_values;
     for (const auto& vertex : vertices) {
       const auto& prop_names = graph_.schema().get_vertex_property_names(
@@ -136,7 +136,7 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     Value path_val = chunk.get(tag_)->get_elem(idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<edge_t> edges = path.relationships();
+    const auto& edges = path.relationships();
     std::vector<Value> prop_values;
     for (const auto& edge : edges) {
       const auto& prop_names = graph_.schema().get_edge_property_names(

@@ -15,11 +15,14 @@
 
 #include <gtest/gtest.h>
 #include <sys/stat.h>
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <optional>
 #include <random>
 #include <string>
+#include <thread>
+#include <vector>
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "unittest/utils.h"
@@ -757,7 +760,7 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
   // Throws std::runtime_error on stat() failure so that any follow-on
   // inode comparisons are never made against an uninitialized value.
   static ino_t inode_of(const std::string& path) {
-    struct stat st{};
+    struct stat st {};
     if (stat(path.c_str(), &st) != 0) {
       throw std::runtime_error("stat() failed for path: " + path + " — " +
                                std::strerror(errno));
@@ -837,6 +840,158 @@ TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
       "put_edge", [this](CsrT& c) { c.put_edge(0, 1, 123, 1, *this->alloc_); });
   expect_slow_after("batch_delete_edges",
                     [](CsrT& c) { c.batch_delete_edges({0}, {3}); });
+}
+// Concurrent read-write test: verifies that lock-free readers using
+// get_edges() / foreach_nbr_lt() see consistent (degree, buffer) snapshots
+// even when a concurrent writer triggers CSR buffer reallocation via put_edge.
+// This is a regression test for the torn-read bug fixed by using
+// std::atomic_ref in put_edge / GenericView / TypedView.
+// ---------------------------------------------------------------------------
+
+TYPED_TEST(MutableCsrTest, TestConcurrentPutEdgeAndRead) {
+  // Use int64_t for the typed view test (foreach_nbr_lt requires ordered data)
+  MutableCsr<TypeParam> csr;
+  this->load_csr_data(csr, MemoryLevel::kInMemory);
+
+  // Sort edges so that foreach_nbr_lt can use binary search path
+  csr.batch_sort_by_edge_data(1);
+
+  constexpr int kWriterIterations = 500;
+  constexpr int kReaderIterations = 2000;
+  constexpr int kNumReaders = 4;
+
+  std::atomic<bool> stop_flag{false};
+  std::atomic<int> reader_errors{0};
+
+  // Writer thread: continuously inserts edges to vertex 0, which will trigger
+  // multiple buffer reallocations (initial cap=8, grows by 1.5x each time).
+  std::thread writer([&]() {
+    for (int i = 0; i < kWriterIterations; ++i) {
+      vid_t dst = static_cast<vid_t>(i % 100);
+      timestamp_t ts = 2;  // visible to readers with ts >= 2
+      this->template put_single_edge<MutableCsr>(csr, 0, dst, ts,
+                                                 *(this->allocators[0]));
+    }
+    stop_flag.store(true, std::memory_order_release);
+  });
+
+  // Reader threads: continuously read edges via get_edges() and verify
+  // that the returned NbrList has consistent start/end pointers.
+  std::vector<std::thread> readers;
+  for (int r = 0; r < kNumReaders; ++r) {
+    readers.emplace_back([&, r]() {
+      int local_errors = 0;
+      for (int i = 0; i < kReaderIterations; ++i) {
+        // Test GenericView::get_edges
+        auto view = csr.get_generic_view(2);
+        auto edges = view.get_edges(0);
+
+        // Sanity check: end_ptr must be >= start_ptr
+        if (edges.end_ptr < edges.start_ptr) {
+          local_errors++;
+          continue;
+        }
+
+        // Verify that iteration doesn't crash (the original bug caused SIGSEGV
+        // here due to ptr/end being in different buffers)
+        size_t count = 0;
+        for (auto it = edges.begin(); it != edges.end(); ++it) {
+          ++count;
+          // Safety bound to prevent infinite loop in case of regression
+          if (count > 100000) {
+            local_errors++;
+            break;
+          }
+        }
+
+        // Test TypedView if data type supports comparison (foreach_nbr_lt)
+        if constexpr (!std::is_same_v<TypeParam, EmptyType> &&
+                      !std::is_same_v<TypeParam, Interval>) {
+          auto typed_view =
+              view.template get_typed_view<TypeParam,
+                                           CsrViewType::kMultipleMutable>();
+          size_t lt_count = 0;
+          typed_view.foreach_nbr_lt(0, std::numeric_limits<TypeParam>::max(),
+                                    [&](vid_t nbr, const TypeParam& data) {
+                                      ++lt_count;
+                                      if (lt_count > 100000) {
+                                        local_errors++;
+                                      }
+                                    });
+        }
+      }
+      reader_errors.fetch_add(local_errors, std::memory_order_relaxed);
+    });
+  }
+
+  writer.join();
+  for (auto& t : readers) {
+    t.join();
+  }
+
+  EXPECT_EQ(reader_errors.load(), 0)
+      << "Concurrent readers detected inconsistent state";
+  // Writer should have inserted all edges
+  EXPECT_GE(csr.edge_num(), edge_num + kWriterIterations);
+}
+
+// Test that concurrent readers on different vertices don't interfere with
+// a writer that reallocates a specific vertex's buffer.
+TYPED_TEST(MutableCsrTest, TestConcurrentPutEdgeMultiVertex) {
+  MutableCsr<TypeParam> csr;
+  this->load_csr_data(csr, MemoryLevel::kInMemory);
+
+  constexpr int kEdgesPerVertex = 200;
+  constexpr int kReaderIterations = 1000;
+  constexpr int kNumReaders = 3;
+
+  std::atomic<bool> stop_flag{false};
+  std::atomic<int> reader_errors{0};
+
+  // Writer: insert many edges to vertex 2 (will trigger reallocation)
+  std::thread writer([&]() {
+    for (int i = 0; i < kEdgesPerVertex; ++i) {
+      vid_t dst = static_cast<vid_t>(i % 50);
+      this->template put_single_edge<MutableCsr>(csr, 2, dst, 1,
+                                                 *(this->allocators[0]));
+    }
+    stop_flag.store(true, std::memory_order_release);
+  });
+
+  // Readers: read edges from vertex 2 (same vertex being written to)
+  std::vector<std::thread> readers;
+  for (int r = 0; r < kNumReaders; ++r) {
+    readers.emplace_back([&]() {
+      int local_errors = 0;
+      for (int i = 0; i < kReaderIterations; ++i) {
+        auto view = csr.get_generic_view(1);
+        auto edges = view.get_edges(2);
+
+        if (edges.end_ptr < edges.start_ptr) {
+          local_errors++;
+          continue;
+        }
+
+        size_t count = 0;
+        for (auto it = edges.begin(); it != edges.end(); ++it) {
+          ++count;
+          if (count > 100000) {
+            local_errors++;
+            break;
+          }
+        }
+      }
+      reader_errors.fetch_add(local_errors, std::memory_order_relaxed);
+    });
+  }
+
+  writer.join();
+  for (auto& t : readers) {
+    t.join();
+  }
+
+  EXPECT_EQ(reader_errors.load(), 0)
+      << "Concurrent readers on same vertex detected inconsistent state";
 }
 
 }  // namespace test

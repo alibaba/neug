@@ -60,7 +60,7 @@ merge_pattern_and_on_create(
         pattern,
     std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
         on_create) {
-  std::unordered_map<std::string, size_t> pos;
+  flat_hash_map<std::string, size_t> pos;
   std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>> merged;
   merged.reserve(pattern.size() + on_create.size());
   for (auto& p : pattern) {

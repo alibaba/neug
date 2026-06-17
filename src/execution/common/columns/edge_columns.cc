@@ -20,7 +20,7 @@ namespace neug {
 namespace execution {
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   SDSLEdgeColumnBuilder builder(dir_, label_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -43,11 +43,11 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   SDSLEdgeColumnBuilder builder(dir_, label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -70,7 +70,7 @@ std::shared_ptr<IContextColumn> SDSLEdgeColumnBuilder::finish() {
 }
 
 std::shared_ptr<IContextColumn> MSEdgeColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   if (labels_.size() == 1) {
     BDSLEdgeColumnBuilder builder(labels_[0]);
     builder.reserve(offsets.size());
@@ -153,13 +153,13 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   if (labels_.size() == 1) {
     BDSLEdgeColumnBuilder builder(labels_[0]);
     builder.reserve(offsets.size());
 
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max()) {
+      if (offset == std::numeric_limits<sel_t>::max()) {
         builder.push_back_null();
         continue;
       }
@@ -186,7 +186,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
     BDMLEdgeColumnBuilder builder(labels_);
     builder.reserve(offsets.size());
     for (auto offset : offsets) {
-      if (offset == std::numeric_limits<size_t>::max()) {
+      if (offset == std::numeric_limits<sel_t>::max()) {
         builder.push_back_null();
         continue;
       }
@@ -214,7 +214,7 @@ std::shared_ptr<IContextColumn> MSEdgeColumn::optional_shuffle(
 }
 
 std::shared_ptr<IContextColumn> BDSLEdgeColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   BDSLEdgeColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -239,11 +239,11 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   BDSLEdgeColumnBuilder builder(label_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -260,7 +260,7 @@ std::shared_ptr<IContextColumn> BDSLEdgeColumn::optional_shuffle(
 }
 
 std::shared_ptr<IContextColumn> SDMLEdgeColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   SDMLEdgeColumnBuilder builder(dir_, labels_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -285,11 +285,11 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   SDMLEdgeColumnBuilder builder(dir_, labels_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];
@@ -306,7 +306,7 @@ std::shared_ptr<IContextColumn> SDMLEdgeColumn::optional_shuffle(
 }
 
 std::shared_ptr<IContextColumn> BDMLEdgeColumn::shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   BDMLEdgeColumnBuilder builder(labels_);
   builder.reserve(offsets.size());
   if (is_optional_) {
@@ -331,11 +331,11 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::shuffle(
 }
 
 std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
-    const std::vector<size_t>& offsets) const {
+    const sel_vec_t& offsets) const {
   BDMLEdgeColumnBuilder builder(labels_);
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
-    if (offset == std::numeric_limits<size_t>::max()) {
+    if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
     } else {
       auto& e = edges_[offset];

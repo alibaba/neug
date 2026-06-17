@@ -332,13 +332,13 @@ if (WITH_MIMALLOC)
     set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
     set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
     set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
-    # Keep MI_OVERRIDE=ON to let it take effect.
-    set(MI_OVERRIDE ON CACHE BOOL "Override malloc with mimalloc" FORCE)
+    set(MI_OVERRIDE OFF CACHE BOOL "Override malloc with mimalloc" FORCE)
     set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
     # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
     add_subdirectory(third_party/mimalloc)
     set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
     include_directories(SYSTEM third_party/mimalloc/include)
+    add_compile_definitions(NEUG_WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
@@ -1010,6 +1010,13 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/flat_hash_map
             PATTERN "*.hpp"
 )
 
+# container_types.h (public header) includes parallel_hashmap/phmap.h
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/parallel-hashmap/parallel_hashmap
+            DESTINATION include/
+            FILES_MATCHING
+            PATTERN "*.h"
+)
+
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/re2/include/
             DESTINATION include/re2
             FILES_MATCHING
@@ -1070,7 +1077,16 @@ install(FILES ${PROJECT_SOURCE_DIR}/third_party/fast_float/include/fast_float.h
 
 
 if (WITH_MIMALLOC)
-	install_neug_target(mimalloc)
+    # mimalloc's own install puts headers under include/mimalloc-<version>/,
+    # but public headers reference plain <mimalloc.h>, so also install them
+    # at the top level of the include dir.
+    install(FILES
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc.h
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc-override.h
+        ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc-new-delete.h
+        DESTINATION include
+    )
+    install_neug_target(mimalloc)
 endif()
 
 install_neug_target(${GLOG_LIBRARIES})

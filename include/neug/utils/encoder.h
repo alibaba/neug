@@ -20,11 +20,13 @@
 #include <string_view>
 #include <vector>
 
+#include "neug/execution/common/columns/container_types.h"
+
 namespace neug {
 
 class Encoder {
  public:
-  explicit Encoder(std::vector<char>& buf) : buf_(buf) {}
+  explicit Encoder(vector_t<char>& buf) : buf_(buf) {}
 
   void put_long(int64_t v);
 
@@ -67,7 +69,7 @@ class Encoder {
   void clear();
 
  private:
-  std::vector<char>& buf_;
+  vector_t<char>& buf_;
 };
 
 class Decoder {

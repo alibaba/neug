@@ -28,7 +28,7 @@ neug::result<ContextChunk> Limit::limit(ContextChunk&& chunk, size_t lower,
     upper = chunk.row_num();
   }
 
-  std::vector<size_t> offsets(upper - lower);
+  sel_vec_t offsets(upper - lower);
   for (size_t i = lower; i < upper; ++i) {
     offsets[i - lower] = i;
   }

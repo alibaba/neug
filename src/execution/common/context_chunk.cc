@@ -83,7 +83,7 @@ std::shared_ptr<IContextColumn> ContextChunk::get(int alias) const {
 
 void ContextChunk::set_with_reshuffle(int alias,
                                       std::shared_ptr<IContextColumn> col,
-                                      const std::vector<size_t>& offsets) {
+                                      const sel_vec_t& offsets) {
   head_.reset();
   if (alias >= 0 && chunk_.columns.size() > static_cast<size_t>(alias) &&
       chunk_.columns[alias] != nullptr) {
@@ -118,7 +118,7 @@ size_t ContextChunk::row_num() const {
 
 size_t ContextChunk::col_num() const { return chunk_.col_num(); }
 
-void ContextChunk::reshuffle(const std::vector<size_t>& offsets) {
+void ContextChunk::reshuffle(const sel_vec_t& offsets) {
   auto& columns = chunk_.columns;
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
   new_cols.reserve(columns.size());
@@ -156,7 +156,7 @@ void ContextChunk::reshuffle(const std::vector<size_t>& offsets) {
   columns = std::move(new_cols);
 }
 
-void ContextChunk::optional_reshuffle(const std::vector<size_t>& offsets) {
+void ContextChunk::optional_reshuffle(const sel_vec_t& offsets) {
   auto& columns = chunk_.columns;
   std::vector<std::shared_ptr<IContextColumn>> new_cols;
   new_cols.reserve(columns.size());

@@ -89,6 +89,27 @@ class SchemaEntry {
 };
 }  // namespace catalog
 
+class LabelIndexer {
+ public:
+  bool add(const std::string& name, label_t& lid);
+  bool get_index(const std::string& name, label_t& lid) const;
+  const std::string& get_key(label_t lid) const;
+  label_t remove(const std::string& name);
+
+  size_t num_slots() const;
+  size_t size() const;
+  bool empty() const;
+  void Clear();
+
+  void Serialize(std::ostream& os) const;
+  void Deserialize(std::istream& is);
+
+ private:
+  std::vector<std::string> keys_;
+  std::unordered_map<std::string, label_t> index_;
+  std::vector<label_t> free_list_;
+};
+
 /**
  * @brief Schema definition for a vertex type (label).
  *
@@ -647,11 +668,9 @@ class Schema {
 
   /**
    * @brief Get the next vertex label id to be assigned.
-   * Vertex label ids in the schema are monotonically incremented,
-   * and label ids are not recycled upon vertex label deletion.
-   * Each new vertex label is assigned an id one greater than the previous.
-   * This method returns the size of vlabel_indexer_, which equals
-   * the label id that will be used for the next newly created vertex label.
+   * This method returns the number of allocated vertex label slots.
+   * Physical deletion may recycle a lower vacant label id for the next label,
+   * but the slot frontier remains stable until a new slot is appended.
    */
   label_t vertex_label_frontier() const;
 
@@ -659,11 +678,9 @@ class Schema {
 
   /**
    * @brief Get the next edge label id to be assigned.
-   * Edge label ids in the schema are monotonically incremented,
-   * and label ids are not recycled upon edge label deletion.
-   * Each new edge label is assigned an id one greater than the previous.
-   * This method returns the size of vlabel_indexer_, which equals
-   * the label id that will be used for the next newly created edge label.
+   * This method returns the number of allocated edge label slots.
+   * Physical deletion may recycle a lower vacant label id for the next label,
+   * but the slot frontier remains stable until a new slot is appended.
    */
   label_t edge_label_frontier() const;
 
@@ -889,8 +906,8 @@ class Schema {
                                   const std::string& prop) const;
 
   std::string name_, id_;
-  IdIndexer<std::string, label_t> vlabel_indexer_;
-  IdIndexer<std::string, label_t> elabel_indexer_;
+  LabelIndexer vlabel_indexer_;
+  LabelIndexer elabel_indexer_;
   // We use shared_ptr to ensure the pointer to VertexSchema will not change
   // when resizing
   std::vector<std::shared_ptr<VertexSchema>> v_schemas_;
