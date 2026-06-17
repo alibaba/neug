@@ -25,8 +25,7 @@ extern "C" {
 void Init() {
   try {
     // Register GDS CALL table functions.
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::gds::LabelPropagationFunction>(
+    neug::extension::ExtensionAPI::registerFunction<neug::gds::CDLPFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerFunction<neug::gds::BFSFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "impl/label_propagation_impl.h"
+#include "impl/cdlp_impl.h"
 
 #include <algorithm>
 #include <chrono>
@@ -29,12 +29,10 @@
 namespace neug {
 namespace gds {
 
-LabelPropagation::LabelPropagation(const StorageReadInterface& graph,
-                                   label_t vertex_label,
-                                   const execution::LabelTriplet& edge_triplet,
-                                   int max_iterations, int concurrency,
-                                   execution::ExprBase* vertex_pred,
-                                   execution::ExprBase* edge_pred)
+CDLP::CDLP(const StorageReadInterface& graph, label_t vertex_label,
+           const execution::LabelTriplet& edge_triplet, int max_iterations,
+           int concurrency, execution::ExprBase* vertex_pred,
+           execution::ExprBase* edge_pred)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_triplet_(edge_triplet),
@@ -44,7 +42,7 @@ LabelPropagation::LabelPropagation(const StorageReadInterface& graph,
       edge_pred_(edge_pred) {}
 
 template <typename PRED_T>
-void LabelPropagation::init_communities(const PRED_T& vertex_pred) {
+void CDLP::init_communities(const PRED_T& vertex_pred) {
   auto vertex_set = graph_.GetVertexSet(vertex_label_);
   community_.reset(new int64_t[vertex_set.size()]);
   next_community_.reset(new int64_t[vertex_set.size()]);
@@ -106,10 +104,9 @@ void LabelPropagation::init_communities(const PRED_T& vertex_pred) {
   }
 }
 
-int64_t LabelPropagation::get_majority_community(const CsrView& ie_view,
-                                                 const CsrView& oe_view,
-                                                 vid_t dst_vid,
-                                                 int64_t* buffer) const {
+int64_t CDLP::get_majority_community(const CsrView& ie_view,
+                                     const CsrView& oe_view, vid_t dst_vid,
+                                     int64_t* buffer) const {
   size_t neighbor_count = 0;
   int64_t best = -1;
   int32_t max_count = 0;
@@ -181,11 +178,9 @@ int64_t LabelPropagation::get_majority_community(const CsrView& ie_view,
   return best;
 }
 
-bool LabelPropagation::run_single_iteration(int64_t* buffer,
-                                            const size_t* offsets,
-                                            int iteration,
-                                            const CsrView& ie_view,
-                                            const CsrView& oe_view) {
+bool CDLP::run_single_iteration(int64_t* buffer, const size_t* offsets,
+                                int iteration, const CsrView& ie_view,
+                                const CsrView& oe_view) {
   std::vector<size_t> updateds(concurrency_, 0);
   ParallelUtils::parallel_for(
       vertices_.data(), vertices_.size(),
@@ -207,7 +202,7 @@ bool LabelPropagation::run_single_iteration(int64_t* buffer,
   return updated > 0;
 }
 
-void LabelPropagation::compute() {
+void CDLP::compute() {
   (void) edge_pred_;
 
   if (vertex_pred_) {
@@ -263,8 +258,8 @@ void LabelPropagation::compute() {
   }
 }
 
-void LabelPropagation::sink(execution::Context& ctx, int32_t node_alias,
-                            int32_t label_alias) {
+void CDLP::sink(execution::Context& ctx, int32_t node_alias,
+                int32_t label_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
   execution::ValueColumnBuilder<int64_t> label_builder;
   label_builder.reserve(vertices_.size());

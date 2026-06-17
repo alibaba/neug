@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "label_propagation.h"
-#include "impl/label_propagation_impl.h"
+#include "cdlp.h"
+#include "impl/cdlp_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -24,8 +24,8 @@
 
 namespace neug {
 namespace gds {
-struct LabelPropagationInput : public function::CallFuncInputBase {
-  ~LabelPropagationInput() = default;
+struct CDLPInput : public function::CallFuncInputBase {
+  ~CDLPInput() = default;
 
   void parse_subgraph(const ::physical::Subgraph& subgraph,
                       const execution::ContextMeta& ctx_meta) {
@@ -34,15 +34,13 @@ struct LabelPropagationInput : public function::CallFuncInputBase {
       throw std::runtime_error("Failed to parse subgraph entries.");
     }
     if (parsed.vertex_entries.empty()) {
-      throw std::runtime_error(
-          "LabelPropagation requires exactly one vertex label.");
+      throw std::runtime_error("CDLP requires exactly one vertex label.");
     }
     vertex_label = parsed.vertex_entries[0].label;
     vertex_pred = std::move(parsed.vertex_entries[0].predicate);
 
     if (parsed.edge_entries.empty()) {
-      throw std::runtime_error(
-          "LabelPropagation requires exactly one edge label.");
+      throw std::runtime_error("CDLP requires exactly one edge label.");
     }
     edge_triplet = parsed.edge_entries[0].triplet;
     edge_pred = std::move(parsed.edge_entries[0].predicate);
@@ -57,13 +55,13 @@ struct LabelPropagationInput : public function::CallFuncInputBase {
   int32_t concurrency;
 };
 
-std::unique_ptr<function::CallFuncInputBase> LabelPropagationFunction::bind(
+std::unique_ptr<function::CallFuncInputBase> CDLPFunction::bind(
     const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr();
   const auto& subgraph = opr.gds_algo().sub_graph();
   const auto& options = opr.gds_algo().options();
-  auto input = std::make_unique<LabelPropagationInput>();
+  auto input = std::make_unique<CDLPInput>();
   input->parse_subgraph(subgraph, ctx_meta);
   input->max_iterations =
       get_option_value<int32_t>(options, "max_iterations", 5);
@@ -71,19 +69,19 @@ std::unique_ptr<function::CallFuncInputBase> LabelPropagationFunction::bind(
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->label_alias = plan.plan(op_idx).meta_data(1).alias();
-  LOG(INFO) << "LabelPropagationFunction bind with max_iterations = "
+  LOG(INFO) << "CDLPFunction bind with max_iterations = "
             << input->max_iterations;
   return input;
 }
 
-execution::Context LabelPropagationFunction::exec(
+execution::Context CDLPFunction::exec(
     const function::CallFuncInputBase& input, neug::IStorageInterface& g) {
-  const auto& lp_input = dynamic_cast<const LabelPropagationInput&>(input);
+  const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  LabelPropagation runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
-                          lp_input.max_iterations, lp_input.concurrency,
-                          lp_input.vertex_pred.get(), lp_input.edge_pred.get());
+  CDLP runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
+              lp_input.max_iterations, lp_input.concurrency,
+              lp_input.vertex_pred.get(), lp_input.edge_pred.get());
   runner.compute();
 
   execution::Context ret;
@@ -91,7 +89,7 @@ execution::Context LabelPropagationFunction::exec(
   return ret;
 }
 
-function::function_set LabelPropagationFunction::getFunctionSet() {
+function::function_set CDLPFunction::getFunctionSet() {
   function::function_set funcSet;
   // two input params:
   // 1. subgraph name in string

@@ -22,8 +22,8 @@
 
 namespace neug {
 namespace gds {
-struct NEUG_API LabelPropagationFunction {
-  static constexpr const char* name = "label_propagation";
+struct NEUG_API CDLPFunction {
+  static constexpr const char* name = "cdlp";
   static std::unique_ptr<function::CallFuncInputBase> bind(
       const Schema& schema, const execution::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);

@@ -114,8 +114,8 @@ def test_project_graph_with_predicates(tmp_path):
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
 
 
-def test_run_label_propagation(tmp_path):
-    """Load GDS extension and run label_propagation on a projected subgraph."""
+def test_run_cdlp(tmp_path):
+    """Load GDS extension and run cdlp on a projected subgraph."""
     with tinysnb_connection(tmp_path) as conn:
         conn.execute(
             "CALL project_graph("
@@ -130,13 +130,13 @@ def test_run_label_propagation(tmp_path):
         rows = list(
             conn.execute(
                 """
-                CALL label_propagation('my_subgraph', {concurrency: 10})
+                CALL cdlp('my_subgraph', {concurrency: 10})
                 YIELD node, label
                 RETURN node.id, node.fName, node.name, label;
                 """
             )
         )
-        assert len(rows) > 0, "label_propagation must return at least one row"
+        assert len(rows) > 0, "cdlp must return at least one row"
         for row in rows:
             assert len(row) == 4, "each row should have (id, fName, name, label)"
             assert isinstance(row[3], int), "label should be an integer"
@@ -495,7 +495,7 @@ class TestSmallGraph:
         with self._small_graph_ctx(tmp_path) as conn:
             rows = list(
                 conn.execute(
-                    "CALL label_propagation('g', {max_iterations: 5}) "
+                    "CALL cdlp('g', {max_iterations: 5}) "
                     "YIELD node, label RETURN node.id, label;"
                 )
             )

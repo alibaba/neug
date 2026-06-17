@@ -340,14 +340,14 @@ ORDER BY core DESC;
 
 ---
 
-### Label Propagation
+### CDLP (Community Detection using Label Propagation)
 
 A community detection algorithm that propagates labels through the network.
 Each vertex is initially assigned a unique label; in each iteration, every vertex
 adopts the most frequent label among its neighbors.
 
 ```cypher
-CALL label_propagation('<graph_name>', {<options>})
+CALL cdlp('<graph_name>', {<options>})
 RETURN node, label;
 ```
 
@@ -375,12 +375,12 @@ CALL project_graph(
 );
 LOAD gds;
 
-CALL label_propagation('study_net', {concurrency: 10})
+CALL cdlp('study_net', {concurrency: 10})
 RETURN node.id, node.fName, node.name, label;
 ```
 
-**Predicate support:** Both vertex and edge predicates are supported. Label
-Propagation also supports heterogeneous vertex labels in the projected subgraph
+**Predicate support:** Both vertex and edge predicates are supported. CDLP
+also supports heterogeneous vertex labels in the projected subgraph
 (unlike other algorithms which require a single vertex label).
 
 ---
@@ -509,7 +509,7 @@ RETURN node, personalized_page_rank;
 | WCC | `wcc` | `node`, `comp` | `concurrency` |
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
-| Label Propagation | `label_propagation` | `node`, `label` | `max_iterations` |
+| CDLP | `cdlp` | `node`, `label` | `max_iterations` |
 | Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
 | Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
 | Personalized PageRank* | `personalized_page_rank` | `node`, `personalized_page_rank` | `edge_weight`, `node_weight` |
