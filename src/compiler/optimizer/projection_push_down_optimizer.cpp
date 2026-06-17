@@ -254,8 +254,8 @@ void ProjectionPushDownOptimizer::visitCopyFrom(LogicalOperator* op) {
   const auto* info = copyFrom.getInfo();
   if (!info->returnColumns.empty()) {
     // LOAD AS with RETURN: only mark return columns as in use.
-    // WHERE-referenced columns are collected by visitTableFunctionCall
-    // via the rowSkips expression.
+    // WHERE-referenced columns are NOT collected — the Arrow Dataset
+    // Scanner applies the filter independently of column projection.
     const auto& sourceCols = info->getSourceColumns();
     for (const auto& retCol : info->returnColumns) {
       for (const auto& srcCol : sourceCols) {
@@ -273,19 +273,19 @@ void ProjectionPushDownOptimizer::visitCopyFrom(LogicalOperator* op) {
   if (info->offset) {
     collectExpressionsInUse(info->offset);
   }
-  // Also collect WHERE predicate columns so they are not pruned.
-  if (info->wherePredicate) {
-    collectExpressionsInUse(info->wherePredicate);
-  }
+  // NOTE: WHERE predicate columns are NOT collected here.  The rowSkips
+  // expression variables have useName=true (set by ResetVarUseNameVisitor
+  // in plan_copy.cpp), so they bypass the alias manager during physical
+  // plan serialization.  The Arrow Dataset Scanner applies the filter on
+  // raw source data *before* column projection, so filter-only columns
+  // don't need to appear in projectColumns or the output schema.
 }
 
 void ProjectionPushDownOptimizer::visitTableFunctionCall(LogicalOperator* op) {
   auto& tableFunctionCall = op->cast<LogicalTableFunctionCall>();
-  // filtering has been pushed down to the table function call
-  auto skipRows = tableFunctionCall.getBindData()->getRowSkips();
-  if (skipRows) {
-    collectExpressionsInUse(skipRows);
-  }
+  // NOTE: rowSkips (pushed-down WHERE filter) is NOT collected here.
+  // The Arrow Dataset Scanner applies the filter before projection, so filter-only
+  // columns need not appear in projectColumns.
   auto bindData = tableFunctionCall.getBindData();
   auto scanBindData = dynamic_cast<function::ScanFileBindData*>(bindData);
   // Column pruning can only be applied on DataSource operator with non-null
