@@ -25,8 +25,7 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   extension_tests_default:
-    # runs-on: [self-hosted, daily, linux]
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, daily, linux]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
     steps:
@@ -128,8 +127,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "httpfs"
 
   extension_tests_wheel_linux_x86_64:
-    # runs-on: [self-hosted, daily, linux, x64]
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, daily, linux, x64]
     steps:
       - name: checkout
         id: checkout
@@ -207,8 +205,7 @@ jobs:
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
 
   extension_tests_wheel_linux_arm64:
-    # runs-on: [self-hosted, daily, linux, arm64]
-    runs-on: ubuntu-22.04-arm
+    runs-on: [self-hosted, daily, linux, arm64]
     steps:
       - name: checkout
         id: checkout

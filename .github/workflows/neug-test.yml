@@ -61,11 +61,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            # runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
-            runner: ubuntu-22.04
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
           - arch: arm64
-            # runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
-            runner: ubuntu-22.04-arm
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
     runs-on: ${{ matrix.runner }}
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
@@ -254,17 +252,17 @@ jobs:
       run: |
         git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
         rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb && rm -rf /tmp/comprehensive_graph
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        cd ${GITHUB_WORKSPACE}
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+        GLOG_v=10 ./build/tools/utils/bulk_loader -g ./example_dataset/modern_graph/graph.yaml -l ./example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
         export FLEX_DATA_DIR=${GS_TEST_DIR}/neug/lsqb-sf01
-        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
+        GLOG_v=10 ./build/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
-        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
+        GLOG_v=10 ./build/tools/utils/bulk_loader -g ./example_dataset/ldbc/graph.yaml -l ./example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        GLOG_v=10 ./build/tools/utils/bulk_loader -g ./example_dataset/tinysnb/graph.yaml -l ./example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        GLOG_v=10 ./build/tools/utils/bulk_loader -g ./example_dataset/comprehensive_graph/graph.yaml -l ./example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
 
     # ========================================
     # Phase 3: Python Tests

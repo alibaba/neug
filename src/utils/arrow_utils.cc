@@ -16,7 +16,6 @@
 
 #include <vector>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/property.h"
 
 namespace neug {
 
@@ -48,7 +47,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
   switch (id) {
   case DataTypeId::kStruct: {
     std::vector<std::shared_ptr<arrow::Field>> field_types;
-    auto casted = dynamic_cast<const StructTypeInfo*>(type.RawExtraTypeInfo());
+    auto casted = dynamic_cast<const StructTypeInfo*>(type.getExtraTypeInfo());
     assert(casted != nullptr);
     for (int i = 0; i < casted->child_types.size(); ++i) {
       field_types.push_back(
@@ -58,7 +57,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
     return arrow::struct_(field_types);
   }
   case DataTypeId::kList: {
-    auto casted = dynamic_cast<const ListTypeInfo*>(type.RawExtraTypeInfo());
+    auto casted = dynamic_cast<const ListTypeInfo*>(type.getExtraTypeInfo());
     assert(casted != nullptr);
     auto value_type = PropertyTypeToArrowType(casted->child_type);
     return arrow::list(value_type);
@@ -67,18 +66,6 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
     return PropertyTypeToArrowType(id);
   }
   return nullptr;
-}
-
-template <typename T>
-void emplace_into_vector(const std::shared_ptr<arrow::ChunkedArray>& array,
-                         std::vector<Property>& vec) {
-  using arrow_array_type = typename neug::TypeConverter<T>::ArrowArrayType;
-  for (int32_t i = 0; i < array->num_chunks(); ++i) {
-    auto casted = std::static_pointer_cast<arrow_array_type>(array->chunk(i));
-    for (auto k = 0; k < casted->length(); ++k) {
-      vec.emplace_back(PropUtils<T>::to_prop(casted->Value(k)));
-    }
-  }
 }
 
 }  // namespace neug

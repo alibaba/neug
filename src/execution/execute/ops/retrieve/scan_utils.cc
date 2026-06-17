@@ -25,32 +25,32 @@ namespace execution {
 namespace ops {
 
 template <typename T>
-std::vector<Property> parse_ids_from_idx_predicate(
+std::vector<Value> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-    std::vector<Property> ret;
+    std::vector<Value> ret;
     if (triplet.const_().item_case() == common::Value::kI32) {
       ret.emplace_back(
-          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().i32())));
+          Value::CreateValue<T>(static_cast<T>(triplet.const_().i32())));
     } else if (triplet.const_().item_case() == common::Value::kI64) {
       ret.emplace_back(
-          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().i64())));
+          Value::CreateValue<T>(static_cast<T>(triplet.const_().i64())));
     } else if (triplet.const_().item_case() == common::Value::kU32) {
       ret.emplace_back(
-          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().u32())));
+          Value::CreateValue<T>(static_cast<T>(triplet.const_().u32())));
     } else if (triplet.const_().item_case() == common::Value::kU64) {
       ret.emplace_back(
-          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().u64())));
+          Value::CreateValue<T>(static_cast<T>(triplet.const_().u64())));
     } else if (triplet.const_().item_case() == common::Value::kI64Array) {
       const auto& arr = triplet.const_().i64_array();
       for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(PropUtils<T>::to_prop(static_cast<T>(arr.item(i))));
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
       }
     } else if (triplet.const_().item_case() == common::Value::kI32Array) {
       const auto& arr = triplet.const_().i32_array();
       for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(PropUtils<T>::to_prop(static_cast<T>(arr.item(i))));
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
       }
     }
     return ret;
@@ -60,10 +60,10 @@ std::vector<Property> parse_ids_from_idx_predicate(
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kInt32) {
-      return std::vector<Property>{PropUtils<T>::to_prop(
+      return std::vector<Value>{Value::CreateValue<T>(
           params.at(triplet.param().name()).template GetValue<T>())};
     } else if (param_type.id() == DataTypeId::kInt64) {
-      return std::vector<Property>{PropUtils<T>::to_prop(
+      return std::vector<Value>{Value::CreateValue<T>(
           params.at(triplet.param().name()).template GetValue<T>())};
     }
   }
@@ -73,18 +73,18 @@ std::vector<Property> parse_ids_from_idx_predicate(
   return {};
 }
 
-std::vector<Property> parse_ids_from_idx_predicate(
+std::vector<Value> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
-  std::vector<Property> ret;
+  std::vector<Value> ret;
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
     if (triplet.const_().item_case() == common::Value::kStr) {
-      ret.emplace_back(Property::from_string_view(triplet.const_().str()));
+      ret.emplace_back(Value::STRING(triplet.const_().str()));
 
     } else if (triplet.const_().item_case() == common::Value::kStrArray) {
       const auto& arr = triplet.const_().str_array();
       for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(Property::from_string_view(arr.item(i)));
+        ret.emplace_back(Value::STRING(arr.item(i)));
       }
     }
     return ret;
@@ -94,8 +94,7 @@ std::vector<Property> parse_ids_from_idx_predicate(
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kVarchar) {
-      auto sw = value_to_property(params.at(triplet.param().name()));
-      ret.emplace_back(sw);
+      ret.emplace_back(params.at(triplet.param().name()));
       return ret;
     }
   }
@@ -104,7 +103,7 @@ std::vector<Property> parse_ids_from_idx_predicate(
   }
   return ret;
 }
-std::vector<Property> ScanUtils::parse_ids_with_type(
+std::vector<Value> ScanUtils::parse_ids_with_type(
     DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
     const ParamsMap& params) {
   switch (type) {

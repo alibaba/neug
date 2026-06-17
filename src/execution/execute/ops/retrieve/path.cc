@@ -210,14 +210,14 @@ static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
 
 struct OrderByLimitSPOp {
   template <typename PRED_T>
-  static neug::result<Context> eval_with_predicate(
+  static neug::result<ContextChunk> eval_with_predicate(
       const PRED_T& pred, const IStorageInterface& graph_interface,
-      Context&& ctx, const ShortestPathParams& spp, int limit) {
+      ContextChunk&& chunk, const ShortestPathParams& spp, int limit) {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
     return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-        graph, std::move(ctx), spp, pred, limit);
+        graph, std::move(chunk), spp, pred, limit);
   }
 };
 
@@ -240,9 +240,12 @@ class SPOrderByLimitOpr : public IOperator {
       expected_labels.insert(label.src_label);
       expected_labels.insert(label.dst_label);
     }
-    return dispatch_vertex_predicate<OrderByLimitSPOp>(
-        graph, expected_labels, config_, params, graph, std::move(ctx), spp_,
-        limit_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return dispatch_vertex_predicate<OrderByLimitSPOp>(
+              graph, expected_labels, config_, params, graph, std::move(chunk),
+              spp_, limit_);
+        });
   }
 
  private:
@@ -272,12 +275,20 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
 
       GeneralPred predicate_wrapper(std::move(pred));
 
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, predicate_wrapper, limit_);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::
+                single_source_shortest_path_with_order_by_length_limit(
+                    graph, std::move(chunk), spp_, predicate_wrapper, limit_);
+          });
     } else {
-      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; },
-          limit_);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::
+                single_source_shortest_path_with_order_by_length_limit(
+                    graph, std::move(chunk), spp_,
+                    [](label_t, vid_t) { return true; }, limit_);
+          });
     }
   }
 
@@ -361,9 +372,12 @@ class SPSPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return PathExpand::
-        single_source_shortest_path_with_special_vertex_predicate(
-            graph, std::move(ctx), spp_, config_, params);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::
+              single_source_shortest_path_with_special_vertex_predicate(
+                  graph, std::move(chunk), spp_, config_, params);
+        });
   }
 
  private:
@@ -387,8 +401,11 @@ class SPGPredOpr : public IOperator {
     auto pred = pred_->bind(&graph, params);
     GeneralPred predicate_wrapper(std::move(pred));
 
-    return PathExpand::single_source_shortest_path(graph, std::move(ctx), spp_,
-                                                   predicate_wrapper);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::single_source_shortest_path(
+              graph, std::move(chunk), spp_, predicate_wrapper);
+        });
   }
 
  private:
@@ -407,8 +424,12 @@ class SPWithoutPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return PathExpand::single_source_shortest_path(
-        graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; });
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::single_source_shortest_path(
+              graph, std::move(chunk), spp_,
+              [](label_t, vid_t) { return true; });
+        });
   }
 
  private:
@@ -446,14 +467,14 @@ class ASPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Property oid;
+    execution::Value oid;
     if (expr_opr_.has_param()) {
       auto name = expr_opr_.param().name();
       auto val = params.at(name).GetValue<int64_t>();
-      oid = Property::from_int64(val);
+      oid = execution::Value::INT64(val);
     } else {
       const auto& c = expr_opr_.const_();
-      oid = Property::from_int64(c.i64());
+      oid = execution::Value::INT64(c.i64());
     }
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
@@ -467,8 +488,11 @@ class ASPOpr : public IOperator {
     }
 
     auto v = std::make_pair(aspp_.labels[0].dst_label, vid);
-    return PathExpand::all_shortest_paths_with_given_source_and_dest(
-        graph, std::move(ctx), aspp_, v);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::all_shortest_paths_with_given_source_and_dest(
+              graph, std::move(chunk), aspp_, v);
+        });
   }
 
  private:
@@ -488,14 +512,14 @@ class SSSDSPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Property vertex = [&]() {
+    execution::Value vertex = [&]() {
       if (expr_opr_.has_param()) {
         auto name = expr_opr_.param().name();
         auto val = params.at(name).GetValue<int64_t>();
-        return Property::from_int64(val);
+        return execution::Value::INT64(val);
       } else {
         const auto& c = expr_opr_.const_();
-        return Property::from_int64(c.i64());
+        return execution::Value::INT64(c.i64());
       }
     }();
     vid_t vid;
@@ -510,8 +534,11 @@ class SSSDSPOpr : public IOperator {
 
     auto v = std::make_pair(spp_.labels[0].dst_label, vid);
 
-    return PathExpand::single_source_single_dest_shortest_path(
-        graph, std::move(ctx), spp_, v);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::single_source_single_dest_shortest_path(
+              graph, std::move(chunk), spp_, v);
+        });
   }
 
  private:
@@ -621,7 +648,10 @@ class PathExpandVOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return PathExpand::edge_expand_v(graph, std::move(ctx), pep_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::edge_expand_v(graph, std::move(chunk), pep_);
+        });
   }
   std::string get_operator_name() const override { return "PathExpandVOpr"; }
 
@@ -688,8 +718,8 @@ neug::result<OpBuildResultT> PathExpandVOprBuilder::Build(
     }
     if (next_opr.has_params()) {
       std::vector<label_t> vertex_labels = parse_tables(next_opr.params());
-      std::unordered_set<label_t> vertex_label_set(vertex_labels.begin(),
-                                                   vertex_labels.end());
+      flat_hash_set<label_t> vertex_label_set(vertex_labels.begin(),
+                                              vertex_labels.end());
       for (const auto& lt : pep.labels) {
         if ((pep.dir == Direction::kOut || pep.dir == Direction::kBoth) &&
             vertex_label_set.find(lt.dst_label) == vertex_label_set.end()) {
@@ -719,7 +749,10 @@ class PathExpandOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return PathExpand::edge_expand_p(graph, std::move(ctx), pep_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::edge_expand_p(graph, std::move(chunk), pep_);
+        });
   }
 
  private:
@@ -743,8 +776,11 @@ class PathExpandOprWithPred : public IOperator {
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto expr = pred_->bind(&graph, params);
     GeneralPred predicate_wrapper(std::move(expr));
-    return PathExpand::edge_expand_p_with_pred(graph, std::move(ctx), pep_,
-                                               predicate_wrapper);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::edge_expand_p_with_pred(graph, std::move(chunk),
+                                                     pep_, predicate_wrapper);
+        });
   }
 
  private:
@@ -775,8 +811,11 @@ class AnyWeightedShortestPathOpr : public IOperator {
           .eval_edge(label, src, dst, data_ptr)
           .GetValue<double>();
     };
-    return PathExpand::any_weighted_shortest_path(graph, std::move(ctx), pep_,
-                                                  weight_func);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return PathExpand::any_weighted_shortest_path(graph, std::move(chunk),
+                                                        pep_, weight_func);
+        });
   }
 
  private:

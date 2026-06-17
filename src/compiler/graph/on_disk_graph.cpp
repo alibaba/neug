@@ -71,13 +71,13 @@ static Schema getSchema(const expression_vector& exprs) {
 }
 
 static neug::processor::ResultSet getResultSet(Schema* schema,
-                                             MemoryManager* mm) {
+                                               MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");
 }
 
 static std::unique_ptr<ValueVector> getValueVector(
-    const LogicalType& type, MemoryManager* mm,
+    const DataType& type, MemoryManager* mm,
     std::shared_ptr<DataChunkState> state) {
   auto vector = std::make_unique<ValueVector>(type.copy(), mm);
   vector->state = std::move(state);

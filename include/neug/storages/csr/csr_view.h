@@ -16,9 +16,9 @@
 
 #include <glog/logging.h>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/property/column.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -252,8 +252,8 @@ static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
  * NbrList edges = view.get_edges(v);
  *
  * for (auto it = edges.begin(); it != edges.end(); ++it) {
- *     // Get property as generic Property type
- *     Property prop = accessor.get_data(it);
+ *     // Get property as generic execution::Value
+ *     execution::Value val = accessor.get_value(it);
  *
  *     // Or get as typed value (faster if type is known)
  *     double weight = accessor.get_typed_data<double>(it);
@@ -281,18 +281,6 @@ struct EdgeDataAccessor {
   /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
 
-  /**
-   * @brief Get property value for current edge as generic Property.
-   * @param it Iterator pointing to the edge
-   * @return Property containing the edge data
-   */
-  inline Property get_data(const NbrIterator& it) const {
-    return data_column_ == nullptr
-               ? get_generic_bundled_data_from_ptr(it.get_data_ptr())
-               : get_generic_column_data(
-                     *reinterpret_cast<const size_t*>(it.get_data_ptr()));
-  }
-
   template <typename T>
   inline T get_typed_data(const NbrIterator& it) const {
     if constexpr (std::is_same<T, EmptyType>::value) {
@@ -318,21 +306,33 @@ struct EdgeDataAccessor {
     }
   }
 
-  inline Property get_data_from_ptr(const void* data_ptr) const {
+  /**
+   * @brief Get property value for current edge as execution::Value.
+   * @param it Iterator pointing to the edge
+   * @return execution::Value containing the edge data
+   */
+  inline execution::Value get_data(const NbrIterator& it) const {
+    return data_column_ == nullptr
+               ? get_generic_bundled_data_from_ptr(it.get_data_ptr())
+               : data_column_->get_any(
+                     *reinterpret_cast<const size_t*>(it.get_data_ptr()));
+  }
+
+  inline execution::Value get_data_from_ptr(const void* data_ptr) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(data_ptr)
-               : get_generic_column_data(
+               : data_column_->get_any(
                      *reinterpret_cast<const size_t*>(data_ptr));
   }
 
-  inline void set_data(const NbrIterator& it, const Property& prop,
+  inline void set_data(const NbrIterator& it, const execution::Value& value,
                        timestamp_t ts) {
     if (it.cfg.ts_offset != 0) {
       *const_cast<timestamp_t*>(it.get_timestamp_ptr()) = ts;
     }
     if (data_column_ != nullptr) {
       size_t idx = get_bundled_data_from_ptr<size_t>(it.get_data_ptr());
-      data_column_->set_prop(idx, prop);
+      data_column_->set_any(idx, value, true);
     } else {
       if (data_type_ == DataTypeId::kEmpty) {
         return;
@@ -341,7 +341,7 @@ struct EdgeDataAccessor {
 #define TYPE_DISPATCHER(enum_val, type)                              \
   case DataTypeId::enum_val: {                                       \
     *reinterpret_cast<type*>(const_cast<void*>(it.get_data_ptr())) = \
-        PropUtils<type>::to_typed(prop);                             \
+        value.GetValue<type>();                                      \
     break;                                                           \
   }
         FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
@@ -365,15 +365,15 @@ struct EdgeDataAccessor {
     return reinterpret_cast<const TypedColumn<T>*>(data_column_)->get_view(idx);
   }
 
-  inline Property get_generic_bundled_data_from_ptr(
+  inline execution::Value get_generic_bundled_data_from_ptr(
       const void* data_ptr) const {
     if (data_type_ == DataTypeId::kEmpty) {
-      return Property::empty();
+      return execution::Value(DataType::EMPTY);
     }
     switch (data_type_) {
 #define TYPE_DISPATCHER(enum_val, type)             \
   case DataTypeId::enum_val: {                      \
-    return PropUtils<type>::to_prop(                \
+    return execution::Value::CreateValue<type>(     \
         get_bundled_data_from_ptr<type>(data_ptr)); \
   }
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
@@ -381,12 +381,8 @@ struct EdgeDataAccessor {
     default:
       THROW_RUNTIME_ERROR("Could not get bundled data for type " +
                           std::to_string(data_type_));
-      return Property::empty();
+      return execution::Value(DataType::SQLNULL);
     }
-  }
-
-  inline Property get_generic_column_data(size_t idx) const {
-    return data_column_->get_prop(idx);
   }
 
   DataTypeId data_type_;
@@ -422,8 +418,15 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_gt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const nbr_t* ptr = adjlists[v] + degrees[v] - 1;
-    const nbr_t* end = adjlists[v] - 1;
+    // Atomic loads for torn-read safety: snapshot degree and buffer pointer
+    const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
+        std::memory_order_acquire);
+    const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
+    const nbr_t* ptr = base + deg - 1;
+    const nbr_t* end = base - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -449,8 +452,15 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
 
   template <typename FUNC_T>
   void foreach_nbr_lt(vid_t v, const T& threshold, const FUNC_T& func) const {
-    const nbr_t* ptr = adjlists[v] + degrees[v] - 1;
-    const nbr_t* end = adjlists[v] - 1;
+    // Atomic load for torn-read safety: snapshot degree
+    const int deg = reinterpret_cast<const std::atomic<int>*>(degrees)[v].load(
+        std::memory_order_acquire);
+    const nbr_t* base = adjlists[v];
+    if (deg == 0 || base == nullptr) {
+      return;
+    }
+    const nbr_t* ptr = base + deg - 1;
+    const nbr_t* end = base - 1;
     while (ptr != end) {
       if (ptr->timestamp > timestamp) {
         --ptr;
@@ -468,7 +478,7 @@ struct TypedCsrView<T, CsrViewType::kMultipleMutable> {
       return;
     }
     ptr = std::lower_bound(
-              adjlists[v], ptr + 1, threshold,
+              base, ptr + 1, threshold,
               [](const nbr_t& b, const T& a) { return b.data < a; }) -
           1;
     while (ptr != end) {
@@ -609,6 +619,15 @@ struct CsrView {
       ret.start_ptr = start_ptr;
       ret.end_ptr = start_ptr + cfg_.stride;
     } else {
+      int deg;
+      if (cfg_.ts_offset != 0) {
+        // Mutable CSR: atomic load for torn-read safety (concurrent writers)
+        deg = reinterpret_cast<const std::atomic<int>*>(degrees_)[v].load(
+            std::memory_order_acquire);
+      } else {
+        // Immutable CSR: plain read (no concurrent writers)
+        deg = degrees_[v];
+      }
       const char* start_ptr = reinterpret_cast<const char*>(
           reinterpret_cast<const int64_t*>(adjlists_)[v]);
       if (start_ptr == nullptr) {
@@ -616,7 +635,7 @@ struct CsrView {
         ret.end_ptr = nullptr;
       } else {
         ret.start_ptr = start_ptr;
-        ret.end_ptr = start_ptr + degrees_[v] * cfg_.stride;
+        ret.end_ptr = start_ptr + deg * cfg_.stride;
       }
     }
     ret.cfg = cfg_;

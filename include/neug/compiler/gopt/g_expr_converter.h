@@ -126,9 +126,9 @@ class GExprConverter {
       const neug::common::Value& value);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
-      common::LogicalType& type);
+      common::DataType& type);
   std::unique_ptr<::common::Variable> convertSingleVar(
-      const std::string& aliasName, const common::LogicalType& type);
+      const std::string& aliasName, const common::DataType& type);
   ::common::Logical convertCompare(common::ExpressionType type);
   std::unique_ptr<::common::Expression> convertPattern(
       const binder::NodeOrRelExpression& expr);
@@ -146,7 +146,7 @@ class GExprConverter {
       const std::string& funcName, const binder::Expression& expr,
       size_t paramNum, const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::Value> convertToLiteralArray(
-      const common::Value& value, const common::LogicalType& childType);
+      const common::Value& value, const common::DataType& childType);
   std::unique_ptr<::common::Expression> convertRegexFunc(
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);

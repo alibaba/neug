@@ -39,7 +39,7 @@ struct JsonReadFunction {
 
   static function_set getFunctionSet() {
     auto typeIDs =
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING};
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonExecFunc;
     readFunction->sniffFunc = jsonSniffFunc;
@@ -79,6 +79,8 @@ struct JsonReadFunction {
     // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
+    externalSchema.file.options["BATCH_SIZE"] =
+        std::to_string(reader::kSniffBlockSize);
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -109,7 +111,7 @@ struct JsonLReadFunction {
 
   static function_set getFunctionSet() {
     auto typeIDs =
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING};
+        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonLExecFunc;
     readFunction->sniffFunc = jsonLSniffFunc;
@@ -150,6 +152,8 @@ struct JsonLReadFunction {
     // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
+    externalSchema.file.options["BATCH_SIZE"] =
+        std::to_string(reader::kSniffBlockSize);
     // todo: get file system from vfs manager
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);

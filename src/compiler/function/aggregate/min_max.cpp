@@ -34,10 +34,10 @@ template <typename FUNC>
 static void getMinMaxFunction(std::string name, function_set& set) {
   std::unique_ptr<AggregateFunction> func;
   for (auto& type : LogicalTypeUtils::getAllValidComparableLogicalTypes()) {
-    auto inputTypes = std::vector<common::LogicalTypeID>{type};
+    auto inputTypes = std::vector<common::DataTypeId>{type};
     for (auto isDistinct : std::vector<bool>{true, false}) {
       common::TypeUtils::visit(
-          LogicalType::getPhysicalType(type),
+          getPhysicalType(type),
           [&]<ComparableTypes T>(T) {
             func = std::make_unique<AggregateFunction>(
                 name, inputTypes, type, MinMaxFunction<T>::initialize,

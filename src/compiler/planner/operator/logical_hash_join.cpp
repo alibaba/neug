@@ -174,8 +174,7 @@ bool LogicalHashJoin::isNodeIDOnlyJoin(
     const std::vector<join_condition_t>& joinConditions) {
   for (auto& [probeKey, buildKey] : joinConditions) {
     if (probeKey->getUniqueName() != buildKey->getUniqueName() ||
-        probeKey->getDataType().getLogicalTypeID() !=
-            common::LogicalTypeID::INTERNAL_ID) {
+        probeKey->getDataType().id() != common::DataTypeId::kInternalId) {
       return false;
     }
   }
@@ -193,7 +192,7 @@ binder::expression_vector LogicalHashJoin::getJoinNodeIDs(
     if (probeKey->expressionType != ExpressionType::PROPERTY) {
       continue;
     }
-    if (probeKey->dataType.getLogicalTypeID() != LogicalTypeID::INTERNAL_ID) {
+    if (probeKey->dataType.id() != DataTypeId::kInternalId) {
       continue;
     }
     result.push_back(probeKey);
@@ -231,7 +230,7 @@ bool LogicalHashJoin::requireFlatProbeKeys() const {
   }
   auto& [probeKey, buildKey] = joinConditions[0];
   // Flatten for non-ID-based join.
-  if (probeKey->dataType.getLogicalTypeID() != LogicalTypeID::INTERNAL_ID) {
+  if (probeKey->dataType.id() != DataTypeId::kInternalId) {
     return true;
   }
   return !JoinNodeIDUniquenessAnalyzer::isUnique(children[1].get(), *buildKey);

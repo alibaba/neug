@@ -117,22 +117,22 @@ std::shared_ptr<Expression> Binder::bindWhereExpression(
     const ParsedExpression& parsedExpression) {
   auto whereExpression = expressionBinder.bindExpression(parsedExpression);
   expressionBinder.implicitCastIfNecessary(whereExpression,
-                                           LogicalType::BOOL());
+                                           DataType(DataTypeId::kBoolean));
   return whereExpression;
 }
 
 std::shared_ptr<Expression> Binder::createVariable(std::string_view name,
-                                                   LogicalTypeID typeID) {
-  return createVariable(std::string(name), LogicalType{typeID});
+                                                   DataTypeId typeID) {
+  return createVariable(std::string(name), DataType{typeID});
 }
 
-std::shared_ptr<Expression> Binder::createVariable(
-    const std::string& name, LogicalTypeID logicalTypeID) {
-  return createVariable(name, LogicalType{logicalTypeID});
+std::shared_ptr<Expression> Binder::createVariable(const std::string& name,
+                                                   DataTypeId logicalTypeID) {
+  return createVariable(name, DataType{logicalTypeID});
 }
 
-std::shared_ptr<Expression> Binder::createVariable(
-    const std::string& name, const LogicalType& dataType) {
+std::shared_ptr<Expression> Binder::createVariable(const std::string& name,
+                                                   const DataType& dataType) {
   if (scope.contains(name)) {
     return scope.getExpression(name);
   }
@@ -144,7 +144,7 @@ std::shared_ptr<Expression> Binder::createVariable(
 }
 
 std::shared_ptr<Expression> Binder::createInvisibleVariable(
-    const std::string& name, const LogicalType& dataType) const {
+    const std::string& name, const DataType& dataType) const {
   auto expression =
       expressionBinder.createVariableExpression(dataType.copy(), name);
   expression->setAlias(name);
@@ -153,7 +153,7 @@ std::shared_ptr<Expression> Binder::createInvisibleVariable(
 
 expression_vector Binder::createVariables(
     const std::vector<std::string>& names,
-    const std::vector<common::LogicalType>& types) {
+    const std::vector<common::DataType>& types) {
   NEUG_ASSERT(names.size() == types.size());
   expression_vector variables;
   for (auto i = 0u; i < names.size(); ++i) {
@@ -164,7 +164,7 @@ expression_vector Binder::createVariables(
 
 expression_vector Binder::createInvisibleVariables(
     const std::vector<std::string>& names,
-    const std::vector<LogicalType>& types) const {
+    const std::vector<DataType>& types) const {
   NEUG_ASSERT(names.size() == types.size());
   expression_vector variables;
   for (auto i = 0u; i < names.size(); ++i) {
@@ -283,8 +283,8 @@ function::TableFunction* Binder::getScanFunction(
                  [](unsigned char c) { return std::toupper(c); });
   auto name = stringFormat("{}_SCAN", fileTypeStr);
   // TODO: consider about other parameters of data source except input file
-  std::vector<LogicalType> inputTypes;
-  inputTypes.push_back(LogicalType::STRING());
+  std::vector<DataType> inputTypes;
+  inputTypes.push_back(DataType::Varchar());
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
   auto entry = catalog->getFunctionEntry(transaction, name);
@@ -295,12 +295,12 @@ function::TableFunction* Binder::getScanFunction(
 
 std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
     std::shared_ptr<binder::Expression> inputExpr,
-    const common::LogicalType& outDataType, const std::string& uniqueName,
+    const common::DataType& outDataType, const std::string& uniqueName,
     const std::string& aliasName) {
-  if (outDataType.getLogicalTypeID() != common::LogicalTypeID::NODE) {
+  if (outDataType.id() != common::DataTypeId::kVertex) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Cannot create child node expression for non-node type: " +
-        outDataType.toString());
+        outDataType.ToString());
   }
   bool startNode = true;
   while (inputExpr) {
@@ -311,15 +311,15 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
         startNode = false;
       }
     } else if (inputExpr->expressionType == common::ExpressionType::PATTERN) {
-      auto typeID = inputExpr->getDataType().getLogicalTypeID();
-      if (typeID == common::LogicalTypeID::REL) {
+      auto typeID = inputExpr->getDataType().id();
+      if (typeID == common::DataTypeId::kEdge) {
         auto relExpr = inputExpr->ptrCast<RelExpression>();
         if (startNode) {
           inputExpr = relExpr->getSrcNode();
         } else {
           inputExpr = relExpr->getDstNode();
         }
-      } else if (typeID == common::LogicalTypeID::RECURSIVE_REL) {
+      } else if (typeID == common::DataTypeId::kPath) {
         inputExpr =
             inputExpr->ptrCast<RelExpression>()->getRecursiveInfo()->node;
       }
@@ -333,8 +333,7 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
   std::vector<catalog::TableCatalogEntry*> entries;
   if (inputExpr &&
       inputExpr->expressionType == common::ExpressionType::PATTERN &&
-      inputExpr->getDataType().getLogicalTypeID() ==
-          common::LogicalTypeID::NODE) {
+      inputExpr->getDataType().id() == common::DataTypeId::kVertex) {
     auto nodeExpr = inputExpr->ptrCast<binder::NodeExpression>();
     entries = nodeExpr->getEntries();
   }
@@ -343,7 +342,7 @@ std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
   bindQueryNodeProperties(*nodeExpr);
   nodeExpr->setAlias(aliasName);
   auto internalID = PropertyExpression::construct(
-      LogicalType::INTERNAL_ID(), InternalKeyword::ID, *nodeExpr);
+      DataType(DataTypeId::kInternalId), InternalKeyword::ID, *nodeExpr);
   nodeExpr->setInternalID(std::move(internalID));
   return nodeExpr;
 }

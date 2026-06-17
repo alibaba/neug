@@ -196,8 +196,7 @@ std::string parse_query(const std::string& filename) {
 void benchmark_iteration(
     neug::IStorageInterface& graph, neug::execution::Pipeline& pipeline,
     const std::vector<neug::execution::ParamsMap>& parameters, int query_num,
-    std::vector<std::vector<char>>& outputs, neug::execution::OprTimer& timer) {
-  outputs.resize(query_num);
+    neug::execution::OprTimer& timer) {
   for (int i = 0; i < query_num; ++i) {
     neug::execution::Context ctx;
     auto& m = parameters[i % parameters.size()];
@@ -211,9 +210,7 @@ void benchmark_iteration(
         LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
         return;
       }
-      outputs[i].clear();
 
-      neug::Encoder output(outputs[i]);
       neug::execution::Sink::sink_results(
           ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
           response);
@@ -222,8 +219,6 @@ void benchmark_iteration(
       auto ctx =
           pipeline.Execute(graph, neug::execution::Context(), m, &cur_timer);
 
-      outputs[i].clear();
-      neug::Encoder output(outputs[i]);
       neug::execution::Sink::sink_results(
           ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
           response);
@@ -288,7 +283,6 @@ int main(int argc, char** argv) {
     }
     LOG(INFO) << "Running benchmark: " << unit.name
               << ", repeat: " << query_num;
-    std::vector<std::vector<char>> outputs(query_num);
 
     auto query_str = parse_query(unit.query_pb_path);
     const auto res = compiler->compilePlan(query_str);
@@ -318,7 +312,7 @@ int main(int argc, char** argv) {
       std::unique_ptr<neug::execution::OprTimer> timer =
           std::make_unique<neug::execution::OprTimer>();
       benchmark_iteration(graph, pipeline.value().first, params_map, query_num,
-                          outputs, *timer);
+                          *timer);
       if (timer->elapsed() < best_elapsed) {
         best_timer = std::move(timer);
         best_elapsed = best_timer->elapsed();

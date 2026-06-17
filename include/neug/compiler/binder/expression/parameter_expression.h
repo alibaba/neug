@@ -40,7 +40,7 @@ class NEUG_API ParameterExpression final : public Expression {
         parameterName(parameterName),
         value{std::move(value)} {}
 
-  void cast(const common::LogicalType& type) override;
+  void cast(const common::DataType& type) override;
 
   common::Value getValue() const { return value; }
 

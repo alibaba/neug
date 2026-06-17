@@ -18,8 +18,7 @@ concurrency:
 jobs:
   benchmark:
     name: Build, Load, Serve and Benchmark
-    # if: github.repository == 'alibaba/neug' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
-    if: false
+    if: github.repository == 'alibaba/neug' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
     runs-on: [self-hosted, ldbc-benchmark]
     timeout-minutes: 480
     steps:

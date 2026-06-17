@@ -68,8 +68,8 @@ struct AggregateFunction final : public ScalarOrAggregateFunction {
   param_rewrite_function_t paramRewriteFunc;
 
   AggregateFunction(std::string name,
-                    std::vector<common::LogicalTypeID> parameterTypeIDs,
-                    common::LogicalTypeID returnTypeID,
+                    std::vector<common::DataTypeId> parameterTypeIDs,
+                    common::DataTypeId returnTypeID,
                     aggr_initialize_function_t initializeFunc,
                     aggr_update_all_function_t updateAllFunc,
                     aggr_update_pos_function_t updatePosFunc,
@@ -133,18 +133,18 @@ struct AggregateFunction final : public ScalarOrAggregateFunction {
 struct AggregateFunctionUtils {
   template <typename T>
   static std::unique_ptr<AggregateFunction> getAggFunc(
-      std::string name, common::LogicalTypeID inputType,
-      common::LogicalTypeID resultType, bool isDistinct,
+      std::string name, common::DataTypeId inputType,
+      common::DataTypeId resultType, bool isDistinct,
       param_rewrite_function_t paramRewriteFunc = nullptr) {
     return std::make_unique<AggregateFunction>(
-        std::move(name), std::vector<common::LogicalTypeID>{inputType},
-        resultType, T::initialize, T::updateAll, T::updatePos, T::combine,
-        T::finalize, isDistinct, nullptr /* bindFunc */, paramRewriteFunc);
+        std::move(name), std::vector<common::DataTypeId>{inputType}, resultType,
+        T::initialize, T::updateAll, T::updatePos, T::combine, T::finalize,
+        isDistinct, nullptr /* bindFunc */, paramRewriteFunc);
   }
 
   template <template <typename, typename> class FunctionType>
   static void appendSumOrAvgFuncs(std::string name,
-                                  common::LogicalTypeID inputType,
+                                  common::DataTypeId inputType,
                                   function_set& result);
 };
 

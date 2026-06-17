@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/graph_types.h"
@@ -27,24 +27,23 @@ namespace execution {
 
 class EdgeExpand {
  public:
-  static neug::result<Context> expand_degree(const StorageReadInterface& graph,
-                                             Context&& ctx,
-                                             const EdgeExpandParams& params);
-  static neug::result<Context> expand_count(const StorageReadInterface& graph,
-                                            Context&& ctx,
-                                            const EdgeExpandParams& params);
+  static neug::result<ContextChunk> expand_degree(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const EdgeExpandParams& params);
+  static neug::result<ContextChunk> expand_count(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const EdgeExpandParams& params);
   template <typename PRED_T>
-  static neug::result<Context> expand_edge(const StorageReadInterface& graph,
-                                           Context&& ctx,
-                                           const EdgeExpandParams& params,
-                                           const PRED_T& pred) {
+  static neug::result<ContextChunk> expand_edge(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const EdgeExpandParams& params, const PRED_T& pred) {
     auto input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+        std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
     auto vertex_column_type = input_vertex_list->vertex_column_type();
     if (!params.is_optional && input_vertex_list->is_optional()) {
-      ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
+      remove_null_from_chunk(chunk, params.v_tag);
       input_vertex_list =
-          std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+          std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
     }
     if (params.is_optional) {
       if (vertex_column_type == VertexColumnType::kSingle) {
@@ -52,23 +51,23 @@ class EdgeExpand {
             *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, true>(graph, sl_col, params.labels,
                                                    params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (vertex_column_type == VertexColumnType::kMultiple) {
         const MLVertexColumn& ml_col =
             *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, true>(graph, ml_col, params.labels,
                                                    params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else {
         CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
         const MSVertexColumn& ms_col =
             *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, true>(graph, ms_col, params.labels,
                                                    params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       }
     } else {
       if (vertex_column_type == VertexColumnType::kSingle) {
@@ -76,43 +75,42 @@ class EdgeExpand {
             *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, false>(
             graph, sl_col, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (vertex_column_type == VertexColumnType::kMultiple) {
         const MLVertexColumn& ml_col =
             *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, false>(
             graph, ml_col, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else {
         CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
         const MSVertexColumn& ms_col =
             *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
         auto pair = expand_edge_impl<PRED_T, false>(
             graph, ms_col, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       }
     }
   }
 
-  static neug::result<Context> expand_edge_with_special_edge_predicate(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> expand_edge_with_special_edge_predicate(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const Value& target_val_str);
 
   template <typename PRED_T>
-  static neug::result<Context> expand_vertex(const StorageReadInterface& graph,
-                                             Context&& ctx,
-                                             const EdgeExpandParams& params,
-                                             const PRED_T& pred) {
+  static neug::result<ContextChunk> expand_vertex(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
+      const EdgeExpandParams& params, const PRED_T& pred) {
     std::shared_ptr<IVertexColumn> input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+        std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
     if (!params.is_optional && input_vertex_list->is_optional()) {
-      ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
+      remove_null_from_chunk(chunk, params.v_tag);
       input_vertex_list =
-          std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
+          std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.v_tag));
     }
 
     if (params.is_optional) {
@@ -122,24 +120,24 @@ class EdgeExpand {
             std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, true>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (input_vertex_list->vertex_column_type() ==
                  VertexColumnType::kMultiple) {
         auto casted_input_vertex_list =
             std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, true>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (input_vertex_list->vertex_column_type() ==
                  VertexColumnType::kMultiSegment) {
         auto casted_input_vertex_list =
             std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, true>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else {
         LOG(ERROR) << "not support vertex column type "
                    << static_cast<int>(input_vertex_list->vertex_column_type());
@@ -155,22 +153,22 @@ class EdgeExpand {
             std::dynamic_pointer_cast<SLVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, false>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (input_vertex_list_type == VertexColumnType::kMultiple) {
         auto casted_input_vertex_list =
             std::dynamic_pointer_cast<MLVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, false>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else if (input_vertex_list_type == VertexColumnType::kMultiSegment) {
         auto casted_input_vertex_list =
             std::dynamic_pointer_cast<MSVertexColumn>(input_vertex_list);
         auto pair = expand_vertex_impl<PRED_T, false>(
             graph, *casted_input_vertex_list, params.labels, params.dir, pred);
-        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-        return ctx;
+        chunk.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return chunk;
       } else {
         LOG(ERROR) << "not support vertex column type "
                    << static_cast<int>(input_vertex_list_type);
@@ -181,23 +179,23 @@ class EdgeExpand {
     }
   }
 
-  static neug::result<Context> expand_vertex_ep_cmp(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> expand_vertex_ep_cmp(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const EdgeExpandParams& params, const Value& ep_val, SPPredicateType tp);
 
-  static neug::result<Context> expand_vertex_with_special_vertex_predicate(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> expand_vertex_with_special_vertex_predicate(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename T1>
-  static neug::result<Context> tc(
-      const StorageReadInterface& graph, Context&& ctx,
+  static neug::result<ContextChunk> tc(
+      const StorageReadInterface& graph, ContextChunk&& chunk,
       const std::array<std::tuple<label_t, label_t, label_t, Direction>, 3>&
           labels,
       int input_tag, int alias1, int alias2, bool LT, const Value& val) {
     std::shared_ptr<IVertexColumn> input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(input_tag));
+        std::dynamic_pointer_cast<IVertexColumn>(chunk.get(input_tag));
     if (input_vertex_list->vertex_column_type() != VertexColumnType::kSingle) {
       RETURN_UNSUPPORTED_ERROR(
           "Unsupported input for triangle counting, only single vertex column");
@@ -238,12 +236,9 @@ class EdgeExpand {
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);
-    std::vector<size_t> offsets;
+    sel_vec_t offsets;
 
-    static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
-    static thread_local std::vector<vid_t> d0_vec;
-
-    d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);
+    flat_hash_set<vid_t> d0_set;
 
     size_t idx = 0;
     if (csr0.type() == CsrViewType::kMultipleMutable &&
@@ -252,52 +247,48 @@ class EdgeExpand {
           csr0.template get_typed_view<T1, CsrViewType::kMultipleMutable>();
       if (LT) {
         for (auto v : casted_input_vertex_list->vertices()) {
-          typed_csr0.foreach_nbr_lt(v, param, [&](vid_t u, const T1& data) {
-            d0_set[u] = true;
-            d0_vec.push_back(u);
-          });
+          typed_csr0.foreach_nbr_lt(
+              v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
+          if (d0_set.empty()) {
+            continue;
+          }
           auto es1 = csr1.get_edges(v);
           for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
             auto nbr1 = it1.get_vertex();
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       } else {
         for (auto v : casted_input_vertex_list->vertices()) {
-          typed_csr0.foreach_nbr_gt(v, param, [&](vid_t u, const T1& data) {
-            d0_set[u] = true;
-            d0_vec.push_back(u);
-          });
+          typed_csr0.foreach_nbr_gt(
+              v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
+          if (d0_set.empty()) {
+            continue;
+          }
           auto es1 = csr1.get_edges(v);
           for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
             auto nbr1 = it1.get_vertex();
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       }
@@ -309,8 +300,7 @@ class EdgeExpand {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
             if (ed0 < param) {
               auto nbr0 = it0.get_vertex();
-              d0_set[nbr0] = true;
-              d0_vec.push_back(nbr0);
+              d0_set.emplace(nbr0);
             }
           }
           auto es1 = csr1.get_edges(v);
@@ -319,17 +309,14 @@ class EdgeExpand {
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
-          for (auto u : d0_vec) {
-            d0_set[u] = false;
-          }
-          d0_vec.clear();
+          d0_set.clear();
           ++idx;
         }
       } else {
@@ -339,8 +326,7 @@ class EdgeExpand {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
             if (param < ed0) {
               auto nbr0 = it0.get_vertex();
-              d0_set[nbr0] = true;
-              d0_vec.push_back(nbr0);
+              d0_set.emplace(nbr0);
             }
           }
           auto es1 = csr1.get_edges(v);
@@ -349,25 +335,27 @@ class EdgeExpand {
             auto es2 = csr2.get_edges(nbr1);
             for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
               auto nbr2 = it2.get_vertex();
-              if (d0_set[nbr2]) {
+              if (d0_set.find(nbr2) != d0_set.end()) {
                 builder1.push_back_opt(nbr1);
                 builder2.push_back_opt(nbr2);
                 offsets.push_back(idx);
               }
             }
           }
+          d0_set.clear();
+          ++idx;
         }
       }
     }
 
     std::shared_ptr<IContextColumn> col1 = builder1.finish();
     std::shared_ptr<IContextColumn> col2 = builder2.finish();
-    ctx.set_with_reshuffle(alias1, col1, offsets);
-    ctx.set(alias2, col2);
-    return ctx;
+    chunk.set_with_reshuffle(alias1, col1, offsets);
+    chunk.set(alias2, col2);
+    return chunk;
   }
 
-  static Context remove_null_from_ctx(Context&& ctx, int tag_id);
+  static void remove_null_from_chunk(ContextChunk& chunk, int tag_id);
 };
 
 }  // namespace execution

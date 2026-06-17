@@ -36,13 +36,18 @@
 namespace neug {
 namespace execution {
 
-void append_property_to_json(const std::string& key, const Property& prop,
+void append_property_to_json(const std::string& key, const Value& prop,
                              rapidjson::Value& doc,
                              rapidjson::Document::AllocatorType& allocator) {
-  auto type_id = prop.type();
+  if (prop.IsNull()) {
+    doc.AddMember(rapidjson::Value(key.c_str(), allocator),
+                  rapidjson::Value(rapidjson::kNullType), allocator);
+    return;
+  }
+  auto type_id = prop.type().id();
   switch (type_id) {
   case DataTypeId::kVarchar: {
-    auto str = prop.as_string_view();
+    const auto& str = StringValue::Get(prop);
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
                   rapidjson::Value(str.data(), str.size(), allocator),
                   allocator);
@@ -50,34 +55,34 @@ void append_property_to_json(const std::string& key, const Property& prop,
   }
   case DataTypeId::kBoolean:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_bool()), allocator);
+                  rapidjson::Value(prop.GetValue<bool>()), allocator);
     break;
   case DataTypeId::kInt32:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_int32()), allocator);
+                  rapidjson::Value(prop.GetValue<int32_t>()), allocator);
     break;
   case DataTypeId::kUInt32:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_uint32()), allocator);
+                  rapidjson::Value(prop.GetValue<uint32_t>()), allocator);
     break;
   case DataTypeId::kInt64:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_int64()), allocator);
+                  rapidjson::Value(prop.GetValue<int64_t>()), allocator);
     break;
   case DataTypeId::kUInt64:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_uint64()), allocator);
+                  rapidjson::Value(prop.GetValue<uint64_t>()), allocator);
     break;
   case DataTypeId::kFloat:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_float()), allocator);
+                  rapidjson::Value(prop.GetValue<float>()), allocator);
     break;
   case DataTypeId::kDouble:
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
-                  rapidjson::Value(prop.as_double()), allocator);
+                  rapidjson::Value(prop.GetValue<double>()), allocator);
     break;
   case DataTypeId::kDate: {
-    auto day = prop.as_date();
+    auto day = prop.GetValue<date_t>();
     std::stringstream ss;
     ss << day.year() << "-" << std::setfill('0') << std::setw(2) << day.month()
        << "-" << std::setfill('0') << std::setw(2) << day.day();
@@ -86,7 +91,7 @@ void append_property_to_json(const std::string& key, const Property& prop,
     break;
   }
   case DataTypeId::kTimestampMs: {
-    auto milliseconds = prop.as_datetime().milli_second;
+    auto milliseconds = prop.GetValue<timestamp_ms_t>().milli_second;
     std::time_t seconds = milliseconds / 1000;
     int ms = milliseconds % 1000;
     std::tm* tm_info = std::gmtime(&seconds);
@@ -101,7 +106,7 @@ void append_property_to_json(const std::string& key, const Property& prop,
     break;
   }
   case DataTypeId::kInterval: {
-    auto interval_str = prop.as_interval().to_string();
+    auto interval_str = prop.GetValue<interval_t>().to_string();
     doc.AddMember(rapidjson::Value(key.c_str(), allocator),
                   rapidjson::Value(interval_str.c_str(), allocator), allocator);
     break;
@@ -143,9 +148,9 @@ std::string convert_vertex_to_json(const StorageReadInterface& graph,
 
 std::string convert_edge_to_json(const StorageReadInterface& graph,
                                  const EdgeRecord& record) {
-  if (record.label.src_label == std::numeric_limits<vid_t>::max() ||
-      record.label.dst_label == std::numeric_limits<vid_t>::max() ||
-      record.label.edge_label == std::numeric_limits<vid_t>::max() ||
+  if (record.label.src_label == std::numeric_limits<label_t>::max() ||
+      record.label.dst_label == std::numeric_limits<label_t>::max() ||
+      record.label.edge_label == std::numeric_limits<label_t>::max() ||
       record.src == std::numeric_limits<vid_t>::max() ||
       record.dst == std::numeric_limits<vid_t>::max()) {
     return "";
@@ -173,12 +178,12 @@ std::string convert_edge_to_json(const StorageReadInterface& graph,
   auto property_names = graph.schema().get_edge_property_names(
       record.label.src_label, record.label.dst_label, record.label.edge_label);
   for (size_t i = 0; i < property_types.size(); ++i) {
-    auto prop =
+    auto value =
         graph
             .GetEdgeDataAccessor(record.label.src_label, record.label.dst_label,
                                  record.label.edge_label, i)
             .get_data_from_ptr(record.prop);
-    append_property_to_json(property_names[i], prop, doc, allocator);
+    append_property_to_json(property_names[i], value, doc, allocator);
   }
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -231,7 +236,7 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   return buffer.GetString();
 }
 
-static std::string BoolVectorToBitmap(const std::vector<bool>& flags) {
+static std::string BoolVectorToBitmap(const vector_t<bool>& flags) {
   size_t num_bytes = (flags.size() + 7) / 8;
   std::string bitmap(num_bytes, 0x00);
   for (size_t i = 0; i < flags.size(); ++i) {
@@ -398,7 +403,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       vertex_col->add_values(convert_vertex_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -416,7 +421,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       edge_col->add_values(convert_edge_to_json(graph, record));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -434,7 +439,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       path_col->add_values(convert_path_to_json(graph, path));
     }
     if (casted->is_optional()) {
-      std::vector<bool> validity(casted->size());
+      vector_t<bool> validity(casted->size());
       for (size_t i = 0; i < casted->size(); ++i) {
         validity[i] = casted->has_value(i);
       }
@@ -454,14 +459,25 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
 
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
-    auto col = ctx.get(i);
-    if (col == nullptr) {
+    // Merge column across all chunks via union_col.
+    std::shared_ptr<IContextColumn> merged;
+    for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+      auto col = ctx.chunk(c).get(i);
+      if (col == nullptr)
+        continue;
+      if (!merged) {
+        merged = col;
+      } else {
+        merged = merged->union_col(col);
+      }
+    }
+    if (merged == nullptr) {
       continue;
     }
-    if (col->column_type() != ContextColumnType::kArrowArray) {
-      add_column(col, graph, response->add_arrays());
+    if (merged->column_type() != ContextColumnType::kArrowArray) {
+      add_column(merged, graph, response->add_arrays());
     } else {
-      auto casted = dynamic_cast<ArrowArrayContextColumn*>(col.get())
+      auto casted = dynamic_cast<ArrowArrayContextColumn*>(merged.get())
                         ->cast_to_value_column();
       add_column(casted, graph, response->add_arrays());
     }

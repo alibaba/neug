@@ -31,7 +31,7 @@ namespace main {
 
 struct ThreadsSetting {
   static constexpr auto name = "threads";
-  static constexpr auto inputType = common::LogicalTypeID::UINT64;
+  static constexpr auto inputType = common::DataTypeId::kUInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -45,7 +45,7 @@ struct ThreadsSetting {
 
 struct WarningLimitSetting {
   static constexpr auto name = "warning_limit";
-  static constexpr auto inputType = common::LogicalTypeID::UINT64;
+  static constexpr auto inputType = common::DataTypeId::kUInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -59,7 +59,7 @@ struct WarningLimitSetting {
 
 struct TimeoutSetting {
   static constexpr auto name = "timeout";
-  static constexpr auto inputType = common::LogicalTypeID::UINT64;
+  static constexpr auto inputType = common::DataTypeId::kUInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -73,7 +73,7 @@ struct TimeoutSetting {
 
 struct ProgressBarSetting {
   static constexpr auto name = "progress_bar";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
@@ -83,7 +83,7 @@ struct ProgressBarSetting {
 
 struct VarLengthExtendMaxDepthSetting {
   static constexpr auto name = "var_length_extend_max_depth";
-  static constexpr auto inputType = common::LogicalTypeID::INT64;
+  static constexpr auto inputType = common::DataTypeId::kInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -97,7 +97,7 @@ struct VarLengthExtendMaxDepthSetting {
 
 struct SparseFrontierThresholdSetting {
   static constexpr auto name = "sparse_frontier_threshold";
-  static constexpr auto inputType = common::LogicalTypeID::INT64;
+  static constexpr auto inputType = common::DataTypeId::kInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -111,7 +111,7 @@ struct SparseFrontierThresholdSetting {
 
 struct EnableSemiMaskSetting {
   static constexpr auto name = "enable_semi_mask";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -125,7 +125,7 @@ struct EnableSemiMaskSetting {
 
 struct DisableMapKeyCheck {
   static constexpr auto name = "disable_map_key_check";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -139,7 +139,7 @@ struct DisableMapKeyCheck {
 
 struct EnableZoneMapSetting {
   static constexpr auto name = "enable_zone_map";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -153,7 +153,7 @@ struct EnableZoneMapSetting {
 
 struct HomeDirectorySetting {
   static constexpr auto name = "home_directory";
-  static constexpr auto inputType = common::LogicalTypeID::STRING;
+  static constexpr auto inputType = common::DataTypeId::kVarchar;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -168,7 +168,7 @@ struct HomeDirectorySetting {
 
 struct FileSearchPathSetting {
   static constexpr auto name = "file_search_path";
-  static constexpr auto inputType = common::LogicalTypeID::STRING;
+  static constexpr auto inputType = common::DataTypeId::kVarchar;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -183,7 +183,7 @@ struct FileSearchPathSetting {
 
 struct RecursivePatternSemanticSetting {
   static constexpr auto name = "recursive_pattern_semantic";
-  static constexpr auto inputType = common::LogicalTypeID::STRING;
+  static constexpr auto inputType = common::DataTypeId::kVarchar;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -200,7 +200,7 @@ struct RecursivePatternSemanticSetting {
 
 struct RecursivePatternFactorSetting {
   static constexpr auto name = "recursive_pattern_factor";
-  static constexpr auto inputType = common::LogicalTypeID::INT64;
+  static constexpr auto inputType = common::DataTypeId::kInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -215,7 +215,7 @@ struct RecursivePatternFactorSetting {
 
 struct EnableMVCCSetting {
   static constexpr auto name = "debug_enable_multi_writes";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
@@ -225,7 +225,7 @@ struct EnableMVCCSetting {
 
 struct CheckpointThresholdSetting {
   static constexpr auto name = "checkpoint_threshold";
-  static constexpr auto inputType = common::LogicalTypeID::INT64;
+  static constexpr auto inputType = common::DataTypeId::kInt64;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
@@ -235,7 +235,7 @@ struct CheckpointThresholdSetting {
 
 struct AutoCheckpointSetting {
   static constexpr auto name = "auto_checkpoint";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
@@ -245,7 +245,7 @@ struct AutoCheckpointSetting {
 
 struct ForceCheckpointClosingDBSetting {
   static constexpr auto name = "force_checkpoint_on_close";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {}
   static common::Value getSetting(const ClientContext* context) {
@@ -255,7 +255,7 @@ struct ForceCheckpointClosingDBSetting {
 
 struct SpillToDiskSetting {
   static constexpr auto name = "spill_to_disk";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter);
   static common::Value getSetting(const ClientContext* context) {
@@ -265,7 +265,7 @@ struct SpillToDiskSetting {
 
 struct EnableOptimizerSetting {
   static constexpr auto name = "enable_plan_optimizer";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);
@@ -280,7 +280,7 @@ struct EnableOptimizerSetting {
 
 struct EnableInternalCatalogSetting {
   static constexpr auto name = "enable_internal_catalog";
-  static constexpr auto inputType = common::LogicalTypeID::BOOL;
+  static constexpr auto inputType = common::DataTypeId::kBoolean;
   static void setContext(ClientContext* context,
                          const common::Value& parameter) {
     parameter.validateType(inputType);

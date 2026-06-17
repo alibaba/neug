@@ -172,15 +172,15 @@ struct CopyConstants {
   static constexpr std::array SHARED_WARNING_DATA_COLUMN_NAMES = {
       "blockIdx", "offsetInBlock", "startByteOffset", "endByteOffset"};
   static constexpr std::array SHARED_WARNING_DATA_COLUMN_TYPES = {
-      LogicalTypeID::UINT64, LogicalTypeID::UINT32, LogicalTypeID::UINT64,
-      LogicalTypeID::UINT64};
+      DataTypeId::kUInt64, DataTypeId::kUInt32, DataTypeId::kUInt64,
+      DataTypeId::kUInt64};
   static constexpr column_id_t SHARED_WARNING_DATA_NUM_COLUMNS =
       SHARED_WARNING_DATA_COLUMN_NAMES.size();
 
   static constexpr std::array CSV_SPECIFIC_WARNING_DATA_COLUMN_NAMES = {
       "fileIdx"};
   static constexpr std::array CSV_SPECIFIC_WARNING_DATA_COLUMN_TYPES = {
-      LogicalTypeID::UINT32};
+      DataTypeId::kUInt32};
 
   static constexpr std::array CSV_WARNING_DATA_COLUMN_NAMES = arrayConcat(
       SHARED_WARNING_DATA_COLUMN_NAMES, CSV_SPECIFIC_WARNING_DATA_COLUMN_NAMES);
@@ -247,8 +247,8 @@ struct WarningConstants {
       "query_id", "message", "file_path", "line_number",
       "skipped_line_or_record"};
   static constexpr std::array WARNING_TABLE_COLUMN_DATA_TYPES{
-      LogicalTypeID::UINT64, LogicalTypeID::STRING, LogicalTypeID::STRING,
-      LogicalTypeID::UINT64, LogicalTypeID::STRING};
+      DataTypeId::kUInt64, DataTypeId::kVarchar, DataTypeId::kVarchar,
+      DataTypeId::kUInt64, DataTypeId::kVarchar};
   static constexpr uint64_t WARNING_TABLE_NUM_COLUMNS =
       WARNING_TABLE_COLUMN_NAMES.size();
 

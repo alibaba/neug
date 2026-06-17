@@ -34,7 +34,7 @@ namespace binder {
 
 class NEUG_API NodeExpression final : public NodeOrRelExpression {
  public:
-  NodeExpression(common::LogicalType dataType, std::string uniqueName,
+  NodeExpression(common::DataType dataType, std::string uniqueName,
                  std::string variableName,
                  std::vector<catalog::TableCatalogEntry*> entries)
       : NodeOrRelExpression{std::move(dataType), std::move(uniqueName),

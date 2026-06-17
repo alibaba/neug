@@ -80,7 +80,7 @@ std::string ModuleDescriptor::ToJsonString() const {
   rapidjson::Document doc;
   doc.SetObject();
   auto obj = ToJson(doc.GetAllocator());
-  doc.Swap(obj);
+  static_cast<rapidjson::Value&>(doc).Swap(obj);
   rapidjson::StringBuffer buf;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
   doc.Accept(writer);

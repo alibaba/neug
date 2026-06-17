@@ -46,7 +46,7 @@ static std::unique_ptr<AggregateState> initialize() {
 
 static void initCollectStateIfNecessary(CollectState* state,
                                         InMemOverflowBuffer* overflowBuffer,
-                                        LogicalType& dataType) {}
+                                        DataType& dataType) {}
 
 static void updateSingleValue(CollectState* state, ValueVector* input,
                               uint32_t pos, uint64_t multiplicity,
@@ -73,9 +73,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   NEUG_ASSERT(input.arguments.size() == 1);
   auto aggFuncDefinition =
       reinterpret_cast<AggregateFunction*>(input.definition);
-  aggFuncDefinition->parameterTypeIDs[0] =
-      input.arguments[0]->dataType.getLogicalTypeID();
-  auto returnType = LogicalType::LIST(input.arguments[0]->dataType.copy());
+  aggFuncDefinition->parameterTypeIDs[0] = input.arguments[0]->dataType.id();
+  auto returnType = DataType::List(input.arguments[0]->dataType.copy());
   return std::make_unique<FunctionBindData>(std::move(returnType));
 }
 
@@ -83,9 +82,9 @@ function_set CollectFunction::getFunctionSet() {
   function_set result;
   for (auto isDistinct : std::vector<bool>{true, false}) {
     result.push_back(std::make_unique<AggregateFunction>(
-        name, std::vector<LogicalTypeID>{LogicalTypeID::ANY},
-        LogicalTypeID::LIST, initialize, updateAll, updatePos, combine,
-        finalize, isDistinct, bindFunc, nullptr /* paramRewriteFunc */));
+        name, std::vector<DataTypeId>{DataTypeId::kUnknown}, DataTypeId::kList,
+        initialize, updateAll, updatePos, combine, finalize, isDistinct,
+        bindFunc, nullptr /* paramRewriteFunc */));
   }
   return result;
 }

@@ -33,14 +33,14 @@ namespace function {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   return FunctionBindData::getSimpleBindData(input.arguments,
-                                             LogicalType::BOOL());
+                                             DataType(DataTypeId::kBoolean));
 }
 
 function_set IsTrailFunction::getFunctionSet() {
   function_set functionSet;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::RECURSIVE_REL},
-      LogicalTypeID::BOOL, nullptr, nullptr);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, DataTypeId::kBoolean,
+      nullptr, nullptr);
   function->bindFunc = bindFunc;
   functionSet.push_back(std::move(function));
   return functionSet;
@@ -49,8 +49,8 @@ function_set IsTrailFunction::getFunctionSet() {
 function_set IsACyclicFunction::getFunctionSet() {
   function_set functionSet;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::RECURSIVE_REL},
-      LogicalTypeID::BOOL, nullptr, nullptr);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, DataTypeId::kBoolean,
+      nullptr, nullptr);
   function->bindFunc = bindFunc;
   functionSet.push_back(std::move(function));
   return functionSet;

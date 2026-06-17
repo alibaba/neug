@@ -46,11 +46,17 @@ class GetVFromEdgesOpr : public IOperator {
     if (pred_ != nullptr) {
       auto expr = pred_->bind(&graph, params);
       GeneralPred pred(std::move(expr));
-      return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
-                                         pred);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return GetV::get_vertex_from_edges(graph, std::move(chunk),
+                                               v_params_, pred);
+          });
     } else {
-      return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
-                                         DummyPred());
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return GetV::get_vertex_from_edges(graph, std::move(chunk),
+                                               v_params_, DummyPred());
+          });
     }
   }
 

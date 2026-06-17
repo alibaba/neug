@@ -42,6 +42,13 @@
 
 namespace neug {
 
+// std::atomic<int> must have the same size as int on supported platforms
+// so that the degree_list buffer (persisted as int[]) can be safely
+// reinterpreted as atomic<int>[] for concurrent access.
+static_assert(
+    sizeof(std::atomic<int>) == sizeof(int),
+    "atomic<int> must have the same size as int on supported platforms");
+
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
  public:
@@ -114,10 +121,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
           " >= " + std::to_string(vertex_capacity()));
     }
     auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    auto* sizes = reinterpret_cast<int*>(degree_list_->GetData());
+    auto* sizes = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
     locks_[src].lock();
-    int sz = sizes[src];
+    int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
     if (sz == cap) {
       cap += (cap >> 1);
@@ -130,8 +137,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       buffers[src] = new_buffer;
       caps[src] = cap;
     }
-    int32_t prev_size = sizes[src]++;
-    auto& nbr = buffers[src][prev_size];
+    auto& nbr = buffers[src][sz];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
@@ -141,8 +147,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       unsorted_since_ = 0;
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
+    sizes[src].store(sz + 1, std::memory_order_release);
     locks_[src].unlock();
-    return {prev_size, data_ptr};
+    return {sz, data_ptr};
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -151,9 +158,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     std::vector<EDATA_T> data_list;
     const nbr_t* const* adjlists =
         reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-    const int* degrees = reinterpret_cast<const int*>(degree_list_->GetData());
+    const auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
     for (vid_t src = 0; src < static_cast<vid_t>(vertex_capacity()); ++src) {
-      auto deg = degrees[src];
+      auto deg = degrees[src].load(std::memory_order_acquire);
       for (int i = 0; i < deg; ++i) {
         const auto& nbr = adjlists[src][i];
         if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
@@ -197,7 +205,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     if (!degree_list_) {
       return 0;
     }
-    return degree_list_->GetDataSize() / sizeof(int);
+    return degree_list_->GetDataSize() / sizeof(std::atomic<int>);
   }
 };
 

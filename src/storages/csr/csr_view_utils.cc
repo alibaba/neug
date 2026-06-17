@@ -15,7 +15,6 @@
 
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/execution/common/types/graph_types.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {

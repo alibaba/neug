@@ -28,10 +28,10 @@ class BindedPathNodesExpr : public RecordExprBase {
     return list_type;
   }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(ctx, idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<VertexRecord> nodes = path.nodes();
+    const auto& nodes = path.nodes();
     std::vector<Value> node_values;
     for (const auto& node : nodes) {
       node_values.push_back(Value::VERTEX(node));
@@ -59,10 +59,10 @@ class BindedPathRelationsExpr : public RecordExprBase {
     return list_type;
   }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(ctx, idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    Value path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<edge_t> edges = path.relationships();
+    const auto& edges = path.relationships();
     std::vector<Value> edge_values;
     for (const auto& edge : edges) {
       edge_values.push_back(Value::EDGE(edge));
@@ -92,10 +92,10 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
   }
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    Value path_val = ctx.get(tag_)->get_elem(idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    Value path_val = chunk.get(tag_)->get_elem(idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<vertex_t> vertices = path.nodes();
+    const auto& vertices = path.nodes();
     std::vector<Value> prop_values;
     for (const auto& vertex : vertices) {
       const auto& prop_names = graph_.schema().get_vertex_property_names(
@@ -105,9 +105,9 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
         prop_values.push_back(Value(elem_type_));  // null value
       } else {
         int prop_id = std::distance(prop_names.begin(), it);
-        Property prop =
+        Value prop =
             graph_.GetVertexProperty(vertex.label(), vertex.vid(), prop_id);
-        prop_values.emplace_back(property_to_value(prop));
+        prop_values.emplace_back(std::move(prop));
       }
     }
     return Value::LIST(elem_type_, std::move(prop_values));
@@ -133,10 +133,10 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
   }
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    Value path_val = ctx.get(tag_)->get_elem(idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    Value path_val = chunk.get(tag_)->get_elem(idx);
     const Path& path = PathValue::Get(path_val);
-    std::vector<edge_t> edges = path.relationships();
+    const auto& edges = path.relationships();
     std::vector<Value> prop_values;
     for (const auto& edge : edges) {
       const auto& prop_names = graph_.schema().get_edge_property_names(
@@ -150,8 +150,7 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
             edge.label.src_label, edge.label.dst_label, edge.label.edge_label,
             prop_id);
 
-        prop_values.emplace_back(
-            property_to_value(accessor.get_data_from_ptr(edge.prop)));
+        prop_values.emplace_back(accessor.get_data_from_ptr(edge.prop));
       }
     }
     return Value::LIST(elem_type_, std::move(prop_values));
@@ -186,8 +185,8 @@ class BindedStartEndNodeExpr : public RecordExprBase {
         type_(DataType::VERTEX) {}
   const DataType& type() const override { return type_; }
 
-  Value eval_record(const Context& ctx, size_t idx) const override {
-    Value edge_val = edge_expr_->Cast<RecordExprBase>().eval_record(ctx, idx);
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    Value edge_val = edge_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
     const auto& edge = edge_val.GetValue<edge_t>();
     return Value::VERTEX(is_start_ ? edge.start_node() : edge.end_node());
   }

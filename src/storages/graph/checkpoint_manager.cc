@@ -87,6 +87,29 @@ void CheckpointManager::Open(const std::string& db_dir) {
     THROW_IO_EXCEPTION("CheckpointManager::Open: failed to enumerate " +
                        std::string(db_dir) + ": " + e.what());
   }
+
+  // Discard incomplete checkpoints left by a previous crash.
+  // GenerateEmptyMeta() creates a stub with no schema, no modules, no
+  // scalars.  A fully committed checkpoint (via Save) always writes a
+  // schema — even if the graph has no tables (e.g. after DROP TABLE).
+  // We use has_schema() to distinguish: a stub checkpoint lacks a schema,
+  // while a legitimate empty-graph checkpoint has one.
+  while (checkpoints_.size() > 1) {
+    auto it = std::prev(checkpoints_.end());
+    if (!it->second->GetMeta().has_schema()) {
+      LOG(WARNING) << "CheckpointManager::Open: removing incomplete checkpoint-"
+                   << it->first << " at " << it->second->path();
+      std::error_code ec;
+      std::filesystem::remove_all(it->second->path(), ec);
+      if (ec) {
+        LOG(WARNING) << "CheckpointManager::Open: failed to remove directory: "
+                     << ec.message();
+      }
+      checkpoints_.erase(it);
+    } else {
+      break;
+    }
+  }
 }
 
 void CheckpointManager::Close() {
@@ -117,6 +140,22 @@ int32_t CheckpointManager::CreateCheckpoint() {
   CheckpointManifest::GenerateEmptyMeta(path + "/meta");
   checkpoints_[id] = Checkpoint::Open(path, id);
   return id;
+}
+
+void CheckpointManager::RemoveCheckpoint(int32_t id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = checkpoints_.find(id);
+  if (it == checkpoints_.end()) {
+    return;
+  }
+  auto path = it->second->path();
+  checkpoints_.erase(it);
+  std::error_code ec;
+  std::filesystem::remove_all(path, ec);
+  if (ec) {
+    LOG(WARNING) << "CheckpointManager::RemoveCheckpoint: failed to remove "
+                 << path << ": " << ec.message();
+  }
 }
 
 std::shared_ptr<Checkpoint> CheckpointManager::GetCheckpoint(int32_t id) const {

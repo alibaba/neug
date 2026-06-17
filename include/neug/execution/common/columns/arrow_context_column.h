@@ -91,7 +91,7 @@ class ArrowArrayContextColumn : public IContextColumn {
   bool has_value(size_t idx) const override { return idx >= 0 && idx < size_; }
 
   std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const override;
+      const sel_vec_t& offsets) const override;
 
   std::shared_ptr<IContextColumn> cast_to_value_column() const;
 

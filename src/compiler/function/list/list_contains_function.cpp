@@ -51,32 +51,32 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   // for list_contains(list, input), we expect input and list child have the
   // same type, if list is empty, we use in the input type. Otherwise, we use
   // list child type because casting list is more expensive.
-  std::vector<LogicalType> paramTypes;
-  LogicalType listType, childType;
+  std::vector<DataType> paramTypes;
+  DataType listType, childType;
   if (ExpressionUtil::isEmptyList(*input.arguments[0])) {
     childType = input.arguments[1]->getDataType().copy();
-    listType = LogicalType::LIST(childType.copy());
+    listType = DataType::List(childType.copy());
   } else {
     listType = input.arguments[0]->getDataType().copy();
-    childType = ListType::getChildType(listType).copy();
+    childType = ListType::GetChildType(listType).copy();
   }
   paramTypes.push_back(listType.copy());
   paramTypes.push_back(childType.copy());
   TypeUtils::visit(
-      childType.getPhysicalType(), [&scalarFunction]<typename T>(T) {
+      getPhysicalType(childType.id()), [&scalarFunction]<typename T>(T) {
         scalarFunction->execFunc =
             ScalarFunction::BinaryExecListStructFunction<list_entry_t, T,
                                                          uint8_t, ListContains>;
       });
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
-                                            LogicalType::BOOL());
+                                            DataType(DataTypeId::kBoolean));
 }
 
 function_set ListContainsFunction::getFunctionSet() {
   function_set result;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::ANY},
-      LogicalTypeID::BOOL);
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kUnknown},
+      DataTypeId::kBoolean);
   function->bindFunc = bindFunc;
   result.push_back(std::move(function));
   return result;
