@@ -29,7 +29,7 @@ CALL drop_projected_graph('social');
 ## Graph Projection
 
 Before running any GDS algorithm, you must create a **projected graph** — a named
-subgraph view that defines which vertex labels, edge triplets, and optional
+subgraph view that defines which node labels, edge triplets, and optional
 predicates the algorithm operates on.
 
 ### `project_graph`
@@ -47,10 +47,10 @@ CALL project_graph(
 | Parameter | Type | Description |
 |---|---|---|
 | `graph_name` | STRING | A unique alias for the projected subgraph |
-| `vertex_entries` | LIST or MAP | Vertex labels, optionally with predicates |
+| `node_entries` | LIST or MAP | Node labels, optionally with predicates |
 | `edge_entries` | MAP | Edge triplets `[src, edge, dst]` mapped to predicates |
 
-**Vertex entries** can be a simple list of labels or a map with predicates:
+**Node entries** can be a simple list of labels or a map with predicates:
 
 ```cypher
 -- List form (no predicates)
@@ -94,7 +94,7 @@ Returns the labels and predicates of a projected graph. Each row contains:
 
 | Column | Description |
 |---|---|
-| label | Vertex label name or edge triplet (e.g., `[person,knows,person]`) |
+| label | Node label name or edge triplet (e.g., `[person,knows,person]`) |
 | predicate | The filter predicate string, or empty if none |
 
 ## Algorithms
@@ -106,19 +106,19 @@ CALL <algorithm_name>('<projected_graph>', {<options>})
 RETURN <columns>;
 ```
 
-Every algorithm returns a `node` column (the matched vertices) plus one or more
-result columns. The `node` column is of type `NODE`, so you can access vertex
+Every algorithm returns a `node` column (the matched nodes) plus one or more
+result columns. The `node` column is of type `NODE`, so you can access node
 properties via `node.<property>` in the `RETURN` clause.
 
 > **Note:** Most algorithms (except Label Propagation) require a **homogeneous graph**
-> subgraph — exactly one vertex label and one edge triplet where the source and
-> destination labels match the vertex label.
+> subgraph — exactly one node label and one edge triplet where the source and
+> destination labels match the node label.
 
 ---
 
 ### PageRank
 
-Computes the PageRank centrality score for each vertex. Higher scores indicate
+Computes the PageRank centrality score for each node. Higher scores indicate
 more influential nodes in the graph.
 
 ```cypher
@@ -139,7 +139,7 @@ RETURN node, rank;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `rank` | DOUBLE | PageRank score |
 
 **Example:**
@@ -153,13 +153,13 @@ RETURN node.fName, rank
 ORDER BY rank DESC;
 ```
 
-**Predicate support:** Vertex predicates are supported; edge predicates are **not**.
+**Predicate support:** Node predicates are supported; edge predicates are **not**.
 
 ---
 
 ### BFS (Breadth-First Search)
 
-Computes the shortest hop distance from a source vertex to all reachable vertices.
+Computes the shortest hop distance from a source node to all reachable nodes.
 
 ```cypher
 CALL bfs('<graph_name>', {<options>})
@@ -170,7 +170,7 @@ RETURN node, distance;
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | STRING | *(required)* | The source vertex's primary key value |
+| `source` | STRING | *(required)* | The source node's primary key value |
 | `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
 | `concurrency` | INT | CPU cores | Number of threads |
 
@@ -178,8 +178,8 @@ RETURN node, distance;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
-| `distance` | INT64 | Hop count from the source vertex |
+| `node` | NODE | The node |
+| `distance` | INT64 | Hop count from the source node |
 
 **Example:**
 
@@ -189,14 +189,14 @@ RETURN node.fName, distance
 ORDER BY distance;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
 ### SSSP (Single-Source Shortest Path)
 
-Computes the shortest weighted path distance from a source vertex to all
-reachable vertices. Without a weight property, it behaves like BFS but returns
+Computes the shortest weighted path distance from a source node to all
+reachable nodes. Without a weight property, it behaves like BFS but returns
 `DOUBLE` distances.
 
 ```cypher
@@ -208,7 +208,7 @@ RETURN node, distance;
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `source` | STRING | *(required)* | The source vertex's primary key value |
+| `source` | STRING | *(required)* | The source node's primary key value |
 | `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
 | `weight` | STRING | `""` | Edge property name to use as weight (empty = unit weight) |
 | `concurrency` | INT | CPU cores | Number of threads |
@@ -217,7 +217,7 @@ RETURN node, distance;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `distance` | DOUBLE | Shortest path distance from the source |
 
 **Example:**
@@ -227,13 +227,13 @@ CALL sssp('social', {source: '0', weight: 'cost', directed: true})
 RETURN node.fName, distance;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
 ### WCC (Weakly Connected Components)
 
-Assigns each vertex a component ID. Vertices in the same connected component
+Assigns each node a component ID. Nodes in the same connected component
 share the same ID.
 
 ```cypher
@@ -251,7 +251,7 @@ RETURN node, comp;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `comp` | INT64 | Component identifier |
 
 **Example:**
@@ -262,13 +262,13 @@ RETURN node.fName, comp
 ORDER BY comp;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
 ### LCC (Local Clustering Coefficient)
 
-Measures how close a vertex's neighbors are to forming a complete graph
+Measures how close a node's neighbors are to forming a complete graph
 (clique). Values range from 0.0 to 1.0.
 
 ```cypher
@@ -281,14 +281,14 @@ RETURN node, lcc;
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `directed` | BOOL | `false` | Whether to compute the directed clustering coefficient |
-| `degree_threshold` | INT | MAX_INT | Skip vertices with degree above this threshold |
+| `degree_threshold` | INT | MAX_INT | Skip nodes with degree above this threshold |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 
 **Output columns:**
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `lcc` | DOUBLE | Local clustering coefficient |
 
 **Example:**
@@ -299,14 +299,14 @@ RETURN node.fName, lcc
 ORDER BY lcc DESC;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
 ### K-Core Decomposition
 
-Computes the core number for each vertex. A vertex has core number *k* if it
-belongs to a *k*-core (a maximal subgraph where every vertex has degree >= *k*)
+Computes the core number for each node. A node has core number *k* if it
+belongs to a *k*-core (a maximal subgraph where every node has degree >= *k*)
 but not a *(k+1)*-core.
 
 ```cypher
@@ -325,8 +325,8 @@ RETURN node, core;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
-| `core` | INT64 | Core number of the vertex |
+| `node` | NODE | The node |
+| `core` | INT64 | Core number of the node |
 
 **Example:**
 
@@ -336,14 +336,14 @@ RETURN node.fName, core
 ORDER BY core DESC;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
 ### CDLP (Community Detection using Label Propagation)
 
 A community detection algorithm that propagates labels through the network.
-Each vertex is initially assigned a unique label; in each iteration, every vertex
+Each node is initially assigned a unique label; in each iteration, every node
 adopts the most frequent label among its neighbors.
 
 ```cypher
@@ -362,8 +362,8 @@ RETURN node, label;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
-| `label` | INT64 | Community label assigned to this vertex |
+| `node` | NODE | The node |
+| `label` | INT64 | Community label assigned to this node |
 
 **Example:**
 
@@ -379,16 +379,17 @@ CALL cdlp('study_net', {concurrency: 10})
 RETURN node.id, node.fName, node.name, label;
 ```
 
-**Predicate support:** Both vertex and edge predicates are supported. CDLP
-also supports heterogeneous vertex labels in the projected subgraph
-(unlike other algorithms which require a single vertex label).
+**Predicate support:** Both node and edge predicates are supported.
+
+**Note:** CDLP currently requires a homogeneous graph like other algorithms.
+Multi-label support is planned for a future release.
 
 ---
 
 ### Louvain
 
 A community detection algorithm that optimizes modularity by iteratively moving
-vertices between communities and aggregating the graph into super-nodes.
+nodes between communities and aggregating the graph into super-nodes.
 
 ```cypher
 CALL louvain('<graph_name>', {<options>})
@@ -408,7 +409,7 @@ RETURN node, community;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
 
 **Example:**
@@ -419,7 +420,7 @@ RETURN node.fName, community
 ORDER BY community;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 ---
 
@@ -447,7 +448,7 @@ RETURN node, community;
 
 | Column | Type | Description |
 |---|---|---|
-| `node` | NODE | The vertex |
+| `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
 
 **Example:**
@@ -458,7 +459,7 @@ RETURN node.fName, community
 ORDER BY community;
 ```
 
-**Predicate support:** Neither vertex nor edge predicates are supported.
+**Predicate support:** Neither node nor edge predicates are supported.
 
 **Leiden vs. Louvain:** Use Leiden when you need higher-quality community partitions
 or better detection of small communities. Use Louvain when you need the fastest
@@ -488,8 +489,9 @@ threads used for parallel computation. The default depends on the algorithm:
 
 ## Limitations
 
-- Most algorithms require a **homogeneous graph** subgraph (exactly one vertex
-  label and one edge triplet `[A, edge, A]`). Label Propagation is the exception.
-- Edge predicates are only supported by Label Propagation.
-- Personalized PageRank requires that both `edge_weight` and `node_weight`
-  properties exist and are of type `DOUBLE`.
+- All algorithms require a **homogeneous graph** subgraph (exactly one node
+  label and one edge triplet `[A, edge, A]`). Support for heterogeneous graphs
+  is planned for a future release.
+- Edge predicates are only supported by CDLP.
+- CDLP does not actually support heterogeneous graphs yet — it only processes
+  the first node label and edge triplet. True multi-label support is planned.
