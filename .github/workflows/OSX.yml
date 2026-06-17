@@ -156,7 +156,7 @@ jobs:
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
-        sudo chown -R $USER:$USER /opt/neug-install/
+        sudo chown -R $(id -u):$(id -g) /opt/neug-install/
         export CC="ccache clang"
         export CXX="ccache clang++"
         cd tools/python_bind
