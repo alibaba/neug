@@ -31,16 +31,16 @@ namespace gds {
 
 CDLP::CDLP(const StorageReadInterface& graph, label_t vertex_label,
            const execution::LabelTriplet& edge_triplet, int max_iterations,
-           int concurrency, execution::ExprBase* vertex_pred)
+           int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_triplet_(edge_triplet),
       max_iterations_(max_iterations),
-      concurrency_(concurrency),
-      vertex_pred_(vertex_pred) {}
+      concurrency_(concurrency) {}
 
-template <typename PRED_T>
-void CDLP::init_communities(const PRED_T& vertex_pred) {
+// The plain CDLP runs over the whole projected graph; predicate filtering is
+// handled by the separate CDLPPred variant.
+void CDLP::init_communities() {
   auto vertex_set = graph_.GetVertexSet(vertex_label_);
   community_.reset(new int64_t[vertex_set.size()]);
   next_community_.reset(new int64_t[vertex_set.size()]);
@@ -55,50 +55,23 @@ void CDLP::init_communities(const PRED_T& vertex_pred) {
     ParallelUtils::parallel_for(
         vertex_set,
         [&](vid_t v, int tid) {
-          if (vertex_pred(vertex_label_, v)) {
-            int64_t id = id_column->get_view(v);
-            community_[v] = id;
-            next_community_[v] = id;
-          } else {
-            community_[v] = std::numeric_limits<int64_t>::max();
-            next_community_[v] = std::numeric_limits<int64_t>::max();
-          }
+          int64_t id = id_column->get_view(v);
+          community_[v] = id;
+          next_community_[v] = id;
         },
         concurrency_);
   } else {
     ParallelUtils::parallel_for(
         vertex_set,
         [&](vid_t v, int tid) {
-          if (vertex_pred(vertex_label_, v)) {
-            community_[v] = v;
-            next_community_[v] = v;
-          } else {
-            community_[v] = std::numeric_limits<int64_t>::max();
-            next_community_[v] = std::numeric_limits<int64_t>::max();
-          }
+          community_[v] = v;
+          next_community_[v] = v;
         },
         concurrency_);
   }
 
-  // Parallel collection of valid vertices using thread-local vectors
-  {
-    std::vector<std::vector<vid_t>> local_vertices(concurrency_);
-    for (auto& lv : local_vertices) lv.reserve(vertex_set.size() / concurrency_);
-    ParallelUtils::parallel_for(
-        vertex_set,
-        [&](vid_t v, int tid) {
-          if (community_[v] != std::numeric_limits<int64_t>::max()) {
-            local_vertices[tid].push_back(v);
-          }
-        },
-        concurrency_);
-    size_t total = 0;
-    for (const auto& lv : local_vertices) total += lv.size();
-    vertices_.reserve(total);
-    for (auto& lv : local_vertices) {
-      vertices_.insert(vertices_.end(), lv.begin(), lv.end());
-    }
-    std::sort(vertices_.begin(), vertices_.end());
+  for (vid_t v : vertex_set) {
+    vertices_.push_back(v);
   }
 }
 
@@ -201,14 +174,7 @@ bool CDLP::run_single_iteration(int64_t* buffer, const size_t* offsets,
 }
 
 void CDLP::compute() {
-  if (vertex_pred_) {
-    auto expr = vertex_pred_->bind(&graph_, {});
-    execution::GeneralPred vertex_pred(std::move(expr));
-    init_communities(vertex_pred);
-  } else {
-    execution::DummyPred vertex_pred;
-    init_communities(vertex_pred);
-  }
+  init_communities();
 
   const auto& ie_view = graph_.GetGenericIncomingGraphView(
       edge_triplet_.dst_label, edge_triplet_.src_label,

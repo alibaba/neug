@@ -81,9 +81,9 @@ execution::Context CDLPFunction::exec(
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
   execution::Context ret;
-  // The plain CDLP only supports a vertex predicate; when an edge predicate is
-  // present, dispatch to the predicate-aware variant that filters edges.
-  if (lp_input.edge_pred != nullptr) {
+  // The plain CDLP has no predicate support; dispatch to the predicate-aware
+  // variant when a vertex or edge predicate is present.
+  if (lp_input.vertex_pred != nullptr || lp_input.edge_pred != nullptr) {
     CDLPPred runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
                     lp_input.max_iterations, lp_input.concurrency,
                     lp_input.vertex_pred.get(), lp_input.edge_pred.get());
@@ -91,8 +91,7 @@ execution::Context CDLPFunction::exec(
     runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
   } else {
     CDLP runner(graph, lp_input.vertex_label, lp_input.edge_triplet,
-                lp_input.max_iterations, lp_input.concurrency,
-                lp_input.vertex_pred.get());
+                lp_input.max_iterations, lp_input.concurrency);
     runner.compute();
     runner.sink(ret, lp_input.node_alias, lp_input.label_alias);
   }
