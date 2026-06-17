@@ -43,8 +43,7 @@ Table::Table(const std::vector<std::string>& col_names,
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
     assert(i < property_types.size());
-    columns_[col_id] =
-        std::unique_ptr<ColumnBase>(CreateColumn(property_types[i]));
+    columns_[col_id] = CreateColumn(property_types[i]);
   }
   columns_.resize(col_id_map_.size());
 }

@@ -26,10 +26,8 @@ namespace neug {
 
 void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   CHECK(vertex_schema_ != nullptr) << "VertexTable::Init requires schema";
-  CHECK(static_cast<bool>(indexer_))
-      << "VertexTable::Init requires indexer slot";
-  CHECK(static_cast<bool>(v_ts_))
-      << "VertexTable::Init requires vertex_timestamp slot";
+  CHECK(indexer_ != nullptr) << "VertexTable::Init requires indexer slot";
+  CHECK(v_ts_ != nullptr) << "VertexTable::Init requires vertex_timestamp slot";
   CHECK(pk_type_.id() != DataTypeId::kUnknown)
       << "VertexTable::Init: pk_type must be set; was the schema-aware "
          "constructor used?";

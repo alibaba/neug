@@ -739,6 +739,7 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
   ensureEdgeTableCopiedForDelete(edge_idx);
+  ensureAdjlistCopied(edge_idx, src_lid, dst_lid, alloc_);
 
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src_lid);
@@ -756,7 +757,6 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
           arc_, src_label, GetVertexId(src_label, src_lid), dst_label,
           GetVertexId(dst_label, dst_lid), edge_label, oe_offset, ie_offset);
       op_num_ += 1;
-      ensureAdjlistCopied(edge_idx, src_lid, dst_lid, alloc_);
       auto status = cow_storage_->DeleteEdge(src_label, src_lid, dst_label,
                                              dst_lid, edge_label, oe_offset,
                                              ie_offset, timestamp_);
@@ -785,13 +785,13 @@ bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
   ensureEdgeTableCopiedForDelete(edge_idx);
+  ensureAdjlistCopied(edge_idx, src_lid, dst_lid, alloc_);
 
   RemoveEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, oe_offset, ie_offset);
   op_num_ += 1;
 
-  ensureAdjlistCopied(edge_idx, src_lid, dst_lid, alloc_);
   auto status =
       cow_storage_->DeleteEdge(src_label, src_lid, dst_label, dst_lid,
                                edge_label, oe_offset, ie_offset, timestamp_);
@@ -871,6 +871,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
   ensureEdgeColumnCopied(edge_idx, col_id);
+  ensureAdjlistCopied(edge_idx, src, dst, alloc_);
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
@@ -889,7 +890,6 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
                                     GetVertexId(dst_label, dst), edge_label,
                                     oe_offset, ie_offset, col_id, value);
       op_num_ += 1;
-      ensureAdjlistCopied(edge_idx, src, dst, alloc_);
       auto status = cow_storage_->UpdateEdgeProperty(
           src_label, src, dst_label, dst, edge_label, oe_offset, ie_offset,
           col_id, value, timestamp_);
@@ -919,12 +919,12 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   uint32_t edge_idx = cow_storage_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
   ensureEdgeColumnCopied(edge_idx, col_id);
+  ensureAdjlistCopied(edge_idx, src, dst, alloc_);
   UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
                                 dst_label, GetVertexId(dst_label, dst),
                                 edge_label, oe_offset, ie_offset, col_id,
                                 value);
   op_num_ += 1;
-  ensureAdjlistCopied(edge_idx, src, dst, alloc_);
   auto status = cow_storage_->UpdateEdgeProperty(
       src_label, src, dst_label, dst, edge_label, oe_offset, ie_offset, col_id,
       value, timestamp_);
