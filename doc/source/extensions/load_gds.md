@@ -464,41 +464,6 @@ ORDER BY community;
 or better detection of small communities. Use Louvain when you need the fastest
 possible execution.
 
----
-
-### Personalized PageRank
-
-> **Status:** Implemented but not yet registered in the extension. Available in
-> a future release.
-
-A variant of PageRank that biases the random-walk restart probability toward
-specific vertices using node weights, and incorporates edge weights into the
-transition probabilities.
-
-```cypher
-CALL personalized_page_rank('<graph_name>', {<options>})
-RETURN node, personalized_page_rank;
-```
-
-**Options:**
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `damping_factor` | DOUBLE | `0.85` | Random walk continuation probability |
-| `max_iterations` | INT | `20` | Maximum number of iterations |
-| `edge_weight` | STRING | *(required)* | Edge property name for transition weights (DOUBLE) |
-| `node_weight` | STRING | *(required)* | Vertex property name for restart bias (DOUBLE) |
-| `concurrency` | INT | `1` | Number of threads |
-
-**Output columns:**
-
-| Column | Type | Description |
-|---|---|---|
-| `node` | NODE | The vertex |
-| `personalized_page_rank` | DOUBLE | Personalized PageRank score |
-
-**Predicate support:** Neither vertex nor edge predicates are supported.
-
 ## Algorithm Summary
 
 | Algorithm | CALL Name | Output Columns | Key Options |
@@ -512,9 +477,6 @@ RETURN node, personalized_page_rank;
 | CDLP | `cdlp` | `node`, `label` | `max_iterations` |
 | Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
 | Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
-| Personalized PageRank* | `personalized_page_rank` | `node`, `personalized_page_rank` | `edge_weight`, `node_weight` |
-
-\* Not yet registered in the extension; available in a future release.
 
 ## Common Options
 
