@@ -19,6 +19,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <ostream>
 
@@ -50,14 +52,16 @@ void LocalWalParser::open(const std::string& wal_uri) {
     int fd = ::open(path.c_str(), O_RDONLY);
     if (fd == -1) {
       close();
-      THROW_IO_EXCEPTION("Failed to open wal file: " + path);
+      THROW_IO_EXCEPTION("Failed to open wal file: " + path + ": " +
+                         strerror(errno));
     }
     void* mmapped_buffer =
         ::mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (mmapped_buffer == MAP_FAILED) {
       ::close(fd);
       close();
-      THROW_IO_EXCEPTION("Failed to mmap wal file: " + path);
+      THROW_IO_EXCEPTION("Failed to mmap wal file: " + path + ": " +
+                         strerror(errno));
     }
 
     fds_.push_back(fd);
