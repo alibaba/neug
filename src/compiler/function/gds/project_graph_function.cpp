@@ -82,9 +82,9 @@ extractGraphEntryTableInfos(const common::Value& value) {
       } break;
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
-        if (triplets.size() < 3) {
+        if (triplets.size() != 3) {
           THROW_BINDER_EXCEPTION(common::stringFormat(
-              "Invalid triplet names, should be at least 3 elements, but is: "
+              "Invalid edge triplet, must have exactly 3 elements [src, edge, dst], but got: "
               "{}",
               triplets.size()));
         }
@@ -138,9 +138,9 @@ extractGraphEntryTableInfos(const common::Value& value) {
       } break;
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
-        if (triplets.size() < 3) {
+        if (triplets.size() != 3) {
           THROW_BINDER_EXCEPTION(common::stringFormat(
-              "Invalid triplet names, should be at least 3 elements, but is: "
+              "Invalid edge triplet, must have exactly 3 elements [src, edge, dst], but got: "
               "{}",
               triplets.size()));
         }

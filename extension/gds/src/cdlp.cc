@@ -34,14 +34,18 @@ struct CDLPInput : public function::CallFuncInputBase {
     if (!parse_subgraph_entries(subgraph, ctx_meta, parsed)) {
       throw std::runtime_error("Failed to parse subgraph entries.");
     }
-    if (parsed.vertex_entries.empty()) {
-      throw std::runtime_error("CDLP requires exactly one vertex label.");
+    if (parsed.vertex_entries.size() != 1) {
+      throw std::runtime_error(
+          "CDLP requires exactly one vertex label, but got " +
+          std::to_string(parsed.vertex_entries.size()) + ".");
     }
     vertex_label = parsed.vertex_entries[0].label;
     vertex_pred = std::move(parsed.vertex_entries[0].predicate);
 
-    if (parsed.edge_entries.empty()) {
-      throw std::runtime_error("CDLP requires exactly one edge label.");
+    if (parsed.edge_entries.size() != 1) {
+      throw std::runtime_error(
+          "CDLP requires exactly one edge label, but got " +
+          std::to_string(parsed.edge_entries.size()) + ".");
     }
     edge_triplet = parsed.edge_entries[0].triplet;
     edge_pred = std::move(parsed.edge_entries[0].predicate);
