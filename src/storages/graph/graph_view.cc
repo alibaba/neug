@@ -26,7 +26,7 @@ namespace neug {
 TableView::TableView(const Table& table) : col_id_map_(&table.col_id_map_) {
   columns_.reserve(table.col_num());
   for (int i = 0; i < table.col_num(); i++) {
-    columns_.emplace_back(table.get_column_by_id(i));
+    columns_.push_back(const_cast<ColumnBase*>(table.get_column_by_id(i)));
   }
 }
 
@@ -50,7 +50,7 @@ std::shared_ptr<RefColumnBase> TableView::get_column(
   return get_column(col_id);
 }
 
-std::shared_ptr<ColumnBase> TableView::get_raw_column(int col_id) const {
+ColumnBase* TableView::get_raw_column(int col_id) const {
   assert(col_id >= 0 && col_id < columns_.size());
   return columns_[col_id];
 }
@@ -70,8 +70,8 @@ void TableView::insert(size_t index,
 VertexTableView::VertexTableView(VertexTable& table)
     : pk_name_(std::get<1>(table.get_vertex_schema_ptr()->primary_keys[0])),
       indexer_(&table.get_indexer()),
-      v_ts_(&table.get_v_ts_mut()),
-      view_(table.get_table_mut()) {}
+      v_ts_(table.v_ts_.get()),
+      view_(*table.table_) {}
 
 bool VertexTableView::get_lid(const execution::Value& oid, vid_t& lid,
                               timestamp_t ts) const {
@@ -134,9 +134,9 @@ bool VertexTableView::AddVertex(const execution::Value& id,
 
 EdgeTableView::EdgeTableView(EdgeTable& table)
     : meta_(table.get_edge_schema_ptr()),
-      out_csr_(&table.get_out_csr_mut()),
-      in_csr_(&table.get_in_csr_mut()),
-      table_idx_(&table.get_table_idx()),
+      out_csr_(table.out_csr_.get()),
+      in_csr_(table.in_csr_.get()),
+      table_idx_(&table.table_idx_),
       view_(*table.table()) {}
 
 CsrView EdgeTableView::GetOutgoingView(timestamp_t ts) const {
@@ -157,7 +157,7 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {
   if (!meta_->is_bundled()) {
     return EdgeDataAccessor(
         meta_->properties[prop_id].id(),
-        const_cast<ColumnBase*>(view_.get_raw_column(prop_id).get()));
+        const_cast<ColumnBase*>(view_.get_raw_column(prop_id)));
   } else {
     if (prop_id != 0) {
       THROW_INVALID_ARGUMENT_EXCEPTION(

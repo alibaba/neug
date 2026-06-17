@@ -505,8 +505,8 @@ std::string expectedCsrType(const EdgeSchema& meta, bool is_in) {
   return module_naming::CsrTypeName(edata_type, strategy, is_mutable);
 }
 
-void validateCsrSlot(std::shared_ptr<const EdgeSchema> meta,
-                     const std::shared_ptr<CsrBase>& csr, bool is_in) {
+void validateCsrSlot(std::shared_ptr<const EdgeSchema> meta, const CsrBase* csr,
+                     bool is_in) {
   const char* fn_name = is_in ? "SetInCsr" : "SetOutCsr";
   CHECK(csr != nullptr) << "EdgeTable::" << fn_name << ": csr must not be null";
   auto expected = expectedCsrType(*meta, is_in);
@@ -520,13 +520,13 @@ void validateCsrSlot(std::shared_ptr<const EdgeSchema> meta,
   }
 }
 
-void EdgeTable::SetInCsr(std::shared_ptr<CsrBase> csr) {
-  validateCsrSlot(meta_, csr, /*is_in=*/true);
+void EdgeTable::SetInCsr(std::unique_ptr<CsrBase> csr) {
+  validateCsrSlot(meta_, csr.get(), /*is_in=*/true);
   in_csr_ = std::move(csr);
 }
 
-void EdgeTable::SetOutCsr(std::shared_ptr<CsrBase> csr) {
-  validateCsrSlot(meta_, csr, /*is_in=*/false);
+void EdgeTable::SetOutCsr(std::unique_ptr<CsrBase> csr) {
+  validateCsrSlot(meta_, csr.get(), /*is_in=*/false);
   out_csr_ = std::move(csr);
 }
 
@@ -560,11 +560,13 @@ EdgeTable EdgeTable::Fork() const {
   EdgeTable forked(meta_);
   forked.ckp_ = ckp_;
   forked.memory_level_ = memory_level_;
-  forked.out_csr_ = out_csr_;  // shallow shared_ptr copy
-  forked.in_csr_ = in_csr_;    // shallow shared_ptr copy
+  forked.out_csr_ = std::unique_ptr<CsrBase>(
+      static_cast<CsrBase*>(out_csr_->Fork().release()));
+  forked.in_csr_ = std::unique_ptr<CsrBase>(
+      static_cast<CsrBase*>(in_csr_->Fork().release()));
 
   if (table_) {
-    forked.table_ = table_->Fork();  // shallow shared_ptr copies inside
+    forked.table_ = table_->Fork();
   }
 
   forked.table_idx_ = table_idx_.load();
@@ -572,22 +574,22 @@ EdgeTable EdgeTable::Fork() const {
   return forked;
 }
 
-void EdgeTable::ForkOutCsr() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork out CSR";
-  out_csr_ = out_csr_->ForkAsShared(*ckp_, memory_level_);
+void EdgeTable::DeepCopyOutCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy out CSR";
+  out_csr_->DeepCopy(*ckp_, memory_level_);
 }
 
-void EdgeTable::ForkInCsr() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork in CSR";
-  in_csr_ = in_csr_->ForkAsShared(*ckp_, memory_level_);
+void EdgeTable::DeepCopyInCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy in CSR";
+  in_csr_->DeepCopy(*ckp_, memory_level_);
 }
 
-void EdgeTable::ForkOutAdjlist(vid_t vid, Allocator& alloc) {
-  out_csr_->ForkAdjlist(vid, alloc);
+void EdgeTable::DeepCopyOutAdjlist(vid_t vid, Allocator& alloc) {
+  out_csr_->DeepCopyAdjlist(vid, alloc);
 }
 
-void EdgeTable::ForkInAdjlist(vid_t vid, Allocator& alloc) {
-  in_csr_->ForkAdjlist(vid, alloc);
+void EdgeTable::DeepCopyInAdjlist(vid_t vid, Allocator& alloc) {
+  in_csr_->DeepCopyAdjlist(vid, alloc);
 }
 
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
@@ -744,8 +746,9 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
         " properties)");
   }
   if (!meta_->is_bundled()) {
-    return EdgeDataAccessor(meta_->properties[col_id].id(),
-                            table_->get_column_by_id(col_id).get());
+    return EdgeDataAccessor(
+        meta_->properties[col_id].id(),
+        const_cast<ColumnBase*>(table_->get_column_by_id(col_id)));
   } else {
     if (col_id != 0) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -970,8 +973,8 @@ size_t EdgeTable::Capacity() const {
   return capacity_.load();
 }
 
-void EdgeTable::dropAndCreateNewBundledCSR(
-    Checkpoint& ckp, std::shared_ptr<ColumnBase> remaining_col) {
+void EdgeTable::dropAndCreateNewBundledCSR(Checkpoint& ckp,
+                                           ColumnBase* remaining_col) {
   DataTypeId property_type = (remaining_col == nullptr)
                                  ? meta_->properties[0].id()
                                  : remaining_col->type();
@@ -998,9 +1001,9 @@ void EdgeTable::dropAndCreateNewBundledCSR(
                                        property_type, default_props[0],
                                        new_in_csr.get());
   } else {
-    std::shared_ptr<ColumnBase> row_id_col_base(
+    std::unique_ptr<ColumnBase> row_id_col_base(
         CreateColumn(DataTypeId::kUInt64));
-    auto row_id_col = std::dynamic_pointer_cast<ULongColumn>(row_id_col_base);
+    auto row_id_col = dynamic_cast<ULongColumn*>(row_id_col_base.get());
     row_id_col->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<execution::Value> remaining_data;
@@ -1022,8 +1025,8 @@ void EdgeTable::dropAndCreateNewBundledCSR(
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
-  out_csr_ = std::shared_ptr<CsrBase>(new_out_csr.release());
-  in_csr_ = std::shared_ptr<CsrBase>(new_in_csr.release());
+  out_csr_ = std::move(new_out_csr);
+  in_csr_ = std::move(new_in_csr);
 }
 
 void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
@@ -1038,7 +1041,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
     table_->Init(ckp, MemoryLevel::kInMemory);
   }
 
-  std::shared_ptr<ColumnBase> prev_data_col = nullptr;
+  ColumnBase* prev_data_col = nullptr;
 
   if (!delete_property) {
     if (table_->col_num() >= 1 &&
@@ -1096,8 +1099,8 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
   }
-  out_csr_ = std::shared_ptr<CsrBase>(new_out_csr.release());
-  in_csr_ = std::shared_ptr<CsrBase>(new_in_csr.release());
+  out_csr_ = std::move(new_out_csr);
+  in_csr_ = std::move(new_in_csr);
 }
 
 // --- Static key builders ---

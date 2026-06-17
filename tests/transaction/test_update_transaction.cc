@@ -943,22 +943,22 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 }
 
 // ============================================================================
-// Regression tests for Issue #2 and Issue #3 (fork_bitmap_ consistency
+// Regression tests for Issue #2 and Issue #3 (fork_state_ consistency
 // after DDL operations that change table structure).
 //
 // Issue #2: After DeleteVertexProperties / DeleteEdgeProperties the
-// columns_forked vector was not updated to reflect column index shifting
-// caused by Table::delete_column().  This led to out-of-bounds ForkColumn
+// columns_copied vector was not updated to reflect column index shifting
+// caused by Table::delete_column().  This led to out-of-bounds DeepCopyColumn
 // calls (crash) or wrong columns being marked as forked.
 //
-// Issue #3: After DeleteVertexType / DeleteEdgeType the fork_bitmap_
+// Issue #3: After DeleteVertexType / DeleteEdgeType the fork_state_
 // still contained entries for the deleted types, which could interfere
 // with subsequent DDL/DML in the same transaction.
 // ============================================================================
 
 // Issue #2 (vertex): delete a property then insert a vertex.
-// ensureVertexTableForkedForInsert iterates columns_forked — stale
-// entries cause ForkColumn(out-of-bounds) -> crash without the fix.
+// ensureVertexTableCopiedForInsert iterates columns_copied — stale
+// entries cause DeepCopyColumn(out-of-bounds) -> crash without the fix.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -974,9 +974,9 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("person", {"name"})));
 
-    // Insert a new person vertex — triggers ensureVertexTableForkedForInsert
-    // which iterates columns_forked.  Without the fix columns_forked still
-    // has 2 entries -> ForkColumn(1) on a 1-column table -> crash.
+    // Insert a new person vertex — triggers ensureVertexTableCopiedForInsert
+    // which iterates columns_copied.  Without the fix columns_copied still
+    // has 2 entries -> DeepCopyColumn(1) on a 1-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(person_label,
@@ -1007,8 +1007,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
 
 // Issue #2 (vertex, column index shift): add extra properties, fork one,
 // delete a middle property (shifting indices), then update a remaining
-// property and insert a vertex.  Without the fix, stale columns_forked
-// causes either wrong-fork or out-of-bounds ForkColumn -> crash.
+// property and insert a vertex.  Without the fix, stale columns_copied
+// causes either wrong-fork or out-of-bounds DeepCopyColumn -> crash.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1042,12 +1042,12 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 
   // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
   // In this transaction:
-  //   1. Update "age" (col 1) -> columns_forked[1] = true
+  //   1. Update "age" (col 1) -> columns_copied[1] = true
   //   2. Delete "name" (col 0) -> age shifts to 0, email to 1, score to 2
-  //   3. Without fix: columns_forked = [false, true, false, false] (4 entries)
-  //      Update email (now col 1) -> columns_forked[1] = stale true -> skip
-  //      fork Insert vertex -> ForkColumn(3) on 3-column table -> crash
-  //   4. With fix: columns_forked correctly has 3 entries after deletion
+  //   3. Without fix: columns_copied = [false, true, false, false] (4 entries)
+  //      Update email (now col 1) -> columns_copied[1] = stale true -> skip
+  //      fork Insert vertex -> DeepCopyColumn(3) on 3-column table -> crash
+  //   4. With fix: columns_copied correctly has 3 entries after deletion
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
@@ -1074,8 +1074,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
                                          neug::execution::Value::DOUBLE(88.0)));
 
     // Step 4: insert a new vertex — without the fix, ensureVertexTable-
-    // ForkedForInsert iterates stale columns_forked (4 entries for 3 cols)
-    // and calls ForkColumn(3) -> out-of-bounds crash.
+    // ForkedForInsert iterates stale columns_copied (4 entries for 3 cols)
+    // and calls DeepCopyColumn(3) -> out-of-bounds crash.
     neug::vid_t new_vid;
     EXPECT_TRUE(interface.AddVertex(
         person_label, neug::execution::Value::INT64(3),
@@ -1135,8 +1135,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 }
 
 // Issue #2 (edge): delete an edge property then insert an edge.
-// ensureEdgeTableForkedForInsert iterates columns_forked — stale
-// entries cause ForkColumn(out-of-bounds) -> crash without the fix.
+// ensureEdgeTableCopiedForInsert iterates columns_copied — stale
+// entries cause DeepCopyColumn(out-of-bounds) -> crash without the fix.
 TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1166,9 +1166,9 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "software", "created", {"since"})));
 
-    // Insert a new edge.  ensureEdgeTableForkedForInsert iterates
-    // columns_forked.  Without the fix columns_forked still has 3 entries
-    // -> ForkColumn(2) on a 2-column table -> crash.
+    // Insert a new edge.  ensureEdgeTableCopiedForInsert iterates
+    // columns_copied.  Without the fix columns_copied still has 3 entries
+    // -> DeepCopyColumn(2) on a 2-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -1236,7 +1236,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
 
 // Issue #3 (vertex): DeleteVertexType with edges then create new types
 // and insert data in the same transaction.  Without the fix,
-// fork_bitmap_ retains stale entries for the deleted vertex table and
+// fork_state_ retains stale entries for the deleted vertex table and
 // its related edge tables, which can interfere with subsequent DML.
 TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
   neug::NeugDB db;
@@ -1303,7 +1303,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
 }
 
 // Issue #3 (edge): DeleteEdgeType then create a new edge type and
-// insert data in the same transaction.  Without the fix, fork_bitmap_
+// insert data in the same transaction.  Without the fix, fork_state_
 // retains stale entries for the deleted edge table.
 TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
   neug::NeugDB db;

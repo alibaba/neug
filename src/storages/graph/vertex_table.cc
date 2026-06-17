@@ -336,8 +336,8 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   // indexer's three scalars; store it under KeyIndexer so store.Dump's later
   // pass (which writes the columns' own descriptors to KeyKeys / KeyIndices)
   // does not clobber it.
-  std::shared_ptr<ColumnBase> keys_out;
-  std::shared_ptr<TypedColumn<vid_t>> indices_out;
+  std::unique_ptr<ColumnBase> keys_out;
+  std::unique_ptr<TypedColumn<vid_t>> indices_out;
   meta.set_module(KeyIndexer(lbl), idx.Dump(ckp, keys_out, indices_out));
   store.SetModule(KeyKeys(lbl), std::move(keys_out));
   store.SetModule(KeyIndices(lbl), std::move(indices_out));
@@ -353,23 +353,25 @@ VertexTable VertexTable::Fork() const {
   CHECK(ckp_ != nullptr) << "VertexTable::Fork requires a valid checkpoint";
   VertexTable forked;
   forked.ckp_ = ckp_;
-  forked.indexer_ = indexer_;      // shallow shared_ptr copy
-  forked.table_ = table_->Fork();  // shallow shared_ptr copies inside
+  forked.indexer_ = indexer_->Fork();
+  forked.table_ = table_->Fork();
   forked.vertex_schema_ = vertex_schema_;
-  forked.v_ts_ = v_ts_;  // shallow shared_ptr copy
+  forked.v_ts_ = std::unique_ptr<VertexTimestamp>(
+      dynamic_cast<VertexTimestamp*>(v_ts_->Fork().release()));
   forked.pk_type_ = pk_type_;
   forked.memory_level_ = memory_level_;
   return forked;
 }
 
-void VertexTable::ForkIndexer() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork indexer";
-  indexer_ = indexer_->ForkAsShared(*ckp_, memory_level_);
+void VertexTable::DeepCopyIndexer() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy indexer";
+  indexer_->DeepCopy(*ckp_, memory_level_);
 }
 
-void VertexTable::ForkVertexTimestamp() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork vertex timestamp";
-  v_ts_ = v_ts_->ForkAsShared(*ckp_, memory_level_);
+void VertexTable::DeepCopyVertexTimestamp() {
+  CHECK(ckp_ != nullptr)
+      << "Checkpoint is null, cannot deep-copy vertex timestamp";
+  v_ts_->DeepCopy(*ckp_, memory_level_);
 }
 
 }  // namespace neug

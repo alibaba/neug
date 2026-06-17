@@ -41,14 +41,15 @@ void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
   unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
-  degree_list_buffer_ = ckp.OpenFile(
+  degree_list_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
-      memory_level);
-  nbr_list_buffer_ = ckp.OpenFile(
-      desc.get_path(ModuleDescriptor::kNbrListPath).value_or(""), memory_level);
+      memory_level));
+  nbr_list_buffer_ = std::shared_ptr<IDataContainer>(
+      ckp.OpenFile(desc.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
+                   memory_level));
   auto v_cap = size();
-  adj_list_buffer_ = ckp.CreateRuntimeContainer(v_cap * sizeof(nbr_t*),
-                                                MemoryLevel::kInMemory);
+  adj_list_buffer_ = std::shared_ptr<IDataContainer>(ckp.CreateRuntimeContainer(
+      v_cap * sizeof(nbr_t*), MemoryLevel::kInMemory));
   auto adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto degree_list_ptr =
       reinterpret_cast<const int*>(degree_list_buffer_->GetData());
@@ -368,9 +369,9 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                        const ModuleDescriptor& descriptor,
                                        MemoryLevel memory_level) {
-  nbr_list_buffer_ = ckp.OpenFile(
+  nbr_list_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
-      memory_level);
+      memory_level));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
 }
 

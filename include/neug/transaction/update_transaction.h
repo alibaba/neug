@@ -259,15 +259,15 @@ class UpdateTransaction {
 
   void release();
 
-  // --- PropertyGraphForkState-driven lazy fork helpers ---
-  void ensureVertexTableForkedForInsert(label_t label);
-  void ensureVertexTableForkedForDelete(label_t label);
-  void ensureVertexColumnForked(label_t label, int32_t col_id);
-  void ensureEdgeTableForkedForInsert(uint32_t edge_triplet_id);
-  void ensureEdgeTableForkedForDelete(uint32_t edge_triplet_id);
-  void ensureEdgeColumnForked(uint32_t edge_triplet_id, int32_t col_id);
-  void ensureAdjlistMutable(uint32_t edge_triplet_id, vid_t src_lid,
-                            vid_t dst_lid, Allocator& alloc);
+  // --- PropertyGraphForkState-driven lazy deep-copy helpers ---
+  void ensureVertexTableCopiedForInsert(label_t label);
+  void ensureVertexTableCopiedForDelete(label_t label);
+  void ensureVertexColumnCopied(label_t label, int32_t col_id);
+  void ensureEdgeTableCopiedForInsert(uint32_t edge_triplet_id);
+  void ensureEdgeTableCopiedForDelete(uint32_t edge_triplet_id);
+  void ensureEdgeColumnCopied(uint32_t edge_triplet_id, int32_t col_id);
+  void ensureAdjlistCopied(uint32_t edge_triplet_id, vid_t src_lid,
+                           vid_t dst_lid, Allocator& alloc);
   void ensureVertexCapacity(label_t label, size_t capacity);
   void ensureEdgeCapacity(label_t src_label, label_t dst_label,
                           label_t edge_label, size_t capacity);
@@ -279,7 +279,7 @@ class UpdateTransaction {
 
   // COW storage - the forked PropertyGraph
   std::shared_ptr<PropertyGraph> cow_storage_;
-  PropertyGraphForkState fork_bitmap_;
+  PropertyGraphForkState fork_state_;
   GraphView view_;
 
   Allocator& alloc_;

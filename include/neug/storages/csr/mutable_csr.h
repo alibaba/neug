@@ -153,7 +153,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* const* adjlists =
@@ -172,8 +172,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -186,7 +185,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
-  void ForkAdjlist(vid_t vid, Allocator& alloc) override {
+  void DeepCopyAdjlist(vid_t vid, Allocator& alloc) override {
     auto v_cap = vertex_capacity();
     if (vid >= v_cap) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -210,17 +209,25 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     locks_[vid].unlock();
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     auto fork = std::make_unique<MutableCsr<EDATA_T>>();
     auto v_cap = vertex_capacity();
     fork->locks_ = std::make_unique<SpinLock[]>(v_cap);
-    fork->adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
-    fork->degree_list_ = degree_list_->Fork(ckp, level);
-    fork->cap_list_ = cap_list_->Fork(ckp, level);
+    fork->adj_list_buffer_ = adj_list_buffer_;
+    fork->degree_list_ = degree_list_;
+    fork->cap_list_ = cap_list_;
     fork->nbr_list_ = nbr_list_;
     fork->unsorted_since_ = unsorted_since_;
     fork->edge_num_ = edge_num_.load();
     return fork;
+  }
+
+  // DeepCopy
+  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+    adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
+    degree_list_ = degree_list_->Fork(ckp, level);
+    cap_list_ = cap_list_->Fork(ckp, level);
+    // nbr_list_ need no deep copy
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -231,9 +238,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
  private:
   std::unique_ptr<SpinLock[]> locks_;
-  std::unique_ptr<IDataContainer> adj_list_buffer_;
-  std::unique_ptr<IDataContainer> degree_list_;
-  std::unique_ptr<IDataContainer> cap_list_;
+  std::shared_ptr<IDataContainer> adj_list_buffer_;
+  std::shared_ptr<IDataContainer> degree_list_;
+  std::shared_ptr<IDataContainer> cap_list_;
   std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
@@ -328,7 +335,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
@@ -341,8 +348,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -355,13 +361,18 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
-  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     auto fork = std::make_unique<SingleMutableCsr<EDATA_T>>();
-    fork->nbr_list_ = nbr_list_->Fork(ckp, level);
+    fork->nbr_list_ = nbr_list_;
     fork->edge_num_ = edge_num_.load();
     return fork;
+  }
+
+  // DeepCopy:
+  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+    nbr_list_ = nbr_list_->Fork(ckp, level);
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -371,7 +382,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> nbr_list_;
+  std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
 
   size_t vertex_capacity() const {
@@ -441,7 +452,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
-  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
 
   std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
                                            const EDATA_T& data, timestamp_t ts,
@@ -450,13 +461,15 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     return {};
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     return std::make_unique<EmptyCsr<EDATA_T>>();
   }
+
+  void DeepCopy(Checkpoint&, MemoryLevel) override {}
 
   std::string ModuleTypeName() const override { return type_name(); }
 

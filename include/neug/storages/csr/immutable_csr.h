@@ -99,18 +99,24 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     LOG(FATAL) << "not implemented...";
     return {};
   }
 
-  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "ForkAdjlist is not supported for immutable csr");
+        "DeepCopyAdjlist is not supported for immutable csr");
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     THROW_NOT_SUPPORTED_EXCEPTION("Fork is not supported for immutable csr");
+  }
+
+  // DeepCopy: not supported for immutable csr
+  void DeepCopy(Checkpoint&, MemoryLevel) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "DeepCopy is not supported for immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -120,9 +126,9 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> adj_list_buffer_;
-  std::unique_ptr<IDataContainer> degree_list_buffer_;
-  std::unique_ptr<IDataContainer> nbr_list_buffer_;
+  std::shared_ptr<IDataContainer> adj_list_buffer_;
+  std::shared_ptr<IDataContainer> degree_list_buffer_;
+  std::shared_ptr<IDataContainer> nbr_list_buffer_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
 };
@@ -196,19 +202,25 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     LOG(FATAL) << "not implemented...";
     return {};
   }
 
-  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "ForkAdjlist is not supported for single immutable csr");
+        "DeepCopyAdjlist is not supported for single immutable csr");
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Fork is not supported for single immutable csr");
+  }
+
+  // DeepCopy: not supported for single immutable csr
+  void DeepCopy(Checkpoint&, MemoryLevel) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "DeepCopy is not supported for single immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -218,7 +230,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> nbr_list_buffer_;
+  std::shared_ptr<IDataContainer> nbr_list_buffer_;
   std::atomic<uint64_t> edge_num_{0};
 };
 

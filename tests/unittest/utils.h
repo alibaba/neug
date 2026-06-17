@@ -440,8 +440,7 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt,
       std::make_unique<neug::Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
     table->SetColumn(static_cast<int>(i),
-                     std::shared_ptr<neug::ColumnBase>(
-                         store.TakeModule<neug::ColumnBase>(VertexPropKey(i))));
+                     store.TakeModule<neug::ColumnBase>(VertexPropKey(i)));
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(store.TakeModule<neug::VertexTimestamp>(kVertexVTs));
@@ -456,7 +455,7 @@ inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
   meta.SetScalar(kVertexNumSlotsMinusOne,
                  std::to_string(idx.GetNumSlotsMinusOne()));
   meta.SetScalar(kVertexHashPolicy, std::to_string(idx.GetHashPolicyIndex()));
-  // Table columns are shared_ptr, so they're dumped inline; the unique_ptr
+  // Table columns are unique_ptr, so they're dumped inline; the unique_ptr
   // leaves transfer ownership into a transient store that Dumps + cleans up.
   auto table = vt.TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
@@ -498,8 +497,7 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et,
         std::make_unique<neug::Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
       table->SetColumn(static_cast<int>(i),
-                       std::shared_ptr<neug::ColumnBase>(
-                           store.TakeModule<neug::ColumnBase>(EdgePropKey(i))));
+                       store.TakeModule<neug::ColumnBase>(EdgePropKey(i)));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(meta.GetScalarAs<uint64_t>(kEdgeTableIdx).value_or(0));

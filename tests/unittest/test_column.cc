@@ -198,9 +198,12 @@ TYPED_TEST(TypedColumnInt32ForkTest, ForkIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto fork_module = original.Fork(*base_ckp, TypeParam::kForkLevel);
+  auto fork_module = original.Fork();
   auto* forked = dynamic_cast<TypedColumn<int32_t>*>(fork_module.get());
   ASSERT_NE(forked, nullptr);
+  // DeepCopy deep-copies IDataContainer so writes to forked don't affect
+  // original
+  forked->DeepCopy(*base_ckp, TypeParam::kForkLevel);
 
   apply_column_mutations(*forked);
   auto fork_after = build_column_signature(*forked);
@@ -275,10 +278,13 @@ TYPED_TEST(TypedColumnStringForkTest, ForkIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto fork_module = original.Fork(*base_ckp, TypeParam::kForkLevel);
+  auto fork_module = original.Fork();
   auto* forked =
       dynamic_cast<TypedColumn<std::string_view>*>(fork_module.get());
   ASSERT_NE(forked, nullptr);
+  // DeepCopy deep-copies IDataContainer so writes to forked don't affect
+  // original
+  forked->DeepCopy(*base_ckp, TypeParam::kForkLevel);
 
   apply_column_mutations(*forked);
   auto fork_after = build_column_signature(*forked);

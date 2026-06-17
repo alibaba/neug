@@ -145,17 +145,17 @@ std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
 
 template <typename CSR_T>
 void apply_fork_mutations(CSR_T& csr, Allocator& alloc) {
-  csr.ForkAdjlist(0, alloc);
+  csr.DeepCopyAdjlist(0, alloc);
   // csr.batch_put_edges({0}, {1}, {111}, 0);
   csr.put_edge(0, 0, 111, 0, alloc);
 
   auto [src, dst, offset] = find_first_edge(csr);
   ASSERT_NE(offset, -1);
-  csr.ForkAdjlist(src, alloc);
+  csr.DeepCopyAdjlist(src, alloc);
   csr.delete_edge(src, offset, 0);
   csr.revert_delete_edge(src, dst, offset, 0);
 
-  csr.ForkAdjlist(2, alloc);
+  csr.DeepCopyAdjlist(2, alloc);
   // csr.batch_put_edges({2}, {3}, {222}, 0);
   csr.put_edge(2, 3, 222, 0, alloc);
 }
@@ -236,9 +236,12 @@ TYPED_TEST(MutableCsrForkTest, ForkIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_fork_signature(original);
 
-  auto fork_module = original.Fork(*base_ckp, TypeParam::kForkLevel);
+  auto fork_module = original.Fork();
   auto* forked = dynamic_cast<MutableCsr<int32_t>*>(fork_module.get());
   ASSERT_NE(forked, nullptr);
+  // DeepCopy deep-copies IDataContainer so writes to forked don't affect
+  // original
+  forked->DeepCopy(*base_ckp, TypeParam::kForkLevel);
   Allocator alloc(MemoryLevel::kInMemory, "");
 
   apply_fork_mutations(*forked, alloc);

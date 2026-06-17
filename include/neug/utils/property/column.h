@@ -73,10 +73,6 @@ class ColumnBase : public Module {
   virtual execution::Value get_any(size_t index) const = 0;
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
-
-  std::shared_ptr<ColumnBase> ForkAsShared(Checkpoint& ckp, MemoryLevel level) {
-    return ForkShared<ColumnBase>(ckp, level);
-  }
 };
 
 template <typename T>
@@ -88,8 +84,8 @@ class TypedColumn : public ColumnBase {
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
     assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
-    buffer_ = ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
+    buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level));
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -165,11 +161,15 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData());
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     auto new_col = std::make_unique<TypedColumn<T>>();
-    new_col->buffer_ = buffer_->Fork(ckp, level);
+    new_col->buffer_ = buffer_;
     new_col->size_ = size_;
     return new_col;
+  }
+
+  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+    buffer_ = buffer_->Fork(ckp, level);
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -179,7 +179,7 @@ class TypedColumn : public ColumnBase {
   }
 
  private:
-  std::unique_ptr<IDataContainer> buffer_;
+  std::shared_ptr<IDataContainer> buffer_;
   size_t size_;
 };
 
@@ -229,9 +229,12 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   static std::string type_name() { return "column<empty>"; }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
+
+  // DeepCopy: no-op for EmptyType (no IDataContainer)
+  void DeepCopy(Checkpoint&, MemoryLevel) override {}
 };
 
 struct string_item {
@@ -257,10 +260,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
-    items_buffer_ = ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
-    data_buffer_ = ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
+    items_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level));
+    data_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level));
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     pos_.store(std::stoull(desc.get("pos").value_or("0")));
     assert(pos_.load() <= data_buffer_->GetDataSize());
@@ -499,13 +502,19 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, val);
   }
 
-  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+  std::unique_ptr<Module> Fork() override {
     auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
-    new_col->items_buffer_ = items_buffer_->Fork(ckp, level);
-    new_col->data_buffer_ = data_buffer_->Fork(ckp, level);
+    new_col->items_buffer_ = items_buffer_;
+    new_col->data_buffer_ = data_buffer_;
     new_col->size_ = size_;
     new_col->pos_ = pos_.load();
     return new_col;
+  }
+
+  // DeepCopy:
+  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+    items_buffer_ = items_buffer_->Fork(ckp, level);
+    data_buffer_ = data_buffer_->Fork(ckp, level);
   }
 
   size_t available_space() const {
@@ -551,8 +560,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
                : 0;
   }
 
-  std::unique_ptr<IDataContainer> items_buffer_;
-  std::unique_ptr<IDataContainer> data_buffer_;
+  std::shared_ptr<IDataContainer> items_buffer_;
+  std::shared_ptr<IDataContainer> data_buffer_;
   size_t size_;
   std::atomic<size_t> pos_;
   uint16_t width_;

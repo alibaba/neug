@@ -38,7 +38,7 @@ class TableView {
 
   std::shared_ptr<RefColumnBase> get_column(int col_id) const;
   std::shared_ptr<RefColumnBase> get_column(const std::string& name) const;
-  std::shared_ptr<ColumnBase> get_raw_column(int col_id) const;
+  ColumnBase* get_raw_column(int col_id) const;
 
   // Note: insert_safe is kept for compatibility with the old interface.
   // It must be false for TableView.
@@ -47,7 +47,7 @@ class TableView {
 
  private:
   const std::unordered_map<std::string, int>* col_id_map_{nullptr};
-  std::vector<std::shared_ptr<ColumnBase>> columns_;
+  std::vector<ColumnBase*> columns_;
 };
 
 class VertexTableView {
@@ -70,7 +70,6 @@ class VertexTableView {
 
  private:
   std::string pk_name_;
-
   IndexerType* indexer_{nullptr};
   VertexTimestamp* v_ts_{nullptr};
 

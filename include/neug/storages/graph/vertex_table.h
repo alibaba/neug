@@ -28,6 +28,7 @@ namespace neug {
 class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
+class VertexTableView;
 
 class VertexSet {
  public:
@@ -87,20 +88,20 @@ class VertexTable {
  public:
   VertexTable()
       : ckp_(nullptr),
-        indexer_(std::make_shared<IndexerType>()),
+        indexer_(std::make_unique<IndexerType>()),
         table_(nullptr),
         pk_type_(DataTypeId::kUnknown),
         vertex_schema_(nullptr),
-        v_ts_(std::make_shared<VertexTimestamp>()),
+        v_ts_(std::make_unique<VertexTimestamp>()),
         memory_level_(MemoryLevel::kInMemory) {}
 
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
       : ckp_(nullptr),
-        indexer_(std::make_shared<IndexerType>()),
+        indexer_(std::make_unique<IndexerType>()),
         table_(std::make_unique<Table>()),
         pk_type_(std::get<0>(vertex_schema->primary_keys[0])),
         vertex_schema_(vertex_schema),
-        v_ts_(std::make_shared<VertexTimestamp>()),
+        v_ts_(std::make_unique<VertexTimestamp>()),
         memory_level_(MemoryLevel::kInMemory) {
     assert(vertex_schema->primary_keys.size() == 1);
   }
@@ -150,23 +151,23 @@ class VertexTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
-  void SetIndexer(std::shared_ptr<IndexerType> indexer) {
+  void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);
   }
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
-  void SetVertexTimestamp(std::shared_ptr<VertexTimestamp> v_ts) {
+  void SetVertexTimestamp(std::unique_ptr<VertexTimestamp> v_ts) {
     v_ts_ = std::move(v_ts);
   }
   void SetMemoryLevel(MemoryLevel level) { memory_level_ = level; }
 
   std::unique_ptr<Table> TakeTable() { return std::move(table_); }
-  std::shared_ptr<VertexTimestamp> TakeVertexTimestamp() {
+  std::unique_ptr<VertexTimestamp> TakeVertexTimestamp() {
     return std::move(v_ts_);
   }
   VertexTable Fork() const;
 
-  void ForkIndexer();
-  void ForkVertexTimestamp();
+  void DeepCopyIndexer();
+  void DeepCopyVertexTimestamp();
 
   void Close();
 
@@ -256,10 +257,8 @@ class VertexTable {
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
-  IndexerType& get_indexer_mut() { return *indexer_; }
-  VertexTimestamp& get_v_ts_mut() { return *v_ts_; }
   const Table& get_table() const { return *table_; }
-  Table& get_table_mut() { return *table_; }
+  Table& get_table() { return *table_; }
 
  private:
   vid_t insert_vertex_pk(const execution::Value& id, timestamp_t ts,
@@ -388,14 +387,15 @@ class VertexTable {
   }
 
   std::shared_ptr<Checkpoint> ckp_;
-  std::shared_ptr<IndexerType> indexer_;
+  std::unique_ptr<IndexerType> indexer_;
   std::unique_ptr<Table> table_;
   DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
-  std::shared_ptr<VertexTimestamp> v_ts_;
+  std::unique_ptr<VertexTimestamp> v_ts_;
   MemoryLevel memory_level_;
 
   friend class PropertyGraph;
+  friend class VertexTableView;
 };
 
 namespace internal {

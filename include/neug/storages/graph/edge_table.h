@@ -54,8 +54,8 @@ class EdgeTable {
 
   EdgeTable Fork() const;
 
-  void ForkOutCsr();
-  void ForkInCsr();
+  void DeepCopyOutCsr();
+  void DeepCopyInCsr();
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
@@ -82,15 +82,15 @@ class EdgeTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
-  void SetInCsr(std::shared_ptr<CsrBase> csr);
-  void SetOutCsr(std::shared_ptr<CsrBase> csr);
+  void SetInCsr(std::unique_ptr<CsrBase> csr);
+  void SetOutCsr(std::unique_ptr<CsrBase> csr);
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
   void SetTableIdx(uint64_t n) { table_idx_.store(n); }
   void SetCapacity(uint64_t n) { capacity_.store(n); }
   void SetMemoryLevel(MemoryLevel level) { memory_level_ = level; }
 
-  std::shared_ptr<CsrBase> TakeInCsr() { return std::move(in_csr_); }
-  std::shared_ptr<CsrBase> TakeOutCsr() { return std::move(out_csr_); }
+  std::unique_ptr<CsrBase> TakeInCsr() { return std::move(in_csr_); }
+  std::unique_ptr<CsrBase> TakeOutCsr() { return std::move(out_csr_); }
   std::unique_ptr<Table> TakeTable() { return std::move(table_); }
   uint64_t GetTableIdx() const { return table_idx_.load(); }
   uint64_t GetCapacity() const { return capacity_.load(); }
@@ -183,35 +183,26 @@ class EdgeTable {
 
   std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
 
-  /// Fork (deep-copy) the outgoing adjlist of vertex vid.
+  /// Deep-copy the outgoing adjlist of vertex vid.
   /// Called by UpdateTransaction via PropertyGraphForkState when the adjlist
-  /// has not yet been forked in the current transaction.
-  void ForkOutAdjlist(vid_t vid, Allocator& alloc);
+  /// has not yet been deep-copied in the current transaction.
+  void DeepCopyOutAdjlist(vid_t vid, Allocator& alloc);
 
-  /// Fork (deep-copy) the incoming adjlist of vertex vid.
-  void ForkInAdjlist(vid_t vid, Allocator& alloc);
+  /// Deep-copy the incoming adjlist of vertex vid.
+  void DeepCopyInAdjlist(vid_t vid, Allocator& alloc);
 
  private:
-  void dropAndCreateNewBundledCSR(Checkpoint& ckp,
-                                  std::shared_ptr<ColumnBase> prev_data_col);
+  void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 
   std::shared_ptr<Checkpoint> ckp_;
   std::shared_ptr<const EdgeSchema> meta_;
   MemoryLevel memory_level_{MemoryLevel::kSyncToFile};
-  std::shared_ptr<CsrBase> out_csr_;
-  std::shared_ptr<CsrBase> in_csr_;
+  std::unique_ptr<CsrBase> out_csr_;
+  std::unique_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
-
-  CsrBase& get_out_csr_mut() { return *out_csr_; }
-  CsrBase& get_in_csr_mut() { return *in_csr_; }
-  const CsrBase& get_out_csr() const { return *out_csr_; }
-  const CsrBase& get_in_csr() const { return *in_csr_; }
-  const Table* get_table_ptr() const { return table_.get(); }
-  Table* get_table_ptr_mut() { return table_.get(); }
-  std::atomic<uint64_t>& get_table_idx() { return table_idx_; }
 
   friend class PropertyGraph;
   friend class EdgeTableView;

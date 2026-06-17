@@ -29,14 +29,14 @@ PropertyGraphForkState PropertyGraphForkState::FromSchema(
   for (size_t i = 0; i < vertex_schemas.size(); ++i) {
     if (vertex_schemas[i] && !vertex_schemas[i]->empty()) {
       size_t col_count = vertex_schemas[i]->property_names.size();
-      bitmap.vertex_tables[i].columns_forked.resize(col_count, false);
+      bitmap.vertex_tables[i].columns_copied.resize(col_count, false);
     }
   }
 
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
     EdgeTableForkState state;
     if (edge_schema) {
-      state.columns_forked.resize(edge_schema->property_names.size(), false);
+      state.columns_copied.resize(edge_schema->property_names.size(), false);
     }
     bitmap.edge_tables.emplace(key, std::move(state));
   }

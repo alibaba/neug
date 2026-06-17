@@ -346,13 +346,13 @@ TEST_F(StorageStoreConcurrencyTest, CowIsolationAfterForkMutateInstall) {
   ASSERT_EQ(initial_pg_->VertexNum(0, MAX_TIMESTAMP), 1u);
 
   // Phase 2: Fork → Mutate → Install (simulates UpdateTxn commit).
-  // Explicitly fork shared modules before mutation, mirroring
-  // UpdateTransaction::ensureVertexTableForkedForInsert.
+  // Explicitly deep-copy shared modules before mutation, mirroring
+  // UpdateTransaction::ensureVertexTableCopiedForInsert.
   auto cow1 = initial_pg_->Fork();
   auto& vt1 = cow1->get_vertex_table(0);
-  vt1.ForkIndexer();
-  vt1.ForkVertexTimestamp();
-  vt1.get_table_mut().ForkAllColumns(*cow1->checkpoint_ptr(),
+  vt1.DeepCopyIndexer();
+  vt1.DeepCopyVertexTimestamp();
+  vt1.get_table().DeepCopyAllColumns(*cow1->checkpoint_ptr(),
                                      cow1->memory_level());
   vid_t vid1 = 0;
   status = cow1->AddVertex(0, execution::Value::INT64(2), {}, vid1, 2);
@@ -366,9 +366,9 @@ TEST_F(StorageStoreConcurrencyTest, CowIsolationAfterForkMutateInstall) {
   // shared modules so cow2's mutations don't leak back to cow1.
   auto cow2 = cow1->Fork();
   auto& vt2 = cow2->get_vertex_table(0);
-  vt2.ForkIndexer();
-  vt2.ForkVertexTimestamp();
-  vt2.get_table_mut().ForkAllColumns(*cow2->checkpoint_ptr(),
+  vt2.DeepCopyIndexer();
+  vt2.DeepCopyVertexTimestamp();
+  vt2.get_table().DeepCopyAllColumns(*cow2->checkpoint_ptr(),
                                      cow2->memory_level());
   vid_t vid2 = 0;
   status = cow2->AddVertex(0, execution::Value::INT64(3), {}, vid2, 3);
