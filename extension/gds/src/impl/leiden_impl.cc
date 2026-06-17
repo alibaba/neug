@@ -101,9 +101,9 @@ void Leiden::compute() {
           for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
           local_m[tid] += cnt;
         },
-        concurrency_);
+        num_threads_);
     m_ = 0;
-    for (int i = 0; i < concurrency_; ++i) m_ += local_m[i];
+    for (int i = 0; i < num_threads_; ++i) m_ += local_m[i];
   }
 
   if (m_ == 0) {
@@ -113,7 +113,7 @@ void Leiden::compute() {
 
   ParallelUtils::parallel_for(
       valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, concurrency_);
+      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, num_threads_);
 
   for (int level = 0; level < 100; ++level) {
     bool improved = local_moving_phase();
@@ -121,7 +121,7 @@ void Leiden::compute() {
 
     refine();
 
-    std::vector<double> local_mod(concurrency_, 0.0);
+    std::vector<double> local_mod(num_threads_, 0.0);
     ParallelUtils::parallel_for(
         valid_vertices_.data(), valid_vertices_.size(),
         [&](vid_t v, int tid) {
@@ -136,9 +136,9 @@ void Leiden::compute() {
           }
           local_mod[tid] += lm;
         },
-        concurrency_);
+        num_threads_);
     double new_mod = 0;
-    for (int i = 0; i < concurrency_; ++i) new_mod += local_mod[i];
+    for (int i = 0; i < num_threads_; ++i) new_mod += local_mod[i];
     if (std::abs(new_mod - modularity_) < threshold_) break;
     modularity_ = new_mod;
   }
@@ -217,14 +217,19 @@ bool Leiden::local_moving_phase() {
               double w_self =
                   (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
 
+              // Remove u from current community for gain calculation
+              double stot_cur_minus_u = stot_[cur_com] - deg_u;
+
               uint32_t best = cur_com;
               double best_gain = 0.0;
 
               for (uint32_t com : my_touched) {
+                if (com == cur_com) continue;
                 double w_com = my_cw[com];
-                double gain = (w_com - w_self) / m_ +
-                              resolution_ * (stot_[cur_com] - stot_[com]) *
-                                  deg_u / (2.0 * m_ * m_);
+                // Gain = benefit of joining com - cost of leaving cur_com
+                double gain = (w_com - w_self) / m_ -
+                              resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+                              resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
                 if (gain > best_gain) {
                   best_gain = gain;
                   best = com;
