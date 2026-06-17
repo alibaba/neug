@@ -48,29 +48,5 @@ class DirectedPageRank {
   uint32_t vertex_count_;
 };
 
-class UndirectedPageRank {
- public:
-  UndirectedPageRank(const StorageReadInterface& graph, label_t vertex_label,
-                     label_t edge_label, double damping_factor, int concurrency,
-                     execution::ExprBase* vertex_predicate);
-
-  void compute(int max_iterations);
-  void sink(execution::Context& ctx, int node_alias, int pr_alias);
-
- private:
-  const StorageReadInterface& graph_;
-  label_t vertex_label_;
-  label_t edge_label_;
-  std::unique_ptr<double[]> pr_;
-
-  std::unique_ptr<uint32_t[]> out_degree_;
-  vector_t<vid_t> valid_vertices_;
-  double damping_factor_;
-  int concurrency_;
-  uint32_t dangling_count_;
-  double dangling_sum_;
-  uint32_t vertex_count_;
-};
-
 }  // namespace gds
 }  // namespace neug

@@ -19,7 +19,8 @@
 #include <limits>
 #include <thread>
 
-#include "impl/lcc_impl.h"
+#include "impl/lcc_directed_impl.h"
+#include "impl/lcc_undirected_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 

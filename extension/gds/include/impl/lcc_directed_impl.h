@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "neug/execution/common/columns/container_types.h"
@@ -26,27 +25,6 @@
 
 namespace neug {
 namespace gds {
-
-class LCCUndirected {
- public:
-  LCCUndirected(const StorageReadInterface& graph, label_t vertex_label,
-                label_t edge_label, int degree_threshold, int concurrency);
-
-  void compute();
-  void sink(execution::Context& ctx, int node_alias, int lcc_alias);
-
- private:
-  const StorageReadInterface& graph_;
-  label_t vertex_label_;
-  label_t edge_label_;
-  int degree_threshold_;
-  int concurrency_;
-
-  vector_t<vid_t> vertices_;
-  std::unique_ptr<int32_t[]> degrees_;
-  std::unique_ptr<int64_t[]> triangles_;
-  std::unique_ptr<double[]> lcc_;
-};
 
 class LCCDirected {
  public:

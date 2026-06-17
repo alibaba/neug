@@ -16,7 +16,8 @@
 
 #include "page_rank.h"
 
-#include "impl/page_rank_impl.h"
+#include "impl/page_rank_directed_impl.h"
+#include "impl/page_rank_undirected_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
