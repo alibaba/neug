@@ -45,8 +45,9 @@ void VersionManager::init_ts(uint32_t ts, int thread_num) {
 uint32_t VersionManager::acquire_read_timestamp() {
   // Pre-check: avoid incrementing if in commit phase
   int state = update_state_.load(std::memory_order_acquire);
-  if (state == 2)
-    [[unlikely]] { return acquire_read_timestamp_slow(); }
+  if (NEUG_UNLIKELY(state == 2)) {
+    return acquire_read_timestamp_slow();
+  }
 
   // Optimistically increment counter
   active_readers_.fetch_add(1, std::memory_order_acq_rel);
@@ -55,8 +56,9 @@ uint32_t VersionManager::acquire_read_timestamp() {
   // This eliminates the ABA race where a reader increments active_readers_
   // but misses a concurrent update_state_ 0->1->2 transition.
   state = update_state_.load(std::memory_order_acquire);
-  if (state != 2)
-    [[likely]] { return read_ts_.load(std::memory_order_acquire); }
+  if (NEUG_LIKELY(state != 2)) {
+    return read_ts_.load(std::memory_order_acquire);
+  }
 
   // Rollback: commit started while we were incrementing
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
@@ -82,16 +84,18 @@ void VersionManager::release_read_timestamp() {
 uint32_t VersionManager::acquire_insert_timestamp() {
   // Check state first (fast path)
   int state = update_state_.load(std::memory_order_acquire);
-  if (state != 0)
-    [[unlikely]] { return acquire_insert_timestamp_slow(); }
+  if (NEUG_UNLIKELY(state != 0)) {
+    return acquire_insert_timestamp_slow();
+  }
 
   // Increment counter
   active_inserters_.fetch_add(1, std::memory_order_acq_rel);
 
   // Double check: ensure update didn't start between checks
   state = update_state_.load(std::memory_order_acquire);
-  if (state == 0)
-    [[likely]] { return write_ts_.fetch_add(1, std::memory_order_acq_rel); }
+  if (NEUG_LIKELY(state == 0)) {
+    return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+  }
 
   // Slow path: update just started
   active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
