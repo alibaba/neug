@@ -1,9 +1,7 @@
 # GDS (Graph Data Science) Extension
 
-The GDS extension provides a collection of graph algorithms that run on projected
-subgraphs. It enables common analytical workloads — community detection, centrality
-analysis, shortest-path computation — directly inside NeuG through the `CALL`
-interface.
+Since NeuG **v0.1.3**, we have introduced the GDS extension, which provides a collection of graph algorithms that run on projected subgraphs.
+It enables common analytical workloads — community detection, centrality analysis, shortest-path computation — directly inside NeuG through the `CALL` interface.
 
 ## Quick Start
 

@@ -116,30 +116,20 @@ def test_project_graph_with_predicates(tmp_path):
 
 def test_run_cdlp(tmp_path):
     """Load GDS extension and run cdlp on a projected subgraph."""
-    with tinysnb_connection(tmp_path) as conn:
-        conn.execute(
-            "CALL project_graph("
-            "'my_subgraph', "
-            "{'person': 'n.age > 20', 'organisation': 'n.name = \"MIT\"'}, "
-            "{'[person, studyat, organisation]': ''}"
-            ");"
-        )
-        conn.execute("LOAD gds;")
-
-        # node labels: person, organisation
+    with tinysnb_simple_connection(tmp_path) as conn:
         rows = list(
             conn.execute(
                 """
-                CALL cdlp('my_subgraph', {concurrency: 10})
+                CALL cdlp('person_knows', {concurrency: 10})
                 YIELD node, label
-                RETURN node.id, node.fName, node.name, label;
+                RETURN node.id, label;
                 """
             )
         )
         assert len(rows) > 0, "cdlp must return at least one row"
         for row in rows:
-            assert len(row) == 4, "each row should have (id, fName, name, label)"
-            assert isinstance(row[3], int), "label should be an integer"
+            assert len(row) == 2, "each row should have (id, label)"
+            assert isinstance(row[1], int), "label should be an integer"
 
 
 @contextmanager

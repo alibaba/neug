@@ -30,6 +30,33 @@ namespace function {
 
 namespace {
 
+static std::string extractOptionValue(const common::Value& val) {
+  if (val.isNull()) {
+    return "";
+  }
+  switch (val.getDataType().id()) {
+  case common::DataTypeId::kVarchar:
+    return val.getValue<std::string>();
+  case common::DataTypeId::kBoolean:
+    return val.getValue<bool>() ? "true" : "false";
+  case common::DataTypeId::kInt64:
+    return std::to_string(val.getValue<int64_t>());
+  case common::DataTypeId::kInt32:
+    return std::to_string(val.getValue<int32_t>());
+  case common::DataTypeId::kDouble:
+    return std::to_string(val.getValue<double>());
+  case common::DataTypeId::kFloat:
+    return std::to_string(val.getValue<float>());
+  case common::DataTypeId::kUInt64:
+    return std::to_string(val.getValue<uint64_t>());
+  case common::DataTypeId::kUInt32:
+    return std::to_string(val.getValue<uint32_t>());
+  default:
+    THROW_BINDER_EXCEPTION("Unsupported option value type: " +
+                           val.getDataType().ToString());
+  }
+}
+
 static common::case_insensitive_map_t<std::string> extractStringOptions(
     const common::Value& value) {
   common::case_insensitive_map_t<std::string> out;
@@ -39,7 +66,7 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
          ++i) {
       auto& fieldName = common::StructType::GetChildName(value.getDataType(), i);
       const auto* child = common::NestedVal::getChildVal(&value, i);
-      out.emplace(fieldName, child->toString());
+      out.emplace(fieldName, extractOptionValue(*child));
     }
     return out;
   }
@@ -58,12 +85,12 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
       const auto& keyVal = *common::NestedVal::getChildVal(&entry, 0);
       const auto& valVal = *common::NestedVal::getChildVal(&entry, 1);
       keyVal.validateType(common::DataTypeId::kVarchar);
-      out.emplace(keyVal.getValue<std::string>(), valVal.toString());
+      out.emplace(keyVal.getValue<std::string>(), extractOptionValue(valVal));
     }
     return out;
   }
   THROW_BINDER_EXCEPTION(
-      "Second argument to GDS CALL must be a map literal, got " +
+      "Second argument to GDS CALL must be a map literal or struct literal, got " +
       value.getDataType().ToString() + ".");
 }
 

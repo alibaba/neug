@@ -235,8 +235,8 @@ test('test_auto_enable_checkpoint', () => {
   );
   const rows = [...result];
   assert.deepEqual(rows, [
-    [1, 'Alice', 30],
-    [2, 'Bob', 25],
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
   ]);
   conn2.close();
   db2.close();
@@ -272,8 +272,8 @@ test('test_manual_enable_checkpoint', () => {
   );
   const rows = [...result];
   assert.deepEqual(rows, [
-    [1, 'Alice', 30],
-    [2, 'Bob', 25],
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
   ]);
   conn2.close();
   db2.close();
@@ -342,8 +342,8 @@ test('test_manual_checkpoint_command', () => {
   );
   const rows = [...result];
   assert.deepEqual(rows, [
-    [1, 'Alice', 30],
-    [2, 'Bob', 25],
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
   ]);
   conn2.close();
   db2.close();
@@ -462,8 +462,8 @@ test('test_database_concurrent_read', () => {
   const rows2 = [...result2];
 
   assert.deepEqual(rows1, [
-    [1, 'Alice', 30],
-    [2, 'Bob', 25],
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
   ]);
   assert.deepEqual(rows1, rows2);
   conn1.close();
@@ -577,15 +577,15 @@ test('test_checkpoint_alter', () => {
   const conn2 = db2.connect();
   const result = conn2.execute('MATCH (p:person) RETURN p.creation;');
   const rows = [...result];
-  assert.deepEqual(rows, [[0], [0]]);
+  assert.deepEqual(rows, [[0n], [0n]]);
   conn2.execute('ALTER TABLE person DROP creation;');
   const result2 = conn2.execute(
     'MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;'
   );
   const rows2 = [...result2];
   assert.deepEqual(rows2, [
-    [1, 'Alice', 30],
-    [2, 'Bob', 25],
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
   ]);
   conn2.close();
   db2.close();

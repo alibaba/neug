@@ -25,6 +25,8 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/utils/exception/exception.h"
 
+#include <unordered_set>
+
 using namespace neug::common;
 using namespace neug::binder;
 
