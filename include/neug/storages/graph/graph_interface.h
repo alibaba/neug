@@ -494,11 +494,8 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param graph Reference to the PropertyGraph (mutable for write operations)
    * @param ts Timestamp for MVCC visibility
    */
-  StorageUpdateInterface(const GraphView& view, PropertyGraph& graph,
-                         timestamp_t ts)
-      : StorageReadInterface(view, ts),
-        StorageInsertInterface(),
-        graph_(graph) {}
+  StorageUpdateInterface(const GraphView& view, timestamp_t ts)
+      : StorageReadInterface(view, ts), StorageInsertInterface() {}
   virtual ~StorageUpdateInterface() {}
 
   bool readable() const override { return true; }
@@ -599,9 +596,6 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const std::string& edge_type) = 0;
 
   virtual void CreateCheckpoint() = 0;
-
- protected:
-  PropertyGraph& graph_;
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
@@ -609,7 +603,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
                                     timestamp_t timestamp,
                                     neug::Allocator& alloc)
-      : StorageUpdateInterface(view, graph, timestamp),
+      : StorageUpdateInterface(view, timestamp),
+        graph_(graph),
         mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp) {}
@@ -660,6 +655,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                         const std::string& edge_type) override;
 
  private:
+  PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;

@@ -25,6 +25,7 @@
 #include <cassert>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <set>
 #include <string>
@@ -192,20 +193,19 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
           "Vertex id out of range: " + std::to_string(vid) +
           " >= " + std::to_string(v_cap));
     }
+    std::lock_guard<SpinLock> guard(locks_[vid]);
+    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
+    const auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
     auto cap = caps[vid];
     if (cap == 0) {
       return;
     }
-    locks_[vid].lock();
-    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-    const auto* degrees =
-        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
     auto deg = degrees[vid].load(std::memory_order_acquire);
     void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
     memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * deg);
     buffers[vid] = static_cast<nbr_t*>(new_adj_list);
-    locks_[vid].unlock();
   }
 
   std::unique_ptr<Module> Clone() const override {

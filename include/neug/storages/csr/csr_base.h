@@ -89,7 +89,7 @@ class CsrBase : public Module {
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       ColumnBase* prev_data_col) const = 0;
 
-  /// Deatch the adjacency list of vertex vid so subsequent writes
+  /// Detach the adjacency list of vertex vid so subsequent writes
   /// are isolated from the parent CSR.  Must only be called on a COW CSR
   /// for a vertex whose adjlist has not yet been detached.  The caller
   /// (e.g. PropertyGraphCowState) is responsible for tracking which

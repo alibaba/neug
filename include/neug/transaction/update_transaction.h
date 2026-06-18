@@ -305,8 +305,7 @@ class UpdateTransaction {
 class StorageTPUpdateInterface : public StorageUpdateInterface {
  public:
   explicit StorageTPUpdateInterface(UpdateTransaction& txn)
-      : StorageUpdateInterface(txn.view(), txn.graph(), txn.timestamp()),
-        txn_(txn) {}
+      : StorageUpdateInterface(txn.view(), txn.timestamp()), txn_(txn) {}
   ~StorageTPUpdateInterface() {}
 
   void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
