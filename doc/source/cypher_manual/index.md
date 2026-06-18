@@ -63,7 +63,7 @@ CREATE REL TABLE CREATED (
 ```
 
 **Schema-compliant query:**
-In the following query, the vertex label `person` and edge label `(person-knows->person)` both conform to the schema constraints defined above. The `person` node contains `age` and `name` properties, and the `age` property is of type INT32, which is comparable to the constant 18. Therefore, this query satisfies all schema constraints and is valid:
+In the following query, the vertex label `Person` and edge label `(Person-KNOWS->Person)` both conform to the schema constraints defined above. The `Person` node contains `age` and `name` properties, and the `age` property is of type INT32, which is comparable to the constant 18. Therefore, this query satisfies all schema constraints and is valid:
 
 ```cypher
 MATCH (p:Person)-[:KNOWS]->(f:Person)

@@ -80,7 +80,7 @@ The SET clause is used to update properties of existing nodes and edges.
 Update properties of a specific node.
 
 ```cypher
-MATCH (a:person)
+MATCH (a:Person)
 WHERE a.name = 'marko'
 SET a.age = 37, a.city = 'New York'
 RETURN a.*
