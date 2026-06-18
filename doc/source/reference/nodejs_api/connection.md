@@ -88,18 +88,18 @@ database will be changed accordingly.
     const { Database } = require('neug');
     const db = new Database({ databasePath: '/tmp/test.db', mode: 'w' });
     const conn = db.connect();
-    conn.execute('CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));');
-    conn.execute('CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);');
-    conn.execute('COPY person FROM "person.csv"');
-    conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");');
+    conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));');
+    conn.execute('CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);');
+    conn.execute('COPY Person FROM "person.csv"');
+    conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");');
     const res = conn.execute('MATCH(n) RETURN n.id');
     for (const row of res) {
         console.log(row);
     }
-    const res2 = conn.execute('MATCH(p:person)-[knows]->(q:person) RETURN p.id, q.id LIMIT 10;');
+    const res2 = conn.execute('MATCH(p:Person)-[:KNOWS]->(q:Person) RETURN p.id, q.id LIMIT 10;');
     // submitting query with parameters
     const res3 = conn.execute(
-        'MATCH (n:person) WHERE n.id = $id RETURN n.name', 'read', { id: 12345 });
+        'MATCH (n:Person) WHERE n.id = $id RETURN n.name', 'read', { id: 12345 });
 
 ```
 

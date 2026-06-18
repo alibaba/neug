@@ -21,9 +21,9 @@ The following table showcases all data types supported by NeuG and their differe
 | Temporal | DATETIME | `1970-01-01 00:00:00` | `RETURN timestamp('2022-06-06 12:00:00')` | `RETURN datetime('2022-06-06T12:00:00')` |
 | Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `RETURN duration('P1Y2M3D')` |
 | Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]` | `RETURN [1, 2, 3]` |
-| Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}` | `(:person {name: 'Alice', age: 30})` |
-| Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:knows {weight: 1.0}]` |
-| Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
+| Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: Person, id: 1, name: marko, age: 29}` | `(:Person {name: 'Alice', age: 30})` |
+| Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: KNOWS, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:KNOWS {weight: 1.0}]` |
+| Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: Person}, {_ID: 4294967298, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: Person}, {_ID: 4297064449, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: Software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
 
 ## Detailed Introduction
 
@@ -123,12 +123,12 @@ RETURN ['marko', 2];
 
 Combining different property types from nodes in a list:
 ```cypher
-MATCH (n:person) RETURN [n.name, n.age];
+MATCH (n:Person) RETURN [n.name, n.age];
 ```
 
 Supporting nested list structures:
 ```cypher
-MATCH (n:person) RETURN [["name", n.name], ["age", n.age]];
+MATCH (n:Person) RETURN [["name", n.name], ["age", n.age]];
 ```
 
 **Key Technical Details:**
@@ -143,17 +143,17 @@ MATCH (n:person) RETURN [["name", n.name], ["age", n.age]];
 #### NODE
 - **Description**: Represents a node in the graph
 - **Internal Structure** (order is insignificant): `_ID` (internal identifier), `_LABEL` (indication of node type) and property fields
-- **Query Example**: `MATCH (n:person) RETURN n AS node_value;`
-- **NeuG Format**: `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}`
+- **Query Example**: `MATCH (n:Person) RETURN n AS node_value;`
+- **NeuG Format**: `{_ID: 0, _LABEL: Person, id: 1, name: marko, age: 29}`
 
 #### REL (Edge)
 - **Description**: Represents an edge in the graph
 - **Internal Structure** (order is insignificant): `_ID` (edge internal identifier),  `_LABEL` (indication of edge type), `_SRC_ID` (internal identifier of source node), `_SRC_LABEL` (label of source node), `_DST_ID` (internal identifier of destination node), `_DST_LABEL` (label of destination node), and property fields
-- **Query Example**: `MATCH ()-[r:knows]->() RETURN r AS rel_value;`
-- **NeuG Format**: `{_ID: 2, _LABEL: knows, _SRC_ID: 0, _SRC_LABEL: person, _DST_ID: 2, _DST_LABEL: person, weight: 1.0}`
+- **Query Example**: `MATCH ()-[r:KNOWS]->() RETURN r AS rel_value;`
+- **NeuG Format**: `{_ID: 2, _LABEL: KNOWS, _SRC_ID: 0, _SRC_LABEL: Person, _DST_ID: 2, _DST_LABEL: Person, weight: 1.0}`
 
 #### PATH
 - **Description**:  Represents a graph path formed by alternating nodes and edges.
 - **Internal Structure**: An **ordered sequence** of nodes and edges along the path, including the starting and ending nodes.
-- **Query Example**: `MATCH (a:person)-[p*1..2]->(c) RETURN p AS path_value;`
-- **NeuG Format**: `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}`
+- **Query Example**: `MATCH (a:Person)-[p*1..2]->(c) RETURN p AS path_value;`
+- **NeuG Format**: `{_ID: 0, _LABEL: Person}, {_ID: 4294967298, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: Person}, {_ID: 4297064449, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: Software}`
