@@ -33,7 +33,7 @@ namespace gds {
 
 namespace {
 
-constexpr int32_t kNeighborRounds = 2;
+constexpr int32_t kNeighborRounds = 4;
 constexpr int64_t kSampleCount = 1024;
 
 // Afforest Link (GAPBS cc.cc), adapted for neug atomics.
@@ -80,34 +80,19 @@ void Compress(vid_t* vertices, size_t vertex_count,
 }
 
 // Merged neighbor list: ie[0..] then oe[0..] (ie/oe do not duplicate at u).
-bool MergedNeighborAt(const CsrView& ie_view, const CsrView& oe_view, vid_t v,
-                      size_t offset, vid_t* out) {
-  auto ie = ie_view.get_edges(v);
-  auto it = ie.begin();
-  const auto ie_end = ie.end();
-  size_t skipped = 0;
-  while (skipped < offset && it != ie_end) {
-    ++it;
-    ++skipped;
+void LinkMergedFirstN(const CsrView& ie_view, const CsrView& oe_view, vid_t u,
+                      size_t n, std::atomic<vid_t>* parent) {
+  auto ie = ie_view.get_edges(u);
+  size_t linked = 0;
+  for (auto it = ie.begin(); it != ie.end() && linked < n; ++it, ++linked) {
+    Link(u, *it, parent);
   }
-  if (skipped == offset && it != ie_end) {
-    *out = *it;
-    return true;
+  if (linked < n) {
+    auto oe = oe_view.get_edges(u);
+    for (auto it = oe.begin(); it != oe.end() && linked < n; ++it, ++linked) {
+      Link(u, *it, parent);
+    }
   }
-
-  size_t oe_skip = offset - skipped;
-  auto oe = oe_view.get_edges(v);
-  auto oit = oe.begin();
-  const auto oe_end = oe.end();
-  while (oe_skip > 0 && oit != oe_end) {
-    ++oit;
-    --oe_skip;
-  }
-  if (oit != oe_end) {
-    *out = *oit;
-    return true;
-  }
-  return false;
 }
 
 void ForMergedNeighborsFrom(const CsrView& ie_view, const CsrView& oe_view,
@@ -216,20 +201,15 @@ void WCC::compute() {
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
 
-  // Phase 1: sample a sparse subgraph (neighbor_rounds edges per vertex).
-  for (int round = 0; round < kNeighborRounds; ++round) {
-    const size_t offset = static_cast<size_t>(round);
-    ParallelUtils::parallel_for(
-        vertices_.data(), vertices_.size(),
-        [&](vid_t u, int tid) {
-          vid_t v = 0;
-          if (MergedNeighborAt(ie_view, oe_view, u, offset, &v)) {
-            Link(u, v, parent_.get());
-          }
-        },
-        concurrency_);
-    Compress(vertices_.data(), vertices_.size(), parent_.get(), concurrency_);
-  }
+  // Phase 1: sample a sparse subgraph (first kNeighborRounds merged edges).
+  ParallelUtils::parallel_for(
+      vertices_.data(), vertices_.size(),
+      [&](vid_t u, int tid) {
+        LinkMergedFirstN(ie_view, oe_view, u,
+                         static_cast<size_t>(kNeighborRounds), parent_.get());
+      },
+      concurrency_);
+  Compress(vertices_.data(), vertices_.size(), parent_.get(), concurrency_);
 
   const vid_t largest_root =
       SampleFrequentRoot(vertices_.data(), vertices_.size(), parent_.get());
