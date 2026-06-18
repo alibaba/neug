@@ -8,19 +8,19 @@ The following table showcases all data types supported by NeuG and their differe
 
 | Category | Type | System Default value | NeuG Example | Neo4j Example |
 |----------|------|---------------------|--------------|---------------|
-| Primitive | INT32 | `0` | `Return CAST(42, 'INT32')` | `Return 42` |
-| Primitive | UINT32 | `0` | `Return CAST(42, 'UINT32')` | unsupported |
-| Primitive | INT64 | `0` | `Return 9223372036854775807` | `Return 9223372036854775807` |
-| Primitive | UINT64 | `0` | `Return CAST(9223372036854775807, 'UINT64')` | unsupported |
-| Primitive | FLOAT | `0.0` | `Return CAST(3.14, 'FLOAT')` | `Return 3.14f` |
-| Primitive | DOUBLE | `0.0` | `Return 3.14159265359` | `Return 3.14159265359d` |
-| Primitive | BOOL | `false` | `Return true` | `Return true` |
-| Primitive | NULL | `null` | `Return null` | `Return null` |
-| String | VARCHAR | `''` (empty string) | `Return 'Hello World'` | `Return 'Hello World'` |
-| Temporal | DATE | `1970-01-01` | `Return date('2022-06-06')` | `Return date('2022-06-06')` |
-| Temporal | DATETIME | `1970-01-01 00:00:00` | `Return timestamp('2022-06-06 12:00:00')` | `Return datetime('2022-06-06T12:00:00')` |
-| Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `Return duration('P1Y2M3D')` |
-| Composite | LIST | `[]` (empty list) | `Return [1, 2, 3]` | `Return [1, 2, 3]` |
+| Primitive | INT32 | `0` | `RETURN CAST(42, 'INT32')` | `RETURN 42` |
+| Primitive | UINT32 | `0` | `RETURN CAST(42, 'UINT32')` | unsupported |
+| Primitive | INT64 | `0` | `RETURN 9223372036854775807` | `RETURN 9223372036854775807` |
+| Primitive | UINT64 | `0` | `RETURN CAST(9223372036854775807, 'UINT64')` | unsupported |
+| Primitive | FLOAT | `0.0` | `RETURN CAST(3.14, 'FLOAT')` | `RETURN 3.14f` |
+| Primitive | DOUBLE | `0.0` | `RETURN 3.14159265359` | `RETURN 3.14159265359d` |
+| Primitive | BOOL | `false` | `RETURN true` | `RETURN true` |
+| Primitive | NULL | `null` | `RETURN null` | `RETURN null` |
+| String | VARCHAR | `''` (empty string) | `RETURN 'Hello World'` | `RETURN 'Hello World'` |
+| Temporal | DATE | `1970-01-01` | `RETURN date('2022-06-06')` | `RETURN date('2022-06-06')` |
+| Temporal | DATETIME | `1970-01-01 00:00:00` | `RETURN timestamp('2022-06-06 12:00:00')` | `RETURN datetime('2022-06-06T12:00:00')` |
+| Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `RETURN duration('P1Y2M3D')` |
+| Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]` | `RETURN [1, 2, 3]` |
 | Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}` | `(:person {name: 'Alice', age: 30})` |
 | Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:knows {weight: 1.0}]` |
 | Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
@@ -32,7 +32,7 @@ The following table showcases all data types supported by NeuG and their differe
 #### INT32
 - **Description**: 32-bit signed integer type
 - **Range**: [2,147,483,648, 2,147,483,647]
-- **Query Example**: `Return CAST(42, 'INT32') as int32_value;`
+- **Query Example**: `RETURN CAST(42, 'INT32') AS int32_value;`
 
 #### UINT32
 - **Description**: 32-bit unsigned integer type

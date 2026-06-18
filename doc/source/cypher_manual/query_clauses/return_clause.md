@@ -6,7 +6,7 @@ Return and With provide similar functionality, both for further aggregation or p
 
 ### Return Nodes with Single Label
 ```
-Match (a:person) Return a;
+MATCH (a:person) RETURN a;
 ```
 
 The output shows each person node's internal ID (assigned by the graph database), label, and all properties:
@@ -26,7 +26,7 @@ The output shows each person node's internal ID (assigned by the graph database)
 
 ### Return Nodes with Multiple Labels
 ```
-Match (a) Return a;
+MATCH (a) RETURN a;
 ```
 
 The output shows each node's internal ID, label, and all properties in its own node type:
@@ -51,8 +51,8 @@ The output shows each node's internal ID, label, and all properties in its own n
 ## Return Relationships
 
 ```
-Match (a:person)-[k]->(b)
-Return k;
+MATCH (a:person)-[k]->(b)
+RETURN k;
 ```
 
 The output includes the relationship's internal ID, label, all properties, and the source and destination node labels and IDs:
@@ -79,8 +79,8 @@ The output includes the relationship's internal ID, label, all properties, and t
 ### Return Repeated Paths
 
 ```
-Match (a:person)-[k*1..2]->(c)
-Return k;
+MATCH (a:person)-[k*1..2]->(c)
+RETURN k;
 ```
 
 <!-- todo: add output here. -->
@@ -88,16 +88,16 @@ Return k;
 ### Return All Nodes/Rels in Paths
 
 ```
-Match (a:person)-[k*1..2]->(c)
-Return nodes(k) as nodes, rels(k) as rels;
+MATCH (a:person)-[k*1..2]->(c)
+RETURN nodes(k) AS nodes, rels(k) AS rels;
 ```
 
 <!-- todo: nodes or rels are unsupported yet -->
 
 ### Return Properties of Node/Rels in Paths
 ```
-Match (a:person)-[k*1..2]->(c)
-Return properties(nodes(k), 'name') as names, properties(rels(k), 'weight') as weights;
+MATCH (a:person)-[k*1..2]->(c)
+RETURN properties(nodes(k), 'name') AS names, properties(rels(k), 'weight') AS weights;
 ```
 
 <!-- todo: properties is unsupported yet -->
@@ -106,10 +106,10 @@ Return properties(nodes(k), 'name') as names, properties(rels(k), 'weight') as w
 
 Return, OrderBy, Limit combination used for outputting TopK query results
 ```
-Match (a:person)-[:knows]->(b:person)
-Return a.name, b.name
-Order By a.name ASC, b.name ASC
-Limit 2;
+MATCH (a:person)-[:knows]->(b:person)
+RETURN a.name, b.name
+ORDER BY a.name ASC, b.name ASC
+LIMIT 2;
 ```
 
 output:
@@ -126,8 +126,8 @@ output:
 ## Return with Aggregation
 Output aggregation results
 ```
-Match (a:person)-[:knows]->(b:person)
-Return label(a) as a_label, label(b) as b_label, count(*) as cnt;
+MATCH (a:person)-[:knows]->(b:person)
+RETURN label(a) AS a_label, label(b) AS b_label, count(*) AS cnt;
 ```
 
 <!-- todo: output is incorrect -->
@@ -135,8 +135,8 @@ Return label(a) as a_label, label(b) as b_label, count(*) as cnt;
 ## Return with Distinct
 Output non-duplicate results
 ```
-Match (a)
-Return distinct label(a);
+MATCH (a)
+RETURN DISTINCT label(a);
 ```
 
 <!-- todo: label is not included in current pip package -->

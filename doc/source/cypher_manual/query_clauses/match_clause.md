@@ -235,7 +235,7 @@ This query requires each edge in the path to satisfy the constraint `r.weight < 
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k:knows*1..2 (r, _ | WHERE r.weight <= 1.0)]->(f:person)
-Return k;
+RETURN k;
 ```
 
 <!-- todo: output is incorrect -->
@@ -246,7 +246,7 @@ Using the `TRAIL` option, you can further restrict repeated paths to ensure no e
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k:knows* TRAIL 1..2]->(f:person)
-Return k;
+RETURN k;
 ```
 
 ### Match Simple Path
@@ -255,7 +255,7 @@ Using the `ACYCLIC` option, you can further restrict repeated paths to ensure no
 
 ```cypher
 MATCH (p:person {name: 'marko'})-[k:knows* ACYCLIC 1..2]->(f:person)
-Return k;
+RETURN k;
 ```
 
 ### Match Unweighted Shortest Path
@@ -274,45 +274,45 @@ The `MATCH` clause supports complex pattern matching that combines nodes, edges,
 Below are some classic graph query patterns that are widely used in various graph query benchmarks:
 - Triangle Pattern
 ```
-Match (a:person)-[:created]->(b:software),
+MATCH (a:person)-[:created]->(b:software),
       (c:person)-[:created]->(b:software),
       (a:person)-[:knows]->(c:person)
-Where a.name <> b.name AND b.name <> c.name
-Return count(*);
+WHERE a.name <> b.name AND b.name <> c.name
+RETURN count(*);
 ```
 
 - Square Pattern
 ```
-Match (a:person)-[:created]->(b:software),
+MATCH (a:person)-[:created]->(b:software),
       (c:person)-[:created]->(b:software),
       (a:person)-[:knows]->(d:person),
       (c:person)<-[:knows]-(d:person)
-Where a.name <> b.name AND b.name <> c.name AND c.name <> d.name
-Return count(*);
+WHERE a.name <> b.name AND b.name <> c.name AND c.name <> d.name
+RETURN count(*);
 ```
 
 - Long Path
 ```
-Match (a:person)-[:knows]->(b:person),
+MATCH (a:person)-[:knows]->(b:person),
       (b:person)-[:knows]->(c:person),
       (c:person)-[:created]->(d:software),
       (d:software)<-[:created]-(e:person),
       (e:person)-[:knows]->(f:person)
-Where a.name <> b.name AND b.name <> c.name 
+WHERE a.name <> b.name AND b.name <> c.name
     AND c.name <> d.name AND d.name <> e.name
-Return count(*);
+RETURN count(*);
 ```
 
 - Clique Path
 ```
-Match (a:person)-[:created]->(b:software),
+MATCH (a:person)-[:created]->(b:software),
       (c:person)-[:created]->(b:software),
       (a:person)-[:knows]->(d:person),
       (c:person)<-[:knows]-(d:person),
       (a:person)-[:knows]->(c:person),
       (d:person)-[:created]->(b:software)
-Where a.name <> b.name AND b.name <> c.name AND c.name <> d.name
-Return count(*);
+WHERE a.name <> b.name AND b.name <> c.name AND c.name <> d.name
+RETURN count(*);
 ```
 
 ## Optional Match

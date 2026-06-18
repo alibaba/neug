@@ -80,11 +80,11 @@ The following table details the error types that each operator may encounter:
 
 | Operator | Overflow | Underflow | DivideByZero | Example |
 |----------|----------|-----------|--------------|---------|
-| +        | YES      | YES       | N/A           | Return CAST(2147483647, 'int32') + CAST(1, 'int32') |
-| -        | YES      | YES       | N/A           | Return CAST(-2147483648, 'int32') - CAST(1, 'int32') |
-| *        | YES      | YES       | N/A           | Return CAST(2147483647, 'int32') * CAST(2, 'int32') |
-| /        | NO       | NO        | YES          | Return 5 / 0 |
-| %        | NO       | NO        | YES          | Return 5 % 0 |
+| +        | YES      | YES       | N/A           | RETURN CAST(2147483647, 'int32') + CAST(1, 'int32') |
+| -        | YES      | YES       | N/A           | RETURN CAST(-2147483648, 'int32') - CAST(1, 'int32') |
+| *        | YES      | YES       | N/A           | RETURN CAST(2147483647, 'int32') * CAST(2, 'int32') |
+| /        | NO       | NO        | YES          | RETURN 5 / 0 |
+| %        | NO       | NO        | YES          | RETURN 5 % 0 |
 
 ## Date Arithmetic
 
