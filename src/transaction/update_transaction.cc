@@ -78,44 +78,50 @@ static Status resolveEdgeTriplet(const Schema& schema,
   return Status::OK();
 }
 
+// Iterates the `primary` adjacency list of `lid`, cross-references the
+// `secondary` list to find the corresponding offset, and returns
+// (nbr_vid, primary_offset, secondary_offset) for each visible edge.
+static std::vector<std::tuple<vid_t, int32_t, int32_t>> collect_nbr_offsets(
+    const std::vector<DataType>& props, const CsrView& primary,
+    const CsrView& secondary, vid_t lid, timestamp_t ts) {
+  std::vector<std::tuple<vid_t, int32_t, int32_t>> offsets;
+  NbrList nbr_list = primary.get_edges(lid);
+  auto stride = nbr_list.cfg.stride;
+  auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
+  for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
+    if (it.get_timestamp() > ts) {
+      continue;
+    }
+    int32_t primary_offset = static_cast<int32_t>(
+        (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride);
+    vid_t nbr = it.get_vertex();
+    int32_t secondary_offset = neug::search_other_offset_with_cur_offset(
+        primary, secondary, lid, nbr, primary_offset, props);
+    offsets.emplace_back(nbr, primary_offset, secondary_offset);
+  }
+  return offsets;
+}
+
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
                                         const CsrView& oe, const CsrView& ie,
                                         vid_t lid, bool is_src,
                                         timestamp_t ts) {
-  std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
+  std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> result;
   if (is_src) {
-    NbrList nbr_list = oe.get_edges(lid);
-    auto stride = nbr_list.cfg.stride;
-    auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
-    for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
-      if (it.get_timestamp() > ts) {
-        continue;
-      }
-      auto oe_offset =
-          (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
-      vid_t dst_lid = it.get_vertex();
-      int32_t ie_offset = neug::search_other_offset_with_cur_offset(
-          oe, ie, lid, dst_lid, oe_offset, props);
-      related_edges.emplace_back(lid, dst_lid, oe_offset, ie_offset);
+    // lid is the source: iterate OE, find matching IE offset
+    for (auto& [nbr, oe_off, ie_off] :
+         collect_nbr_offsets(props, oe, ie, lid, ts)) {
+      result.emplace_back(lid, nbr, oe_off, ie_off);
     }
   } else {
-    NbrList nbr_list = ie.get_edges(lid);
-    auto stride = nbr_list.cfg.stride;
-    auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
-    for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
-      if (it.get_timestamp() > ts) {
-        continue;
-      }
-      auto ie_offset =
-          (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
-      vid_t src_lid = it.get_vertex();
-      int32_t oe_offset = neug::search_other_offset_with_cur_offset(
-          ie, oe, lid, src_lid, ie_offset, props);
-      related_edges.emplace_back(src_lid, lid, oe_offset, ie_offset);
+    // lid is the destination: iterate IE, find matching OE offset
+    for (auto& [nbr, ie_off, oe_off] :
+         collect_nbr_offsets(props, ie, oe, lid, ts)) {
+      result.emplace_back(nbr, lid, oe_off, ie_off);
     }
   }
-  return related_edges;
+  return result;
 }
 
 std::unordered_map<uint32_t,
@@ -124,54 +130,51 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
                               vid_t lid, timestamp_t ts) {
   std::unordered_map<uint32_t,
                      std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
-      related_edges;  // edge_triplet_id: <src, dst, oe_offset, ie_offset>
-  auto v_label_num = txn.schema().vertex_label_frontier();
-  auto e_label_num = txn.schema().edge_label_frontier();
-  auto& schema = txn.schema();
-  for (auto other_label_id = 0; other_label_id < v_label_num;
-       ++other_label_id) {
-    if (!schema.is_vertex_label_valid(other_label_id)) {
+      related_edges;  // edge_triplet_id -> <src, dst, oe_offset, ie_offset>
+
+  const auto& schema = txn.schema();
+  auto v_label_num = schema.vertex_label_frontier();
+  auto e_label_num = schema.edge_label_frontier();
+
+  // Fetches edges for triplet (src_label, dst_label, e_label) in which lid
+  // plays the role indicated by is_src, and appends them to related_edges.
+  auto collect_triplet = [&](label_t src_label, label_t dst_label,
+                             label_t e_label, bool is_src) {
+    auto props = schema.get_edge_properties(src_label, dst_label, e_label);
+    auto triplet_id = schema.generate_edge_label(src_label, dst_label, e_label);
+    auto oe_view =
+        txn.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
+    auto ie_view =
+        txn.GetGenericIncomingGraphView(dst_label, src_label, e_label);
+    auto edges = fetch_edges_related_to_vertex_from_view(
+        props, oe_view, ie_view, lid, is_src, ts);
+    auto& bucket = related_edges[triplet_id];
+    bucket.insert(bucket.end(), edges.begin(), edges.end());
+  };
+
+  for (label_t other = 0; other < v_label_num; ++other) {
+    if (!schema.is_vertex_label_valid(other)) {
       continue;
     }
-    for (auto e_label_id = 0; e_label_id < e_label_num; ++e_label_id) {
-      if (!schema.is_edge_label_valid(e_label_id)) {
+    for (label_t e_label = 0; e_label < e_label_num; ++e_label) {
+      if (!schema.is_edge_label_valid(e_label)) {
         continue;
       }
-      if (schema.is_edge_triplet_valid(v_label, other_label_id, e_label_id)) {
-        auto props =
-            schema.get_edge_properties(v_label, other_label_id, e_label_id);
-        auto edge_triplet_id =
-            schema.generate_edge_label(v_label, other_label_id, e_label_id);
-        auto oe_view = txn.GetGenericOutgoingGraphView(v_label, other_label_id,
-                                                       e_label_id);
-        auto ie_view = txn.GetGenericIncomingGraphView(other_label_id, v_label,
-                                                       e_label_id);
-
-        related_edges[edge_triplet_id] =
-            fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
-                                                    lid, true, ts);
-        // For intra-label triplets (src_label == dst_label), also collect edges
-        // where lid is the destination so that their source adjlists get COW'd.
-        if (other_label_id == v_label) {
-          auto incoming = fetch_edges_related_to_vertex_from_view(
-              props, oe_view, ie_view, lid, false, ts);
-          auto& existing = related_edges[edge_triplet_id];
-          existing.insert(existing.end(), incoming.begin(), incoming.end());
+      if (other == v_label) {
+        // Intra-label triplet: lid may be source or destination in the same
+        // CSR, so both roles must be collected for COW to cover all adjlists.
+        if (schema.is_edge_triplet_valid(v_label, v_label, e_label)) {
+          collect_triplet(v_label, v_label, e_label, /*is_src=*/true);
+          collect_triplet(v_label, v_label, e_label, /*is_src=*/false);
         }
-      }
-      if (other_label_id != v_label &&
-          schema.is_edge_triplet_valid(other_label_id, v_label, e_label_id)) {
-        auto props =
-            schema.get_edge_properties(other_label_id, v_label, e_label_id);
-        auto edge_triplet_id =
-            schema.generate_edge_label(other_label_id, v_label, e_label_id);
-        auto oe_view = txn.GetGenericOutgoingGraphView(other_label_id, v_label,
-                                                       e_label_id);
-        auto ie_view = txn.GetGenericIncomingGraphView(v_label, other_label_id,
-                                                       e_label_id);
-        related_edges[edge_triplet_id] =
-            fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
-                                                    lid, false, ts);
+      } else {
+        // Inter-label triplets: the two directions are independent.
+        if (schema.is_edge_triplet_valid(v_label, other, e_label)) {
+          collect_triplet(v_label, other, e_label, /*is_src=*/true);
+        }
+        if (schema.is_edge_triplet_valid(other, v_label, e_label)) {
+          collect_triplet(other, v_label, e_label, /*is_src=*/false);
+        }
       }
     }
   }
