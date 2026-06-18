@@ -66,8 +66,8 @@ bool InsertTransaction::GetVertexIndex(label_t label,
   return false;
 }
 
-execution::Value InsertTransaction::GetVertexId(label_t label,
-                                                vid_t lid) const {
+execution::Value InsertTransaction::get_vertex_id(label_t label,
+                                                  vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
     return graph_.GetOid(label, lid, timestamp_);
   }
@@ -126,8 +126,8 @@ Status InsertTransaction::AddEdge(
     label_t src_label, vid_t src_vid, label_t dst_label, vid_t dst_vid,
     label_t edge_label, const std::vector<execution::Value>& properties,
     const void*& prop) {
-  const auto& src = GetVertexId(src_label, src_vid);
-  const auto& dst = GetVertexId(dst_label, dst_vid);
+  const auto& src = get_vertex_id(src_label, src_vid);
+  const auto& dst = get_vertex_id(dst_label, dst_vid);
   const auto& types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   if (properties.size() != types.size()) {
