@@ -348,7 +348,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
 
   // Phase 2: CloneForCow → Mutate → Publish (simulates UpdateTxn
   // commit). Explicitly materialize shared modules before mutation, mirroring
-  // UpdateTransaction::MaterializeVertexTableForInsert.
+  // UpdateTransaction::materializeVertexTableForInsert.
   auto cow1 = initial_pg_->CloneForCow();
   auto& vt1 = cow1->get_vertex_table(0);
   vt1.MaterializeIndexerForWrite();

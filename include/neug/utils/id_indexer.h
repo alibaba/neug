@@ -943,7 +943,6 @@ std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::CloneForCow() {
 }
 
 template <typename INDEX_T>
-// DeepCopy:
 void LFIndexer<INDEX_T>::MaterializeForWrite(Checkpoint& ckp,
                                              MemoryLevel level) {
   keys_->MaterializeForWrite(ckp, level);

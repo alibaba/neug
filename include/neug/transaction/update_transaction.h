@@ -261,23 +261,22 @@ class UpdateTransaction {
   void release();
 
   // --- PropertyGraphCowState-driven lazy materialization helpers ---
-  void MaterializeVertexTableForInsert(label_t label);
-  void MaterializeVertexTableForDelete(label_t label);
-  void MaterializeVertexColumnForWrite(label_t label, int32_t col_id);
-  void MaterializeEdgeTableForInsert(uint32_t edge_triplet_id);
-  void MaterializeEdgeTableForDelete(uint32_t edge_triplet_id);
-  void MaterializeEdgeColumnForWrite(uint32_t edge_triplet_id, int32_t col_id);
-  void MaterializeAdjlistsForWrite(uint32_t edge_triplet_id, vid_t src_lid,
+  void materializeVertexTableForInsert(label_t label);
+  void materializeVertexTableForDelete(label_t label);
+  void materializeVertexColumnForWrite(label_t label, int32_t col_id);
+  void materializeEdgeTableForInsert(uint32_t edge_triplet_id);
+  void materializeEdgeTableForDelete(uint32_t edge_triplet_id);
+  void materializeEdgeColumnForWrite(uint32_t edge_triplet_id, int32_t col_id);
+  void materializeAdjlistsForWrite(uint32_t edge_triplet_id, vid_t src_lid,
                                    vid_t dst_lid, Allocator& alloc);
-  void PrepareVertexCapacityForWrite(label_t label, size_t capacity);
-  void PrepareEdgeCapacityForWrite(label_t src_label, label_t dst_label,
+  void prepareVertexCapacityForWrite(label_t label, size_t capacity);
+  void prepareEdgeCapacityForWrite(label_t src_label, label_t dst_label,
                                    label_t edge_label, size_t capacity);
 
   /// Prepare COW for deleting vertices: materialize vertex timestamp, related
   /// edge CSRs, and per-vertex adjlists so that the storage layer can safely
   /// mutate them under snapshot isolation.
-  void PrepareVertexDeleteForWrite(label_t label,
-                                   const std::vector<vid_t>& lids);
+  void prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
 
   // COW storage - the cloned PropertyGraph
   std::shared_ptr<PropertyGraph> cow_graph_;

@@ -958,7 +958,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 // ============================================================================
 
 // Issue #2 (vertex): delete a property then insert a vertex.
-// MaterializeVertexTableForInsert iterates columns_materialized — stale
+// materializeVertexTableForInsert iterates columns_materialized — stale
 // entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
 // fix.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
@@ -976,7 +976,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("person", {"name"})));
 
-    // Insert a new person vertex — triggers MaterializeVertexTableForInsert
+    // Insert a new person vertex — triggers materializeVertexTableForInsert
     // which iterates columns_materialized.  Without the fix
     // columns_materialized still has 2 entries -> MaterializeColumnForWrite(1)
     // on a 1-column table -> crash.
@@ -1080,7 +1080,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
                                          neug::execution::Value::DOUBLE(88.0)));
 
     // Step 4: insert a new vertex — without the fix,
-    // MaterializeVertexTableForInsert iterates stale columns_materialized
+    // materializeVertexTableForInsert iterates stale columns_materialized
     // (4 entries for 3 cols) and calls MaterializeColumnForWrite(3) ->
     // out-of-bounds crash.
     neug::vid_t new_vid;
@@ -1142,7 +1142,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 }
 
 // Issue #2 (edge): delete an edge property then insert an edge.
-// MaterializeEdgeTableForInsert iterates columns_materialized — stale
+// materializeEdgeTableForInsert iterates columns_materialized — stale
 // entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
 // fix.
 TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
@@ -1174,7 +1174,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "software", "created", {"since"})));
 
-    // Insert a new edge.  MaterializeEdgeTableForInsert iterates
+    // Insert a new edge.  materializeEdgeTableForInsert iterates
     // columns_materialized.  Without the fix columns_materialized still has 3
     // entries
     // -> MaterializeColumnForWrite(2) on a 2-column table -> crash.
