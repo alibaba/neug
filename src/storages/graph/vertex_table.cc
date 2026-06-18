@@ -347,29 +347,30 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
 
-VertexTable VertexTable::Fork() const {
-  CHECK(ckp_ != nullptr) << "VertexTable::Fork requires a valid checkpoint";
-  VertexTable forked;
-  forked.ckp_ = ckp_;
-  forked.indexer_ = indexer_->Fork();
-  forked.table_ = table_->Fork();
-  forked.vertex_schema_ = vertex_schema_;
-  forked.v_ts_ = std::unique_ptr<VertexTimestamp>(
-      dynamic_cast<VertexTimestamp*>(v_ts_->Fork().release()));
-  forked.pk_type_ = pk_type_;
-  forked.memory_level_ = memory_level_;
-  return forked;
-}
-
-void VertexTable::DeepCopyIndexer() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy indexer";
-  indexer_->DeepCopy(*ckp_, memory_level_);
-}
-
-void VertexTable::DeepCopyVertexTimestamp() {
+VertexTable VertexTable::CloneSharedForCow() const {
   CHECK(ckp_ != nullptr)
-      << "Checkpoint is null, cannot deep-copy vertex timestamp";
-  v_ts_->DeepCopy(*ckp_, memory_level_);
+      << "VertexTable::CloneSharedForCow requires a valid checkpoint";
+  VertexTable cow_clone;
+  cow_clone.ckp_ = ckp_;
+  cow_clone.indexer_ = indexer_->CloneSharedForCow();
+  cow_clone.table_ = table_->CloneSharedForCow();
+  cow_clone.vertex_schema_ = vertex_schema_;
+  cow_clone.v_ts_ = std::unique_ptr<VertexTimestamp>(
+      dynamic_cast<VertexTimestamp*>(v_ts_->CloneSharedForCow().release()));
+  cow_clone.pk_type_ = pk_type_;
+  cow_clone.memory_level_ = memory_level_;
+  return cow_clone;
+}
+
+void VertexTable::MaterializeIndexerForWrite() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize indexer";
+  indexer_->MaterializeForWrite(*ckp_, memory_level_);
+}
+
+void VertexTable::MaterializeVertexTimestampForWrite() {
+  CHECK(ckp_ != nullptr)
+      << "Checkpoint is null, cannot materialize vertex timestamp";
+  v_ts_->MaterializeForWrite(*ckp_, memory_level_);
 }
 
 }  // namespace neug

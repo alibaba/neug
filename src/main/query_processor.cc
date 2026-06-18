@@ -60,9 +60,9 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
 result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
-  SlotGuard guard(snapshot_store_);
+  SnapshotGuard guard(snapshot_store_);
   GS_AUTO(access_mode_pipeline,
-          check_and_retrieve_pipeline(*guard.get().pg(), query_string,
+          check_and_retrieve_pipeline(*guard.get().graph(), query_string,
                                       user_access_mode, num_threads));
   if (need_exclusive_lock(access_mode_pipeline.first)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -81,9 +81,9 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
                                             const std::string& user_access_mode,
                                             const rapidjson::Value& parameters,
                                             int32_t num_threads) {
-  SlotGuard guard(snapshot_store_);
+  SnapshotGuard guard(snapshot_store_);
   GS_AUTO(access_mode_pipeline,
-          check_and_retrieve_pipeline(*guard.get().pg(), query_string,
+          check_and_retrieve_pipeline(*guard.get().graph(), query_string,
                                       user_access_mode, num_threads));
   const auto& param_types = access_mode_pipeline.second->params_type;
 
@@ -115,11 +115,11 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
 
 // The concurrency control is done outside this function.
 result<QueryResult> QueryProcessor::execute_internal(
-    SlotGuard& guard, const std::string& query_string,
+    SnapshotGuard& guard, const std::string& query_string,
     std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
   auto& slot = guard.get();
-  auto& pg = *slot.pg();
+  auto& pg = *slot.graph();
   StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_);
   std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
   auto ctx_res = cache_value->pipeline.Execute(graph, execution::Context(),

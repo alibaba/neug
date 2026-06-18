@@ -60,22 +60,23 @@ namespace neug {
 
 neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  SlotGuard guard(db_.storage_store());
+  SnapshotGuard guard(db_.graph_snapshot_store());
   return neug::ReadTransaction(std::move(guard), *version_manager_, ts);
 }
 
 neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  SlotGuard guard(db_.storage_store());
+  SnapshotGuard guard(db_.graph_snapshot_store());
   return neug::InsertTransaction(std::move(guard), alloc_, logger_,
                                  *version_manager_, ts);
 }
 
 neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  auto cow_storage = db_.storage_store().currentSnapshot().Fork();
+  auto cow_storage =
+      db_.graph_snapshot_store().CurrentSnapshot().CloneSharedForCow();
   return neug::UpdateTransaction(std::move(cow_storage), alloc_, logger_,
-                                 *version_manager_, db_.storage_store(),
+                                 *version_manager_, db_.graph_snapshot_store(),
                                  pipeline_cache_, ts);
 }
 
@@ -220,7 +221,7 @@ int NeugDBSession::SessionId() const { return thread_id_; }
 
 neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
   neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
-  return neug::CompactTransaction(db_.storage_store(), logger_,
+  return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
                                   *version_manager_, db_config_.compact_csr,
                                   db_config_.csr_reserve_ratio, ts);
 }

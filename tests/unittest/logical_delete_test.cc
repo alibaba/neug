@@ -35,8 +35,8 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
     }
     std::filesystem::create_directories(test_dir_);
 
-    ws_.Open(test_dir_);
-    auto ckp = make_checkpoint(ws_);
+    checkpoint_mgr_.Open(test_dir_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     graph_.Open(ckp, MemoryLevel::kInMemory);
   }
 
@@ -48,7 +48,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 
   PropertyGraph graph_;
   std::string test_dir_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
 
   CreateVertexTypeParam BuildCreateVertexTypeParam(
       const std::string& name,
@@ -337,8 +337,7 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 }
 
 // Test corner case: Multiple logical deletes
-TEST_F(PropertyGraphLogicalDeleteTest,
-       MultipleLogicalDeletes_WorksCorrectly) {
+TEST_F(PropertyGraphLogicalDeleteTest, MultipleLogicalDeletes_WorksCorrectly) {
   std::vector<std::pair<std::string, execution::Value>> properties = {
       {"id", execution::Value::INT64(0L)},
       {"name", execution::Value::STRING(std::string("string"))},

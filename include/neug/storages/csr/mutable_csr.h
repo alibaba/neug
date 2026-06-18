@@ -185,7 +185,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
-  void DeepCopyAdjlist(vid_t vid, Allocator& alloc) override {
+  void MaterializeAdjlistForWrite(vid_t vid, Allocator& alloc) override {
     auto v_cap = vertex_capacity();
     if (vid >= v_cap) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -209,21 +209,21 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     locks_[vid].unlock();
   }
 
-  std::unique_ptr<Module> Fork() override {
-    auto fork = std::make_unique<MutableCsr<EDATA_T>>();
+  std::unique_ptr<Module> CloneSharedForCow() override {
+    auto cow_clone = std::make_unique<MutableCsr<EDATA_T>>();
     auto v_cap = vertex_capacity();
-    fork->locks_ = std::make_unique<SpinLock[]>(v_cap);
-    fork->adj_list_buffer_ = adj_list_buffer_;
-    fork->degree_list_ = degree_list_;
-    fork->cap_list_ = cap_list_;
-    fork->nbr_list_ = nbr_list_;
-    fork->unsorted_since_ = unsorted_since_;
-    fork->edge_num_ = edge_num_.load();
-    return fork;
+    cow_clone->locks_ = std::make_unique<SpinLock[]>(v_cap);
+    cow_clone->adj_list_buffer_ = adj_list_buffer_;
+    cow_clone->degree_list_ = degree_list_;
+    cow_clone->cap_list_ = cap_list_;
+    cow_clone->nbr_list_ = nbr_list_;
+    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
   }
 
-  // DeepCopy
-  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+  // Detach shared buffers for COW writes.
+  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) override {
     adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
     degree_list_ = degree_list_->Fork(ckp, level);
     cap_list_ = cap_list_->Fork(ckp, level);
@@ -361,17 +361,18 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
-  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+  void MaterializeAdjlistForWrite(vid_t /*vid*/,
+                                  Allocator& /*alloc*/) override {}
 
-  std::unique_ptr<Module> Fork() override {
-    auto fork = std::make_unique<SingleMutableCsr<EDATA_T>>();
-    fork->nbr_list_ = nbr_list_;
-    fork->edge_num_ = edge_num_.load();
-    return fork;
+  std::unique_ptr<Module> CloneSharedForCow() override {
+    auto cow_clone = std::make_unique<SingleMutableCsr<EDATA_T>>();
+    cow_clone->nbr_list_ = nbr_list_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
   }
 
-  // DeepCopy:
-  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+  // Detach shared buffers for COW writes.
+  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) override {
     nbr_list_ = nbr_list_->Fork(ckp, level);
   }
 
@@ -452,7 +453,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
-  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+  void MaterializeAdjlistForWrite(vid_t /*vid*/,
+                                  Allocator& /*alloc*/) override {}
 
   std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
                                            const EDATA_T& data, timestamp_t ts,
@@ -465,11 +467,11 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  std::unique_ptr<Module> Fork() override {
+  std::unique_ptr<Module> CloneSharedForCow() override {
     return std::make_unique<EmptyCsr<EDATA_T>>();
   }
 
-  void DeepCopy(Checkpoint&, MemoryLevel) override {}
+  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {}
 
   std::string ModuleTypeName() const override { return type_name(); }
 

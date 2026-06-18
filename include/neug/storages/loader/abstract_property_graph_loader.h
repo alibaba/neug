@@ -30,13 +30,13 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
       : schema_(schema),
         loading_config_(loading_config),
         thread_num_(loading_config_.GetParallelism()) {
-    ws_.Open(work_dir);
-    if (ws_.NumCheckpoints() > 0) {
+    checkpoint_mgr_.Open(work_dir);
+    if (checkpoint_mgr_.NumCheckpoints() > 0) {
       THROW_INVALID_ARGUMENT_EXCEPTION("CheckpointManager is not empty: " +
                                        work_dir);
     }
-    auto ckp_id = ws_.CreateCheckpoint();
-    auto ckp = ws_.GetCheckpoint(ckp_id);
+    auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
+    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
     ckp->MutableMeta().SetSchema(schema_);
     graph_.Open(ckp, MemoryLevel::kSyncToFile);
   }
@@ -75,7 +75,7 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
                            const std::vector<std::string>& e_files);
 
  protected:
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   const Schema& schema_;
   const LoadingConfig& loading_config_;
   int thread_num_ = 1;

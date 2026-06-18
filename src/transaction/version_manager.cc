@@ -166,7 +166,7 @@ uint32_t VersionManager::acquire_update_timestamp() {
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
 
-void VersionManager::start_commit_update_timestamp(uint32_t ts) {
+void VersionManager::begin_update_commit(uint32_t ts) {
   (void) ts;
 
   // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing

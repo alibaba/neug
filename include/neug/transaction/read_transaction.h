@@ -35,7 +35,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/storage_store.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
@@ -68,15 +68,16 @@ class TypedMutableCsrBase;
 class ReadTransaction {
  public:
   /**
-   * @brief Construct a ReadTransaction with a pinned StorageSlot.
+   * @brief Construct a ReadTransaction with a pinned SnapshotSlot.
    *
-   * @param guard SlotGuard managing the pinned StorageSlot.
+   * @param guard SnapshotGuard managing the pinned SnapshotSlot.
    * @param vm Reference to version manager.
    * @param timestamp Snapshot timestamp for this transaction.
    *
    * @since v0.1.0
    */
-  ReadTransaction(SlotGuard guard, IVersionManager& vm, timestamp_t timestamp);
+  ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
+                  timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls release().
@@ -97,7 +98,7 @@ class ReadTransaction {
 
  private:
   void release();
-  SlotGuard guard_;
+  SnapshotGuard guard_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 };

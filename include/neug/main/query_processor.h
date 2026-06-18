@@ -29,7 +29,7 @@
 #include "neug/main/query_result.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/storage_store.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -38,10 +38,11 @@ namespace neug {
 class QueryProcessor {
  public:
   QueryProcessor(
-      StorageStore& storage_store, std::shared_ptr<IGraphPlanner> planner,
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       Allocator& alloc, int32_t max_num_threads, bool is_read_only = false)
-      : snapshot_store_(storage_store),
+      : snapshot_store_(snapshot_store),
         planner_(planner),
         global_query_cache_(global_query_cache),
         allocator_(alloc),
@@ -66,7 +67,7 @@ class QueryProcessor {
                               int32_t num_threads);
 
   result<QueryResult> execute_internal(
-      SlotGuard& guard, const std::string& query_string,
+      SnapshotGuard& guard, const std::string& query_string,
       std::shared_ptr<execution::CacheValue> cache_value,
       AccessMode access_mode, const execution::ParamsMap& parameters = {},
       int32_t num_threads = 0);
@@ -77,7 +78,7 @@ class QueryProcessor {
                                       const physical::ExecutionFlag& flags,
                                       AccessMode mode);
 
-  StorageStore& snapshot_store_;
+  GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;

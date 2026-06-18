@@ -556,40 +556,40 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   edge_table.capacity_.store(cap);
 }
 
-EdgeTable EdgeTable::Fork() const {
-  EdgeTable forked(meta_);
-  forked.ckp_ = ckp_;
-  forked.memory_level_ = memory_level_;
-  forked.out_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(out_csr_->Fork().release()));
-  forked.in_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(in_csr_->Fork().release()));
+EdgeTable EdgeTable::CloneSharedForCow() const {
+  EdgeTable cow_clone(meta_);
+  cow_clone.ckp_ = ckp_;
+  cow_clone.memory_level_ = memory_level_;
+  cow_clone.out_csr_ = std::unique_ptr<CsrBase>(
+      static_cast<CsrBase*>(out_csr_->CloneSharedForCow().release()));
+  cow_clone.in_csr_ = std::unique_ptr<CsrBase>(
+      static_cast<CsrBase*>(in_csr_->CloneSharedForCow().release()));
 
   if (table_) {
-    forked.table_ = table_->Fork();
+    cow_clone.table_ = table_->CloneSharedForCow();
   }
 
-  forked.table_idx_ = table_idx_.load();
-  forked.capacity_ = capacity_.load();
-  return forked;
+  cow_clone.table_idx_ = table_idx_.load();
+  cow_clone.capacity_ = capacity_.load();
+  return cow_clone;
 }
 
-void EdgeTable::DeepCopyOutCsr() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy out CSR";
-  out_csr_->DeepCopy(*ckp_, memory_level_);
+void EdgeTable::MaterializeOutCsrForWrite() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize out CSR";
+  out_csr_->MaterializeForWrite(*ckp_, memory_level_);
 }
 
-void EdgeTable::DeepCopyInCsr() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot deep-copy in CSR";
-  in_csr_->DeepCopy(*ckp_, memory_level_);
+void EdgeTable::MaterializeInCsrForWrite() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize in CSR";
+  in_csr_->MaterializeForWrite(*ckp_, memory_level_);
 }
 
-void EdgeTable::DeepCopyOutAdjlist(vid_t vid, Allocator& alloc) {
-  out_csr_->DeepCopyAdjlist(vid, alloc);
+void EdgeTable::MaterializeOutAdjlistForWrite(vid_t vid, Allocator& alloc) {
+  out_csr_->MaterializeAdjlistForWrite(vid, alloc);
 }
 
-void EdgeTable::DeepCopyInAdjlist(vid_t vid, Allocator& alloc) {
-  in_csr_->DeepCopyAdjlist(vid, alloc);
+void EdgeTable::MaterializeInAdjlistForWrite(vid_t vid, Allocator& alloc) {
+  in_csr_->MaterializeAdjlistForWrite(vid, alloc);
 }
 
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {

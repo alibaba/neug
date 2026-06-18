@@ -13,30 +13,30 @@
  * limitations under the License.
  */
 
-#include "neug/storages/graph/pg_fork_state.h"
+#include "neug/storages/graph/property_graph_cow_state.h"
 
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
 
-PropertyGraphForkState PropertyGraphForkState::FromSchema(
-    const Schema& schema) {
-  PropertyGraphForkState bitmap;
+PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
+  PropertyGraphCowState bitmap;
 
-  // Build vertex table fork states from schema — one per vertex label slot.
+  // Build vertex table COW states from schema — one per vertex label slot.
   const auto& vertex_schemas = schema.get_all_vertex_schemas();
   bitmap.vertex_tables.resize(vertex_schemas.size());
   for (size_t i = 0; i < vertex_schemas.size(); ++i) {
     if (vertex_schemas[i] && !vertex_schemas[i]->empty()) {
       size_t col_count = vertex_schemas[i]->property_names.size();
-      bitmap.vertex_tables[i].columns_copied.resize(col_count, false);
+      bitmap.vertex_tables[i].columns_materialized.resize(col_count, false);
     }
   }
 
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
-    EdgeTableForkState state;
+    EdgeTableCowState state;
     if (edge_schema) {
-      state.columns_copied.resize(edge_schema->property_names.size(), false);
+      state.columns_materialized.resize(edge_schema->property_names.size(),
+                                        false);
     }
     bitmap.edge_tables.emplace(key, std::move(state));
   }

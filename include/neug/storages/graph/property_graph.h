@@ -602,7 +602,7 @@ class PropertyGraph {
 
   inline std::string work_dir() const { return ckp_->path(); }
 
-  std::shared_ptr<PropertyGraph> Fork() const;
+  std::shared_ptr<PropertyGraph> CloneSharedForCow() const;
 
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,

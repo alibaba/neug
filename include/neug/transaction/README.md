@@ -38,7 +38,7 @@ There is no synchronization between read and insert transactions. All read and i
 
 When an `UpdateTransaction` is created, it enters the update-exec phase (VersionManager update_state_: 0→1). It waits for all in-flight insert transactions to finish, but does NOT block or wait for read transactions. New insert transactions are blocked during this phase; existing and new reads continue.
 
-When `start_commit_update_timestamp` is called, the update enters the commit phase (update_state_: 1→2). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected.
+When `begin_update_commit` is called, the update enters the commit phase (update_state_: 1→2). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected.
 
 ## Serializability
 

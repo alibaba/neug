@@ -27,8 +27,8 @@ std::string Connection::GetSchema() const {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
-  SlotGuard guard(snapshot_store_);
-  auto yaml = guard.get().pg()->schema().to_yaml();
+  SnapshotGuard guard(snapshot_store_);
+  auto yaml = guard.get().graph()->schema().to_yaml();
   std::string ret = neug::get_json_string_from_yaml(yaml.value()).value();
   return ret;
 }

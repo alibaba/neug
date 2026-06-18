@@ -33,9 +33,9 @@
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_view.h"
-#include "neug/storages/graph/pg_fork_state.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/storage_store.h"
+#include "neug/storages/graph/property_graph_cow_state.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/table.h"
@@ -58,9 +58,9 @@ class IdIndexerBase;
  * guarantees using Copy-on-Write (COW) for snapshot isolation.
  *
  * **COW Design:**
- * - Holds a shared_ptr to a forked PropertyGraph (COW copy)
+ * - Holds a shared_ptr to a COW-cloned PropertyGraph
  * - All DDL/DML modifications happen immediately on the COW copy
- * - Commit returns the COW copy for StorageStore::installSnapshot()
+ * - Commit returns the COW copy for GraphSnapshotStore::PublishSnapshot()
  * - Abort discards the COW copy (no effect on original)
  *
  * **Key Features:**
@@ -68,7 +68,7 @@ class IdIndexerBase;
  * - DDL operations (create/delete types, add/delete properties)
  * - Write-Ahead Logging for durability
  * - MVCC support with timestamp management
- * - Lazy fork for efficient COW
+ * - Lazy materialization for efficient COW
  *
  * @since v0.1.0
  */
@@ -77,20 +77,21 @@ class UpdateTransaction {
   /**
    * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
-   * @param cow_storage Forked PropertyGraph (COW copy)
+   * @param cow_storage PropertyGraph COW clone
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
-   * @param storage_store Reference to StorageStore for commit
+   * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
    * @param timestamp Transaction timestamp
    *
-   * @note NeugDB is responsible for creating the COW copy via Fork()
+   * @note NeugDB is responsible for creating the COW copy via
+   * CloneSharedForCow()
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_storage,
                     Allocator& alloc, IWalWriter& logger, IVersionManager& vm,
-                    StorageStore& storage_store,
+                    GraphSnapshotStore& snapshot_store,
                     execution::LocalQueryCache& cache, timestamp_t timestamp);
 
   /**
@@ -232,8 +233,8 @@ class UpdateTransaction {
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
-    // support TP mode, we need to also fork the edge table and ensure adjlists
-    // are mutable here.
+    // support TP mode, we need to also materialize the edge table and ensure
+    // adjlists are mutable here.
     return cow_storage_->BatchAddVertices(v_label_id, supplier);
   }
 
@@ -243,8 +244,8 @@ class UpdateTransaction {
                               label_t edge_label,
                               std::shared_ptr<IRecordBatchSupplier> supplier) {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
-    // support TP mode, we need to also fork the edge table and ensure adjlists
-    // are mutable here.
+    // support TP mode, we need to also materialize the edge table and ensure
+    // adjlists are mutable here.
     return cow_storage_->BatchAddEdges(src_label, dst_label, edge_label,
                                        std::move(supplier));
   }
@@ -259,43 +260,43 @@ class UpdateTransaction {
 
   void release();
 
-  // --- PropertyGraphForkState-driven lazy deep-copy helpers ---
-  void ensureVertexTableCopiedForInsert(label_t label);
-  void ensureVertexTableCopiedForDelete(label_t label);
-  void ensureVertexColumnCopied(label_t label, int32_t col_id);
-  void ensureEdgeTableCopiedForInsert(uint32_t edge_triplet_id);
-  void ensureEdgeTableCopiedForDelete(uint32_t edge_triplet_id);
-  void ensureEdgeColumnCopied(uint32_t edge_triplet_id, int32_t col_id);
-  void ensureAdjlistCopied(uint32_t edge_triplet_id, vid_t src_lid,
-                           vid_t dst_lid, Allocator& alloc);
-  void ensureVertexCapacity(label_t label, size_t capacity);
-  void ensureEdgeCapacity(label_t src_label, label_t dst_label,
-                          label_t edge_label, size_t capacity);
+  // --- PropertyGraphCowState-driven lazy materialization helpers ---
+  void MaterializeVertexTableForInsert(label_t label);
+  void MaterializeVertexTableForDelete(label_t label);
+  void MaterializeVertexColumnForWrite(label_t label, int32_t col_id);
+  void MaterializeEdgeTableForInsert(uint32_t edge_triplet_id);
+  void MaterializeEdgeTableForDelete(uint32_t edge_triplet_id);
+  void MaterializeEdgeColumnForWrite(uint32_t edge_triplet_id, int32_t col_id);
+  void MaterializeAdjlistsForWrite(uint32_t edge_triplet_id, vid_t src_lid,
+                                   vid_t dst_lid, Allocator& alloc);
+  void PrepareVertexCapacityForWrite(label_t label, size_t capacity);
+  void PrepareEdgeCapacityForWrite(label_t src_label, label_t dst_label,
+                                   label_t edge_label, size_t capacity);
 
-  /// Prepare COW for deleting vertices: fork vertex timestamp, related edge
-  /// CSRs, and per-vertex adjlists so that the storage layer can safely
+  /// Prepare COW for deleting vertices: materialize vertex timestamp, related
+  /// edge CSRs, and per-vertex adjlists so that the storage layer can safely
   /// mutate them under snapshot isolation.
-  void ensureVertexDeleteCOW(label_t label, const std::vector<vid_t>& lids);
+  void PrepareVertexDeleteCow(label_t label, const std::vector<vid_t>& lids);
 
-  // COW storage - the forked PropertyGraph
+  // COW storage - the cloned PropertyGraph
   std::shared_ptr<PropertyGraph> cow_storage_;
-  PropertyGraphForkState fork_state_;
+  PropertyGraphCowState cow_state_;
   GraphView view_;
 
   Allocator& alloc_;
   IWalWriter& logger_;
   IVersionManager& vm_;
-  StorageStore& snapshot_store_;
+  GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
-  // Fork context (from cow_storage_)
+  // Materialization context (from cow_storage_)
   std::shared_ptr<Checkpoint> ckp_;
   InArchive arc_;
   int op_num_;
 
   // Set by any successful DDL method. When true, Commit calls
-  // pipeline_cache_.clearGlobalCache(...) after installSnapshot to bump the
+  // pipeline_cache_.clearGlobalCache(...) after PublishSnapshot to bump the
   // GlobalQueryCache version + refresh planner meta. Pure DML transactions
   // leave this false to skip cache invalidation.
   bool schema_changed_{false};

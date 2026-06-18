@@ -17,6 +17,8 @@
 
 #include "glog/logging.h"
 
+namespace neug {
+
 TimestampWindow::TimestampWindow() {
   // Initialize completed timestamp bitmap
   completed_ts_ = std::make_unique<std::atomic<bool>[]>(kWindowSize);
@@ -61,3 +63,5 @@ void TimestampWindow::slide_window(uint32_t current_ts) {
     window_base_ = new_base;
   }
 }
+
+}  // namespace neug

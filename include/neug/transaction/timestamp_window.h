@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <memory>
 
+namespace neug {
+
 // Timestamp completion tracking window
 // Tracks completed timestamps in a sliding window to enable ordered read_ts
 // advancement
@@ -54,3 +56,5 @@ class TimestampWindow {
   // Base position of sliding window
   uint32_t window_base_{0};
 };
+
+}  // namespace neug

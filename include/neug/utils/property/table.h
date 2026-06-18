@@ -52,11 +52,12 @@ class Table {
 
   ModuleDescriptor Dump(Checkpoint& ckp);
 
-  std::unique_ptr<Table> Fork() const;
+  std::unique_ptr<Table> CloneSharedForCow() const;
 
-  void DeepCopyColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level);
+  void MaterializeColumnForWrite(size_t col_id, Checkpoint& ckp,
+                                 MemoryLevel level);
 
-  void DeepCopyAllColumns(Checkpoint& ckp, MemoryLevel level);
+  void MaterializeAllColumnsForWrite(Checkpoint& ckp, MemoryLevel level);
 
   void reset_header(const std::vector<std::string>& col_name);
 

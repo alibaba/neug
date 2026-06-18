@@ -161,14 +161,14 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData());
   }
 
-  std::unique_ptr<Module> Fork() override {
+  std::unique_ptr<Module> CloneSharedForCow() override {
     auto new_col = std::make_unique<TypedColumn<T>>();
     new_col->buffer_ = buffer_;
     new_col->size_ = size_;
     return new_col;
   }
 
-  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) override {
     buffer_ = buffer_->Fork(ckp, level);
   }
 
@@ -229,12 +229,12 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   static std::string type_name() { return "column<empty>"; }
 
-  std::unique_ptr<Module> Fork() override {
+  std::unique_ptr<Module> CloneSharedForCow() override {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
 
   // DeepCopy: no-op for EmptyType (no IDataContainer)
-  void DeepCopy(Checkpoint&, MemoryLevel) override {}
+  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {}
 };
 
 struct string_item {
@@ -502,7 +502,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, val);
   }
 
-  std::unique_ptr<Module> Fork() override {
+  std::unique_ptr<Module> CloneSharedForCow() override {
     auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
     new_col->items_buffer_ = items_buffer_;
     new_col->data_buffer_ = data_buffer_;
@@ -512,7 +512,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   // DeepCopy:
-  void DeepCopy(Checkpoint& ckp, MemoryLevel level) override {
+  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) override {
     items_buffer_ = items_buffer_->Fork(ckp, level);
     data_buffer_ = data_buffer_->Fork(ckp, level);
   }

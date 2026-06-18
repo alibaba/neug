@@ -293,10 +293,10 @@ class LFIndexer {
     std::swap(hasher_, other.hasher_);
   }
 
-  std::unique_ptr<LFIndexer<INDEX_T>> Fork();
+  std::unique_ptr<LFIndexer<INDEX_T>> CloneSharedForCow();
 
   // DeepCopy: 递归深拷贝 keys_ 和 indices_ Column
-  void DeepCopy(Checkpoint& ckp, MemoryLevel level);
+  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level);
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
 
@@ -928,25 +928,27 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 };
 
 template <typename INDEX_T>
-std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Fork() {
-  auto forked = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
+std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::CloneSharedForCow() {
+  auto cow_clone = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
   // Zero-copy: share Column objects (which share IDataContainer)
-  forked->indices_ = std::unique_ptr<TypedColumn<INDEX_T>>(
-      dynamic_cast<TypedColumn<INDEX_T>*>(indices_->Fork().release()));
-  forked->keys_ = std::unique_ptr<ColumnBase>(
-      dynamic_cast<ColumnBase*>(keys_->Fork().release()));
-  forked->num_elements_.store(num_elements_.load());
-  forked->num_slots_minus_one_ = num_slots_minus_one_;
-  forked->hash_policy_ = hash_policy_;
-  forked->hasher_ = hasher_;
-  return forked;
+  cow_clone->indices_ =
+      std::unique_ptr<TypedColumn<INDEX_T>>(dynamic_cast<TypedColumn<INDEX_T>*>(
+          indices_->CloneSharedForCow().release()));
+  cow_clone->keys_ = std::unique_ptr<ColumnBase>(
+      dynamic_cast<ColumnBase*>(keys_->CloneSharedForCow().release()));
+  cow_clone->num_elements_.store(num_elements_.load());
+  cow_clone->num_slots_minus_one_ = num_slots_minus_one_;
+  cow_clone->hash_policy_ = hash_policy_;
+  cow_clone->hasher_ = hasher_;
+  return cow_clone;
 }
 
 template <typename INDEX_T>
 // DeepCopy:
-void LFIndexer<INDEX_T>::DeepCopy(Checkpoint& ckp, MemoryLevel level) {
-  keys_->DeepCopy(ckp, level);
-  indices_->DeepCopy(ckp, level);
+void LFIndexer<INDEX_T>::MaterializeForWrite(Checkpoint& ckp,
+                                             MemoryLevel level) {
+  keys_->MaterializeForWrite(ckp, level);
+  indices_->MaterializeForWrite(ckp, level);
 }
 
 }  // namespace neug

@@ -27,7 +27,7 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_view.h"
-#include "neug/storages/storage_store.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
@@ -45,9 +45,9 @@ class Schema;
  * durability and per-record-timestamp visibility.
  *
  * **Isolation model — NOT snapshot isolation.**
- * Unlike UpdateTransaction, InsertTransaction does NOT fork the PropertyGraph.
- * It pins the current StorageStore slot and, on Commit(), applies the WAL
- * ops directly to the live PropertyGraph behind that slot via
+ * Unlike UpdateTransaction, InsertTransaction does NOT COW-clone the
+ * PropertyGraph. It pins the current GraphSnapshotStore slot and, on Commit(),
+ * applies the WAL ops directly to the live PropertyGraph behind that slot via
  * `IngestWal(slot_->mutable_view(), ...)`. Concurrent ReadTransactions on the
  * same slot see the in-progress live state.
  *
@@ -77,10 +77,10 @@ class Schema;
 class InsertTransaction {
  public:
   /**
-   * @brief Construct an InsertTransaction with a pinned StorageSlot.
+   * @brief Construct an InsertTransaction with a pinned SnapshotSlot.
    *
-   * @param slot Reference to the pinned StorageSlot from acquireSnapshot()
-   * @param storage_store Reference to StorageStore for releasing slot
+   * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
+   * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
@@ -88,7 +88,7 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  InsertTransaction(SlotGuard guard, Allocator& alloc, IWalWriter& logger,
+  InsertTransaction(SnapshotGuard guard, Allocator& alloc, IWalWriter& logger,
                     IVersionManager& vm, timestamp_t timestamp);
 
   /**
@@ -218,7 +218,7 @@ class InsertTransaction {
   std::vector<vid_t> added_vertices_base_;
   std::vector<vid_t> vertex_nums_;
 
-  SlotGuard guard_;
+  SnapshotGuard guard_;
   GraphView* view_;
 
   Allocator& alloc_;

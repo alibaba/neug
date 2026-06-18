@@ -164,10 +164,10 @@ class VertexTable {
   std::unique_ptr<VertexTimestamp> TakeVertexTimestamp() {
     return std::move(v_ts_);
   }
-  VertexTable Fork() const;
+  VertexTable CloneSharedForCow() const;
 
-  void DeepCopyIndexer();
-  void DeepCopyVertexTimestamp();
+  void MaterializeIndexerForWrite();
+  void MaterializeVertexTimestampForWrite();
 
   void Close();
 

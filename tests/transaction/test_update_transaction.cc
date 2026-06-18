@@ -943,22 +943,24 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 }
 
 // ============================================================================
-// Regression tests for Issue #2 and Issue #3 (fork_state_ consistency
+// Regression tests for Issue #2 and Issue #3 (cow_state_ consistency
 // after DDL operations that change table structure).
 //
 // Issue #2: After DeleteVertexProperties / DeleteEdgeProperties the
-// columns_copied vector was not updated to reflect column index shifting
-// caused by Table::delete_column().  This led to out-of-bounds DeepCopyColumn
-// calls (crash) or wrong columns being marked as forked.
+// columns_materialized vector was not updated to reflect column index shifting
+// caused by Table::delete_column().  This led to out-of-bounds
+// MaterializeColumnForWrite calls (crash) or wrong columns being marked as
+// materialized.
 //
-// Issue #3: After DeleteVertexType / DeleteEdgeType the fork_state_
+// Issue #3: After DeleteVertexType / DeleteEdgeType the cow_state_
 // still contained entries for the deleted types, which could interfere
 // with subsequent DDL/DML in the same transaction.
 // ============================================================================
 
 // Issue #2 (vertex): delete a property then insert a vertex.
-// ensureVertexTableCopiedForInsert iterates columns_copied — stale
-// entries cause DeepCopyColumn(out-of-bounds) -> crash without the fix.
+// MaterializeVertexTableForInsert iterates columns_materialized — stale
+// entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
+// fix.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -974,9 +976,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("person", {"name"})));
 
-    // Insert a new person vertex — triggers ensureVertexTableCopiedForInsert
-    // which iterates columns_copied.  Without the fix columns_copied still
-    // has 2 entries -> DeepCopyColumn(1) on a 1-column table -> crash.
+    // Insert a new person vertex — triggers MaterializeVertexTableForInsert
+    // which iterates columns_materialized.  Without the fix
+    // columns_materialized still has 2 entries -> MaterializeColumnForWrite(1)
+    // on a 1-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(person_label,
@@ -1005,10 +1008,11 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   db.Close();
 }
 
-// Issue #2 (vertex, column index shift): add extra properties, fork one,
+// Issue #2 (vertex, column index shift): add extra properties, materialize one,
 // delete a middle property (shifting indices), then update a remaining
-// property and insert a vertex.  Without the fix, stale columns_copied
-// causes either wrong-fork or out-of-bounds DeepCopyColumn -> crash.
+// property and insert a vertex.  Without the fix, stale columns_materialized
+// causes either stale materialization tracking or out-of-bounds
+// MaterializeColumnForWrite -> crash.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1042,12 +1046,14 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 
   // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
   // In this transaction:
-  //   1. Update "age" (col 1) -> columns_copied[1] = true
+  //   1. Update "age" (col 1) -> columns_materialized[1] = true
   //   2. Delete "name" (col 0) -> age shifts to 0, email to 1, score to 2
-  //   3. Without fix: columns_copied = [false, true, false, false] (4 entries)
-  //      Update email (now col 1) -> columns_copied[1] = stale true -> skip
-  //      fork Insert vertex -> DeepCopyColumn(3) on 3-column table -> crash
-  //   4. With fix: columns_copied correctly has 3 entries after deletion
+  //   3. Without fix: columns_materialized = [false, true, false, false] (4
+  //   entries)
+  //      Update email (now col 1) -> columns_materialized[1] = stale true ->
+  //      skip Insert vertex -> MaterializeColumnForWrite(3) on 3-column table
+  //      -> crash
+  //   4. With fix: columns_materialized correctly has 3 entries after deletion
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
@@ -1057,7 +1063,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
     CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vid));
 
-    // Step 1: update "age" (col 1) to trigger forking
+    // Step 1: update "age" (col 1) to trigger materialization
     EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 1,
                                          neug::execution::Value::INT64(31)));
 
@@ -1073,9 +1079,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
     EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 2,
                                          neug::execution::Value::DOUBLE(88.0)));
 
-    // Step 4: insert a new vertex — without the fix, ensureVertexTable-
-    // ForkedForInsert iterates stale columns_copied (4 entries for 3 cols)
-    // and calls DeepCopyColumn(3) -> out-of-bounds crash.
+    // Step 4: insert a new vertex — without the fix,
+    // MaterializeVertexTableForInsert iterates stale columns_materialized
+    // (4 entries for 3 cols) and calls MaterializeColumnForWrite(3) ->
+    // out-of-bounds crash.
     neug::vid_t new_vid;
     EXPECT_TRUE(interface.AddVertex(
         person_label, neug::execution::Value::INT64(3),
@@ -1135,8 +1142,9 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 }
 
 // Issue #2 (edge): delete an edge property then insert an edge.
-// ensureEdgeTableCopiedForInsert iterates columns_copied — stale
-// entries cause DeepCopyColumn(out-of-bounds) -> crash without the fix.
+// MaterializeEdgeTableForInsert iterates columns_materialized — stale
+// entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
+// fix.
 TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1166,9 +1174,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "software", "created", {"since"})));
 
-    // Insert a new edge.  ensureEdgeTableCopiedForInsert iterates
-    // columns_copied.  Without the fix columns_copied still has 3 entries
-    // -> DeepCopyColumn(2) on a 2-column table -> crash.
+    // Insert a new edge.  MaterializeEdgeTableForInsert iterates
+    // columns_materialized.  Without the fix columns_materialized still has 3
+    // entries
+    // -> MaterializeColumnForWrite(2) on a 2-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -1236,7 +1245,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
 
 // Issue #3 (vertex): DeleteVertexType with edges then create new types
 // and insert data in the same transaction.  Without the fix,
-// fork_state_ retains stale entries for the deleted vertex table and
+// cow_state_ retains stale entries for the deleted vertex table and
 // its related edge tables, which can interfere with subsequent DML.
 TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
   neug::NeugDB db;
@@ -1303,7 +1312,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
 }
 
 // Issue #3 (edge): DeleteEdgeType then create a new edge type and
-// insert data in the same transaction.  Without the fix, fork_state_
+// insert data in the same transaction.  Without the fix, cow_state_
 // retains stale entries for the deleted edge table.
 TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
   neug::NeugDB db;

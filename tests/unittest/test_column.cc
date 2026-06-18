@@ -33,17 +33,17 @@ static const std::vector<int32_t> kInt32TestData = {10, 20, 30, 40, 50};
 
 // Test data for string column
 static const std::vector<std::string_view> kStringTestData = {
-    "hello", "world", "test", "fork", "verify"};
+    "hello", "world", "test", "cow", "verify"};
 
-struct ColumnForkSignature {
+struct ColumnCowSignature {
   size_t element_num{0};
   int64_t value_sum{0};
   size_t first_element_size{0};
 };
 
 // Build signature for int32 column
-ColumnForkSignature build_column_signature(const TypedColumn<int32_t>& col) {
-  ColumnForkSignature sig;
+ColumnCowSignature build_column_signature(const TypedColumn<int32_t>& col) {
+  ColumnCowSignature sig;
   sig.element_num = col.size();
   for (size_t i = 0; i < col.size(); ++i) {
     sig.value_sum += col.get_view(i);
@@ -55,9 +55,9 @@ ColumnForkSignature build_column_signature(const TypedColumn<int32_t>& col) {
 }
 
 // Build signature for string column
-ColumnForkSignature build_column_signature(
+ColumnCowSignature build_column_signature(
     const TypedColumn<std::string_view>& col) {
-  ColumnForkSignature sig;
+  ColumnCowSignature sig;
   sig.element_num = col.size();
   for (size_t i = 0; i < col.size(); ++i) {
     auto view = col.get_view(i);
@@ -72,8 +72,8 @@ ColumnForkSignature build_column_signature(
   return sig;
 }
 
-void expect_signature_eq(const ColumnForkSignature& lhs,
-                         const ColumnForkSignature& rhs) {
+void expect_signature_eq(const ColumnCowSignature& lhs,
+                         const ColumnCowSignature& rhs) {
   EXPECT_EQ(lhs.element_num, rhs.element_num);
   EXPECT_EQ(lhs.value_sum, rhs.value_sum);
   EXPECT_EQ(lhs.first_element_size, rhs.first_element_size);
@@ -99,60 +99,64 @@ void apply_column_mutations(TypedColumn<std::string_view>& col) {
   }
 }
 
-template <typename ELEMENT_T, MemoryLevel OPEN_LEVEL, MemoryLevel FORK_LEVEL>
-struct ColumnForkLevelCase {
+template <typename ELEMENT_T, MemoryLevel OPEN_LEVEL,
+          MemoryLevel MATERIALIZE_LEVEL>
+struct ColumnMaterializeLevelCase {
   using ElementType = ELEMENT_T;
   static constexpr MemoryLevel kOpenLevel = OPEN_LEVEL;
-  static constexpr MemoryLevel kForkLevel = FORK_LEVEL;
+  static constexpr MemoryLevel kMaterializeLevel = MATERIALIZE_LEVEL;
 };
 
 using Int32Cases = ::testing::Types<
-    ColumnForkLevelCase<int32_t, MemoryLevel::kInMemory,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kInMemory,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kInMemory,
-                        MemoryLevel::kSyncToFile>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kSyncToFile>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<int32_t, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kSyncToFile>>;
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kInMemory,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kInMemory,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kInMemory,
+                               MemoryLevel::kSyncToFile>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kSyncToFile>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<int32_t, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kSyncToFile>>;
 
 using StringCases = ::testing::Types<
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kInMemory,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kInMemory,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kInMemory,
-                        MemoryLevel::kSyncToFile>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kHugePagePreferred,
-                        MemoryLevel::kSyncToFile>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kInMemory>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kHugePagePreferred>,
-    ColumnForkLevelCase<std::string_view, MemoryLevel::kSyncToFile,
-                        MemoryLevel::kSyncToFile>>;
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kInMemory,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kInMemory,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kInMemory,
+                               MemoryLevel::kSyncToFile>,
+    ColumnMaterializeLevelCase<std::string_view,
+                               MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<std::string_view,
+                               MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<std::string_view,
+                               MemoryLevel::kHugePagePreferred,
+                               MemoryLevel::kSyncToFile>,
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kInMemory>,
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kHugePagePreferred>,
+    ColumnMaterializeLevelCase<std::string_view, MemoryLevel::kSyncToFile,
+                               MemoryLevel::kSyncToFile>>;
 
 template <typename CASE_T>
-class TypedColumnInt32ForkTest : public ::testing::Test {
+class TypedColumnInt32CowTest : public ::testing::Test {
  protected:
   void SetUp() override {
     temp_dir_ =
         std::filesystem::temp_directory_path() /
-        ("typed_column_int32_fork_" +
+        ("typed_column_int32_cow_" +
          std::to_string(
              std::chrono::steady_clock::now().time_since_epoch().count()) +
          "_" + GetTestName());
@@ -160,7 +164,7 @@ class TypedColumnInt32ForkTest : public ::testing::Test {
       std::filesystem::remove_all(temp_dir_);
     }
     std::filesystem::create_directories(temp_dir_);
-    ws_.Open(temp_dir_.string());
+    checkpoint_mgr_.Open(temp_dir_.string());
   }
 
   void TearDown() override {
@@ -170,7 +174,7 @@ class TypedColumnInt32ForkTest : public ::testing::Test {
   }
 
   std::shared_ptr<Checkpoint> create_checkpoint() {
-    return make_checkpoint(ws_);
+    return make_checkpoint(checkpoint_mgr_);
   }
 
  private:
@@ -181,13 +185,13 @@ class TypedColumnInt32ForkTest : public ::testing::Test {
   }
 
  protected:
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   std::filesystem::path temp_dir_;
 };
 
-TYPED_TEST_SUITE(TypedColumnInt32ForkTest, Int32Cases);
+TYPED_TEST_SUITE(TypedColumnInt32CowTest, Int32Cases);
 
-TYPED_TEST(TypedColumnInt32ForkTest, ForkIsolationAndDumpOpenMatrix) {
+TYPED_TEST(TypedColumnInt32CowTest, CowIsolationAndDumpOpenMatrix) {
   TypedColumn<int32_t> original;
   auto base_ckp = this->create_checkpoint();
   original.Open(*base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
@@ -198,41 +202,41 @@ TYPED_TEST(TypedColumnInt32ForkTest, ForkIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto fork_module = original.Fork();
-  auto* forked = dynamic_cast<TypedColumn<int32_t>*>(fork_module.get());
-  ASSERT_NE(forked, nullptr);
-  // DeepCopy deep-copies IDataContainer so writes to forked don't affect
-  // original
-  forked->DeepCopy(*base_ckp, TypeParam::kForkLevel);
+  auto cow_module = original.CloneSharedForCow();
+  auto* cow = dynamic_cast<TypedColumn<int32_t>*>(cow_module.get());
+  ASSERT_NE(cow, nullptr);
+  // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
+  // original.
+  cow->MaterializeForWrite(*base_ckp, TypeParam::kMaterializeLevel);
 
-  apply_column_mutations(*forked);
-  auto fork_after = build_column_signature(*forked);
+  apply_column_mutations(*cow);
+  auto cow_after = build_column_signature(*cow);
 
-  auto original_after_fork_mutation = build_column_signature(original);
-  expect_signature_eq(original_after_fork_mutation, original_before);
+  auto original_after_cow_mutation = build_column_signature(original);
+  expect_signature_eq(original_after_cow_mutation, original_before);
 
   apply_column_mutations(original);
   auto original_after_self_mutation = build_column_signature(original);
   EXPECT_NE(original_after_self_mutation.value_sum, original_before.value_sum);
 
-  auto fork_after_original_mutation = build_column_signature(*forked);
-  expect_signature_eq(fork_after_original_mutation, fork_after);
+  auto cow_after_original_mutation = build_column_signature(*cow);
+  expect_signature_eq(cow_after_original_mutation, cow_after);
 
   auto dump_ckp = this->create_checkpoint();
-  auto fork_desc = forked->Dump(*dump_ckp);
+  auto cow_desc = cow->Dump(*dump_ckp);
   TypedColumn<int32_t> reopened;
-  reopened.Open(*dump_ckp, fork_desc, MemoryLevel::kInMemory);
+  reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
   auto reopened_sig = build_column_signature(reopened);
-  expect_signature_eq(reopened_sig, fork_after);
+  expect_signature_eq(reopened_sig, cow_after);
 }
 
 template <typename CASE_T>
-class TypedColumnStringForkTest : public ::testing::Test {
+class TypedColumnStringCowTest : public ::testing::Test {
  protected:
   void SetUp() override {
     temp_dir_ =
         std::filesystem::temp_directory_path() /
-        ("typed_column_string_fork_" +
+        ("typed_column_string_cow_" +
          std::to_string(
              std::chrono::steady_clock::now().time_since_epoch().count()) +
          "_" + GetTestName());
@@ -240,7 +244,7 @@ class TypedColumnStringForkTest : public ::testing::Test {
       std::filesystem::remove_all(temp_dir_);
     }
     std::filesystem::create_directories(temp_dir_);
-    ws_.Open(temp_dir_.string());
+    checkpoint_mgr_.Open(temp_dir_.string());
   }
 
   void TearDown() override {
@@ -250,7 +254,7 @@ class TypedColumnStringForkTest : public ::testing::Test {
   }
 
   std::shared_ptr<Checkpoint> create_checkpoint() {
-    return make_checkpoint(ws_);
+    return make_checkpoint(checkpoint_mgr_);
   }
 
  private:
@@ -261,13 +265,13 @@ class TypedColumnStringForkTest : public ::testing::Test {
   }
 
  protected:
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   std::filesystem::path temp_dir_;
 };
 
-TYPED_TEST_SUITE(TypedColumnStringForkTest, StringCases);
+TYPED_TEST_SUITE(TypedColumnStringCowTest, StringCases);
 
-TYPED_TEST(TypedColumnStringForkTest, ForkIsolationAndDumpOpenMatrix) {
+TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
   TypedColumn<std::string_view> original;
   auto base_ckp = this->create_checkpoint();
   original.Open(*base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
@@ -278,33 +282,32 @@ TYPED_TEST(TypedColumnStringForkTest, ForkIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto fork_module = original.Fork();
-  auto* forked =
-      dynamic_cast<TypedColumn<std::string_view>*>(fork_module.get());
-  ASSERT_NE(forked, nullptr);
-  // DeepCopy deep-copies IDataContainer so writes to forked don't affect
-  // original
-  forked->DeepCopy(*base_ckp, TypeParam::kForkLevel);
+  auto cow_module = original.CloneSharedForCow();
+  auto* cow = dynamic_cast<TypedColumn<std::string_view>*>(cow_module.get());
+  ASSERT_NE(cow, nullptr);
+  // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
+  // original.
+  cow->MaterializeForWrite(*base_ckp, TypeParam::kMaterializeLevel);
 
-  apply_column_mutations(*forked);
-  auto fork_after = build_column_signature(*forked);
+  apply_column_mutations(*cow);
+  auto cow_after = build_column_signature(*cow);
 
-  auto original_after_fork_mutation = build_column_signature(original);
-  expect_signature_eq(original_after_fork_mutation, original_before);
+  auto original_after_cow_mutation = build_column_signature(original);
+  expect_signature_eq(original_after_cow_mutation, original_before);
 
   apply_column_mutations(original);
   auto original_after_self_mutation = build_column_signature(original);
   EXPECT_NE(original_after_self_mutation.value_sum, original_before.value_sum);
 
-  auto fork_after_original_mutation = build_column_signature(*forked);
-  expect_signature_eq(fork_after_original_mutation, fork_after);
+  auto cow_after_original_mutation = build_column_signature(*cow);
+  expect_signature_eq(cow_after_original_mutation, cow_after);
 
   auto dump_ckp = this->create_checkpoint();
-  auto fork_desc = forked->Dump(*dump_ckp);
+  auto cow_desc = cow->Dump(*dump_ckp);
   TypedColumn<std::string_view> reopened;
-  reopened.Open(*dump_ckp, fork_desc, MemoryLevel::kInMemory);
+  reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
   auto reopened_sig = build_column_signature(reopened);
-  expect_signature_eq(reopened_sig, fork_after);
+  expect_signature_eq(reopened_sig, cow_after);
 }
 
 }  // namespace

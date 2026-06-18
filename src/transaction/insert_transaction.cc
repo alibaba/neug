@@ -33,7 +33,7 @@
 
 namespace neug {
 
-InsertTransaction::InsertTransaction(SlotGuard guard, Allocator& alloc,
+InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
     : guard_(std::move(guard)),

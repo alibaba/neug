@@ -46,7 +46,7 @@ class IVersionManager {
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
-  virtual void start_commit_update_timestamp(uint32_t ts) = 0;
+  virtual void begin_update_commit(uint32_t ts) = 0;
   virtual void release_update_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
@@ -79,8 +79,8 @@ class IVersionManager {
  *   2=update-commit (new reads block; existing reads continue) /
  *   compact (readers+inserters drained).
  * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
- *   + post-check) to prevent ABA races with start_commit_update_timestamp.
- * - start_commit_update_timestamp uses seq_cst store + drain spin to ensure
+ *   + post-check) to prevent ABA races with begin_update_commit.
+ * - begin_update_commit uses seq_cst store + drain spin to ensure
  *   any reader in the ABA window has rolled back before proceeding.
  * - SpinLock lock_: serializes read_ts advancement (check-and-advance
  *   in release_insert/update_timestamp).
@@ -99,7 +99,7 @@ class VersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
-  void start_commit_update_timestamp(uint32_t ts) override;
+  void begin_update_commit(uint32_t ts) override;
   void release_update_timestamp(uint32_t ts) override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;

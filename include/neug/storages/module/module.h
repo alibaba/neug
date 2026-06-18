@@ -27,9 +27,9 @@ class Checkpoint;
 /**
  * @brief Abstract interface for persistent graph-storage modules.
  *
- * Provides five lifecycle operations: Open (restore), Dump (persist),
- * Close (release), Fork (zero-copy), DeepCopy (deep-copy). Both Dump and Fork
- * generate a UUID sub-directory under ckp.runtime_dir().
+ * Provides four lifecycle operations: Open (restore), Dump (persist),
+ * CloneSharedForCow (zero-copy COW clone), and MaterializeForWrite (detach
+ * shared storage before mutation).
  */
 class Module {
  public:
@@ -47,17 +47,16 @@ class Module {
   virtual ModuleDescriptor Dump(Checkpoint& ckp) = 0;
 
   /**
-   * @brief Create independent copy in UUID sub-directory.
+   * @brief Create an independent module object that shares the same storage.
    * Zero-copy: creates a new Module object sharing the same IDataContainer(s).
    */
-  virtual std::unique_ptr<Module> Fork() = 0;
+  virtual std::unique_ptr<Module> CloneSharedForCow() = 0;
 
   /**
-   * @brief Deep copy the underlying data containers, breaking shared
-   * ownership with the parent.  Must be called on a Forked module before
-   * any write operation.
+   * @brief Materialize the underlying data containers before mutation, breaking
+   * shared ownership with the parent COW clone.
    */
-  virtual void DeepCopy(Checkpoint& ckp, MemoryLevel level) = 0;
+  virtual void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) = 0;
 
   /**
    * @brief Return factory registration key (e.g., "vertex_table").

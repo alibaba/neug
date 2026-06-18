@@ -1737,8 +1737,8 @@ size_t cc_count_persons(NeugDBService& svc) {
 //
 // Each "*_via" helper reads through a held ReadTransaction's frozen GraphView
 // (`txn.view()`), so the observation reflects the snapshot pinned in the
-// StorageStore slot — not the live PropertyGraph (which a concurrent writer
-// may have replaced via installSnapshot).
+// GraphSnapshotStore slot — not the live PropertyGraph (which a concurrent
+// writer may have replaced via PublishSnapshot).
 
 // Count visible vertices for a label via a held read snapshot.
 size_t cc_count_vertices_via(const ReadTransaction& txn, label_t label) {
@@ -1984,8 +1984,8 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   constexpr int kInserterThreads = 4;
   constexpr int64_t kMaxInserts = 10000;
   {
-    SlotGuard guard(db.storage_store());
-    guard.get().pg()->EnsureCapacity(
+    SnapshotGuard guard(db.graph_snapshot_store());
+    guard.get().graph()->EnsureCapacity(
         db.schema().get_vertex_label_id("person"),
         kSeedVertices + static_cast<size_t>(kMaxInserts) + kInserterThreads);
   }
@@ -2039,7 +2039,8 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
 }
 
 // ============================================================================
-// Category 2 — StorageStore correctness for concurrent queries + isolation
+// Category 2 — GraphSnapshotStore correctness for concurrent queries +
+// isolation
 // ============================================================================
 
 TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
@@ -2081,8 +2082,8 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
 // Category 3 — UpdateTransaction COW isolation + rollback correctness
 // ============================================================================
 
-TEST_F(NeugDBACIDTest, UpdateForkDoesNotAffectActiveReaders) {
-  std::string dir = work_dir_ + "/UpdateForkIso";
+TEST_F(NeugDBACIDTest, UpdateCowCloneDoesNotAffectActiveReaders) {
+  std::string dir = work_dir_ + "/UpdateCowCloneIso";
   NeugDB db;
   auto svc = cc_init(db, dir, thread_num_);
 
@@ -2101,9 +2102,9 @@ TEST_F(NeugDBACIDTest, UpdateForkDoesNotAffectActiveReaders) {
   gui.UpdateVertexProperty(person_label, vid_u, 1,
                            execution::Value::INT64(7777));
 
-  // R still sees pre-fork state (no concurrent commit).
+  // R still sees pre-commit state (no concurrent commit).
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
-  // Fresh ReadTxn also sees pre-fork state (U hasn't committed).
+  // Fresh ReadTxn also sees pre-commit state (U hasn't committed).
   EXPECT_EQ(cc_read_age(*svc, 5), 25);
 
   txn_u.Abort();
@@ -2168,8 +2169,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
 //
 // Pattern: open ReadTxn R, observe pre-state via R's frozen GraphView; open a
 // separate UpdateTxn U on another session, mutate + Commit; R must continue to
-// observe pre-state (its snapshot is pinned in its StorageStore slot, never
-// mutated in place); a fresh ReadTxn must observe post-state.
+// observe pre-state (its snapshot is pinned in its GraphSnapshotStore slot,
+// never mutated in place); a fresh ReadTxn must observe post-state.
 // ============================================================================
 
 TEST_F(NeugDBACIDTest, DMLCommitDoesNotAffectHeldReader) {
@@ -2665,7 +2666,7 @@ TEST_F(NeugDBACIDTest, MultipleSequentialCommitsEachSnapshotIsolated) {
   // Pin a snapshot, commit, pin another, commit, … — each Ri must observe
   // exactly the value that was visible at its acquire time, never a later
   // commit's value. Holds 4 readers concurrently (well below the 128-slot
-  // StorageStore default). 4 readers are unrolled by hand because
+  // GraphSnapshotStore default). 4 readers are unrolled by hand because
   // ReadTransaction holds reference members and is therefore neither copyable
   // nor movable, so it can't live in a standard container after value-init.
   std::string dir = work_dir_ + "/MultiCommitSnapshots";
@@ -2980,7 +2981,7 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
 //
 // Empirically the reader nearly always wins, because the writer's path from
 // barrier release to release_update_timestamp includes WAL append +
-// installSnapshot, while the reader's path is just acquire_read_timestamp
+// PublishSnapshot, while the reader's path is just acquire_read_timestamp
 // (an atomic load). The pre-domination is a property of the path lengths,
 // not a bug. Both outcomes are CORRECT; we only assert no garbage.
 TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {

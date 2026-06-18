@@ -93,7 +93,7 @@ NeugDB::~NeugDB() {
   try {
     if (is_pure_memory_) {
       VLOG(10) << "Removing temp NeugDB at: " << work_dir();
-      remove_directory(ws_.db_dir());
+      remove_directory(checkpoint_mgr_.db_dir());
     }
   } catch (const std::exception& e) {
     LOG(WARNING) << "Failed to remove temp dir for " << work_dir() << ": "
@@ -120,14 +120,15 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
 bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
-  ws_.Open(config_.data_dir);
-  VLOG(1) << "Opening NeuGDB at " << ws_.db_dir();
-  file_lock_ = std::make_unique<FileLock>(ws_.db_dir());
+  checkpoint_mgr_.Open(config_.data_dir);
+  VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
+  file_lock_ = std::make_unique<FileLock>(checkpoint_mgr_.db_dir());
 
   std::string error_msg;
   if (!file_lock_->lock(error_msg, config.mode)) {
-    THROW_DATABASE_LOCKED_EXCEPTION("Failed to lock data directory: " +
-                                    ws_.db_dir() + ", error: " + error_msg);
+    THROW_DATABASE_LOCKED_EXCEPTION(
+        "Failed to lock data directory: " + checkpoint_mgr_.db_dir() +
+        ", error: " + error_msg);
   }
   neug::execution::PlanParser::get().init();
   openGraphAndIngestWals();
@@ -167,7 +168,7 @@ void NeugDB::Close() {
     }
   }
 
-  // Clear StorageStore instead of graph_
+  // Clear GraphSnapshotStore instead of graph_
   snapshot_store_.reset();
 
   if (file_lock_) {
@@ -234,13 +235,13 @@ void NeugDB::openGraphAndIngestWals() {
   thread_num_ = config_.thread_num;
   try {
     int ckp_id;
-    if (ws_.HeadId() >= 0) {
-      ckp_id = ws_.HeadId();
+    if (checkpoint_mgr_.HeadId() >= 0) {
+      ckp_id = checkpoint_mgr_.HeadId();
     } else {
-      ckp_id = ws_.CreateCheckpoint();
+      ckp_id = checkpoint_mgr_.CreateCheckpoint();
       LOG(INFO) << "No checkpoint found, created new checkpoint: " << ckp_id;
     }
-    auto ckp = ws_.GetCheckpoint(ckp_id);
+    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
     LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
     auto graph = std::make_shared<PropertyGraph>();
     graph->Open(ckp, config_.memory_level);
@@ -252,9 +253,9 @@ void NeugDB::openGraphAndIngestWals() {
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
     ingestWals(*wal_parser, *graph);
 
-    // Create StorageStore with the graph at timestamp 0
+    // Create GraphSnapshotStore with the graph at timestamp 0
     snapshot_store_ =
-        std::make_unique<StorageStore>(config_.storage_slot_num, graph);
+        std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
 
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
@@ -313,26 +314,26 @@ void NeugDB::initPlannerAndQueryProcessor() {
 
 void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
-  SlotGuard guard(*snapshot_store_);
-  auto& graph = *guard.get().pg();
+  SnapshotGuard guard(*snapshot_store_);
+  auto& graph = *guard.get().graph();
   if (config_.compact_on_close || force_compaction) {
     graph.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                   MAX_TIMESTAMP);
   }
-  auto ckp_id = ws_.CreateCheckpoint();
-  auto ckp = ws_.GetCheckpoint(ckp_id);
+  auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
+  auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
   try {
     graph.Dump(ckp, reopen);
   } catch (...) {
     LOG(ERROR) << "Checkpoint dump failed, rolling back checkpoint " << ckp_id;
-    ws_.RemoveCheckpoint(ckp_id);
+    checkpoint_mgr_.RemoveCheckpoint(ckp_id);
     throw;
   }
   if (reopen) {
     // Dump with reopen=true rebuilds the PropertyGraph in-place (Clear + Open),
     // invalidating raw pointers held by the GraphView. Rebuild the view so it
     // points to the freshly loaded internal structures.
-    guard.get().mutable_view().Rebuild(*guard.get().pg());
+    guard.get().mutable_view().Rebuild(*guard.get().graph());
   }
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }

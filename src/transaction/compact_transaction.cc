@@ -20,17 +20,17 @@
 #include <ostream>
 
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/storage_store.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 
 namespace neug {
 
-CompactTransaction::CompactTransaction(StorageStore& storage_store,
+CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
                                        IWalWriter& logger, IVersionManager& vm,
                                        bool compact_csr, float reserve_ratio,
                                        timestamp_t timestamp)
-    : guard_(storage_store),
+    : guard_(snapshot_store),
       logger_(logger),
       vm_(vm),
       compact_csr_(compact_csr),
@@ -60,8 +60,8 @@ bool CompactTransaction::Commit() {
     LOG(INFO) << "before compact - " << timestamp_;
     // In-place compact
     auto& slot = guard_.get();
-    slot.pg()->Compact(compact_csr_, reserve_ratio_, timestamp_);
-    slot.mutable_view().Rebuild(*slot.pg());
+    slot.graph()->Compact(compact_csr_, reserve_ratio_, timestamp_);
+    slot.mutable_view().Rebuild(*slot.graph());
     LOG(INFO) << "after compact - " << timestamp_;
 
     vm_.release_compact_timestamp(timestamp_);

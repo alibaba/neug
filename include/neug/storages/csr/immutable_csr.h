@@ -104,19 +104,21 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+  void MaterializeAdjlistForWrite(vid_t /*vid*/,
+                                  Allocator& /*alloc*/) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "DeepCopyAdjlist is not supported for immutable csr");
+        "MaterializeAdjlistForWrite is not supported for immutable csr");
   }
 
-  std::unique_ptr<Module> Fork() override {
-    THROW_NOT_SUPPORTED_EXCEPTION("Fork is not supported for immutable csr");
+  std::unique_ptr<Module> CloneSharedForCow() override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "CloneSharedForCow is not supported for immutable csr");
   }
 
-  // DeepCopy: not supported for immutable csr
-  void DeepCopy(Checkpoint&, MemoryLevel) override {
+  // MaterializeForWrite: not supported for immutable csr
+  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "DeepCopy is not supported for immutable csr");
+        "MaterializeForWrite is not supported for immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -207,20 +209,21 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  void DeepCopyAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+  void MaterializeAdjlistForWrite(vid_t /*vid*/,
+                                  Allocator& /*alloc*/) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "DeepCopyAdjlist is not supported for single immutable csr");
+        "MaterializeAdjlistForWrite is not supported for single immutable csr");
   }
 
-  std::unique_ptr<Module> Fork() override {
+  std::unique_ptr<Module> CloneSharedForCow() override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Fork is not supported for single immutable csr");
+        "CloneSharedForCow is not supported for single immutable csr");
   }
 
-  // DeepCopy: not supported for single immutable csr
-  void DeepCopy(Checkpoint&, MemoryLevel) override {
+  // MaterializeForWrite: not supported for single immutable csr
+  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "DeepCopy is not supported for single immutable csr");
+        "MaterializeForWrite is not supported for single immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }

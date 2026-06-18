@@ -31,80 +31,81 @@ namespace neug {
  * @brief Fixed-size slot pool for MVCC PropertyGraph snapshots.
  *
  * Maintains `slot_num` slots. `cur_slot_index_` marks the active slot.
- * Readers pin via acquireSnapshot/releaseSnapshot (refcounted). Stale
+ * Readers pin via PinCurrentSnapshot/UnpinSnapshot (refcounted). Stale
  * slots are recycled when the last reader unpins.
  *
  * Transaction usage:
- * - Read/Insert: acquireSnapshot() -> slot.view() -> releaseSnapshot().
+ * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: currentSnapshot().Fork() -> mutate COW copy -> installSnapshot().
+ * - Update: CurrentSnapshot().CloneSharedForCow() -> mutate COW copy ->
+ * PublishSnapshot().
  *
  * Concurrency:
- * - Lock-free acquireSnapshot via optimistic pin + verify loop.
+ * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
  * - Concurrent installs are NOT safe — VersionManager serializes
- *   updates via start_commit_update_timestamp (CAS 0→1), ensuring only one
+ *   updates via begin_update_commit (CAS 0→1), ensuring only one
  *   update/compact can be in progress at a time.
- * - installSnapshot publishes the new slot BEFORE VersionManager advances
+ * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
  */
-class StorageStore {
+class GraphSnapshotStore {
  public:
   /// A slot holding a PropertyGraph, its GraphView, and a pin count.
-  class StorageSlot {
+  class SnapshotSlot {
    public:
-    StorageSlot() = default;
-    ~StorageSlot() = default;
+    SnapshotSlot() = default;
+    ~SnapshotSlot() = default;
 
     // Non-copyable, non-movable: slots live in a fixed-size vector and are
     // accessed exclusively by pointer/reference. The atomic reader_count_
     // also prevents implicit copy/move, but we state it explicitly for
     // clarity.
-    StorageSlot(const StorageSlot&) = delete;
-    StorageSlot& operator=(const StorageSlot&) = delete;
-    StorageSlot(StorageSlot&&) = delete;
-    StorageSlot& operator=(StorageSlot&&) = delete;
+    SnapshotSlot(const SnapshotSlot&) = delete;
+    SnapshotSlot& operator=(const SnapshotSlot&) = delete;
+    SnapshotSlot(SnapshotSlot&&) = delete;
+    SnapshotSlot& operator=(SnapshotSlot&&) = delete;
 
     /// Read-only view accessor.
     const GraphView& view() const { return view_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
     /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
-    /// of shared_ptr constness, so this works through const StorageSlot& too).
-    PropertyGraph* pg() const { return storage_.get(); }
+    /// of shared_ptr constness, so this works through const SnapshotSlot& too).
+    PropertyGraph* graph() const { return storage_.get(); }
 
    private:
-    friend class StorageStore;
+    friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
     std::atomic<int> reader_count_{0};
   };
 
   /// @param slot_num  Pool capacity (default 128).
-  /// @param initial_pg Installed into slot 0.
-  explicit StorageStore(int slot_num,
-                        std::shared_ptr<PropertyGraph> initial_pg);
+  /// @param initial_pg Published into slot 0.
+  explicit GraphSnapshotStore(int slot_num,
+                              std::shared_ptr<PropertyGraph> initial_pg);
 
-  ~StorageStore();
+  ~GraphSnapshotStore();
 
   /// Pin the current slot via lock-free optimistic loop: load cur_slot_index_,
   /// fetch_add reader_count, verify index unchanged. Retries on concurrent
-  /// installSnapshot or cleanup-in-progress. Caller must releaseSnapshot().
-  StorageSlot& acquireSnapshot();
+  /// PublishSnapshot or cleanup-in-progress. Caller must UnpinSnapshot().
+  SnapshotSlot& PinCurrentSnapshot();
 
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
-  void releaseSnapshot(const StorageSlot& slot);
+  void UnpinSnapshot(const SnapshotSlot& slot);
 
-  /// Current PropertyGraph (for UpdateTransaction to Fork).
+  /// Current PropertyGraph (for UpdateTransaction to CloneSharedForCow).
   /// No lock — VersionManager guarantees exclusive update access
   /// (update_state_==1, all inserters drained).
-  const PropertyGraph& currentSnapshot() const;
+  const PropertyGraph& CurrentSnapshot() const;
 
   /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.
   /// Steps: reserve free slot -> prep-pin new slot -> write PG + build view
   /// -> phantom-pin old slot -> switch (release store) -> release phantom pin
-  /// -> release prep pin. Old slots are recycled lazily by releaseSnapshot.
+  /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
-  Status installSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
+  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
 
   /// Pool capacity.
   int slotNum() const { return slot_num_; }
@@ -119,7 +120,7 @@ class StorageStore {
 
  private:
   int slot_num_;
-  std::vector<StorageSlot> slots_;
+  std::vector<SnapshotSlot> slots_;
   std::atomic<int> cur_slot_index_{0};
   std::vector<int> free_list_;
   mutable std::mutex free_list_mutex_;
@@ -127,43 +128,44 @@ class StorageStore {
   void initFreeList();
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
-  void releaseSnapshotByIndex(int slot_index);
+  void UnpinSnapshotByIndex(int slot_index);
   void cleanupSlot(int slot_index);
 };
 
 /**
- * @brief RAII guard for StorageStore::acquireSnapshot / releaseSnapshot.
+ * @brief RAII guard for GraphSnapshotStore::PinCurrentSnapshot / UnpinSnapshot.
  *
  * Ensures the pinned slot is always released, even on exception paths.
  * Call release() to explicitly unpin early; the destructor is a no-op
  * after release().
  */
-class SlotGuard {
+class SnapshotGuard {
  public:
-  explicit SlotGuard(StorageStore& store)
-      : store_(&store), slot_(&store.acquireSnapshot()) {}
+  explicit SnapshotGuard(GraphSnapshotStore& store)
+      : store_(&store), slot_(&store.PinCurrentSnapshot()) {}
 
-  SlotGuard(StorageStore& store, StorageStore::StorageSlot& slot)
+  SnapshotGuard(GraphSnapshotStore& store,
+                GraphSnapshotStore::SnapshotSlot& slot)
       : store_(&store), slot_(&slot) {}
 
-  ~SlotGuard() {
+  ~SnapshotGuard() {
     if (slot_) {
-      store_->releaseSnapshot(*slot_);
+      store_->UnpinSnapshot(*slot_);
     }
   }
 
-  SlotGuard(const SlotGuard&) = delete;
-  SlotGuard& operator=(const SlotGuard&) = delete;
+  SnapshotGuard(const SnapshotGuard&) = delete;
+  SnapshotGuard& operator=(const SnapshotGuard&) = delete;
 
-  SlotGuard(SlotGuard&& other) noexcept
+  SnapshotGuard(SnapshotGuard&& other) noexcept
       : store_(other.store_), slot_(other.slot_) {
     other.slot_ = nullptr;
   }
 
-  SlotGuard& operator=(SlotGuard&& other) noexcept {
+  SnapshotGuard& operator=(SnapshotGuard&& other) noexcept {
     if (this != &other) {
       if (slot_) {
-        store_->releaseSnapshot(*slot_);
+        store_->UnpinSnapshot(*slot_);
       }
       store_ = other.store_;
       slot_ = other.slot_;
@@ -172,21 +174,21 @@ class SlotGuard {
     return *this;
   }
 
-  StorageStore::StorageSlot& get() { return *slot_; }
-  const StorageStore::StorageSlot& get() const { return *slot_; }
+  GraphSnapshotStore::SnapshotSlot& get() { return *slot_; }
+  const GraphSnapshotStore::SnapshotSlot& get() const { return *slot_; }
 
   bool valid() const { return slot_ != nullptr; }
 
   void release() {
     if (slot_) {
-      store_->releaseSnapshot(*slot_);
+      store_->UnpinSnapshot(*slot_);
       slot_ = nullptr;
     }
   }
 
  private:
-  StorageStore* store_;
-  StorageStore::StorageSlot* slot_;
+  GraphSnapshotStore* store_;
+  GraphSnapshotStore::SnapshotSlot* slot_;
 };
 
 }  // namespace neug

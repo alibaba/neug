@@ -1221,37 +1221,39 @@ Status PropertyGraph::edge_triplet_check(label_t src_label, label_t dst_label,
   return Status::OK();
 }
 
-std::shared_ptr<PropertyGraph> PropertyGraph::Fork() const {
-  auto forked = std::make_shared<PropertyGraph>();
+std::shared_ptr<PropertyGraph> PropertyGraph::CloneSharedForCow() const {
+  auto cow_clone = std::make_shared<PropertyGraph>();
 
-  forked->schema_ = schema_.Clone();
+  cow_clone->schema_ = schema_.Clone();
 
-  forked->vertex_tables_.reserve(vertex_tables_.size());
+  cow_clone->vertex_tables_.reserve(vertex_tables_.size());
   for (size_t i = 0; i < vertex_tables_.size(); ++i) {
     if (schema_.is_vertex_label_valid(i)) {
-      forked->vertex_tables_.push_back(vertex_tables_[i].Fork());
-      forked->vertex_tables_[i].SetVertexSchema(
-          forked->schema_.get_vertex_schema(i));
+      cow_clone->vertex_tables_.push_back(
+          vertex_tables_[i].CloneSharedForCow());
+      cow_clone->vertex_tables_[i].SetVertexSchema(
+          cow_clone->schema_.get_vertex_schema(i));
     } else {
-      forked->vertex_tables_.push_back(VertexTable());
+      cow_clone->vertex_tables_.push_back(VertexTable());
     }
   }
 
   for (const auto& [key, et] : edge_tables_) {
     auto [src_label, dst_label, edge_label] = schema_.parse_edge_label(key);
     if (schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
-      auto forked_et = et.Fork();
-      forked_et.SetEdgeSchema(forked->schema_.get_all_edge_schemas().at(key));
-      forked->edge_tables_.emplace(key, std::move(forked_et));
+      auto cow_edge_table = et.CloneSharedForCow();
+      cow_edge_table.SetEdgeSchema(
+          cow_clone->schema_.get_all_edge_schemas().at(key));
+      cow_clone->edge_tables_.emplace(key, std::move(cow_edge_table));
     }
   }
 
-  forked->ckp_ = ckp_;
-  forked->vertex_label_total_count_ = vertex_label_total_count_;
-  forked->edge_label_total_count_ = edge_label_total_count_;
-  forked->memory_level_ = memory_level_;
+  cow_clone->ckp_ = ckp_;
+  cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
+  cow_clone->edge_label_total_count_ = edge_label_total_count_;
+  cow_clone->memory_level_ = memory_level_;
 
-  return forked;
+  return cow_clone;
 }
 
 }  // namespace neug

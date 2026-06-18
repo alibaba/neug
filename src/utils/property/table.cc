@@ -47,27 +47,28 @@ Table::Table(const std::vector<std::string>& col_names,
   }
   columns_.resize(col_id_map_.size());
 }
-std::unique_ptr<Table> Table::Fork() const {
-  auto forked = std::make_unique<Table>();
-  forked->col_names_ = col_names_;
-  forked->col_id_map_ = col_id_map_;
-  forked->columns_.reserve(columns_.size());
+std::unique_ptr<Table> Table::CloneSharedForCow() const {
+  auto cow_clone = std::make_unique<Table>();
+  cow_clone->col_names_ = col_names_;
+  cow_clone->col_id_map_ = col_id_map_;
+  cow_clone->columns_.reserve(columns_.size());
   for (const auto& col : columns_) {
-    forked->columns_.push_back(std::unique_ptr<ColumnBase>(
-        static_cast<ColumnBase*>(col->Fork().release())));
+    cow_clone->columns_.push_back(std::unique_ptr<ColumnBase>(
+        static_cast<ColumnBase*>(col->CloneSharedForCow().release())));
   }
-  return forked;
+  return cow_clone;
 }
 
-void Table::DeepCopyColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level) {
+void Table::MaterializeColumnForWrite(size_t col_id, Checkpoint& ckp,
+                                      MemoryLevel level) {
   if (col_id >= columns_.size())
     return;
-  columns_[col_id]->DeepCopy(ckp, level);
+  columns_[col_id]->MaterializeForWrite(ckp, level);
 }
 
-void Table::DeepCopyAllColumns(Checkpoint& ckp, MemoryLevel level) {
+void Table::MaterializeAllColumnsForWrite(Checkpoint& ckp, MemoryLevel level) {
   for (size_t i = 0; i < columns_.size(); ++i) {
-    DeepCopyColumn(i, ckp, level);
+    MaterializeColumnForWrite(i, ckp, level);
   }
 }
 

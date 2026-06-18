@@ -52,10 +52,10 @@ class EdgeTable {
 
   void Swap(EdgeTable& other);
 
-  EdgeTable Fork() const;
+  EdgeTable CloneSharedForCow() const;
 
-  void DeepCopyOutCsr();
-  void DeepCopyInCsr();
+  void MaterializeOutCsrForWrite();
+  void MaterializeInCsrForWrite();
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
@@ -183,13 +183,13 @@ class EdgeTable {
 
   std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
 
-  /// Deep-copy the outgoing adjlist of vertex vid.
-  /// Called by UpdateTransaction via PropertyGraphForkState when the adjlist
-  /// has not yet been deep-copied in the current transaction.
-  void DeepCopyOutAdjlist(vid_t vid, Allocator& alloc);
+  /// Materialize the outgoing adjlist of vertex vid.
+  /// Called by UpdateTransaction via PropertyGraphCowState when the adjlist
+  /// has not yet been materialized in the current transaction.
+  void MaterializeOutAdjlistForWrite(vid_t vid, Allocator& alloc);
 
-  /// Deep-copy the incoming adjlist of vertex vid.
-  void DeepCopyInAdjlist(vid_t vid, Allocator& alloc);
+  /// Materialize the incoming adjlist of vertex vid.
+  void MaterializeInAdjlistForWrite(vid_t vid, Allocator& alloc);
 
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);

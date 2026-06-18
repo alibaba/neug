@@ -26,30 +26,30 @@ namespace neug {
 
 class Schema;
 
-struct VertexTableForkState {
-  bool indexer_copied{false};
-  bool vertex_timestamp_copied{false};
-  std::vector<bool> columns_copied;
+struct VertexTableCowState {
+  bool indexer_materialized{false};
+  bool vertex_timestamp_materialized{false};
+  std::vector<bool> columns_materialized;
 };
 
-struct EdgeTableForkState {
-  bool out_csr_copied{false};
-  bool in_csr_copied{false};
-  std::vector<bool> columns_copied;
-  // Per-vertex adjlist copy tracking (sparse, lazily populated).
-  // Ensures each adjlist is only deep-copied once per transaction.
-  std::unordered_set<vid_t> out_adjlists_copied;
-  std::unordered_set<vid_t> in_adjlists_copied;
+struct EdgeTableCowState {
+  bool out_csr_materialized{false};
+  bool in_csr_materialized{false};
+  std::vector<bool> columns_materialized;
+  // Per-vertex adjlist materialization tracking (sparse, lazily populated).
+  // Ensures each adjlist is only detached once per transaction.
+  std::unordered_set<vid_t> out_adjlists_materialized;
+  std::unordered_set<vid_t> in_adjlists_materialized;
 };
 
 /// A structure isomorphic to PropertyGraph's module organization.
-/// Each bool tracks whether the corresponding module has been deep-copied
+/// Each bool tracks whether the corresponding module has been materialized
 /// in the current transaction's COW copy.
-struct PropertyGraphForkState {
-  std::vector<VertexTableForkState> vertex_tables;
-  std::unordered_map<uint32_t, EdgeTableForkState> edge_tables;
+struct PropertyGraphCowState {
+  std::vector<VertexTableCowState> vertex_tables;
+  std::unordered_map<uint32_t, EdgeTableCowState> edge_tables;
 
-  static PropertyGraphForkState FromSchema(const Schema& schema);
+  static PropertyGraphCowState FromSchema(const Schema& schema);
 };
 
 }  // namespace neug
