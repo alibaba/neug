@@ -45,7 +45,7 @@ def _open_merge_database(db_dir: str) -> tuple[Database, object]:
     conn = db.connect()
     conn.execute("CREATE NODE TABLE User(name STRING, age INT64, PRIMARY KEY(name));")
     conn.execute("CREATE NODE TABLE User2(name STRING, age INT64, PRIMARY KEY(name));")
-    conn.execute("CREATE REL TABLE follows(FROM User TO User, date INT64);")
+    conn.execute("CREATE REL TABLE FOLLOWS(FROM User TO User, date INT64);")
     return db, conn
 
 
@@ -59,7 +59,7 @@ def _seed_follows_adam_marko_2012(conn) -> None:
     """follows.csv row: Adam -> marko, date 2012."""
     conn.execute(
         "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-        "CREATE (u1)-[:follows {date: 2012}]->(u2);"
+        "CREATE (u1)-[:FOLLOWS {date: 2012}]->(u2);"
     )
 
 
@@ -105,12 +105,12 @@ def test_merge_edge_match_existing_adam_marko():
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-                "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                 "RETURN u1.name, e.date, u2.name;"
             )
         )
         assert rows == [["Adam", 2012, "marko"]]
-        ecnt = list(conn.execute("MATCH ()-[e:follows]->() RETURN count(e);"))[0][0]
+        ecnt = list(conn.execute("MATCH ()-[e:FOLLOWS]->() RETURN count(e);"))[0][0]
         assert ecnt == 1
     finally:
         conn.close()
@@ -128,12 +128,12 @@ def test_merge_edge_create_adam_bob():
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) "
-                "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                 "RETURN u1.name, e.date, u2.name;"
             )
         )
         assert rows == [["Adam", 2012, "Bob"]]
-        ecnt = list(conn.execute("MATCH ()-[e:follows]->() RETURN count(e);"))[0][0]
+        ecnt = list(conn.execute("MATCH ()-[e:FOLLOWS]->() RETURN count(e);"))[0][0]
         assert ecnt == 2
     finally:
         conn.close()
@@ -154,18 +154,18 @@ def test_merge_edge_all_pairs_where_id_less_than():
         conn.execute("CREATE (:User {name: 'Bob', age: 40});")
         conn.execute(
             "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-            "CREATE (u1)-[e:follows {date: 2012}]->(u2);"
+            "CREATE (u1)-[e:FOLLOWS {date: 2012}]->(u2);"
         )
         conn.execute(
             "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) "
-            "CREATE (u1)-[:follows {date: 2012}]->(u2);"
+            "CREATE (u1)-[:FOLLOWS {date: 2012}]->(u2);"
         )
         rows = sorted(
             list(
                 conn.execute(
                     "MATCH (u1:User), (u2:User) "
                     "WHERE id(u1) < id(u2) "
-                    "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                    "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                     "RETURN u1.name, e.date, u2.name;"
                 )
             ),
@@ -180,7 +180,7 @@ def test_merge_edge_all_pairs_where_id_less_than():
             key=lambda r: (r[0], r[2]),
         )
         assert rows == expected
-        ecnt = list(conn.execute("MATCH ()-[e:follows]->() RETURN count(e);"))[0][0]
+        ecnt = list(conn.execute("MATCH ()-[e:FOLLOWS]->() RETURN count(e);"))[0][0]
         assert ecnt == 3
     finally:
         conn.close()
@@ -197,7 +197,7 @@ def test_merge_edge_on_match_set_date():
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-                "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                 "ON MATCH SET e.date = 9000 "
                 "RETURN e.date;"
             )
@@ -205,13 +205,13 @@ def test_merge_edge_on_match_set_date():
         assert rows == [[9000]]
         stored = list(
             conn.execute(
-                "MATCH (u1:User {name: 'Adam'})-[e:follows]->"
+                "MATCH (u1:User {name: 'Adam'})-[e:FOLLOWS]->"
                 "(u2:User {name: 'marko'}) RETURN e.date;"
             )
         )
         assert stored == [[9000]]
         assert (
-            list(conn.execute("MATCH ()-[e:follows]->() RETURN count(e);"))[0][0] == 1
+            list(conn.execute("MATCH ()-[e:FOLLOWS]->() RETURN count(e);"))[0][0] == 1
         )
     finally:
         conn.close()
@@ -231,7 +231,7 @@ def test_merge_edge_on_create_set_date_for_new_edge():
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'}) "
-                "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                 "ON CREATE SET e.date = 7001 "
                 "RETURN e.date;"
             )
@@ -239,7 +239,7 @@ def test_merge_edge_on_create_set_date_for_new_edge():
         assert rows == [[7001]]
         stored = list(
             conn.execute(
-                "MATCH (u1:User {name: 'Adam'})-[e:follows]->"
+                "MATCH (u1:User {name: 'Adam'})-[e:FOLLOWS]->"
                 "(u2:User {name: 'Bob'}) RETURN e.date;"
             )
         )
@@ -259,7 +259,7 @@ def test_merge_edge_on_create_ignored_when_edge_exists():
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-                "MERGE (u1)-[e:follows {date: 2012}]->(u2) "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
                 "ON CREATE SET e.date = 11111 "
                 "RETURN u1.name, u2.name, e.date;"
             )
@@ -267,7 +267,7 @@ def test_merge_edge_on_create_ignored_when_edge_exists():
         assert rows == [["Adam", "marko", 2012]]
         stored = list(
             conn.execute(
-                "MATCH (u1:User {name: 'Adam'})-[e:follows]->"
+                "MATCH (u1:User {name: 'Adam'})-[e:FOLLOWS]->"
                 "(u2:User {name: 'marko'}) RETURN e.date;"
             )
         )
@@ -354,7 +354,7 @@ def test_optional_match_follows_where_age_correlated_count():
         _seed_follows_adam_marko_2012(conn)
         cnt = list(
             conn.execute(
-                "MATCH (a:User) OPTIONAL MATCH (a)-[:follows]->(b:User) "
+                "MATCH (a:User) OPTIONAL MATCH (a)-[:FOLLOWS]->(b:User) "
                 "WHERE b.age > a.age RETURN COUNT(*);"
             )
         )[0][0]
@@ -390,7 +390,7 @@ def test_merge_multiple_nodes_unsupported():
 
 def test_merge_path_unsupported():
     """
-    MERGE (:User {name:'A'})-[:follows {date: 2012}]->(:User {name:'B'})
+    MERGE (:User {name:'A'})-[:FOLLOWS {date: 2012}]->(:User {name:'B'})
     is NOT supported.
 
     Per spec: MERGE on a full path pattern would create all vertices and the
@@ -403,7 +403,7 @@ def test_merge_path_unsupported():
         _seed_users_adam_marko(conn)
         with pytest.raises(Exception):
             conn.execute(
-                "MERGE (:User {name: 'Adam'})-[:follows {date: 2012}]->(:User {name: 'marko'});"
+                "MERGE (:User {name: 'Adam'})-[:FOLLOWS {date: 2012}]->(:User {name: 'marko'});"
             )
     finally:
         conn.close()
@@ -421,7 +421,7 @@ def test_merge_path_with_new_nodes_unsupported():
         _seed_users_adam_marko(conn)
         with pytest.raises(Exception):
             conn.execute(
-                "MERGE (:User {name: 'X'})-[:follows {date: 2023}]->(:User {name: 'Y'});"
+                "MERGE (:User {name: 'X'})-[:FOLLOWS {date: 2023}]->(:User {name: 'Y'});"
             )
     finally:
         conn.close()
