@@ -202,7 +202,7 @@ TYPED_TEST(TypedColumnInt32CowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto cow_module = original.CloneSharedForCow();
+  auto cow_module = original.CloneForCow();
   auto* cow = dynamic_cast<TypedColumn<int32_t>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
   // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
@@ -282,7 +282,7 @@ TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto cow_module = original.CloneSharedForCow();
+  auto cow_module = original.CloneForCow();
   auto* cow = dynamic_cast<TypedColumn<std::string_view>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
   // MaterializeForWrite detaches IDataContainer so writes to cow don't affect

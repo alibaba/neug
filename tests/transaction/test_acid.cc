@@ -1985,7 +1985,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   constexpr int64_t kMaxInserts = 10000;
   {
     SnapshotGuard guard(db.graph_snapshot_store());
-    guard.get().graph()->EnsureCapacity(
+    guard.get().mutable_graph()->EnsureCapacity(
         db.schema().get_vertex_label_id("person"),
         kSeedVertices + static_cast<size_t>(kMaxInserts) + kInserterThreads);
   }
@@ -3014,7 +3014,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     // GetUpdateTransaction acquires VersionManager's update_state_
     // exclusively (CAS 0→1) and Commit resets it (→0).
     // Acquire+stage before the barrier preserves the
-    // "post-race value staged in cow_storage" timing the test wants.
+    // "post-race value staged in cow_graph" timing the test wants.
     std::atomic<int> ready{0};
     std::atomic<int64_t> reader_value{-1};
     std::thread reader([&] {

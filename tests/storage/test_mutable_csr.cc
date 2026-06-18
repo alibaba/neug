@@ -241,7 +241,7 @@ TYPED_TEST(MutableCsrCowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_cow_signature(original);
 
-  auto cow_module = original.CloneSharedForCow();
+  auto cow_module = original.CloneForCow();
   auto* cow = dynamic_cast<MutableCsr<int32_t>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
   // MaterializeForWrite detaches IDataContainer so writes to cow don't affect

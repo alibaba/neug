@@ -1221,7 +1221,7 @@ Status PropertyGraph::edge_triplet_check(label_t src_label, label_t dst_label,
   return Status::OK();
 }
 
-std::shared_ptr<PropertyGraph> PropertyGraph::CloneSharedForCow() const {
+std::shared_ptr<PropertyGraph> PropertyGraph::CloneForCow() const {
   auto cow_clone = std::make_shared<PropertyGraph>();
 
   cow_clone->schema_ = schema_.Clone();
@@ -1229,8 +1229,7 @@ std::shared_ptr<PropertyGraph> PropertyGraph::CloneSharedForCow() const {
   cow_clone->vertex_tables_.reserve(vertex_tables_.size());
   for (size_t i = 0; i < vertex_tables_.size(); ++i) {
     if (schema_.is_vertex_label_valid(i)) {
-      cow_clone->vertex_tables_.push_back(
-          vertex_tables_[i].CloneSharedForCow());
+      cow_clone->vertex_tables_.push_back(vertex_tables_[i].CloneForCow());
       cow_clone->vertex_tables_[i].SetVertexSchema(
           cow_clone->schema_.get_vertex_schema(i));
     } else {
@@ -1241,7 +1240,7 @@ std::shared_ptr<PropertyGraph> PropertyGraph::CloneSharedForCow() const {
   for (const auto& [key, et] : edge_tables_) {
     auto [src_label, dst_label, edge_label] = schema_.parse_edge_label(key);
     if (schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
-      auto cow_edge_table = et.CloneSharedForCow();
+      auto cow_edge_table = et.CloneForCow();
       cow_edge_table.SetEdgeSchema(
           cow_clone->schema_.get_all_edge_schemas().at(key));
       cow_clone->edge_tables_.emplace(key, std::move(cow_edge_table));

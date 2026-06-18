@@ -347,16 +347,16 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
 
-VertexTable VertexTable::CloneSharedForCow() const {
+VertexTable VertexTable::CloneForCow() const {
   CHECK(ckp_ != nullptr)
-      << "VertexTable::CloneSharedForCow requires a valid checkpoint";
+      << "VertexTable::CloneForCow requires a valid checkpoint";
   VertexTable cow_clone;
   cow_clone.ckp_ = ckp_;
-  cow_clone.indexer_ = indexer_->CloneSharedForCow();
-  cow_clone.table_ = table_->CloneSharedForCow();
+  cow_clone.indexer_ = indexer_->CloneForCow();
+  cow_clone.table_ = table_->CloneForCow();
   cow_clone.vertex_schema_ = vertex_schema_;
   cow_clone.v_ts_ = std::unique_ptr<VertexTimestamp>(
-      dynamic_cast<VertexTimestamp*>(v_ts_->CloneSharedForCow().release()));
+      dynamic_cast<VertexTimestamp*>(v_ts_->CloneForCow().release()));
   cow_clone.pk_type_ = pk_type_;
   cow_clone.memory_level_ = memory_level_;
   return cow_clone;

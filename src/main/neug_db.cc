@@ -315,7 +315,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
 void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
   SnapshotGuard guard(*snapshot_store_);
-  auto& graph = *guard.get().graph();
+  auto& graph = *guard.get().mutable_graph();
   if (config_.compact_on_close || force_compaction) {
     graph.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                   MAX_TIMESTAMP);
@@ -333,7 +333,7 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
     // Dump with reopen=true rebuilds the PropertyGraph in-place (Clear + Open),
     // invalidating raw pointers held by the GraphView. Rebuild the view so it
     // points to the freshly loaded internal structures.
-    guard.get().mutable_view().Rebuild(*guard.get().graph());
+    guard.get().mutable_view().Rebuild(*guard.get().mutable_graph());
   }
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }

@@ -110,9 +110,9 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
         "MaterializeAdjlistForWrite is not supported for immutable csr");
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "CloneSharedForCow is not supported for immutable csr");
+        "CloneForCow is not supported for immutable csr");
   }
 
   // MaterializeForWrite: not supported for immutable csr
@@ -215,9 +215,9 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
         "MaterializeAdjlistForWrite is not supported for single immutable csr");
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "CloneSharedForCow is not supported for single immutable csr");
+        "CloneForCow is not supported for single immutable csr");
   }
 
   // MaterializeForWrite: not supported for single immutable csr

@@ -161,7 +161,7 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData());
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     auto new_col = std::make_unique<TypedColumn<T>>();
     new_col->buffer_ = buffer_;
     new_col->size_ = size_;
@@ -229,7 +229,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   static std::string type_name() { return "column<empty>"; }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
 
@@ -502,7 +502,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, val);
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
     new_col->items_buffer_ = items_buffer_;
     new_col->data_buffer_ = data_buffer_;

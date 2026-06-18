@@ -52,7 +52,7 @@ class Table {
 
   ModuleDescriptor Dump(Checkpoint& ckp);
 
-  std::unique_ptr<Table> CloneSharedForCow() const;
+  std::unique_ptr<Table> CloneForCow() const;
 
   void MaterializeColumnForWrite(size_t col_id, Checkpoint& ckp,
                                  MemoryLevel level);

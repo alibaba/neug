@@ -52,7 +52,7 @@ class EdgeTable {
 
   void Swap(EdgeTable& other);
 
-  EdgeTable CloneSharedForCow() const;
+  EdgeTable CloneForCow() const;
 
   void MaterializeOutCsrForWrite();
   void MaterializeInCsrForWrite();

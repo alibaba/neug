@@ -47,14 +47,14 @@ Table::Table(const std::vector<std::string>& col_names,
   }
   columns_.resize(col_id_map_.size());
 }
-std::unique_ptr<Table> Table::CloneSharedForCow() const {
+std::unique_ptr<Table> Table::CloneForCow() const {
   auto cow_clone = std::make_unique<Table>();
   cow_clone->col_names_ = col_names_;
   cow_clone->col_id_map_ = col_id_map_;
   cow_clone->columns_.reserve(columns_.size());
   for (const auto& col : columns_) {
     cow_clone->columns_.push_back(std::unique_ptr<ColumnBase>(
-        static_cast<ColumnBase*>(col->CloneSharedForCow().release())));
+        static_cast<ColumnBase*>(col->CloneForCow().release())));
   }
   return cow_clone;
 }

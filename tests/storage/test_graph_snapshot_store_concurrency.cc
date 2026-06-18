@@ -88,7 +88,7 @@ class GraphSnapshotStoreConcurrencyTest : public ::testing::Test {
   // (held alive by the fixture) rather than from store_->CurrentSnapshot()
   // to avoid racing on a slot that may be freed under concurrent publishes.
   std::shared_ptr<PropertyGraph> make_new_pg() const {
-    return initial_pg_->CloneSharedForCow();
+    return initial_pg_->CloneForCow();
   }
 };
 
@@ -273,13 +273,13 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PublishExclusivityVsPinShared) {
 // PublishSnapshot that publishes a new cur slot.
 TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
   auto& slot = store_->PinCurrentSnapshot();
-  ASSERT_NE(slot.graph(), nullptr);
+  ASSERT_NE(slot.mutable_graph(), nullptr);
 
   ASSERT_TRUE(store_->PublishSnapshot(make_new_pg()).ok());
 
   // graph pointer is still safely dereferenceable: storage held alive by our
   // pin.
-  EXPECT_GE(slot.graph()->schema().vertex_label_num(), 1u);
+  EXPECT_GE(slot.mutable_graph()->schema().vertex_label_num(), 1u);
 
   store_->UnpinSnapshot(slot);
 }
@@ -289,7 +289,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
 // then verify a new reader observes the mutation.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
   // Clone and add a new vertex type to the COW copy.
-  auto cow_pg = initial_pg_->CloneSharedForCow();
+  auto cow_pg = initial_pg_->CloneForCow();
   CreateVertexTypeParamBuilder builder;
   auto status = cow_pg->CreateVertexType(
       builder.VertexLabel("company")
@@ -303,9 +303,9 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
 
   // A new reader must observe the "company" vertex type.
   auto& slot = store_->PinCurrentSnapshot();
-  EXPECT_TRUE(slot.graph()->schema().is_vertex_label_valid("company"));
-  EXPECT_TRUE(slot.graph()->schema().is_vertex_label_valid("person"));
-  EXPECT_EQ(slot.graph()->schema().vertex_label_num(), 2u);
+  EXPECT_TRUE(slot.mutable_graph()->schema().is_vertex_label_valid("company"));
+  EXPECT_TRUE(slot.mutable_graph()->schema().is_vertex_label_valid("person"));
+  EXPECT_EQ(slot.mutable_graph()->schema().vertex_label_num(), 2u);
   store_->UnpinSnapshot(slot);
 }
 
@@ -331,12 +331,12 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, AbortReleasesSlotWithoutLeak) {
   }
 }
 
-// 9. COW isolation after CloneSharedForCow → Mutate → Publish cycle.
+// 9. COW isolation after CloneForCow → Mutate → Publish cycle.
 //
 // Validates that after a COW clone is mutated and published as the new
-// snapshot, subsequent CloneSharedForCow()s from that snapshot still produce
+// snapshot, subsequent CloneForCow()s from that snapshot still produce
 // correct COW copies with proper isolation. The shallow shared_ptr copy in
-// CloneSharedForCow() combined with materialize-on-write must ensure that
+// CloneForCow() combined with materialize-on-write must ensure that
 // mutations in cow2 don't leak back to the published cow1.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Phase 1: seed the initial snapshot with a vertex.
@@ -346,10 +346,10 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(initial_pg_->VertexNum(0, MAX_TIMESTAMP), 1u);
 
-  // Phase 2: CloneSharedForCow → Mutate → Publish (simulates UpdateTxn
+  // Phase 2: CloneForCow → Mutate → Publish (simulates UpdateTxn
   // commit). Explicitly materialize shared modules before mutation, mirroring
   // UpdateTransaction::MaterializeVertexTableForInsert.
-  auto cow1 = initial_pg_->CloneSharedForCow();
+  auto cow1 = initial_pg_->CloneForCow();
   auto& vt1 = cow1->get_vertex_table(0);
   vt1.MaterializeIndexerForWrite();
   vt1.MaterializeVertexTimestampForWrite();
@@ -365,7 +365,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
 
   // Phase 3: clone again from the published snapshot. Explicitly materialize
   // shared modules so cow2's mutations don't leak back to cow1.
-  auto cow2 = cow1->CloneSharedForCow();
+  auto cow2 = cow1->CloneForCow();
   auto& vt2 = cow2->get_vertex_table(0);
   vt2.MaterializeIndexerForWrite();
   vt2.MaterializeVertexTimestampForWrite();
@@ -388,7 +388,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Publish cow2 and verify a reader sees all three.
   ASSERT_TRUE(store_->PublishSnapshot(cow2).ok());
   auto& slot = store_->PinCurrentSnapshot();
-  EXPECT_EQ(slot.graph()->VertexNum(0, MAX_TIMESTAMP), 3u);
+  EXPECT_EQ(slot.mutable_graph()->VertexNum(0, MAX_TIMESTAMP), 3u);
   store_->UnpinSnapshot(slot);
 }
 

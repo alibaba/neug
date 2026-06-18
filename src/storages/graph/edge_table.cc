@@ -556,17 +556,17 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   edge_table.capacity_.store(cap);
 }
 
-EdgeTable EdgeTable::CloneSharedForCow() const {
+EdgeTable EdgeTable::CloneForCow() const {
   EdgeTable cow_clone(meta_);
   cow_clone.ckp_ = ckp_;
   cow_clone.memory_level_ = memory_level_;
   cow_clone.out_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(out_csr_->CloneSharedForCow().release()));
+      static_cast<CsrBase*>(out_csr_->CloneForCow().release()));
   cow_clone.in_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(in_csr_->CloneSharedForCow().release()));
+      static_cast<CsrBase*>(in_csr_->CloneForCow().release()));
 
   if (table_) {
-    cow_clone.table_ = table_->CloneSharedForCow();
+    cow_clone.table_ = table_->CloneForCow();
   }
 
   cow_clone.table_idx_ = table_idx_.load();

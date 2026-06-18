@@ -37,7 +37,7 @@ namespace neug {
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: CurrentSnapshot().CloneSharedForCow() -> mutate COW copy ->
+ * - Update: CurrentSnapshot().CloneForCow() -> mutate COW copy ->
  * PublishSnapshot().
  *
  * Concurrency:
@@ -71,7 +71,7 @@ class GraphSnapshotStore {
     GraphView& mutable_view() { return view_; }
     /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
     /// of shared_ptr constness, so this works through const SnapshotSlot& too).
-    PropertyGraph* graph() const { return storage_.get(); }
+    PropertyGraph* mutable_graph() const { return storage_.get(); }
 
    private:
     friend class GraphSnapshotStore;
@@ -95,7 +95,7 @@ class GraphSnapshotStore {
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
   void UnpinSnapshot(const SnapshotSlot& slot);
 
-  /// Current PropertyGraph (for UpdateTransaction to CloneSharedForCow).
+  /// Current PropertyGraph (for UpdateTransaction to CloneForCow).
   /// No lock — VersionManager guarantees exclusive update access
   /// (update_state_==1, all inserters drained).
   const PropertyGraph& CurrentSnapshot() const;
@@ -108,12 +108,12 @@ class GraphSnapshotStore {
   Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
 
   /// Pool capacity.
-  int slotNum() const { return slot_num_; }
+  int SlotCount() const { return slot_num_; }
 
   /// Best-effort check for a free slot. Used by Commit() to fail-fast
   /// before writing WAL. Stable under serialized Updates; `false` may
   /// become `true` asynchronously as readers unpin stale slots.
-  bool hasFreeSlot() const {
+  bool HasFreeSlot() const {
     std::lock_guard<std::mutex> lock(free_list_mutex_);
     return !free_list_.empty();
   }

@@ -300,7 +300,7 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   inserted_vertices_.swap(new_inserted_vertices);
 }
 
-std::unique_ptr<Module> VertexTimestamp::CloneSharedForCow() {
+std::unique_ptr<Module> VertexTimestamp::CloneForCow() {
   auto new_vertex_ts = std::make_unique<VertexTimestamp>();
   new_vertex_ts->init_vertex_num_ = init_vertex_num_;
   new_vertex_ts->max_vertex_num_ = max_vertex_num_;

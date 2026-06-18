@@ -77,7 +77,7 @@ class UpdateTransaction {
   /**
    * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
-   * @param cow_storage PropertyGraph COW clone
+   * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
@@ -86,11 +86,11 @@ class UpdateTransaction {
    * @param timestamp Transaction timestamp
    *
    * @note NeugDB is responsible for creating the COW copy via
-   * CloneSharedForCow()
+   * CloneForCow()
    * @since v0.1.0
    */
-  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_storage,
-                    Allocator& alloc, IWalWriter& logger, IVersionManager& vm,
+  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
+                    IWalWriter& logger, IVersionManager& vm,
                     GraphSnapshotStore& snapshot_store,
                     execution::LocalQueryCache& cache, timestamp_t timestamp);
 
@@ -117,7 +117,7 @@ class UpdateTransaction {
    *
    * @since v0.1.0
    */
-  const Schema& schema() const { return cow_storage_->schema(); }
+  const Schema& schema() const { return cow_graph_->schema(); }
 
   bool Commit();
 
@@ -170,7 +170,7 @@ class UpdateTransaction {
 
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& col_name) const {
-    return cow_storage_->GetVertexPropertyColumn(label, col_name);
+    return cow_graph_->GetVertexPropertyColumn(label, col_name);
   }
 
   execution::Value GetVertexProperty(label_t label, vid_t lid,
@@ -190,14 +190,14 @@ class UpdateTransaction {
 
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return cow_storage_->GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                                     edge_label, timestamp_);
+    return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                                   edge_label, timestamp_);
   }
 
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return cow_storage_->GetGenericIncomingGraphView(v_label, neighbor_label,
-                                                     edge_label, timestamp_);
+    return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
+                                                   edge_label, timestamp_);
   }
 
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
@@ -207,14 +207,14 @@ class UpdateTransaction {
   bool GetVertexIndex(label_t label, const execution::Value& id,
                       vid_t& index) const;
 
-  PropertyGraph& graph() const { return *cow_storage_; }
+  PropertyGraph& graph() const { return *cow_graph_; }
 
   const GraphView& view() const { return view_; }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return cow_storage_->GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                             prop_id);
+    return cow_graph_->GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                           prop_id);
   }
 
   void CreateCheckpoint();
@@ -235,7 +235,7 @@ class UpdateTransaction {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
     // support TP mode, we need to also materialize the edge table and ensure
     // adjlists are mutable here.
-    return cow_storage_->BatchAddVertices(v_label_id, supplier);
+    return cow_graph_->BatchAddVertices(v_label_id, supplier);
   }
 
   // TODO(zhanglei): Remove batch method from UpdateTransaction after
@@ -246,8 +246,8 @@ class UpdateTransaction {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
     // support TP mode, we need to also materialize the edge table and ensure
     // adjlists are mutable here.
-    return cow_storage_->BatchAddEdges(src_label, dst_label, edge_label,
-                                       std::move(supplier));
+    return cow_graph_->BatchAddEdges(src_label, dst_label, edge_label,
+                                     std::move(supplier));
   }
 
   // TODO(zhanglei): Remove batch method from UpdateTransaction after
@@ -276,10 +276,11 @@ class UpdateTransaction {
   /// Prepare COW for deleting vertices: materialize vertex timestamp, related
   /// edge CSRs, and per-vertex adjlists so that the storage layer can safely
   /// mutate them under snapshot isolation.
-  void PrepareVertexDeleteCow(label_t label, const std::vector<vid_t>& lids);
+  void PrepareVertexDeleteForWrite(label_t label,
+                                   const std::vector<vid_t>& lids);
 
   // COW storage - the cloned PropertyGraph
-  std::shared_ptr<PropertyGraph> cow_storage_;
+  std::shared_ptr<PropertyGraph> cow_graph_;
   PropertyGraphCowState cow_state_;
   GraphView view_;
 
@@ -290,7 +291,7 @@ class UpdateTransaction {
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
-  // Materialization context (from cow_storage_)
+  // Materialization context (from cow_graph_)
   std::shared_ptr<Checkpoint> ckp_;
   InArchive arc_;
   int op_num_;

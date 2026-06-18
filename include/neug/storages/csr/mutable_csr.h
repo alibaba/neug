@@ -209,7 +209,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     locks_[vid].unlock();
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     auto cow_clone = std::make_unique<MutableCsr<EDATA_T>>();
     auto v_cap = vertex_capacity();
     cow_clone->locks_ = std::make_unique<SpinLock[]>(v_cap);
@@ -364,7 +364,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void MaterializeAdjlistForWrite(vid_t /*vid*/,
                                   Allocator& /*alloc*/) override {}
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     auto cow_clone = std::make_unique<SingleMutableCsr<EDATA_T>>();
     cow_clone->nbr_list_ = nbr_list_;
     cow_clone->edge_num_ = edge_num_.load();
@@ -467,7 +467,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  std::unique_ptr<Module> CloneSharedForCow() override {
+  std::unique_ptr<Module> CloneForCow() override {
     return std::make_unique<EmptyCsr<EDATA_T>>();
   }
 
