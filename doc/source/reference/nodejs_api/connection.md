@@ -64,7 +64,7 @@ execute(query, accessMode = '', parameters = null) -> QueryResult
 Execute a cypher query on the database. User could specify multiple queries in a single string,
 separated by semicolons. The query will be executed in the order they are specified.
 If any query fails, the whole execution will be rolled back.
-If the query is a DDL query, such as `CREATE TABLE`, `DROP TABLE`, etc., the database will be
+If the query is a DDL query, such as `CREATE NODE TABLE`, `CREATE REL TABLE`, `DROP TABLE`, etc., the database will be
 modified accordingly.
 
 For the details of the query syntax, please refer to the documentation of cypher manual.
@@ -75,7 +75,7 @@ such as `hasNext()` and `getNext()`.
 
 If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
 
-Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`,
+Some of the cypher queries could change the state of the database, such as `CREATE NODE TABLE`, `INSERT`,
 `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
 the database, but will return the results of the query.
 
