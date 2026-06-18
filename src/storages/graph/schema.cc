@@ -1024,31 +1024,8 @@ bool Schema::Equals(const Schema& other) const {
   return true;
 }
 
-// Forward declarations for functions defined later in the
-// `config_parsing` namespace below. These are needed because
-// Schema::to_yaml() uses them prior to their full definition.
-namespace config_parsing {
-bool dump_vertices_schema(const Schema& schema, YAML::Node& node,
-                          bool include_temporary);
-bool dump_edges_schema(const Schema& schema, YAML::Node& node,
-                       bool include_temporary);
-}  // namespace config_parsing
-
 neug::result<YAML::Node> Schema::to_yaml() const {
-  YAML::Node graph_node;
-  graph_node["name"] = GetGraphName();
-  graph_node["id"] = GetGraphId();
-  graph_node["description"] = GetDescription();
-
-  YAML::Node vertex_types(YAML::NodeType::Sequence);
-  config_parsing::dump_vertices_schema(*this, vertex_types, true);
-  graph_node["schema"]["vertex_types"] = vertex_types;
-
-  YAML::Node edge_types(YAML::NodeType::Sequence);
-  config_parsing::dump_edges_schema(*this, edge_types, true);
-  graph_node["schema"]["edge_types"] = edge_types;
-
-  return graph_node;
+  return Schema::DumpToYaml(*this, /*include_temporary=*/true);
 }
 
 namespace config_parsing {
@@ -1920,18 +1897,27 @@ neug::result<Schema> Schema::LoadFromYamlNode(
   }
 }
 
-neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
+// Serialize schema to YAML. This is the single source of truth for schema
+// YAML construction.
+//
+// - include_temporary=true  (runtime path): used by to_yaml() to feed the
+//   compiler/planner/query-cache with a full view including temporary labels.
+// - include_temporary=false (persistence path): used by ToJson() and
+//   PropertyGraph::Dump() to produce checkpoint data that excludes temporary
+//   labels (they must not survive a restart).
+neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema,
+                                             bool include_temporary) {
   YAML::Node graph_node;
   graph_node["name"] = schema.GetGraphName();
   graph_node["id"] = schema.GetGraphId();
   graph_node["description"] = schema.GetDescription();
 
   YAML::Node vertex_types(YAML::NodeType::Sequence);
-  config_parsing::dump_vertices_schema(schema, vertex_types);
+  config_parsing::dump_vertices_schema(schema, vertex_types, include_temporary);
   graph_node["schema"]["vertex_types"] = vertex_types;
 
   YAML::Node edge_types(YAML::NodeType::Sequence);
-  config_parsing::dump_edges_schema(schema, edge_types);
+  config_parsing::dump_edges_schema(schema, edge_types, include_temporary);
   graph_node["schema"]["edge_types"] = edge_types;
 
   return graph_node;

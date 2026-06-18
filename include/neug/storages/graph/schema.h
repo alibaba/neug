@@ -765,7 +765,8 @@ class Schema {
 
   static neug::result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
 
-  static neug::result<YAML::Node> DumpToYaml(const Schema& schema);
+  static neug::result<YAML::Node> DumpToYaml(
+        const Schema& schema, bool include_temporary = false);
 
   bool Equals(const Schema& other) const;
 
