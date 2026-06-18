@@ -34,32 +34,32 @@ When merging edges, the source and destination nodes must be matched first (typi
 
 ```cypher
 MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'})
-MERGE (u1)-[e:follows {date: 2012}]->(u2)
+MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2)
 RETURN u1.name, e.date, u2.name;
 ```
 
-If an edge `follows` with `date=2012` already exists between Adam and marko, it is simply returned.
+If an edge `FOLLOWS` with `date=2012` already exists between Adam and marko, it is simply returned.
 
 ### Create a New Edge
 
 ```cypher
 MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'Bob'})
-MERGE (u1)-[e:follows {date: 2012}]->(u2)
+MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2)
 RETURN u1.name, e.date, u2.name;
 ```
 
-If no `follows` edge with `date=2012` exists between Adam and Bob, a new edge is created.
+If no `FOLLOWS` edge with `date=2012` exists between Adam and Bob, a new edge is created.
 
 ### MERGE Edge for Multiple Pairs
 
 ```cypher
 MATCH (u1:User), (u2:User)
 WHERE id(u1) < id(u2)
-MERGE (u1)-[e:follows {date: 2012}]->(u2)
+MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2)
 RETURN u1.name, e.date, u2.name;
 ```
 
-For each `<u1, u2>` pair, `MERGE` checks individually whether a `follows` edge with `date=2012` exists. If it does, the existing edge is returned; otherwise, a new edge is created for that pair.
+For each `<u1, u2>` pair, `MERGE` checks individually whether a `FOLLOWS` edge with `date=2012` exists. If it does, the existing edge is returned; otherwise, a new edge is created for that pair.
 
 ## ON CREATE / ON MATCH
 
@@ -143,7 +143,7 @@ Merging a full path pattern is not supported:
 
 ```cypher
 -- NOT supported
-MERGE (:User {name: 'A'})-[:follows {date: 2012}]->(:User {name: 'B'})
+MERGE (:User {name: 'A'})-[:FOLLOWS {date: 2012}]->(:User {name: 'B'})
 ```
 
 This would create all vertices and the edge as a whole without checking whether individual vertices already exist, potentially causing duplicates. Instead, merge the nodes and edge separately:
@@ -152,5 +152,5 @@ This would create all vertices and the edge as a whole without checking whether 
 -- Supported: merge nodes first, then merge the edge
 MERGE (u1:User {name: 'A'})
 MERGE (u2:User {name: 'B'})
-MERGE (u1)-[:follows {date: 2012}]->(u2)
+MERGE (u1)-[:FOLLOWS {date: 2012}]->(u2)
 ```
