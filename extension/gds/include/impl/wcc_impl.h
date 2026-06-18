@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <atomic>
+#include <memory>
+
 #include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -36,7 +39,8 @@ class WCC {
   label_t vertex_label_;
   label_t edge_label_;
 
-  std::unique_ptr<std::atomic<vid_t>[]> parents_;
+  std::unique_ptr<std::atomic<vid_t>[]> parent_;
+  std::unique_ptr<int64_t[]> ext_id_;
   std::unique_ptr<int64_t[]> comps_;
   int concurrency_;
   vector_t<vid_t> vertices_;
