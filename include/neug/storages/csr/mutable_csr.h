@@ -126,7 +126,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     locks_[src].lock();
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
-    if (sz == cap) {
+    if (sz == cap) {  // including cap == 0
       cap += (cap >> 1);
       cap = std::max(cap, 8);
       nbr_t* new_buffer =
@@ -192,19 +192,18 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
           "Vertex id out of range: " + std::to_string(vid) +
           " >= " + std::to_string(v_cap));
     }
-    locks_[vid].lock();
-    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
     auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
     auto cap = caps[vid];
     if (cap == 0) {
-      cap = 8;  // initial capacity
+      return;
     }
+    locks_[vid].lock();
+    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    const auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
+    auto deg = degrees[vid].load(std::memory_order_acquire);
     void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
-    if (caps[vid] > 0) {
-      memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * cap);
-    } else {
-      caps[vid] = cap;
-    }
+    memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * deg);
     buffers[vid] = static_cast<nbr_t*>(new_adj_list);
     locks_[vid].unlock();
   }
