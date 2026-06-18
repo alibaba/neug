@@ -37,7 +37,7 @@ namespace neug {
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: CurrentSnapshot().CloneForCow() -> mutate COW copy ->
+ * - Update: CurrentSnapshot().Clone() -> mutate COW copy ->
  * PublishSnapshot().
  *
  * Concurrency:
@@ -95,7 +95,7 @@ class GraphSnapshotStore {
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
   void UnpinSnapshot(const SnapshotSlot& slot);
 
-  /// Current PropertyGraph (for UpdateTransaction to CloneForCow).
+  /// Current PropertyGraph (for UpdateTransaction to Clone).
   /// No lock — VersionManager guarantees exclusive update access
   /// (update_state_==1, all inserters drained).
   const PropertyGraph& CurrentSnapshot() const;

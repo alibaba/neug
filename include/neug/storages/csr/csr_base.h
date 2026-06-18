@@ -89,12 +89,12 @@ class CsrBase : public Module {
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       ColumnBase* prev_data_col) const = 0;
 
-  /// Materialize the adjacency list of vertex vid so subsequent writes
+  /// Deatch the adjacency list of vertex vid so subsequent writes
   /// are isolated from the parent CSR.  Must only be called on a COW CSR
-  /// for a vertex whose adjlist has not yet been materialized.  The caller
+  /// for a vertex whose adjlist has not yet been detached.  The caller
   /// (e.g. PropertyGraphCowState) is responsible for tracking which
-  /// adjlists have been materialized.
-  virtual void MaterializeAdjlistForWrite(vid_t vid, Allocator& alloc) = 0;
+  /// adjlists have been detached.
+  virtual void DetachVertex(vid_t vid, Allocator& alloc) = 0;
 };
 
 template <typename EDATA_T>

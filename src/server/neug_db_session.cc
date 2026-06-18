@@ -73,7 +73,7 @@ neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
 
 neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().CloneForCow();
+  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().Clone();
   return neug::UpdateTransaction(std::move(cow_graph), alloc_, logger_,
                                  *version_manager_, db_.graph_snapshot_store(),
                                  pipeline_cache_, ts);

@@ -202,12 +202,12 @@ TYPED_TEST(TypedColumnInt32CowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto cow_module = original.CloneForCow();
+  auto cow_module = original.Clone();
   auto* cow = dynamic_cast<TypedColumn<int32_t>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
-  // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
+  // Detach detaches IDataContainer so writes to cow don't affect
   // original.
-  cow->MaterializeForWrite(*base_ckp, TypeParam::kMaterializeLevel);
+  cow->Detach(*base_ckp, TypeParam::kMaterializeLevel);
 
   apply_column_mutations(*cow);
   auto cow_after = build_column_signature(*cow);
@@ -282,12 +282,12 @@ TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_column_signature(original);
 
-  auto cow_module = original.CloneForCow();
+  auto cow_module = original.Clone();
   auto* cow = dynamic_cast<TypedColumn<std::string_view>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
-  // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
+  // Detach detaches IDataContainer so writes to cow don't affect
   // original.
-  cow->MaterializeForWrite(*base_ckp, TypeParam::kMaterializeLevel);
+  cow->Detach(*base_ckp, TypeParam::kMaterializeLevel);
 
   apply_column_mutations(*cow);
   auto cow_after = build_column_signature(*cow);

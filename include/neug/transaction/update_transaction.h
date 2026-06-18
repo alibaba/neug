@@ -68,7 +68,7 @@ class IdIndexerBase;
  * - DDL operations (create/delete types, add/delete properties)
  * - Write-Ahead Logging for durability
  * - MVCC support with timestamp management
- * - Lazy materialization for efficient COW
+ * - Lazy detachment for efficient COW
  *
  * @since v0.1.0
  */
@@ -86,7 +86,7 @@ class UpdateTransaction {
    * @param timestamp Transaction timestamp
    *
    * @note NeugDB is responsible for creating the COW copy via
-   * CloneForCow()
+   * Clone()
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
@@ -233,7 +233,7 @@ class UpdateTransaction {
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
-    // support TP mode, we need to also materialize the edge table and ensure
+    // support TP mode, we need to also detach the edge table and ensure
     // adjlists are mutable here.
     return cow_graph_->BatchAddVertices(v_label_id, supplier);
   }
@@ -244,7 +244,7 @@ class UpdateTransaction {
                               label_t edge_label,
                               std::shared_ptr<IRecordBatchSupplier> supplier) {
     // TODO(zhanglei): Currently not supported in TP mode. If in the future we
-    // support TP mode, we need to also materialize the edge table and ensure
+    // support TP mode, we need to also detach the edge table and ensure
     // adjlists are mutable here.
     return cow_graph_->BatchAddEdges(src_label, dst_label, edge_label,
                                      std::move(supplier));
@@ -260,20 +260,20 @@ class UpdateTransaction {
 
   void release();
 
-  // --- PropertyGraphCowState-driven lazy materialization helpers ---
-  void materializeVertexTableForInsert(label_t label);
-  void materializeVertexTableForDelete(label_t label);
-  void materializeVertexColumnForWrite(label_t label, int32_t col_id);
-  void materializeEdgeTableForInsert(uint32_t edge_triplet_id);
-  void materializeEdgeTableForDelete(uint32_t edge_triplet_id);
-  void materializeEdgeColumnForWrite(uint32_t edge_triplet_id, int32_t col_id);
-  void materializeAdjlistsForWrite(uint32_t edge_triplet_id, vid_t src_lid,
-                                   vid_t dst_lid, Allocator& alloc);
-  void prepareVertexCapacityForWrite(label_t label, size_t capacity);
-  void prepareEdgeCapacityForWrite(label_t src_label, label_t dst_label,
-                                   label_t edge_label, size_t capacity);
+  // --- PropertyGraphCowState-driven lazy detachment helpers ---
+  void detachVertexTableForInsert(label_t label);
+  void detachVertexTableForDelete(label_t label);
+  void detachVertexColumn(label_t label, int32_t col_id);
+  void detachEdgeTableForInsert(uint32_t edge_triplet_id);
+  void detachEdgeTableForDelete(uint32_t edge_triplet_id);
+  void detachEdgeColumn(uint32_t edge_triplet_id, int32_t col_id);
+  void detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid, vid_t dst_lid,
+                      Allocator& alloc);
+  void detachForResize(label_t label, size_t capacity);
+  void detachForResize(label_t src_label, label_t dst_label, label_t edge_label,
+                       size_t capacity);
 
-  /// Prepare COW for deleting vertices: materialize vertex timestamp, related
+  /// Prepare COW for deleting vertices: detach vertex timestamp, related
   /// edge CSRs, and per-vertex adjlists so that the storage layer can safely
   /// mutate them under snapshot isolation.
   void prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
@@ -290,7 +290,6 @@ class UpdateTransaction {
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
-  // Materialization context (from cow_graph_)
   std::shared_ptr<Checkpoint> ckp_;
   InArchive arc_;
   int op_num_;

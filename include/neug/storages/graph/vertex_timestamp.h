@@ -164,10 +164,10 @@ class VertexTimestamp : public Module {
 
   const vid_t InitVertexNum() const { return init_vertex_num_; }
 
-  std::unique_ptr<Module> CloneForCow() override;
+  std::unique_ptr<Module> Clone() const override;
 
   // DeepCopy
-  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) override;
+  void Detach(Checkpoint& ckp, MemoryLevel level) override;
 
   void Close();
 

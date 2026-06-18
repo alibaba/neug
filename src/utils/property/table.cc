@@ -47,28 +47,27 @@ Table::Table(const std::vector<std::string>& col_names,
   }
   columns_.resize(col_id_map_.size());
 }
-std::unique_ptr<Table> Table::CloneForCow() const {
+std::unique_ptr<Table> Table::Clone() const {
   auto cow_clone = std::make_unique<Table>();
   cow_clone->col_names_ = col_names_;
   cow_clone->col_id_map_ = col_id_map_;
   cow_clone->columns_.reserve(columns_.size());
   for (const auto& col : columns_) {
     cow_clone->columns_.push_back(std::unique_ptr<ColumnBase>(
-        static_cast<ColumnBase*>(col->CloneForCow().release())));
+        static_cast<ColumnBase*>(col->Clone().release())));
   }
   return cow_clone;
 }
 
-void Table::MaterializeColumnForWrite(size_t col_id, Checkpoint& ckp,
-                                      MemoryLevel level) {
+void Table::DetachColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level) {
   if (col_id >= columns_.size())
     return;
-  columns_[col_id]->MaterializeForWrite(ckp, level);
+  columns_[col_id]->Detach(ckp, level);
 }
 
-void Table::MaterializeAllColumnsForWrite(Checkpoint& ckp, MemoryLevel level) {
+void Table::DetachAllColumns(Checkpoint& ckp, MemoryLevel level) {
   for (size_t i = 0; i < columns_.size(); ++i) {
-    MaterializeColumnForWrite(i, ckp, level);
+    DetachColumn(i, ckp, level);
   }
 }
 

@@ -366,13 +366,14 @@ TEST_F(TableTest, TestTableBasic) {
   mem_table.close();
 
   Table reopened_disk_table(col_name, property_types);
-  OpenTableLegacy(reopened_disk_table, *ckp, disk_desc, MemoryLevel::kSyncToFile,
-                  property_types);
+  OpenTableLegacy(reopened_disk_table, *ckp, disk_desc,
+                  MemoryLevel::kSyncToFile, property_types);
   EXPECT_EQ(reopened_disk_table.col_num(), 11);
   EXPECT_EQ(reopened_disk_table.get_column_by_id(0)->size(), 10);
   reopened_disk_table.reset_header(col_name);
   reopened_disk_table.rename_column("bool_column", "renamed_bool_column");
-  EXPECT_EQ(reopened_disk_table.get_column_id_by_name("renamed_bool_column"), 0);
+  EXPECT_EQ(reopened_disk_table.get_column_id_by_name("renamed_bool_column"),
+            0);
   reopened_disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(reopened_disk_table.col_num(), 10);
   reopened_disk_table.close();

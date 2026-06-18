@@ -88,7 +88,7 @@ class GraphSnapshotStoreConcurrencyTest : public ::testing::Test {
   // (held alive by the fixture) rather than from store_->CurrentSnapshot()
   // to avoid racing on a slot that may be freed under concurrent publishes.
   std::shared_ptr<PropertyGraph> make_new_pg() const {
-    return initial_pg_->CloneForCow();
+    return initial_pg_->Clone();
   }
 };
 
@@ -289,7 +289,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
 // then verify a new reader observes the mutation.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
   // Clone and add a new vertex type to the COW copy.
-  auto cow_pg = initial_pg_->CloneForCow();
+  auto cow_pg = initial_pg_->Clone();
   CreateVertexTypeParamBuilder builder;
   auto status = cow_pg->CreateVertexType(
       builder.VertexLabel("company")
@@ -331,12 +331,12 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, AbortReleasesSlotWithoutLeak) {
   }
 }
 
-// 9. COW isolation after CloneForCow → Mutate → Publish cycle.
+// 9. COW isolation after Clone → Mutate → Publish cycle.
 //
 // Validates that after a COW clone is mutated and published as the new
-// snapshot, subsequent CloneForCow()s from that snapshot still produce
+// snapshot, subsequent Clone()s from that snapshot still produce
 // correct COW copies with proper isolation. The shallow shared_ptr copy in
-// CloneForCow() combined with materialize-on-write must ensure that
+// Clone() combined with detach-on-write must ensure that
 // mutations in cow2 don't leak back to the published cow1.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Phase 1: seed the initial snapshot with a vertex.
@@ -346,15 +346,15 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(initial_pg_->VertexNum(0, MAX_TIMESTAMP), 1u);
 
-  // Phase 2: CloneForCow → Mutate → Publish (simulates UpdateTxn
-  // commit). Explicitly materialize shared modules before mutation, mirroring
-  // UpdateTransaction::materializeVertexTableForInsert.
-  auto cow1 = initial_pg_->CloneForCow();
+  // Phase 2: Clone → Mutate → Publish (simulates UpdateTxn
+  // commit). Explicitly detach shared modules before mutation, mirroring
+  // UpdateTransaction::detachVertexTableForInsert.
+  auto cow1 = initial_pg_->Clone();
   auto& vt1 = cow1->get_vertex_table(0);
-  vt1.MaterializeIndexerForWrite();
-  vt1.MaterializeVertexTimestampForWrite();
-  vt1.get_table().MaterializeAllColumnsForWrite(*cow1->checkpoint_ptr(),
-                                                cow1->memory_level());
+  vt1.DetachIndexer();
+  vt1.DetachVertexTimestamp();
+  vt1.get_table().DetachAllColumns(*cow1->checkpoint_ptr(),
+                                   cow1->memory_level());
   vid_t vid1 = 0;
   status = cow1->AddVertex(0, execution::Value::INT64(2), {}, vid1, 2);
   ASSERT_TRUE(status.ok());
@@ -363,14 +363,14 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Publish the mutated COW clone as the new snapshot.
   ASSERT_TRUE(store_->PublishSnapshot(cow1).ok());
 
-  // Phase 3: clone again from the published snapshot. Explicitly materialize
+  // Phase 3: clone again from the published snapshot. Explicitly detach
   // shared modules so cow2's mutations don't leak back to cow1.
-  auto cow2 = cow1->CloneForCow();
+  auto cow2 = cow1->Clone();
   auto& vt2 = cow2->get_vertex_table(0);
-  vt2.MaterializeIndexerForWrite();
-  vt2.MaterializeVertexTimestampForWrite();
-  vt2.get_table().MaterializeAllColumnsForWrite(*cow2->checkpoint_ptr(),
-                                                cow2->memory_level());
+  vt2.DetachIndexer();
+  vt2.DetachVertexTimestamp();
+  vt2.get_table().DetachAllColumns(*cow2->checkpoint_ptr(),
+                                   cow2->memory_level());
   vid_t vid2 = 0;
   status = cow2->AddVertex(0, execution::Value::INT64(3), {}, vid2, 3);
   ASSERT_TRUE(status.ok());

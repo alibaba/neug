@@ -145,17 +145,17 @@ std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
 
 template <typename CSR_T>
 void apply_cow_mutations(CSR_T& csr, Allocator& alloc) {
-  csr.MaterializeAdjlistForWrite(0, alloc);
+  csr.DetachVertex(0, alloc);
   // csr.batch_put_edges({0}, {1}, {111}, 0);
   csr.put_edge(0, 0, 111, 0, alloc);
 
   auto [src, dst, offset] = find_first_edge(csr);
   ASSERT_NE(offset, -1);
-  csr.MaterializeAdjlistForWrite(src, alloc);
+  csr.DetachVertex(src, alloc);
   csr.delete_edge(src, offset, 0);
   csr.revert_delete_edge(src, dst, offset, 0);
 
-  csr.MaterializeAdjlistForWrite(2, alloc);
+  csr.DetachVertex(2, alloc);
   // csr.batch_put_edges({2}, {3}, {222}, 0);
   csr.put_edge(2, 3, 222, 0, alloc);
 }
@@ -241,12 +241,12 @@ TYPED_TEST(MutableCsrCowTest, CowIsolationAndDumpOpenMatrix) {
 
   auto original_before = build_cow_signature(original);
 
-  auto cow_module = original.CloneForCow();
+  auto cow_module = original.Clone();
   auto* cow = dynamic_cast<MutableCsr<int32_t>*>(cow_module.get());
   ASSERT_NE(cow, nullptr);
-  // MaterializeForWrite detaches IDataContainer so writes to cow don't affect
+  // Detach detaches IDataContainer so writes to cow don't affect
   // original.
-  cow->MaterializeForWrite(*base_ckp, TypeParam::kMaterializeLevel);
+  cow->Detach(*base_ckp, TypeParam::kMaterializeLevel);
   Allocator alloc(MemoryLevel::kInMemory, "");
 
   apply_cow_mutations(*cow, alloc);

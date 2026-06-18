@@ -556,17 +556,17 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   edge_table.capacity_.store(cap);
 }
 
-EdgeTable EdgeTable::CloneForCow() const {
+EdgeTable EdgeTable::Clone() const {
   EdgeTable cow_clone(meta_);
   cow_clone.ckp_ = ckp_;
   cow_clone.memory_level_ = memory_level_;
   cow_clone.out_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(out_csr_->CloneForCow().release()));
+      static_cast<CsrBase*>(out_csr_->Clone().release()));
   cow_clone.in_csr_ = std::unique_ptr<CsrBase>(
-      static_cast<CsrBase*>(in_csr_->CloneForCow().release()));
+      static_cast<CsrBase*>(in_csr_->Clone().release()));
 
   if (table_) {
-    cow_clone.table_ = table_->CloneForCow();
+    cow_clone.table_ = table_->Clone();
   }
 
   cow_clone.table_idx_ = table_idx_.load();
@@ -574,22 +574,22 @@ EdgeTable EdgeTable::CloneForCow() const {
   return cow_clone;
 }
 
-void EdgeTable::MaterializeOutCsrForWrite() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize out CSR";
-  out_csr_->MaterializeForWrite(*ckp_, memory_level_);
+void EdgeTable::DetachOutCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot detach out CSR";
+  out_csr_->Detach(*ckp_, memory_level_);
 }
 
-void EdgeTable::MaterializeInCsrForWrite() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize in CSR";
-  in_csr_->MaterializeForWrite(*ckp_, memory_level_);
+void EdgeTable::DetachInCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot detach in CSR";
+  in_csr_->Detach(*ckp_, memory_level_);
 }
 
-void EdgeTable::MaterializeOutAdjlistForWrite(vid_t vid, Allocator& alloc) {
-  out_csr_->MaterializeAdjlistForWrite(vid, alloc);
+void EdgeTable::DetachOutAdjlist(vid_t vid, Allocator& alloc) {
+  out_csr_->DetachVertex(vid, alloc);
 }
 
-void EdgeTable::MaterializeInAdjlistForWrite(vid_t vid, Allocator& alloc) {
-  in_csr_->MaterializeAdjlistForWrite(vid, alloc);
+void EdgeTable::DetachInAdjlist(vid_t vid, Allocator& alloc) {
+  in_csr_->DetachVertex(vid, alloc);
 }
 
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {

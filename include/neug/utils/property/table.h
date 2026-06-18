@@ -52,12 +52,11 @@ class Table {
 
   ModuleDescriptor Dump(Checkpoint& ckp);
 
-  std::unique_ptr<Table> CloneForCow() const;
+  std::unique_ptr<Table> Clone() const;
 
-  void MaterializeColumnForWrite(size_t col_id, Checkpoint& ckp,
-                                 MemoryLevel level);
+  void DetachColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level);
 
-  void MaterializeAllColumnsForWrite(Checkpoint& ckp, MemoryLevel level);
+  void DetachAllColumns(Checkpoint& ckp, MemoryLevel level);
 
   void reset_header(const std::vector<std::string>& col_name);
 

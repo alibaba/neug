@@ -52,10 +52,10 @@ class EdgeTable {
 
   void Swap(EdgeTable& other);
 
-  EdgeTable CloneForCow() const;
+  EdgeTable Clone() const;
 
-  void MaterializeOutCsrForWrite();
-  void MaterializeInCsrForWrite();
+  void DetachOutCsr();
+  void DetachInCsr();
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
@@ -183,13 +183,13 @@ class EdgeTable {
 
   std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
 
-  /// Materialize the outgoing adjlist of vertex vid.
+  /// Detach the outgoing adjlist of vertex vid.
   /// Called by UpdateTransaction via PropertyGraphCowState when the adjlist
-  /// has not yet been materialized in the current transaction.
-  void MaterializeOutAdjlistForWrite(vid_t vid, Allocator& alloc);
+  /// has not yet been detached in the current transaction.
+  void DetachOutAdjlist(vid_t vid, Allocator& alloc);
 
-  /// Materialize the incoming adjlist of vertex vid.
-  void MaterializeInAdjlistForWrite(vid_t vid, Allocator& alloc);
+  /// Detach the incoming adjlist of vertex vid.
+  void DetachInAdjlist(vid_t vid, Allocator& alloc);
 
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);

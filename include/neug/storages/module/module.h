@@ -28,7 +28,7 @@ class Checkpoint;
  * @brief Abstract interface for persistent graph-storage modules.
  *
  * Provides four lifecycle operations: Open (restore), Dump (persist),
- * CloneForCow (zero-copy COW clone), and MaterializeForWrite (detach
+ * Clone (zero-copy COW clone), and Detach (detach
  * shared storage before mutation).
  */
 class Module {
@@ -50,13 +50,13 @@ class Module {
    * @brief Create an independent module object that shares the same storage.
    * Zero-copy: creates a new Module object sharing the same IDataContainer(s).
    */
-  virtual std::unique_ptr<Module> CloneForCow() = 0;
+  virtual std::unique_ptr<Module> Clone() const = 0;
 
   /**
-   * @brief Materialize the underlying data containers before mutation, breaking
+   * @brief Detach the underlying data containers before mutation, breaking
    * shared ownership with the parent COW clone.
    */
-  virtual void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level) = 0;
+  virtual void Detach(Checkpoint& ckp, MemoryLevel level) = 0;
 
   /**
    * @brief Return factory registration key (e.g., "vertex_table").

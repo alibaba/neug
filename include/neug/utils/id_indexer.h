@@ -293,10 +293,10 @@ class LFIndexer {
     std::swap(hasher_, other.hasher_);
   }
 
-  std::unique_ptr<LFIndexer<INDEX_T>> CloneForCow();
+  std::unique_ptr<LFIndexer<INDEX_T>> Clone();
 
   // DeepCopy: 递归深拷贝 keys_ 和 indices_ Column
-  void MaterializeForWrite(Checkpoint& ckp, MemoryLevel level);
+  void Detach(Checkpoint& ckp, MemoryLevel level);
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
 
@@ -928,13 +928,13 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 };
 
 template <typename INDEX_T>
-std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::CloneForCow() {
+std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Clone() {
   auto cow_clone = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
   // Zero-copy: share Column objects (which share IDataContainer)
   cow_clone->indices_ = std::unique_ptr<TypedColumn<INDEX_T>>(
-      dynamic_cast<TypedColumn<INDEX_T>*>(indices_->CloneForCow().release()));
+      dynamic_cast<TypedColumn<INDEX_T>*>(indices_->Clone().release()));
   cow_clone->keys_ = std::unique_ptr<ColumnBase>(
-      dynamic_cast<ColumnBase*>(keys_->CloneForCow().release()));
+      dynamic_cast<ColumnBase*>(keys_->Clone().release()));
   cow_clone->num_elements_.store(num_elements_.load());
   cow_clone->num_slots_minus_one_ = num_slots_minus_one_;
   cow_clone->hash_policy_ = hash_policy_;
@@ -943,10 +943,9 @@ std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::CloneForCow() {
 }
 
 template <typename INDEX_T>
-void LFIndexer<INDEX_T>::MaterializeForWrite(Checkpoint& ckp,
-                                             MemoryLevel level) {
-  keys_->MaterializeForWrite(ckp, level);
-  indices_->MaterializeForWrite(ckp, level);
+void LFIndexer<INDEX_T>::Detach(Checkpoint& ckp, MemoryLevel level) {
+  keys_->Detach(ckp, level);
+  indices_->Detach(ckp, level);
 }
 
 }  // namespace neug

@@ -275,16 +275,16 @@ Status UpdateTransaction::CreateVertexType(
 
   // Expand cow_state_ for the newly created vertex type.
   // Mark all bools as true — the fresh table was just created, no
-  // materialization needed.
+  // detachment needed.
   label_t new_label = cow_graph_->schema().get_vertex_label_id(name);
   if (new_label >= cow_state_.vertex_tables.size()) {
     cow_state_.vertex_tables.resize(new_label + 1);
   }
   auto& new_state = cow_state_.vertex_tables[new_label];
-  new_state.indexer_materialized = true;
-  new_state.vertex_timestamp_materialized = true;
+  new_state.indexer_detached = true;
+  new_state.vertex_timestamp_detached = true;
   size_t col_count = config.GetProperties().size();
-  new_state.columns_materialized.assign(col_count, true);
+  new_state.columns_detached.assign(col_count, true);
 
   schema_changed_ = true;
   view_.Rebuild(*cow_graph_);
@@ -314,7 +314,7 @@ Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
 
   // Expand cow_state_ for the newly created edge triplet.
   // Mark all bools as true — the fresh table was just created, no
-  // materialization needed.
+  // detachment needed.
   const auto& schema = cow_graph_->schema();
   label_t src_label = schema.get_vertex_label_id(src_type);
   label_t dst_label = schema.get_vertex_label_id(dst_type);
@@ -322,10 +322,9 @@ Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
   uint32_t triplet_id =
       schema.generate_edge_label(src_label, dst_label, edge_label);
   EdgeTableCowState new_edge_state;
-  new_edge_state.out_csr_materialized = true;
-  new_edge_state.in_csr_materialized = true;
-  new_edge_state.columns_materialized.assign(config.GetProperties().size(),
-                                             true);
+  new_edge_state.out_csr_detached = true;
+  new_edge_state.in_csr_detached = true;
+  new_edge_state.columns_detached.assign(config.GetProperties().size(), true);
   cow_state_.edge_tables.emplace(triplet_id, std::move(new_edge_state));
 
   schema_changed_ = true;
@@ -348,12 +347,12 @@ Status UpdateTransaction::AddVertexProperties(
     return status;
   }
 
-  // Extend cow_state_ columns_materialized for newly added properties.
-  // New columns are fresh and don't need materialization.
+  // Extend cow_state_ columns_detached for newly added properties.
+  // New columns are fresh and don't need detachment.
   auto& vt_state = cow_state_.vertex_tables[v_label];
   size_t new_col_count =
       cow_graph_->schema().get_vertex_schema(v_label)->property_names.size();
-  vt_state.columns_materialized.resize(new_col_count, true);
+  vt_state.columns_detached.resize(new_col_count, true);
 
   schema_changed_ = true;
   view_.Rebuild(*cow_graph_);
@@ -379,15 +378,14 @@ Status UpdateTransaction::AddEdgeProperties(
     return status;
   }
 
-  // Extend cow_state_ columns_materialized for newly added edge properties.
-  // New columns are fresh and don't need materialization.
+  // Extend cow_state_ columns_detached for newly added edge properties.
+  // New columns are fresh and don't need detachment.
   uint32_t triplet_id = cow_graph_->schema().generate_edge_label(
       src_label_id, dst_label_id, edge_label_id);
   auto& et_state = cow_state_.edge_tables[triplet_id];
   auto edge_schema = cow_graph_->schema().get_edge_schema(
       src_label_id, dst_label_id, edge_label_id);
-  et_state.columns_materialized.resize(edge_schema->property_names.size(),
-                                       true);
+  et_state.columns_detached.resize(edge_schema->property_names.size(), true);
 
   schema_changed_ = true;
   view_.Rebuild(*cow_graph_);
@@ -466,14 +464,13 @@ Status UpdateTransaction::DeleteVertexProperties(
   auto status = cow_graph_->DeleteVertexProperties(config);
   if (status.ok()) {
     schema_changed_ = true;
-    // Erase deleted column entries from columns_materialized in descending
+    // Erase deleted column entries from columns_detached in descending
     // order so that erasing a higher index doesn't shift lower ones.
     std::sort(del_col_ids.rbegin(), del_col_ids.rend());
-    auto& columns_materialized =
-        cow_state_.vertex_tables[v_label].columns_materialized;
+    auto& columns_detached = cow_state_.vertex_tables[v_label].columns_detached;
     for (int col_id : del_col_ids) {
-      if (static_cast<size_t>(col_id) < columns_materialized.size()) {
-        columns_materialized.erase(columns_materialized.begin() + col_id);
+      if (static_cast<size_t>(col_id) < columns_detached.size()) {
+        columns_detached.erase(columns_detached.begin() + col_id);
       }
     }
     view_.Rebuild(*cow_graph_);
@@ -510,7 +507,7 @@ Status UpdateTransaction::DeleteEdgeProperties(
   bool was_bundled = edge_table.get_edge_schema_ptr()->is_bundled();
   size_t old_col_count =
       cow_state_.edge_tables.count(triplet_id)
-          ? cow_state_.edge_tables.at(triplet_id).columns_materialized.size()
+          ? cow_state_.edge_tables.at(triplet_id).columns_detached.size()
           : 0;
   std::vector<int> del_col_ids;
   if (!was_bundled) {
@@ -540,19 +537,18 @@ Status UpdateTransaction::DeleteEdgeProperties(
         new_col_count != old_col_count - del_col_ids.size()) {
       // Table structure was recreated (bundled↔unbundled conversion or
       // all columns deleted).  All new structures are fresh in the COW
-      // copy, so mark everything as already materialized.
-      state.out_csr_materialized = true;
-      state.in_csr_materialized = true;
-      state.columns_materialized.assign(new_col_count, true);
-      state.out_adjlists_materialized.clear();
-      state.in_adjlists_materialized.clear();
+      // copy, so mark everything as already detachd.
+      state.out_csr_detached = true;
+      state.in_csr_detached = true;
+      state.columns_detached.assign(new_col_count, true);
+      state.out_adjlists_detached.clear();
+      state.in_adjlists_detached.clear();
     } else {
       // Simple column deletion — erase entries in descending order.
       std::sort(del_col_ids.rbegin(), del_col_ids.rend());
       for (int col_id : del_col_ids) {
-        if (static_cast<size_t>(col_id) < state.columns_materialized.size()) {
-          state.columns_materialized.erase(state.columns_materialized.begin() +
-                                           col_id);
+        if (static_cast<size_t>(col_id) < state.columns_detached.size()) {
+          state.columns_detached.erase(state.columns_detached.begin() + col_id);
         }
       }
     }
@@ -654,7 +650,7 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
   if (v_table.Size() >= v_table.Capacity()) {
     size_t new_capacity =
         v_table.Size() < 4096 ? 4096 : v_table.Size() + v_table.Size() / 4;
-    prepareVertexCapacityForWrite(label, new_capacity);
+    detachForResize(label, new_capacity);
     auto status = cow_graph_->EnsureCapacity(label, new_capacity);
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space for vertex of label "
@@ -664,7 +660,7 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
     }
   }
 
-  materializeVertexTableForInsert(label);
+  detachVertexTableForInsert(label);
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
   auto status = cow_graph_->AddVertex(label, oid, props, vid, timestamp_, true);
@@ -708,7 +704,7 @@ Status UpdateTransaction::AddEdge(
         edge_table.PropTableSize() < 4096
             ? 4096
             : edge_table.PropTableSize() + edge_table.PropTableSize() / 4;
-    prepareEdgeCapacityForWrite(src_label, dst_label, edge_label, new_capacity);
+    detachForResize(src_label, dst_label, edge_label, new_capacity);
     auto status = cow_graph_->EnsureCapacity(src_label, dst_label, edge_label,
                                              new_capacity);
     if (!status.ok()) {
@@ -719,8 +715,8 @@ Status UpdateTransaction::AddEdge(
   }
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  materializeEdgeTableForInsert(edge_idx);
-  materializeAdjlistsForWrite(edge_idx, src_lid, dst_lid, alloc_);
+  detachEdgeTableForInsert(edge_idx);
+  detachAdjlists(edge_idx, src_lid, dst_lid, alloc_);
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
@@ -743,8 +739,8 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
 
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  materializeEdgeTableForDelete(edge_idx);
-  materializeAdjlistsForWrite(edge_idx, src_lid, dst_lid, alloc_);
+  detachEdgeTableForDelete(edge_idx);
+  detachAdjlists(edge_idx, src_lid, dst_lid, alloc_);
 
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src_lid);
@@ -789,8 +785,8 @@ bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
 
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  materializeEdgeTableForDelete(edge_idx);
-  materializeAdjlistsForWrite(edge_idx, src_lid, dst_lid, alloc_);
+  detachEdgeTableForDelete(edge_idx);
+  detachAdjlists(edge_idx, src_lid, dst_lid, alloc_);
 
   RemoveEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
@@ -848,7 +844,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   if (types[col_id].id() != value.type().id()) {
     return false;
   }
-  materializeVertexColumnForWrite(label, col_id);
+  detachVertexColumn(label, col_id);
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
                                   value);
 
@@ -875,8 +871,8 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
 
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  materializeEdgeColumnForWrite(edge_idx, col_id);
-  materializeAdjlistsForWrite(edge_idx, src, dst, alloc_);
+  detachEdgeColumn(edge_idx, col_id);
+  detachAdjlists(edge_idx, src, dst, alloc_);
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
@@ -923,8 +919,8 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   }
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  materializeEdgeColumnForWrite(edge_idx, col_id);
-  materializeAdjlistsForWrite(edge_idx, src, dst, alloc_);
+  detachEdgeColumn(edge_idx, col_id);
+  detachAdjlists(edge_idx, src, dst, alloc_);
   UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
                                 dst_label, GetVertexId(dst_label, dst),
                                 edge_label, oe_offset, ie_offset, col_id,
@@ -1099,158 +1095,150 @@ void UpdateTransaction::release() {
   cow_graph_.reset();
 }
 
-// --- PropertyGraphCowState-driven lazy materialization helpers ---
+// --- PropertyGraphCowState-driven lazy detachment helpers ---
 
-void UpdateTransaction::materializeVertexTableForInsert(label_t label) {
+void UpdateTransaction::detachVertexTableForInsert(label_t label) {
   auto& state = cow_state_.vertex_tables[label];
   auto& vertex_table = cow_graph_->get_vertex_table(label);
-  bool did_materialize = false;
-  if (!state.indexer_materialized) {
-    vertex_table.MaterializeIndexerForWrite();
-    state.indexer_materialized = true;
-    did_materialize = true;
+  bool did_detach = false;
+  if (!state.indexer_detached) {
+    vertex_table.DetachIndexer();
+    state.indexer_detached = true;
+    did_detach = true;
   }
-  if (!state.vertex_timestamp_materialized) {
-    vertex_table.MaterializeVertexTimestampForWrite();
-    state.vertex_timestamp_materialized = true;
-    did_materialize = true;
+  if (!state.vertex_timestamp_detached) {
+    vertex_table.DetachVertexTimestamp();
+    state.vertex_timestamp_detached = true;
+    did_detach = true;
   }
-  for (size_t i = 0; i < state.columns_materialized.size(); ++i) {
-    if (!state.columns_materialized[i]) {
-      vertex_table.get_table().MaterializeColumnForWrite(
-          i, *ckp_, cow_graph_->memory_level());
-      state.columns_materialized[i] = true;
-      did_materialize = true;
+  for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+    if (!state.columns_detached[i]) {
+      vertex_table.get_table().DetachColumn(i, *ckp_,
+                                            cow_graph_->memory_level());
+      state.columns_detached[i] = true;
+      did_detach = true;
     }
   }
-  if (did_materialize) {
+  if (did_detach) {
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeVertexTableForDelete(label_t label) {
+void UpdateTransaction::detachVertexTableForDelete(label_t label) {
   auto& state = cow_state_.vertex_tables[label];
-  if (!state.vertex_timestamp_materialized) {
-    cow_graph_->get_vertex_table(label).MaterializeVertexTimestampForWrite();
-    state.vertex_timestamp_materialized = true;
+  if (!state.vertex_timestamp_detached) {
+    cow_graph_->get_vertex_table(label).DetachVertexTimestamp();
+    state.vertex_timestamp_detached = true;
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeVertexColumnForWrite(label_t label,
-                                                        int32_t col_id) {
+void UpdateTransaction::detachVertexColumn(label_t label, int32_t col_id) {
   auto& state = cow_state_.vertex_tables[label];
   if (col_id >= 0 &&
-      static_cast<size_t>(col_id) < state.columns_materialized.size() &&
-      !state.columns_materialized[col_id]) {
+      static_cast<size_t>(col_id) < state.columns_detached.size() &&
+      !state.columns_detached[col_id]) {
     auto& vertex_table = cow_graph_->get_vertex_table(label);
-    vertex_table.get_table().MaterializeColumnForWrite(
-        col_id, *ckp_, cow_graph_->memory_level());
-    state.columns_materialized[col_id] = true;
+    vertex_table.get_table().DetachColumn(col_id, *ckp_,
+                                          cow_graph_->memory_level());
+    state.columns_detached[col_id] = true;
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeEdgeTableForInsert(
-    uint32_t edge_triplet_id) {
+void UpdateTransaction::detachEdgeTableForInsert(uint32_t edge_triplet_id) {
   if (!cow_graph_->HasEdgeTable(edge_triplet_id)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Edge table for edge label triplet not found");
   }
   auto& state = cow_state_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
-  bool did_materialize = false;
-  if (!state.out_csr_materialized) {
-    edge_table.MaterializeOutCsrForWrite();
-    state.out_csr_materialized = true;
-    did_materialize = true;
+  bool did_detach = false;
+  if (!state.out_csr_detached) {
+    edge_table.DetachOutCsr();
+    state.out_csr_detached = true;
+    did_detach = true;
   }
-  if (!state.in_csr_materialized) {
-    edge_table.MaterializeInCsrForWrite();
-    state.in_csr_materialized = true;
-    did_materialize = true;
+  if (!state.in_csr_detached) {
+    edge_table.DetachInCsr();
+    state.in_csr_detached = true;
+    did_detach = true;
   }
   if (edge_table.table()) {
-    for (size_t i = 0; i < state.columns_materialized.size(); ++i) {
-      if (!state.columns_materialized[i]) {
-        edge_table.table()->MaterializeColumnForWrite(
-            i, *ckp_, cow_graph_->memory_level());
-        state.columns_materialized[i] = true;
-        did_materialize = true;
+    for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+      if (!state.columns_detached[i]) {
+        edge_table.table()->DetachColumn(i, *ckp_, cow_graph_->memory_level());
+        state.columns_detached[i] = true;
+        did_detach = true;
       }
     }
   }
-  if (did_materialize) {
+  if (did_detach) {
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeEdgeTableForDelete(
-    uint32_t edge_triplet_id) {
+void UpdateTransaction::detachEdgeTableForDelete(uint32_t edge_triplet_id) {
   if (!cow_graph_->HasEdgeTable(edge_triplet_id)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Edge table for edge label triplet not found");
   }
   auto& state = cow_state_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
-  bool did_materialize = false;
-  if (!state.out_csr_materialized) {
-    edge_table.MaterializeOutCsrForWrite();
-    state.out_csr_materialized = true;
-    did_materialize = true;
+  bool did_detach = false;
+  if (!state.out_csr_detached) {
+    edge_table.DetachOutCsr();
+    state.out_csr_detached = true;
+    did_detach = true;
   }
-  if (!state.in_csr_materialized) {
-    edge_table.MaterializeInCsrForWrite();
-    state.in_csr_materialized = true;
-    did_materialize = true;
+  if (!state.in_csr_detached) {
+    edge_table.DetachInCsr();
+    state.in_csr_detached = true;
+    did_detach = true;
   }
-  if (did_materialize) {
+  if (did_detach) {
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeEdgeColumnForWrite(uint32_t edge_triplet_id,
-                                                      int32_t col_id) {
-  materializeEdgeTableForDelete(edge_triplet_id);
+void UpdateTransaction::detachEdgeColumn(uint32_t edge_triplet_id,
+                                         int32_t col_id) {
+  detachEdgeTableForDelete(edge_triplet_id);
   auto& state = cow_state_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
   if (!edge_table.get_edge_schema_ptr()->is_bundled() && edge_table.table() &&
       col_id >= 0 &&
-      static_cast<size_t>(col_id) < state.columns_materialized.size() &&
-      !state.columns_materialized[col_id]) {
-    edge_table.table()->MaterializeColumnForWrite(col_id, *ckp_,
-                                                  cow_graph_->memory_level());
-    state.columns_materialized[col_id] = true;
+      static_cast<size_t>(col_id) < state.columns_detached.size() &&
+      !state.columns_detached[col_id]) {
+    edge_table.table()->DetachColumn(col_id, *ckp_, cow_graph_->memory_level());
+    state.columns_detached[col_id] = true;
     view_.Rebuild(*cow_graph_);
   }
 }
 
-void UpdateTransaction::materializeAdjlistsForWrite(uint32_t edge_triplet_id,
-                                                    vid_t src_lid,
-                                                    vid_t dst_lid,
-                                                    Allocator& alloc) {
+void UpdateTransaction::detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid,
+                                       vid_t dst_lid, Allocator& alloc) {
   auto& state = cow_state_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
-  if (state.out_adjlists_materialized.find(src_lid) ==
-      state.out_adjlists_materialized.end()) {
-    edge_table.MaterializeOutAdjlistForWrite(src_lid, alloc);
-    state.out_adjlists_materialized.insert(src_lid);
+  if (state.out_adjlists_detached.find(src_lid) ==
+      state.out_adjlists_detached.end()) {
+    edge_table.DetachOutAdjlist(src_lid, alloc);
+    state.out_adjlists_detached.insert(src_lid);
   }
-  if (state.in_adjlists_materialized.find(dst_lid) ==
-      state.in_adjlists_materialized.end()) {
-    edge_table.MaterializeInAdjlistForWrite(dst_lid, alloc);
-    state.in_adjlists_materialized.insert(dst_lid);
+  if (state.in_adjlists_detached.find(dst_lid) ==
+      state.in_adjlists_detached.end()) {
+    edge_table.DetachInAdjlist(dst_lid, alloc);
+    state.in_adjlists_detached.insert(dst_lid);
   }
 }
 
-void UpdateTransaction::prepareVertexCapacityForWrite(label_t label,
-                                                      size_t capacity) {
+void UpdateTransaction::detachForResize(label_t label, size_t capacity) {
   const auto& vertex_table = cow_graph_->get_vertex_table(label);
   if (capacity <= vertex_table.Capacity()) {
     return;
   }
-  materializeVertexTableForInsert(label);
-  // Materialize CSRs of all related edge tables (capacity resize mutates CSR).
+  detachVertexTableForInsert(label);
+  // Detach CSRs of all related edge tables (capacity resize mutates CSR).
   const auto& schema = cow_graph_->schema();
   auto vertex_label_count = schema.vertex_label_frontier();
   auto edge_label_count = schema.edge_label_frontier();
@@ -1261,31 +1249,29 @@ void UpdateTransaction::prepareVertexCapacityForWrite(label_t label,
     for (label_t e = 0; e < edge_label_count; ++e) {
       if (schema.is_edge_triplet_valid(label, dst, e)) {
         uint32_t idx = schema.generate_edge_label(label, dst, e);
-        materializeEdgeTableForDelete(idx);
+        detachEdgeTableForDelete(idx);
       }
       if (label != dst && schema.is_edge_triplet_valid(dst, label, e)) {
         uint32_t idx = schema.generate_edge_label(dst, label, e);
-        materializeEdgeTableForDelete(idx);
+        detachEdgeTableForDelete(idx);
       }
     }
   }
 }
 
-void UpdateTransaction::prepareEdgeCapacityForWrite(label_t src_label,
-                                                    label_t dst_label,
-                                                    label_t edge_label,
-                                                    size_t capacity) {
+void UpdateTransaction::detachForResize(label_t src_label, label_t dst_label,
+                                        label_t edge_label, size_t capacity) {
   uint32_t idx = cow_graph_->schema().generate_edge_label(src_label, dst_label,
                                                           edge_label);
-  materializeEdgeTableForInsert(idx);
+  detachEdgeTableForInsert(idx);
 }
 
 void UpdateTransaction::prepareVertexDelete(label_t label,
                                             const std::vector<vid_t>& lids) {
-  // Step 1: materialize vertex timestamp for delete.
-  materializeVertexTableForDelete(label);
+  // Step 1: detach vertex timestamp for delete.
+  detachVertexTableForDelete(label);
 
-  // Step 2: materialize all related edge tables' CSRs (structure-level COW).
+  // Step 2: detach all related edge tables' CSRs (structure-level COW).
   const auto& schema = cow_graph_->schema();
   auto vertex_label_count = schema.vertex_label_frontier();
   auto edge_label_count = schema.edge_label_frontier();
@@ -1295,11 +1281,11 @@ void UpdateTransaction::prepareVertexDelete(label_t label,
     for (label_t e = 0; e < edge_label_count; ++e) {
       if (schema.is_edge_triplet_valid(i, label, e)) {
         uint32_t idx = schema.generate_edge_label(i, label, e);
-        materializeEdgeTableForDelete(idx);
+        detachEdgeTableForDelete(idx);
       }
       if (schema.is_edge_triplet_valid(label, i, e)) {
         uint32_t idx = schema.generate_edge_label(label, i, e);
-        materializeEdgeTableForDelete(idx);
+        detachEdgeTableForDelete(idx);
       }
     }
   }
@@ -1314,7 +1300,7 @@ void UpdateTransaction::prepareVertexDelete(label_t label,
         fetch_edges_related_to_vertex(*this, label, lid, timestamp_);
     for (auto& [edge_triplet_id, edges] : related_edges) {
       for (auto& [src, dst, oe_off, ie_off] : edges) {
-        materializeAdjlistsForWrite(edge_triplet_id, src, dst, alloc_);
+        detachAdjlists(edge_triplet_id, src, dst, alloc_);
       }
     }
   }

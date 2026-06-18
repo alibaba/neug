@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-#include "neug/main/query_result.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/main/query_result.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -107,8 +107,8 @@ static QueryResult BuildTemporalResult() {
   // Column 0: DateArray
   auto* col0 = response.add_arrays();
   auto* date_arr = col0->mutable_date_array();
-  date_arr->add_values(0);              // 1970-01-01
-  date_arr->add_values(86400LL * 1000); // 1970-01-02 (ms since epoch)
+  date_arr->add_values(0);               // 1970-01-01
+  date_arr->add_values(86400LL * 1000);  // 1970-01-02 (ms since epoch)
 
   // Column 1: TimestampArray
   auto* col1 = response.add_arrays();

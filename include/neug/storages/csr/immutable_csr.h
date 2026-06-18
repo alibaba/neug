@@ -104,21 +104,25 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  void MaterializeAdjlistForWrite(vid_t /*vid*/,
-                                  Allocator& /*alloc*/) override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "MaterializeAdjlistForWrite is not supported for immutable csr");
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "DetachVertex is not implemented for immutable csr");
   }
 
-  std::unique_ptr<Module> CloneForCow() override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "CloneForCow is not supported for immutable csr");
+  // Zero-copy COW clone: share IDataContainer buffers via shared_ptr.
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<ImmutableCsr<EDATA_T>>();
+    cow_clone->adj_list_buffer_ = adj_list_buffer_;
+    cow_clone->degree_list_buffer_ = degree_list_buffer_;
+    cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
+    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
   }
 
-  // MaterializeForWrite: not supported for immutable csr
-  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "MaterializeForWrite is not supported for immutable csr");
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "Detach is not implemented for immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -209,21 +213,22 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
-  void MaterializeAdjlistForWrite(vid_t /*vid*/,
-                                  Allocator& /*alloc*/) override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "MaterializeAdjlistForWrite is not supported for single immutable csr");
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "DetachVertex is not implemented for single immutable csr");
   }
 
-  std::unique_ptr<Module> CloneForCow() override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "CloneForCow is not supported for single immutable csr");
+  // Zero-copy COW clone: share IDataContainer buffer via shared_ptr.
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<SingleImmutableCsr<EDATA_T>>();
+    cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
   }
 
-  // MaterializeForWrite: not supported for single immutable csr
-  void MaterializeForWrite(Checkpoint&, MemoryLevel) override {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "MaterializeForWrite is not supported for single immutable csr");
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "Detach is not implemented for single immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }

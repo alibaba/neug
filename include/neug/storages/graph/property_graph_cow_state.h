@@ -27,23 +27,23 @@ namespace neug {
 class Schema;
 
 struct VertexTableCowState {
-  bool indexer_materialized{false};
-  bool vertex_timestamp_materialized{false};
-  std::vector<bool> columns_materialized;
+  bool indexer_detached{false};
+  bool vertex_timestamp_detached{false};
+  std::vector<bool> columns_detached;
 };
 
 struct EdgeTableCowState {
-  bool out_csr_materialized{false};
-  bool in_csr_materialized{false};
-  std::vector<bool> columns_materialized;
-  // Per-vertex adjlist materialization tracking (sparse, lazily populated).
+  bool out_csr_detached{false};
+  bool in_csr_detached{false};
+  std::vector<bool> columns_detached;
+  // Per-vertex adjlist detachment tracking (sparse, lazily populated).
   // Ensures each adjlist is only detached once per transaction.
-  std::unordered_set<vid_t> out_adjlists_materialized;
-  std::unordered_set<vid_t> in_adjlists_materialized;
+  std::unordered_set<vid_t> out_adjlists_detached;
+  std::unordered_set<vid_t> in_adjlists_detached;
 };
 
 /// A structure isomorphic to PropertyGraph's module organization.
-/// Each bool tracks whether the corresponding module has been materialized
+/// Each bool tracks whether the corresponding module has been detached
 /// in the current transaction's COW copy.
 struct PropertyGraphCowState {
   std::vector<VertexTableCowState> vertex_tables;

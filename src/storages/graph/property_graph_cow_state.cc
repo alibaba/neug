@@ -28,15 +28,14 @@ PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
   for (size_t i = 0; i < vertex_schemas.size(); ++i) {
     if (vertex_schemas[i] && !vertex_schemas[i]->empty()) {
       size_t col_count = vertex_schemas[i]->property_names.size();
-      bitmap.vertex_tables[i].columns_materialized.resize(col_count, false);
+      bitmap.vertex_tables[i].columns_detached.resize(col_count, false);
     }
   }
 
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
     EdgeTableCowState state;
     if (edge_schema) {
-      state.columns_materialized.resize(edge_schema->property_names.size(),
-                                        false);
+      state.columns_detached.resize(edge_schema->property_names.size(), false);
     }
     bitmap.edge_tables.emplace(key, std::move(state));
   }

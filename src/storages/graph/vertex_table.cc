@@ -347,30 +347,29 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
 
-VertexTable VertexTable::CloneForCow() const {
-  CHECK(ckp_ != nullptr)
-      << "VertexTable::CloneForCow requires a valid checkpoint";
+VertexTable VertexTable::Clone() const {
+  CHECK(ckp_ != nullptr) << "VertexTable::Clone requires a valid checkpoint";
   VertexTable cow_clone;
   cow_clone.ckp_ = ckp_;
-  cow_clone.indexer_ = indexer_->CloneForCow();
-  cow_clone.table_ = table_->CloneForCow();
+  cow_clone.indexer_ = indexer_->Clone();
+  cow_clone.table_ = table_->Clone();
   cow_clone.vertex_schema_ = vertex_schema_;
   cow_clone.v_ts_ = std::unique_ptr<VertexTimestamp>(
-      dynamic_cast<VertexTimestamp*>(v_ts_->CloneForCow().release()));
+      dynamic_cast<VertexTimestamp*>(v_ts_->Clone().release()));
   cow_clone.pk_type_ = pk_type_;
   cow_clone.memory_level_ = memory_level_;
   return cow_clone;
 }
 
-void VertexTable::MaterializeIndexerForWrite() {
-  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot materialize indexer";
-  indexer_->MaterializeForWrite(*ckp_, memory_level_);
+void VertexTable::DetachIndexer() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot detach indexer";
+  indexer_->Detach(*ckp_, memory_level_);
 }
 
-void VertexTable::MaterializeVertexTimestampForWrite() {
+void VertexTable::DetachVertexTimestamp() {
   CHECK(ckp_ != nullptr)
-      << "Checkpoint is null, cannot materialize vertex timestamp";
-  v_ts_->MaterializeForWrite(*ckp_, memory_level_);
+      << "Checkpoint is null, cannot detach vertex timestamp";
+  v_ts_->Detach(*ckp_, memory_level_);
 }
 
 }  // namespace neug

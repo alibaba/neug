@@ -947,10 +947,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 // after DDL operations that change table structure).
 //
 // Issue #2: After DeleteVertexProperties / DeleteEdgeProperties the
-// columns_materialized vector was not updated to reflect column index shifting
+// columns_detached vector was not updated to reflect column index shifting
 // caused by Table::delete_column().  This led to out-of-bounds
-// MaterializeColumnForWrite calls (crash) or wrong columns being marked as
-// materialized.
+// DetachColumn calls (crash) or wrong columns being marked as
+// detached.
 //
 // Issue #3: After DeleteVertexType / DeleteEdgeType the cow_state_
 // still contained entries for the deleted types, which could interfere
@@ -958,8 +958,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 // ============================================================================
 
 // Issue #2 (vertex): delete a property then insert a vertex.
-// materializeVertexTableForInsert iterates columns_materialized — stale
-// entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
+// detachVertexTableForInsert iterates columns_detached — stale
+// entries cause DetachColumn(out-of-bounds) -> crash without the
 // fix.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   neug::NeugDB db;
@@ -976,9 +976,9 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("person", {"name"})));
 
-    // Insert a new person vertex — triggers materializeVertexTableForInsert
-    // which iterates columns_materialized.  Without the fix
-    // columns_materialized still has 2 entries -> MaterializeColumnForWrite(1)
+    // Insert a new person vertex — triggers detachVertexTableForInsert
+    // which iterates columns_detached.  Without the fix
+    // columns_detached still has 2 entries -> DetachColumn(1)
     // on a 1-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
@@ -1008,11 +1008,11 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   db.Close();
 }
 
-// Issue #2 (vertex, column index shift): add extra properties, materialize one,
+// Issue #2 (vertex, column index shift): add extra properties, detach one,
 // delete a middle property (shifting indices), then update a remaining
-// property and insert a vertex.  Without the fix, stale columns_materialized
-// causes either stale materialization tracking or out-of-bounds
-// MaterializeColumnForWrite -> crash.
+// property and insert a vertex.  Without the fix, stale columns_detached
+// causes either stale detachment tracking or out-of-bounds
+// DetachColumn -> crash.
 TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1046,14 +1046,14 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 
   // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
   // In this transaction:
-  //   1. Update "age" (col 1) -> columns_materialized[1] = true
+  //   1. Update "age" (col 1) -> columns_detached[1] = true
   //   2. Delete "name" (col 0) -> age shifts to 0, email to 1, score to 2
-  //   3. Without fix: columns_materialized = [false, true, false, false] (4
+  //   3. Without fix: columns_detached = [false, true, false, false] (4
   //   entries)
-  //      Update email (now col 1) -> columns_materialized[1] = stale true ->
-  //      skip Insert vertex -> MaterializeColumnForWrite(3) on 3-column table
+  //      Update email (now col 1) -> columns_detached[1] = stale true ->
+  //      skip Insert vertex -> DetachColumn(3) on 3-column table
   //      -> crash
-  //   4. With fix: columns_materialized correctly has 3 entries after deletion
+  //   4. With fix: columns_detached correctly has 3 entries after deletion
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
@@ -1063,7 +1063,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
     CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vid));
 
-    // Step 1: update "age" (col 1) to trigger materialization
+    // Step 1: update "age" (col 1) to trigger detachment
     EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 1,
                                          neug::execution::Value::INT64(31)));
 
@@ -1080,8 +1080,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
                                          neug::execution::Value::DOUBLE(88.0)));
 
     // Step 4: insert a new vertex — without the fix,
-    // materializeVertexTableForInsert iterates stale columns_materialized
-    // (4 entries for 3 cols) and calls MaterializeColumnForWrite(3) ->
+    // detachVertexTableForInsert iterates stale columns_detached
+    // (4 entries for 3 cols) and calls DetachColumn(3) ->
     // out-of-bounds crash.
     neug::vid_t new_vid;
     EXPECT_TRUE(interface.AddVertex(
@@ -1142,8 +1142,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 }
 
 // Issue #2 (edge): delete an edge property then insert an edge.
-// materializeEdgeTableForInsert iterates columns_materialized — stale
-// entries cause MaterializeColumnForWrite(out-of-bounds) -> crash without the
+// detachEdgeTableForInsert iterates columns_detached — stale
+// entries cause DetachColumn(out-of-bounds) -> crash without the
 // fix.
 TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   neug::NeugDB db;
@@ -1174,10 +1174,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "software", "created", {"since"})));
 
-    // Insert a new edge.  materializeEdgeTableForInsert iterates
-    // columns_materialized.  Without the fix columns_materialized still has 3
+    // Insert a new edge.  detachEdgeTableForInsert iterates
+    // columns_detached.  Without the fix columns_detached still has 3
     // entries
-    // -> MaterializeColumnForWrite(2) on a 2-column table -> crash.
+    // -> DetachColumn(2) on a 2-column table -> crash.
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
