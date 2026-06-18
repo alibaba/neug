@@ -24,18 +24,18 @@ MATCH (a) WITH label(a) AS label, count(a.name) AS cnt RETURN label, cnt;
 
 ### Aggregate by Multiple Properties
 ```
-MATCH (a)-[b:knows]->(c) WITH label(a) AS a_label, label(c) AS c_label, count(b) AS cnt RETURN a_label, c_label, cnt;
+MATCH (a)-[b:KNOWS]->(c) WITH label(a) AS a_label, label(c) AS c_label, count(b) AS cnt RETURN a_label, c_label, cnt;
 ```
 
 ### Apply Multiple Aggregate Functions
 ```
-MATCH (a)-[b:knows]->(c) WITH label(a) AS a_label, label(c) AS c_label, count(b) AS cnt, sum(b.weight) AS weights RETURN a_label, c_label, cnt, weights;
+MATCH (a)-[b:KNOWS]->(c) WITH label(a) AS a_label, label(c) AS c_label, count(b) AS cnt, sum(b.weight) AS weights RETURN a_label, c_label, cnt, weights;
 ```
 
 ### Filter based on Aggregation Results
 
 ```
-MATCH (a:person) WITH label(a) AS label, count(a.name) AS cnt WHERE cnt > 2 RETURN label, cnt;
+MATCH (a:Person) WITH label(a) AS label, count(a.name) AS cnt WHERE cnt > 2 RETURN label, cnt;
 ```
 
 <!-- todo: label is null in output -->
@@ -47,9 +47,9 @@ Another common usage of WITH is to further project current results by columns, w
 ## Project Node Data
 
 ```
-MATCH (a:person {name: 'marko'})-[:knows]->(b:person)
+MATCH (a:Person {name: 'marko'})-[:KNOWS]->(b:Person)
 WITH b
-MATCH (b)-[:created]->(c)
+MATCH (b)-[:CREATED]->(c)
 RETURN c.name;
 ```
 
@@ -58,17 +58,17 @@ RETURN c.name;
 ## Project Node/Edge Data
 
 ```
-MATCH (a:person {name: 'marko'})-[k:knows]->(b:person)
+MATCH (a:Person {name: 'marko'})-[k:KNOWS]->(b:Person)
 WITH b, k
-MATCH (b)-[:created]->(c)
+MATCH (b)-[:CREATED]->(c)
 RETURN k.weight, c.name;
 ```
 
 ## Project Properties
 ```
-MATCH (a:person {name: 'marko'})-[:knows]->(b:person)
+MATCH (a:Person {name: 'marko'})-[:KNOWS]->(b:Person)
 WITH a, b.age AS b_age
-MATCH (a)-[:created]->(c)
+MATCH (a)-[:CREATED]->(c)
 WHERE b_age > 20
 RETURN c.name;
 ```

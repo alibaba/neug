@@ -6,7 +6,7 @@ The `COPY TO` command enables direct export of query results to various file for
 
 The COPY TO clause can export query results to a CSV file and is used as follows:
 ```cypher
-COPY (MATCH (p:person) RETURN p.*) TO 'person.csv' (header=true);
+COPY (MATCH (p:Person) RETURN p.*) TO 'person.csv' (header=true);
 ```
 
 The CSV file consists of the following fields:
@@ -28,13 +28,13 @@ Available parameters are:
 
 Another example is shown below.
 ```cypher
-COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) TO 'person_knows_person.csv' (header=true);
+COPY (MATCH (:Person)-[e:KNOWS]->(:Person) RETURN e) TO 'person_knows_person.csv' (header=true);
 ```
 This outputs the following results to `person_knows_person.csv`:
 ```csv
 e
-{"_SRC":"0:0","_DST":"0:1","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":0.5}
-{"_SRC":"0:0","_DST":"0:2","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":1.0}
+{"_SRC":"0:0","_DST":"0:1","_SRC_LABEL":"Person","_DST_LABEL":"Person","_LABEL":"KNOWS","weight":0.5}
+{"_SRC":"0:0","_DST":"0:2","_SRC_LABEL":"Person","_DST_LABEL":"Person","_LABEL":"KNOWS","weight":1.0}
 ```
 
 ## Copy to JSON
@@ -42,8 +42,8 @@ e
 Since NeuG v0.1.2, JSON export is a built-in feature. You can export query results to JSON or JSONL format:
 
 ```cypher
-COPY (MATCH (p:person) RETURN p.*) TO 'person.json';
-COPY (MATCH (p:person) RETURN p.*) TO 'person.jsonl';
+COPY (MATCH (p:Person) RETURN p.*) TO 'person.json';
+COPY (MATCH (p:Person) RETURN p.*) TO 'person.jsonl';
 ```
 
 The output format is determined by the file extension:

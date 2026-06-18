@@ -91,7 +91,7 @@ RETURN a.*
 Update properties of a specific edge.
 
 ```cypher
-MATCH (a:person)-[k:knows]->(b:person)
+MATCH (a:Person)-[k:KNOWS]->(b:Person)
 WHERE a.name = 'marko' AND b.name = 'josh'
 SET k.weight = 10.0, k.since = '2023-01-01'
 RETURN k.*
@@ -106,7 +106,7 @@ The DELETE clause is used to remove nodes and edges from the graph.
 Delete a node from the graph. By default, you can only delete nodes that have no edge to avoid creating dangling edges.
 
 ```cypher
-MATCH (a:person)
+MATCH (a:Person)
 WHERE a.name = 'marko'
 DELETE a
 ```
@@ -116,7 +116,7 @@ DELETE a
 Use DETACH DELETE to forcibly delete a node and all its attached edges. This prevents errors when trying to delete nodes that have existing edges.
 
 ```cypher
-MATCH (a:person)
+MATCH (a:Person)
 WHERE a.name = 'marko'
 DETACH DELETE a
 ```
@@ -126,7 +126,7 @@ DETACH DELETE a
 Delete specific edges between nodes while keeping the nodes.
 
 ```cypher
-MATCH (a:person)-[k:knows]->(b:person)
+MATCH (a:Person)-[k:KNOWS]->(b:Person)
 WHERE a.name = 'marko' AND b.name = 'josh'
 DELETE k
 ```

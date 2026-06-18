@@ -5,7 +5,7 @@ Limit is used to control the number of output results. In addition to being used
 ## Limit with Integer Value
 
 ```
-MATCH (a:person)
+MATCH (a:Person)
 RETURN a.age
 LIMIT 2;
 ```
@@ -25,7 +25,7 @@ output:
 ## Limit with Integer Expression
 
 ```
-MATCH (a:person)
+MATCH (a:Person)
 RETURN a.age
 LIMIT 1+1;
 ```
@@ -48,7 +48,7 @@ Limit controls the number of output results, which is equivalent to determining 
 ## Skip with Integer Value
 
 ```
-MATCH (a:person)
+MATCH (a:Person)
 RETURN a.age
 SKIP 2;
 ```
@@ -68,7 +68,7 @@ output:
 ## Skip with Integer Expression
 
 ```
-MATCH (a:person)
+MATCH (a:Person)
 RETURN a.age
 SKIP 1+1;
 ```
