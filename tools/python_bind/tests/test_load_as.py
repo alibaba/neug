@@ -37,7 +37,6 @@ import pytest
 
 from neug import Database
 
-
 # Extension tests require parquet extension to be compiled and
 # NEUG_RUN_EXTENSION_TESTS=1 to be set.
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
@@ -56,6 +55,7 @@ extension_test = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write_csv(directory: str, filename: str, content: str) -> str:
     """Write *content* to ``directory/filename`` and return the full path.
 
@@ -72,6 +72,7 @@ def _write_csv(directory: str, filename: str, content: str) -> str:
 # ---------------------------------------------------------------------------
 # Test class
 # ---------------------------------------------------------------------------
+
 
 class TestLoadAs:
     """End-to-end tests for LOAD NODE/REL TABLE AS (temporary graph)."""
@@ -90,11 +91,7 @@ class TestLoadAs:
         self.people_csv = _write_csv(
             self.csv_dir,
             "people.csv",
-            "id|name|age\n"
-            "1|Alice|30\n"
-            "2|Bob|25\n"
-            "3|Carol|35\n"
-            "4|Dave|20\n",
+            "id|name|age\n" "1|Alice|30\n" "2|Bob|25\n" "3|Carol|35\n" "4|Dave|20\n",
         )
 
         self.items_csv = _write_csv(
@@ -109,18 +106,13 @@ class TestLoadAs:
         self.edges_csv = _write_csv(
             self.csv_dir,
             "edges.csv",
-            "src_id|dst_id|weight\n"
-            "1|2|0.5\n"
-            "2|3|1.0\n"
-            "3|4|0.8\n",
+            "src_id|dst_id|weight\n" "1|2|0.5\n" "2|3|1.0\n" "3|4|0.8\n",
         )
 
         self.dangling_edges_csv = _write_csv(
             self.csv_dir,
             "dangling_edges.csv",
-            "src_id|dst_id|weight\n"
-            "1|2|0.5\n"
-            "99|3|1.0\n",
+            "src_id|dst_id|weight\n" "1|2|0.5\n" "99|3|1.0\n",
         )
 
         yield
@@ -143,8 +135,12 @@ class TestLoadAs:
             "CREATE NODE TABLE Person(id INT64, name STRING, age INT64, "
             "PRIMARY KEY(id));"
         )
-        for vid, name, age in [(1, "Alice", 30), (2, "Bob", 25),
-                               (3, "Carol", 35), (4, "Dave", 20)]:
+        for vid, name, age in [
+            (1, "Alice", 30),
+            (2, "Bob", 25),
+            (3, "Carol", 35),
+            (4, "Dave", 20),
+        ]:
             self.conn.execute(
                 f"CREATE (p:Person {{id: {vid}, name: '{name}', age: {age}}});"
             )
@@ -178,9 +174,7 @@ class TestLoadAs:
             f"(header = true) AS TempDefault;"
         )
 
-        result = self.conn.execute(
-            "MATCH (n:TempDefault) RETURN n.id ORDER BY n.id;"
-        )
+        result = self.conn.execute("MATCH (n:TempDefault) RETURN n.id ORDER BY n.id;")
         rows = list(result)
         assert len(rows) == 4
 
@@ -198,8 +192,7 @@ class TestLoadAs:
         )
 
         result = self.conn.execute(
-            "MATCH (n:TempFiltered) RETURN n.id, n.name, n.age "
-            "ORDER BY n.id;"
+            "MATCH (n:TempFiltered) RETURN n.id, n.name, n.age " "ORDER BY n.id;"
         )
         rows = list(result)
         # Alice(30) and Carol(35) pass the filter.
@@ -229,9 +222,7 @@ class TestLoadAs:
 
         # age was not in RETURN — referencing it should raise an error.
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (n:TempSlim) RETURN n.age;"
-            ))
+            list(self.conn.execute("MATCH (n:TempSlim) RETURN n.age;"))
 
     # ------------------------------------------------------------------
     # LOAD NODE TABLE — WHERE + RETURN combined
@@ -257,9 +248,7 @@ class TestLoadAs:
 
         # age must not be a property even though it was used in WHERE.
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (n:TempWR) RETURN n.age;"
-            ))
+            list(self.conn.execute("MATCH (n:TempWR) RETURN n.age;"))
 
     # ------------------------------------------------------------------
     # LOAD REL TABLE — basic
@@ -358,9 +347,7 @@ class TestLoadAs:
     def test_load_node_table_label_conflict(self):
         """LOAD AS with a label that already exists as a persistent table
         must fail."""
-        self.conn.execute(
-            "CREATE NODE TABLE Conflict(id INT64, PRIMARY KEY(id));"
-        )
+        self.conn.execute("CREATE NODE TABLE Conflict(id INT64, PRIMARY KEY(id));")
         with pytest.raises(Exception):
             self.conn.execute(
                 f'LOAD NODE TABLE FROM "{self.people_csv}" '
@@ -383,9 +370,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) AS TempEphemeral;"
         )
         # Verify the temp table is visible on the current connection.
-        result = self.conn.execute(
-            "MATCH (n:TempEphemeral) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempEphemeral) RETURN count(n);")
         rows = list(result)
         assert rows[0][0] == 4
 
@@ -396,9 +381,7 @@ class TestLoadAs:
         conn2 = self.db.connect()
         try:
             with pytest.raises(Exception):
-                list(conn2.execute(
-                    "MATCH (n:TempEphemeral) RETURN n.id;"
-                ))
+                list(conn2.execute("MATCH (n:TempEphemeral) RETURN n.id;"))
         finally:
             conn2.close()
 
@@ -455,9 +438,7 @@ class TestLoadAs:
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
             f"(primary_key = 'id', header = true) AS TempReusable;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempReusable) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempReusable) RETURN count(n);")
         assert list(result)[0][0] == 4
 
         # Close triggers cleanup.
@@ -470,9 +451,7 @@ class TestLoadAs:
                 f'LOAD NODE TABLE FROM "{self.people_csv}" '
                 f"(primary_key = 'id', header = true) AS TempReusable;"
             )
-            result2 = conn2.execute(
-                "MATCH (n:TempReusable) RETURN count(n);"
-            )
+            result2 = conn2.execute("MATCH (n:TempReusable) RETURN count(n);")
             assert list(result2)[0][0] == 4
         finally:
             conn2.close()
@@ -489,9 +468,7 @@ class TestLoadAs:
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
             f"(primary_key = 'id', header = true) AS TempGhost;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempGhost) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempGhost) RETURN count(n);")
         assert list(result)[0][0] == 4
 
         # Tear down fixture resources so we can reopen the DB directory.
@@ -502,9 +479,7 @@ class TestLoadAs:
         conn2 = db2.connect()
         try:
             with pytest.raises(Exception):
-                list(conn2.execute(
-                    "MATCH (n:TempGhost) RETURN n.id;"
-                ))
+                list(conn2.execute("MATCH (n:TempGhost) RETURN n.id;"))
         finally:
             conn2.close()
             db2.close()
@@ -594,9 +569,7 @@ class TestLoadAs:
 
         # Verify all three exist.
         for label in ("TempA", "TempB", "TempC"):
-            result = self.conn.execute(
-                f"MATCH (n:{label}) RETURN count(n);"
-            )
+            result = self.conn.execute(f"MATCH (n:{label}) RETURN count(n);")
             assert list(result)[0][0] > 0
 
         # Close triggers cleanup.
@@ -605,9 +578,7 @@ class TestLoadAs:
         try:
             for label in ("TempA", "TempB", "TempC"):
                 with pytest.raises(Exception):
-                    list(conn2.execute(
-                        f"MATCH (n:{label}) RETURN n.id;"
-                    ))
+                    list(conn2.execute(f"MATCH (n:{label}) RETURN n.id;"))
         finally:
             conn2.close()
         self.conn = self.db.connect()
@@ -616,12 +587,9 @@ class TestLoadAs:
         """Persistent tables must survive Connection::Close() while
         temporary tables are cleaned up."""
         self.conn.execute(
-            "CREATE NODE TABLE Persistent(id INT64, name STRING, "
-            "PRIMARY KEY(id));"
+            "CREATE NODE TABLE Persistent(id INT64, name STRING, " "PRIMARY KEY(id));"
         )
-        self.conn.execute(
-            "CREATE (p:Persistent {id: 1, name: 'Alice'});"
-        )
+        self.conn.execute("CREATE (p:Persistent {id: 1, name: 'Alice'});")
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
             f"(primary_key = 'id', header = true) AS TempGone;"
@@ -632,18 +600,14 @@ class TestLoadAs:
         conn2 = self.db.connect()
         try:
             # Persistent should still exist.
-            result = conn2.execute(
-                "MATCH (n:Persistent) RETURN n.id, n.name;"
-            )
+            result = conn2.execute("MATCH (n:Persistent) RETURN n.id, n.name;")
             rows = list(result)
             assert len(rows) == 1
             assert rows[0][1] == "Alice"
 
             # TempGone should not exist.
             with pytest.raises(Exception):
-                list(conn2.execute(
-                    "MATCH (n:TempGone) RETURN n.id;"
-                ))
+                list(conn2.execute("MATCH (n:TempGone) RETURN n.id;"))
         finally:
             conn2.close()
         self.conn = self.db.connect()
@@ -755,16 +719,12 @@ class TestLoadAs:
     def test_empty_csv_file(self):
         """LOAD NODE TABLE from a CSV with header only (no data rows)
         should succeed and create an empty table."""
-        empty_csv = _write_csv(
-            self.csv_dir, "empty.csv", "id|name|age\n"
-        )
+        empty_csv = _write_csv(self.csv_dir, "empty.csv", "id|name|age\n")
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{empty_csv}" '
             f"(primary_key = 'id', header = true) AS TempEmpty;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempEmpty) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempEmpty) RETURN count(n);")
         assert list(result)[0][0] == 0
 
     def test_where_filters_out_all_rows(self):
@@ -774,9 +734,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"WHERE age > 1000 AS TempNone;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempNone) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempNone) RETURN count(n);")
         assert list(result)[0][0] == 0
 
     def test_where_references_only_return_columns(self):
@@ -800,7 +758,8 @@ class TestLoadAs:
         """Multiple WHERE-only columns (not in RETURN) should all be
         filtered correctly without becoming properties."""
         score_csv = _write_csv(
-            self.csv_dir, "people_score.csv",
+            self.csv_dir,
+            "people_score.csv",
             "id|name|age|score\n"
             "1|Alice|30|85\n"
             "2|Bob|25|90\n"
@@ -824,13 +783,9 @@ class TestLoadAs:
 
         # age and score must not be properties
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (n:TempMultiWhere) RETURN n.age;"
-            ))
+            list(self.conn.execute("MATCH (n:TempMultiWhere) RETURN n.age;"))
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (n:TempMultiWhere) RETURN n.score;"
-            ))
+            list(self.conn.execute("MATCH (n:TempMultiWhere) RETURN n.score;"))
 
     def test_where_with_arithmetic_expression(self):
         """WHERE with arithmetic expression (age * 2 > 60)."""
@@ -839,9 +794,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"WHERE age * 2 > 60 AS TempArith;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempArith) RETURN n.id ORDER BY n.id;"
-        )
+        result = self.conn.execute("MATCH (n:TempArith) RETURN n.id ORDER BY n.id;")
         rows = list(result)
         # Only Carol(3, age=35) passes age * 2 > 60
         assert len(rows) == 1
@@ -854,28 +807,22 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"RETURN id AS TempIdOnly;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempIdOnly) RETURN n.id ORDER BY n.id;"
-        )
+        result = self.conn.execute("MATCH (n:TempIdOnly) RETURN n.id ORDER BY n.id;")
         rows = list(result)
         assert len(rows) == 4
 
         # name and age must not be properties
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (n:TempIdOnly) RETURN n.name;"
-            ))
+            list(self.conn.execute("MATCH (n:TempIdOnly) RETURN n.name;"))
 
     def test_temp_and_persistent_join(self):
         """MATCH query joining temp and persistent tables."""
         self._load_persistent_person_table()
 
         extra_csv = _write_csv(
-            self.csv_dir, "extra_people.csv",
-            "id|nickname\n"
-            "1|Ally\n"
-            "2|Bobby\n"
-            "5|Eve\n",
+            self.csv_dir,
+            "extra_people.csv",
+            "id|nickname\n" "1|Ally\n" "2|Bobby\n" "5|Eve\n",
         )
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{extra_csv}" '
@@ -904,9 +851,7 @@ class TestLoadAs:
         )
 
         # Query 1: count
-        result = self.conn.execute(
-            "MATCH (n:TempStable) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempStable) RETURN count(n);")
         assert list(result)[0][0] == 4
 
         # Query 2: filter
@@ -917,9 +862,7 @@ class TestLoadAs:
         assert len(rows) == 2
 
         # Query 3: aggregation
-        result = self.conn.execute(
-            "MATCH (n:TempStable) RETURN sum(n.age);"
-        )
+        result = self.conn.execute("MATCH (n:TempStable) RETURN sum(n.age);")
         assert list(result)[0][0] == 110  # 30+25+35+20
 
         # Query 4: order + limit
@@ -938,8 +881,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) AS TempAgg;"
         )
         result = self.conn.execute(
-            "MATCH (n:TempAgg) "
-            "RETURN sum(n.age), min(n.age), max(n.age);"
+            "MATCH (n:TempAgg) " "RETURN sum(n.age), min(n.age), max(n.age);"
         )
         rows = list(result)
         assert len(rows) == 1
@@ -955,9 +897,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"WHERE name = 'Alice' AS TempAlice;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempAlice) RETURN n.id, n.name;"
-        )
+        result = self.conn.execute("MATCH (n:TempAlice) RETURN n.id, n.name;")
         rows = list(result)
         assert len(rows) == 1
         assert rows[0][0] == 1
@@ -968,11 +908,9 @@ class TestLoadAs:
         RETURN) should filter correctly without category becoming a
         property."""
         edges_extra_csv = _write_csv(
-            self.csv_dir, "edges_extra.csv",
-            "src_id|dst_id|weight|category\n"
-            "1|2|0.5|A\n"
-            "2|3|1.0|B\n"
-            "3|4|0.8|A\n",
+            self.csv_dir,
+            "edges_extra.csv",
+            "src_id|dst_id|weight|category\n" "1|2|0.5|A\n" "2|3|1.0|B\n" "3|4|0.8|A\n",
         )
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
@@ -998,10 +936,12 @@ class TestLoadAs:
 
         # category must not be a property
         with pytest.raises(Exception):
-            list(self.conn.execute(
-                "MATCH (a:TempPersonEWC)-[r:TempWOC]->(b:TempPersonEWC) "
-                "RETURN r.category;"
-            ))
+            list(
+                self.conn.execute(
+                    "MATCH (a:TempPersonEWC)-[r:TempWOC]->(b:TempPersonEWC) "
+                    "RETURN r.category;"
+                )
+            )
 
     def test_where_with_or_expression(self):
         """WHERE with OR expression."""
@@ -1010,9 +950,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"WHERE age < 22 OR age > 32 AS TempOr;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempOr) RETURN n.id ORDER BY n.id;"
-        )
+        result = self.conn.execute("MATCH (n:TempOr) RETURN n.id ORDER BY n.id;")
         rows = list(result)
         # Dave(4, age=20) and Carol(3, age=35)
         assert len(rows) == 2
@@ -1026,9 +964,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) "
             f"WHERE age >= 25 AND age <= 30 AS TempRange;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempRange) RETURN n.id ORDER BY n.id;"
-        )
+        result = self.conn.execute("MATCH (n:TempRange) RETURN n.id ORDER BY n.id;")
         rows = list(result)
         # Bob(2, age=25) and Alice(1, age=30)
         assert len(rows) == 2
@@ -1047,9 +983,7 @@ class TestLoadAs:
             f"(primary_key = 'id', header = true) AS TempToDrop;"
         )
         # Exists before DROP.
-        result = self.conn.execute(
-            "MATCH (n:TempToDrop) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempToDrop) RETURN count(n);")
         assert list(result)[0][0] == 4
 
         self.conn.execute("DROP TABLE TempToDrop;")
@@ -1087,9 +1021,7 @@ class TestLoadAs:
             )
 
         # Node table must still be accessible.
-        result = self.conn.execute(
-            "MATCH (n:TempNodeKeep) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempNodeKeep) RETURN count(n);")
         assert list(result)[0][0] == 4
 
     def test_drop_temporary_node_then_recreate(self):
@@ -1106,9 +1038,7 @@ class TestLoadAs:
             f'LOAD NODE TABLE FROM "{self.people_csv}" '
             f"(primary_key = 'id', header = true) AS TempRecycle;"
         )
-        result = self.conn.execute(
-            "MATCH (n:TempRecycle) RETURN count(n);"
-        )
+        result = self.conn.execute("MATCH (n:TempRecycle) RETURN count(n);")
         assert list(result)[0][0] == 4
 
     def test_drop_temporary_edge_then_recreate(self):
@@ -1143,6 +1073,7 @@ class TestLoadAs:
 # ---------------------------------------------------------------------------
 # LOAD AS from JSONL / Parquet (using tinysnb dataset)
 # ---------------------------------------------------------------------------
+
 
 def _get_tinysnb_path():
     """Resolve the tinysnb dataset path from the workspace root."""
@@ -1209,16 +1140,13 @@ class TestLoadAsJsonl:
             f"(primary_key = 'ID') RETURN ID, fName, age AS TempJsonSlim;"
         )
         result = self.conn.execute(
-            "MATCH (n:TempJsonSlim) RETURN n.ID, n.fName, n.age "
-            "ORDER BY n.ID;"
+            "MATCH (n:TempJsonSlim) RETURN n.ID, n.fName, n.age " "ORDER BY n.ID;"
         )
         rows = list(result)
         assert len(rows) == 8
         assert rows[0][1] == "Alice"
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempJsonSlim) RETURN n.eyeSight;"
-            )
+            self.conn.execute("MATCH (n:TempJsonSlim) RETURN n.eyeSight;")
 
     def test_load_node_table_from_jsonl_where_and_return(self):
         """WHERE + RETURN combined on JSONL: WHERE col not in RETURN."""
@@ -1234,9 +1162,7 @@ class TestLoadAsJsonl:
         rows = list(result)
         assert len(rows) >= 3
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempJsonWR) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempJsonWR) RETURN n.age;")
 
 
 class TestLoadAsJson:
@@ -1293,16 +1219,13 @@ class TestLoadAsJson:
             f"(primary_key = 'ID') RETURN ID, fName, age AS TempJsonArrSlim;"
         )
         result = self.conn.execute(
-            "MATCH (n:TempJsonArrSlim) RETURN n.ID, n.fName, n.age "
-            "ORDER BY n.ID;"
+            "MATCH (n:TempJsonArrSlim) RETURN n.ID, n.fName, n.age " "ORDER BY n.ID;"
         )
         rows = list(result)
         assert len(rows) == 8
         assert rows[0][1] == "Alice"
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempJsonArrSlim) RETURN n.eyeSight;"
-            )
+            self.conn.execute("MATCH (n:TempJsonArrSlim) RETURN n.eyeSight;")
 
     def test_load_node_table_from_json_where_and_return(self):
         """WHERE + RETURN combined on JSON: WHERE col not in RETURN."""
@@ -1318,9 +1241,7 @@ class TestLoadAsJson:
         rows = list(result)
         assert len(rows) >= 3
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempJsonArrWR) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempJsonArrWR) RETURN n.age;")
 
 
 @extension_test
@@ -1380,15 +1301,12 @@ class TestLoadAsParquet:
             f"(primary_key = 'ID') RETURN ID, fName, height AS TempPqSlim;"
         )
         result = self.conn.execute(
-            "MATCH (n:TempPqSlim) RETURN n.ID, n.fName, n.height "
-            "ORDER BY n.ID;"
+            "MATCH (n:TempPqSlim) RETURN n.ID, n.fName, n.height " "ORDER BY n.ID;"
         )
         rows = list(result)
         assert len(rows) == 8
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempPqSlim) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempPqSlim) RETURN n.age;")
 
     def test_load_node_table_from_parquet_where_and_return(self):
         """WHERE + RETURN combined on Parquet: WHERE col not in RETURN."""
@@ -1404,9 +1322,7 @@ class TestLoadAsParquet:
         rows = list(result)
         assert len(rows) >= 2
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempPqWR) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempPqWR) RETURN n.age;")
 
 
 @extension_test
@@ -1418,12 +1334,8 @@ class TestLoadAsRemoteHttpfs:
       - eMeets.parquet  (7 rows: from, to, location, times, data)
     """
 
-    VERTEX_URL = (
-        "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
-    )
-    EDGE_URL = (
-        "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
-    )
+    VERTEX_URL = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+    EDGE_URL = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
@@ -1437,7 +1349,7 @@ class TestLoadAsRemoteHttpfs:
         self.db.close()
         shutil.rmtree(self.db_dir, ignore_errors=True)
 
-    def test_load_node_table_from_remote_parquet(self):
+    def test_load_node_table_from_httpfs_parquet(self):
         """Basic LOAD NODE TABLE from remote Parquet via HTTP."""
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
@@ -1450,7 +1362,7 @@ class TestLoadAsRemoteHttpfs:
         assert len(rows) == 8
         assert rows[0][0] == "Alice"
 
-    def test_load_node_table_from_remote_with_where(self):
+    def test_load_node_table_from_httpfs_with_where(self):
         """LOAD NODE TABLE from remote with WHERE filter."""
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
@@ -1464,7 +1376,7 @@ class TestLoadAsRemoteHttpfs:
         for row in rows:
             assert row[1] >= 40
 
-    def test_load_node_table_from_remote_with_return(self):
+    def test_load_node_table_from_httpfs_with_return(self):
         """LOAD NODE TABLE from remote with RETURN projection."""
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
@@ -1477,11 +1389,9 @@ class TestLoadAsRemoteHttpfs:
         assert len(rows) == 8
         # age should NOT be a property.
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempRemoteSlim) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempRemoteSlim) RETURN n.age;")
 
-    def test_load_node_table_from_remote_where_and_return(self):
+    def test_load_node_table_from_httpfs_where_and_return(self):
         """WHERE + RETURN combined on remote: WHERE col not in RETURN."""
         self.conn.execute(
             f'LOAD NODE TABLE FROM "{self.VERTEX_URL}" '
@@ -1495,11 +1405,9 @@ class TestLoadAsRemoteHttpfs:
         rows = list(result)
         assert len(rows) >= 2
         with pytest.raises(RuntimeError):
-            self.conn.execute(
-                "MATCH (n:TempRemoteWR) RETURN n.age;"
-            )
+            self.conn.execute("MATCH (n:TempRemoteWR) RETURN n.age;")
 
-    def test_load_rel_table_from_remote_parquet(self):
+    def test_load_rel_table_from_httpfs_parquet(self):
         """LOAD REL TABLE from remote Parquet (eMeets)."""
         # First load vertex table.
         self.conn.execute(
@@ -1519,7 +1427,7 @@ class TestLoadAsRemoteHttpfs:
         rows = list(result)
         assert len(rows) >= 1
 
-    def test_mixed_persistent_and_remote_temp_query(self):
+    def test_mixed_persistent_and_httpfs_temp_query(self):
         """Persistent graph + remote temp graph joint query.
 
         Creates a persistent Person table with local data, then loads a
@@ -1530,12 +1438,17 @@ class TestLoadAsRemoteHttpfs:
         self.conn.execute(
             "CREATE NODE TABLE Person(ID INT64, name STRING, PRIMARY KEY(ID));"
         )
-        for vid, name in [(0, "Alice"), (2, "Bob"), (3, "Carol"),
-                          (5, "Dan"), (7, "Elizabeth"), (8, "Farooq"),
-                          (9, "Greg"), (10, "Hubert")]:
-            self.conn.execute(
-                f"CREATE (p:Person {{ID: {vid}, name: '{name}'}});"
-            )
+        for vid, name in [
+            (0, "Alice"),
+            (2, "Bob"),
+            (3, "Carol"),
+            (5, "Dan"),
+            (7, "Elizabeth"),
+            (8, "Farooq"),
+            (9, "Greg"),
+            (10, "Hubert"),
+        ]:
+            self.conn.execute(f"CREATE (p:Person {{ID: {vid}, name: '{name}'}});")
 
         # Load remote edge table referencing persistent Person vertices.
         self.conn.execute(
