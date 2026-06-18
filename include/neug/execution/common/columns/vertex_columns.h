@@ -250,6 +250,15 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
   ~MSVertexColumnBuilder() = default;
   void reserve(size_t size) override { cur_list_.reserve(size); }
 
+  void append(label_t label, vector_t<vid_t>&& vertices) {
+    if (cur_label_ != std::numeric_limits<label_t>::max() &&
+        !cur_list_.empty()) {
+      vertices_.emplace_back(cur_label_, std::move(cur_list_));
+      cur_list_.clear();
+    }
+    cur_label_ = label;
+    cur_list_ = std::move(vertices);
+  }
   // v should not be null
   __attribute__((always_inline)) void push_back_vertex(
       VertexRecord v) override {

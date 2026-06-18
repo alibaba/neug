@@ -24,6 +24,7 @@
 
 #include <cstdint>
 
+#include "neug/compiler/common/types/types.h"
 #include "neug/utils/api.h"
 
 namespace neug {

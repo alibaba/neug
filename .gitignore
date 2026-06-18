@@ -129,6 +129,7 @@ gstest/
 
 # qwen-coder file
 QWEN.md
+.qwen/tmp/
 
 # Testing
 Testing/
