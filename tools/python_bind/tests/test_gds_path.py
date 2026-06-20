@@ -73,12 +73,8 @@ def custom_graph_connection(tmp_path):
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     try:
-        conn.execute(
-            "CREATE NODE TABLE v(id INT64, PRIMARY KEY(id));"
-        )
-        conn.execute(
-            "CREATE REL TABLE e(FROM v TO v);"
-        )
+        conn.execute("CREATE NODE TABLE v(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE REL TABLE e(FROM v TO v);")
         for vid in range(6):
             conn.execute(f"CREATE (:v {{id: {vid}}});")
         edges = [(0, 1), (1, 2), (0, 3), (3, 4), (4, 5), (2, 5)]
@@ -88,11 +84,7 @@ def custom_graph_connection(tmp_path):
                 f"CREATE (a)-[:e]->(b);"
             )
         conn.execute(
-            "CALL project_graph("
-            "'custom_graph', "
-            "['v'], "
-            "{'[v, e, v]': ''}"
-            ");"
+            "CALL project_graph(" "'custom_graph', " "['v'], " "{'[v, e, v]': ''}" ");"
         )
         conn.execute("LOAD gds;")
         yield conn
@@ -419,10 +411,7 @@ class TestPathEdgeCases:
         since outputColumns now includes path."""
         with tinysnb_simple_connection(tmp_path) as conn:
             rows = list(
-                conn.execute(
-                    "CALL bfs('person_knows', {source: '0'}) "
-                    "RETURN *;"
-                )
+                conn.execute("CALL bfs('person_knows', {source: '0'}) " "RETURN *;")
             )
             # With the new outputColumns, RETURN * gives all 3 columns
             if len(rows) > 0:
@@ -432,10 +421,7 @@ class TestPathEdgeCases:
         """No-YIELD SSSP should return all 3 columns."""
         with tinysnb_simple_connection(tmp_path) as conn:
             rows = list(
-                conn.execute(
-                    "CALL sssp('person_knows', {source: '0'}) "
-                    "RETURN *;"
-                )
+                conn.execute("CALL sssp('person_knows', {source: '0'}) " "RETURN *;")
             )
             if len(rows) > 0:
                 assert len(rows[0]) == 3, "RETURN * should include all 3 output columns"
@@ -514,8 +500,12 @@ class TestPathEncodingModes:
                 # Should have non-PK properties in full mode
                 # (tinysnb person has: name, age, etc.)
                 # At least one non-PK property should be present
-                non_pk_keys = [k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]]
-                assert len(non_pk_keys) > 0, "full mode should include non-PK properties"
+                non_pk_keys = [
+                    k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]
+                ]
+                assert (
+                    len(non_pk_keys) > 0
+                ), "full mode should include non-PK properties"
 
     def test_sssp_lightweight_mode(self, tmp_path):
         """SSSP default mode should be lightweight."""
@@ -539,7 +529,9 @@ class TestPathEncodingModes:
                 non_structural_keys = [
                     k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]
                 ]
-                assert len(non_structural_keys) == 0, "lightweight mode should only have structural keys"
+                assert (
+                    len(non_structural_keys) == 0
+                ), "lightweight mode should only have structural keys"
 
     def test_sssp_full_mode(self, tmp_path):
         """SSSP with path_properties: 'full' should include all properties."""
@@ -560,8 +552,12 @@ class TestPathEncodingModes:
             # Full mode check
             if path["nodes"]:
                 node = path["nodes"][0]
-                non_pk_keys = [k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]]
-                assert len(non_pk_keys) > 0, "full mode should include non-PK properties"
+                non_pk_keys = [
+                    k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]
+                ]
+                assert (
+                    len(non_pk_keys) > 0
+                ), "full mode should include non-PK properties"
 
     def test_lightweight_vs_full_same_distances(self, tmp_path):
         """Lightweight and full modes should return same distances."""

@@ -14,12 +14,12 @@
 #   7. Edge cases: unreachable nodes, isolated vertices
 #   8. Multi-source stress test
 
-import os
-import sys
 import json
-import time
+import os
 import shutil
+import sys
 import tempfile
+import time
 
 import pytest
 
@@ -45,20 +45,24 @@ def ldbc_db():
     db = Database(db_path=os.path.join(tmp, "db"), mode="w")
     conn = db.connect()
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE NODE TABLE PERSON (
             id INT64, firstName STRING, lastName STRING,
             gender STRING, birthday DATE, creationDate TIMESTAMP,
             locationIP STRING, browserUsed STRING,
             PRIMARY KEY (id)
         );
-    """)
-    conn.execute("""
+    """
+    )
+    conn.execute(
+        """
         CREATE REL TABLE KNOWS (
             FROM PERSON TO PERSON,
             creationDate TIMESTAMP
         );
-    """)
+    """
+    )
     conn.execute(
         f'COPY PERSON FROM "{DATA_DIR}/person_0_0.csv" '
         f'(header=true, delimiter="|");'
@@ -81,8 +85,7 @@ def projected_graph(ldbc_db):
     """Project an undirected PERSON-KNOWS homo graph."""
     conn = ldbc_db
     conn.execute(
-        "CALL project_graph('pk', ['PERSON'], "
-        "{'[PERSON, KNOWS, PERSON]': ''});"
+        "CALL project_graph('pk', ['PERSON'], " "{'[PERSON, KNOWS, PERSON]': ''});"
     )
     yield conn
     conn.execute("CALL drop_projected_graph('pk');")
@@ -93,8 +96,7 @@ def directed_graph(ldbc_db):
     """Project a directed PERSON-KNOWS homo graph."""
     conn = ldbc_db
     conn.execute(
-        "CALL project_graph('pk_dir', ['PERSON'], "
-        "{'[PERSON, KNOWS, PERSON]': ''});"
+        "CALL project_graph('pk_dir', ['PERSON'], " "{'[PERSON, KNOWS, PERSON]': ''});"
     )
     yield conn
     conn.execute("CALL drop_projected_graph('pk_dir');")
@@ -104,28 +106,34 @@ def directed_graph(ldbc_db):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_connected_source(conn):
     """Find a person with many connections (in the giant component)."""
-    rows = list(conn.execute(
-        "MATCH (p:PERSON)-[:KNOWS]->() "
-        "RETURN p.id, count(*) AS cnt ORDER BY cnt DESC LIMIT 1;"
-    ))
+    rows = list(
+        conn.execute(
+            "MATCH (p:PERSON)-[:KNOWS]->() "
+            "RETURN p.id, count(*) AS cnt ORDER BY cnt DESC LIMIT 1;"
+        )
+    )
     return str(rows[0][0])
 
 
 def _get_isolated_source(conn):
     """Find a person with few or no outgoing connections."""
-    rows = list(conn.execute(
-        "MATCH (p:PERSON) "
-        "OPTIONAL MATCH (p)-[:KNOWS]->() "
-        "RETURN p.id, count(p) AS cnt ORDER BY cnt ASC LIMIT 1;"
-    ))
+    rows = list(
+        conn.execute(
+            "MATCH (p:PERSON) "
+            "OPTIONAL MATCH (p)-[:KNOWS]->() "
+            "RETURN p.id, count(p) AS cnt ORDER BY cnt ASC LIMIT 1;"
+        )
+    )
     return str(rows[0][0])
 
 
 # ---------------------------------------------------------------------------
 # 1. Distance consistency: with-path vs without-path
 # ---------------------------------------------------------------------------
+
 
 class TestDistanceConsistency:
     """Path return must not change distance values."""
@@ -134,14 +142,18 @@ class TestDistanceConsistency:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows_no = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
-        rows_yes = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows_no = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
+        rows_yes = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         d_no = {int(r[0]): int(r[1]) for r in rows_no}
         d_yes = {int(r[0]): int(r[1]) for r in rows_yes}
@@ -157,14 +169,18 @@ class TestDistanceConsistency:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows_no = list(conn.execute(
-            f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
-        rows_yes = list(conn.execute(
-            f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows_no = list(
+            conn.execute(
+                f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
+        rows_yes = list(
+            conn.execute(
+                f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         d_no = {int(r[0]): float(r[1]) for r in rows_no}
         d_yes = {int(r[0]): float(r[1]) for r in rows_yes}
@@ -181,6 +197,7 @@ class TestDistanceConsistency:
 # 2. Path structure validation
 # ---------------------------------------------------------------------------
 
+
 class TestPathStructure:
     """Path objects must have correct topology."""
 
@@ -188,10 +205,12 @@ class TestPathStructure:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         errors = 0
         total_checked = 0
@@ -212,9 +231,9 @@ class TestPathStructure:
                 if n_nodes != expected:
                     errors += 1
 
-        assert errors == 0, (
-            f"{errors} path structure errors out of {total_checked} paths"
-        )
+        assert (
+            errors == 0
+        ), f"{errors} path structure errors out of {total_checked} paths"
         assert total_checked > 1000, "too few reachable nodes to validate"
 
     def test_path_edges_connected(self, projected_graph):
@@ -222,10 +241,12 @@ class TestPathStructure:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         errors = 0
         checked = 0
@@ -258,9 +279,7 @@ class TestPathStructure:
                     errors += 1
                     break
 
-        assert errors == 0, (
-            f"{errors} edge connectivity errors out of {checked} paths"
-        )
+        assert errors == 0, f"{errors} edge connectivity errors out of {checked} paths"
         assert checked > 1000
 
     def test_path_starts_at_source(self, projected_graph):
@@ -268,10 +287,12 @@ class TestPathStructure:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         for r in rows:
             dist, path = int(r[1]), r[2]
@@ -295,10 +316,12 @@ class TestPathStructure:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         # For reachable nodes, the path should contain valid node data
         reachable = [r for r in rows if int(r[1]) > 0 and r[2] is not None]
@@ -316,6 +339,7 @@ class TestPathStructure:
 # ---------------------------------------------------------------------------
 # 3. Directed vs undirected
 # ---------------------------------------------------------------------------
+
 
 class TestDirectedVsUndirected:
     """Directed and undirected BFS should produce different results."""
@@ -337,14 +361,18 @@ class TestDirectedVsUndirected:
         try:
             source = _get_connected_source(conn)
 
-            rows_u = list(conn.execute(
-                f"CALL bfs('pk_u', {{source: '{source}', directed: false}}) "
-                f"YIELD node, distance RETURN node.id, distance;"
-            ))
-            rows_d = list(conn.execute(
-                f"CALL bfs('pk_d', {{source: '{source}', directed: true}}) "
-                f"YIELD node, distance RETURN node.id, distance;"
-            ))
+            rows_u = list(
+                conn.execute(
+                    f"CALL bfs('pk_u', {{source: '{source}', directed: false}}) "
+                    f"YIELD node, distance RETURN node.id, distance;"
+                )
+            )
+            rows_d = list(
+                conn.execute(
+                    f"CALL bfs('pk_d', {{source: '{source}', directed: true}}) "
+                    f"YIELD node, distance RETURN node.id, distance;"
+                )
+            )
 
             reach_u = {int(r[0]) for r in rows_u if int(r[1]) >= 0}
             reach_d = {int(r[0]) for r in rows_d if int(r[1]) >= 0}
@@ -369,10 +397,12 @@ class TestDirectedVsUndirected:
         )
         try:
             source = _get_connected_source(conn)
-            rows = list(conn.execute(
-                f"CALL bfs('pk_dp', {{source: '{source}', directed: true}}) "
-                f"YIELD node, distance, path RETURN node.id, distance, path;"
-            ))
+            rows = list(
+                conn.execute(
+                    f"CALL bfs('pk_dp', {{source: '{source}', directed: true}}) "
+                    f"YIELD node, distance, path RETURN node.id, distance, path;"
+                )
+            )
 
             errors = 0
             for r in rows:
@@ -397,6 +427,7 @@ class TestDirectedVsUndirected:
 # 4. SSSP vs BFS (unit weight)
 # ---------------------------------------------------------------------------
 
+
 class TestSSSPvsBFS:
     """With unit weight, SSSP distances should match BFS distances."""
 
@@ -404,14 +435,18 @@ class TestSSSPvsBFS:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        bfs_rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
-        sssp_rows = list(conn.execute(
-            f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
+        bfs_rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
+        sssp_rows = list(
+            conn.execute(
+                f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
 
         bfs_d = {int(r[0]): int(r[1]) for r in bfs_rows}
         sssp_d = {int(r[0]): float(r[1]) for r in sssp_rows}
@@ -435,6 +470,7 @@ class TestSSSPvsBFS:
 # 5. Unreachable nodes
 # ---------------------------------------------------------------------------
 
+
 class TestUnreachableNodes:
     """Unreachable nodes should get distance=-1 and path=None."""
 
@@ -442,24 +478,27 @@ class TestUnreachableNodes:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         unreachable = [r for r in rows if int(r[1]) < 0]
         if len(unreachable) == 0:
             pytest.skip("All nodes reachable from source")
 
         null_paths = sum(1 for r in unreachable if r[2] is None)
-        assert null_paths == len(unreachable), (
-            f"{len(unreachable) - null_paths} unreachable nodes have non-null path"
-        )
+        assert null_paths == len(
+            unreachable
+        ), f"{len(unreachable) - null_paths} unreachable nodes have non-null path"
 
 
 # ---------------------------------------------------------------------------
 # 6. Source node self-path
 # ---------------------------------------------------------------------------
+
 
 class TestSourceSelfPath:
     """Source node should have distance=0 and path of length 0."""
@@ -468,10 +507,12 @@ class TestSourceSelfPath:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         source_rows = [r for r in rows if int(r[1]) == 0]
         assert len(source_rows) == 1
@@ -486,26 +527,30 @@ class TestSourceSelfPath:
 # 7. Multiple sources stress test
 # ---------------------------------------------------------------------------
 
+
 class TestMultiSourceStress:
     """Run BFS+path from multiple sources to stress test correctness."""
 
     def test_10_sources_all_valid(self, projected_graph):
         conn = projected_graph
 
-        sources = list(conn.execute(
-            "MATCH (p:PERSON)-[:KNOWS]->() "
-            "RETURN p.id ORDER BY p.id LIMIT 10;"
-        ))
+        sources = list(
+            conn.execute(
+                "MATCH (p:PERSON)-[:KNOWS]->() " "RETURN p.id ORDER BY p.id LIMIT 10;"
+            )
+        )
         source_ids = [str(r[0]) for r in sources]
 
         total_paths = 0
         total_errors = 0
 
         for src in source_ids:
-            rows = list(conn.execute(
-                f"CALL bfs('pk', {{source: '{src}', directed: false}}) "
-                f"YIELD node, distance, path RETURN node.id, distance, path;"
-            ))
+            rows = list(
+                conn.execute(
+                    f"CALL bfs('pk', {{source: '{src}', directed: false}}) "
+                    f"YIELD node, distance, path RETURN node.id, distance, path;"
+                )
+            )
             for r in rows:
                 dist, path = int(r[1]), r[2]
                 if dist < 0:
@@ -531,6 +576,7 @@ class TestMultiSourceStress:
 # 8. SSSP with path structure
 # ---------------------------------------------------------------------------
 
+
 class TestSSSPPathStructure:
     """SSSP paths should have valid structure and weight."""
 
@@ -538,10 +584,12 @@ class TestSSSPPathStructure:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance, path RETURN node.id, distance, path;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance, path RETURN node.id, distance, path;"
+            )
+        )
 
         errors = 0
         checked = 0
@@ -571,6 +619,7 @@ class TestSSSPPathStructure:
 # 9. Backward compatibility (no path YIELDed)
 # ---------------------------------------------------------------------------
 
+
 class TestBackwardCompat:
     """Existing queries without path should still work identically."""
 
@@ -578,10 +627,12 @@ class TestBackwardCompat:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL bfs('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
         assert len(rows) > 60000
         for r in rows[:10]:
             assert len(r) == 2  # only node_id and distance
@@ -590,10 +641,12 @@ class TestBackwardCompat:
         conn = projected_graph
         source = _get_connected_source(conn)
 
-        rows = list(conn.execute(
-            f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
-            f"YIELD node, distance RETURN node.id, distance;"
-        ))
+        rows = list(
+            conn.execute(
+                f"CALL sssp('pk', {{source: '{source}', directed: false}}) "
+                f"YIELD node, distance RETURN node.id, distance;"
+            )
+        )
         assert len(rows) > 60000
         for r in rows[:10]:
             assert len(r) == 2
@@ -603,23 +656,28 @@ class TestBackwardCompat:
 # 10. Other GDS algorithms still work (regression)
 # ---------------------------------------------------------------------------
 
+
 class TestOtherAlgorithmsRegression:
     """Path return changes should not break other GDS algorithms."""
 
     def test_wcc_still_works(self, projected_graph):
         conn = projected_graph
-        rows = list(conn.execute(
-            "CALL wcc('pk', {concurrency: 1}) "
-            "YIELD node, comp RETURN node.id, comp;"
-        ))
+        rows = list(
+            conn.execute(
+                "CALL wcc('pk', {concurrency: 1}) "
+                "YIELD node, comp RETURN node.id, comp;"
+            )
+        )
         assert len(rows) > 60000
 
     def test_page_rank_still_works(self, projected_graph):
         conn = projected_graph
-        rows = list(conn.execute(
-            "CALL page_rank('pk', {max_iterations: 3, directed: false}) "
-            "YIELD node, rank RETURN node.id, rank;"
-        ))
+        rows = list(
+            conn.execute(
+                "CALL page_rank('pk', {max_iterations: 3, directed: false}) "
+                "YIELD node, rank RETURN node.id, rank;"
+            )
+        )
         assert len(rows) > 60000
         # All ranks should be positive
         for r in rows[:100]:
@@ -627,8 +685,10 @@ class TestOtherAlgorithmsRegression:
 
     def test_lcc_still_works(self, projected_graph):
         conn = projected_graph
-        rows = list(conn.execute(
-            "CALL lcc('pk', {directed: false}) "
-            "YIELD node, lcc RETURN node.id, lcc;"
-        ))
+        rows = list(
+            conn.execute(
+                "CALL lcc('pk', {directed: false}) "
+                "YIELD node, lcc RETURN node.id, lcc;"
+            )
+        )
         assert len(rows) > 60000

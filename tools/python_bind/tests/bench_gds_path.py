@@ -46,7 +46,7 @@ def _parse_properties(path, name):
             key, value = line.split("=", 1)
             key, value = key.strip(), value.strip()
             if key.startswith(prefix):
-                props[key[len(prefix):]] = value
+                props[key[len(prefix) :]] = value
     return props
 
 
@@ -200,7 +200,11 @@ def run_benchmark(rounds, tmp_dir):
     print("=" * 78)
     print("GDS Path Return Benchmark: BFS & SSSP")
     print("  Rounds per query: {}".format(rounds))
-    print("  Datasets: {} ({})".format(len(BFS_SSSP_DATASETS), ", ".join(BFS_SSSP_DATASETS)))
+    print(
+        "  Datasets: {} ({})".format(
+            len(BFS_SSSP_DATASETS), ", ".join(BFS_SSSP_DATASETS)
+        )
+    )
     print("=" * 78)
     print()
 
@@ -261,9 +265,7 @@ def run_benchmark(rounds, tmp_dir):
                         src=source, directed=str(directed).lower()
                     )
                 else:
-                    weight = props.get(
-                        "sssp.weight-property", "weight"
-                    )
+                    weight = props.get("sssp.weight-property", "weight")
                     q_no = SSSP_NO_PATH.format(
                         src=source,
                         weight=weight,
@@ -295,7 +297,9 @@ def run_benchmark(rounds, tmp_dir):
 
                 status_no = "PASS" if err_no == 0 else "FAIL({})".format(err_no)
                 status_yes = "PASS" if err_yes == 0 else "FAIL({})".format(err_yes)
-                status_path = "OK" if path_issues == 0 else "ISSUES({})".format(path_issues)
+                status_path = (
+                    "OK" if path_issues == 0 else "ISSUES({})".format(path_issues)
+                )
 
                 row_summary = (
                     "{:<28s} {:>4s}  V={:<4d} E={:<5d}  "
@@ -303,9 +307,15 @@ def run_benchmark(rounds, tmp_dir):
                     "with_path={:.4f}s [{:>4s}] path_col={:>4s}  "
                     "overhead={:+.1f}%"
                 ).format(
-                    ds_name, algo.upper(), n_vertices, n_edges,
-                    t_no, status_no,
-                    t_yes, status_yes, status_path,
+                    ds_name,
+                    algo.upper(),
+                    n_vertices,
+                    n_edges,
+                    t_no,
+                    status_no,
+                    t_yes,
+                    status_yes,
+                    status_path,
                     overhead_pct,
                 )
                 print(row_summary)
@@ -326,16 +336,18 @@ def run_benchmark(rounds, tmp_dir):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--rounds", type=int, default=5,
-        help="Number of rounds per query (default: 5)"
+        "--rounds", type=int, default=5, help="Number of rounds per query (default: 5)"
     )
     parser.add_argument(
-        "--tmp-dir", type=str, default="/tmp/neug_gds_bench",
-        help="Temporary directory for databases"
+        "--tmp-dir",
+        type=str,
+        default="/tmp/neug_gds_bench",
+        help="Temporary directory for databases",
     )
     args = parser.parse_args()
 
     import shutil
+
     if os.path.exists(args.tmp_dir):
         shutil.rmtree(args.tmp_dir)
     os.makedirs(args.tmp_dir, exist_ok=True)
