@@ -36,6 +36,19 @@
 namespace neug {
 namespace execution {
 
+// Path encoding mode: lightweight (default) or full
+// - lightweight: only encode _ID, _LABEL, PK for vertices; structural info for edges
+// - full: encode all properties
+static thread_local bool path_full_encoding_enabled = false;
+
+void set_path_full_encoding(bool enabled) {
+  path_full_encoding_enabled = enabled;
+}
+
+bool get_path_full_encoding() {
+  return path_full_encoding_enabled;
+}
+
 void append_property_to_json(const std::string& key, const Value& prop,
                              rapidjson::Value& doc,
                              rapidjson::Document::AllocatorType& allocator) {
@@ -121,6 +134,9 @@ void append_property_to_json(const std::string& key, const Value& prop,
 // without the serialize-to-string round-trip used by convert_vertex_to_json.
 // Used internally by convert_path_to_json to avoid the string→parse→copy
 // cycle when embedding vertex/edge objects inside a path array.
+// 
+// In lightweight mode (default): only encode _ID, _LABEL, and PK
+// In full mode: encode all properties
 static rapidjson::Value build_vertex_json_value(
     const StorageReadInterface& graph, const VertexRecord& record,
     rapidjson::Document::AllocatorType& allocator) {
@@ -137,11 +153,15 @@ static rapidjson::Value build_vertex_json_value(
   auto pk_prop = graph.GetVertexId(record.label_, record.vid_);
   auto pk_types = graph.schema().get_vertex_primary_key(record.label_);
   append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
-  const auto& property_names =
-      graph.schema().get_vertex_property_names(record.label_);
-  for (size_t i = 0; i < property_names.size(); ++i) {
-    auto prop = graph.GetVertexProperty(record.label_, record.vid_, i);
-    append_property_to_json(property_names[i], prop, obj, allocator);
+  
+  // Only encode non-PK properties in full mode
+  if (path_full_encoding_enabled) {
+    const auto& property_names =
+        graph.schema().get_vertex_property_names(record.label_);
+    for (size_t i = 0; i < property_names.size(); ++i) {
+      auto prop = graph.GetVertexProperty(record.label_, record.vid_, i);
+      append_property_to_json(property_names[i], prop, obj, allocator);
+    }
   }
   return obj;
 }
@@ -170,6 +190,9 @@ static rapidjson::Value build_vertex_json_value_light(
 
 // Build a rapidjson object for an edge directly into the given allocator,
 // without the serialize-to-string round-trip used by convert_edge_to_json.
+//
+// In lightweight mode (default): only encode _ID, _LABEL, _SRC_ID, _DST_ID
+// In full mode: encode all properties
 static rapidjson::Value build_edge_json_value(
     const StorageReadInterface& graph, const EdgeRecord& record,
     rapidjson::Document::AllocatorType& allocator) {
@@ -194,17 +217,21 @@ static rapidjson::Value build_edge_json_value(
   auto dst_gid = encode_unique_vertex_id(record.label.dst_label, record.dst);
   obj.AddMember("_SRC_ID", rapidjson::Value(src_gid), allocator);
   obj.AddMember("_DST_ID", rapidjson::Value(dst_gid), allocator);
-  auto property_types = graph.schema().get_edge_properties(
-      record.label.src_label, record.label.dst_label, record.label.edge_label);
-  auto property_names = graph.schema().get_edge_property_names(
-      record.label.src_label, record.label.dst_label, record.label.edge_label);
-  for (size_t i = 0; i < property_types.size(); ++i) {
-    auto value =
-        graph
-            .GetEdgeDataAccessor(record.label.src_label, record.label.dst_label,
-                                 record.label.edge_label, i)
-            .get_data_from_ptr(record.prop);
-    append_property_to_json(property_names[i], value, obj, allocator);
+  
+  // Only encode properties in full mode
+  if (path_full_encoding_enabled) {
+    auto property_types = graph.schema().get_edge_properties(
+        record.label.src_label, record.label.dst_label, record.label.edge_label);
+    auto property_names = graph.schema().get_edge_property_names(
+        record.label.src_label, record.label.dst_label, record.label.edge_label);
+    for (size_t i = 0; i < property_types.size(); ++i) {
+      auto value =
+          graph
+              .GetEdgeDataAccessor(record.label.src_label, record.label.dst_label,
+                                   record.label.edge_label, i)
+              .get_data_from_ptr(record.prop);
+      append_property_to_json(property_names[i], value, obj, allocator);
+    }
   }
   return obj;
 }
@@ -321,17 +348,21 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   doc.SetObject();
   auto& allocator = doc.GetAllocator();
 
-  // nodes — use lightweight encoding (PK + ID only, skip property lookups)
+  // nodes — encoding mode controlled by path_full_encoding_enabled flag
+  //   lightweight (default): only _ID, _LABEL, PK
+  //   full: all properties
   rapidjson::Value nodes(rapidjson::kArrayType);
   for (const auto& node : path.nodes()) {
-    nodes.PushBack(build_vertex_json_value_light(graph, node, allocator), allocator);
+    nodes.PushBack(build_vertex_json_value(graph, node, allocator), allocator);
   }
   doc.AddMember("nodes", nodes, allocator);
 
-  // edges — use lightweight encoding (ID + endpoints only, skip property lookups)
+  // edges — encoding mode controlled by path_full_encoding_enabled flag
+  //   lightweight (default): only _ID, _LABEL, _SRC_ID, _DST_ID
+  //   full: all properties
   rapidjson::Value edges(rapidjson::kArrayType);
   for (const auto& edge : path.relationships()) {
-    edges.PushBack(build_edge_json_value_light(graph, edge, allocator), allocator);
+    edges.PushBack(build_edge_json_value(graph, edge, allocator), allocator);
   }
   doc.AddMember("rels", edges, allocator);
 

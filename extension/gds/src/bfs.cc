@@ -54,6 +54,7 @@ struct BFSInput : public function::CallFuncInputBase {
   int32_t concurrency;
   bool directed;
   bool return_path;
+  std::string path_properties;
   int32_t node_alias;
   int32_t distance_alias;
   int32_t path_alias;
@@ -76,6 +77,8 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
   input->directed = get_option_value<bool>(options, "directed", false);
+  input->path_properties = get_option_value<std::string>(
+      options, "path_properties", "lightweight");
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
@@ -90,6 +93,11 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
 execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
                                      neug::IStorageInterface& g) {
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
+
+  // Configure path encoding mode based on path_properties option
+  if (bfs_input.return_path) {
+    configure_path_encoding(bfs_input.path_properties);
+  }
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
   // An empty vertex set is handled uniformly below: the source lookup fails

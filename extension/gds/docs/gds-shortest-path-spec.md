@@ -801,7 +801,60 @@ def test_bfs_returns_path():
 | `return_path` | bool | `false` | **NEW**: Return shortest path |
 | `target` | string | (none) | **NEW**: Stop at specific target vertex |
 
-### 11.3 Output Columns
+### 11.3 Path Encoding Modes
+
+When `return_path` is enabled, the `path_properties` option controls how much information is encoded in the path output:
+
+#### Lightweight Mode (default: `path_properties: "lightweight"`)
+
+Optimized for performance. Only encodes essential structural information:
+
+**Vertices in path:**
+- `_ID`: Unique vertex identifier
+- `_LABEL`: Vertex label name
+- Primary key property
+
+**Edges in path:**
+- `_ID`: Unique edge identifier
+- `_LABEL`: Edge label name
+- `_SRC_ID`: Source vertex ID
+- `_DST_ID`: Destination vertex ID
+
+**Performance:** ~0.5s on LDBC SNB SF10 (65K nodes, 1.9M edges, 62K paths)
+
+**Use case:** When you only need the path structure (which nodes/edges are involved) and can retrieve full properties separately if needed.
+
+#### Full Mode (`path_properties: "full"`)
+
+Encodes all vertex and edge properties:
+
+**Vertices in path:**
+- All fields from lightweight mode
+- All non-PK properties with their values
+
+**Edges in path:**
+- All fields from lightweight mode
+- All edge properties with their values
+
+**Performance:** ~1.3s on LDBC SNB SF10 (2.6x slower than lightweight)
+
+**Use case:** When you need complete property information in a single query result.
+
+**Example:**
+
+```cypher
+-- Lightweight mode (default)
+CALL bfs('graph', {source: '0', path_properties: 'lightweight'})
+YIELD path
+RETURN path;
+
+-- Full mode
+CALL bfs('graph', {source: '0', path_properties: 'full'})
+YIELD path
+RETURN path;
+```
+
+### 11.4 Output Columns
 
 When `return_path: false` (default):
 

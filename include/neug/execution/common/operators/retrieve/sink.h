@@ -24,6 +24,15 @@ class StorageReadInterface;
 namespace execution {
 
 class Context;
+
+// Path encoding mode control
+// Controls whether path output includes full properties or lightweight encoding
+// - false (default): lightweight mode - only _ID, _LABEL, PK for vertices;
+//                    _ID, _LABEL, _SRC_ID, _DST_ID for edges
+// - true: full mode - all properties encoded
+void set_path_full_encoding(bool enabled);
+bool get_path_full_encoding();
+
 class Sink {
  public:
   static void sink_results(const Context& ctx,

@@ -28,6 +28,7 @@
 #include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/execution/common/columns/path_columns.h"
+#include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -38,6 +39,18 @@ struct PlainPredecessorAccessor {
   const vid_t* data;
   vid_t get(vid_t v) const { return data[v]; }
 };
+
+// Configure path encoding mode based on path_properties option
+// - "lightweight" (default): only _ID, _LABEL, PK for vertices; _ID, _LABEL, _SRC_ID, _DST_ID for edges
+// - "full": all properties encoded
+inline void configure_path_encoding(const std::string& path_properties) {
+  if (path_properties == "full") {
+    execution::set_path_full_encoding(true);
+  } else {
+    // Default to lightweight mode
+    execution::set_path_full_encoding(false);
+  }
+}
 
 // Build the proper DataType for a GDS path output column.  NeuG's type
 // converter expects kPath to carry a StructTypeInfo with _NODES (list of
