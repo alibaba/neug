@@ -465,7 +465,9 @@ class TestPathEncodingModes:
                 non_pk_keys = [
                     k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]
                 ]
-                assert len(non_pk_keys) > 0, "full mode should include non-PK properties"
+                assert (
+                    len(non_pk_keys) > 0
+                ), "full mode should include non-PK properties"
 
     def test_bfs_lightweight_mode(self, tmp_path):
         """BFS with path_properties: 'lightweight' should include only structural info."""
