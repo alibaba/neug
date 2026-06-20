@@ -37,7 +37,8 @@ namespace neug {
 namespace execution {
 
 // Path encoding mode: lightweight (default) or full
-// - lightweight: only encode _ID, _LABEL, PK for vertices; structural info for edges
+// - lightweight: only encode _ID, _LABEL, PK for vertices; structural info for
+// edges
 // - full: encode all properties
 static thread_local bool path_full_encoding_enabled = false;
 
@@ -45,9 +46,7 @@ void set_path_full_encoding(bool enabled) {
   path_full_encoding_enabled = enabled;
 }
 
-bool get_path_full_encoding() {
-  return path_full_encoding_enabled;
-}
+bool get_path_full_encoding() { return path_full_encoding_enabled; }
 
 void append_property_to_json(const std::string& key, const Value& prop,
                              rapidjson::Value& doc,
@@ -134,7 +133,7 @@ void append_property_to_json(const std::string& key, const Value& prop,
 // without the serialize-to-string round-trip used by convert_vertex_to_json.
 // Used internally by convert_path_to_json to avoid the string→parse→copy
 // cycle when embedding vertex/edge objects inside a path array.
-// 
+//
 // In lightweight mode (default): only encode _ID, _LABEL, and PK
 // In full mode: encode all properties
 static rapidjson::Value build_vertex_json_value(
@@ -153,7 +152,7 @@ static rapidjson::Value build_vertex_json_value(
   auto pk_prop = graph.GetVertexId(record.label_, record.vid_);
   auto pk_types = graph.schema().get_vertex_primary_key(record.label_);
   append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
-  
+
   // Only encode non-PK properties in full mode
   if (path_full_encoding_enabled) {
     const auto& property_names =
@@ -217,19 +216,21 @@ static rapidjson::Value build_edge_json_value(
   auto dst_gid = encode_unique_vertex_id(record.label.dst_label, record.dst);
   obj.AddMember("_SRC_ID", rapidjson::Value(src_gid), allocator);
   obj.AddMember("_DST_ID", rapidjson::Value(dst_gid), allocator);
-  
+
   // Only encode properties in full mode
   if (path_full_encoding_enabled) {
     auto property_types = graph.schema().get_edge_properties(
-        record.label.src_label, record.label.dst_label, record.label.edge_label);
+        record.label.src_label, record.label.dst_label,
+        record.label.edge_label);
     auto property_names = graph.schema().get_edge_property_names(
-        record.label.src_label, record.label.dst_label, record.label.edge_label);
+        record.label.src_label, record.label.dst_label,
+        record.label.edge_label);
     for (size_t i = 0; i < property_types.size(); ++i) {
-      auto value =
-          graph
-              .GetEdgeDataAccessor(record.label.src_label, record.label.dst_label,
-                                   record.label.edge_label, i)
-              .get_data_from_ptr(record.prop);
+      auto value = graph
+                       .GetEdgeDataAccessor(record.label.src_label,
+                                            record.label.dst_label,
+                                            record.label.edge_label, i)
+                       .get_data_from_ptr(record.prop);
       append_property_to_json(property_names[i], value, obj, allocator);
     }
   }

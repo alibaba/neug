@@ -80,15 +80,14 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
   input->edge_weight = get_option_value<std::string>(options, "weight", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
-  input->path_properties = get_option_value<std::string>(
-      options, "path_properties", "lightweight");
+  input->path_properties =
+      get_option_value<std::string>(options, "path_properties", "lightweight");
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
   input->return_path = (plan.plan(op_idx).meta_data_size() >= 3);
-  input->path_alias = input->return_path
-                          ? plan.plan(op_idx).meta_data(2).alias()
-                          : -1;
+  input->path_alias =
+      input->return_path ? plan.plan(op_idx).meta_data(2).alias() : -1;
 
   return input;
 }
@@ -96,7 +95,7 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
 execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                                       neug::IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
-  
+
   // Configure path encoding mode based on path_properties option
   if (sssp_input.return_path) {
     configure_path_encoding(sssp_input.path_properties);
@@ -138,8 +137,8 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set SSSPFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
+                                                 common::DataTypeId::kUnknown};
   function::call_output_columns output_columns = {
       {"node", common::DataTypeId::kVertex},
       {"distance", common::DataTypeId::kDouble},

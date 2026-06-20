@@ -210,7 +210,7 @@ void SSSP::compute() {
 
     ++rounds;
   }
-  (void)rounds;
+  (void) rounds;
 }
 
 void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias,

@@ -41,7 +41,8 @@ struct PlainPredecessorAccessor {
 };
 
 // Configure path encoding mode based on path_properties option
-// - "lightweight" (default): only _ID, _LABEL, PK for vertices; _ID, _LABEL, _SRC_ID, _DST_ID for edges
+// - "lightweight" (default): only _ID, _LABEL, PK for vertices; _ID, _LABEL,
+// _SRC_ID, _DST_ID for edges
 // - "full": all properties encoded
 inline void configure_path_encoding(const std::string& path_properties) {
   if (path_properties == "full") {
@@ -71,10 +72,9 @@ inline common::DataType buildPathDataType() {
   fieldTypes.push_back(std::move(nodesListType));
   fieldTypes.push_back(std::move(relsListType));
 
-  return common::DataType(
-      common::DataTypeId::kPath,
-      std::make_shared<common::StructTypeInfo>(std::move(fieldNames),
-                                                std::move(fieldTypes)));
+  return common::DataType(common::DataTypeId::kPath,
+                          std::make_shared<common::StructTypeInfo>(
+                              std::move(fieldNames), std::move(fieldTypes)));
 }
 
 // Wrap the TableFunction::bindFunc to patch path column expressions with
@@ -83,8 +83,9 @@ inline common::DataType buildPathDataType() {
 inline void wrapTableBindFuncWithPathFix(function::GDSAlgoFunction* func) {
   auto* tableFunc = static_cast<function::TableFunction*>(func);
   auto originalBind = tableFunc->bindFunc;
-  tableFunc->bindFunc = [originalBind](main::ClientContext* ctx,
-                                       const function::TableFuncBindInput* input)
+  tableFunc->bindFunc = [originalBind](
+                            main::ClientContext* ctx,
+                            const function::TableFuncBindInput* input)
       -> std::unique_ptr<function::TableFuncBindData> {
     auto result = originalBind(ctx, input);
     auto pathType = buildPathDataType();
@@ -107,10 +108,10 @@ inline execution::Path build_path_from_chain(
     return execution::Path(vertex_label, chain[0]);
   }
 
-  auto oe_view = graph.GetGenericOutgoingGraphView(vertex_label, vertex_label,
-                                                    edge_label);
-  auto ie_view = graph.GetGenericIncomingGraphView(vertex_label, vertex_label,
-                                                    edge_label);
+  auto oe_view =
+      graph.GetGenericOutgoingGraphView(vertex_label, vertex_label, edge_label);
+  auto ie_view =
+      graph.GetGenericIncomingGraphView(vertex_label, vertex_label, edge_label);
 
   std::vector<std::pair<execution::Direction, const void*>> edge_datas;
   edge_datas.reserve(chain.size() - 1);

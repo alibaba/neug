@@ -536,8 +536,9 @@ class TestPathEncodingModes:
             # Lightweight mode check
             if path["nodes"]:
                 node = path["nodes"][0]
-                non_structural_keys = [k for k in node.keys()
-                                      if k not in ["_ID", "_LABEL", "id"]]
+                non_structural_keys = [
+                    k for k in node.keys() if k not in ["_ID", "_LABEL", "id"]
+                ]
                 assert len(non_structural_keys) == 0, "lightweight mode should only have structural keys"
 
     def test_sssp_full_mode(self, tmp_path):
@@ -573,7 +574,7 @@ class TestPathEncodingModes:
                     "RETURN node.id, distance;"
                 )
             )
-            
+
             # Full mode
             rows_full = list(
                 conn.execute(
@@ -582,7 +583,7 @@ class TestPathEncodingModes:
                     "RETURN node.id, distance;"
                 )
             )
-            
+
             # Distances should be identical
             dist_light = {nid: d for nid, d in rows_light}
             dist_full = {nid: d for nid, d in rows_full}

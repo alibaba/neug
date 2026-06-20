@@ -158,10 +158,10 @@ void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
   }
 
   for (vid_t v : vertices_) {
-    distance_builder.push_back_opt(
-        distances_[v] == std::numeric_limits<uint32_t>::max()
-            ? -1
-            : static_cast<int64_t>(distances_[v]));
+    distance_builder.push_back_opt(distances_[v] ==
+                                           std::numeric_limits<uint32_t>::max()
+                                       ? -1
+                                       : static_cast<int64_t>(distances_[v]));
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 

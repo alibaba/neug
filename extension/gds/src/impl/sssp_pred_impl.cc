@@ -88,9 +88,9 @@ void SSSPPred::compute() {
   bool has_weight = !edge_weight_prop_.empty();
   std::unique_ptr<EdgeDataAccessor> weight_accessor;
   if (has_weight) {
-    weight_accessor = std::make_unique<EdgeDataAccessor>(
-        graph_.GetEdgeDataAccessor(vertex_label_, vertex_label_, edge_label_,
-                                   edge_weight_prop_));
+    weight_accessor =
+        std::make_unique<EdgeDataAccessor>(graph_.GetEdgeDataAccessor(
+            vertex_label_, vertex_label_, edge_label_, edge_weight_prop_));
   }
 
   execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};

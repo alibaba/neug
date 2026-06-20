@@ -34,6 +34,7 @@ HAS_LDBC = os.path.isdir(DATA_DIR)
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def ldbc_db():
     """Load LDBC SNB SF10 PERSON+KNOWS once, shared across all tests."""
@@ -195,7 +196,7 @@ class TestPathStructure:
         errors = 0
         total_checked = 0
         for r in rows:
-            node_id, dist, path = int(r[0]), int(r[1]), r[2]
+            _, dist, path = int(r[0]), int(r[1]), r[2]
             if dist < 0:
                 # Unreachable: path should be None
                 if path is not None:
@@ -251,8 +252,8 @@ class TestPathStructure:
                 next_id = nodes[i + 1].get("_ID")
                 # For undirected, edge can be in either direction
                 if not (
-                    (src_id == cur_id and dst_id == next_id) or
-                    (src_id == next_id and dst_id == cur_id)
+                    (src_id == cur_id and dst_id == next_id)
+                    or (src_id == next_id and dst_id == cur_id)
                 ):
                     errors += 1
                     break
@@ -272,13 +273,11 @@ class TestPathStructure:
             f"YIELD node, distance, path RETURN node.id, distance, path;"
         ))
 
-        errors = 0
         for r in rows:
             dist, path = int(r[1]), r[2]
             if dist < 0 or path is None:
                 continue
             if "nodes" in path and len(path["nodes"]) > 0:
-                first_id = path["nodes"][0].get("_ID")
                 # The _ID is internal vid, not the PK id.
                 # We can't easily check PK from path JSON _ID.
                 # Instead check that path length matches distance.
