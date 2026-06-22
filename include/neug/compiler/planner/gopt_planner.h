@@ -12,6 +12,7 @@
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 
@@ -46,6 +47,7 @@ class GOptPlanner : public neug::IGraphPlanner {
  private:
   std::unique_ptr<neug::main::MetadataManager> database;
   std::unique_ptr<neug::main::ClientContext> ctx;
+  Schema currentSchema;
 
  private:
   // return string pattern of update operators

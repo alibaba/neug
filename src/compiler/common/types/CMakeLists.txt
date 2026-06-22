@@ -13,6 +13,8 @@ add_library(neug_common_types
         int128_t.cpp
         uuid.cpp)
 
+add_dependencies(neug_common_types neug_proto)
+
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common_types>
         PARENT_SCOPE)

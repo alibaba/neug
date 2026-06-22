@@ -47,7 +47,7 @@ void CardinalityEstimator::addNodeIDDomAndStats(
   cardinality_t numNodes = 0u;
   for (auto tableID : tableIDs) {
     auto stats = context->getStatsManager()
-                     ->getTable(tableID)
+                     ->getTable(tableID, common::TableType::NODE)
                      ->cast<storage::NodeTable>()
                      .getStats(transaction);
     numNodes += stats.getTableCard();
@@ -247,8 +247,9 @@ uint64_t CardinalityEstimator::getNumRels(
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
-    numRels += context->getStatsManager()->getTable(tableID)->getNumTotalRows(
-        transaction);
+    numRels += context->getStatsManager()
+                   ->getTable(tableID, common::TableType::REL)
+                   ->getNumTotalRows(transaction);
   }
   return atLeastOne(numRels);
 }

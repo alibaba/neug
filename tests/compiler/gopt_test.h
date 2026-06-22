@@ -30,6 +30,7 @@
 #include <ranges>
 #include <regex>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "neug/compiler/catalog/catalog.h"
@@ -48,6 +49,7 @@
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/service_utils.h"
 
@@ -154,7 +156,14 @@ class Utils {
                            main::MetadataManager* database) {
     // Split line into segments
     auto segments = splitSchemaQuery(line);
-    database->updateSchema(getTestResourcePath(segments.first));
+    static std::unordered_map<main::MetadataManager*, Schema> schemas;
+    auto schemaResult =
+        Schema::LoadFromYaml(getTestResourcePath(segments.first));
+    if (!schemaResult) {
+      THROW_RUNTIME_ERROR(schemaResult.error().ToString());
+    }
+    schemas[database] = std::move(schemaResult).value();
+    database->updateSchema(&schemas[database]);
     database->updateStats(getTestResourcePath(segments.second));
   }
 };
@@ -206,7 +215,12 @@ class GOptTest : public ::testing::Test {
       const std::string& query, const std::string& schemaData,
       const std::string& statsData, std::vector<std::string> rules) {
     // Update schema and stats
-    database->updateSchema(schemaData);
+    auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
+    if (!schemaResult) {
+      THROW_RUNTIME_ERROR(schemaResult.error().ToString());
+    }
+    currentSchema = std::move(schemaResult).value();
+    database->updateSchema(&currentSchema);
     database->updateStats(statsData);
 
     // Prepare the query
@@ -379,6 +393,7 @@ class GOptTest : public ::testing::Test {
  protected:
   std::unique_ptr<main::MetadataManager> database;
   std::unique_ptr<main::ClientContext> ctx;
+  Schema currentSchema;
 };
 
 // (regex_pattern, replacement) pairs applied in order during normalize

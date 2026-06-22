@@ -286,10 +286,10 @@ neug::result<OpBuildResultT> MergeVertexOprBuilder::Build(
   for (const auto& entry : opr.entries()) {
     VertexEntryPlan e;
     switch (entry.vertex_type().item_case()) {
-    case common::NameOrId::kId:
+    case ::common::NameOrId::kId:
       e.label = entry.vertex_type().id();
       break;
-    case common::NameOrId::kName:
+    case ::common::NameOrId::kName:
       e.label = schema.get_vertex_label_id(entry.vertex_type().name());
       break;
     default:

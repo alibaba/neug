@@ -49,6 +49,8 @@ execution::Value get_default_value(const DataType& type) {
     return execution::Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
     return execution::Value::INTERVAL(Interval());
+  case DataTypeId::kList:
+    return execution::Value::LIST(ListType::GetChildType(type), {});
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported property type for default value: " + type.ToString());

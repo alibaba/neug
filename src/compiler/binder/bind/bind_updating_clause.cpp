@@ -30,14 +30,13 @@
 #include "neug/compiler/binder/query/updating_clause/bound_merge_clause.h"
 #include "neug/compiler/binder/query/updating_clause/bound_set_clause.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/parser/query/updating_clause/delete_clause.h"
 #include "neug/compiler/parser/query/updating_clause/insert_clause.h"
 #include "neug/compiler/parser/query/updating_clause/merge_clause.h"
 #include "neug/compiler/parser/query/updating_clause/set_clause.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -211,9 +210,9 @@ std::vector<BoundInsertInfo> Binder::bindInsertInfos(
   return result;
 }
 
-static void validatePrimaryKeyExistence(
-    const NodeTableCatalogEntry* nodeTableEntry, const NodeExpression& node,
-    const expression_vector& defaultExprs) {
+static void validatePrimaryKeyExistence(const VertexSchema* nodeTableEntry,
+                                        const NodeExpression& node,
+                                        const expression_vector& defaultExprs) {
   auto primaryKeyName = nodeTableEntry->getPrimaryKeyName();
   auto pkeyDefaultExpr = defaultExprs.at(nodeTableEntry->getPrimaryKeyID());
   if (!node.hasPropertyDataExpr(primaryKeyName) &&
@@ -241,20 +240,22 @@ void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
   }
   insertInfo.columnDataExprs = bindInsertColumnDataExprs(
       node->getPropertyDataExprRef(), entry->getProperties());
-  auto nodeEntry = entry->ptrCast<NodeTableCatalogEntry>();
+  auto nodeEntry = dynamic_cast<VertexSchema*>(entry);
+  NEUG_ASSERT(nodeEntry != nullptr);
   validatePrimaryKeyExistence(nodeEntry, *node, insertInfo.columnDataExprs);
   infos.push_back(std::move(insertInfo));
 }
 
-static TableCatalogEntry* tryPruneMultiLabeled(const RelExpression& rel,
-                                               table_id_t srcTableID,
-                                               table_id_t dstTableID) {
-  std::vector<TableCatalogEntry*> candidates;
+static SchemaEntry* tryPruneMultiLabeled(const RelExpression& rel,
+                                         table_id_t srcTableID,
+                                         table_id_t dstTableID) {
+  std::vector<SchemaEntry*> candidates;
   for (auto& entry : rel.getEntries()) {
-    NEUG_ASSERT(entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
-    auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-    if (relEntry.getSrcTableID() == srcTableID &&
-        relEntry.getDstTableID() == dstTableID) {
+    NEUG_ASSERT(entry->getTableType() == TableType::REL);
+    auto* relEntry = dynamic_cast<EdgeSchema*>(entry);
+    NEUG_ASSERT(relEntry != nullptr);
+    if (relEntry->getSrcTableID() == srcTableID &&
+        relEntry->getDstTableID() == dstTableID) {
       candidates.push_back(entry);
     }
   }
@@ -263,7 +264,7 @@ static TableCatalogEntry* tryPruneMultiLabeled(const RelExpression& rel,
         stringFormat("Create rel {} with multiple rel labels is not supported.",
                      rel.toString()));
   }
-  return nullptr;
+  return candidates[0];
 }
 
 void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
@@ -282,7 +283,7 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
     THROW_BINDER_EXCEPTION(
         stringFormat("Cannot create recursive rel {}.", rel->toString()));
   }
-  TableCatalogEntry* entry = nullptr;
+  SchemaEntry* entry = nullptr;
   if (!rel->isMultiLabeled()) {
     entry = rel->getSingleEntry();
   } else {
@@ -297,7 +298,7 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
     }
     // LCOV_EXCL_STOP
   }
-  rel->setEntries(std::vector<TableCatalogEntry*>{entry});
+  rel->setEntries(std::vector<SchemaEntry*>{entry});
   auto insertInfo = BoundInsertInfo(TableType::REL, rel);
   // Because we might prune entries, some property exprs may belong to pruned
   // entry

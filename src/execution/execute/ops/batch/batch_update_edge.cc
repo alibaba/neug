@@ -135,7 +135,7 @@ neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
       LOG(ERROR) << "Edge binding must have a tag.";
       THROW_RUNTIME_ERROR("Edge binding must have a tag.");
     }
-    CHECK(edge_binding.tag().item_case() == common::NameOrId::ItemCase::kId)
+    CHECK(edge_binding.tag().item_case() == ::common::NameOrId::ItemCase::kId)
         << "Edge binding tag must be an ID.";
     auto tag_id = edge_binding.tag().id();
     const auto& prop_mapping = entry.property_mapping();

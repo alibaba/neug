@@ -43,6 +43,8 @@ namespace catalog {
 class CatalogEntry;
 }
 
+class Schema;
+
 namespace function {
 struct Function;
 }
@@ -87,11 +89,7 @@ class MetadataManager {
 
   NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
-  void updateSchema(const std::filesystem::path& schemaPath);
-
-  void updateSchema(const std::string& schema);
-
-  void updateSchema(const YAML::Node& schema);
+  void updateSchema(const Schema* schema);
 
   void updateStats(const std::filesystem::path& statsPath);
 

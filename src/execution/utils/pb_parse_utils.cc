@@ -88,7 +88,7 @@ std::vector<label_t> parse_tables(const algebra::QueryParams& query_params) {
   std::vector<label_t> tables;
   int tn = query_params.tables_size();
   for (int i = 0; i < tn; ++i) {
-    const common::NameOrId& table = query_params.tables(i);
+    const ::common::NameOrId& table = query_params.tables(i);
     tables.push_back(static_cast<label_t>(table.id()));
   }
   return tables;
@@ -98,12 +98,12 @@ std::vector<LabelTriplet> parse_label_triplets(
     const physical::PhysicalOpr_MetaData& meta) {
   std::vector<LabelTriplet> labels;
   if (meta.has_type()) {
-    const common::IrDataType& t = meta.type();
+    const ::common::IrDataType& t = meta.type();
     if (t.has_graph_type()) {
-      const common::GraphDataType& gt = t.graph_type();
-      if (gt.element_opt() == common::GraphDataType_GraphElementOpt::
+      const ::common::GraphDataType& gt = t.graph_type();
+      if (gt.element_opt() == ::common::GraphDataType_GraphElementOpt::
                                   GraphDataType_GraphElementOpt_EDGE ||
-          gt.element_opt() == common::GraphDataType_GraphElementOpt::
+          gt.element_opt() == ::common::GraphDataType_GraphElementOpt::
                                   GraphDataType_GraphElementOpt_PATH) {
         int label_num = gt.graph_data_type_size();
         for (int label_i = 0; label_i < label_num; ++label_i) {

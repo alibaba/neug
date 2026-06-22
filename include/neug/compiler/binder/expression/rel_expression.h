@@ -68,7 +68,7 @@ class RelExpression final : public NodeOrRelExpression {
  public:
   RelExpression(common::DataType dataType, std::string uniqueName,
                 std::string variableName,
-                std::vector<catalog::TableCatalogEntry*> entries,
+                std::vector<catalog::SchemaEntry*> entries,
                 std::shared_ptr<NodeExpression> srcNode,
                 std::shared_ptr<NodeExpression> dstNode,
                 RelDirectionType directionType, common::QueryRelType relType)
@@ -135,7 +135,7 @@ class RelExpression final : public NodeOrRelExpression {
   // tables
   std::vector<common::ExtendDirection> getExtendDirections() const;
 
-  void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) override;
+  void setEntries(std::vector<catalog::SchemaEntry*> entries_) override;
 
  private:
   // Start node if a directed arrow is given. Left node otherwise.
