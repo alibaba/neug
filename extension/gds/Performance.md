@@ -26,9 +26,19 @@ All figures below were measured on one server:
 | Toolchain | GCC 11.4 (neug, libgrape-lite, GeminiGraph, GraphBLAS); GCC 13.1 (ladybug); Open MPI 4.0.3 |
 | Optimization | **`-O3`** (`Release`) for all systems |
 
-## Datasets
+## Setup
 
-All runs use **64 threads**. PageRank and CDLP: **10 iterations**, damping **0.85**.
+| System | Engine | Algorithms | How timed |
+|--------|--------|------------|-----------|
+| **neug** | In-memory GDS kernels (CSR views) | BFS, WCC, PR, CDLP, LCC, SSSP | `extension/gds/benchmark/graphalytics_bench.py` per `CALL` |
+| **libgrape-lite** | Vertex-centric, OpenMP, `mpirun -n 1` | same as neug | `run algorithm` |
+| **GraphBLAS/LAGraph** | SuiteSparse **v8.0.0** + LAGraph **1.0.1** | same as neug | Kernel timer; PR=`LAGr_PageRankGX`, WCC=`LG_CC_FastSV6` |
+| **GeminiGraph** | MPI + OpenMP (`toolkits/bfs`, `pagerank`, `sssp`, `cc`) | BFS, WCC, PR, SSSP | First `exec_time=` in tool output |
+| **ladybug** 0.18.0 | Kuzu `algo` extension | PR + WCC only | `lbug` `Time: executing` |
+
+Correctness of neug GDS on the official small Graphalytics validation graphs is covered by `tools/python_bind/tests/test_graphalytics.py`.
+
+## Datasets
 
 | Dataset | Scale | Vertices | Edges | Weighted | Notes |
 |---------|-------|----------:|------:|:--------:|-------|
@@ -116,20 +126,6 @@ Very high vertex count but low average degree (~2.4).
 | LCC | **55.568** | 1549.980 | 122.007 | — | — |
 
 **neug** leads BFS, WCC, CDLP, and LCC at 1.8B edges (0.84 s / 0.95 s / 24 s / 56 s). PageRank ~14.8 s; GeminiGraph slightly fastest (14.5 s).
-
----
-
-## Setup
-
-| System | Engine | Algorithms | How timed |
-|--------|--------|------------|-----------|
-| **neug** | In-memory GDS kernels (CSR views) | BFS, WCC, PR, CDLP, LCC, SSSP | `extension/gds/benchmark/graphalytics_bench.py` per `CALL` |
-| **libgrape-lite** | Vertex-centric, OpenMP, `mpirun -n 1` | same as neug | `run algorithm` |
-| **GraphBLAS/LAGraph** | SuiteSparse **v8.0.0** + LAGraph **1.0.1** | same as neug | Kernel timer; PR=`LAGr_PageRankGX`, WCC=`LG_CC_FastSV6` |
-| **GeminiGraph** | MPI + OpenMP (`toolkits/bfs`, `pagerank`, `sssp`, `cc`) | BFS, WCC, PR, SSSP | First `exec_time=` in tool output |
-| **ladybug** 0.18.0 | Kuzu `algo` extension | PR + WCC only | `lbug` `Time: executing` |
-
-Correctness of neug GDS on the official small Graphalytics validation graphs is covered by `tools/python_bind/tests/test_graphalytics.py`.
 
 ---
 
