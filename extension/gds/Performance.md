@@ -1,0 +1,139 @@
+# Performance
+
+We evaluated performance with the [LDBC Graph Analytics Benchmark](http://graphalytics.org/) on large and extra-large datasets (graph500-22/26, datagen-9\_*, com-friendster). Experiments run on a single server: AMD EPYC 9T24 (96 cores, **64** hardware threads visible), 495 GB RAM, Ubuntu 20.04. Datasets follow the [LDBC Graphalytics specification](https://ldbcouncil.org/benchmarks/graphalytics/).
+
+We compared **neug** GDS with [libgrape-lite](https://github.com/alibaba/libgrape-lite) (beaa6e8), [SuiteSparse:GraphBLAS](https://github.com/DrTimothyAldenDavis/GraphBLAS) **v8.0.0** + [LAGraph](https://github.com/GraphBLAS/LAGraph) **LDBC\_2023** via [ldbc\_graphalytics\_platforms\_graphblas](https://github.com/ldbc/ldbc_graphalytics_platforms_graphblas) (4671056), [GeminiGraph](https://github.com/thu-pacman/GeminiGraph) (170e7d3), and [ladybug](https://github.com/LadybugDB/ladybug) **0.18.0** (d5a975c3b). libgrape-lite and GeminiGraph built with GCC 11.4 and Open MPI 4.0.3; ladybug with GCC 13.1. All systems compiled with **`-O3`** (CMake `Release` or Makefile equivalent).
+
+Minor changes for fair LDBC comparisons:
+
+- GeminiGraph: LDBC CSV converted to 0-based binary edge lists; SSSP weight type `double` (was `float`).
+- neug: `extension/gds/benchmark/graphalytics_bench.py` times each GDS `CALL` with `LIMIT 1 RETURN count(*)` to avoid full result export.
+- GraphBLAS: PageRank=`LAGr_PageRankGX`, WCC=`LG_CC_FastSV6`; kernel timer excludes load and result I/O.
+- ladybug: 400 GiB buffer pool; PR + WCC only; `RETURN count(*)` to avoid full result export.
+
+Times measure **algorithm execution only** (seconds). **`—`** = not implemented. **Bold** = fastest in row.
+
+---
+
+## graph500-26 (large)
+
+32,804,978 vertices · 1,051,922,853 edges · undirected · **64 threads**  
+BFS source: 62455266 · PageRank / CDLP: 10 iterations, damping 0.85
+
+| Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
+|-----------|-----:|--------------:|----------:|------------:|--------:|
+| BFS | **0.542** | 1.106 | 0.608 | 0.595 | — |
+| WCC | **0.467** | 47.726 | 0.480 | 2.217 | 555.522 |
+| PageRank | 6.047 | 122.205 | 6.015 | **5.140** | 1468.170 |
+| CDLP | **10.619** | 250.491 | 38.616 | — | — |
+| LCC | **360.452** | 4301.710 | 622.956 | — | — |
+
+**neug** leads BFS, WCC, CDLP, and LCC (0.54 s / 0.47 s / 11 s / 360 s vs GraphBLAS 0.61 s / 0.48 s / 39 s / 623 s). PageRank ~6.0 s; GeminiGraph fastest on PR (5.14 s).
+
+---
+
+## datagen-9_0-fb (large, weighted)
+
+12,857,671 vertices · 1,049,527,225 edges · undirected · weighted · **64 threads**  
+BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
+
+| Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
+|-----------|-----:|--------------:|----------:|------------:|--------:|
+| BFS | **0.196** | 0.548 | 0.307 | 0.315 | — |
+| WCC | **0.198** | 17.973 | 0.200 | 1.741 | 516.700 |
+| PageRank | 4.391 | 76.134 | **3.194** | 4.406 | 1363.222 |
+| CDLP | **11.993** | 319.483 | 20.513 | — | — |
+| LCC | **21.753** | 351.654 | 65.085 | — | — |
+| SSSP | **1.137** | 12.927 | 6.474 | 1.242 | — |
+
+Similar edge count to graph500-26 (~1.05B) but **~2.5× fewer vertices**.
+
+**neug** fastest on BFS, WCC, and SSSP (0.20 s / 0.20 s / 1.14 s); well ahead on CDLP/LCC. PageRank roughly tracks GraphBLAS.
+
+---
+
+## datagen-9_1-fb (large, weighted)
+
+16,087,483 vertices · 1,342,158,397 edges · undirected · weighted · **64 threads**  
+BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
+
+| Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
+|-----------|-----:|--------------:|----------:|------------:|--------:|
+| BFS | **0.268** | 0.844 | 0.365 | 0.362 | — |
+| WCC | **0.254** | 20.185 | 0.275 | 2.295 | 675.243 |
+| PageRank | 5.761 | 89.309 | **4.281** | 5.659 | 1877.338 |
+| CDLP | **16.008** | 402.415 | 25.973 | — | — |
+| LCC | **28.581** | 453.973 | 83.572 | — | — |
+| SSSP | **1.460** | 16.076 | 8.594 | 1.554 | — |
+
+**neug** wins BFS, WCC, CDLP, LCC, and SSSP (0.25 s / 0.25 s / 16 s / 29 s / 1.46 s). PageRank ~5.8 s; GraphBLAS slightly faster on PR.
+
+---
+
+## datagen-9_2-zf (xlarge, weighted, sparse)
+
+434,943,376 vertices · 1,042,340,732 edges · undirected · weighted · **64 threads**  
+BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
+
+| Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
+|-----------|-----:|--------------:|----------:|------------:|--------:|
+| BFS | 4.855 | 18.977 | **2.262** | 4.818 | — |
+| WCC | 4.898 | 30.680 | **4.435** | 15.432 | 965.511 |
+| PageRank | 8.861 | 92.860 | **7.227** | 19.313 | 2234.142 |
+| CDLP | **19.110** | 267.216 | 315.556 | — | — |
+| LCC | **11.047** | 112.627 | 16.369 | — | — |
+| SSSP | **7.356** | 22.572 | 18.531 | 12.220 | — |
+
+Very high vertex count but low average degree (~2.4).
+
+**neug** dominates CDLP (19 s vs GraphBLAS 316 s) and leads LCC/SSSP (11 s / 7.4 s). WCC ~4.9 s, within ~10% of GraphBLAS (4.4 s). BFS and PageRank trail GraphBLAS.
+
+---
+
+## com-friendster (xlarge, unweighted)
+
+65,608,366 vertices · 1,806,067,135 edges · undirected · **64 threads**  
+BFS source: 101 · PageRank / CDLP: 10 iterations, damping 0.85
+
+| Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
+|-----------|-----:|--------------:|----------:|------------:|--------:|
+| BFS | **0.840** | 3.277 | 1.580 | 0.993 | — |
+| WCC | **0.945** | 67.195 | 1.141 | 8.471 | 991.129 |
+| PageRank | 14.830 | 276.754 | 14.760 | **14.521** | 2667.213 |
+| CDLP | **23.629** | 632.189 | 79.490 | — | — |
+| LCC | **55.568** | 1549.980 | 122.007 | — | — |
+
+**neug** leads BFS, WCC, CDLP, and LCC at 1.8B edges (0.84 s / 0.95 s / 24 s / 56 s). PageRank ~14.8 s; GeminiGraph slightly fastest (14.5 s).
+
+---
+
+## Setup
+
+| Item | Value |
+|------|-------|
+| CPU | AMD EPYC 9T24 (96-Core), 64 hardware threads visible |
+| Memory | 495 GB |
+| Threads | **64** (`nproc`) for all datasets |
+| OS / toolchain | Ubuntu 20.04, GCC 13.1 (ladybug), GCC 11.4 (others), Open MPI 4.0.3 |
+| Optimization | **`-O3`** (`Release`) for all systems |
+| Timing | Algorithm kernel only; excludes load, deserialize, result I/O |
+
+| System | Engine | Algorithms | How timed |
+|--------|--------|------------|-----------|
+| **neug** | In-memory GDS kernels (CSR views) | BFS, WCC, PR, CDLP, LCC, SSSP | `extension/gds/benchmark/graphalytics_bench.py` per `CALL`; **median of 5 runs** |
+| **libgrape-lite** | Vertex-centric, OpenMP, `mpirun -n 1` | same as neug | `run algorithm` |
+| **GraphBLAS/LAGraph** | SuiteSparse **v8.0.0** + LAGraph **1.0.1** | same as neug | Kernel timer; PR=`LAGr_PageRankGX`, WCC=`LG_CC_FastSV6` |
+| **GeminiGraph** | MPI + OpenMP (`toolkits/bfs`, `pagerank`, `sssp`, `cc`) | BFS, WCC, PR, SSSP | First `exec_time=` in tool output |
+| **ladybug** 0.18.0 | Kuzu `algo` extension | PR + WCC only | `lbug` `Time: executing` |
+
+Correctness of neug GDS on the official small Graphalytics validation graphs is covered by `tools/python_bind/tests/test_graphalytics.py`.
+
+---
+
+## Cross-scale observations
+
+- **neug** stays fastest on **CDLP** and **LCC** at all scales; vs libgrape on graph500-26 LCC: 360 s vs 4302 s (~12×). **SSSP** fastest on all three datagen datasets after BF refactor.
+- **GraphBLAS** dominates BFS/PR on graph500-22; at large scale **PR** and **WCC** competitive with neug.
+- **GeminiGraph**: BFS+PR+WCC on all six datasets; WCC **2.2–15.4 s** vs neug **0.5–5 s**.
+- **libgrape-lite** compute **10–100×** slower than neug on WCC at billion-edge scale.
+- **ladybug**: PR + WCC only; slowest com-friendster PR **2667 s** / WCC **991 s**.

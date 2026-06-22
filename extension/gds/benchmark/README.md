@@ -1,6 +1,6 @@
 # LDBC Graphalytics benchmark driver
 
-`graphalytics_bench.py` times NeuG GDS kernels on [LDBC Graphalytics](http://graphalytics.org/) datasets.
+`graphalytics_bench.py` times NeuG GDS kernels on [LDBC Graphalytics](http://graphalytics.org/) datasets. See [Performance.md](../Performance.md) for cross-system results.
 
 ## Timing methodology
 
@@ -18,7 +18,7 @@ export PYTHONPATH=/path/to/neug/build/tools/python_bind
 export NEUG_BUILD_DIR=/path/to/neug/build
 export GRAPHALYTICS_DATA_ROOT=/path/to/ldbc-graphalytics/datasets
 
-python3 tools/benchmark/graphalytics_bench.py \
+python3 extension/gds/benchmark/graphalytics_bench.py \
   --dataset graph500-26 \
   --concurrency 64 \
   --runs 5 \
