@@ -61,8 +61,8 @@ LOAD AS uses the same file reading pipeline as [LOAD FROM](load_data), so it sup
 | ------------ | ------ | ------------------ | -------------------------------------------- |
 | `from`     | string | **Required** | Source node label name (must already exist). |
 | `to`       | string | **Required** | Target node label name (must already exist). |
-| `from_col` | string | First column       | Name of the source node primary key column.  |
-| `to_col`   | string | Second column      | Name of the target node primary key column.  |
+| `from_col` | string | First column       | Name of the column containing source node keys. If omitted, defaults to the first column in the file. |
+| `to_col`   | string | Second column      | Name of the column containing target node keys. If omitted, defaults to the second column in the file. |
 
 ### Format and Performance Options
 
@@ -305,7 +305,7 @@ AS Person;
 RETURN id, name, age
 ```
 
-**"LOAD REL TABLE requires `from`, `to`, `from_col` and `to_col` options"**
+**"LOAD REL TABLE requires `from` and `to` options"**
 
 ```cypher
 // Error: from/to not specified.
@@ -314,15 +314,23 @@ LOAD REL TABLE FROM "edges.csv" (
 ) AS Edges;
 ```
 
-**Fix**: Specify source and target node labels:
+**Fix**: Specify source and target node labels (from_col/to_col are optional — without them, the first two columns are used as endpoint keys):
 
 ```cypher
+// Minimal: columns[0] and [1] are assumed to be src/dst keys.
 LOAD REL TABLE FROM "edges.csv" (
     from = 'Person',
     to = 'Person',
-    from_col = 'src_id',
-    to_col = 'dst_id',
     header = true
+) AS Edges;
+
+// Explicit: specify which columns are keys (required when keys
+// are not at file positions [0] and [1], e.g. Parquet files).
+LOAD REL TABLE FROM "edges.parquet" (
+    from = 'Person',
+    to = 'Person',
+    from_col = 'src_id',
+    to_col = 'dst_id'
 ) AS Edges;
 ```
 

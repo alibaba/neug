@@ -52,49 +52,74 @@ static std::string extractStringOption(const options_t& options,
 }
 
 // Build an ordered list of columns for DDL schema creation.
-// For NODE: RETURN columns in source order.
-// For REL: [from_col, to_col] first, then remaining RETURN columns in source
-// order. This ordering matches what ExtraBoundCopyRelInfo expects (slots [0]
-// and [1] are src/dst keys).
+//
+// For NODE:
+//   - With RETURN: subset of sourceColumns in source order.
+//   - Without RETURN: all sourceColumns.
+//
+// For REL:
+//   ddlColumns[0] and [1] MUST be the src/dst key columns (required by
+//   ExtraBoundCopyRelInfo and DDLEdgeInfo). When from_col/to_col options are
+//   specified, those columns are placed first regardless of their file
+//   position; otherwise columns[0] and [1] are used as keys (consistent
+//   with COPY FROM's default behavior).
 static expression_vector buildDdlColumns(
     const expression_vector& sourceColumns,
     const std::vector<std::string>& returnCols, bool isRel,
     const options_t& parsingOptions) {
-  if (returnCols.empty()) {
-    return sourceColumns;
-  }
-  expression_vector result;
-  if (isRel) {
-    auto fromCol = extractStringOption(parsingOptions, "from_col");
-    auto toCol = extractStringOption(parsingOptions, "to_col");
-    // Push from_col and to_col first.
-    if (!fromCol.empty()) {
-      for (const auto& c : sourceColumns) {
-        if (c->rawName() == fromCol) { result.push_back(c); break; }
-      }
+  if (!isRel) {
+    // NODE: keep RETURN subset in source order, or all columns if no RETURN.
+    if (returnCols.empty()) {
+      return sourceColumns;
     }
-    if (!toCol.empty()) {
-      for (const auto& c : sourceColumns) {
-        if (c->rawName() == toCol) { result.push_back(c); break; }
-      }
-    }
-    // Append remaining RETURN columns in source order.
-    for (const auto& c : sourceColumns) {
-      const auto& name = c->rawName();
-      if (name == fromCol || name == toCol) continue;
-      for (const auto& ret : returnCols) {
-        if (ret == name) { result.push_back(c); break; }
-      }
-    }
-  } else {
-    // NODE: keep RETURN subset in source order.
+    expression_vector result;
     for (const auto& c : sourceColumns) {
       for (const auto& ret : returnCols) {
         if (c->rawName() == ret) { result.push_back(c); break; }
       }
     }
+    return result;
   }
-  return result;
+
+  // --- REL: ensure ddlColumns[0/1] are the src/dst key columns ---
+  auto fromCol = extractStringOption(parsingOptions, "from_col");
+  auto toCol = extractStringOption(parsingOptions, "to_col");
+
+  // With RETURN: columns in RETURN-specified order.
+  // Without RETURN: reorder so from_col/to_col are at [0/1] if specified,
+  // otherwise use file order (keys at [0/1] by convention).
+  if (!returnCols.empty()) {
+    expression_vector result;
+    for (const auto& ret : returnCols) {
+      for (const auto& c : sourceColumns) {
+        if (c->rawName() == ret) { result.push_back(c); break; }
+      }
+    }
+    return result;
+  }
+
+  // No RETURN: reorder if from_col/to_col specify non-[0/1] key columns.
+  if (!fromCol.empty() && !toCol.empty()) {
+    expression_vector result;
+    // Push src key column first.
+    for (const auto& c : sourceColumns) {
+      if (c->rawName() == fromCol) { result.push_back(c); break; }
+    }
+    // Push dst key column second.
+    for (const auto& c : sourceColumns) {
+      if (c->rawName() == toCol) { result.push_back(c); break; }
+    }
+    // Append remaining columns.
+    for (const auto& c : sourceColumns) {
+      if (c->rawName() != fromCol && c->rawName() != toCol) {
+        result.push_back(c);
+      }
+    }
+    return result;
+  }
+
+  // No RETURN, no from_col/to_col: file order (keys at [0/1]).
+  return sourceColumns;
 }
 
 // When LOAD AS has WHERE and/or RETURN, construct an internal subquery
@@ -202,6 +227,28 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
   // Build DDL columns (determines the schema of the temporary table).
   expression_vector ddlColumns = buildDdlColumns(
       columns, validatedReturnCols, loadAs.isRelLoad(), parsingOptions);
+
+  // If from_col/to_col caused ddlColumns to reorder relative to the file's
+  // native column order, the direct file-scan path would produce data in
+  // file order while ddlColumns expects [srcKey, dstKey, ...].  In that
+  // case we must use the subquery path which projects columns in the
+  // correct order.
+  if (!useSubquery && loadAs.isRelLoad() && ddlColumns.size() >= 2 &&
+      columns.size() >= 2 &&
+      (ddlColumns[0]->rawName() != columns[0]->rawName() ||
+       ddlColumns[1]->rawName() != columns[1]->rawName())) {
+    hasProjection = true;
+    useSubquery = true;
+    // For the subquery's RETURN, use ddlColumns order so the projected
+    // output matches what the CopyFrom operator expects.
+    validatedReturnCols.clear();
+    for (const auto& c : ddlColumns) {
+      validatedReturnCols.push_back(c->rawName());
+    }
+    // Rebuild ddlColumns to match the subquery's projected output order.
+    ddlColumns = buildDdlColumns(
+        columns, validatedReturnCols, loadAs.isRelLoad(), parsingOptions);
+  }
 
   // Build the data source for CopyFrom.
   std::unique_ptr<BoundBaseScanSource> copySource;

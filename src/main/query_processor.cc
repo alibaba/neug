@@ -44,16 +44,10 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
   GS_AUTO(cache_value, global_query_cache_->Get(g_.schema(), query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;
-  if (flags.create_temp_table() && is_read_only_) {
-    RETURN_ERROR(neug::Status(
-        neug::StatusCode::ERR_INVALID_ARGUMENT,
-        "LOAD AS (temporary table creation) is only supported in "
-        "read-write mode. Please open the database with "
-        "DBMode::READ_WRITE."));
-  }
   if (is_read_only_) {
     if (flags.insert() || flags.update() || flags.schema() || flags.batch() ||
-        flags.checkpoint() || flags.procedure_call()) {
+        flags.create_temp_table() || flags.checkpoint() ||
+        flags.procedure_call()) {
       RETURN_ERROR(
           neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                        "Write queries are not supported in read-only mode"));

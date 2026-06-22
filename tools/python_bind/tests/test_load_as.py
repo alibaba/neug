@@ -115,6 +115,17 @@ class TestLoadAs:
             "src_id|dst_id|weight\n" "1|2|0.5\n" "99|3|1.0\n",
         )
 
+        # Edge CSV where key columns are NOT at positions [0] and [1].
+        # Columns: weight, src_id, dst_id — keys are at positions [1] and [2].
+        self.edges_shuffled_csv = _write_csv(
+            self.csv_dir,
+            "edges_shuffled.csv",
+            "weight|src_id|dst_id\n"
+            "0.5|1|2\n"
+            "1.0|2|3\n"
+            "0.8|3|4\n",
+        )
+
         yield
 
         self.conn.close()
@@ -296,6 +307,146 @@ class TestLoadAs:
         )
         rows = list(result)
         assert len(rows) == 3
+
+    def test_load_rel_table_no_from_col_to_col(self):
+        """Without from_col/to_col, columns[0] and [1] are used as keys
+        (consistent with COPY FROM default behavior)."""
+        self._load_persistent_person_table()
+        # edges.csv columns: src_id(0) | dst_id(1) | weight(2)
+        # Without from_col/to_col, src_id and dst_id are keys by position.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person') AS TempDefaultKey;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempDefaultKey]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+
+    def test_load_rel_table_from_col_to_col_at_position_0_1(self):
+        """from_col/to_col match file columns[0/1] — no reordering needed."""
+        self._load_persistent_person_table()
+        # edges.csv columns: src_id(0) | dst_id(1) | weight(2)
+        # from_col/to_col match positions [0/1] — works without subquery.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempEdge01;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempEdge01]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+
+    def test_load_rel_table_from_col_to_col_not_at_position_0_1(self):
+        """When from_col/to_col point to non-[0/1] columns, the binder
+        automatically switches to a subquery path to reorder columns so
+        that ddlColumns[0/1] are the src/dst keys.
+
+        File columns: weight(0) | src_id(1) | dst_id(2)
+        from_col='src_id', to_col='dst_id' → ddlColumns=[src_id, dst_id, weight]
+        Subquery projection ensures data order matches ddlColumns.
+        """
+        self._load_persistent_person_table()
+        # edges_shuffled.csv: weight | src_id | dst_id
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_shuffled_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person', "
+            f"from_col = 'src_id', to_col = 'dst_id') AS TempEdgeShuffled;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempEdgeShuffled]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+        assert rows[1] == [2, 3, 1.0]
+        assert rows[2] == [3, 4, 0.8]
+
+    def test_load_rel_table_return_without_from_col_to_col(self):
+        """RETURN without from_col/to_col: RETURN columns in source order,
+        first two become keys by position."""
+        self._load_persistent_person_table()
+        # edges.csv columns: src_id(0) | dst_id(1) | weight(2)
+        # RETURN selects all three; src_id and dst_id are keys by position.
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person') "
+            f"RETURN src_id, dst_id, weight AS TempReturnNoKey;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempReturnNoKey]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+
+    def test_load_rel_table_return_reorders_keys_to_front(self):
+        """When file has keys NOT at [0/1], user uses RETURN to place keys
+        first. 
+
+        File columns: weight(0) | src_id(1) | dst_id(2)
+        RETURN: src_id, dst_id, weight → keys at [0/1] in ddlColumns.
+        """
+        self._load_persistent_person_table()
+        # edges_shuffled.csv: weight | src_id | dst_id
+        # Without RETURN, weight would be treated as src key (wrong).
+        # RETURN reorders columns so src_id and dst_id are at [0/1].
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_shuffled_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person') "
+            f"RETURN src_id, dst_id, weight AS TempReorder;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempReorder]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+        assert rows[1] == [2, 3, 1.0]
+        assert rows[2] == [3, 4, 0.8]
+
+    def test_load_rel_table_return_drops_columns(self):
+        """RETURN can select a subset of columns, dropping unnecessary ones.
+        Only the returned columns become edge properties.
+
+        File columns: src_id(0) | dst_id(1) | weight(2)
+        RETURN: src_id, dst_id → only key columns, no edge properties.
+        """
+        self._load_persistent_person_table()
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person') "
+            f"RETURN src_id, dst_id AS TempNoProps;"
+        )
+        # Edge exists but has no 'weight' property.
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempNoProps]->(b:Person) "
+            "RETURN a.id, b.id ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2]
+        # Accessing weight should fail since it wasn't in RETURN.
+        with pytest.raises(Exception):
+            self.conn.execute(
+                "MATCH ()-[r:TempNoProps]->() RETURN r.weight;"
+            )
 
     # ------------------------------------------------------------------
     # Error cases
@@ -1324,6 +1475,33 @@ class TestLoadAsParquet:
         with pytest.raises(RuntimeError):
             self.conn.execute("MATCH (n:TempPqWR) RETURN n.age;")
 
+    def test_load_rel_table_from_parquet(self):
+        """LOAD REL TABLE from Parquet: keys at positions [0] and [1]."""
+        # eMeets.parquet columns: from(0) | to(1) | location | times | data
+        # Keys are at positions [0] and [1] by convention.
+        meets_path = os.path.join(
+            os.path.dirname(self.parquet_path), "eMeets.parquet"
+        )
+        if not os.path.exists(meets_path):
+            pytest.skip(f"eMeets.parquet not found: {meets_path}")
+
+        # Load vertices first.
+        self.conn.execute(
+            f'LOAD NODE TABLE FROM "{self.parquet_path}" '
+            f"(primary_key = 'ID') AS PqPerson;"
+        )
+        # Load edges — no from_col/to_col needed since keys are at [0/1].
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{meets_path}" '
+            f"(from = 'PqPerson', to = 'PqPerson') AS PqMeets;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:PqPerson)-[r:PqMeets]->(b:PqPerson) "
+            "RETURN a.ID, b.ID ORDER BY a.ID, b.ID;"
+        )
+        rows = list(result)
+        assert len(rows) >= 5  # eMeets has 7 edges
+
 
 @extension_test
 class TestLoadAsRemoteHttpfs:
@@ -1521,16 +1699,16 @@ class TestLoadAsReadOnlyRejection:
         shutil.rmtree(self.db_dir, ignore_errors=True)
 
     def test_load_node_table_rejected_in_read_only(self):
-        """LOAD NODE TABLE must fail with a clear read-write mode error."""
-        with pytest.raises(Exception, match="read-write mode"):
+        """LOAD NODE TABLE must fail in read-only mode."""
+        with pytest.raises(Exception, match="read-only mode"):
             self.conn.execute(
                 f'LOAD NODE TABLE FROM "{self.people_csv}" '
                 f"(primary_key = 'id', header = true) AS TempFail;"
             )
 
     def test_load_rel_table_rejected_in_read_only(self):
-        """LOAD REL TABLE must fail with a clear read-write mode error."""
-        with pytest.raises(Exception, match="read-write mode"):
+        """LOAD REL TABLE must fail in read-only mode."""
+        with pytest.raises(Exception, match="read-only mode"):
             self.conn.execute(
                 f'LOAD REL TABLE FROM "{self.edges_csv}" '
                 f"(header = true, from = 'Person', to = 'Person', "
