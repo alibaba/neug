@@ -118,6 +118,13 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug
 file(GLOB_RECURSE UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 # exclude files end with .pb.cc
 list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
+# Arrow-backed reader sources live in the parquet extension
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/reader\\.cc$")
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/dataset_builder\\.cc$")
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/expression_converter\\.cc$")
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/json_dataset_builder\\.cc$")
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/reader/json_options\\.cc$")
+list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*/arrow_utils\\.cc$")
 message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
 add_library(neug_utils OBJECT ${UTILS_SRC_FILES})

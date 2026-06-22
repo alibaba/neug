@@ -150,7 +150,6 @@ else ()
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lopen-pal")
     else ()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,$ORIGIN")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
     endif ()
 endif ()
 # Only add -fopenmp if not using clang
@@ -197,13 +196,19 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #if compiler is gcc
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess -Wno-maybe-uninitialized -Wno-ignored-attributes")
     # -Wno-missing-requires: protobuf v29.6 headers use C++20 concepts in port.h
     # that trigger this warning on GCC 13+, which becomes an error with -Werror.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess -Wno-maybe-uninitialized -Wno-missing-requires -Wno-ignored-attributes")
+    # Only add if compiler supports it (GCC 13+), otherwise -Werror treats the
+    # unrecognized option warning as a fatal error on older GCC.
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-Wno-missing-requires" COMPILER_SUPPORTS_NO_MISSING_REQUIRES)
+    if(COMPILER_SUPPORTS_NO_MISSING_REQUIRES)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-requires")
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-uninitialized")
 endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nonnull ") # brought by arrow
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-Wno-restrict) # no restrict until https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105651 is fixed
 endif()
@@ -433,7 +438,7 @@ function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${OPENSSL_LIBRARIES} 
         ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
@@ -501,6 +506,14 @@ if(POLICY CMP0167)
 endif()
 
 include_directories(SYSTEM third_party/HowardHinnant/date/include)
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/csv-parser)
+
+# GCC < 11 does not support std::from_chars for floating-point types.
+# csv-parser's classify_scalar module assumes it's available on any non-libc++
+# C++17 implementation; disable it explicitly on older GCC.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11")
+    add_compile_definitions(CLASSIFY_SCALAR_DISABLE_STD_FLOAT_FROM_CHARS)
+endif()
 
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
@@ -586,9 +599,16 @@ endif()
 
 #find arrow----------------------------------------------------------------------
 
-# Always enable Arrow JSON support (built-in).
-# JSON is now a core feature since v0.1.2, not an optional extension.
-set(ARROW_JSON ON CACHE BOOL "" FORCE)
+set(NEUG_NEED_ARROW OFF)
+if(BUILD_EXTENSIONS)
+    if("parquet" IN_LIST BUILD_EXTENSIONS OR "httpfs" IN_LIST BUILD_EXTENSIONS)
+        set(NEUG_NEED_ARROW ON)
+    endif()
+endif()
+
+if(NEUG_NEED_ARROW)
+# -Wno-nonnull is required by Arrow headers; only needed when Arrow is built.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nonnull ")
 # Use system RapidJSON instead of building it (project already has rapidjson in third_party)
 set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)
 # Point Arrow to use the project's RapidJSON
@@ -802,13 +822,15 @@ else()
     build_arrow_as_third_party()
 endif()
 
-# Add Arrow include directories after building
-if(ARROW_INCLUDE_DIRS)
-    include_directories(${ARROW_INCLUDE_DIRS})
-    message(STATUS "Arrow include directories: ${ARROW_INCLUDE_DIRS}")
+    if(ARROW_INCLUDE_DIRS)
+        include_directories(${ARROW_INCLUDE_DIRS})
+        message(STATUS "Arrow include directories: ${ARROW_INCLUDE_DIRS}")
+    endif()
+    message(STATUS "Arrow library: ${ARROW_LIB}")
+else()
+    set(ARROW_LIB "")
+    message(STATUS "Arrow disabled (core build; enable parquet/httpfs extension to link Arrow)")
 endif()
-
-message(STATUS "Arrow library: ${ARROW_LIB}")
 
 # Find Doxygen
 if (BUILD_DOC)

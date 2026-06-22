@@ -125,9 +125,10 @@ class EdgeTableTest : public ::testing::Test {
     edge_table->EnsureCapacity(src_v_cap, dst_v_cap);
   }
 
-  void BatchInsert(std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches) {
+  void BatchInsert(
+      std::vector<std::shared_ptr<neug::execution::DataChunk>>&& chunks) {
     auto supplier =
-        std::make_shared<GeneratedRecordBatchSupplier>(std::move(batches));
+        std::make_shared<GeneratedChunkSupplier>(std::move(chunks));
     edge_table->BatchAddEdges(src_indexer, dst_indexer, supplier);
   }
 
@@ -262,12 +263,11 @@ TEST_F(EdgeTableTest, TestBundledInt32) {
 
   auto data_list = generate_random_data<int>(edge_num);
 
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs = split_column_to_chunks(data_list, 10);
 
-  auto batches = convert_to_record_batches({"src", "dst", "data"},
-                                           {src_arrs, dst_arrs, data_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -334,12 +334,11 @@ TEST_F(EdgeTableTest, TestSeperatedString) {
 
   auto data_list = generate_random_data<std::string>(edge_num);
 
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs = split_column_to_chunks(data_list, 10);
 
-  auto batches = convert_to_record_batches({"src", "dst", "data"},
-                                           {src_arrs, dst_arrs, data_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_);
@@ -407,14 +406,13 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
   auto data_list0 = generate_random_data<std::string>(edge_num);
   auto data_list1 = generate_random_data<int>(edge_num);
 
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs0 = convert_to_arrow_arrays(data_list0, 10);
-  auto data_arrs1 = convert_to_arrow_arrays(data_list1, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs0 = split_column_to_chunks(data_list0, 10);
+  auto data_arrs1 = split_column_to_chunks(data_list1, 10);
 
   auto batches =
-      convert_to_record_batches({"src", "dst", "prop0", "prop1"},
-                                {src_arrs, dst_arrs, data_arrs0, data_arrs1});
+      convert_to_data_chunks({src_arrs, dst_arrs, data_arrs0, data_arrs1});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
@@ -542,12 +540,11 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
 
   auto data_list = generate_random_data<int>(edge_num);
 
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs = split_column_to_chunks(data_list, 10);
 
-  auto batches = convert_to_record_batches({"src", "dst", "data"},
-                                           {src_arrs, dst_arrs, data_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -576,12 +573,11 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
 
   auto data_list = generate_random_data<int>(edge_num);
 
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs = split_column_to_chunks(data_list, 10);
 
-  auto batches = convert_to_record_batches({"src", "dst", "data"},
-                                           {src_arrs, dst_arrs, data_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -667,11 +663,10 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
   auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
   auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
   auto data_list = generate_random_data<int>(edge_num);
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
-  auto batches = convert_to_record_batches({"src", "dst", "data"},
-                                           {src_arrs, dst_arrs, data_arrs});
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data_arrs = split_column_to_chunks(data_list, 10);
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs, data_arrs});
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -714,13 +709,12 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
   auto data0_list = generate_random_data<std::string>(edge_num);
   auto data1_list = generate_random_data<int>(edge_num);
-  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
-  auto data0_arrs = convert_to_arrow_arrays(data0_list, 10);
-  auto data1_arrs = convert_to_arrow_arrays(data1_list, 10);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto data0_arrs = split_column_to_chunks(data0_list, 10);
+  auto data1_arrs = split_column_to_chunks(data1_list, 10);
   auto batches =
-      convert_to_record_batches({"src", "dst", "data0", "data1"},
-                                {src_arrs, dst_arrs, data0_arrs, data1_arrs});
+      convert_to_data_chunks({src_arrs, dst_arrs, data0_arrs, data1_arrs});
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
   this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
@@ -1126,10 +1120,10 @@ TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
     src_list.emplace_back(src_oid);
     dst_list.emplace_back(dst_oid);
   }
-  auto src_arrs = convert_to_arrow_arrays(src_list, src_list.size());
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, dst_list.size());
+  auto src_arrs = split_column_to_chunks(src_list, src_list.size());
+  auto dst_arrs = split_column_to_chunks(dst_list, dst_list.size());
   auto batches =
-      convert_to_record_batches({"src", "dst"}, {src_arrs, dst_arrs});
+      convert_to_data_chunks({src_arrs, dst_arrs});
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(endpoints.size());
 
@@ -1183,10 +1177,10 @@ TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
 
   std::vector<int64_t> src_list = {0, 1, 2};
   std::vector<int64_t> dst_list = {1, 2, 3};
-  auto src_arrs = convert_to_arrow_arrays(src_list, src_list.size());
-  auto dst_arrs = convert_to_arrow_arrays(dst_list, dst_list.size());
+  auto src_arrs = split_column_to_chunks(src_list, src_list.size());
+  auto dst_arrs = split_column_to_chunks(dst_list, dst_list.size());
   auto batches =
-      convert_to_record_batches({"src", "dst"}, {src_arrs, dst_arrs});
+      convert_to_data_chunks({src_arrs, dst_arrs});
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(src_list.size());
 
@@ -1420,30 +1414,16 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
   EXPECT_EQ(output, input);
 }
 
-template <typename EDATA_T, typename ARROW_COL_T>
-struct TypePair {
-  using EdType = EDATA_T;
-  using ArrowType = ARROW_COL_T;
-};
-using Datatypes = ::testing::Types<
-    TypePair<int32_t, typename TypeConverter<int32_t>::ArrowArrayType>,
-    TypePair<uint32_t, typename TypeConverter<uint32_t>::ArrowArrayType>,
-    TypePair<int64_t, typename TypeConverter<int64_t>::ArrowArrayType>,
-    TypePair<uint64_t, typename TypeConverter<uint64_t>::ArrowArrayType>,
-    TypePair<float, typename TypeConverter<float>::ArrowArrayType>,
-    TypePair<double, typename TypeConverter<double>::ArrowArrayType>,
-    TypePair<neug::Date, typename TypeConverter<neug::Date>::ArrowArrayType>,
-    TypePair<neug::DateTime,
-             typename TypeConverter<neug::DateTime>::ArrowArrayType>,
-    TypePair<neug::Interval,
-             typename TypeConverter<neug::Interval>::ArrowArrayType>>;
+using Datatypes = ::testing::Types<int32_t, uint32_t, int64_t, uint64_t, float,
+                                   double, neug::Date, neug::DateTime,
+                                   neug::Interval>;
 
 template <typename T>
 class EdgeTableToolsTest : public ::testing::Test {};
 TYPED_TEST_SUITE(EdgeTableToolsTest, Datatypes);
 
 TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
-  using EdType = typename TypeParam::EdType;
+  using EdType = TypeParam;
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/storage/resources";
@@ -1459,69 +1439,69 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
                                         DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
   if constexpr (std::is_same_v<EdType, int32_t>) {
     file_path = resource_path + "/edges_i32.csv";
     std::vector<DataType> property_type = {DataTypeId::kInt32};
     column_types.emplace_back(DataTypeId::kInt32);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
     file_path = resource_path + "/edges_i64.csv";
     std::vector<DataType> property_type = {DataTypeId::kInt64};
     column_types.emplace_back(DataTypeId::kInt64);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
     file_path = resource_path + "/edges_u32.csv";
     std::vector<DataType> property_type = {DataTypeId::kUInt32};
     column_types.emplace_back(DataTypeId::kUInt32);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
     file_path = resource_path + "/edges_u64.csv";
     std::vector<DataType> property_type = {DataTypeId::kUInt64};
     column_types.emplace_back(DataTypeId::kUInt64);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, float>) {
     file_path = resource_path + "/edges_float.csv";
     std::vector<DataType> property_type = {DataTypeId::kFloat};
     column_types.emplace_back(DataTypeId::kFloat);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, double>) {
     file_path = resource_path + "/edges_double.csv";
     std::vector<DataType> property_type = {DataTypeId::kDouble};
     column_types.emplace_back(DataTypeId::kDouble);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Date>) {
     file_path = resource_path + "/edges_date.csv";
     std::vector<DataType> property_type = {DataTypeId::kDate};
     column_types.emplace_back(DataTypeId::kDate);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
     file_path = resource_path + "/edges_datetime.csv";
     std::vector<DataType> property_type = {DataTypeId::kTimestampMs};
     column_types.emplace_back(DataTypeId::kTimestampMs);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Interval>) {
     file_path = resource_path + "/edges_interval.csv";
     std::vector<DataType> property_type = {DataTypeId::kInterval};
     column_types.emplace_back(DataTypeId::kInterval);
     edge_schema->add_properties(property_name, property_type);
-    suppliers = execution::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_chunk_suppliers(
         file_path, column_types, csv_options);
   } else {
     FAIL();
@@ -1559,7 +1539,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
 }
 
 TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
-  using EdType = typename TypeParam::EdType;
+  using EdType = TypeParam;
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/storage/resources";
@@ -1574,8 +1554,8 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
                                         DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  suppliers = execution::ops::create_csv_record_suppliers(
+  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
+  suppliers = execution::ops::create_csv_chunk_suppliers(
       file_path, column_types, csv_options);
   EXPECT_EQ(suppliers.size(), 1);
 

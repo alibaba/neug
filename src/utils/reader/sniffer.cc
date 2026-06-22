@@ -15,69 +15,25 @@
 
 #include "neug/utils/reader/sniffer.h"
 
-#include <arrow/status.h>
-#include <arrow/type.h>
-#include <glog/logging.h>
-
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/type_converter.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 namespace reader {
 
-result<std::shared_ptr<EntrySchema>> ArrowSniffer::sniff() {
+result<std::shared_ptr<EntrySchema>> CsvSniffer::sniff() {
   if (!reader_) {
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "ArrowReader is null");
+                        "CsvReader is null");
   }
-
-  // Call ArrowReader's inferSchema() method to get Arrow Schema
-  auto arrowSchema = reader_->inferSchema();
-  if (!arrowSchema.ok()) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                        "Failed to infer schema from ArrowReader: " +
-                            arrowSchema.status().ToString());
-  }
-
-  // Convert Arrow Schema to base EntrySchema
-  return convertArrowSchemaToEntrySchema(arrowSchema.ValueOrDie());
+  return reader_->inferSchema();
 }
 
-result<std::shared_ptr<EntrySchema>>
-ArrowSniffer::convertArrowSchemaToEntrySchema(
-    const std::shared_ptr<arrow::Schema>& arrowSchema) {
-  if (!arrowSchema) {
+result<std::shared_ptr<EntrySchema>> JsonSniffer::sniff() {
+  if (!reader_) {
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "Arrow schema is null");
+                        "JsonReader is null");
   }
-
-  auto entrySchema = std::make_shared<TableEntrySchema>();
-  ArrowTypeConverter converter;
-  int numFields = arrowSchema->num_fields();
-
-  entrySchema->columnNames.reserve(numFields);
-  entrySchema->columnTypes.reserve(numFields);
-
-  for (int i = 0; i < numFields; ++i) {
-    const auto& field = arrowSchema->field(i);
-    const std::string& columnName = field->name();
-
-    entrySchema->columnNames.push_back(columnName);
-
-    // Use ArrowTypeConverter to convert Arrow DataType to common::DataType
-    auto commonType = converter.convert(*field->type());
-    if (!commonType) {
-      RETURN_STATUS_ERROR(
-          neug::StatusCode::ERR_TYPE_CONVERSION,
-          "Failed to convert Arrow type for column: " + columnName);
-    }
-    // Store shared_ptr directly, avoiding copy of protobuf message
-    entrySchema->columnTypes.push_back(std::move(commonType));
-  }
-
-  return entrySchema;
+  return reader_->inferSchema();
 }
 
 }  // namespace reader

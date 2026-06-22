@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-#include <arrow/record_batch.h>
 #include <glog/logging.h>
 #include <stdint.h>
 
@@ -29,9 +28,6 @@
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/result.h"
 
-namespace arrow {
-class Array;
-}  // namespace arrow
 
 namespace neug {
 class Schema;

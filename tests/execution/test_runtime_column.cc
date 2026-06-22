@@ -15,12 +15,13 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/loader/loader_utils.h"
 
 namespace neug {
 namespace execution {
@@ -1434,19 +1435,7 @@ class ArrowContextColumnTest : public ::testing::Test {
   void SetUp() override {}
 };
 
-TEST_F(ArrowContextColumnTest, ArrowArrayContextColumnBasic) {
-  std::vector<std::shared_ptr<arrow::Array>> columns;
-  ArrowArrayContextColumn col = ArrowArrayContextColumn(columns);
-
-  EXPECT_EQ(col.column_info(), "ArrowArrayContextColumn");
-  EXPECT_EQ(col.size(), 0);
-  EXPECT_EQ(col.column_type(), ContextColumnType::kArrowArray);
-  EXPECT_EQ(col.is_optional(), false);
-  EXPECT_EQ(col.GetColumns().size(), 0);
-  EXPECT_EQ(col.GetArrowType(), arrow::null());
-}
-
-TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
+TEST_F(ArrowContextColumnTest, DataChunkSupplierBasic) {
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/execution/resources";
@@ -1461,16 +1450,18 @@ TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
   options.insert({"STREAM_READER", "true"});
 
   auto stream_suppliers =
-      ops::create_csv_record_suppliers(file_path, column_types, options);
-  ArrowStreamContextColumnBuilder builder(stream_suppliers);
-  auto arrow_stream_context_column =
-      std::dynamic_pointer_cast<ArrowStreamContextColumn>(builder.finish());
-  EXPECT_EQ(arrow_stream_context_column->column_info(),
-            "ArrowStreamContextColumn");
-  EXPECT_EQ(arrow_stream_context_column->size(), 1);
-  EXPECT_EQ(arrow_stream_context_column->column_type(),
-            ContextColumnType::kArrowStream);
-  arrow_stream_context_column->GetSuppliers();
+      ops::create_csv_chunk_suppliers(file_path, column_types, options);
+
+  // Verify suppliers can produce chunks
+  EXPECT_FALSE(stream_suppliers.empty());
+  int64_t total_rows = 0;
+  for (const auto& supplier : stream_suppliers) {
+    while (auto chunk = supplier->GetNextChunk()) {
+      EXPECT_GT(chunk->col_num(), 0);
+      total_rows += chunk->row_num();
+    }
+  }
+  EXPECT_GT(total_rows, 0);
 }
 
 }  // namespace test

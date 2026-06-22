@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
-#include "neug/utils/arrow_utils.h"
+#include "neug/utils/datetime_parsers.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/pb_utils.h"
@@ -235,266 +235,60 @@ TEST_F(BitsetTest, BoundaryBits) {
   EXPECT_EQ(bs.count(), 3);
 }
 
-class ArrowUtilsTest : public ::testing::Test {
+class DatetimeParserTest : public ::testing::Test {
  protected:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-// =============== LDBCTimeStampParser Tests ===============
-
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_YYYYMMDD) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(parser("2023-01-01", 10, arrow::TimeUnit::MILLI, &result));
-
-  int64_t expected_ms = 1672531200LL * 1000;
-  EXPECT_EQ(result, expected_ms);
+TEST_F(DatetimeParserTest, Timestamp_YYYYMMDD) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "2023-01-01", 10, neug::utils::TimestampUnit::kMilli, &result));
+  EXPECT_EQ(result, 1672531200LL * 1000);
 }
 
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_WithTime) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(
-      parser("2023-06-15 14:30:45", 19, arrow::TimeUnit::MILLI, &result));
-
-  int64_t expected_ms = 1686839445LL * 1000;
-  EXPECT_EQ(result, expected_ms);
+TEST_F(DatetimeParserTest, Timestamp_WithTime) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "2023-06-15 14:30:45", 19, neug::utils::TimestampUnit::kMilli, &result));
+  EXPECT_EQ(result, 1686839445LL * 1000);
 }
 
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_WithTZ_Z) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(
-      parser("2023-06-15T14:30:45Z", 20, arrow::TimeUnit::MILLI, &result));
-
-  int64_t expected_ms = 1686839445LL * 1000;
-  EXPECT_EQ(result, expected_ms);
+TEST_F(DatetimeParserTest, Timestamp_WithTZ) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "2023-06-15T14:30:45Z", 20, neug::utils::TimestampUnit::kMilli, &result));
+  EXPECT_EQ(result, 1686839445LL * 1000);
 }
 
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_WithTZ_HHMM) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(
-      parser("2023-06-15 14:30:45+0800", 24, arrow::TimeUnit::MILLI, &result));
-
-  int64_t expected_utc_seconds = 1686810645LL;
-  int64_t expected_ms = expected_utc_seconds * 1000;
-  EXPECT_EQ(result, expected_ms);
-
-  EXPECT_TRUE(
-      parser("2023-06-15 14:30:45+08:00", 25, arrow::TimeUnit::MILLI, &result));
-
-  expected_utc_seconds = 1686810645LL;
-  expected_ms = expected_utc_seconds * 1000;
-  EXPECT_EQ(result, expected_ms);
-
-  EXPECT_TRUE(
-      parser("2023-06-15 14:30:45+08", 22, arrow::TimeUnit::MILLI, &result));
-
-  expected_utc_seconds = 1686810645LL;
-  expected_ms = expected_utc_seconds * 1000;
-  EXPECT_EQ(result, expected_ms);
+TEST_F(DatetimeParserTest, Timestamp_WithFractionalSeconds) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "2023-06-15 14:30:45.123", 23, neug::utils::TimestampUnit::kMilli,
+      &result));
+  EXPECT_EQ(result, 1686839445LL * 1000 + 123);
 }
 
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_WithFractionalSeconds) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(
-      parser("2023-06-15 14:30:45.123", 23, arrow::TimeUnit::MILLI, &result));
-
-  int64_t base_seconds = 1686839445LL;
-  int64_t expected_ms = base_seconds * 1000 + 123;
-  EXPECT_EQ(result, expected_ms);
+TEST_F(DatetimeParserTest, Timestamp_InvalidInput) {
+  int64_t result = 0;
+  EXPECT_FALSE(neug::utils::parse_timestamp(
+      "2023", 4, neug::utils::TimestampUnit::kMilli, &result));
+  EXPECT_FALSE(neug::utils::parse_timestamp(
+      "2023/01/01", 10, neug::utils::TimestampUnit::kMilli, &result));
 }
 
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_Microseconds) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(parser("2023-06-15 14:30:45.123456", 26, arrow::TimeUnit::MICRO,
-                     &result));
-
-  int64_t base_seconds = 1686839445LL;
-  int64_t expected_micros = base_seconds * 1000000 + 123456;
-  EXPECT_EQ(result, expected_micros);
-}
-
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_InvalidInput) {
-  LDBCTimeStampParser parser;
-  int64_t result;
-
-  EXPECT_FALSE(parser("2023", 4, arrow::TimeUnit::MILLI, &result));
-
-  EXPECT_FALSE(parser("2023/01/01", 10, arrow::TimeUnit::MILLI, &result));
-
-  EXPECT_FALSE(
-      parser("2023-01-01X12:00:00", 19, arrow::TimeUnit::MILLI, &result));
-}
-
-TEST_F(ArrowUtilsTest, LDBCTimeStampParser_function) {
-  LDBCTimeStampParser parser;
-  EXPECT_STREQ(parser.kind(), "LDBC timestamp parser");
-  EXPECT_STREQ(parser.format(), "EmptyFormat");
-}
-
-// =============== LDBCLongDateParser Tests ===============
-
-TEST_F(ArrowUtilsTest, LDBCLongDateParser_Valid) {
-  LDBCLongDateParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(parser("1672531200000", 13, arrow::TimeUnit::MILLI, &result));
-
+TEST_F(DatetimeParserTest, EpochTimestamp_Valid) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_epoch_timestamp(
+      "1672531200000", 13, neug::utils::TimestampUnit::kMilli, &result));
   EXPECT_EQ(result, 1672531200000LL);
 }
 
-TEST_F(ArrowUtilsTest, LDBCLongDateParser_WithSubseconds) {
-  LDBCLongDateParser parser;
-  int64_t result;
-
-  EXPECT_TRUE(parser("1672531200123", 13, arrow::TimeUnit::MILLI, &result));
-
-  EXPECT_EQ(result, 1672531200123LL);
-}
-
-TEST_F(ArrowUtilsTest, LDBCLongDateParser_Invalid) {
-  LDBCLongDateParser parser;
-  int64_t result;
-
-  EXPECT_FALSE(parser("abc123def", 9, arrow::TimeUnit::MILLI, &result));
-}
-
-TEST_F(ArrowUtilsTest, LDBCLongDateParser_function) {
-  LDBCLongDateParser parser;
-  EXPECT_STREQ(parser.kind(), "LDBC timestamp parser");
-  EXPECT_STREQ(parser.format(), "LongDateFormat");
-}
-
-// =============== TypeConverter Tests ===============
-
-TEST_F(ArrowUtilsTest, TypeConverter_Bool) {
-  EXPECT_EQ(TypeConverter<bool>::property_type(), DataTypeId::kBoolean);
-  auto arrow_type = TypeConverter<bool>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::boolean()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Int32) {
-  EXPECT_EQ(TypeConverter<int32_t>::property_type(), DataTypeId::kInt32);
-  auto arrow_type = TypeConverter<int32_t>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::int32()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_UInt32) {
-  EXPECT_EQ(TypeConverter<uint32_t>::property_type(), DataTypeId::kUInt32);
-  auto arrow_type = TypeConverter<uint32_t>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::uint32()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Int64) {
-  EXPECT_EQ(TypeConverter<int64_t>::property_type(), DataTypeId::kInt64);
-  auto arrow_type = TypeConverter<int64_t>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::int64()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_UInt64) {
-  EXPECT_EQ(TypeConverter<uint64_t>::property_type(), DataTypeId::kUInt64);
-  auto arrow_type = TypeConverter<uint64_t>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::uint64()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Double) {
-  EXPECT_EQ(TypeConverter<double>::property_type(), DataTypeId::kDouble);
-  auto arrow_type = TypeConverter<double>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::float64()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Float) {
-  EXPECT_EQ(TypeConverter<float>::property_type(), DataTypeId::kFloat);
-  auto arrow_type = TypeConverter<float>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::float32()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_String) {
-  EXPECT_EQ(TypeConverter<std::string>::property_type(), DataTypeId::kVarchar);
-  auto arrow_type = TypeConverter<std::string>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::utf8()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_StringView) {
-  EXPECT_EQ(TypeConverter<std::string_view>::property_type(),
-            DataTypeId::kVarchar);
-  auto arrow_type = TypeConverter<std::string_view>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::utf8()));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Date) {
-  EXPECT_EQ(TypeConverter<Date>::property_type(), DataTypeId::kDate);
-  auto arrow_type = TypeConverter<Date>::ArrowTypeValue();
-  auto expected = arrow::date64();
-  EXPECT_TRUE(arrow_type->Equals(expected));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_DateTime) {
-  EXPECT_EQ(TypeConverter<DateTime>::property_type(), DataTypeId::kTimestampMs);
-  auto arrow_type = TypeConverter<DateTime>::ArrowTypeValue();
-  auto expected = arrow::timestamp(arrow::TimeUnit::MILLI);
-  EXPECT_TRUE(arrow_type->Equals(expected));
-}
-
-TEST_F(ArrowUtilsTest, TypeConverter_Interval) {
-  EXPECT_EQ(TypeConverter<Interval>::property_type(), DataTypeId::kInterval);
-  auto arrow_type = TypeConverter<Interval>::ArrowTypeValue();
-  auto expected = arrow::utf8();
-  EXPECT_TRUE(arrow_type->Equals(expected));
-}
-
-// =============== PropertyTypeToArrowType Function Tests ===============
-
-TEST_F(ArrowUtilsTest, PropertyTypeToArrowType_Function) {
-  auto bool_type = PropertyTypeToArrowType(DataTypeId::kBoolean);
-  EXPECT_TRUE(bool_type->Equals(arrow::boolean()));
-
-  auto int32_type = PropertyTypeToArrowType(DataTypeId::kInt32);
-  EXPECT_TRUE(int32_type->Equals(arrow::int32()));
-
-  auto int64_type = PropertyTypeToArrowType(DataTypeId::kInt64);
-  EXPECT_TRUE(int64_type->Equals(arrow::int64()));
-
-  auto uint32_type = PropertyTypeToArrowType(DataTypeId::kUInt32);
-  EXPECT_TRUE(uint32_type->Equals(arrow::uint32()));
-
-  auto uint64_type = PropertyTypeToArrowType(DataTypeId::kUInt64);
-  EXPECT_TRUE(uint64_type->Equals(arrow::uint64()));
-
-  auto double_type = PropertyTypeToArrowType(DataTypeId::kDouble);
-  EXPECT_TRUE(double_type->Equals(arrow::float64()));
-
-  auto float_type = PropertyTypeToArrowType(DataTypeId::kFloat);
-  EXPECT_TRUE(float_type->Equals(arrow::float32()));
-
-  auto date_type = PropertyTypeToArrowType(DataTypeId::kDate);
-  EXPECT_TRUE(date_type->Equals(arrow::date64()));
-
-  auto string_type = PropertyTypeToArrowType(DataTypeId::kVarchar);
-  EXPECT_TRUE(string_type->Equals(arrow::utf8()));
-}
-
-// =============== Parser Metadata Tests ===============
-
-TEST_F(ArrowUtilsTest, ParserMetadata) {
-  LDBCTimeStampParser ts_parser;
-  EXPECT_STREQ(ts_parser.kind(), "LDBC timestamp parser");
-  EXPECT_STREQ(ts_parser.format(), "EmptyFormat");
-
-  LDBCLongDateParser long_parser;
-  EXPECT_STREQ(long_parser.kind(), "LDBC timestamp parser");
-  EXPECT_STREQ(long_parser.format(), "LongDateFormat");
+TEST_F(DatetimeParserTest, EpochTimestamp_Invalid) {
+  int64_t result = 0;
+  EXPECT_FALSE(neug::utils::parse_epoch_timestamp(
+      "abc123def", 9, neug::utils::TimestampUnit::kMilli, &result));
 }
 
 class StringViewVectorTest : public ::testing::Test {

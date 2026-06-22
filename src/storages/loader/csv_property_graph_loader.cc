@@ -26,38 +26,23 @@ std::shared_ptr<IFragmentLoader> CSVPropertyGraphLoader::Make(
       new CSVPropertyGraphLoader(work_dir, schema, loading_config));
 }
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>>
-CSVPropertyGraphLoader::createVertexRecordBatchSupplier(
+std::shared_ptr<IDataChunkSupplier>
+CSVPropertyGraphLoader::createVertexChunkSupplier(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
     DataType pk_type, const std::string& pk_name, int pk_ind,
     const LoadingConfig& loading_config, int thread_id) const {
   auto vertex_property_names = schema_.get_vertex_property_names(v_label);
   auto vertex_property_types = schema_.get_vertex_properties_id(v_label);
 
-  arrow::csv::ConvertOptions convert_options;
-  arrow::csv::ReadOptions read_options;
-  arrow::csv::ParseOptions parse_options;
+  CsvReadConfig config;
   fillVertexReaderMeta(v_label, v_label_name, v_file, loading_config,
                        vertex_property_names, vertex_property_types,
-                       pk_type.id(), pk_name, pk_ind, read_options,
-                       parse_options, convert_options);
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  if (loading_config.GetIsBatchReader()) {
-    auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
-        v_file, convert_options, read_options, parse_options);
-    suppliers.emplace_back(
-        std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-  } else {
-    auto res = std::make_shared<CSVTableRecordBatchSupplier>(
-        v_file, convert_options, read_options, parse_options);
-    suppliers.emplace_back(
-        std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-  }
-  return suppliers;
+                       pk_type.id(), pk_name, pk_ind, config);
+  return std::make_shared<CSVChunkSupplier>(v_file, std::move(config));
 }
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>>
-CSVPropertyGraphLoader::createEdgeRecordBatchSupplier(
+std::shared_ptr<IDataChunkSupplier>
+CSVPropertyGraphLoader::createEdgeChunkSupplier(
     label_t src_label_id, label_t dst_label_id, label_t e_label_id,
     const std::string& e_file, const LoadingConfig& loading_config,
     int thread_id) const {
@@ -69,27 +54,12 @@ CSVPropertyGraphLoader::createEdgeRecordBatchSupplier(
       std::get<0>(schema_.get_vertex_primary_key(src_label_id)[0]);
   auto dst_pk_type =
       std::get<0>(schema_.get_vertex_primary_key(dst_label_id)[0]);
-  arrow::csv::ConvertOptions convert_options;
-  arrow::csv::ReadOptions read_options;
-  arrow::csv::ParseOptions parse_options;
+  CsvReadConfig config;
   fillEdgeReaderMeta(src_label_id, dst_label_id, e_label_id,
                      schema_.get_edge_label_name(e_label_id), e_file,
                      loading_config_, edge_property_names, edge_property_types,
-                     src_pk_type.id(), dst_pk_type.id(), read_options,
-                     parse_options, convert_options);
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  if (loading_config.GetIsBatchReader()) {
-    auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
-        e_file, convert_options, read_options, parse_options);
-    suppliers.emplace_back(
-        std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-  } else {
-    auto res = std::make_shared<CSVTableRecordBatchSupplier>(
-        e_file, convert_options, read_options, parse_options);
-    suppliers.emplace_back(
-        std::dynamic_pointer_cast<IRecordBatchSupplier>(res));
-  }
-  return suppliers;
+                     src_pk_type.id(), dst_pk_type.id(), config);
+  return std::make_shared<CSVChunkSupplier>(e_file, std::move(config));
 }
 
 const bool CSVPropertyGraphLoader::registered_ =

@@ -18,10 +18,7 @@
 #include <memory>
 
 #include "neug/generated/proto/plan/basic_type.pb.h"
-
-namespace arrow {
-class DataType;
-}  // namespace arrow
+#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace reader {
@@ -43,49 +40,14 @@ class TypeConverter {
       const TargetType& type) = 0;
 };
 
-/**
- * @brief Converts common::DataType (protobuf) to Arrow DataType
- *
- * This class converts protobuf DataType definitions to Arrow DataType
- * instances. Supported types include:
- * - Primitive types: BOOL, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE
- * - String types: all string variants map to Arrow utf8()
- * - Temporal types: DATE (date64), TIMESTAMP (timestamp with millisecond),
- *   INTERVAL (duration with millisecond)
- * - Complex types: ARRAY (list/fixed_size_list), MAP (map)
- *
- * Unsupported types (e.g., DECIMAL) will throw conversion exceptions.
- */
-/**
- * @brief Converts between common::DataType (protobuf) and Arrow DataType
- *
- * This class provides bidirectional conversion between protobuf DataType
- * definitions and Arrow DataType instances. Supported types include:
- * - Primitive types: BOOL, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE
- * - String types: all string variants map to Arrow utf8()
- * - Temporal types: DATE (date64), TIMESTAMP (timestamp with millisecond),
- *   INTERVAL (duration with millisecond)
- * - Complex types: ARRAY (list/fixed_size_list), MAP (map)
- *
- * Unsupported types (e.g., DECIMAL) will throw conversion exceptions.
- */
-class ArrowTypeConverter : public TypeConverter<arrow::DataType> {
+/// Converts between common::DataType (protobuf) and neug::DataType without
+/// Arrow.
+class NeuGTypeConverter {
  public:
-  /**
-   * @brief Convert common::DataType to Arrow DataType
-   * @param type Protobuf DataType to convert
-   * @return Arrow DataType instance
-   */
-  std::shared_ptr<arrow::DataType> convert(
-      const ::common::DataType& type) override;
-
-  /**
-   * @brief Convert Arrow DataType to common::DataType
-   * @param type Arrow DataType to convert
-   * @return Protobuf DataType instance
-   */
-  std::shared_ptr<::common::DataType> convert(
-      const arrow::DataType& type) override;
+  DataType convert(const ::common::DataType& type) const;
+  std::shared_ptr<::common::DataType> convert(const DataType& type) const;
+  std::shared_ptr<::common::DataType> inferCommonType(
+      const DataType& type) const;
 };
 
 }  // namespace reader

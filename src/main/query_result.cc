@@ -28,14 +28,6 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 
-#include <arrow/api.h>
-#include <arrow/array/concatenate.h>
-#include <arrow/io/api.h>
-#include <arrow/memory_pool.h>
-#include <arrow/pretty_print.h>
-#include <arrow/scalar.h>
-#include <arrow/type.h>
-
 namespace neug {
 
 static bool is_valid(const std::string& validity_map, size_t row_index) {

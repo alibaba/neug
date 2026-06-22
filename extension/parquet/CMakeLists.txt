@@ -2,6 +2,13 @@
 file(GLOB PARQUET_EXTENSION_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
+# Arrow-backed reader sources excluded from core neug build but needed here
+list(APPEND PARQUET_EXTENSION_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/utils/reader/reader.cc
+    ${CMAKE_SOURCE_DIR}/src/utils/reader/dataset_builder.cc
+    ${CMAKE_SOURCE_DIR}/src/utils/reader/expression_converter.cc)
+
 set(PARQUET_EXTENSION_OBJECT_FILES ${PARQUET_EXTENSION_SOURCES})
 
 # Resolve OpenSSL for the link step.
@@ -84,6 +91,7 @@ target_link_libraries(neug_parquet_extension PRIVATE
     OpenSSL::Crypto
     $<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-whole-archive>
     neug
+    ${Protobuf_LIBRARIES}
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

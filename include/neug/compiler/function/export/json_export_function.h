@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * 	http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,13 +34,12 @@ class JsonArrayStringFormatBuffer : public StringFormatBuffer {
                               const reader::EntrySchema& entry_schema);
   ~JsonArrayStringFormatBuffer() = default;
   void addValue(int rowIdx, int colIdx) override;
-  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(io::OutputStream& stream) override;
 
  private:
   const reader::EntrySchema& entry_schema_;
   rapidjson::Value current_line_;
   rapidjson::Value buffer_;
-  // get allocator from document
   rapidjson::Document document_;
 };
 
@@ -51,36 +50,33 @@ class JsonLStringFormatBuffer : public StringFormatBuffer {
                           const reader::EntrySchema& entry_schema);
   ~JsonLStringFormatBuffer() = default;
   void addValue(int rowIdx, int colIdx) override;
-  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(io::OutputStream& stream) override;
 
  private:
   const reader::EntrySchema& entry_schema_;
   rapidjson::Value current_line_;
   std::vector<rapidjson::Value> buffer_;
-  // get allocator from document
   rapidjson::Document document_;
 };
 
-class ArrowJsonArrayExportWriter : public QueryExportWriter {
+class JsonArrayExportWriter : public QueryExportWriter {
  public:
-  ArrowJsonArrayExportWriter(
+  explicit JsonArrayExportWriter(
       const reader::FileSchema& schema,
-      std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
-  ~ArrowJsonArrayExportWriter() override = default;
+      : QueryExportWriter(schema, std::move(entry_schema)) {}
+  ~JsonArrayExportWriter() override = default;
 
   neug::Status writeTable(const QueryResponse* table) override;
 };
 
-class ArrowJsonLExportWriter : public QueryExportWriter {
+class JsonLExportWriter : public QueryExportWriter {
  public:
-  ArrowJsonLExportWriter(
+  explicit JsonLExportWriter(
       const reader::FileSchema& schema,
-      std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
-  ~ArrowJsonLExportWriter() override = default;
+      : QueryExportWriter(schema, std::move(entry_schema)) {}
+  ~JsonLExportWriter() override = default;
 
   neug::Status writeTable(const QueryResponse* table) override;
 };

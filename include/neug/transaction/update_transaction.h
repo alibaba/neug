@@ -206,9 +206,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
-      std::shared_ptr<IRecordBatchSupplier> supplier) override;
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IRecordBatchSupplier> supplier) override;
+                       std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdges(

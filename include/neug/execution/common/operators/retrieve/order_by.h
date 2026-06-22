@@ -15,6 +15,7 @@
 #pragma once
 
 #include <algorithm>
+#include <queue>
 
 #include "neug/execution/common/context_chunk.h"
 #include "neug/storages/graph/graph_interface.h"
