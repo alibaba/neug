@@ -1,6 +1,6 @@
 # LDBC Graphalytics benchmark driver
 
-`graphalytics_bench.py` times NeuG GDS kernels on [LDBC Graphalytics](http://graphalytics.org/) datasets. See [Performance.md](../Performance.md) for cross-system results.
+`graphalytics_bench.py` times NeuG GDS kernels on [LDBC Graphalytics](https://ldbcouncil.org/benchmarks/graphalytics/) datasets. See [Performance.md](../Performance.md) for cross-system results.
 
 ## Timing methodology
 
@@ -12,17 +12,35 @@ Correctness is covered by `tools/python_bind/tests/test_graphalytics.py` on the 
 
 ## Example
 
-```bash
-# Build NeuG and install the Python bindings first.
-export PYTHONPATH=/path/to/neug/build/tools/python_bind
-export NEUG_BUILD_DIR=/path/to/neug/build
-export GRAPHALYTICS_DATA_ROOT=/path/to/ldbc-graphalytics/datasets
+From the NeuG repository root (with GDS extension already built):
 
+```bash
+export GRAPHALYTICS_DATA_ROOT=/path/to/ldbc-graphalytics/datasets
+export NEUG_BENCH_DB_ROOT=/path/to/neug_bench_db
+
+# First run: COPY FROM + project_graph + time all GDS kernels (median of 5 runs)
 python3 extension/gds/benchmark/graphalytics_bench.py \
+  --data-root "$GRAPHALYTICS_DATA_ROOT" \
+  --db-root "$NEUG_BENCH_DB_ROOT" \
+  --dataset graph500-26 \
+  --concurrency 64 \
+  --runs 5
+
+# Later runs: reuse the .db checkpoint (algorithm kernel time only)
+python3 extension/gds/benchmark/graphalytics_bench.py \
+  --data-root "$GRAPHALYTICS_DATA_ROOT" \
+  --db-root "$NEUG_BENCH_DB_ROOT" \
   --dataset graph500-26 \
   --concurrency 64 \
   --runs 5 \
   --skip-load
+```
+
+Run the Graphalytics conformance tests:
+
+```bash
+cd tools/python_bind
+pytest tests/test_graphalytics.py
 ```
 
 Environment variables:
