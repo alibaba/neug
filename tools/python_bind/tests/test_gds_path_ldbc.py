@@ -27,8 +27,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from neug.database import Database
 
-DATA_DIR = os.path.expanduser("~/Downloads/social_network_10_interactive")
-HAS_LDBC = os.path.isdir(DATA_DIR)
+DATA_DIR = os.environ.get("NEUG_LDBC_DATA_DIR", "")
+HAS_LDBC = bool(DATA_DIR) and os.path.isdir(DATA_DIR)
 
 # ---------------------------------------------------------------------------
 # Fixtures
