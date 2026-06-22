@@ -21,6 +21,8 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - '!tools/python_bind/tests/**'
+      - '!tools/python_bind/example/**'
       - 'tools/shell/**'
       - '.github/workflows/build-wheel.yml'
       - '.github/workflows/wheels-common.yml'
