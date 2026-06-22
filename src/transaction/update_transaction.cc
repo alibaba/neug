@@ -1133,7 +1133,7 @@ Status StorageTPUpdateInterface::detachForResize(label_t src_label,
                                                  size_t capacity) {
   uint32_t idx = cow_graph_->schema().generate_edge_label(src_label, dst_label,
                                                           edge_label);
-  RETURN_IF_NOT_OK(detachEdgeTableForInsert(idx));
+  return detachEdgeTableForInsert(idx);
 }
 
 Status StorageTPUpdateInterface::prepareVertexDelete(
