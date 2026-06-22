@@ -18,7 +18,7 @@ While SQL is designed for relational databases with tables and rows, Cypher is o
 In NeuG, we refer to a Cypher query as a **Statement**. A Statement consists of multiple **Clauses**. For example, in the following query:
 
 ```cypher
-MATCH (p:person)
+MATCH (p:Person)
 WHERE p.age = '29'
 RETURN p.name as name;
 ```
@@ -39,43 +39,43 @@ The above schema graph can be created by the following statements:
 
 ```cypher
 // Example schema definition
-CREATE NODE TABLE person (
+CREATE NODE TABLE Person (
     name STRING,
     age INT32,
     PRIMARY KEY (name)
 );
 
-CREATE NODE TABLE software (
+CREATE NODE TABLE Software (
     name STRING,
     lang STRING,
     PRIMARY KEY (name)
 );
 
-CREATE REL TABLE knows (
-    FROM person TO person,
+CREATE REL TABLE KNOWS (
+    FROM Person TO Person,
     weight DOUBLE
 );
 
-CREATE REL TABLE created (
-    FROM person TO software,
+CREATE REL TABLE CREATED (
+    FROM Person TO Software,
     weight DOUBLE
 );
 ```
 
 **Schema-compliant query:**
-In the following query, the vertex label `person` and edge label `(person-knows->person)` both conform to the schema constraints defined above. The `person` node contains `age` and `name` properties, and the `age` property is of type INT32, which is comparable to the constant 18. Therefore, this query satisfies all schema constraints and is valid:
+In the following query, the vertex label `Person` and edge label `(Person-KNOWS->Person)` both conform to the schema constraints defined above. The `Person` node contains `age` and `name` properties, and the `age` property is of type INT32, which is comparable to the constant 18. Therefore, this query satisfies all schema constraints and is valid:
 
 ```cypher
-MATCH (p:person)-[:knows]->(f:person)
+MATCH (p:Person)-[:KNOWS]->(f:Person)
 WHERE p.age > 18
 RETURN p.name, f.name;
 ```
 
 **Non-schema-compliant query (would fail):**
-The edge label `(person-follows-> person)` specified in this query does not exist in the schema, making it invalid and resulting in a "Table `follows` does not exist" error.
+The edge label `(Person-FOLLOWS->Person)` specified in this query does not exist in the schema, making it invalid and resulting in a "Table `FOLLOWS` does not exist" error.
 
 ```cypher
-MATCH (p:person)-[:follows]->(m:person)
+MATCH (p:Person)-[:FOLLOWS]->(m:Person)
 RETURN p.name;
 ```
 
@@ -88,9 +88,9 @@ We also define a set of query syntax that can satisfy both Transactional Process
 For example, you can query all triangle patterns in the graph database using the following query:
 
 ```cypher
-MATCH (a:person)-[:created]->(b:software),
-      (c:person)-[:created]->(b:software),
-      (a:person)-[:knows]->(c:person)
+MATCH (a:Person)-[:CREATED]->(b:Software),
+      (c:Person)-[:CREATED]->(b:Software),
+      (a:Person)-[:KNOWS]->(c:Person)
 WHERE a.name < c.name
 RETURN a.name, b.name, c.name;
 ```
@@ -105,8 +105,8 @@ In addition to DQL and DDL, NeuG also supports data update functionality, which 
 
 **Bulk import example:**
 ```cypher
-COPY person FROM "person.csv" (delim=',');
-COPY knows FROM "knows.csv" (delim=',');
+COPY Person FROM "person.csv" (delim=',');
+COPY KNOWS FROM "knows.csv" (delim=',');
 ```
 
 The above two Statements first bulk load node data with label `person` from person.csv, then bulk load edge data with label `person-[knows]->person` from knows.csv.
@@ -117,18 +117,18 @@ We also provide incremental write syntax for incrementally updating graph data.
 
 **Node creation example:**
 ```cypher
-CREATE (p:person {name: 'Bob', age: 30});
+CREATE (p:Person {name: 'Bob', age: 30});
 ```
 
 **Relationship creation example:**
 ```cypher
-MATCH (a:person {name: 'Bob'}), (b:person {name: 'marko'})
-CREATE (a)-[:knows {weight: 3.0}]->(b);
+MATCH (a:Person {name: 'Bob'}), (b:Person {name: 'marko'})
+CREATE (a)-[:KNOWS {weight: 3.0}]->(b);
 ```
 
 **Node deletion example:**
 ```cypher
-MATCH (p:person {name: 'Bob'})
+MATCH (p:Person {name: 'Bob'})
 DELETE p;
 ```
 
@@ -162,12 +162,12 @@ For more complex graph-oriented analysis, external data can be loaded as a tempo
 
 ```cypher
 LOAD FROM "person.csv" (delim=',')
-AS person;
+AS Person;
 
 LOAD FROM "knows.csv" (delim=',')
-AS knows;
+AS KNOWS;
 
-MATCH (p1:person)-[:knows*1..2]->(p2:person)
+MATCH (p1:Person)-[:KNOWS*1..2]->(p2:Person)
 RETURN p1, p2;
 ```
 

@@ -67,7 +67,7 @@ def execute(query: str,
 Execute a cypher query on the database. User could specify multiple queries in a single string,
 separated by semicolons. The query will be executed in the order they are specified.
 If any query fails, the whole execution will be rolled back.
-If the query is a DDL query, such as `CREATE TABLE`, `DROP TABLE`, etc., the database will be
+If the query is a DDL query, such as `CREATE NODE TABLE`, `CREATE REL TABLE`, `DROP TABLE`, etc., the database will be
 modified accordingly.
 
 For the details of the query syntax, please refer to the documentation of cypher manual.
@@ -78,7 +78,7 @@ such as `__iter__` and `__next__`.
 
 If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
 
-Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`,
+Some of the cypher queries could change the state of the database, such as `CREATE NODE TABLE`, `INSERT`,
 `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
 the database, but will return the results of the query.
 
@@ -91,17 +91,17 @@ database will be changed accordingly.
     >>> from neug import Database
     >>> db = Database("/tmp/test.db", mode="w")
     >>> conn = db.connect()
-    >>> res = conn.execute('CREATE TABLE person(id INT64, name STRING);')
-    >>> res = conn.execute('CREATE TABLE knows(FROM person TO person, weight DOUBLE);')
-    >>> res = conn.execute('COPY person FROM "person.csv"')
-    >>> res = conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");')
+    >>> res = conn.execute('CREATE NODE TABLE Person(id INT64, name STRING);')
+    >>> res = conn.execute('CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);')
+    >>> res = conn.execute('COPY Person FROM "person.csv"')
+    >>> res = conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");')
     >>> res = conn.execute('MATCH(n) RETURN n.id')
     >>> for record in res:
     >>>    print(record)
-    >>> res = conn.execute('MATCH(p:person)-[knows]->(q:person) RETURN p.id, q.id LIMIT 10;')
+    >>> res = conn.execute('MATCH(p:Person)-[:KNOWS]->(q:Person) RETURN p.id, q.id LIMIT 10;')
     >>> # submitting query with parameters
     >>> res = conn.execute(
-        'MATCH (n:person) WHERE n.id = $id RETURN n.name', access_mode='r', parameters={'id': 12345})
+        'MATCH (n:Person) WHERE n.id = $id RETURN n.name', access_mode='r', parameters={'id': 12345})
 
 ```
 

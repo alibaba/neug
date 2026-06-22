@@ -25,7 +25,7 @@ documentation pages:
   - import_data.md (COPY FROM)
   - export_data.md (COPY TO)
 
-The tests use the modern_graph dataset (person, knows, software)
+The tests use the modern_graph dataset (Person, KNOWS, Software)
 which matches the examples in the documentation.
 """
 
@@ -235,23 +235,23 @@ class TestCopyFromDocs:
         shutil.rmtree(self.db_dir, ignore_errors=True)
 
     def _create_modern_graph_schema(self):
-        """Create the modern_graph schema (person + knows)."""
+        """Create the modern_graph schema (Person + KNOWS)."""
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         self.conn.execute(
-            "CREATE REL TABLE knows(" "FROM person TO person, weight DOUBLE);"
+            "CREATE REL TABLE KNOWS(" "FROM Person TO Person, weight DOUBLE);"
         )
 
     def _load_modern_graph_data(self):
-        """Load person and knows data from modern_graph CSVs."""
+        """Load Person and KNOWS data from modern_graph CSVs."""
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY person FROM "{person_csv}" (header=true);')
+        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY knows FROM "{knows_csv}" '
-            f'(from="person", to="person", header=true);'
+            f'COPY KNOWS FROM "{knows_csv}" '
+            f'(from="Person", to="Person", header=true);'
         )
 
     def test_quick_start_complete_workflow(self):
@@ -301,44 +301,44 @@ class TestCopyFromDocs:
         assert len(records) == 3
 
     def test_copy_from_node_table(self):
-        """import_data.md: COPY person FROM 'person.csv' (header=true)."""
+        """import_data.md: COPY Person FROM 'person.csv' (header=true)."""
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         csv_path = os.path.join(self.data_path, "person.csv")
-        self.conn.execute(f'COPY person FROM "{csv_path}" (header=true);')
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        self.conn.execute(f'COPY Person FROM "{csv_path}" (header=true);')
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
     def test_copy_from_wildcard(self):
-        """import_data.md: COPY person FROM 'person*.csv' (header=true)."""
+        """import_data.md: COPY Person FROM 'person*.csv' (header=true)."""
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         # modern_graph has person.part1.csv and person.part2.csv
         part_pattern = os.path.join(self.data_path, "test_data/person.part*.csv")
-        self.conn.execute(f'COPY person FROM "{part_pattern}" (header=true);')
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        self.conn.execute(f'COPY Person FROM "{part_pattern}" (header=true);')
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
     def test_copy_from_relationship_table(self):
-        """import_data.md: COPY knows FROM ... (from='person', to='person',
+        """import_data.md: COPY KNOWS FROM ... (from='Person', to='Person',
         header=true)."""
         self._create_modern_graph_schema()
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY person FROM "{person_csv}" (header=true);')
+        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY knows FROM "{knows_csv}" '
-            f'(from="person", to="person", header=true);'
+            f'COPY KNOWS FROM "{knows_csv}" '
+            f'(from="Person", to="Person", header=true);'
         )
-        res = self.conn.execute("MATCH ()-[k:knows]->() RETURN count(k);")
+        res = self.conn.execute("MATCH ()-[k:KNOWS]->() RETURN count(k);")
         assert list(res)[0][0] == 2
 
     def test_copy_from_with_column_remapping(self):
-        """import_data.md: COPY person FROM (LOAD FROM ... RETURN id, name, age).
+        """import_data.md: COPY Person FROM (LOAD FROM ... RETURN id, name, age).
 
         Demonstrates column reordering via LOAD FROM subquery.
         The CSV has columns in a different order (age, name, id) from the
@@ -351,24 +351,24 @@ class TestCopyFromDocs:
         )
 
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
 
         # Use LOAD FROM subquery to reorder columns to match table schema
         self.conn.execute(
             f"""
-            COPY person FROM (
+            COPY Person FROM (
                 LOAD FROM "{remap_csv}" (header=true, delimiter=",")
                 RETURN id, name, age
             )
             """
         )
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
     def test_copy_from_with_filtering(self):
-        """import_data.md: COPY person FROM (LOAD FROM ... WHERE age >= 18
+        """import_data.md: COPY Person FROM (LOAD FROM ... WHERE age >= 18
         RETURN *)."""
         csv_path = self.tmp_path / "person_filter.csv"
         csv_path.write_text(
@@ -376,19 +376,19 @@ class TestCopyFromDocs:
         )
 
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         self.conn.execute(
             f"""
-            COPY person FROM (
+            COPY Person FROM (
                 LOAD FROM "{csv_path}" (header=true)
                 WHERE age >= 18
                 RETURN *
             )
             """
         )
-        res = self.conn.execute("MATCH (p:person) RETURN p.name, p.age ORDER BY p.age;")
+        res = self.conn.execute("MATCH (p:Person) RETURN p.name, p.age ORDER BY p.age;")
         records = list(res)
         # Only Alice (30) and Carol (28) should be imported
         assert len(records) == 2
@@ -396,16 +396,16 @@ class TestCopyFromDocs:
             assert r[1] >= 18
 
     def test_copy_from_parallel(self):
-        """import_data.md: COPY User FROM ... (header=true, parallel=true)."""
+        """import_data.md: COPY Person FROM ... (header=true, parallel=true)."""
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         csv_path = os.path.join(self.data_path, "person.csv")
         self.conn.execute(
-            f'COPY person FROM "{csv_path}" (header=true, parallel=true);'
+            f'COPY Person FROM "{csv_path}" (header=true, parallel=true);'
         )
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
     def test_copy_from_batch_read(self):
@@ -416,66 +416,66 @@ class TestCopyFromDocs:
         downstream computation.
         """
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         csv_path = os.path.join(self.data_path, "person.csv")
         self.conn.execute(
             f"""
-            COPY person FROM "{csv_path}" (
+            COPY Person FROM "{csv_path}" (
                 header = true,
                 batch_read = true,
                 batch_size = 2097152
             );
             """
         )
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
     def test_import_order_nodes_before_edges(self):
         """import_data.md: always import nodes before relationships."""
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         self.conn.execute(
-            "CREATE NODE TABLE software("
+            "CREATE NODE TABLE Software("
             "id INT64, name STRING, lang STRING, PRIMARY KEY(id));"
         )
         self.conn.execute(
-            "CREATE REL TABLE knows(" "FROM person TO person, weight DOUBLE);"
+            "CREATE REL TABLE KNOWS(" "FROM Person TO Person, weight DOUBLE);"
         )
         self.conn.execute(
-            "CREATE REL TABLE created("
-            "FROM person TO software, weight DOUBLE, since INT64);"
+            "CREATE REL TABLE CREATED("
+            "FROM Person TO Software, weight DOUBLE, since INT64);"
         )
 
         # Import all nodes first
         person_csv = os.path.join(self.data_path, "person.csv")
         software_csv = os.path.join(self.data_path, "software.csv")
-        self.conn.execute(f'COPY person FROM "{person_csv}" (header=true);')
-        self.conn.execute(f'COPY software FROM "{software_csv}" (header=true);')
+        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
+        self.conn.execute(f'COPY Software FROM "{software_csv}" (header=true);')
 
         # Then import edges
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
         created_csv = os.path.join(self.data_path, "person_created_software.csv")
         self.conn.execute(
-            f'COPY knows FROM "{knows_csv}" '
-            f'(from="person", to="person", header=true);'
+            f'COPY KNOWS FROM "{knows_csv}" '
+            f'(from="Person", to="Person", header=true);'
         )
         self.conn.execute(
-            f'COPY created FROM "{created_csv}" '
-            f'(from="person", to="software", header=true);'
+            f'COPY CREATED FROM "{created_csv}" '
+            f'(from="Person", to="Software", header=true);'
         )
 
         # Verify
-        res = self.conn.execute("MATCH (p:person) RETURN count(p);")
+        res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
-        res = self.conn.execute("MATCH (s:software) RETURN count(s);")
+        res = self.conn.execute("MATCH (s:Software) RETURN count(s);")
         assert list(res)[0][0] == 2
-        res = self.conn.execute("MATCH ()-[k:knows]->() RETURN count(k);")
+        res = self.conn.execute("MATCH ()-[k:KNOWS]->() RETURN count(k);")
         assert list(res)[0][0] == 2
-        res = self.conn.execute("MATCH ()-[c:created]->() RETURN count(c);")
+        res = self.conn.execute("MATCH ()-[c:CREATED]->() RETURN count(c);")
         assert list(res)[0][0] == 4
 
 
@@ -501,18 +501,18 @@ class TestCopyToDocs:
 
         # Load modern_graph data
         self.conn.execute(
-            "CREATE NODE TABLE person("
+            "CREATE NODE TABLE Person("
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         self.conn.execute(
-            "CREATE REL TABLE knows(" "FROM person TO person, weight DOUBLE);"
+            "CREATE REL TABLE KNOWS(" "FROM Person TO Person, weight DOUBLE);"
         )
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY person FROM "{person_csv}" (header=true);')
+        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY knows FROM "{knows_csv}" '
-            f'(from="person", to="person", header=true);'
+            f'COPY KNOWS FROM "{knows_csv}" '
+            f'(from="Person", to="Person", header=true);'
         )
         yield
         self.conn.close()
@@ -520,11 +520,11 @@ class TestCopyToDocs:
         shutil.rmtree(self.db_dir, ignore_errors=True)
 
     def test_copy_to_csv_nodes(self):
-        """export_data.md: COPY (MATCH (p:person) RETURN p.*) TO
+        """export_data.md: COPY (MATCH (p:Person) RETURN p.*) TO
         'person.csv' (header=true)."""
         out_path = self.tmp_path / "person_export.csv"
         self.conn.execute(
-            f"COPY (MATCH (p:person) RETURN p.*) " f"TO '{out_path}' (header=true);"
+            f"COPY (MATCH (p:Person) RETURN p.*) " f"TO '{out_path}' (header=true);"
         )
         assert out_path.exists()
         content = out_path.read_text()
@@ -536,11 +536,11 @@ class TestCopyToDocs:
         assert "id" in header.lower() or "p.id" in header.lower()
 
     def test_copy_to_csv_edges(self):
-        """export_data.md: COPY (MATCH (:person)-[e:knows]->(:person)
+        """export_data.md: COPY (MATCH (:Person)-[e:KNOWS]->(:Person)
         RETURN e) TO 'knows.csv' (header=true)."""
         out_path = self.tmp_path / "knows_export.csv"
         self.conn.execute(
-            f"COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) "
+            f"COPY (MATCH (:Person)-[e:KNOWS]->(:Person) RETURN e) "
             f"TO '{out_path}' (header=true);"
         )
         assert out_path.exists()
@@ -553,7 +553,7 @@ class TestCopyToDocs:
         """export_data.md: DELIMITER option."""
         out_path = self.tmp_path / "person_comma.csv"
         self.conn.execute(
-            f"COPY (MATCH (p:person) RETURN p.id, p.name, p.age) "
+            f"COPY (MATCH (p:Person) RETURN p.id, p.name, p.age) "
             f"TO '{out_path}' (header=true, delimiter=',');"
         )
         assert out_path.exists()
@@ -567,7 +567,7 @@ class TestCopyToDocs:
         """export_data.md: HEADER=false (default)."""
         out_path = self.tmp_path / "person_no_header.csv"
         self.conn.execute(
-            f"COPY (MATCH (p:person) RETURN p.id, p.name) "
+            f"COPY (MATCH (p:Person) RETURN p.id, p.name) "
             f"TO '{out_path}' (HEADER = false);"
         )
         assert out_path.exists()

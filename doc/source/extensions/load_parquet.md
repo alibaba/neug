@@ -133,7 +133,7 @@ COPY (
 
 ```cypher
 COPY (
-    MATCH (p:person)-[k:knows]->(p2:person)
+    MATCH (p:Person)-[k:KNOWS]->(p2:Person)
     RETURN p.fName, p2.fName, k.since
 ) TO 'relationships.parquet' (compression='none');
 ```
@@ -142,7 +142,7 @@ COPY (
 
 ```cypher
 COPY (
-    MATCH (p:person)
+    MATCH (p:Person)
     RETURN p.fName, p.email
 ) TO 'contacts.parquet' (dictionary_encoding=false);
 ```
@@ -186,7 +186,7 @@ Export complete edge objects:
 
 ```cypher
 COPY (
-    MATCH (p:person)-[k:knows]->(p2:person) 
+    MATCH (p:Person)-[k:KNOWS]->(p2:Person)
     RETURN k
 ) TO 'edges.parquet';
 ```

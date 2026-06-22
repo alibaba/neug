@@ -35,12 +35,12 @@ When the database is closed, all the connections to the database will be closed 
     >>> conn = db.connect()
 
     >>> # Use the connection to interact with the database
-    >>> conn.execute('CREATE TABLE person(id INT64, name STRING);')
-    >>> conn.execute('CREATE TABLE knows(FROM person TO person, weight DOUBLE);')
+    >>> conn.execute('CREATE NODE TABLE Person(id INT64, name STRING);')
+    >>> conn.execute('CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);')
 
     >>> # Import data from csv file.
-    >>> conn.execute('COPY person FROM "person.csv"')
-    >>> conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");')
+    >>> conn.execute('COPY Person FROM "person.csv"')
+    >>> conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");')
 
     >>> res = conn.execute('MATCH(n) return n.id;)
     >>> for record in res:

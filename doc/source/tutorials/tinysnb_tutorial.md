@@ -50,15 +50,15 @@ total_nodes = result[0][0]
 print(f"Total nodes in the graph: {total_nodes}")
 
 # Count nodes by type
-result = list(conn.execute("MATCH (p:person) RETURN count(p) as people_count"))
+result = list(conn.execute("MATCH (p:Person) RETURN count(p) as people_count"))
 people_count = result[0][0]
 print(f"Number of people: {people_count}")
 
-result = list(conn.execute("MATCH (o:organisation) RETURN count(o) as org_count"))
+result = list(conn.execute("MATCH (o:Organisation) RETURN count(o) as org_count"))
 org_count = result[0][0]
 print(f"Number of organizations: {org_count}")
 
-result = list(conn.execute("MATCH (m:movies) RETURN count(m) as movie_count"))
+result = list(conn.execute("MATCH (m:Movies) RETURN count(m) as movie_count"))
 movie_count = result[0][0]
 print(f"Number of movies: {movie_count}")
 ```
@@ -73,7 +73,7 @@ Let's start by exploring the people in our social network:
 # Get all people with their basic information
 print("=== People in our social network ===")
 result = conn.execute("""
-    MATCH (p:person) 
+    MATCH (p:Person) 
     RETURN p.fName, p.age, p.isStudent, p.isWorker 
     ORDER BY p.age
 """)
@@ -95,7 +95,7 @@ for record in result:
 # Find all students
 print("\n=== Students in our network ===")
 result = conn.execute("""
-    MATCH (p:person) 
+    MATCH (p:Person) 
     WHERE p.isStudent = true
     RETURN p.fName, p.age
     ORDER BY p.age
@@ -107,7 +107,7 @@ for record in result:
 # Find working adults (workers who are not students)
 print("\n=== Working adults (non-students) ===")
 result = conn.execute("""
-    MATCH (p:person) 
+    MATCH (p:Person) 
     WHERE p.isWorker = true AND p.isStudent = false
     RETURN p.fName, p.age
     ORDER BY p.age DESC
@@ -119,7 +119,7 @@ for record in result:
 # Find people in their thirties
 print("\n=== People in their thirties ===")
 result = conn.execute("""
-    MATCH (p:person) 
+    MATCH (p:Person) 
     WHERE p.age >= 30 AND p.age < 40
     RETURN p.fName, p.age
     ORDER BY p.age
@@ -139,7 +139,7 @@ Now let's explore the relationships between people - this is where graph databas
 # Explore the "knows" relationships
 print("=== Social connections (who knows whom) ===")
 result = conn.execute("""
-    MATCH (p1:person)-[k:knows]->(p2:person)
+    MATCH (p1:Person)-[k:KNOWS]->(p2:Person)
     RETURN p1.fName, p2.fName, k.date
     ORDER BY p1.fName, p2.fName
 """)
@@ -154,7 +154,7 @@ for record in result:
 # Who has the most connections?
 print("\n=== Most connected people ===")
 result = conn.execute("""
-    MATCH (p:person)-[k:knows]->(friend:person)
+    MATCH (p:Person)-[k:KNOWS]->(friend:Person)
     RETURN p.fName, count(friend) as friend_count
     ORDER BY friend_count DESC
     LIMIT 5
@@ -166,7 +166,7 @@ for record in result:
 # Who is known by the most people?
 print("\n=== Most popular people (known by others) ===")
 result = conn.execute("""
-    MATCH (p:person)<-[k:knows]-(friend:person)
+    MATCH (p:Person)<-[k:KNOWS]-(friend:Person)
     RETURN p.fName, count(friend) as known_by_count
     ORDER BY known_by_count DESC
     LIMIT 5
@@ -181,8 +181,8 @@ for record in result:
 ```python
 print("\n=== Mutual friendships ===")
 result = conn.execute("""
-    MATCH (p1:person)-[k1:knows]->(p2:person),
-          (p2:person)-[k2:knows]->(p1:person)
+    MATCH (p1:Person)-[k1:KNOWS]->(p2:Person),
+          (p2:Person)-[k2:KNOWS]->(p1:Person)
     WHERE p1.id < p2.id  // Avoid duplicates
     RETURN p1.fName, p2.fName
     ORDER BY p1.fName
@@ -200,7 +200,7 @@ for record in result:
 # Who studies where?
 print("=== Academic affiliations ===")
 result = conn.execute("""
-    MATCH (p:person)-[s:studyAt]->(o:organisation)
+    MATCH (p:Person)-[s:STUDY_AT]->(o:Organisation)
     RETURN p.fName, o.name, s.year
     ORDER BY s.year DESC
 """)
@@ -211,7 +211,7 @@ for record in result:
 # Which organizations have the most students?
 print("\n=== Most popular educational institutions ===")
 result = conn.execute("""
-    MATCH (p:person)-[s:studyAt]->(o:organisation)
+    MATCH (p:Person)-[s:STUDY_AT]->(o:Organisation)
     RETURN o.name, count(p) as student_count
     ORDER BY student_count DESC
 """)
@@ -226,7 +226,7 @@ for record in result:
 # Who works where?
 print("\n=== Professional affiliations ===")
 result = conn.execute("""
-    MATCH (p:person)-[w:workAt]->(o:organisation)
+    MATCH (p:Person)-[w:WORK_AT]->(o:Organisation)
     RETURN p.fName, o.name, w.year, w.rating
     ORDER BY w.year DESC
 """)
@@ -244,9 +244,9 @@ for record in result:
 # Find friends of friends (2-degree connections)
 print("=== Friends of friends (2-degree connections) ===")
 result = conn.execute("""
-    MATCH (p1:person)-[:knows]->(mutual:person)-[:knows]->(p2:person)
+    MATCH (p1:Person)-[:KNOWS]->(mutual:Person)-[:KNOWS]->(p2:Person)
     WHERE p1.id <> p2.id  // Different people
-    AND NOT (p1)-[:knows]-(p2)  // Not direct friends
+    AND NOT (p1)-[:KNOWS]-(p2)  // Not direct friends
     RETURN p1.fName, p2.fName, mutual.fName
     ORDER BY p1.fName
 """)
@@ -261,7 +261,7 @@ for record in result:
 # Find people who work at the same organization
 print("\n=== Colleagues (people working at the same organization) ===")
 result = conn.execute("""
-    MATCH (p1:person)-[:workAt]->(o:organisation)<-[:workAt]-(p2:person)
+    MATCH (p1:Person)-[:WORK_AT]->(o:Organisation)<-[:WORK_AT]-(p2:Person)
     WHERE p1.id < p2.id  // Avoid duplicates
     RETURN p1.fName, p2.fName, o.name
     ORDER BY o.name
@@ -273,7 +273,7 @@ for record in result:
 # Find people who studied at the same organization
 print("\n=== Alumni/Classmates (people who studied at the same institution) ===")
 result = conn.execute("""
-    MATCH (p1:person)-[s1:studyAt]->(o:organisation)<-[s2:studyAt]-(p2:person)
+    MATCH (p1:Person)-[s1:STUDY_AT]->(o:Organisation)<-[s2:STUDY_AT]-(p2:Person)
     WHERE p1.id < p2.id
     RETURN p1.fName, p2.fName, o.name, s1.year, s2.year
     ORDER BY o.name
@@ -296,10 +296,10 @@ for record in result:
 print("=== Network Statistics ===")
 
 # Total possible connections vs actual connections
-result = list(conn.execute("MATCH (p:person) RETURN count(p) as person_count"))
+result = list(conn.execute("MATCH (p:Person) RETURN count(p) as person_count"))
 person_count = result[0][0]
 
-result = list(conn.execute("MATCH ()-[k:knows]->() RETURN count(k) as connections"))
+result = list(conn.execute("MATCH ()-[k:KNOWS]->() RETURN count(k) as connections"))
 actual_connections = result[0][0]
 
 max_possible = person_count * (person_count - 1)  # Directed graph
@@ -317,9 +317,9 @@ print(f"Network density: {density:.2f}%")
 # Find the most connected individuals (network hubs)
 print("\n=== Network Hubs (most connected individuals) ===")
 result = conn.execute("""
-    MATCH (p:person)
-    OPTIONAL MATCH (p)-[out:knows]->()
-    OPTIONAL MATCH (p)<-[i:knows]-()
+    MATCH (p:Person)
+    OPTIONAL MATCH (p)-[out:KNOWS]->()
+    OPTIONAL MATCH (p)<-[i:KNOWS]-()
     RETURN p.fName, 
            count(DISTINCT out) as outgoing,
            count(DISTINCT i) as incoming,
@@ -338,7 +338,7 @@ for record in result:
 # Analyze social connections by age groups
 print("\n=== Social connections across age groups ===")
 result = conn.execute("""
-    MATCH (p1:person)-[:knows]->(p2:person)
+    MATCH (p1:Person)-[:KNOWS]->(p2:Person)
     WITH p1, p2,
          CASE 
              WHEN p1.age < 25 THEN "Young (< 25)"
