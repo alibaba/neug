@@ -509,8 +509,8 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param col_id Property column index
    * @param value New property value
    */
-  virtual void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                    const execution::Value& value) = 0;
+  virtual Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                                      const execution::Value& value) = 0;
 
   /**
    * @brief Update an edge property value.
@@ -525,11 +525,11 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param col_id Property column index
    * @param value New property value
    */
-  virtual void UpdateEdgeProperty(label_t src_label, vid_t src,
-                                  label_t dst_label, vid_t dst,
-                                  label_t edge_label, int32_t oe_offset,
-                                  int32_t ie_offset, int32_t col_id,
-                                  const execution::Value& value) = 0;
+  virtual Status UpdateEdgeProperty(label_t src_label, vid_t src,
+                                    label_t dst_label, vid_t dst,
+                                    label_t edge_label, int32_t oe_offset,
+                                    int32_t ie_offset, int32_t col_id,
+                                    const execution::Value& value) = 0;
 
   virtual Status AddVertex(label_t label, const execution::Value& id,
                            const std::vector<execution::Value>& props,
@@ -546,6 +546,24 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param vids Vector of internal vertex IDs to delete
    * @return Status indicating success or failure
    */
+  /**
+   * @brief Delete a single vertex and its associated edges.
+   */
+  virtual Status DeleteVertex(label_t label, vid_t lid) = 0;
+
+  /**
+   * @brief Delete a single edge by offset.
+   */
+  virtual Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label,
+                            vid_t dst, label_t edge_label, int32_t oe_offset,
+                            int32_t ie_offset) = 0;
+
+  /**
+   * @brief Delete all edges between two vertices with a given label.
+   */
+  virtual Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label,
+                             vid_t dst, label_t edge_label) = 0;
+
   virtual Status BatchDeleteVertices(label_t v_label_id,
                                      const std::vector<vid_t>& vids) = 0;
 
@@ -610,12 +628,12 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         timestamp_(timestamp) {}
   ~StorageAPUpdateInterface() {}
 
-  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                              const execution::Value& value) override;
+  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                            vid_t dst, label_t edge_label, int32_t oe_offset,
+                            int32_t ie_offset, int32_t col_id,
                             const execution::Value& value) override;
-  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                          vid_t dst, label_t edge_label, int32_t oe_offset,
-                          int32_t ie_offset, int32_t col_id,
-                          const execution::Value& value) override;
   Status AddVertex(label_t label, const execution::Value& id,
                    const std::vector<execution::Value>& props,
                    vid_t& vid) override;
@@ -623,6 +641,12 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                  label_t edge_label,
                  const std::vector<execution::Value>& properties,
                  const void*& prop) override;
+  Status DeleteVertex(label_t label, vid_t lid) override;
+  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                    label_t edge_label, int32_t oe_offset,
+                    int32_t ie_offset) override;
+  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label) override;
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,

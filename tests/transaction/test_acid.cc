@@ -766,7 +766,7 @@ bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   }
   CHECK(found);
   const void* edge_prop = nullptr;
-  if (!txn.AddEdge(person_label_id, person_vid, post_label_id, post_vid,
+  if (!gui.AddEdge(person_label_id, person_vid, post_label_id, post_vid,
                    likes_label_id, {}, edge_prop)) {
     txn.Abort();
     return false;
@@ -907,7 +907,7 @@ void OTV1(neug::NeugDBSession& db, int64_t person_id) {
         auto vid4_edges = oe_view.get_edges(vid4);
         for (auto eit4 = vid4_edges.begin(); eit4 != vid4_edges.end(); ++eit4) {
           if (eit4.get_vertex() == vid1) {
-            txn.UpdateVertexProperty(
+            gui.UpdateVertexProperty(
                 person_label_id, vid1, 2,
                 neug::execution::Value::INT64(
                     txn.GetVertexProperty(person_label_id, vid1, 2)
@@ -2134,9 +2134,10 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     CreateVertexTypeParamBuilder b;
     auto status =
-        txn.CreateVertexType(b.VertexLabel("foo")
+        gui.CreateVertexType(b.VertexLabel("foo")
                                  .AddProperty("x", execution::Value::INT64(0))
                                  .AddPrimaryKeyName("x")
                                  .Build());
@@ -2152,8 +2153,9 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
-    auto status = txn.DeleteEdgeProperties(b.SrcLabel("person")
+    auto status = gui.DeleteEdgeProperties(b.SrcLabel("person")
                                                .DstLabel("person")
                                                .EdgeLabel("knows")
                                                .AddDeleteProperty("weight")
@@ -2220,7 +2222,8 @@ TEST_F(NeugDBACIDTest, DMLCommitDoesNotAffectHeldReader) {
 
   // --- DeleteVertex ---
   cc_run_update(*svc, [&](auto& txn) {
-    EXPECT_TRUE(txn.DeleteVertex(p_label, cc_person_vid(txn, db, 5)));
+    StorageTPUpdateInterface gui(txn);
+    EXPECT_TRUE(gui.DeleteVertex(p_label, cc_person_vid(txn, db, 5)));
   });
   // Held reader: vertex 5 still visible.
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
@@ -2252,7 +2255,8 @@ TEST_F(NeugDBACIDTest, DMLCommitDoesNotAffectHeldReader) {
   });
   size_t total_after_adds = cc_count_all_oe(*svc, "person", "person", "knows");
   cc_run_update(*svc, [&](auto& txn) {
-    EXPECT_TRUE(txn.DeleteEdges(p_label, cc_person_vid(txn, db, 1), p_label,
+    StorageTPUpdateInterface gui(txn);
+    EXPECT_TRUE(gui.DeleteEdges(p_label, cc_person_vid(txn, db, 1), p_label,
                                 cc_person_vid(txn, db, 2), e_label));
   });
   // Held reader: still sees original edge count.
@@ -2281,6 +2285,7 @@ TEST_F(NeugDBACIDTest,
   // Set weight on 1→2 (creating the edge if cc_init didn't make one).
   auto set_or_add_weight = [&](double w) {
     cc_run_update(*svc, [&](auto& txn) {
+      StorageTPUpdateInterface gui(txn);
       vid_t s = cc_person_vid(txn, db, 1);
       vid_t d = cc_person_vid(txn, db, 2);
       auto oe_view = txn.GetGenericOutgoingGraphView(p_label, p_label, e_label);
@@ -2288,13 +2293,12 @@ TEST_F(NeugDBACIDTest,
       int32_t oe_off = 0;
       for (auto it = edges.begin(); it != edges.end(); ++it, ++oe_off) {
         if (it.get_vertex() == d) {
-          txn.UpdateEdgeProperty(p_label, s, p_label, d, e_label, oe_off, 0, 0,
+          gui.UpdateEdgeProperty(p_label, s, p_label, d, e_label, oe_off, 0, 0,
                                  execution::Value::DOUBLE(w));
           return;
         }
       }
       // No existing edge — add one.
-      StorageTPUpdateInterface gui(txn);
       const void* edge_prop = nullptr;
       EXPECT_TRUE(gui.AddEdge(p_label, s, p_label, d, e_label,
                               {execution::Value::DOUBLE(w)}, edge_prop));
@@ -2356,13 +2360,14 @@ TEST_F(NeugDBACIDTest,
 
   // Writer updates `since` to 2099 on the created edge person 1 → software 1.
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     auto p_label = txn.schema().get_vertex_label_id("person");
     auto sw_label = txn.schema().get_vertex_label_id("software");
     auto e_label = txn.schema().get_edge_label_id("created");
     vid_t p1, sw1;
     ASSERT_TRUE(txn.GetVertexIndex(p_label, execution::Value::INT64(1), p1));
     ASSERT_TRUE(txn.GetVertexIndex(sw_label, execution::Value::INT64(1), sw1));
-    txn.UpdateEdgeProperty(p_label, p1, sw_label, sw1, e_label, 0, 0, 1,
+    gui.UpdateEdgeProperty(p_label, p1, sw_label, sw1, e_label, 0, 0, 1,
                            execution::Value::INT64(2099));
   });
 
@@ -2399,8 +2404,9 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
 
   // --- AddVertexProperties ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     AddVertexPropertiesParamBuilder b;
-    EXPECT_TRUE(txn.AddVertexProperties(
+    EXPECT_TRUE(gui.AddVertexProperties(
                        b.VertexLabel("person")
                            .AddProperty("email", execution::Value::STRING(
                                                      std::string("")))
@@ -2423,8 +2429,9 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
 
   // --- DeleteVertexProperties ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     DeleteVertexPropertiesParamBuilder b;
-    EXPECT_TRUE(txn.DeleteVertexProperties(
+    EXPECT_TRUE(gui.DeleteVertexProperties(
                        b.VertexLabel("person").AddDeleteProperty("age").Build())
                     .ok());
   });
@@ -2442,9 +2449,10 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
 
   // --- RenameVertexProperties ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     RenameVertexPropertiesParamBuilder b;
     EXPECT_TRUE(
-        txn.RenameVertexProperties(b.VertexLabel("person")
+        gui.RenameVertexProperties(b.VertexLabel("person")
                                        .AddRenameProperty("name", "full_name")
                                        .Build())
             .ok());
@@ -2486,8 +2494,9 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
 
   // --- AddEdgeProperties ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     AddEdgePropertiesParamBuilder b;
-    EXPECT_TRUE(txn.AddEdgeProperties(
+    EXPECT_TRUE(gui.AddEdgeProperties(
                        b.SrcLabel("person")
                            .DstLabel("person")
                            .EdgeLabel("knows")
@@ -2510,9 +2519,10 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
 
   // --- RenameEdgeProperties ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     RenameEdgePropertiesParamBuilder b;
     EXPECT_TRUE(
-        txn.RenameEdgeProperties(b.SrcLabel("person")
+        gui.RenameEdgeProperties(b.SrcLabel("person")
                                      .DstLabel("person")
                                      .EdgeLabel("knows")
                                      .AddRenameProperty("weight", "importance")
@@ -2549,8 +2559,9 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   }
 
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
-    EXPECT_TRUE(txn.DeleteEdgeProperties(b.SrcLabel("person")
+    EXPECT_TRUE(gui.DeleteEdgeProperties(b.SrcLabel("person")
                                              .DstLabel("software")
                                              .EdgeLabel("created")
                                              .AddDeleteProperty("since")
@@ -2595,9 +2606,10 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
 
   // --- CreateVertexType ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     CreateVertexTypeParamBuilder b;
     EXPECT_TRUE(
-        txn.CreateVertexType(b.VertexLabel("company")
+        gui.CreateVertexType(b.VertexLabel("company")
                                  .AddProperty("id", execution::Value::INT64(0))
                                  .AddProperty("name", execution::Value::STRING(
                                                           std::string("")))
@@ -2617,8 +2629,9 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
 
   // --- CreateEdgeType ---
   cc_run_update(*svc, [&](auto& txn) {
+    StorageTPUpdateInterface gui(txn);
     CreateEdgeTypeParamBuilder b;
-    EXPECT_TRUE(txn.CreateEdgeType(b.SrcLabel("person")
+    EXPECT_TRUE(gui.CreateEdgeType(b.SrcLabel("person")
                                        .DstLabel("company")
                                        .EdgeLabel("employed_by")
                                        .Build())
@@ -2636,8 +2649,9 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
 
   // --- DeleteEdgeType + DeleteVertexType ---
   cc_run_update(*svc, [&](auto& txn) {
-    EXPECT_TRUE(txn.DeleteEdgeType("person", "person", "knows").ok());
-    EXPECT_TRUE(txn.DeleteVertexType("person").ok());
+    StorageTPUpdateInterface gui(txn);
+    EXPECT_TRUE(gui.DeleteEdgeType("person", "person", "knows").ok());
+    EXPECT_TRUE(gui.DeleteVertexType("person").ok());
   });
   // Held reader: still iterates persons and knows edges via captured snapshot.
   EXPECT_EQ(cc_count_vertices_via(txn_r, p_label), n_pre);
@@ -2734,9 +2748,10 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
 
   // Writer updates person 5's name to a new string.
   cc_run_update(*svc, [&](auto& txn) {
-    EXPECT_TRUE(txn.UpdateVertexProperty(
+    StorageTPUpdateInterface gui(txn);
+    gui.UpdateVertexProperty(
         p_label, cc_person_vid(txn, db, 5), 0,
-        execution::Value::STRING(std::string("renamed_5"))));
+        execution::Value::STRING(std::string("renamed_5")));
   });
 
   // Held reader: still sees old name.

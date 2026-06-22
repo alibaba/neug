@@ -17,18 +17,18 @@
 
 namespace neug {
 
-void StorageAPUpdateInterface::UpdateVertexProperty(
+Status StorageAPUpdateInterface::UpdateVertexProperty(
     label_t label, vid_t lid, int col_id, const execution::Value& value) {
-  graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
 }
 
-void StorageAPUpdateInterface::UpdateEdgeProperty(
+Status StorageAPUpdateInterface::UpdateEdgeProperty(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const execution::Value& value) {
-  graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
-                            oe_offset, ie_offset, col_id, value,
-                            neug::timestamp_t(0));
+  return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
+                                   oe_offset, ie_offset, col_id, value,
+                                   neug::timestamp_t(0));
 }
 
 Status StorageAPUpdateInterface::AddVertex(
@@ -89,6 +89,27 @@ void StorageAPUpdateInterface::CreateCheckpoint() {
   // Dump(reopen=true) clears and re-opens the graph, replacing all vertex/edge
   // tables.  Rebuild the view so cached pointers stay valid.
   mut_view_.Rebuild(graph_);
+}
+
+Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
+  return graph_.DeleteVertex(label, lid, timestamp_);
+}
+
+Status StorageAPUpdateInterface::DeleteEdge(label_t src_label, vid_t src,
+                                            label_t dst_label, vid_t dst,
+                                            label_t edge_label,
+                                            int32_t oe_offset,
+                                            int32_t ie_offset) {
+  return graph_.DeleteEdge(src_label, src, dst_label, dst, edge_label,
+                           oe_offset, ie_offset, timestamp_);
+}
+
+Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
+                                             label_t dst_label, vid_t dst,
+                                             label_t edge_label) {
+  // AP mode: delegate to batch version with single pair
+  std::vector<std::tuple<vid_t, vid_t>> edges = {{src, dst}};
+  return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
 }
 
 Status StorageAPUpdateInterface::BatchAddVertices(
