@@ -134,6 +134,6 @@ Correctness of neug GDS on the official small Graphalytics validation graphs is 
 
 - **neug** fastest on **CDLP** and **LCC** at every scale shown; on graph500-26 LCC, 360 s vs libgrape 4302 s (~12×). **SSSP** fastest on all three weighted datagen datasets.
 - **GraphBLAS** leads **BFS** and **PageRank** on datagen-9_2-zf and several other rows; **WCC** within ~10% of neug on 9_2-zf (4.4 s vs 4.9 s).
-- **GeminiGraph** **WCC** is **2.2–15.4 s** vs neug **0.2–4.9 s** on the same datasets.
-- **libgrape-lite** **WCC** is **10–100×** slower than neug at billion-edge scale.
+- **GeminiGraph** **PageRank** within a few percent of neug on graph500-26 and com-friendster; **WCC** lags (**2.2–15.4 s** vs **0.2–4.9 s**).
+- **libgrape-lite** trails neug by orders of magnitude on most kernels at billion-edge scale (e.g. graph500-26 WCC **47.7 s** vs **0.47 s**, CDLP **250 s** vs **10.6 s**).
 - **ladybug** implements PR + WCC only; com-friendster **2667 s** / **991 s** respectively.
