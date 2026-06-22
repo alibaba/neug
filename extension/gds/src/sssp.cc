@@ -96,15 +96,14 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                                       neug::IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
 
-  // Configure path encoding mode based on path_properties option
+  // Set path encoding mode based on path_properties option
   if (sssp_input.return_path) {
-    configure_path_encoding(sssp_input.path_properties);
+    execution::set_path_full_encoding(
+        sssp_input.path_properties != "lightweight");
   }
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  // An empty vertex set is handled uniformly below: the source lookup fails
-  // and we return an empty context.
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, sssp_input.vertex_label,
                                sssp_input.source, source_vid)) {
@@ -114,9 +113,6 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
   }
 
   execution::Context ret;
-  // When path return is requested, route through SSSPPred (single-threaded
-  // Dijkstra) to avoid the concurrency hazard of maintaining predecessors_
-  // in the parallel SSSP. SSSPPred also handles the predicate case.
   if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
       sssp_input.edge_pred != nullptr) {
     SSSPPred sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
@@ -129,10 +125,14 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
   } else {
     SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
               sssp_input.directed, sssp_input.edge_weight,
-              sssp_input.concurrency, sssp_input.return_path);
+              sssp_input.concurrency);
     sssp.compute();
-    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
-              sssp_input.path_alias);
+    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+  }
+
+  // Reset path encoding to default so it does not affect other queries
+  if (sssp_input.return_path) {
+    execution::set_path_full_encoding(true);
   }
   return ret;
 }

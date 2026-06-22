@@ -93,14 +93,13 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
                                      neug::IStorageInterface& g) {
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
-  // Configure path encoding mode based on path_properties option
+  // Set path encoding mode based on path_properties option
   if (bfs_input.return_path) {
-    configure_path_encoding(bfs_input.path_properties);
+    execution::set_path_full_encoding(
+        bfs_input.path_properties != "lightweight");
   }
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-  // An empty vertex set is handled uniformly below: the source lookup fails
-  // and we return an empty context.
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, bfs_input.vertex_label, bfs_input.source,
                                source_vid)) {
@@ -110,8 +109,6 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
   }
 
   execution::Context ret;
-  // The plain BFS has no predicate support; dispatch to the predicate-aware
-  // variant when a vertex or edge predicate is present.
   if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
     BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
                 bfs_input.directed, bfs_input.concurrency,
@@ -126,6 +123,11 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
     bfs.compute();
     bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
              bfs_input.path_alias);
+  }
+
+  // Reset path encoding to default so it does not affect other queries
+  if (bfs_input.return_path) {
+    execution::set_path_full_encoding(true);
   }
   return ret;
 }

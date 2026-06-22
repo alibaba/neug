@@ -43,23 +43,12 @@ BFSPred::BFSPred(const StorageReadInterface& graph, label_t vertex_label,
       vertex_pred_(vertex_pred),
       edge_pred_(edge_pred) {}
 
-// Performance is not a concern on the predicate path, so this is a simple
-// sequential level-synchronous BFS rather than the optimized push/pull hybrid
-// used by the plain BFS.
 void BFSPred::compute() {
   const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
   size_t n = vertex_set.size();
   distances_.reset(new uint32_t[n]);
   for (size_t i = 0; i < n; ++i) {
     distances_[i] = std::numeric_limits<uint32_t>::max();
-  }
-
-  if (return_path_) {
-    predecessors_.reset(new vid_t[n]);
-    for (size_t i = 0; i < n; ++i) {
-      predecessors_[i] = std::numeric_limits<vid_t>::max();
-    }
-    predecessors_[source_] = source_;
   }
 
   std::unique_ptr<execution::GeneralPred> vpred;
@@ -88,7 +77,7 @@ void BFSPred::compute() {
                                                     vertex_label_, edge_label_);
 
   if (!in_subgraph[source_]) {
-    return;  // source not in the subgraph -> every vertex stays unreachable
+    return;
   }
 
   distances_[source_] = 0;
@@ -103,9 +92,6 @@ void BFSPred::compute() {
           return;
         }
         distances_[w] = level;
-        if (return_path_) {
-          predecessors_[w] = u;
-        }
         next.push_back(w);
       };
 
@@ -140,17 +126,52 @@ void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
   execution::ValueColumnBuilder<int64_t> distance_builder;
   distance_builder.reserve(vertices_.size());
 
-  // Build path column BEFORE moving vertices_
   std::shared_ptr<execution::IContextColumn> path_column;
-  if (return_path_ && path_alias >= 0) {
+  if (return_path_) {
+    auto oe_view = graph_.GetGenericOutgoingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+
+    std::unique_ptr<execution::GeneralPred> epred;
+    if (edge_pred_ != nullptr) {
+      epred =
+          std::make_unique<execution::GeneralPred>(edge_pred_->bind(&graph_, {}));
+    }
+    execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+
+    auto find_pred = [&](vid_t v) -> vid_t {
+      auto ie_edges = ie_view.get_edges(v);
+      for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+        vid_t u = *it;
+        if (distances_[u] == distances_[v] - 1) {
+          if (!epred || (*epred)(triplet, u, v, it.get_data_ptr())) {
+            return u;
+          }
+        }
+      }
+      if (!directed_) {
+        auto oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          vid_t u = *it;
+          if (distances_[u] == distances_[v] - 1) {
+            if (!epred || (*epred)(triplet, v, u, it.get_data_ptr())) {
+              return u;
+            }
+          }
+        }
+      }
+      return source_;
+    };
+
     execution::PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();
       } else {
         auto path = reconstruct_path(
-            v, source_, PlainPredecessorAccessor{predecessors_.get()},
-            vertex_label_, edge_label_, directed_, graph_);
+            v, source_, find_pred, vertex_label_, edge_label_, directed_,
+            graph_);
         path_builder.push_back_opt(std::move(path));
       }
     }

@@ -54,7 +54,6 @@ class BFSPred {
   execution::ExprBase* edge_pred_;
 
   std::unique_ptr<uint32_t[]> distances_;
-  std::unique_ptr<vid_t[]> predecessors_;
   vector_t<vid_t> vertices_;
 };
 

@@ -35,24 +35,6 @@
 namespace neug {
 namespace gds {
 
-struct PlainPredecessorAccessor {
-  const vid_t* data;
-  vid_t get(vid_t v) const { return data[v]; }
-};
-
-// Configure path encoding mode based on path_properties option
-// - "full" (default): all properties encoded (backward compatible)
-// - "lightweight": only _ID, _LABEL, PK for vertices; _ID, _LABEL,
-// _SRC_ID, _DST_ID for edges
-inline void configure_path_encoding(const std::string& path_properties) {
-  if (path_properties == "lightweight") {
-    execution::set_path_full_encoding(false);
-  } else {
-    // Default to full mode (backward compatible)
-    execution::set_path_full_encoding(true);
-  }
-}
-
 // Build the proper DataType for a GDS path output column.  NeuG's type
 // converter expects kPath to carry a StructTypeInfo with _NODES (list of
 // vertex) and _RELS (list of edge) fields, matching what the Cypher pattern
@@ -149,11 +131,14 @@ inline execution::Path build_path_from_chain(
   return execution::Path(vertex_label, edge_label, chain, edge_datas);
 }
 
-// Reconstruct a path from the predecessor array by walking backward from
-// `target` to `source`, then build a Path with real edge data.
-template <typename PredAccessor>
+// Reconstruct a path by walking backward from `target` to `source` using
+// a callable that finds the predecessor of a given vertex.  The callable
+// is invoked as `find_pred(vid_t v)` and must return the predecessor's
+// vertex ID.  This enables post-hoc path reconstruction from the distance
+// array without storing predecessors during computation.
+template <typename PredFinder>
 inline execution::Path reconstruct_path(vid_t target, vid_t source,
-                                        const PredAccessor& pred,
+                                        const PredFinder& find_pred,
                                         label_t vertex_label,
                                         label_t edge_label, bool directed,
                                         const StorageReadInterface& graph) {
@@ -161,7 +146,7 @@ inline execution::Path reconstruct_path(vid_t target, vid_t source,
   vid_t cur = target;
   while (cur != source) {
     chain.push_back(cur);
-    cur = pred.get(cur);
+    cur = find_pred(cur);
   }
   chain.push_back(source);
   std::reverse(chain.begin(), chain.end());

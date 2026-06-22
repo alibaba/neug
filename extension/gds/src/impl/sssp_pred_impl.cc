@@ -17,6 +17,7 @@
 #include "impl/sssp_pred_impl.h"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <queue>
 #include <utility>
@@ -46,24 +47,12 @@ SSSPPred::SSSPPred(const StorageReadInterface& graph, label_t vertex_label,
       vertex_pred_(vertex_pred),
       edge_pred_(edge_pred) {}
 
-// Performance is not a concern on the predicate path, so this is a simple
-// sequential Dijkstra (weights are non-negative) rather than the optimized
-// parallel relaxation used by the plain SSSP. A distance of -1 denotes an
-// unreachable vertex.
 void SSSPPred::compute() {
   const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
   size_t n = vertex_set.size();
   distances_.reset(new double[n]);
   for (size_t i = 0; i < n; ++i) {
     distances_[i] = -1.0;
-  }
-
-  if (return_path_) {
-    predecessors_.reset(new vid_t[n]);
-    for (size_t i = 0; i < n; ++i) {
-      predecessors_[i] = std::numeric_limits<vid_t>::max();
-    }
-    predecessors_[source_] = source_;
   }
 
   std::unique_ptr<execution::GeneralPred> vpred;
@@ -100,7 +89,7 @@ void SSSPPred::compute() {
                                                     vertex_label_, edge_label_);
 
   if (!in_subgraph[source_]) {
-    return;  // source not in the subgraph -> every vertex stays unreachable
+    return;
   }
 
   using QueueEntry = std::pair<double, vid_t>;
@@ -114,7 +103,7 @@ void SSSPPred::compute() {
     auto [dist, u] = pq.top();
     pq.pop();
     if (dist > distances_[u]) {
-      continue;  // stale queue entry
+      continue;
     }
 
     auto relax = [&](auto& it, vid_t w, vid_t edge_src, vid_t edge_dst) {
@@ -129,21 +118,18 @@ void SSSPPred::compute() {
       double cand = dist + weight;
       if (distances_[w] < 0 || cand < distances_[w]) {
         distances_[w] = cand;
-        if (return_path_) {
-          predecessors_[w] = u;
-        }
         pq.push({cand, w});
       }
     };
 
     auto oe_edges = oe_view.get_edges(u);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-      relax(it, *it, u, *it);  // outgoing edge u -> w
+      relax(it, *it, u, *it);
     }
     if (!directed_) {
       auto ie_edges = ie_view.get_edges(u);
       for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
-        relax(it, *it, *it, u);  // incoming edge w -> u
+        relax(it, *it, *it, u);
       }
     }
   }
@@ -155,17 +141,67 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
   execution::ValueColumnBuilder<double> distance_builder;
   distance_builder.reserve(vertices_.size());
 
-  // Build path column BEFORE moving vertices_
   std::shared_ptr<execution::IContextColumn> path_column;
-  if (return_path_ && path_alias >= 0) {
+  if (return_path_) {
+    auto oe_view = graph_.GetGenericOutgoingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+
+    bool has_weight = !edge_weight_prop_.empty();
+    std::unique_ptr<EdgeDataAccessor> weight_accessor;
+    if (has_weight) {
+      weight_accessor =
+          std::make_unique<EdgeDataAccessor>(graph_.GetEdgeDataAccessor(
+              vertex_label_, vertex_label_, edge_label_, edge_weight_prop_));
+    }
+
+    std::unique_ptr<execution::GeneralPred> epred;
+    if (edge_pred_ != nullptr) {
+      epred =
+          std::make_unique<execution::GeneralPred>(edge_pred_->bind(&graph_, {}));
+    }
+    execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+
+    auto find_pred = [&](vid_t v) -> vid_t {
+      double dv = distances_[v];
+      auto ie_edges = ie_view.get_edges(v);
+      for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+        vid_t u = *it;
+        double du = distances_[u];
+        if (du < 0) continue;
+        if (epred && !(*epred)(triplet, u, v, it.get_data_ptr())) continue;
+        double weight =
+            has_weight ? weight_accessor->get_typed_data<double>(it) : 1.0;
+        if (std::abs(du + weight - dv) < 1e-9) {
+          return u;
+        }
+      }
+      if (!directed_) {
+        auto oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          vid_t u = *it;
+          double du = distances_[u];
+          if (du < 0) continue;
+          if (epred && !(*epred)(triplet, v, u, it.get_data_ptr())) continue;
+          double weight =
+              has_weight ? weight_accessor->get_typed_data<double>(it) : 1.0;
+          if (std::abs(du + weight - dv) < 1e-9) {
+            return u;
+          }
+        }
+      }
+      return source_;
+    };
+
     execution::PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] < 0) {
         path_builder.push_back_null();
       } else {
         auto path = reconstruct_path(
-            v, source_, PlainPredecessorAccessor{predecessors_.get()},
-            vertex_label_, edge_label_, directed_, graph_);
+            v, source_, find_pred, vertex_label_, edge_label_, directed_,
+            graph_);
         path_builder.push_back_opt(std::move(path));
       }
     }

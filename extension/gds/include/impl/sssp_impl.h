@@ -31,12 +31,10 @@ class SSSP {
  public:
   SSSP(const StorageReadInterface& graph, label_t vertex_label,
        label_t edge_label, vid_t source, bool directed,
-       const std::string& edge_weight_prop, int concurrency,
-       bool return_path = false);
+       const std::string& edge_weight_prop, int concurrency);
 
   void compute();
-  void sink(execution::Context& ctx, int node_alias, int distance_alias,
-            int path_alias = -1);
+  void sink(execution::Context& ctx, int node_alias, int distance_alias);
 
  private:
   const StorageReadInterface& graph_;
@@ -46,11 +44,9 @@ class SSSP {
   bool directed_;
   bool has_edge_weight_;
   int concurrency_;
-  bool return_path_;
 
   std::unique_ptr<EdgeDataAccessor> edge_weight_accessor_;
   std::unique_ptr<std::atomic<double>[]> distances_;
-  std::unique_ptr<vid_t[]> predecessors_;
   vector_t<vid_t> vertices_;
 };
 

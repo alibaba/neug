@@ -58,7 +58,6 @@ class SSSPPred {
   execution::ExprBase* edge_pred_;
 
   std::unique_ptr<double[]> distances_;
-  std::unique_ptr<vid_t[]> predecessors_;
   vector_t<vid_t> vertices_;
 };
 

@@ -53,14 +53,6 @@ BFS::BFS(const StorageReadInterface& graph, label_t vertex_label,
       concurrency_);
   distances_[source_] = 0;
 
-  if (return_path_) {
-    predecessors_.reset(new vid_t[vertex_count]);
-    for (size_t i = 0; i < vertex_count; ++i) {
-      predecessors_[i] = std::numeric_limits<vid_t>::max();
-    }
-    predecessors_[source_] = source_;
-  }
-
   vertices_.reserve(vertex_count);
   for (vid_t v : vertex_set) {
     vertices_.push_back(v);
@@ -72,7 +64,6 @@ void BFS::compute() {
                                                     vertex_label_, edge_label_);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
-  const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
 
   std::vector<vid_t> frontier;
   frontier.reserve(1024);
@@ -84,8 +75,6 @@ void BFS::compute() {
     std::vector<std::vector<vid_t>> local_next(concurrency_);
 
     if (!use_dense) {
-      // Sparse push mode: only expand outgoing (and optional incoming) edges
-      // from active frontier vertices.
       ParallelUtils::parallel_for(
           frontier.data(), frontier.size(),
           [&](vid_t src, int tid) {
@@ -94,9 +83,6 @@ void BFS::compute() {
               if (__atomic_compare_exchange_n(&distances_[dst], &expected,
                                               level, false, __ATOMIC_RELAXED,
                                               __ATOMIC_RELAXED)) {
-                if (return_path_) {
-                  predecessors_[dst] = src;
-                }
                 local_next[tid].push_back(dst);
               }
             };
@@ -115,9 +101,7 @@ void BFS::compute() {
           },
           concurrency_);
     } else {
-      // Dense pull mode: scan unvisited vertices and test whether any neighbor
-      // is in the current frontier bitmap.
-      use_dense = false;  // reset to sparse mode for next iteration
+      use_dense = false;
       ParallelUtils::parallel_for(
           vertices_.data(), vertices_.size(),
           [&](vid_t dst, int tid) {
@@ -125,14 +109,10 @@ void BFS::compute() {
               return;
             }
 
-            // Pull mode: a vertex joins this level only if it has a neighbor
-            // in the current frontier (distance == level - 1).
             bool reachable = false;
-            vid_t pred = std::numeric_limits<vid_t>::max();
             auto ie_edges = ie_view.get_edges(dst);
             for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
               if (distances_[*it] == level - 1) {
-                pred = *it;
                 reachable = true;
                 break;
               }
@@ -142,7 +122,6 @@ void BFS::compute() {
               auto oe_edges = oe_view.get_edges(dst);
               for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
                 if (distances_[*it] == level - 1) {
-                  pred = *it;
                   reachable = true;
                   break;
                 }
@@ -152,16 +131,8 @@ void BFS::compute() {
             if (!reachable) {
               return;
             }
-            // CAS ensures only one thread sets distance and predecessor.
-            uint32_t expected = std::numeric_limits<uint32_t>::max();
-            if (__atomic_compare_exchange_n(&distances_[dst], &expected, level,
-                                             false, __ATOMIC_RELAXED,
-                                             __ATOMIC_RELAXED)) {
-              if (return_path_) {
-                predecessors_[dst] = pred;
-              }
-              local_next[tid].push_back(dst);
-            }
+            distances_[dst] = level;
+            local_next[tid].push_back(dst);
           },
           concurrency_);
     }
@@ -193,17 +164,39 @@ void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
 
   distance_builder.reserve(vertices_.size());
 
-  // Build path column BEFORE moving vertices_
   std::shared_ptr<execution::IContextColumn> path_column;
-  if (return_path_ && path_alias >= 0) {
+  if (return_path_) {
+    auto oe_view = graph_.GetGenericOutgoingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+
+    auto find_pred = [&](vid_t v) -> vid_t {
+      auto ie_edges = ie_view.get_edges(v);
+      for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+        if (distances_[*it] == distances_[v] - 1) {
+          return *it;
+        }
+      }
+      if (!directed_) {
+        auto oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          if (distances_[*it] == distances_[v] - 1) {
+            return *it;
+          }
+        }
+      }
+      return source_;
+    };
+
     execution::PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();
       } else {
         auto path = reconstruct_path(
-            v, source_, PlainPredecessorAccessor{predecessors_.get()},
-            vertex_label_, edge_label_, directed_, graph_);
+            v, source_, find_pred, vertex_label_, edge_label_, directed_,
+            graph_);
         path_builder.push_back_opt(std::move(path));
       }
     }
