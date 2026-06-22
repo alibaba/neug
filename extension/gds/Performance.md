@@ -120,7 +120,7 @@ BFS source: 101 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | System | Engine | Algorithms | How timed |
 |--------|--------|------------|-----------|
-| **neug** | In-memory GDS kernels (CSR views) | BFS, WCC, PR, CDLP, LCC, SSSP | `extension/gds/benchmark/graphalytics_bench.py` per `CALL`; **median of 5 runs** |
+| **neug** | In-memory GDS kernels (CSR views) | BFS, WCC, PR, CDLP, LCC, SSSP | `extension/gds/benchmark/graphalytics_bench.py` per `CALL` |
 | **libgrape-lite** | Vertex-centric, OpenMP, `mpirun -n 1` | same as neug | `run algorithm` |
 | **GraphBLAS/LAGraph** | SuiteSparse **v8.0.0** + LAGraph **1.0.1** | same as neug | Kernel timer; PR=`LAGr_PageRankGX`, WCC=`LG_CC_FastSV6` |
 | **GeminiGraph** | MPI + OpenMP (`toolkits/bfs`, `pagerank`, `sssp`, `cc`) | BFS, WCC, PR, SSSP | First `exec_time=` in tool output |
@@ -132,8 +132,8 @@ Correctness of neug GDS on the official small Graphalytics validation graphs is 
 
 ## Cross-scale observations
 
-- **neug** stays fastest on **CDLP** and **LCC** at all scales; vs libgrape on graph500-26 LCC: 360 s vs 4302 s (~12×). **SSSP** fastest on all three datagen datasets after BF refactor.
-- **GraphBLAS** dominates BFS/PR on graph500-22; at large scale **PR** and **WCC** competitive with neug.
-- **GeminiGraph**: BFS+PR+WCC on all six datasets; WCC **2.2–15.4 s** vs neug **0.5–5 s**.
-- **libgrape-lite** compute **10–100×** slower than neug on WCC at billion-edge scale.
-- **ladybug**: PR + WCC only; slowest com-friendster PR **2667 s** / WCC **991 s**.
+- **neug** fastest on **CDLP** and **LCC** at every scale shown; on graph500-26 LCC, 360 s vs libgrape 4302 s (~12×). **SSSP** fastest on all three weighted datagen datasets.
+- **GraphBLAS** leads **BFS** and **PageRank** on datagen-9_2-zf and several other rows; **WCC** within ~10% of neug on 9_2-zf (4.4 s vs 4.9 s).
+- **GeminiGraph** **WCC** is **2.2–15.4 s** vs neug **0.2–4.9 s** on the same datasets.
+- **libgrape-lite** **WCC** is **10–100×** slower than neug at billion-edge scale.
+- **ladybug** implements PR + WCC only; com-friendster **2667 s** / **991 s** respectively.
