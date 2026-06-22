@@ -13,7 +13,7 @@ Minor changes for fair LDBC comparisons:
 
 Times measure **algorithm execution only** (seconds). **`—`** = not implemented. **Bold** = fastest in row.
 
-## Hardware
+## Environment
 
 All figures below were measured on one server:
 
@@ -121,10 +121,6 @@ BFS source: 101 · PageRank / CDLP: 10 iterations, damping 0.85
 ---
 
 ## Setup
-
-| Item | Value |
-|------|-------|
-| Timing | Algorithm kernel only; excludes load, deserialize, result I/O |
 
 | System | Engine | Algorithms | How timed |
 |--------|--------|------------|-----------|
