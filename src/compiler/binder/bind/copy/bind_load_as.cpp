@@ -81,45 +81,50 @@ static expression_vector buildDdlColumns(
     return result;
   }
 
-  // --- REL: ensure ddlColumns[0/1] are the src/dst key columns ---
+  // --- REL: ensure ddlColumns[0/1] are the src/dst key columns. ---
+  // from_col/to_col specify key columns; they are placed at [0/1] in
+  // ddlColumns regardless of their position in the file or RETURN clause.
+  // When from_col/to_col are omitted, the first two columns in the output
+  // (RETURN or file order) are used as keys.
   auto fromCol = extractStringOption(parsingOptions, "from_col");
   auto toCol = extractStringOption(parsingOptions, "to_col");
 
-  // With RETURN: columns in RETURN-specified order.
-  // Without RETURN: reorder so from_col/to_col are at [0/1] if specified,
-  // otherwise use file order (keys at [0/1] by convention).
-  if (!returnCols.empty()) {
-    expression_vector result;
-    for (const auto& ret : returnCols) {
-      for (const auto& c : sourceColumns) {
-        if (c->rawName() == ret) { result.push_back(c); break; }
-      }
-    }
-    return result;
+  // Determine which columns to include (RETURN subset or all).
+  std::vector<std::string> selectedCols;
+  if (returnCols.empty()) {
+    for (const auto& c : sourceColumns) selectedCols.push_back(c->rawName());
+  } else {
+    selectedCols = returnCols;
   }
 
-  // No RETURN: reorder if from_col/to_col specify non-[0/1] key columns.
+  expression_vector result;
   if (!fromCol.empty() && !toCol.empty()) {
-    expression_vector result;
-    // Push src key column first.
+    // from_col/to_col specified: place them at [0/1].
     for (const auto& c : sourceColumns) {
       if (c->rawName() == fromCol) { result.push_back(c); break; }
     }
-    // Push dst key column second.
     for (const auto& c : sourceColumns) {
       if (c->rawName() == toCol) { result.push_back(c); break; }
     }
-    // Append remaining columns.
+    // Append remaining selected columns.
     for (const auto& c : sourceColumns) {
-      if (c->rawName() != fromCol && c->rawName() != toCol) {
-        result.push_back(c);
+      const auto& name = c->rawName();
+      if (name == fromCol || name == toCol) continue;
+      for (const auto& sel : selectedCols) {
+        if (sel == name) { result.push_back(c); break; }
       }
     }
-    return result;
+  } else {
+    // No from_col/to_col: use first two selected columns as keys.
+    // Build result in selectedCols order (RETURN order or file order).
+    for (const auto& sel : selectedCols) {
+      for (const auto& c : sourceColumns) {
+        if (c->rawName() == sel) { result.push_back(c); break; }
+      }
+    }
   }
 
-  // No RETURN, no from_col/to_col: file order (keys at [0/1]).
-  return sourceColumns;
+  return result;
 }
 
 // When LOAD AS has WHERE and/or RETURN, construct an internal subquery

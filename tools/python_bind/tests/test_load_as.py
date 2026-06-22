@@ -327,11 +327,12 @@ class TestLoadAs:
         assert len(rows) == 3
         assert rows[0] == [1, 2, 0.5]
 
-    def test_load_rel_table_from_col_to_col_at_position_0_1(self):
-        """from_col/to_col match file columns[0/1] — no reordering needed."""
+    def test_load_rel_table_from_col_to_col(self):
+        """from_col/to_col match file columns[0/1] — ddlColumns stay in file order,
+        keys are at [0/1] by convention."""
         self._load_persistent_person_table()
         # edges.csv columns: src_id(0) | dst_id(1) | weight(2)
-        # from_col/to_col match positions [0/1] — works without subquery.
+        # from_col/to_col match positions [0/1] — ddlColumns stay in file order.
         self.conn.execute(
             f'LOAD REL TABLE FROM "{self.edges_csv}" '
             f"(header = true, "
@@ -346,10 +347,10 @@ class TestLoadAs:
         assert len(rows) == 3
         assert rows[0] == [1, 2, 0.5]
 
-    def test_load_rel_table_from_col_to_col_not_at_position_0_1(self):
+    def test_load_rel_table_from_col_to_col_non_01_auto_reorder(self):
         """When from_col/to_col point to non-[0/1] columns, the binder
-        automatically switches to a subquery path to reorder columns so
-        that ddlColumns[0/1] are the src/dst keys.
+        automatically reorders ddlColumns so keys are at [0/1] and switches
+        to a subquery path to project data in the correct order.
 
         File columns: weight(0) | src_id(1) | dst_id(2)
         from_col='src_id', to_col='dst_id' → ddlColumns=[src_id, dst_id, weight]
@@ -373,7 +374,31 @@ class TestLoadAs:
         assert rows[1] == [2, 3, 1.0]
         assert rows[2] == [3, 4, 0.8]
 
-    def test_load_rel_table_return_without_from_col_to_col(self):
+    def test_load_rel_table_return_with_from_col_to_col(self):
+        """RETURN + from_col/to_col: RETURN selects column subset,
+        from_col/to_col place keys at [0/1] within the RETURN columns.
+
+        File columns: weight(0) | src_id(1) | dst_id(2)
+        RETURN: weight, src_id, dst_id
+        from_col/to_col reorder → ddlColumns=[src_id, dst_id, weight]
+        """
+        self._load_persistent_person_table()
+        self.conn.execute(
+            f'LOAD REL TABLE FROM "{self.edges_shuffled_csv}" '
+            f"(header = true, "
+            f"from = 'Person', to = 'Person', "
+            f"from_col = 'src_id', to_col = 'dst_id') "
+            f"RETURN weight, src_id, dst_id AS TempReturnWithKeys;"
+        )
+        result = self.conn.execute(
+            "MATCH (a:Person)-[r:TempReturnWithKeys]->(b:Person) "
+            "RETURN a.id, b.id, r.weight ORDER BY a.id;"
+        )
+        rows = list(result)
+        assert len(rows) == 3
+        assert rows[0] == [1, 2, 0.5]
+
+    def test_load_rel_table_return_without_keys(self):
         """RETURN without from_col/to_col: RETURN columns in source order,
         first two become keys by position."""
         self._load_persistent_person_table()
@@ -393,9 +418,8 @@ class TestLoadAs:
         assert len(rows) == 3
         assert rows[0] == [1, 2, 0.5]
 
-    def test_load_rel_table_return_reorders_keys_to_front(self):
-        """When file has keys NOT at [0/1], user uses RETURN to place keys
-        first. 
+    def test_load_rel_table_return_reorders_keys_from_shuffled(self):
+        """When file has keys NOT at [0/1], RETURN places keys first.
 
         File columns: weight(0) | src_id(1) | dst_id(2)
         RETURN: src_id, dst_id, weight → keys at [0/1] in ddlColumns.

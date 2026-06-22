@@ -17,7 +17,6 @@ Use cases:
 ```cypher
 LOAD NODE TABLE FROM "<file_path>" (
     primary_key = '<column_name>',
-    header = true,
     ...
 )
 [WHERE <condition>]
@@ -33,7 +32,6 @@ LOAD REL TABLE FROM "<file_path>" (
     to = '<target_label>',
     from_col = '<source_key_column>',
     to_col = '<target_key_column>',
-    header = true,
     ...
 )
 [WHERE <condition>]
@@ -57,10 +55,10 @@ LOAD AS uses the same file reading pipeline as [LOAD FROM](load_data), so it sup
 
 **Relationship Table:**
 
-| Option       | Type   | Default            | Description                                  |
-| ------------ | ------ | ------------------ | -------------------------------------------- |
-| `from`     | string | **Required** | Source node label name (must already exist). |
-| `to`       | string | **Required** | Target node label name (must already exist). |
+| Option       | Type   | Default            | Description                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | ------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`     | string | **Required** | Source node label name (must already exist).                                                                                                                                                                                                                                                                                                       |
+| `to`       | string | **Required** | Target node label name (must already exist).                                                                                                                                                                                                                                                                                                       |
 | `from_col` | string | First column       | Name of the column containing source node keys. If omitted, defaults to the first column in the file. |
 | `to_col`   | string | Second column      | Name of the column containing target node keys. If omitted, defaults to the second column in the file. |
 
@@ -113,20 +111,50 @@ RETURN id, name
 AS PersonSlim;
 ```
 
-### Constraints
+### Relationship Table Key Column Ordering
 
-- **Node table**: `RETURN` must include the `primary_key` column.
-- **Relationship table**: `RETURN` must include both `from_col` and `to_col` columns.
+For relationship tables, the first two columns of the temporary table schema are always treated as the source and destination key columns. Column order is determined as follows:
 
-```cypher
-// Error: RETURN is missing the primary key column 'id'.
-LOAD NODE TABLE FROM "person.csv" (
-    primary_key = 'id',
-    header = true
-)
-RETURN name, age
-AS PersonBad;
-```
+1. **With `from_col`/`to_col` (recommended)**: the system automatically places the specified key columns at positions [0/1], regardless of file order or RETURN order:
+
+   ```cypher
+   // File columns: weight(0), src_id(1), dst_id(2)
+   // from_col/to_col auto-reorder → schema: [src_id, dst_id, weight]
+   LOAD REL TABLE FROM "edges.csv"
+       (from = 'Person', to = 'Person',
+        from_col = 'src_id', to_col = 'dst_id')
+   AS Edges;
+
+   // With RETURN: from_col/to_col still force keys to [0/1]
+   // RETURN selects columns, from_col/to_col determines key positions
+   LOAD REL TABLE FROM "edges.csv"
+       (from = 'Person', to = 'Person',
+        from_col = 'src_id', to_col = 'dst_id')
+   RETURN weight, src_id, dst_id AS Edges;
+   // → schema: [src_id, dst_id, weight] (auto-reordered)
+   ```
+
+2. **Without `from_col`/`to_col`**: the first two columns in the output order are used as keys. **No automatic reordering occurs** — the user is responsible for ensuring keys are at [0/1]:
+
+   ```cypher
+   // File columns: src_id(0), dst_id(1), weight(2) — keys already at [0/1], OK.
+   LOAD REL TABLE FROM "edges.csv"
+       (from = 'Person', to = 'Person', header = true) AS Edges;
+
+   // With RETURN but no from_col/to_col:
+   // RETURN order determines key positions — first two columns become keys.
+   // User MUST place key columns first in RETURN.
+   LOAD REL TABLE FROM "edges.csv"
+       (from = 'Person', to = 'Person')
+   RETURN src_id, dst_id, weight AS Edges;  // ✓ keys at [0/1]
+
+   // ✗ WRONG: weight becomes key column [0] — will fail or produce wrong results
+   LOAD REL TABLE FROM "edges.csv"
+       (from = 'Person', to = 'Person')
+   RETURN weight, src_id, dst_id AS Edges;
+   ```
+
+> **Best practice**: Always specify `from_col`/`to_col` for relationship tables. This ensures keys are correctly placed at [0/1] regardless of file layout or RETURN order, eliminating positional ambiguity.
 
 ### WHERE + RETURN Combined
 
@@ -314,7 +342,7 @@ LOAD REL TABLE FROM "edges.csv" (
 ) AS Edges;
 ```
 
-**Fix**: Specify source and target node labels (from_col/to_col are optional — without them, the first two columns are used as endpoint keys):
+**Fix**: Specify source and target node labels. Use `from_col`/`to_col` to identify key columns (they also trigger automatic reordering to [0/1]):
 
 ```cypher
 // Minimal: columns[0] and [1] are assumed to be src/dst keys.
@@ -324,13 +352,28 @@ LOAD REL TABLE FROM "edges.csv" (
     header = true
 ) AS Edges;
 
-// Explicit: specify which columns are keys (required when keys
-// are not at file positions [0] and [1], e.g. Parquet files).
-LOAD REL TABLE FROM "edges.parquet" (
+// Recommended: specify key columns explicitly.
+// from_col/to_col auto-reorder keys to [0/1] regardless of file position.
+LOAD REL TABLE FROM "edges.csv" (
     from = 'Person',
     to = 'Person',
     from_col = 'src_id',
-    to_col = 'dst_id'
+    to_col = 'dst_id',
+    header = true
+) AS Edges;
+```
+
+If the file has keys at non-[0/1] positions, use `from_col`/`to_col` which automatically reorders keys to [0/1]:
+
+```cypher
+// File: weight(0), src_id(1), dst_id(2) — keys not at [0/1]
+// from_col/to_col auto-reorder: schema becomes [src_id, dst_id, weight]
+LOAD REL TABLE FROM "edges.csv" (
+    from = 'Person',
+    to = 'Person',
+    from_col = 'src_id',
+    to_col = 'dst_id',
+    header = true
 ) AS Edges;
 ```
 
