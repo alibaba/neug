@@ -69,11 +69,14 @@ class PathColumn : public IContextColumn {
     return !data_[idx].is_null();
   }
 
+  bool full_encoding() const { return full_encoding_; }
+
  private:
   friend class PathColumnBuilder;
   vector_t<Path> data_;
   DataType type_;
   bool is_optional_ = false;
+  bool full_encoding_ = true;
 };
 
 class PathColumnBuilder : public IContextColumnBuilder {
@@ -91,16 +94,19 @@ class PathColumnBuilder : public IContextColumnBuilder {
     data_.emplace_back();
   }
   void reserve(size_t size) override { data_.reserve(size); }
+  void set_full_encoding(bool full) { full_encoding_ = full; }
 
   std::shared_ptr<IContextColumn> finish() override {
     auto col = std::make_shared<PathColumn>();
     col->data_.swap(data_);
     col->is_optional_ = is_optional_;
+    col->full_encoding_ = full_encoding_;
     return col;
   }
 
  private:
   bool is_optional_ = false;
+  bool full_encoding_ = true;
   vector_t<Path> data_;
 };
 

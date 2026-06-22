@@ -93,12 +93,6 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
                                      neug::IStorageInterface& g) {
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
-  // Set path encoding mode based on path_properties option
-  if (bfs_input.return_path) {
-    execution::set_path_full_encoding(
-        bfs_input.path_properties != "lightweight");
-  }
-
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, bfs_input.vertex_label, bfs_input.source,
@@ -108,6 +102,7 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
+  bool full_encoding = bfs_input.path_properties != "lightweight";
   execution::Context ret;
   if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
     BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
@@ -116,18 +111,13 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
                 bfs_input.return_path);
     bfs.compute();
     bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-             bfs_input.path_alias);
+             bfs_input.path_alias, full_encoding);
   } else {
     BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
             bfs_input.directed, bfs_input.concurrency, bfs_input.return_path);
     bfs.compute();
     bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-             bfs_input.path_alias);
-  }
-
-  // Reset path encoding to default so it does not affect other queries
-  if (bfs_input.return_path) {
-    execution::set_path_full_encoding(true);
+             bfs_input.path_alias, full_encoding);
   }
   return ret;
 }

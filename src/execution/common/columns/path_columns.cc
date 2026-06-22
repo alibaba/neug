@@ -24,6 +24,7 @@ std::shared_ptr<IContextColumn> PathColumn::shuffle(
     const sel_vec_t& offsets) const {
   if (is_optional_) {
     PathColumnBuilder builder(true);
+    builder.set_full_encoding(full_encoding_);
     builder.reserve(offsets.size());
     for (auto& offset : offsets) {
       const auto& path = data_[offset];
@@ -36,6 +37,7 @@ std::shared_ptr<IContextColumn> PathColumn::shuffle(
     return builder.finish();
   } else {
     PathColumnBuilder builder;
+    builder.set_full_encoding(full_encoding_);
     builder.reserve(offsets.size());
     for (auto& offset : offsets) {
       builder.push_back_opt(data_[offset]);
@@ -47,6 +49,7 @@ std::shared_ptr<IContextColumn> PathColumn::shuffle(
 std::shared_ptr<IContextColumn> PathColumn::optional_shuffle(
     const sel_vec_t& offsets) const {
   PathColumnBuilder builder(true);
+  builder.set_full_encoding(full_encoding_);
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
     if (offset == std::numeric_limits<sel_t>::max() ||

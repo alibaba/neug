@@ -40,7 +40,7 @@ class BFSPred {
 
   void compute();
   void sink(execution::Context& ctx, int node_alias, int distance_alias,
-            int path_alias = -1);
+            int path_alias = -1, bool full_encoding = true);
 
  private:
   const StorageReadInterface& graph_;

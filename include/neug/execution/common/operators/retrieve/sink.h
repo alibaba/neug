@@ -25,14 +25,6 @@ namespace execution {
 
 class Context;
 
-// Path encoding mode control
-// Controls whether path output includes full properties or lightweight encoding
-// - true (default): full mode - all properties encoded (backward compatible)
-// - false: lightweight mode - only _ID, _LABEL, PK for vertices;
-//                    _ID, _LABEL, _SRC_ID, _DST_ID for edges
-void set_path_full_encoding(bool enabled);
-bool get_path_full_encoding();
-
 class Sink {
  public:
   static void sink_results(const Context& ctx,

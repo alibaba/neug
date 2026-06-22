@@ -36,19 +36,6 @@
 namespace neug {
 namespace execution {
 
-// Path encoding mode: full (default) or lightweight
-// - full: encode all properties (backward compatible default)
-// - lightweight: only encode _ID, _LABEL, PK for vertices; structural info for
-// edges
-// GDS extension can call set_path_full_encoding(false) for lightweight mode
-static thread_local bool path_full_encoding_enabled = true;
-
-void set_path_full_encoding(bool enabled) {
-  path_full_encoding_enabled = enabled;
-}
-
-bool get_path_full_encoding() { return path_full_encoding_enabled; }
-
 void append_property_to_json(const std::string& key, const Value& prop,
                              rapidjson::Value& doc,
                              rapidjson::Document::AllocatorType& allocator) {
@@ -139,7 +126,7 @@ void append_property_to_json(const std::string& key, const Value& prop,
 // In full mode: encode all properties
 static rapidjson::Value build_vertex_json_value(
     const StorageReadInterface& graph, const VertexRecord& record,
-    rapidjson::Document::AllocatorType& allocator) {
+    rapidjson::Document::AllocatorType& allocator, bool full_encoding) {
   rapidjson::Value obj(rapidjson::kObjectType);
   if (record.label_ == std::numeric_limits<label_t>::max() ||
       record.vid_ == std::numeric_limits<vid_t>::max()) {
@@ -155,7 +142,7 @@ static rapidjson::Value build_vertex_json_value(
   append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
 
   // Only encode non-PK properties in full mode
-  if (path_full_encoding_enabled) {
+  if (full_encoding) {
     const auto& property_names =
         graph.schema().get_vertex_property_names(record.label_);
     for (size_t i = 0; i < property_names.size(); ++i) {
@@ -173,7 +160,7 @@ static rapidjson::Value build_vertex_json_value(
 // In full mode: encode all properties
 static rapidjson::Value build_edge_json_value(
     const StorageReadInterface& graph, const EdgeRecord& record,
-    rapidjson::Document::AllocatorType& allocator) {
+    rapidjson::Document::AllocatorType& allocator, bool full_encoding) {
   rapidjson::Value obj(rapidjson::kObjectType);
   if (record.label.src_label == std::numeric_limits<label_t>::max() ||
       record.label.dst_label == std::numeric_limits<label_t>::max() ||
@@ -197,7 +184,7 @@ static rapidjson::Value build_edge_json_value(
   obj.AddMember("_DST_ID", rapidjson::Value(dst_gid), allocator);
 
   // Only encode properties in full mode
-  if (path_full_encoding_enabled) {
+  if (full_encoding) {
     auto property_types = graph.schema().get_edge_properties(
         record.label.src_label, record.label.dst_label,
         record.label.edge_label);
@@ -291,7 +278,7 @@ std::string convert_edge_to_json(const StorageReadInterface& graph,
 }
 
 std::string convert_path_to_json(const StorageReadInterface& graph,
-                                 const Path& path) {
+                                 const Path& path, bool full_encoding) {
   if (path.is_null()) {
     return "";
   }
@@ -299,21 +286,15 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   doc.SetObject();
   auto& allocator = doc.GetAllocator();
 
-  // nodes — encoding mode controlled by path_full_encoding_enabled flag
-  //   lightweight (default): only _ID, _LABEL, PK
-  //   full: all properties
   rapidjson::Value nodes(rapidjson::kArrayType);
   for (const auto& node : path.nodes()) {
-    nodes.PushBack(build_vertex_json_value(graph, node, allocator), allocator);
+    nodes.PushBack(build_vertex_json_value(graph, node, allocator, full_encoding), allocator);
   }
   doc.AddMember("nodes", nodes, allocator);
 
-  // edges — encoding mode controlled by path_full_encoding_enabled flag
-  //   lightweight (default): only _ID, _LABEL, _SRC_ID, _DST_ID
-  //   full: all properties
   rapidjson::Value edges(rapidjson::kArrayType);
   for (const auto& edge : path.relationships()) {
-    edges.PushBack(build_edge_json_value(graph, edge, allocator), allocator);
+    edges.PushBack(build_edge_json_value(graph, edge, allocator, full_encoding), allocator);
   }
   doc.AddMember("rels", edges, allocator);
 
@@ -523,9 +504,10 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     auto casted = std::dynamic_pointer_cast<PathColumn>(col);
     auto path_col = column->mutable_path_array();
     path_col->mutable_values()->Reserve(casted->size());
+    bool full_encoding = casted->full_encoding();
     for (size_t i = 0; i < casted->size(); ++i) {
       auto path = casted->get_path(i);
-      path_col->add_values(convert_path_to_json(graph, path));
+      path_col->add_values(convert_path_to_json(graph, path, full_encoding));
     }
     if (casted->is_optional()) {
       vector_t<bool> validity(casted->size());

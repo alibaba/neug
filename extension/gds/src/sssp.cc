@@ -96,12 +96,6 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                                       neug::IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
 
-  // Set path encoding mode based on path_properties option
-  if (sssp_input.return_path) {
-    execution::set_path_full_encoding(
-        sssp_input.path_properties != "lightweight");
-  }
-
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
   vid_t source_vid;
@@ -112,6 +106,7 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
+  bool full_encoding = sssp_input.path_properties != "lightweight";
   execution::Context ret;
   if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
       sssp_input.edge_pred != nullptr) {
@@ -121,18 +116,13 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                   sssp_input.edge_pred.get(), sssp_input.return_path);
     sssp.compute();
     sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
-              sssp_input.path_alias);
+              sssp_input.path_alias, full_encoding);
   } else {
     SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
               sssp_input.directed, sssp_input.edge_weight,
               sssp_input.concurrency);
     sssp.compute();
     sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
-  }
-
-  // Reset path encoding to default so it does not affect other queries
-  if (sssp_input.return_path) {
-    execution::set_path_full_encoding(true);
   }
   return ret;
 }
