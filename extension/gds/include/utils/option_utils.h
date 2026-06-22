@@ -52,24 +52,28 @@ T get_option_value(
     try {
       return std::stoi(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
+      throw std::runtime_error("Invalid value for " + key + ": " +
+                               *found_value);
     }
   } else if constexpr (std::is_same_v<T, int64_t>) {
     try {
       return std::stoll(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
+      throw std::runtime_error("Invalid value for " + key + ": " +
+                               *found_value);
     }
   } else if constexpr (std::is_same_v<T, double>) {
     try {
       return std::stod(*found_value);
     } catch (const std::exception&) {
-      throw std::runtime_error("Invalid value for " + key + ": " + *found_value);
+      throw std::runtime_error("Invalid value for " + key + ": " +
+                               *found_value);
     }
   } else if constexpr (std::is_same_v<T, std::string>) {
     // Preserve original casing: string options are used for PK values (source)
     // and property names (weight), both of which are case-sensitive.
-    // Bool options that need case-insensitive matching use the bool specialization.
+    // Bool options that need case-insensitive matching use the bool
+    // specialization.
     return *found_value;
   } else if constexpr (std::is_same_v<T, bool>) {
     std::string s = *found_value;

@@ -16,8 +16,9 @@
 
 #pragma once
 
-#include <fnmatch.h>
 #include <arrow/filesystem/filesystem.h>
+#include <arrow/result.h>
+#include <fnmatch.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -39,14 +40,16 @@ namespace s3 {
  * @param pattern The glob pattern
  * @return true if the path matches the pattern
  */
-inline bool MatchGlobPattern(const std::string& text, const std::string& pattern) {
-  // flags=0: '*' matches any character including '/', '?' matches any single char
+inline bool MatchGlobPattern(const std::string& text,
+                             const std::string& pattern) {
+  // flags=0: '*' matches any character including '/', '?' matches any single
+  // char
   return fnmatch(pattern.c_str(), text.c_str(), 0) == 0;
 }
 
 /**
  * @brief Resolve glob patterns on any Arrow FileSystem
- * 
+ *
  * This helper function works with any Arrow FileSystem (S3, local, etc.) by
  * providing a root prefix (e.g., bucket name for S3, empty for local)
  * and a pattern relative to that root. The helper lists files via Arrow's
@@ -55,21 +58,18 @@ inline bool MatchGlobPattern(const std::string& text, const std::string& pattern
  * @param fs Arrow FileSystem instance (S3FileSystem, LocalFileSystem, etc.)
  * @param root Root prefix (e.g., "my-bucket" for S3, "" for local paths)
  * @param pattern Glob pattern relative to root (e.g., "data/test*.parquet")
- * @param out_paths Output vector to append matched paths (in "root/relative" format)
+ * @param out_paths Output vector to append matched paths (in "root/relative"
+ * format)
  * @param original_path_for_error Original user path for error messages
  */
 inline void ResolvePathsWithGlobOnFs(
-    const std::shared_ptr<arrow::fs::FileSystem>& fs,
-    const std::string& root,
-    const std::string& pattern,
-    std::vector<std::string>& out_paths,
+    const std::shared_ptr<arrow::fs::FileSystem>& fs, const std::string& root,
+    const std::string& pattern, std::vector<std::string>& out_paths,
     const std::string& original_path_for_error) {
   // Extract base directory (part before first wildcard)
   std::string base_dir = pattern;
-  size_t wildcard_pos = std::min({
-      base_dir.find('*'),
-      base_dir.find('?'),
-      base_dir.find('[')});
+  size_t wildcard_pos =
+      std::min({base_dir.find('*'), base_dir.find('?'), base_dir.find('[')});
 
   if (wildcard_pos != std::string::npos) {
     // Find last '/' before wildcard

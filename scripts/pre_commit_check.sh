@@ -210,13 +210,13 @@ check_cpp_format() {
     # Run clang-format on source files (except protobuf generated files)
     # NOTE: ./include added to align with CI format-check.yml (PR #1711)
     print_info "Running clang-format on C++ files..."
-    find ./include ./src ./tests ./tools -name "*.h" ! -name "*pb.h" ! -name "*pb.cc" -exec clang-format -i --style=file {} + 2>/dev/null || true
+    find ./include ./src ./tests ./tools ./extension -name "*.h" ! -name "*pb.h" ! -name "*pb.cc" -exec clang-format -i --style=file {} + 2>/dev/null || true
     
     # Check if clang-format made any changes (only in directories we formatted)
-    local git_diff=$(git diff --ignore-submodules -- include/ src/ tests/ tools/ ':(exclude)*.md')
+    local git_diff=$(git diff --ignore-submodules -- include/ src/ tests/ tools/ extension/ ':(exclude)*.md')
     if [[ -n $git_diff ]]; then
         print_warning "C++ format issues found and auto-fixed:"
-        git diff --ignore-submodules --name-only -- include/ src/ tests/ tools/ ':(exclude)*.md'
+        git diff --ignore-submodules --name-only -- include/ src/ tests/ tools/ extension/ ':(exclude)*.md'
         print_success "Files have been formatted in-place. Please review and commit the changes."
         return 1
     fi

@@ -37,8 +37,7 @@ class PageRankPred {
  public:
   PageRankPred(const StorageReadInterface& graph, label_t vertex_label,
                label_t edge_label, double damping_factor, int max_iterations,
-               int concurrency, bool directed,
-               execution::ExprBase* vertex_pred,
+               int concurrency, bool directed, execution::ExprBase* vertex_pred,
                execution::ExprBase* edge_pred);
 
   void compute();

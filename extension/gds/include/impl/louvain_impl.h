@@ -70,7 +70,7 @@ class Louvain {
   std::unique_ptr<uint32_t[]> thread_gen_;
   int num_threads_ = 1;
 
-  double m_ = 0.0;       // total edge weight (undirected: count each edge once)
+  double m_ = 0.0;  // total edge weight (undirected: count each edge once)
   double modularity_ = 0.0;
 
   // Internal methods
