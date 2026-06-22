@@ -26,12 +26,23 @@ All figures below were measured on one server:
 | Toolchain | GCC 11.4 (neug, libgrape-lite, GeminiGraph, GraphBLAS); GCC 13.1 (ladybug); Open MPI 4.0.3 |
 | Optimization | **`-O3`** (`Release`) for all systems |
 
+## Datasets
+
+All runs use **64 threads**. PageRank and CDLP: **10 iterations**, damping **0.85**.
+
+| Dataset | Scale | Vertices | Edges | Weighted | Notes |
+|---------|-------|----------:|------:|:--------:|-------|
+| graph500-26 | large | 32,804,978 | 1,051,922,853 | no | synthetic R-MAT |
+| datagen-9_0-fb | large | 12,857,671 | 1,049,527,225 | yes | ~2.5× fewer vertices than graph500-26 at ~1.05B edges |
+| datagen-9_1-fb | large | 16,087,483 | 1,342,158,397 | yes | denser than 9_0 (~1.34B edges) |
+| datagen-9_2-zf | xlarge | 434,943,376 | 1,042,340,732 | yes | sparse (~2.4 avg degree) |
+| com-friendster | xlarge | 65,608,366 | 1,806,067,135 | no | real-world social graph |
+
+All graphs are **undirected**.
+
 ---
 
 ## graph500-26 (large)
-
-32,804,978 vertices · 1,051,922,853 edges · undirected · **64 threads**  
-BFS source: 62455266 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
 |-----------|-----:|--------------:|----------:|------------:|--------:|
@@ -46,9 +57,6 @@ BFS source: 62455266 · PageRank / CDLP: 10 iterations, damping 0.85
 ---
 
 ## datagen-9_0-fb (large, weighted)
-
-12,857,671 vertices · 1,049,527,225 edges · undirected · weighted · **64 threads**  
-BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
 |-----------|-----:|--------------:|----------:|------------:|--------:|
@@ -67,9 +75,6 @@ Similar edge count to graph500-26 (~1.05B) but **~2.5× fewer vertices**.
 
 ## datagen-9_1-fb (large, weighted)
 
-16,087,483 vertices · 1,342,158,397 edges · undirected · weighted · **64 threads**  
-BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
-
 | Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
 |-----------|-----:|--------------:|----------:|------------:|--------:|
 | BFS | **0.268** | 0.844 | 0.365 | 0.362 | — |
@@ -84,9 +89,6 @@ BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
 ---
 
 ## datagen-9_2-zf (xlarge, weighted, sparse)
-
-434,943,376 vertices · 1,042,340,732 edges · undirected · weighted · **64 threads**  
-BFS / SSSP source: 6 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
 |-----------|-----:|--------------:|----------:|------------:|--------:|
@@ -104,9 +106,6 @@ Very high vertex count but low average degree (~2.4).
 ---
 
 ## com-friendster (xlarge, unweighted)
-
-65,608,366 vertices · 1,806,067,135 edges · undirected · **64 threads**  
-BFS source: 101 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | Algorithm | neug | libgrape-lite | GraphBLAS | GeminiGraph | ladybug |
 |-----------|-----:|--------------:|----------:|------------:|--------:|
