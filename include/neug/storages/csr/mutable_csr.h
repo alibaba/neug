@@ -68,7 +68,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.data_offset = offsetof(nbr_t, data);
     return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
                    reinterpret_cast<const int*>(degree_list_->GetData()), cfg,
-                   ts, unsorted_since_);
+                   ts, unsorted_since_, prefetch_policy_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -243,6 +243,13 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
+  CsrPrefetchPolicy prefetch_policy_;
+
+  void refresh_prefetch_policy() {
+    auto degree_stats = compute_csr_degree_distribution(
+        reinterpret_cast<int*>(degree_list_->GetData()), size());
+    prefetch_policy_ = create_csr_prefetch_policy(degree_stats);
+  }
 
   size_t vertex_capacity() const {
     if (!degree_list_) {
@@ -269,7 +276,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
     return CsrView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg, ts,
-                   std::numeric_limits<timestamp_t>::max());
+                   std::numeric_limits<timestamp_t>::max(), prefetch_policy_);
   }
 
   timestamp_t unsorted_since() const override {
@@ -383,6 +390,14 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
  private:
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
+  CsrPrefetchPolicy prefetch_policy_;
+
+  void refresh_prefetch_policy() {
+    prefetch_policy_.metadata_distance = 64;
+    prefetch_policy_.head_distance = 32;
+    prefetch_policy_.metadata_locality = 1;
+    prefetch_policy_.head_locality = 0;
+  }
 
   size_t vertex_capacity() const {
     if (!nbr_list_) {
