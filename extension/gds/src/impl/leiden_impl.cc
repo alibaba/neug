@@ -44,8 +44,7 @@ Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
   vid_t max_vid = 0;
   for (const auto& v : vertex_set) {
     valid_vertices_.push_back(v);
-    if (v > max_vid)
-      max_vid = v;
+    if (v > max_vid) max_vid = v;
   }
   vertex_count_ = valid_vertices_.size();
 
@@ -55,11 +54,9 @@ Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
   stot_ = std::make_unique<double[]>(array_size_);
   sub_com_flat_ = std::make_unique<uint32_t[]>(array_size_);
 
-  num_threads_ = concurrency_ > 0
-                     ? concurrency_
-                     : static_cast<int>(std::thread::hardware_concurrency());
-  if (num_threads_ < 1)
-    num_threads_ = 1;
+  num_threads_ = concurrency_ > 0 ? concurrency_
+                                  : static_cast<int>(std::thread::hardware_concurrency());
+  if (num_threads_ < 1) num_threads_ = 1;
   size_t total_scratch = static_cast<size_t>(num_threads_) * array_size_;
   thread_comm_weight_ = std::make_unique<double[]>(total_scratch);
   thread_gen_ = std::make_unique<uint32_t[]>(total_scratch);
@@ -77,21 +74,19 @@ Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
 }
 
 void Leiden::compute() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(
+      vertex_label_, vertex_label_, edge_label_);
+  auto ie_view = graph_.GetGenericIncomingGraphView(
+      vertex_label_, vertex_label_, edge_label_);
 
   ParallelUtils::parallel_for(
       valid_vertices_.data(), valid_vertices_.size(),
       [&](vid_t v, int /*tid*/) {
         double deg = 0;
         auto oes = oe_view.get_edges(v);
-        for (auto it = oes.begin(); it != oes.end(); ++it)
-          deg += 1.0;
+        for (auto it = oes.begin(); it != oes.end(); ++it) deg += 1.0;
         auto ies = ie_view.get_edges(v);
-        for (auto it = ies.begin(); it != ies.end(); ++it)
-          deg += 1.0;
+        for (auto it = ies.begin(); it != ies.end(); ++it) deg += 1.0;
         degree_[v] = deg;
       },
       concurrency_);
@@ -103,14 +98,12 @@ void Leiden::compute() {
         [&](vid_t v, int tid) {
           auto oes = oe_view.get_edges(v);
           double cnt = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it)
-            cnt += 1.0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
           local_m[tid] += cnt;
         },
         num_threads_);
     m_ = 0;
-    for (int i = 0; i < num_threads_; ++i)
-      m_ += local_m[i];
+    for (int i = 0; i < num_threads_; ++i) m_ += local_m[i];
   }
 
   if (m_ == 0) {
@@ -124,8 +117,7 @@ void Leiden::compute() {
 
   for (int level = 0; level < 100; ++level) {
     bool improved = local_moving_phase();
-    if (!improved)
-      break;
+    if (!improved) break;
 
     refine();
 
@@ -138,27 +130,25 @@ void Leiden::compute() {
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             vid_t u = *it;
             if (community_[v] == community_[u]) {
-              lm +=
-                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
+              lm += 1.0 / (2.0 * m_) -
+                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
             }
           }
           local_mod[tid] += lm;
         },
         num_threads_);
     double new_mod = 0;
-    for (int i = 0; i < num_threads_; ++i)
-      new_mod += local_mod[i];
-    if (std::abs(new_mod - modularity_) < threshold_)
-      break;
+    for (int i = 0; i < num_threads_; ++i) new_mod += local_mod[i];
+    if (std::abs(new_mod - modularity_) < threshold_) break;
     modularity_ = new_mod;
   }
 }
 
 bool Leiden::local_moving_phase() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(
+      vertex_label_, vertex_label_, edge_label_);
+  auto ie_view = graph_.GetGenericIncomingGraphView(
+      vertex_label_, vertex_label_, edge_label_);
 
   std::vector<vid_t> order = valid_vertices_;
   std::mt19937 rng(42);
@@ -172,8 +162,7 @@ bool Leiden::local_moving_phase() {
 
   std::vector<uint32_t> best_com(n);
   std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t)
-    touched[t].reserve(256);
+  for (int t = 0; t < nt; ++t) touched[t].reserve(256);
 
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
@@ -189,17 +178,14 @@ bool Leiden::local_moving_phase() {
         threads.reserve(nt - 1);
 
         auto worker = [&](int tid) {
-          uint32_t* my_gen =
-              thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-          double* my_cw = thread_comm_weight_.get() +
-                          static_cast<size_t>(tid) * array_size_;
+          uint32_t* my_gen = thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
+          double* my_cw = thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
           uint32_t gen_val = 0;
           auto& my_touched = touched[tid];
 
           while (true) {
             size_t start = cursor.fetch_add(64);
-            if (start >= batch_end)
-              break;
+            if (start >= batch_end) break;
             size_t end = std::min(start + size_t(64), batch_end);
 
             for (size_t i = start; i < end; ++i) {
@@ -211,8 +197,7 @@ bool Leiden::local_moving_phase() {
               my_touched.clear();
 
               auto process_nbr = [&](vid_t v) {
-                if (v == u)
-                  return;
+                if (v == u) return;
                 uint32_t com = community_[v];
                 if (my_gen[com] != gen_val) {
                   my_gen[com] = gen_val;
@@ -239,14 +224,12 @@ bool Leiden::local_moving_phase() {
               double best_gain = 0.0;
 
               for (uint32_t com : my_touched) {
-                if (com == cur_com)
-                  continue;
+                if (com == cur_com) continue;
                 double w_com = my_cw[com];
                 // Gain = benefit of joining com - cost of leaving cur_com
-                double gain =
-                    (w_com - w_self) / m_ -
-                    resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                    resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
+                double gain = (w_com - w_self) / m_ -
+                              resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+                              resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
                 if (gain > best_gain) {
                   best_gain = gain;
                   best = com;
@@ -261,8 +244,7 @@ bool Leiden::local_moving_phase() {
         for (int t = 1; t < nt; ++t)
           threads.emplace_back(worker, t);
         worker(0);
-        for (auto& th : threads)
-          th.join();
+        for (auto& th : threads) th.join();
       }
 
       // Phase 2: Apply moves sequentially
@@ -280,8 +262,7 @@ bool Leiden::local_moving_phase() {
       }
     }
 
-    if (!moved)
-      break;
+    if (!moved) break;
   }
 
   return improved;
@@ -296,8 +277,8 @@ void Leiden::refine() {
   }
   std::sort(com_vertex_pairs.begin(), com_vertex_pairs.end());
 
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(
+      vertex_label_, vertex_label_, edge_label_);
 
   // Collect multi-vertex communities for parallel processing
   struct CommunityRange {
@@ -314,8 +295,7 @@ void Leiden::refine() {
   while (i < n) {
     uint32_t com_id = com_vertex_pairs[i].first;
     size_t j = i;
-    while (j < n && com_vertex_pairs[j].first == com_id)
-      ++j;
+    while (j < n && com_vertex_pairs[j].first == com_id) ++j;
     size_t com_size = j - i;
 
     if (com_size <= 1) {
@@ -332,8 +312,7 @@ void Leiden::refine() {
   std::atomic<uint32_t> atomic_next_com(next_com);
   const int nt = num_threads_;
 
-  if (multi_comms.empty())
-    return;
+  if (multi_comms.empty()) return;
 
   std::atomic<size_t> cursor(0);
   std::vector<std::thread> threads;
@@ -341,18 +320,15 @@ void Leiden::refine() {
 
   auto worker = [&](int tid) {
     // Each thread uses its own scratch arrays
-    uint32_t* r_gen =
-        thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-    double* r_cw =
-        thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
+    uint32_t* r_gen = thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
+    double* r_cw = thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
     std::vector<uint32_t> touched_scs;
     touched_scs.reserve(64);
     uint32_t sc_to_new[64];
 
     while (true) {
       size_t idx = cursor.fetch_add(1);
-      if (idx >= multi_comms.size())
-        break;
+      if (idx >= multi_comms.size()) break;
 
       auto& range = multi_comms[idx];
       size_t com_start = range.start;
@@ -391,8 +367,7 @@ void Leiden::refine() {
           auto oes = oe_view.get_edges(u);
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             vid_t v = *it;
-            if (v == u || sub_com_flat_[v] == kInvalidSubCom)
-              continue;
+            if (v == u || sub_com_flat_[v] == kInvalidSubCom) continue;
             uint32_t sc = sub_com_flat_[v];
             if (r_gen[sc] != refine_gen) {
               r_gen[sc] = refine_gen;
@@ -402,7 +377,8 @@ void Leiden::refine() {
             r_cw[sc] += 1.0;
           }
 
-          double w_self = (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
+          double w_self =
+              (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
 
           uint32_t best_sc = cur_sc;
           double best_gain = 0.0;
@@ -424,8 +400,7 @@ void Leiden::refine() {
 
           if (best_sc != cur_sc) {
             sub_com_flat_[u] = best_sc;
-            if (best_sc == next_sub)
-              next_sub++;
+            if (best_sc == next_sub) next_sub++;
             improved = true;
           }
         }
@@ -435,8 +410,7 @@ void Leiden::refine() {
       uint32_t max_sc_seen = 0;
       for (vid_t v : nodes) {
         uint32_t sc = sub_com_flat_[v];
-        if (sc > max_sc_seen)
-          max_sc_seen = sc;
+        if (sc > max_sc_seen) max_sc_seen = sc;
         sc_to_new[sc] = UINT32_MAX;
       }
       for (vid_t v : nodes) {
@@ -457,8 +431,7 @@ void Leiden::refine() {
   for (int t = 1; t < nt; ++t)
     threads.emplace_back(worker, t);
   worker(0);
-  for (auto& th : threads)
-    th.join();
+  for (auto& th : threads) th.join();
 }
 
 void Leiden::sink(execution::Context& ctx, int node_alias,
@@ -473,8 +446,7 @@ void Leiden::sink(execution::Context& ctx, int node_alias,
 
   for (vid_t v : valid_vertices_) {
     uint32_t c = community_[v];
-    if (com_remap.find(c) == com_remap.end())
-      com_remap[c] = next_id++;
+    if (com_remap.find(c) == com_remap.end()) com_remap[c] = next_id++;
     builder.push_back_opt(v);
     community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
   }
@@ -485,10 +457,11 @@ void Leiden::sink(execution::Context& ctx, int node_alias,
   ctx.append_chunk(std::move(chunk));
 }
 
-LeidenResult RunLeiden(const StorageReadInterface& graph, label_t vertex_label,
-                       label_t edge_label, bool directed, double resolution,
-                       double threshold, int concurrency) {
-  (void) directed;
+LeidenResult RunLeiden(const StorageReadInterface& graph,
+                       label_t vertex_label, label_t edge_label,
+                       bool directed, double resolution, double threshold,
+                       int concurrency) {
+  (void)directed;
 
   Leiden leiden(graph, vertex_label, edge_label, resolution, threshold,
                 concurrency);
