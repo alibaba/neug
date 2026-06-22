@@ -16,16 +16,16 @@
 
 #pragma once
 
+#include <arrow/filesystem/api.h>
 #include <arrow/filesystem/filesystem.h>
 #include <arrow/filesystem/s3fs.h>
-#include <arrow/filesystem/api.h>
 #include <memory>
 #include <string>
 #include <vector>
+#include "glob_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_sys/file_system.h"
 #include "neug/utils/reader/schema.h"
-#include "glob_utils.h"
 
 namespace neug {
 namespace extension {
@@ -39,9 +39,9 @@ namespace s3 {
  * - oss://bucket-name/path/to/object  (Alibaba Cloud OSS)
  */
 struct S3URIComponents {
-  std::string bucket;    // Bucket name
-  std::string objectKey; // Object key (path within bucket)
-  bool hasGlob;          // Whether key contains glob pattern (* or ?)
+  std::string bucket;     // Bucket name
+  std::string objectKey;  // Object key (path within bucket)
+  bool hasGlob;           // Whether key contains glob pattern (* or ?)
 
   /**
    * Parse S3/OSS URI: s3://bucket-name/path or oss://bucket-name/path
