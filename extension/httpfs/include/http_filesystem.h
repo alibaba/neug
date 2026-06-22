@@ -196,7 +196,7 @@ class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
 
   // Returns a new HTTPFileSystem instance built from the stored options.
   // Each call produces an independent instance; the caller owns it exclusively.
-  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
+  std::shared_ptr<void> getArrowFileSystem() const override;
 
  private:
   common::case_insensitive_map_t<std::string> options_;

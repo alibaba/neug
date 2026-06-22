@@ -268,8 +268,9 @@ std::vector<std::string> S3FileSystem::glob(const std::string& path) {
   return out_paths;
 }
 
-std::unique_ptr<arrow::fs::FileSystem> S3FileSystem::toArrowFileSystem() {
-  return std::make_unique<S3FileSystemWrapper>(arrow_fs_);
+std::shared_ptr<void> S3FileSystem::getArrowFileSystem() const {
+  return std::static_pointer_cast<void>(
+      std::shared_ptr<arrow::fs::FileSystem>(arrow_fs_));
 }
 
 arrow::fs::S3Options S3FileSystem::buildS3Options(

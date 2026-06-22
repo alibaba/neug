@@ -40,7 +40,7 @@ class ModuleBroker;
 class CheckpointManifest;
 class PropertyGraph;
 
-class IRecordBatchSupplier;
+class IDataChunkSupplier;
 
 class EdgeTable {
  public:
@@ -133,7 +133,7 @@ class EdgeTable {
 
   void BatchAddEdges(const IndexerType& src_indexer,
                      const IndexerType& dst_indexer,
-                     std::shared_ptr<IRecordBatchSupplier> supplier);
+                     std::shared_ptr<IDataChunkSupplier> supplier);
 
   // Add edges in batch to the edge table.
   void BatchAddEdges(

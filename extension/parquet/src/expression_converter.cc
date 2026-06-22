@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/expression_converter.h"
+#include "parquet/expression_converter.h"
 
 #include <arrow/compute/api_scalar.h>
 #include <glog/logging.h>

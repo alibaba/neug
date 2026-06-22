@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <arrow/filesystem/filesystem.h>
 #include <arrow/io/file.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/properties.h>
@@ -33,10 +34,14 @@ class ArrowParquetExportWriter : public QueryExportWriter {
       const reader::FileSchema& schema,
       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
+      : QueryExportWriter(schema, std::move(entry_schema)),
+        fileSystem_(std::move(fileSystem)) {}
   ~ArrowParquetExportWriter() override = default;
 
   neug::Status writeTable(const QueryResponse* table) override;
+
+ private:
+  std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
 };
 
 }  // namespace writer

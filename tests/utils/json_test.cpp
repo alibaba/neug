@@ -20,20 +20,13 @@
 #include <memory>
 #include <vector>
 
-#include <arrow/array.h>
-#include <arrow/filesystem/localfs.h>
-#include <arrow/type.h>
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/arrow_context_column.h"
+#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/extension/extension.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
-
-#include "neug/utils/reader/json_dataset_builder.h"
-#include "neug/utils/reader/json_options.h"
 
 namespace neug {
 namespace test {
@@ -55,18 +48,10 @@ class JsonTest : public ::testing::Test {
     }
   }
 
-  // Helper function to create a CSV file
   void createJsonFile(const std::string& filename, const std::string& content) {
     std::ofstream file(std::string(ARROW_READER_TEST_DIR) + "/" + filename);
     file << content;
     file.close();
-  }
-
-  // Helper function to create DataType as shared_ptr
-  std::shared_ptr<::common::DataType> createInt32Type() {
-    auto type = std::make_shared<::common::DataType>();
-    type->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT32);
-    return type;
   }
 
   std::shared_ptr<::common::DataType> createUInt32Type() {
@@ -90,15 +75,8 @@ class JsonTest : public ::testing::Test {
     return type;
   }
 
-  std::shared_ptr<::common::DataType> createInt64Type() {
-    auto type = std::make_shared<::common::DataType>();
-    type->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT64);
-    return type;
-  }
-
-  // Helper function to create ReadSharedState
   std::shared_ptr<reader::ReadSharedState> createSharedState(
-      const std::string& csvFile, const std::vector<std::string>& columnNames,
+      const std::string& jsonFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
       const common::case_insensitive_map_t<std::string>& options = {},
       const std::vector<std::string>& projectColumns = {},
@@ -109,13 +87,11 @@ class JsonTest : public ::testing::Test {
     entrySchema->columnNames = columnNames;
     entrySchema->columnTypes = columnTypes;
 
-    // Create FileSchema
     reader::FileSchema fileSchema;
-    fileSchema.paths = {std::string(ARROW_READER_TEST_DIR) + "/" + csvFile};
-    fileSchema.format = "csv";
+    fileSchema.paths = {std::string(ARROW_READER_TEST_DIR) + "/" + jsonFile};
+    fileSchema.format = "json";
     fileSchema.options = options;
 
-    // Create ExternalSchema
     reader::ExternalSchema externalSchema;
     externalSchema.entry = entrySchema;
     externalSchema.file = fileSchema;
@@ -127,14 +103,12 @@ class JsonTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::ArrowReader> createJsonReader(
+  std::shared_ptr<reader::JsonReader> createJsonReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
     auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(sharedState);
-    return std::make_shared<reader::ArrowReader>(
-        sharedState, std::move(optionsBuilder), std::move(fileSystem),
-        std::make_shared<reader::JsonDatasetBuilder>());
+        std::make_unique<reader::JsonOptionsBuilder>(sharedState, true);
+    return std::make_shared<reader::JsonReader>(sharedState,
+                                               std::move(optionsBuilder));
   }
 };
 
@@ -156,20 +130,14 @@ TEST_F(JsonTest, TestJsonArray) {
   EXPECT_EQ(ctx.row_num(), 2);
 
   auto col0 = ctx.chunk(0).columns()[0];
-  ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kArrowArray);
-  auto arrayColumn0 =
-      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col0);
-  auto arrowType0 = arrayColumn0->GetArrowType();
-  EXPECT_TRUE(arrowType0->Equals(arrow::uint32()))
-      << "Expected uint32, but got: " << arrowType0->ToString();
+  ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kValue);
+  EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
+  EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
 
   auto col2 = ctx.chunk(0).columns()[2];
-  ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kArrowArray);
-  auto arrayColumn2 =
-      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col2);
-  auto arrowType2 = arrayColumn2->GetArrowType();
-  EXPECT_TRUE(arrowType2->Equals(arrow::float64()))
-      << "Expected double, but got: " << arrowType2->ToString();
+  ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kValue);
+  EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
+  EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
 }
 
 }  // namespace test

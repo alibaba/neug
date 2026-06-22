@@ -16,7 +16,7 @@
 
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/execution/common/context.h"
 #include "neug/utils/property/types.h"
 
 namespace physical {
@@ -29,16 +29,8 @@ class RepeatedPtrField;
 }
 }  // namespace google
 
-namespace arrow {
-namespace csv {
-struct ConvertOptions;
-struct ParseOptions;
-struct ReadOptions;
-}  // namespace csv
-}  // namespace arrow
-
 namespace neug {
-class IRecordBatchSupplier;
+class IDataChunkSupplier;
 class Schema;
 class StorageReadInterface;
 namespace execution {
@@ -71,25 +63,13 @@ std::string edge_to_json_string(const EdgeRecord& edge,
 
 std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
-// The datasource operator will really load the data into the memory, and stored
-// as arrow::Array in Context.
-// To insert the data into the graph, we need to construct the the supplier
-// which could create the arrow::RecordBatch from the holded arrow::Array.
-std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
-    const DataChunk& chunk,
+std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
+    const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
-
-void to_arrow_csv_options(
-    const std::string& file_path,
-    const std::unordered_map<std::string, std::string>& csv_options,
-    const std::vector<DataTypeId>& column_types,
-    arrow::csv::ConvertOptions& convert_options,
-    arrow::csv::ReadOptions& read_options,
-    arrow::csv::ParseOptions& parse_options);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
+std::vector<std::shared_ptr<IDataChunkSupplier>> create_csv_chunk_suppliers(
     const std::string& file_path, const std::vector<DataType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options);
 

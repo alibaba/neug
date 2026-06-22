@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/columns/value_columns.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/main/connection.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -33,40 +35,100 @@
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module/type_name.h"
-#include "neug/utils/arrow_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
-class GeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
+class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
  public:
-  GeneratedRecordBatchSupplier(
-      std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches)
-      : batches_(std::move(batches)) {}
-  ~GeneratedRecordBatchSupplier() override = default;
+  explicit GeneratedChunkSupplier(
+      std::vector<std::shared_ptr<neug::execution::DataChunk>>&& chunks)
+      : chunks_(std::move(chunks)) {}
+  ~GeneratedChunkSupplier() override = default;
 
-  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
-    if (batches_.empty()) {
+  std::shared_ptr<neug::execution::DataChunk> GetNextChunk() override {
+    if (chunks_.empty()) {
       return nullptr;
-    } else {
-      auto batch = batches_.back();
-      batches_.pop_back();
-      return batch;
     }
+    auto chunk = chunks_.back();
+    chunks_.pop_back();
+    return chunk;
   }
 
   int64_t RowNum() const override {
     int64_t total_rows = 0;
-    for (const auto& batch : batches_) {
-      total_rows += batch->num_rows();
+    for (const auto& chunk : chunks_) {
+      if (chunk) {
+        total_rows += chunk->row_num();
+      }
     }
     return total_rows;
   }
 
  private:
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches_;
+  std::vector<std::shared_ptr<neug::execution::DataChunk>> chunks_;
 };
+
+template <typename T>
+std::shared_ptr<neug::execution::IContextColumn> build_value_column_slice(
+    const std::vector<T>& data, size_t begin, size_t end) {
+  neug::execution::ValueColumnBuilder<T> builder;
+  for (size_t i = begin; i < end && i < data.size(); ++i) {
+    builder.push_back_elem(neug::execution::Value::CreateValue<T>(data[i]));
+  }
+  return builder.finish();
+}
+
+template <typename T>
+std::vector<std::shared_ptr<neug::execution::IContextColumn>>
+split_column_to_chunks(const std::vector<T>& data, int num_chunks) {
+  size_t chunk_size = (data.size() + num_chunks - 1) / num_chunks;
+  std::vector<std::shared_ptr<neug::execution::IContextColumn>> columns;
+  for (int i = 0; i < num_chunks; ++i) {
+    size_t begin = i * chunk_size;
+    size_t end = std::min(begin + chunk_size, data.size());
+    if (begin >= end) {
+      break;
+    }
+    columns.push_back(build_value_column_slice(data, begin, end));
+  }
+  return columns;
+}
+
+inline std::vector<std::shared_ptr<neug::execution::DataChunk>>
+convert_to_data_chunks(
+    const std::vector<
+        std::vector<std::shared_ptr<neug::execution::IContextColumn>>>&
+        column_chunks) {
+  if (column_chunks.empty()) {
+    return {};
+  }
+  std::vector<size_t> chunk_sizes;
+  for (const auto& col : column_chunks[0]) {
+    chunk_sizes.push_back(col->size());
+  }
+  for (size_t i = 1; i < column_chunks.size(); ++i) {
+    if (column_chunks[i].size() != chunk_sizes.size()) {
+      LOG(FATAL) << "All columns must have the same number of chunks";
+    }
+    for (size_t j = 0; j < column_chunks[i].size(); ++j) {
+      if (column_chunks[i][j]->size() != chunk_sizes[j]) {
+        LOG(FATAL) << "All columns must have the same chunk sizes";
+      }
+    }
+  }
+  std::vector<std::shared_ptr<neug::execution::DataChunk>> chunks;
+  for (size_t i = 0; i < chunk_sizes.size(); ++i) {
+    neug::execution::DataChunk chunk;
+    for (size_t col = 0; col < column_chunks.size(); ++col) {
+      chunk.set(static_cast<int>(col), column_chunks[col][i]);
+    }
+    chunks.push_back(
+        std::make_shared<neug::execution::DataChunk>(std::move(chunk)));
+  }
+  return chunks;
+}
 
 template <typename EDATA_T>
 std::vector<EDATA_T> generate_random_data(size_t len) {
@@ -144,134 +206,6 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
     LOG(FATAL) << "Unsupported data type";
     return {};
   }
-}
-
-template <typename EDATA_T>
-std::shared_ptr<arrow::Array> convert_to_arrow_array(const EDATA_T* begin,
-                                                     const EDATA_T* end) {
-  std::shared_ptr<arrow::Array> array = nullptr;
-  arrow::Status status;
-  if constexpr (std::is_same<EDATA_T, int>::value) {
-    arrow::Int32Builder builder;
-    for (auto data = begin; data != end; ++data) {
-      status = builder.Append(*data);
-      if (!status.ok()) {
-        LOG(FATAL) << "Failed to append data to arrow array: "
-                   << status.ToString();
-      }
-    }
-    status = builder.Finish(&array);
-    if (!status.ok()) {
-      LOG(FATAL) << "Failed to finish arrow array: " << status.ToString();
-    }
-  } else if constexpr (std::is_same<EDATA_T, int64_t>::value) {
-    arrow::Int64Builder builder;
-    for (auto data = begin; data != end; ++data) {
-      status = builder.Append(*data);
-      if (!status.ok()) {
-        LOG(FATAL) << "Failed to append data to arrow array: "
-                   << status.ToString();
-      }
-    }
-    status = builder.Finish(&array);
-    if (!status.ok()) {
-      LOG(FATAL) << "Failed to finish arrow array: " << status.ToString();
-    }
-  } else if constexpr (std::is_same<EDATA_T, std::string>::value) {
-    arrow::StringBuilder builder;
-    for (auto data = begin; data != end; ++data) {
-      status = builder.Append(*data);
-      if (!status.ok()) {
-        LOG(FATAL) << "Failed to append data to arrow array: "
-                   << status.ToString();
-      }
-    }
-    status = builder.Finish(&array);
-    if (!status.ok()) {
-      LOG(FATAL) << "Failed to finish arrow array: " << status.ToString();
-    }
-  } else if constexpr (std::is_same<EDATA_T, float>::value) {
-    arrow::FloatBuilder builder;
-    for (auto data = begin; data != end; ++data) {
-      status = builder.Append(*data);
-      if (!status.ok()) {
-        LOG(FATAL) << "Failed to append data to arrow array: "
-                   << status.ToString();
-      }
-    }
-    status = builder.Finish(&array);
-    if (!status.ok()) {
-      LOG(FATAL) << "Failed to finish arrow array: " << status.ToString();
-    }
-  } else if constexpr (std::is_same<EDATA_T, double>::value) {
-    arrow::DoubleBuilder builder;
-    for (auto data = begin; data != end; ++data) {
-      status = builder.Append(*data);
-      if (!status.ok()) {
-        LOG(FATAL) << "Failed to append data to arrow array: "
-                   << status.ToString();
-      }
-    }
-    status = builder.Finish(&array);
-    if (!status.ok()) {
-      LOG(FATAL) << "Failed to finish arrow array: " << status.ToString();
-    }
-  } else {
-    LOG(FATAL) << "Unsupported data type";
-  }
-  return array;
-}
-
-template <typename T>
-std::vector<std::shared_ptr<arrow::Array>> convert_to_arrow_arrays(
-    const std::vector<T>& data, int num_chunks) {
-  size_t chunk_size = (data.size() + num_chunks - 1) / num_chunks;
-  std::vector<std::shared_ptr<arrow::Array>> arrays;
-  for (int i = 0; i < num_chunks; ++i) {
-    size_t begin = i * chunk_size;
-    size_t end = std::min(begin + chunk_size, data.size());
-    if (begin >= end) {
-      break;
-    }
-    arrays.push_back(convert_to_arrow_array(&data[begin], &data[end]));
-  }
-  return arrays;
-}
-
-inline std::vector<std::shared_ptr<arrow::RecordBatch>>
-convert_to_record_batches(
-    const std::vector<std::string>& col_names,
-    const std::vector<std::vector<std::shared_ptr<arrow::Array>>>& arrays) {
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
-  std::vector<size_t> chunk_sizes;
-  for (auto& array : arrays[0]) {
-    chunk_sizes.push_back(array->length());
-  }
-  for (size_t i = 1; i < arrays.size(); ++i) {
-    if (arrays[i].size() != chunk_sizes.size()) {
-      LOG(FATAL) << "All columns must have the same number of chunks";
-    }
-    for (size_t j = 0; j < arrays[i].size(); ++j) {
-      if (static_cast<size_t>(arrays[i][j]->length()) != chunk_sizes[j]) {
-        LOG(FATAL) << "All columns must have the same chunk sizes";
-      }
-    }
-  }
-  std::vector<std::shared_ptr<arrow::Field>> fields;
-  for (size_t i = 0; i < col_names.size(); ++i) {
-    fields.push_back(arrow::field(col_names[i], arrays[i][0]->type()));
-  }
-  auto schema = arrow::schema(fields);
-  for (size_t i = 0; i < chunk_sizes.size(); ++i) {
-    std::vector<std::shared_ptr<arrow::Array>> cols;
-    for (size_t j = 0; j < arrays.size(); ++j) {
-      cols.push_back(arrays[j][i]);
-    }
-    auto batch =
-        arrow::RecordBatch::Make(schema, chunk_sizes[i], std::move(cols));
-    batches.push_back(batch);
-  }
-  return batches;
 }
 
 template <typename ID_T>

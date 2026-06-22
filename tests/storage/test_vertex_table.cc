@@ -72,29 +72,24 @@ class VertexTableTest : public ::testing::Test {
     }
   }
 
-  std::vector<std::shared_ptr<arrow::RecordBatch>> generate_record_batches(
+  std::vector<std::shared_ptr<neug::execution::DataChunk>> generate_data_chunks(
       size_t num_vertices) {
-    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
-
     std::vector<int64_t> oid_values;
     std::vector<std::string> name_values;
     std::vector<int32_t> age_values;
     std::vector<double> score_values;
-    for (int64_t i = 0; i < num_vertices; ++i) {
+    for (int64_t i = 0; i < static_cast<int64_t>(num_vertices); ++i) {
       oid_values.push_back(i);
       name_values.push_back("name_" + std::to_string(i));
       age_values.push_back(static_cast<int32_t>(20 + (i % 30)));
       score_values.push_back(50.0 + (i % 50));
     }
-    auto oid_array = convert_to_arrow_arrays(oid_values, 10);
-    auto name_array = convert_to_arrow_arrays(name_values, 10);
-    auto age_array = convert_to_arrow_arrays(age_values, 10);
-    auto score_array = convert_to_arrow_arrays(score_values, 10);
-
-    auto record_batches = convert_to_record_batches(
-        {"id", "name", "age", "score"},
-        {oid_array, name_array, age_array, score_array});
-    return record_batches;
+    auto oid_chunks = split_column_to_chunks(oid_values, 10);
+    auto name_chunks = split_column_to_chunks(name_values, 10);
+    auto age_chunks = split_column_to_chunks(age_values, 10);
+    auto score_chunks = split_column_to_chunks(score_values, 10);
+    return convert_to_data_chunks(
+        {oid_chunks, name_chunks, age_chunks, score_chunks});
   }
 
   std::string dir_;
@@ -691,9 +686,9 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
   OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
-  auto record_batches = generate_record_batches(10000);
-  std::shared_ptr<neug::IRecordBatchSupplier> batch_supplier =
-      std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
+  auto data_chunks = generate_data_chunks(10000);
+  std::shared_ptr<neug::IDataChunkSupplier> batch_supplier =
+      std::make_shared<GeneratedChunkSupplier>(std::move(data_chunks));
   table.insert_vertices(batch_supplier);
 
   EXPECT_EQ(table.VertexNum(), 10000);

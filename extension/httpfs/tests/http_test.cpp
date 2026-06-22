@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 #include <glog/logging.h>
+#include <arrow/buffer.h>
 #include <atomic>
 #include <iomanip>
 #include <thread>
@@ -157,7 +158,7 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_ExtractOptions) {
     EXPECT_EQ(resolved.size(), 1);
     EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
     // toArrowFileSystem() returns a non-null HTTPFileSystem
-    auto arrowFs = fs.toArrowFileSystem();
+    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
     EXPECT_NE(arrowFs, nullptr);
   });
 }
@@ -206,7 +207,7 @@ TEST_F(HTTPFileSystemTest, VerifySSL_InvalidValue_ThrowsException) {
   options["VERIFY_SSL"] = "maybe";  // Invalid: not true/false/1/0/yes/no/on/off
 
   HTTPFileSystem fs(options);
-  auto arrowFs = fs.toArrowFileSystem();
+  auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
   ASSERT_NE(arrowFs, nullptr);
 
   // OpenInputFile triggers HTTPRandomAccessFile construction → SetupCURLHandle
@@ -234,7 +235,7 @@ TEST_F(HTTPFileSystemTest, E2E_GetFileInfo_NotFoundURL) {
   // GetFileInfo() must report FileType::NotFound (not FileType::File).
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
-  auto arrowFs = fs.toArrowFileSystem();
+  auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
   ASSERT_NE(arrowFs, nullptr);
 
   // This URL returns 404 — the path simply doesn't exist on the public bucket.
@@ -266,7 +267,7 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
   
   EXPECT_NO_THROW({
     HTTPFileSystem fs(schema);
-    auto arrowFs = fs.toArrowFileSystem();
+    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
     ASSERT_NE(arrowFs, nullptr);
 
     // Verify file access

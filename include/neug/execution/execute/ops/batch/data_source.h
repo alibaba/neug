@@ -20,7 +20,7 @@
 
 namespace neug {
 using namespace reader;
-class IRecordBatchSupplier;
+class IDataChunkSupplier;
 namespace execution {
 
 namespace ops {

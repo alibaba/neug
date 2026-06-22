@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <arrow/filesystem/localfs.h>
 #include <glob.h>
 #include <memory>
 #include <string>

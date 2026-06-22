@@ -730,9 +730,10 @@ std::vector<std::string> HTTPFileSystem::glob(const std::string& path) {
   return {path};
 }
 
-std::unique_ptr<arrow::fs::FileSystem> HTTPFileSystem::toArrowFileSystem() {
-  // Each call returns a new independent HTTPFileSystem instance.
-  return std::make_unique<HTTPFileSystem>(options_);
+std::shared_ptr<void> HTTPFileSystem::getArrowFileSystem() const {
+  return std::static_pointer_cast<void>(
+      std::shared_ptr<arrow::fs::FileSystem>(
+          std::make_shared<HTTPFileSystem>(options_)));
 }
 
 std::unique_ptr<fsys::FileSystem> CreateHTTPFileSystem(

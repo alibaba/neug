@@ -25,8 +25,7 @@
 #include <string>
 #include <vector>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
+#include "parquet/arrow_reader.h"
 #include "neug/utils/service_utils.h"
 
 namespace neug {

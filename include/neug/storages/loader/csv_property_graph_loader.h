@@ -30,19 +30,16 @@ class CSVPropertyGraphLoader : public AbstractPropertyGraphLoader {
       const LoadingConfig& loading_config);
 
  protected:
-  std::vector<std::shared_ptr<IRecordBatchSupplier>>
-  createVertexRecordBatchSupplier(label_t v_label,
-                                  const std::string& v_label_name,
-                                  const std::string& v_file, DataType pk_type,
-                                  const std::string& pk_name, int pk_ind,
-                                  const LoadingConfig& loading_config,
-                                  int thread_id) const override;
+  std::shared_ptr<IDataChunkSupplier> createVertexChunkSupplier(
+      label_t v_label, const std::string& v_label_name,
+      const std::string& v_file, DataType pk_type, const std::string& pk_name,
+      int pk_ind, const LoadingConfig& loading_config,
+      int thread_id) const override;
 
-  std::vector<std::shared_ptr<IRecordBatchSupplier>>
-  createEdgeRecordBatchSupplier(label_t src_label, label_t dst_label,
-                                label_t e_label, const std::string& e_file,
-                                const LoadingConfig& loading_config,
-                                int thread_id) const override;
+  std::shared_ptr<IDataChunkSupplier> createEdgeChunkSupplier(
+      label_t src_label, label_t dst_label, label_t e_label,
+      const std::string& e_file, const LoadingConfig& loading_config,
+      int thread_id) const override;
   static const bool registered_;
 };
 
