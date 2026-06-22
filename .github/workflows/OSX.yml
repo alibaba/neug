@@ -396,8 +396,6 @@ jobs:
 
     - name: Test installation c++ sdk
       if: steps.scope.outputs.extension_only != 'true'
-      env:
-        CI: ON
       run: |
         cd ${GITHUB_WORKSPACE}/build
         sudo cmake --install .
