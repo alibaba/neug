@@ -1,6 +1,6 @@
 # Performance
 
-We evaluated performance with the [LDBC Graphalytics Benchmark](https://ldbcouncil.org/benchmarks/graphalytics/) on large and extra-large datasets (graph500-22/26, datagen-9\_*, com-friendster). Experiments run on a single server: AMD EPYC 9T24 (96 cores, **64** hardware threads visible), 495 GB RAM, Ubuntu 20.04. Datasets follow the [LDBC Graphalytics specification](https://ldbcouncil.org/benchmarks/graphalytics/).
+We evaluated performance with the [LDBC Graphalytics Benchmark](https://ldbcouncil.org/benchmarks/graphalytics/) on large and extra-large datasets (graph500-22/26, datagen-9\_*, com-friendster). Datasets follow the [LDBC Graphalytics specification](https://ldbcouncil.org/benchmarks/graphalytics/).
 
 We compared **neug** GDS with [libgrape-lite](https://github.com/alibaba/libgrape-lite) (beaa6e8), [SuiteSparse:GraphBLAS](https://github.com/DrTimothyAldenDavis/GraphBLAS) **v8.0.0** + [LAGraph](https://github.com/GraphBLAS/LAGraph) **LDBC\_2023** via [ldbc\_graphalytics\_platforms\_graphblas](https://github.com/ldbc/ldbc_graphalytics_platforms_graphblas) (4671056), [GeminiGraph](https://github.com/thu-pacman/GeminiGraph) (170e7d3), and [ladybug](https://github.com/LadybugDB/ladybug) **0.18.0** (d5a975c3b). libgrape-lite and GeminiGraph built with GCC 11.4 and Open MPI 4.0.3; ladybug with GCC 13.1. All systems compiled with **`-O3`** (CMake `Release` or Makefile equivalent).
 
@@ -12,6 +12,19 @@ Minor changes for fair LDBC comparisons:
 - ladybug: PR + WCC only; `RETURN count(*)` to avoid full result export.
 
 Times measure **algorithm execution only** (seconds). **`—`** = not implemented. **Bold** = fastest in row.
+
+## Hardware
+
+All figures below were measured on one server:
+
+| Item | Configuration |
+|------|---------------|
+| CPU | AMD EPYC 9T24 (96-Core), **64** hardware threads visible |
+| Memory | 495 GB |
+| OS | Ubuntu 20.04 |
+| Threads | **64** (`nproc`) |
+| Toolchain | GCC 11.4 (neug, libgrape-lite, GeminiGraph, GraphBLAS); GCC 13.1 (ladybug); Open MPI 4.0.3 |
+| Optimization | **`-O3`** (`Release`) for all systems |
 
 ---
 
@@ -111,11 +124,6 @@ BFS source: 101 · PageRank / CDLP: 10 iterations, damping 0.85
 
 | Item | Value |
 |------|-------|
-| CPU | AMD EPYC 9T24 (96-Core), 64 hardware threads visible |
-| Memory | 495 GB |
-| Threads | **64** (`nproc`) for all datasets |
-| OS / toolchain | Ubuntu 20.04, GCC 13.1 (ladybug), GCC 11.4 (others), Open MPI 4.0.3 |
-| Optimization | **`-O3`** (`Release`) for all systems |
 | Timing | Algorithm kernel only; excludes load, deserialize, result I/O |
 
 | System | Engine | Algorithms | How timed |
