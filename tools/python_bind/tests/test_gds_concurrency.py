@@ -290,9 +290,9 @@ class TestBFSConcurrency:
                     if errors_total <= 5:
                         print(f"[iter {i}] {err}")
 
-        assert errors_total == 0, (
-            f"{errors_total} path validation errors across {ITERATIONS} iterations"
-        )
+        assert (
+            errors_total == 0
+        ), f"{errors_total} path validation errors across {ITERATIONS} iterations"
 
     def test_bfs_path_length_equals_distance(self, large_graph_db):
         """For every reachable vertex, path length (edges) must equal distance."""
@@ -309,9 +309,9 @@ class TestBFSConcurrency:
                 continue
             path_ids = extract_path_vertices(path)
             assert path_ids is not None, f"node {nid} dist={dist} has null path"
-            assert len(path_ids) - 1 == dist, (
-                f"node {nid}: path length {len(path_ids) - 1} != distance {dist}"
-            )
+            assert (
+                len(path_ids) - 1 == dist
+            ), f"node {nid}: path length {len(path_ids) - 1} != distance {dist}"
 
     def test_bfs_path_source_correct(self, large_graph_db):
         """Every path must start at the source vertex (id=0)."""
@@ -329,12 +329,12 @@ class TestBFSConcurrency:
                 continue
             path_ids = extract_path_vertices(path)
             assert path_ids is not None, f"node {nid} has null path"
-            assert path_ids[0] == 0, (
-                f"node {nid}: path starts at {path_ids[0]}, expected 0"
-            )
-            assert path_ids[-1] == nid, (
-                f"node {nid}: path ends at {path_ids[-1]}, expected {nid}"
-            )
+            assert (
+                path_ids[0] == 0
+            ), f"node {nid}: path starts at {path_ids[0]}, expected 0"
+            assert (
+                path_ids[-1] == nid
+            ), f"node {nid}: path ends at {path_ids[-1]}, expected {nid}"
 
     def test_bfs_path_no_cycles(self, large_graph_db):
         """No path should contain repeated vertices (cycles)."""
@@ -351,9 +351,9 @@ class TestBFSConcurrency:
                 continue
             path_ids = extract_path_vertices(path)
             assert path_ids is not None
-            assert len(path_ids) == len(set(path_ids)), (
-                f"node {nid}: path has cycles: {path_ids}"
-            )
+            assert len(path_ids) == len(
+                set(path_ids)
+            ), f"node {nid}: path has cycles: {path_ids}"
 
     def test_bfs_path_valid_edges(self, large_graph_db):
         """Every consecutive pair in a path must be connected by an edge."""
@@ -373,9 +373,9 @@ class TestBFSConcurrency:
             assert path_ids is not None
             for i in range(len(path_ids) - 1):
                 src, dst = path_ids[i], path_ids[i + 1]
-                assert dst in adj.get(src, set()) or src in adj.get(dst, set()), (
-                    f"node {nid}: invalid edge {src}->{dst} in path"
-                )
+                assert dst in adj.get(src, set()) or src in adj.get(
+                    dst, set()
+                ), f"node {nid}: invalid edge {src}->{dst} in path"
 
     def test_bfs_path_distance_monotonic(self, large_graph_db):
         """Predecessor in path must be at distance-1 from successor."""
@@ -423,9 +423,9 @@ class TestBFSConcurrency:
                     errors_total += 1
                     if errors_total <= 5:
                         print(f"[directed iter {i}] {err}")
-        assert errors_total == 0, (
-            f"{errors_total} directed BFS path errors across {ITERATIONS} iterations"
-        )
+        assert (
+            errors_total == 0
+        ), f"{errors_total} directed BFS path errors across {ITERATIONS} iterations"
 
     def test_bfs_directed_distance_determinism(self, large_graph_db):
         """BFS directed distances must be deterministic across 30 runs."""
@@ -444,9 +444,9 @@ class TestBFSConcurrency:
             if baseline is None:
                 baseline = dist_map
             else:
-                assert dist_map == baseline, (
-                    f"Non-deterministic directed BFS distance at iteration {i}!"
-                )
+                assert (
+                    dist_map == baseline
+                ), f"Non-deterministic directed BFS distance at iteration {i}!"
 
 
 # ---------------------------------------------------------------------------
@@ -508,9 +508,9 @@ class TestSSSPConcurrency:
                     errors_total += 1
                     if errors_total <= 5:
                         print(f"[iter {i}] {err}")
-        assert errors_total == 0, (
-            f"{errors_total} SSSP path errors across {ITERATIONS} iterations"
-        )
+        assert (
+            errors_total == 0
+        ), f"{errors_total} SSSP path errors across {ITERATIONS} iterations"
 
     def test_sssp_path_length_equals_distance(self, large_graph_db):
         """With unit weights, SSSP distance must equal path edge count."""
@@ -527,9 +527,9 @@ class TestSSSPConcurrency:
                 continue
             path_ids = extract_path_vertices(path)
             assert path_ids is not None
-            assert len(path_ids) - 1 == dist, (
-                f"node {nid}: SSSP path length {len(path_ids) - 1} != distance {dist}"
-            )
+            assert (
+                len(path_ids) - 1 == dist
+            ), f"node {nid}: SSSP path length {len(path_ids) - 1} != distance {dist}"
 
     def test_sssp_path_source_correct(self, large_graph_db):
         """Every path must start at source and end at the target vertex."""
@@ -565,9 +565,9 @@ class TestSSSPConcurrency:
                 continue
             path_ids = extract_path_vertices(path)
             assert path_ids is not None
-            assert len(path_ids) == len(set(path_ids)), (
-                f"node {nid}: SSSP path has cycles: {path_ids}"
-            )
+            assert len(path_ids) == len(
+                set(path_ids)
+            ), f"node {nid}: SSSP path has cycles: {path_ids}"
 
     def test_sssp_path_valid_edges(self, large_graph_db):
         """Every consecutive pair in a path must be connected by an edge."""
@@ -587,9 +587,9 @@ class TestSSSPConcurrency:
             assert path_ids is not None
             for i in range(len(path_ids) - 1):
                 src, dst = path_ids[i], path_ids[i + 1]
-                assert dst in adj.get(src, set()) or src in adj.get(dst, set()), (
-                    f"node {nid}: invalid edge {src}->{dst} in SSSP path"
-                )
+                assert dst in adj.get(src, set()) or src in adj.get(
+                    dst, set()
+                ), f"node {nid}: invalid edge {src}->{dst} in SSSP path"
 
     def test_sssp_directed_full_determinism(self, large_graph_db):
         """SSSP directed must be fully deterministic (single-threaded)."""
@@ -611,9 +611,9 @@ class TestSSSPConcurrency:
             if baseline is None:
                 baseline = result
             else:
-                assert result == baseline, (
-                    f"Non-deterministic directed SSSP at iteration {i}!"
-                )
+                assert (
+                    result == baseline
+                ), f"Non-deterministic directed SSSP at iteration {i}!"
 
 
 # ---------------------------------------------------------------------------
@@ -648,13 +648,13 @@ class TestBFSvsSSSPConsistency:
             bfs_d = bfs_dist[nid]
             sssp_d = sssp_dist.get(nid)
             if bfs_d == -1:
-                assert sssp_d is not None and sssp_d < 0, (
-                    f"node {nid}: BFS unreachable but SSSP distance={sssp_d}"
-                )
+                assert (
+                    sssp_d is not None and sssp_d < 0
+                ), f"node {nid}: BFS unreachable but SSSP distance={sssp_d}"
             else:
-                assert sssp_d == float(bfs_d), (
-                    f"node {nid}: BFS distance={bfs_d} but SSSP distance={sssp_d}"
-                )
+                assert sssp_d == float(
+                    bfs_d
+                ), f"node {nid}: BFS distance={bfs_d} but SSSP distance={sssp_d}"
 
 
 # ---------------------------------------------------------------------------
@@ -683,9 +683,7 @@ class TestStressMultipleSources:
                 dist_map = {nid: dist for nid, dist, _ in rows}
                 for nid, dist, path in rows:
                     err = validate_bfs_path(nid, dist, path, adj, dist_map, source=src)
-                    assert err is None, (
-                        f"[BFS src={src} iter={i}] {err}"
-                    )
+                    assert err is None, f"[BFS src={src} iter={i}] {err}"
 
     def test_sssp_multiple_sources_determinism(self, large_graph_db):
         """Run SSSP from different sources; verify full determinism."""
@@ -709,6 +707,6 @@ class TestStressMultipleSources:
                 if baseline is None:
                     baseline = result
                 else:
-                    assert result == baseline, (
-                        f"Non-deterministic SSSP from source {src} at iteration {i}!"
-                    )
+                    assert (
+                        result == baseline
+                    ), f"Non-deterministic SSSP from source {src} at iteration {i}!"
