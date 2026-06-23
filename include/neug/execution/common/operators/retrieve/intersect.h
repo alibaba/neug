@@ -45,6 +45,12 @@ class Intersect {
       const StorageReadInterface& graph, const ParamsMap& params,
       ContextChunk&& chunk, std::vector<EdgeAndNbrPredicate>&& preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
+
+  static neug::result<ContextChunk> Multiple_Intersect_With_Edge(
+      const StorageReadInterface& graph, const ParamsMap& params,
+      ContextChunk&& chunk, std::vector<EdgeAndNbrPredicate>&& preds,
+      const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
+      const std::vector<int>& edge_aliases);
 };
 
 }  // namespace execution

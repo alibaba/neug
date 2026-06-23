@@ -3202,3 +3202,23 @@ def test_delete_all_rows_then_reinsert_visible(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_lsqb_6_test(tmp_path):
+    db_dir = tmp_path / "/tmp/lsqb"
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+
+    result = conn.execute(
+        """
+        MATCH (_n0:FORUM)-[e1:Forum_hasMember_Person]->(_n1:PERSON),
+        (_n0)-[e2:Forum_hasMember_Person]->(v3:PERSON),
+        (_n0)-[e3:Forum_containerOf_Post]->(v4:POST),
+        (_n1)-[e4:Person_knows_Person]->(v3),
+        (_n1)-[e5:Person_likes_Post]->(v4),
+        (v3)-[e6:Person_likes_Post]->(v4)
+        WHERE v3.id >= 315532800000
+        RETURN count(*);
+        """
+    )
+    assert list(result) == [[89051]]
