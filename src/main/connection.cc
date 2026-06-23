@@ -45,20 +45,22 @@ void Connection::Close() {
   // READ_WRITE mode, and ConnectionManager enforces that at most ONE
   // read-write connection exists at a time. Therefore, all temporary
   // labels in the schema must belong to this connection.
-  auto temp_edges = graph_.schema().get_temporary_edge_triplet_keys();
+  SnapshotGuard guard(snapshot_store_);
+  auto* graph = guard.get().mutable_graph();
+  auto temp_edges = graph->schema().get_temporary_edge_triplet_keys();
   for (auto key : temp_edges) {
-    auto [src, dst, edge] = graph_.schema().parse_edge_label(key);
+    auto [src, dst, edge] = graph->schema().parse_edge_label(key);
     try {
-      graph_.DeleteEdgeType(src, dst, edge);
+      graph->DeleteEdgeType(src, dst, edge);
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
     }
   }
 
-  auto temp_vertices = graph_.schema().get_temporary_vertex_labels();
+  auto temp_vertices = graph->schema().get_temporary_vertex_labels();
   for (auto label : temp_vertices) {
     try {
-      graph_.DeleteVertexType(label);
+      graph->DeleteVertexType(label);
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
     }

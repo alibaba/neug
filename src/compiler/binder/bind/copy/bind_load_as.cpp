@@ -195,7 +195,7 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
                                     parsingOptions, {}, {});
   expression_vector columns = boundSource->getColumns();
   auto offset = createInvisibleVariable(
-      std::string(InternalKeyword::ROW_OFFSET), LogicalType::INT64());
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
   const auto& labelName = loadAs.getTargetLabel();
 
   if (columns.empty()) {
@@ -359,9 +359,9 @@ std::unique_ptr<BoundStatement> Binder::bindLoadAs(
     }
 
     auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
-                                    LogicalType::INT64());
+                                    DataType(DataTypeId::kInt64));
     auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
-                                    LogicalType::INT64());
+                                    DataType(DataTypeId::kInt64));
     expression_vector warningDataExprs;
     // For edge loads, ddlColumns[0] and [1] are always from_col and to_col
     // (enforced by buildDdlColumns). Use them as lookup keys.
