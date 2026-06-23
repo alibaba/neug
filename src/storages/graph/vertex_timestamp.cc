@@ -16,8 +16,8 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
 
-#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"

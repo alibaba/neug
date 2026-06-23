@@ -35,17 +35,13 @@ std::string MakeChildModuleKey(const std::string& parent_key,
   return parent_key + "/" + role;
 }
 
-const std::vector<execution::Value>& GetArrayLikeChildren(
+const std::vector<execution::Value>& GetArrayChildren(
     const execution::Value& value) {
-  if (value.type().id() == DataTypeId::kArray) {
-    return execution::ArrayValue::GetChildren(value);
+  if (value.type().id() != DataTypeId::kArray) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "ArrayColumn expects an ARRAY value, got " + value.type().ToString());
   }
-  if (value.type().id() == DataTypeId::kList) {
-    return execution::ListValue::GetChildren(value);
-  }
-  THROW_INVALID_ARGUMENT_EXCEPTION(
-      "ArrayColumn expects an ARRAY or LIST value, got " +
-      value.type().ToString());
+  return execution::ArrayValue::GetChildren(value);
 }
 
 }  // namespace
@@ -60,15 +56,15 @@ ArrayColumn::ArrayColumn(const DataType& array_type)
 
 void ArrayColumn::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                        MemoryLevel level) {
-  OpenInternal(ckp, nullptr, desc, level);
+  openInternal(ckp, nullptr, desc, level);
 }
 
 void ArrayColumn::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
                        const ModuleDescriptor& desc, MemoryLevel level) {
-  OpenInternal(ckp, &manifest, desc, level);
+  openInternal(ckp, &manifest, desc, level);
 }
 
-void ArrayColumn::OpenInternal(Checkpoint& ckp,
+void ArrayColumn::openInternal(Checkpoint& ckp,
                                const CheckpointManifest* manifest,
                                const ModuleDescriptor& desc,
                                MemoryLevel level) {
@@ -119,7 +115,7 @@ void ArrayColumn::OpenInternal(Checkpoint& ckp,
   child_column_->Open(ckp, child_desc, level);
 }
 
-ModuleDescriptor ArrayColumn::DumpSelfDescriptor() const {
+ModuleDescriptor ArrayColumn::dumpSelfDescriptor() const {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("array_row_count", std::to_string(size_));
@@ -137,7 +133,7 @@ void ArrayColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   if (!child_column_) {
     THROW_RUNTIME_ERROR("ArrayColumn::Dump: missing element column");
   }
-  auto desc = DumpSelfDescriptor();
+  auto desc = dumpSelfDescriptor();
   auto child_key = MakeChildModuleKey(key, kElementRef);
   child_column_->Dump(ckp, meta, child_key);
   auto child_it = meta.mutable_modules().find(child_key);
@@ -158,8 +154,8 @@ void ArrayColumn::resize(size_t size) {
 
 void ArrayColumn::resize(size_t size, const execution::Value& default_value) {
   if (size <= size_) {
-    // Truncation: just adjust the logical row count; child column retains data.
     size_ = size;
+    child_column_->resize(size_ * array_size_);
     return;
   }
   size_t old_size = size_;
@@ -177,7 +173,7 @@ void ArrayColumn::set_any(size_t index, const execution::Value& value,
     THROW_RUNTIME_ERROR("ArrayColumn::set_any: index " + std::to_string(index) +
                         " out of range (size=" + std::to_string(size_) + ")");
   }
-  const auto& children = GetArrayLikeChildren(value);
+  const auto& children = GetArrayChildren(value);
   if (children.size() != array_size_) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "ArrayColumn::set_any: expected " + std::to_string(array_size_) +
@@ -213,6 +209,24 @@ void ArrayColumn::ingest(uint32_t index, OutArchive& arc) {
   size_t base = index * array_size_;
   for (uint32_t j = 0; j < array_size_; ++j) {
     child_column_->ingest(base + j, arc);
+  }
+}
+
+std::unique_ptr<Module> ArrayColumn::Clone() const {
+  auto new_col = std::make_unique<ArrayColumn>();
+  new_col->array_type_ = array_type_;
+  new_col->array_size_ = array_size_;
+  new_col->size_ = size_;
+  if (child_column_) {
+    new_col->child_column_.reset(
+        static_cast<ColumnBase*>(child_column_->Clone().release()));
+  }
+  return new_col;
+}
+
+void ArrayColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
+  if (child_column_) {
+    child_column_->Detach(ckp, level);
   }
 }
 

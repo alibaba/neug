@@ -54,6 +54,26 @@
 namespace neug {
 namespace gopt {
 
+namespace {
+
+bool hasNestedArrayLikeChild(const common::DataType& type) {
+  if (type.id() == common::DataTypeId::kArray) {
+    const auto& child_type = common::ArrayType::GetChildType(type);
+    return child_type.id() == common::DataTypeId::kArray ||
+           child_type.id() == common::DataTypeId::kList ||
+           hasNestedArrayLikeChild(child_type);
+  }
+  if (type.id() == common::DataTypeId::kList) {
+    const auto& child_type = common::ListType::GetChildType(type);
+    return child_type.id() == common::DataTypeId::kArray ||
+           child_type.id() == common::DataTypeId::kList ||
+           hasNestedArrayLikeChild(child_type);
+  }
+  return false;
+}
+
+}  // namespace
+
 std::unique_ptr<::common::Expression> GExprConverter::convert(
     const binder::Expression& expr, const planner::LogicalOperator& child) {
   std::vector<gopt::GAliasName> schemaGAlias;
@@ -275,6 +295,9 @@ std::unique_ptr<::common::Value> GExprConverter::castLiteral(
 // set default value for property definition
 std::unique_ptr<::common::Value> GExprConverter::convertDefaultValue(
     const binder::PropertyDefinition& propertyDef) {
+  if (hasNestedArrayLikeChild(propertyDef.getType())) {
+    return nullptr;
+  }
   std::shared_ptr<binder::Expression> defaultExpr = propertyDef.boundExpr;
   // the query default value of temporal type (date, datetime, interval) is
   // set by scalar function, here we extract the default value expression from

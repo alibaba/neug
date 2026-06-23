@@ -638,7 +638,11 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
   case DataTypeId::kArray: {
     const auto& lhs_children = ArrayValue::GetChildren(lhs);
     const auto& rhs_children = ArrayValue::GetChildren(rhs);
-    assert(lhs_children.size() == rhs_children.size());
+    // TODO(zhanglei, lexiao): how to handle the case when lhs_children.size() <
+    // rhs_children.size()
+    if (lhs_children.size() < rhs_children.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Array size not equal.");
+    }
     for (size_t i = 0; i < lhs_children.size(); ++i) {
       if (!ApplyComparisonOp<OP>(lhs_children[i], rhs_children[i])) {
         return false;
@@ -745,12 +749,12 @@ inline Value performCast<neug::Date>(const Value& input) {
 
 Value performCastToString(const Value& input);
 
-/// Convert a Value between LIST and ARRAY types when the value's type id
-/// does not match the target type id.  If the value is NULL, a typed NULL
-/// of the target type is returned.  If the types already match, the value
-/// is returned unchanged.  Only LIST<->ARRAY conversions are supported;
-/// any other type mismatch throws a runtime_error.
-Value convertValueIfNeeded(const Value& value, const DataType& target_type);
+/// Convert a LIST/ARRAY Value to the target LIST/ARRAY type when needed. If
+/// the value is NULL, a typed NULL of the target type is returned. Scalar
+/// values are only cast as nested elements while normalizing LIST/ARRAY
+/// children; top-level scalar mismatches are rejected by this API.
+Value convertListArrayValueIfNeeded(const Value& value,
+                                    const DataType& target_type);
 
 void encode_value(const Value& val, Encoder& encoder);
 

@@ -60,14 +60,18 @@ class ArrayColumn : public ColumnBase {
 
   void ingest(uint32_t index, OutArchive& arc) override;
 
+  std::unique_ptr<Module> Clone() const override;
+
+  void Detach(Checkpoint& ckp, MemoryLevel level) override;
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() { return "column<array>"; }
 
  private:
-  void OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
+  void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
-  ModuleDescriptor DumpSelfDescriptor() const;
+  ModuleDescriptor dumpSelfDescriptor() const;
 
   DataType array_type_;
   uint32_t array_size_;

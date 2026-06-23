@@ -425,7 +425,11 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
             MemoryLevel /* level */) override {}
 
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+            const std::string& key) override {
+    ModuleDescriptor desc;
+    desc.module_type = type_name();
+    meta.set_module(key, desc);
+  }
 
   void reset_timestamp() override {}
 

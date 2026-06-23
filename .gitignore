@@ -155,3 +155,6 @@ tools/python_bind/neug/extensions/
 
 # qoder ide
 .qoder/
+
+# codex 
+.codex/

@@ -690,6 +690,10 @@ function_set CastToIntervalFunction::getFunctionSet() {
 
 static execution::Value castFunc(const std::vector<execution::Value>& args);
 
+static bool isListArrayType(DataTypeId type_id) {
+  return type_id == DataTypeId::kList || type_id == DataTypeId::kArray;
+}
+
 static std::unique_ptr<FunctionBindData> castBindFunc(
     ScalarBindFuncInput input) {
   NEUG_ASSERT(input.arguments.size() == 2);
@@ -714,17 +718,12 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
     input.arguments[0]->cast(targetType);
     return nullptr;
   }
-  if (targetType.id() != DataTypeId::kArray &&
-      targetType.id() != DataTypeId::kList) {
-    try {
-      func->execFunc = CastFunction::bindCastFunction(
-                           "CAST_TO_" + targetTypeStr,
-                           input.arguments[0]->getDataType(), targetType)
-                           ->execFunc;
-    } catch (...) {}
-  } else if (auto neugFunc = dynamic_cast<NeugScalarFunction*>(func)) {
-    neugFunc->neugExecFunc = castFunc;
-  }
+  try {
+    func->execFunc = CastFunction::bindCastFunction(
+                         "CAST_TO_" + targetTypeStr,
+                         input.arguments[0]->getDataType(), targetType)
+                         ->execFunc;
+  } catch (...) {}
   auto bindData =
       std::make_unique<function::CastFunctionBindData>(targetType.copy());
   auto inputTypes = ExpressionUtil::getDataTypes(input.arguments);
@@ -740,8 +739,34 @@ static execution::Value castFunc(const std::vector<execution::Value>& args) {
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
   auto type = execution::StringValue::Get(arg1);
-  return execution::convertValueIfNeeded(
-      arg0, common::convertFromString(std::string(type), nullptr));
+  auto targetType = common::convertFromString(std::string(type), nullptr);
+  switch (targetType.id()) {
+  case DataTypeId::kInt64:
+    return execution::performCast<int64_t>(arg0);
+  case DataTypeId::kInt32:
+    return execution::performCast<int32_t>(arg0);
+  case DataTypeId::kFloat:
+    return execution::performCast<float>(arg0);
+  case DataTypeId::kDouble:
+    return execution::performCast<double>(arg0);
+  case DataTypeId::kVarchar:
+    return execution::performCastToString(arg0);
+  case DataTypeId::kDate:
+    return execution::performCast<neug::Date>(arg0);
+  case DataTypeId::kTimestampMs:
+    return execution::performCast<neug::DateTime>(arg0);
+  case DataTypeId::kUInt32:
+    return execution::performCast<uint32_t>(arg0);
+  case DataTypeId::kUInt64:
+    return execution::performCast<uint64_t>(arg0);
+  case DataTypeId::kList:
+  case DataTypeId::kArray:
+    return execution::convertListArrayValueIfNeeded(arg0, targetType);
+  default:
+    THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
+                        std::string(type));
+  }
+  return execution::Value(DataType::SQLNULL);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

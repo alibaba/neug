@@ -102,9 +102,19 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
       int32_t col_id = std::distance(property_names.begin(), pos);
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
-      if (property_types[col_id].id() != value.type().id()) {
-        // Handle implicit LIST <-> ARRAY (and other compatible) conversions.
-        value = execution::convertValueIfNeeded(value, property_types[col_id]);
+      if (property_types[col_id] != value.type()) {
+        // Only allow implicit LIST <-> ARRAY conversion; reject other
+        // type mismatches to avoid silent data loss.
+        auto src_id = value.type().id();
+        auto dst_id = property_types[col_id].id();
+        if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
+            (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
+          value = execution::convertListArrayValueIfNeeded(
+              value, property_types[col_id]);
+        } else {
+          THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                              prop_name);
+        }
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }

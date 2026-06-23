@@ -566,22 +566,13 @@ void SingleMutableCsr<EDATA_T>::refresh_prefetch_policy() {
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
-                                     CheckpointManifest& meta,
+void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                                      const std::string& key) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_));
   descriptor.set("edge_num", std::to_string(edge_num_.load()));
   meta.set_module(key, descriptor);
-}
-
-template <typename EDATA_T>
-void EmptyCsr<EDATA_T>::Dump(Checkpoint&, CheckpointManifest& meta,
-                             const std::string& key) {
-  ModuleDescriptor desc;
-  desc.module_type = ModuleTypeName();
-  meta.set_module(key, desc);
 }
 
 template <typename EDATA_T>

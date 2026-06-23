@@ -616,10 +616,17 @@ DataType parseListType(const std::string& trimmedStr,
       convertFromString(trimmedStr.substr(0, trimmedStr.size() - 2), context));
 }
 
+// Parse left-to-right so that INT32[2][3] → Array(Array(INT32, 3), 2)
+// (2 elements each being INT32[3]), matching C/C++ array semantics.
+//
+// NOTE: This reverses the nesting order compared to the previous
+// implementation which used find_last_of('[').  The old code mapped
+// everything to kList (variable-length), so multi-dimensional arrays
+// were never storable.  This change corrects the semantics to match
+// C/C++ but is a behavioral change for any query that used nested
+// array type strings.
 DataType parseArrayType(const std::string& trimmedStr,
                         main::ClientContext* context) {
-  // Parse left-to-right so that INT32[2][3] → Array(Array(INT32, 3), 2)
-  // (2 elements each being INT32[3]), matching C/C++ array semantics.
   auto leftBracketPos = trimmedStr.find_first_of('[');
   auto rightBracketPos = trimmedStr.find_first_of(']');
   if (leftBracketPos == std::string::npos ||

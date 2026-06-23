@@ -105,8 +105,19 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
         auto prop_types =
             graph.schema().get_edge_properties(src_label, dst_label, label_id);
         if (col_id >= 0 && col_id < static_cast<int>(prop_types.size()) &&
-            prop_types[col_id].id() != value.type().id()) {
-          value = execution::convertValueIfNeeded(value, prop_types[col_id]);
+            prop_types[col_id] != value.type()) {
+          // Only allow implicit LIST <-> ARRAY conversion; reject other
+          // type mismatches to avoid silent data loss.
+          auto src_id = value.type().id();
+          auto dst_id = prop_types[col_id].id();
+          if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
+              (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
+            value = execution::convertListArrayValueIfNeeded(
+                value, prop_types[col_id]);
+          } else {
+            THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                prop_name);
+          }
         }
         auto offset_pair =
             record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
