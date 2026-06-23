@@ -120,10 +120,7 @@ class TestLoadAs:
         self.edges_shuffled_csv = _write_csv(
             self.csv_dir,
             "edges_shuffled.csv",
-            "weight|src_id|dst_id\n"
-            "0.5|1|2\n"
-            "1.0|2|3\n"
-            "0.8|3|4\n",
+            "weight|src_id|dst_id\n" "0.5|1|2\n" "1.0|2|3\n" "0.8|3|4\n",
         )
 
         yield
@@ -468,9 +465,7 @@ class TestLoadAs:
         assert rows[0] == [1, 2]
         # Accessing weight should fail since it wasn't in RETURN.
         with pytest.raises(Exception):
-            self.conn.execute(
-                "MATCH ()-[r:TempNoProps]->() RETURN r.weight;"
-            )
+            self.conn.execute("MATCH ()-[r:TempNoProps]->() RETURN r.weight;")
 
     # ------------------------------------------------------------------
     # Error cases
@@ -1503,9 +1498,7 @@ class TestLoadAsParquet:
         """LOAD REL TABLE from Parquet: keys at positions [0] and [1]."""
         # eMeets.parquet columns: from(0) | to(1) | location | times | data
         # Keys are at positions [0] and [1] by convention.
-        meets_path = os.path.join(
-            os.path.dirname(self.parquet_path), "eMeets.parquet"
-        )
+        meets_path = os.path.join(os.path.dirname(self.parquet_path), "eMeets.parquet")
         if not os.path.exists(meets_path):
             pytest.skip(f"eMeets.parquet not found: {meets_path}")
 
