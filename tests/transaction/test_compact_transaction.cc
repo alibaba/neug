@@ -138,7 +138,7 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -174,7 +174,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     EXPECT_TRUE(txn.Commit());
@@ -191,7 +191,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -247,7 +247,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
 
     auto sess = svc2->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -282,7 +282,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     EXPECT_TRUE(txn.Commit());
@@ -294,7 +294,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // Concurrency exclusion tests: CompactTransaction blocks all other
 // transaction types (Read, Insert, Update, and another Compact).
 //
-// Tests at TPVersionManager level to avoid SessionPool size constraints.
+// Tests at VersionManager level to avoid SessionPool size constraints.
 // Strategy: main thread acquires compact timestamp (holds exclusive lock),
 // worker thread tries to acquire another timestamp type — should be blocked
 // until main thread releases compact.
@@ -303,14 +303,14 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // Helper: verify that `acquire_fn` is blocked while compact timestamp is
 // held, and proceeds once released.
 static void AssertCompactBlocksAcquire(
-    neug::TPVersionManager& vm,
-    std::function<void(neug::TPVersionManager&)> acquire_fn,
-    std::function<void(neug::TPVersionManager&, uint32_t)> release_fn) {
+    neug::VersionManager& vm,
+    std::function<void(neug::VersionManager&)> acquire_fn,
+    std::function<void(neug::VersionManager&, uint32_t)> release_fn) {
   std::atomic<bool> worker_started{false};
   std::atomic<bool> worker_acquired{false};
 
   // Main thread: acquire compact timestamp (exclusive lock)
-  uint32_t compact_ts = vm.acquire_update_timestamp();
+  uint32_t compact_ts = vm.acquire_compact_timestamp();
 
   // Worker thread: try to acquire another timestamp
   std::thread worker([&]() {
@@ -330,7 +330,7 @@ static void AssertCompactBlocksAcquire(
       << "Worker should be blocked while compact timestamp is held";
 
   // Release compact timestamp — worker should proceed
-  vm.release_update_timestamp(compact_ts);
+  vm.release_compact_timestamp(compact_ts);
 
   worker.join();
   EXPECT_TRUE(worker_acquired.load())
@@ -338,40 +338,40 @@ static void AssertCompactBlocksAcquire(
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksRead) {
-  neug::TPVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
 
   AssertCompactBlocksAcquire(
-      vm, [](neug::TPVersionManager& v) { v.acquire_read_timestamp(); },
-      [](neug::TPVersionManager& v, uint32_t) { v.release_read_timestamp(); });
+      vm, [](neug::VersionManager& v) { v.acquire_read_timestamp(); },
+      [](neug::VersionManager& v, uint32_t) { v.release_read_timestamp(); });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksInsert) {
-  neug::TPVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::TPVersionManager& v) { v.acquire_insert_timestamp(); },
-      [](neug::TPVersionManager& v, uint32_t ts) {
+      vm, [](neug::VersionManager& v) { v.acquire_insert_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
         v.release_insert_timestamp(ts);
       });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
-  neug::TPVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::TPVersionManager& v) { v.acquire_update_timestamp(); },
-      [](neug::TPVersionManager& v, uint32_t ts) {
+      vm, [](neug::VersionManager& v) { v.acquire_update_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
         v.release_update_timestamp(ts);
       });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksCompact) {
-  neug::TPVersionManager vm;
+  neug::VersionManager vm;
   vm.init_ts(0, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::TPVersionManager& v) { v.acquire_update_timestamp(); },
-      [](neug::TPVersionManager& v, uint32_t ts) {
-        v.release_update_timestamp(ts);
+      vm, [](neug::VersionManager& v) { v.acquire_compact_timestamp(); },
+      [](neug::VersionManager& v, uint32_t ts) {
+        v.release_compact_timestamp(ts);
       });
 }

@@ -26,6 +26,8 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_view.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
@@ -39,22 +41,35 @@ class Schema;
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
  *
- * InsertTransaction handles the insertion of new graph elements with ACID
- * guarantees. It maintains a Write-Ahead Log (WAL) for durability and tracks
- * added vertices to resolve edge insertions that reference newly added
- * vertices.
+ * InsertTransaction handles the insertion of new graph elements with WAL
+ * durability and per-record-timestamp visibility.
+ *
+ * **Isolation model — NOT snapshot isolation.**
+ * Unlike UpdateTransaction, InsertTransaction does NOT COW-clone the
+ * PropertyGraph. It pins the current GraphSnapshotStore slot and, on Commit(),
+ * applies the WAL ops directly to the live PropertyGraph behind that slot via
+ * `IngestWal(slot_->mutable_view(), ...)`. Concurrent ReadTransactions on the
+ * same slot see the in-progress live state.
+ *
+ * Reader isolation is therefore enforced **entirely** by per-record timestamp
+ * filtering: every read path must compare a record's commit timestamp against
+ * the reader's `read_ts` and skip records with `ts > read_ts`. If any read
+ * path forgets to filter, concurrent inserts will leak partial writes to
+ * readers. Adding a new read API on GraphView without propagating `read_ts`
+ * is a correctness bug, not a performance optimization.
+ *
+ * **Concurrency contract** (VersionManager state machine):
+ * - Insert requires update_state_==0 (normal); multiple concurrent inserts
+ *   allowed (active_inserters_ counter). Update/compact transitions state
+ *   away from 0, blocking new inserts.
+ * - Insert does NOT block readers, and readers do NOT block insert.
+ * - The pinned slot's PropertyGraph is shared with all readers on that slot.
  *
  * **Key Features:**
  * - Write-Ahead Logging for durability
  * - Vertex insertion with property validation
- * - Edge insertion with vertex existence checking
- * - Automatic vertex resolution for new edges
- * - Transaction commit/abort semantics
- *
- * **Implementation Details:**
- * - Uses OutArchive for serializing operations to WAL
- * - Maintains added_vertices_ map to track new vertices
- * - Destructor calls Abort() for cleanup
+ * - Edge insertion with vertex existence checking (including just-added
+ *   vertices via added_vertices_ side table)
  * - Validates property types against schema
  *
  * @since v0.1.0
@@ -62,21 +77,18 @@ class Schema;
 class InsertTransaction {
  public:
   /**
-   * @brief Construct an InsertTransaction.
+   * @brief Construct an InsertTransaction with a pinned SnapshotSlot.
    *
-   * @param session Reference to the database session
-   * @param graph Reference to the property graph (mutable for insertions)
+   * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
+   * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
    *
-   * Implementation: Stores references and initializes WAL archive with
-   * WalHeader.
-   *
    * @since v0.1.0
    */
-  InsertTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
+  InsertTransaction(SnapshotGuard guard, Allocator& alloc, IWalWriter& logger,
                     IVersionManager& vm, timestamp_t timestamp);
 
   /**
@@ -159,7 +171,29 @@ class InsertTransaction {
 
   timestamp_t timestamp() const;
 
-  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+  /**
+   * @brief Apply an insert-WAL byte stream to a writable GraphView.
+   *
+   * Used both:
+   *  - by InsertTransaction::Commit() — passing its own writable view_, with
+   *    the transaction timestamp; and
+   *  - by NeugDB recovery — the caller constructs a writable GraphView over
+   *    the initial PropertyGraph (with a per-thread allocator and
+   *    `read_ts = MAX_TIMESTAMP` so just-inserted vertices are visible while
+   *    resolving edge endpoints), and replays each WAL unit at its own
+   *    timestamp.
+   *
+   * Replays the WAL ops via the writable @p view. Capacity is assumed to be
+   * sufficient (no auto-grow / EnsureCapacity at this level); the strict
+   * insert path will throw if a buffer is exhausted.
+   *
+   * @param view Writable GraphView.
+   * @param timestamp Insert timestamp for each AddVertex/AddEdge in the WAL.
+   * @param data Serialized op buffer.
+   * @param length Byte length of @p data.
+   * @param alloc Per-thread allocator for adjacency-list growth in CSR.
+   */
+  static void IngestWal(GraphView& view, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
 
   const Schema& schema() const;
@@ -169,23 +203,23 @@ class InsertTransaction {
 
   execution::Value GetVertexId(label_t label, vid_t lid) const;
 
-  PropertyGraph& graph() { return graph_; }
-
  private:
   void create_id_indexer_if_not_exists(label_t label);
 
   void clear();
 
-  static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
+  static bool get_vertex_with_retries(GraphView& graph, label_t label,
                                       const execution::Value& oid, vid_t& lid,
                                       timestamp_t timestamp);
+
   InArchive arc_;
 
   std::vector<std::unique_ptr<neug::IdIndexerBase<vid_t>>> added_vertices_;
   std::vector<vid_t> added_vertices_base_;
   std::vector<vid_t> vertex_nums_;
 
-  PropertyGraph& graph_;
+  SnapshotGuard guard_;
+  GraphView* view_;
 
   Allocator& alloc_;
   IWalWriter& logger_;

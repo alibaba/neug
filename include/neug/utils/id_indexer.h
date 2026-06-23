@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,7 @@ limitations under the License.
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
+#include "neug/storages/module/module.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
@@ -291,6 +292,11 @@ class LFIndexer {
     hash_policy_.swap(other.hash_policy_);
     std::swap(hasher_, other.hasher_);
   }
+
+  std::unique_ptr<LFIndexer<INDEX_T>> Clone();
+
+  // DeepCopy: 递归深拷贝 keys_ 和 indices_ Column
+  void Detach(Checkpoint& ckp, MemoryLevel level);
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
 
@@ -920,5 +926,26 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   GHash<KEY_T> hasher_;
 };
+
+template <typename INDEX_T>
+std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Clone() {
+  auto cow_clone = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
+  // Zero-copy: share Column objects (which share IDataContainer)
+  cow_clone->indices_ = std::unique_ptr<TypedColumn<INDEX_T>>(
+      dynamic_cast<TypedColumn<INDEX_T>*>(indices_->Clone().release()));
+  cow_clone->keys_ = std::unique_ptr<ColumnBase>(
+      dynamic_cast<ColumnBase*>(keys_->Clone().release()));
+  cow_clone->num_elements_.store(num_elements_.load());
+  cow_clone->num_slots_minus_one_ = num_slots_minus_one_;
+  cow_clone->hash_policy_ = hash_policy_;
+  cow_clone->hasher_ = hasher_;
+  return cow_clone;
+}
+
+template <typename INDEX_T>
+void LFIndexer<INDEX_T>::Detach(Checkpoint& ckp, MemoryLevel level) {
+  keys_->Detach(ckp, level);
+  indices_->Detach(ckp, level);
+}
 
 }  // namespace neug

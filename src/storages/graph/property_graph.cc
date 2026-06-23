@@ -221,7 +221,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
                          default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
-  fresh_vt.Init(*ckp_, memory_level_);
+  fresh_vt.Init(ckp_, memory_level_);
   if (vertex_label_id < vertex_tables_.size()) {
     vertex_tables_[vertex_label_id].Swap(fresh_vt);
   } else {
@@ -306,7 +306,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   auto edge_schema =
       schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i);
   EdgeTable fresh_et(edge_schema);
-  fresh_et.Init(*ckp_, memory_level_);  // see CreateVertexType for rationale
+  fresh_et.Init(ckp_, memory_level_);  // see CreateVertexType for rationale
   edge_tables_.emplace(index, std::move(fresh_et));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
@@ -743,7 +743,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
     vertex_tables_.emplace_back(VertexTable::OpenFrom(
-        *ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
+        ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
     auto v_size = vertex_tables_[i].Size();
     vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
                                                    : v_size + v_size / 4);
@@ -754,7 +754,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
     auto [src_label_i, dst_label_i, e_label_i] =
         schema_.parse_edge_label(index);
     EdgeTable et =
-        EdgeTable::OpenFrom(*ckp, edge_schema, store, meta, memory_level_);
+        EdgeTable::OpenFrom(ckp, edge_schema, store, meta, memory_level_);
     auto e_size = et.PropTableSize();
     size_t e_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
     et.EnsureCapacity(vertex_capacities[src_label_i],
@@ -912,11 +912,13 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
     if (!schema_.is_vertex_label_valid(src_label_i)) {
       continue;
     }
+    auto src_label = schema_.get_vertex_label_name(src_label_i);
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.is_vertex_label_valid(dst_label_i)) {
         continue;
       }
+      auto dst_label = schema_.get_vertex_label_name(dst_label_i);
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
         if (!schema_.is_edge_label_valid(e_label_i) ||
@@ -924,6 +926,7 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
                                            e_label_i)) {
           continue;
         }
+        auto edge_label = schema_.get_edge_label_name(e_label_i);
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (edge_tables_.count(index) > 0) {
@@ -1014,6 +1017,7 @@ Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
                               timestamp_t ts, Allocator& alloc,
                               int32_t& oe_offset, const void*& prop,
                               bool insert_safe) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_label, dst_label, edge_label));
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
@@ -1215,6 +1219,40 @@ Status PropertyGraph::edge_triplet_check(label_t src_label, label_t dst_label,
                       std::to_string(edge_label) + "> is not valid");
   }
   return Status::OK();
+}
+
+std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
+  auto cow_clone = std::make_shared<PropertyGraph>();
+
+  cow_clone->schema_ = schema_.Clone();
+
+  cow_clone->vertex_tables_.reserve(vertex_tables_.size());
+  for (size_t i = 0; i < vertex_tables_.size(); ++i) {
+    if (schema_.is_vertex_label_valid(i)) {
+      cow_clone->vertex_tables_.push_back(vertex_tables_[i].Clone());
+      cow_clone->vertex_tables_[i].SetVertexSchema(
+          cow_clone->schema_.get_vertex_schema(i));
+    } else {
+      cow_clone->vertex_tables_.push_back(VertexTable());
+    }
+  }
+
+  for (const auto& [key, et] : edge_tables_) {
+    auto [src_label, dst_label, edge_label] = schema_.parse_edge_label(key);
+    if (schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
+      auto cow_edge_table = et.Clone();
+      cow_edge_table.SetEdgeSchema(
+          cow_clone->schema_.get_all_edge_schemas().at(key));
+      cow_clone->edge_tables_.emplace(key, std::move(cow_edge_table));
+    }
+  }
+
+  cow_clone->ckp_ = ckp_;
+  cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
+  cow_clone->edge_label_total_count_ = edge_label_total_count_;
+  cow_clone->memory_level_ = memory_level_;
+
+  return cow_clone;
 }
 
 }  // namespace neug

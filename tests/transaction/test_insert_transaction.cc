@@ -137,7 +137,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
@@ -174,7 +174,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");

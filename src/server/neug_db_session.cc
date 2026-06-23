@@ -60,26 +60,24 @@ namespace neug {
 
 neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  return neug::ReadTransaction(graph_, *version_manager_, ts);
+  SnapshotGuard guard(db_.graph_snapshot_store());
+  return neug::ReadTransaction(std::move(guard), *version_manager_, ts);
 }
 
 neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return neug::InsertTransaction(graph_, alloc_, logger_, *version_manager_,
-                                 ts);
+  SnapshotGuard guard(db_.graph_snapshot_store());
+  return neug::InsertTransaction(std::move(guard), alloc_, logger_,
+                                 *version_manager_, ts);
 }
 
 neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return neug::UpdateTransaction(graph_, alloc_, logger_, *version_manager_,
+  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().Clone();
+  return neug::UpdateTransaction(std::move(cow_graph), alloc_, logger_,
+                                 *version_manager_, db_.graph_snapshot_store(),
                                  pipeline_cache_, ts);
 }
-
-const neug::PropertyGraph& NeugDBSession::graph() const { return graph_; }
-
-neug::PropertyGraph& NeugDBSession::graph() { return graph_; }
-
-const neug::Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
 inline bool is_read_only(const physical::ExecutionFlag flags) {
   return !(flags.insert() || flags.update() || flags.schema() ||
@@ -175,29 +173,29 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   neug::MetaDatas result_schema;
   if (mode == neug::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
-    neug::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
-    GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
-                                              mode, db_config_, param_json_obj,
-                                              timer.get(), result_schema,
-                                              read_txn, gri));
+    neug::StorageReadInterface gri(read_txn.view(), read_txn.timestamp());
+    GS_AUTO(ctx,
+            ExecutePipelineInTransaction(
+                pipeline_cache_, read_txn.schema(), query, mode, db_config_,
+                param_json_obj, timer.get(), result_schema, read_txn, gri));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gri, response);
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
-    GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
-                                              mode, db_config_, param_json_obj,
-                                              timer.get(), result_schema,
-                                              insert_txn, gii));
+    GS_AUTO(ctx,
+            ExecutePipelineInTransaction(
+                pipeline_cache_, insert_txn.schema(), query, mode, db_config_,
+                param_json_obj, timer.get(), result_schema, insert_txn, gii));
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
     auto update_txn = GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(update_txn);
-    GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
-                                              mode, db_config_, param_json_obj,
-                                              timer.get(), result_schema,
-                                              update_txn, gui));
+    GS_AUTO(ctx,
+            ExecutePipelineInTransaction(
+                pipeline_cache_, update_txn.schema(), query, mode, db_config_,
+                param_json_obj, timer.get(), result_schema, update_txn, gui));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {
@@ -219,9 +217,9 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
 int NeugDBSession::SessionId() const { return thread_id_; }
 
 neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
-  neug::timestamp_t ts = version_manager_->acquire_update_timestamp();
-  return neug::CompactTransaction(graph_, logger_, *version_manager_,
-                                  db_config_.compact_csr,
+  neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
+  return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
+                                  *version_manager_, db_config_.compact_csr,
                                   db_config_.csr_reserve_ratio, ts);
 }
 

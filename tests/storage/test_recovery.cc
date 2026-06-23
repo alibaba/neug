@@ -33,16 +33,26 @@
 
 using namespace neug;
 
+namespace {
+
+int PickTestPort() {
+  static int next_port = 20000 + (::getpid() % 20000);
+  return next_port++;
+}
+
+}  // namespace
+
 class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
  protected:
   std::string data_dir_;
   std::string neugdb_host_ = "127.0.0.1";
-  int neugdb_port_ = 7071;
+  int neugdb_port_ = 0;
   std::unique_ptr<neug::NeugDB> db_;
   std::unique_ptr<neug::NeugDBService> service_;
 
   void SetUp() override {
     data_dir_ = "/tmp/neugdb_recovery_test_" + std::to_string(::getpid());
+    neugdb_port_ = PickTestPort();
     std::filesystem::remove_all(data_dir_);
     std::filesystem::create_directories(data_dir_);
   }
@@ -157,13 +167,14 @@ class NeugDBWALRecoverySubprocessTest : public ::testing::Test {
   std::string log_file_;
   std::string neugdb_host_ = "127.0.0.1";
   std::string neugdb_bin_;
-  int neugdb_port_ = 7072;  // Use a different port to avoid conflict
+  int neugdb_port_ = 0;
   pid_t neugdb_pid_ = -1;
   std::string neugdb_bin_suffix = "./bin/rt_server";  // Adjust path if needed
 
   void SetUp() override {
     data_dir_ = "/tmp/neugdb_recovery_subproc_test";
     log_file_ = data_dir_ + "/log.txt";
+    neugdb_port_ = PickTestPort();
     std::filesystem::remove_all(data_dir_);
     std::filesystem::create_directories(data_dir_);
 // Determine neugdb binary path
