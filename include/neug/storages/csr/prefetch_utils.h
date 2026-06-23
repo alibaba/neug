@@ -53,8 +53,8 @@ inline CsrPrefetchPolicy create_csr_prefetch_policy(
   if (stats.max_degree <= 1) {
     policy.metadata_distance = 64;
     policy.head_distance = 32;
-    policy.metadata_locality = 1;
-    policy.head_locality = 2;
+    policy.metadata_locality = 2;
+    policy.head_locality = 0;
   } else if (nonzero_avg_degree >= 128 || nonzero_p99 >= 1024) {
     policy.metadata_distance = 4;
     policy.head_distance = 0;

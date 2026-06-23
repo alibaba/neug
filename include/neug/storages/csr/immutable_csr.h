@@ -248,7 +248,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   void refresh_prefetch_policy() {
     prefetch_policy_.metadata_distance = 64;
     prefetch_policy_.head_distance = 32;
-    prefetch_policy_.metadata_locality = 1;
+    prefetch_policy_.metadata_locality = 2;
     prefetch_policy_.head_locality = 0;
   }
   CsrPrefetchPolicy prefetch_policy_;
