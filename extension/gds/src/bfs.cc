@@ -94,12 +94,6 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
-
-  if (!validate_projected_graph(graph, bfs_input.vertex_label,
-                                bfs_input.edge_label, "BFS")) {
-    return execution::Context{};
-  }
-
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, bfs_input.vertex_label, bfs_input.source,
                                source_vid)) {
@@ -109,28 +103,23 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
   }
 
   bool full_encoding = bfs_input.path_properties != "lightweight";
-  try {
-    execution::Context ret;
-    if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
-      BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label,
-                  source_vid, bfs_input.directed, bfs_input.concurrency,
-                  bfs_input.vertex_pred.get(), bfs_input.edge_pred.get(),
-                  bfs_input.return_path);
-      bfs.compute();
-      bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-               bfs_input.path_alias, full_encoding);
-    } else {
-      BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
-              bfs_input.directed, bfs_input.concurrency, bfs_input.return_path);
-      bfs.compute();
-      bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-               bfs_input.path_alias, full_encoding);
-    }
-    return ret;
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "BFS execution failed: " << e.what();
-    return execution::Context{};
+  execution::Context ret;
+  if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
+    BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
+                bfs_input.directed, bfs_input.concurrency,
+                bfs_input.vertex_pred.get(), bfs_input.edge_pred.get(),
+                bfs_input.return_path);
+    bfs.compute();
+    bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
+             bfs_input.path_alias, full_encoding);
+  } else {
+    BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
+            bfs_input.directed, bfs_input.concurrency, bfs_input.return_path);
+    bfs.compute();
+    bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
+             bfs_input.path_alias, full_encoding);
   }
+  return ret;
 }
 
 function::function_set BFSFunction::getFunctionSet() {
