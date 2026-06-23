@@ -23,8 +23,8 @@ struct NeugScalarFunction : public ScalarFunction {
   execution::neug_func_exec_t neugExecFunc = nullptr;
 
   NeugScalarFunction(std::string name,
-                     std::vector<common::LogicalTypeID> parameterTypeIDs,
-                     common::LogicalTypeID returnTypeID,
+                     std::vector<common::DataTypeId> parameterTypeIDs,
+                     common::DataTypeId returnTypeID,
                      execution::neug_func_exec_t neugExecFunc)
       : ScalarFunction{std::move(name), std::move(parameterTypeIDs),
                        returnTypeID},

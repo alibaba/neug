@@ -36,7 +36,7 @@ struct ListPosition {
                         common::ValueVector& listVector,
                         common::ValueVector& elementVector,
                         common::ValueVector& /*resultVector*/) {
-    if (common::ListType::getChildType(listVector.dataType) !=
+    if (common::ListType::GetChildType(listVector.dataType) !=
         elementVector.dataType) {
       result = 0;
       return;

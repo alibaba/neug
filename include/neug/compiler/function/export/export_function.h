@@ -33,7 +33,7 @@ namespace neug {
 namespace function {
 struct ExportFuncBindData {
   std::vector<std::string> columnNames;
-  std::vector<common::LogicalType> types;
+  std::vector<common::DataType> types;
   std::string fileName;
   common::case_insensitive_map_t<common::Value> options;
 
@@ -46,7 +46,7 @@ struct ExportFuncBindData {
 
   virtual ~ExportFuncBindData() = default;
 
-  void setDataType(std::vector<common::LogicalType> types_) {
+  void setDataType(std::vector<common::DataType> types_) {
     types = std::move(types_);
   }
 
@@ -63,7 +63,7 @@ struct ExportFuncBindData {
   virtual std::unique_ptr<ExportFuncBindData> copy() const {
     auto bindData =
         std::make_unique<ExportFuncBindData>(columnNames, fileName, options);
-    bindData->types = common::LogicalType::copy(types);
+    bindData->types = types;
     return bindData;
   };
 };

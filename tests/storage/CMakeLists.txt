@@ -21,6 +21,8 @@ add_neug_test(edge_table_test test_edge_table.cc)
 
 add_neug_test(graph_view_test test_graph_view.cc)
 
+add_neug_test(graph_snapshot_store_test test_graph_snapshot_store_concurrency.cc)
+
 add_neug_test(temporary_graph_test test_temporary_graph.cc)
 
 add_neug_test(load_as_test test_load_as.cc)

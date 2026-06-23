@@ -75,10 +75,10 @@ static execution::Value execFunc(const std::vector<execution::Value>& args) {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   const auto& resultType =
-      ::ListType::getChildType(input.arguments[0]->dataType);
-  std::vector<LogicalType> paramTypes;
+      ::ListType::GetChildType(input.arguments[0]->dataType);
+  std::vector<DataType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
-  paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));
+  paramTypes.push_back(DataType(input.definition->parameterTypeIDs[1]));
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             resultType.copy());
 }
@@ -86,9 +86,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 function_set ListExtractFunction::getFunctionSet() {
   function_set result;
   std::unique_ptr<ScalarFunction> func = std::make_unique<NeugScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::INT64},
-      LogicalTypeID::ANY, std::move(execFunc));
+      name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kInt64},
+      DataTypeId::kUnknown, std::move(execFunc));
   func->bindFunc = bindFunc;
   result.push_back(std::move(func));
   return result;

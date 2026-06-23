@@ -2,6 +2,14 @@ GraphScope
 Copyright 2020 Alibaba Group Holding Limited.
 
 --------------------------------------------------------------------------------
+Package Title: csv-parser (5.3.0)
+--------------------------------------------------------------------------------
+
+which is available under license(s): MIT
+Copyright (c) 2017-2026 Vincent La
+https://github.com/vincentlaucsb/csv-parser
+
+--------------------------------------------------------------------------------
 Package Title: allure-pytest (2.14.1)
 --------------------------------------------------------------------------------
 

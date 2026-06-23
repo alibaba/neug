@@ -120,10 +120,9 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
       auto fileSchema = inspected.ValueOrDie();
       for (const auto& field : scan_opts->dataset_schema->fields()) {
         if (!fileSchema->GetFieldByName(field->name())) {
-          THROW_SCHEMA_MISMATCH(
-              "Column '" + field->name() +
-              "' not found in file. Available columns: " +
-              fileSchema->ToString());
+          THROW_SCHEMA_MISMATCH("Column '" + field->name() +
+                                "' not found in file. Available columns: " +
+                                fileSchema->ToString());
         }
       }
     }
@@ -179,14 +178,16 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
 
   output.clear();
+  execution::DataChunk chunk;
   for (int i = 0; i < num_cols; ++i) {
     auto chunk_arrays = table->column(i)->chunks();
     execution::ArrowArrayContextColumnBuilder builder;
     for (const auto& array : chunk_arrays) {
       builder.push_back(array);
     }
-    output.set(i, builder.finish());
+    chunk.set(i, builder.finish());
   }
+  output.append_chunk(std::move(chunk));
 }
 
 void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
@@ -223,13 +224,15 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
 
   int num_cols = sharedState->columnNum();
   output.clear();
+  execution::DataChunk chunk;
   for (int i = 0; i < num_cols; ++i) {
     // NOTE: Each column uses the same shared RecordBatch supplier, so columns
     // share access to entire batches rather than being split by column. This
     // design may need refactoring when storage no longer relies on Arrow.
     execution::ArrowStreamContextColumnBuilder builder({batch_supplier});
-    output.set(i, builder.finish());
+    chunk.set(i, builder.finish());
   }
+  output.append_chunk(std::move(chunk));
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

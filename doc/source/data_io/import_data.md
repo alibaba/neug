@@ -77,17 +77,17 @@ LIMIT 5;
 Create a node table and import data:
 
 ```cypher
-CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));
+CREATE NODE TABLE Person(id INT64, name STRING, age INT64, PRIMARY KEY(id));
 ```
 
 ```cypher
-COPY person FROM "person.csv" (header=true);
+COPY Person FROM "person.csv" (header=true);
 ```
 
 If data is spread across multiple files, use wildcard characters:
 
 ```cypher
-COPY person FROM "person*.csv" (header=true);
+COPY Person FROM "person*.csv" (header=true);
 ```
 
 > **Note:** The number and order of columns in the CSV file must match the properties defined in the node table exactly.
@@ -97,11 +97,11 @@ COPY person FROM "person*.csv" (header=true);
 Create a relationship table and import data:
 
 ```cypher
-CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);
+CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);
 ```
 
 ```cypher
-COPY knows FROM "person_knows_person.csv" (from="person", to="person", header=true);
+COPY KNOWS FROM "person_knows_person.csv" (from="Person", to="Person", header=true);
 ```
 
 > **Note:** NeuG assumes the first two columns are the primary keys of the `FROM` and `TO` nodes. The remaining columns correspond to relationship properties. The `from` and `to` parameters must be specified to identify the endpoint node tables.
@@ -124,9 +124,9 @@ COPY User FROM "users.csv" (header=true, auto_detect=false);  -- require table t
 ### Nodes (new label)
 
 ```cypher
-// File has header: id,name,age 
+// File has header: id,name,age
 // id becomes PRIMARY KEY
-COPY person FROM "person.csv" (header=true);
+COPY Person FROM "person.csv" (header=true);
 ```
 
 - The **first column** of the source is used as the **primary key** property, If the file column order is wrong for inference, reorder with a `LOAD FROM` subquery (first returned column = primary key), see [Column remapping with load from](#column-remapping-with-load-from) for reference.
@@ -140,9 +140,9 @@ COPY person FROM "person.csv" (header=true);
 // src becomes source column
 // dst becomes destination column
 // other columns are edge properties
-COPY knows FROM "person_knows_person.csv" (
-    from="person",
-    to="person",
+COPY KNOWS FROM "person_knows_person.csv" (
+    from="Person",
+    to="Person",
     header=true,
     delimiter=","
 );
@@ -176,10 +176,10 @@ Since NeuG v0.1.2, JSON/JSONL is a built-in feature. You can use `COPY FROM` to 
 ```cypher
 // JSON array file — schema auto-detected,
 // first column becomes primary key
-COPY person FROM "person.json";
+COPY Person FROM "person.json";
 
 // JSONL file — same auto-detection
-COPY person FROM "person.jsonl";
+COPY Person FROM "person.jsonl";
 ```
 
 > **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use.
@@ -196,7 +196,7 @@ LOAD parquet;
 ```cypher
 // Schema auto-detected from Parquet metadata
 // first column becomes primary key
-COPY person FROM "person.parquet";
+COPY Person FROM "person.parquet";
 ```
 
 ## Column Remapping with LOAD FROM
@@ -217,7 +217,7 @@ age,name,id
 ```
 
 ```cypher
-COPY person FROM (
+COPY Person FROM (
     LOAD FROM "person_remap.csv"
     RETURN id, name, age
 );
@@ -234,7 +234,7 @@ peter,josh,0.8
 ```
 
 ```cypher
-COPY knows FROM (
+COPY KNOWS FROM (
     LOAD FROM "knows_remap.csv"
     RETURN src_name AS src, dst_name AS dst, weight
 );
@@ -245,7 +245,7 @@ COPY knows FROM (
 You can filter rows before persisting, avoiding the need to clean the source file:
 
 ```cypher
-COPY person FROM (
+COPY Person FROM (
     LOAD FROM "person.csv" (delim=',')
     WHERE age >= 18
     RETURN *

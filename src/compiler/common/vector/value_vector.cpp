@@ -36,11 +36,11 @@
 namespace neug {
 namespace common {
 
-ValueVector::ValueVector(LogicalType dataType,
+ValueVector::ValueVector(DataType dataType,
                          storage::MemoryManager* memoryManager,
                          std::shared_ptr<DataChunkState> dataChunkState)
     : dataType{std::move(dataType)}, nullMask{DEFAULT_VECTOR_CAPACITY} {
-  if (this->dataType.getLogicalTypeID() == LogicalTypeID::ANY) {
+  if (this->dataType.id() == DataTypeId::kUnknown) {
     // LCOV_EXCL_START
     // Alternatively we can assign a default type here but I don't think it's a
     // good practice.
@@ -60,7 +60,7 @@ ValueVector::ValueVector(LogicalType dataType,
 
 void ValueVector::setState(const std::shared_ptr<DataChunkState>& state_) {
   this->state = state_;
-  if (dataType.getPhysicalType() == PhysicalTypeID::STRUCT) {
+  if (getPhysicalType(dataType.id()) == PhysicalTypeID::STRUCT) {
     auto childrenVectors = StructVector::getFieldVectors(this);
     for (auto& childVector : childrenVectors) {
       childVector->setState(state_);
@@ -118,7 +118,7 @@ void ValueVector::setValue(uint32_t pos, T val) {
 }
 
 void ValueVector::copyFromRowData(uint32_t pos, const uint8_t* rowData) {
-  switch (dataType.getPhysicalType()) {
+  switch (getPhysicalType(dataType.id())) {
   case PhysicalTypeID::STRUCT: {
     StructVector::copyFromRowData(this, pos, rowData);
   } break;
@@ -138,7 +138,7 @@ void ValueVector::copyFromRowData(uint32_t pos, const uint8_t* rowData) {
 
 void ValueVector::copyToRowData(uint32_t pos, uint8_t* rowData,
                                 InMemOverflowBuffer* rowOverflowBuffer) const {
-  switch (dataType.getPhysicalType()) {
+  switch (getPhysicalType(dataType.id())) {
   case PhysicalTypeID::STRUCT: {
     StructVector::copyToRowData(this, pos, rowData, rowOverflowBuffer);
   } break;
@@ -159,9 +159,9 @@ void ValueVector::copyToRowData(uint32_t pos, uint8_t* rowData,
 void ValueVector::copyFromVectorData(uint8_t* dstData,
                                      const ValueVector* srcVector,
                                      const uint8_t* srcVectorData) {
-  NEUG_ASSERT(srcVector->dataType.getPhysicalType() ==
-              dataType.getPhysicalType());
-  switch (srcVector->dataType.getPhysicalType()) {
+  NEUG_ASSERT(getPhysicalType(srcVector->dataType.id()) ==
+              getPhysicalType(dataType.id()));
+  switch (getPhysicalType(srcVector->dataType.id())) {
   case PhysicalTypeID::STRUCT: {
     StructVector::copyFromVectorData(this, dstData, srcVector, srcVectorData);
   } break;
@@ -197,7 +197,7 @@ void ValueVector::copyFromValue(uint64_t pos, const Value& value) {
   }
   setNull(pos, false);
   auto dstValue = valueBuffer.get() + pos * numBytesPerValue;
-  switch (dataType.getPhysicalType()) {
+  switch (getPhysicalType(dataType.id())) {
   case PhysicalTypeID::INT64: {
     memcpy(dstValue, &value.val.int64Val, numBytesPerValue);
   } break;
@@ -278,7 +278,7 @@ std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
   }
   value->setNull(false);
   value->dataType = dataType.copy();
-  switch (dataType.getPhysicalType()) {
+  switch (getPhysicalType(dataType.id())) {
   case PhysicalTypeID::INT64: {
     value->val.int64Val = getValue<int64_t>(pos);
   } break;
@@ -354,7 +354,7 @@ std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
 }
 
 void ValueVector::resetAuxiliaryBuffer() {
-  switch (dataType.getPhysicalType()) {
+  switch (getPhysicalType(dataType.id())) {
   case PhysicalTypeID::STRING: {
     neug_dynamic_cast<StringAuxiliaryBuffer*>(auxiliaryBuffer.get())
         ->resetOverflowBuffer();
@@ -381,8 +381,8 @@ void ValueVector::resetAuxiliaryBuffer() {
   }
 }
 
-uint32_t ValueVector::getDataTypeSize(const LogicalType& type) {
-  switch (type.getPhysicalType()) {
+uint32_t ValueVector::getDataTypeSize(const DataType& type) {
+  switch (getPhysicalType(type.id())) {
   case PhysicalTypeID::STRING: {
     return sizeof(neug_string_t);
   }
@@ -394,7 +394,7 @@ uint32_t ValueVector::getDataTypeSize(const LogicalType& type) {
     return sizeof(list_entry_t);
   }
   default: {
-    return PhysicalTypeUtils::getFixedTypeSize(type.getPhysicalType());
+    return PhysicalTypeUtils::getFixedTypeSize(getPhysicalType(type.id()));
   }
   }
 }
@@ -402,7 +402,7 @@ uint32_t ValueVector::getDataTypeSize(const LogicalType& type) {
 void ValueVector::initializeValueBuffer() {
   valueBuffer =
       std::make_unique<uint8_t[]>(numBytesPerValue * DEFAULT_VECTOR_CAPACITY);
-  if (dataType.getPhysicalType() == PhysicalTypeID::STRUCT) {
+  if (getPhysicalType(dataType.id()) == PhysicalTypeID::STRUCT) {
     // For struct valueVectors, each struct_entry_t stores its current position
     // in the valueVector.
     std::iota(reinterpret_cast<int64_t*>(getData()),
@@ -415,7 +415,7 @@ void ValueVector::initializeValueBuffer() {
 void ValueVector::serialize(Serializer& ser) const {
   // dataType, num_values, data, nullMask, aux
   ser.writeDebuggingInfo("data_type");
-  dataType.serialize(ser);
+  ser.serializeValue(static_cast<uint8_t>(dataType.id()));
   ser.writeDebuggingInfo("num_values");
   const auto selSize = state->getSelVector().getSelSize();
   ser.write<sel_t>(selSize);
@@ -434,7 +434,9 @@ std::unique_ptr<ValueVector> ValueVector::deSerialize(
     std::shared_ptr<DataChunkState> dataChunkState) {
   std::string key;
   deSer.validateDebuggingInfo(key, "data_type");
-  auto dataType = LogicalType::deserialize(deSer);
+  uint8_t typeIdVal;
+  deSer.deserializeValue(typeIdVal);
+  auto dataType = DataType(static_cast<DataTypeId>(typeIdVal));
   auto result = std::make_unique<ValueVector>(std::move(dataType), mm);
   result->state = dataChunkState;
   deSer.validateDebuggingInfo(key, "num_values");
@@ -480,20 +482,12 @@ template NEUG_API void ValueVector::setValue<float>(uint32_t pos, float val);
 template NEUG_API void ValueVector::setValue<date_t>(uint32_t pos, date_t val);
 template NEUG_API void ValueVector::setValue<timestamp_t>(uint32_t pos,
                                                           timestamp_t val);
-template NEUG_API void ValueVector::setValue<timestamp_ns_t>(
-    uint32_t pos, timestamp_ns_t val);
 template NEUG_API void ValueVector::setValue<timestamp_ms_t>(
     uint32_t pos, timestamp_ms_t val);
-template NEUG_API void ValueVector::setValue<timestamp_sec_t>(
-    uint32_t pos, timestamp_sec_t val);
-template NEUG_API void ValueVector::setValue<timestamp_tz_t>(
-    uint32_t pos, timestamp_tz_t val);
 template NEUG_API void ValueVector::setValue<interval_t>(uint32_t pos,
                                                          interval_t val);
 template NEUG_API void ValueVector::setValue<list_entry_t>(uint32_t pos,
                                                            list_entry_t val);
-template NEUG_API void ValueVector::setValue<neug_uuid_t>(uint32_t pos,
-                                                          neug_uuid_t val);
 
 template <>
 void ValueVector::setValue(uint32_t pos, neug_string_t val) {
@@ -514,7 +508,7 @@ void ValueVector::setNull(uint32_t pos, bool isNull) {
 
 void StringVector::addString(ValueVector* vector, uint32_t vectorPos,
                              neug_string_t& srcStr) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   auto& dstStr = vector->getValue<neug_string_t>(vectorPos);
@@ -529,7 +523,7 @@ void StringVector::addString(ValueVector* vector, uint32_t vectorPos,
 
 void StringVector::addString(ValueVector* vector, uint32_t vectorPos,
                              const char* srcStr, uint64_t length) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   auto& dstStr = vector->getValue<neug_string_t>(vectorPos);
@@ -550,7 +544,7 @@ void StringVector::addString(ValueVector* vector, uint32_t vectorPos,
 neug_string_t& StringVector::reserveString(ValueVector* vector,
                                            uint32_t vectorPos,
                                            uint64_t length) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   auto& dstStr = vector->getValue<neug_string_t>(vectorPos);
@@ -564,7 +558,7 @@ neug_string_t& StringVector::reserveString(ValueVector* vector,
 
 void StringVector::reserveString(ValueVector* vector, neug_string_t& dstStr,
                                  uint64_t length) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   dstStr.len = length;
@@ -576,7 +570,7 @@ void StringVector::reserveString(ValueVector* vector, neug_string_t& dstStr,
 
 void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
                              neug_string_t& srcStr) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   auto stringBuffer =
       neug_dynamic_cast<StringAuxiliaryBuffer*>(vector->auxiliaryBuffer.get());
   if (neug_string_t::isShortString(srcStr.len)) {
@@ -590,10 +584,10 @@ void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
 
 void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
                              const char* srcStr, uint64_t length) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRING);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRING);
   // Enforce the system-wide VARCHAR upper bound at the vector layer so a single
   // overflow allocation can't be driven to arbitrary size by a malformed input.
-  const size_t maxStringLen = LogicalType::getMaxStringMaxLen();
+  constexpr size_t maxStringLen = 4096;
   if (length > maxStringLen) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "StringVector::addString: length " + std::to_string(length) +
@@ -738,7 +732,7 @@ void ListVector::sliceDataVector(ValueVector* vectorToSlice, uint64_t offset,
 
 void StructVector::copyFromRowData(ValueVector* vector, uint32_t pos,
                                    const uint8_t* rowData) {
-  NEUG_ASSERT(vector->dataType.getPhysicalType() == PhysicalTypeID::STRUCT);
+  NEUG_ASSERT(getPhysicalType(vector->dataType.id()) == PhysicalTypeID::STRUCT);
   auto& structFields = getFieldVectors(vector);
   auto structNullBytes = rowData;
   auto structValues = structNullBytes +

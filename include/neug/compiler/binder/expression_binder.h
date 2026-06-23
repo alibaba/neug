@@ -145,9 +145,9 @@ class ExpressionBinder {
   std::shared_ptr<Expression> bindVariableExpression(
       const std::string& varName) const;
   std::shared_ptr<Expression> createVariableExpression(
-      common::LogicalType logicalType, std::string_view name) const;
+      common::DataType logicalType, std::string_view name) const;
   std::shared_ptr<Expression> createVariableExpression(
-      common::LogicalType logicalType, std::string name) const;
+      common::DataType logicalType, std::string name) const;
   // Subquery expressions.
   std::shared_ptr<Expression> bindSubqueryExpression(
       const parser::ParsedExpression& parsedExpr);
@@ -158,16 +158,16 @@ class ExpressionBinder {
   /****** cast *****/
   NEUG_API std::shared_ptr<Expression> implicitCastIfNecessary(
       const std::shared_ptr<Expression>& expression,
-      const common::LogicalType& targetType);
+      const common::DataType& targetType);
   // Use implicitCast to cast to types you have obtained through known implicit
   // casting rules. Use forceCast to cast to types you have obtained through
   // other means, for example, through a maxLogicalType function
   std::shared_ptr<Expression> implicitCast(
       const std::shared_ptr<Expression>& expression,
-      const common::LogicalType& targetType);
+      const common::DataType& targetType);
   std::shared_ptr<Expression> forceCast(
       const std::shared_ptr<Expression>& expression,
-      const common::LogicalType& targetType);
+      const common::DataType& targetType);
 
   std::string getUniqueName(const std::string& name) const;
 

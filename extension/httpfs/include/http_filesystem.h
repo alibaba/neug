@@ -36,23 +36,23 @@ namespace http {
 
 /**
  * HTTP/HTTPS URI components structure for parsing HTTP(S) URLs
- * 
+ *
  * Supports formats:
  * - https://example.com/path/to/file.parquet
  * - http://example.com:8080/data/file.csv
  */
 struct HTTPURIComponents {
-  std::string scheme;    // "http" or "https"
-  std::string host;      // Hostname or IP address
-  int port;              // Port number (default: 80 for http, 443 for https)
-  std::string path;      // Path component (/path/to/file)
-  
+  std::string scheme;  // "http" or "https"
+  std::string host;    // Hostname or IP address
+  int port;            // Port number (default: 80 for http, 443 for https)
+  std::string path;    // Path component (/path/to/file)
+
   /**
    * Parse HTTP(S) URI
    * Throws exception if URI format is invalid
    */
   static HTTPURIComponents parse(const std::string& uri);
-  
+
   /**
    * Reconstruct full URL from components
    */
@@ -61,7 +61,7 @@ struct HTTPURIComponents {
 
 /**
  * HTTP RandomAccessFile implementation using libcurl
- * 
+ *
  * Supports:
  * - HTTP Range requests for partial reading
  * - Connection reuse for efficient I/O
@@ -72,21 +72,24 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
  public:
   /**
    * Create HTTP file handle
-   * 
+   *
    * @param url Full HTTP(S) URL
    * @param options HTTP options (auth, headers, etc.)
    */
-  HTTPRandomAccessFile(const std::string& url, 
-                       const common::case_insensitive_map_t<std::string>& options);
-  
+  HTTPRandomAccessFile(
+      const std::string& url,
+      const common::case_insensitive_map_t<std::string>& options);
+
   ~HTTPRandomAccessFile() override;
 
   // arrow::io::RandomAccessFile interface
   arrow::Result<int64_t> Tell() const override;
   arrow::Result<int64_t> GetSize() override;
   arrow::Status Seek(int64_t position) override;
-  arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
-  arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position, int64_t nbytes) override;
+  arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes,
+                                void* out) override;
+  arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position,
+                                                       int64_t nbytes) override;
   arrow::Result<int64_t> Read(int64_t nbytes, void* out) override;
   arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override;
   arrow::Status Close() override;
@@ -97,13 +100,14 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
    * Perform HTTP Range request
    * @return Result<int64_t> Number of bytes actually read, or error status
    */
-  arrow::Result<int64_t> ReadRange(int64_t offset, int64_t length, void* buffer);
-  
+  arrow::Result<int64_t> ReadRange(int64_t offset, int64_t length,
+                                   void* buffer);
+
   /**
    * Initialize file size via HEAD request
    */
   arrow::Status InitializeFileSize();
-  
+
   /**
    * Setup CURL handle with common options
    */
@@ -115,7 +119,7 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
   int64_t file_size_;
   int64_t position_;
   bool closed_;
-  
+
   // Authentication
   std::string bearer_token_;
   std::vector<std::string> custom_headers_;
@@ -123,7 +127,8 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
 };
 
 /**
- * HTTP FileSystem - implements both arrow::fs::FileSystem and neug::fsys::FileSystem.
+ * HTTP FileSystem - implements both arrow::fs::FileSystem and
+ * neug::fsys::FileSystem.
  *
  * As arrow::fs::FileSystem: provides read-only HTTP/HTTPS file access via
  * libcurl with Range request support, integrating with Arrow Dataset API.
@@ -135,7 +140,8 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
 class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
  public:
   // Construct from raw options (used internally and by toArrowFileSystem()).
-  explicit HTTPFileSystem(const common::case_insensitive_map_t<std::string>& options);
+  explicit HTTPFileSystem(
+      const common::case_insensitive_map_t<std::string>& options);
 
   // Construct from FileSchema (used by CreateHTTPFileSystem factory).
   explicit HTTPFileSystem(const reader::FileSchema& schema);
@@ -147,12 +153,14 @@ class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
 
   bool Equals(const arrow::fs::FileSystem& other) const override;
 
-  arrow::Result<arrow::fs::FileInfo> GetFileInfo(const std::string& path) override;
+  arrow::Result<arrow::fs::FileInfo> GetFileInfo(
+      const std::string& path) override;
 
   arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
       const arrow::fs::FileSelector& selector) override;
 
-  arrow::Status CreateDir(const std::string& path, bool recursive = true) override;
+  arrow::Status CreateDir(const std::string& path,
+                          bool recursive = true) override;
 
   arrow::Status DeleteDir(const std::string& path) override;
 
@@ -165,7 +173,8 @@ class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
 
   arrow::Status Move(const std::string& src, const std::string& dest) override;
 
-  arrow::Status CopyFile(const std::string& src, const std::string& dest) override;
+  arrow::Status CopyFile(const std::string& src,
+                         const std::string& dest) override;
 
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
       const std::string& path) override;

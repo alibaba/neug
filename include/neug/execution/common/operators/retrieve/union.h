@@ -19,11 +19,12 @@
 namespace neug {
 
 namespace execution {
-class Context;
+class ContextChunk;
 
 class Union {
  public:
-  static neug::result<Context> union_op(std::vector<Context>&& ctxs);
+  static neug::result<ContextChunk> union_op(
+      std::vector<ContextChunk>&& chunks);
 };
 
 }  // namespace execution

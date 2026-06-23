@@ -164,6 +164,11 @@ class VertexTimestamp : public Module {
 
   const vid_t InitVertexNum() const { return init_vertex_num_; }
 
+  std::unique_ptr<Module> Clone() const override;
+
+  // DeepCopy
+  void Detach(Checkpoint& ckp, MemoryLevel level) override;
+
   void Close();
 
  private:
@@ -172,10 +177,10 @@ class VertexTimestamp : public Module {
   void resize_inserted_vertices(size_t new_size, bool keep_front = true);
   vid_t init_vertex_num_;
 
-  std::unique_ptr<std::atomic<timestamp_t>[]> inserted_vertices_;
+  std::shared_ptr<std::atomic<timestamp_t>[]> inserted_vertices_;
 
   vid_t max_vertex_num_;
-  std::unique_ptr<std::set<vid_t>> removed_vertices_;
+  std::shared_ptr<std::set<vid_t>> removed_vertices_;
 };
 
 }  // namespace neug

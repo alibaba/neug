@@ -274,7 +274,7 @@ static void scanArrowArrayFixedList(const ArrowSchema* schema,
                                     ArrowNullMaskTree* mask, uint64_t srcOffset,
                                     uint64_t dstOffset, uint64_t count) {
   mask->copyToValueVector(&outputVector, dstOffset, count);
-  auto numElements = ArrayType::getNumElements(outputVector.dataType);
+  auto numElements = ArrayType::GetNumElements(outputVector.dataType);
   for (auto i = 0u; i < count; ++i) {
     auto newEntry = ListVector::addList(&outputVector, numElements);
     outputVector.setValue<list_entry_t>(i + dstOffset, newEntry);
@@ -531,7 +531,7 @@ void ArrowConverter::fromArrowArray(const ArrowSchema* schema,
       NEUG_UNREACHABLE;
     }
   case 'd': {
-    switch (outputVector.dataType.getPhysicalType()) {
+    switch (getPhysicalType(outputVector.dataType.id())) {
     case PhysicalTypeID::INT16:
       return scanArrowArrayFixedSizePrimitiveAndCastTo<int128_t, int16_t>(
           array, outputVector, mask, srcOffset, dstOffset, count);
@@ -629,7 +629,7 @@ void ArrowConverter::fromArrowArray(const ArrowSchema* schema,
       RUNTIME_CHECK({
         auto arrowNumElements = std::stoul(arrowType + 3);
         auto outputNumElements =
-            ArrayType::getNumElements(outputVector.dataType);
+            ArrayType::GetNumElements(outputVector.dataType);
         NEUG_ASSERT(arrowNumElements == outputNumElements);
       });
       return scanArrowArrayFixedList(schema, array, outputVector, mask,

@@ -42,10 +42,10 @@ Value* RecursiveRelVal::getRels(const Value* val) {
 
 void RecursiveRelVal::throwIfNotRecursiveRel(const Value* val) {
   // LCOV_EXCL_START
-  if (val->dataType.getLogicalTypeID() != LogicalTypeID::RECURSIVE_REL) {
+  if (val->dataType.id() != DataTypeId::kPath) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         stringFormat("Expected RECURSIVE_REL type, but got {} type",
-                     val->dataType.toString()));
+                     val->dataType.ToString()));
   }
   // LCOV_EXCL_STOP
 }

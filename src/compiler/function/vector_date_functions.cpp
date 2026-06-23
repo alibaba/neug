@@ -33,36 +33,31 @@ namespace function {
 function_set DatePartFunction::getFunctionSet() {
   function_set result;
   result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::DATE},
-      LogicalTypeID::INT64,
+      name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kDate},
+      DataTypeId::kInt64,
       ScalarFunction::BinaryExecFunction<neug_string_t, date_t, int64_t,
                                          DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING,
-                                 LogicalTypeID::TIMESTAMP},
-      LogicalTypeID::INT64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, neug::common::timestamp_t,
-                                         int64_t, DatePart>));
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kTimestampMs},
+      DataTypeId::kInt64,
+      ScalarFunction::BinaryExecFunction<
+          neug_string_t, neug::common::timestamp_t, int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING,
-                                 LogicalTypeID::INTERVAL},
-      LogicalTypeID::INT64,
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kInterval},
+      DataTypeId::kInt64,
+      ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
+                                         DatePart>));
+  result.push_back(make_unique<ScalarFunction>(
+      name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kDate},
+      DataTypeId::kInt64,
       ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
                                          DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::DATE32},
-      LogicalTypeID::INT64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
-                                         DatePart>));
-  result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING,
-                                 LogicalTypeID::TIMESTAMP64},
-      LogicalTypeID::INT64,
+      std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kTimestampMs},
+      DataTypeId::kInt64,
       ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
                                          DatePart>));
   return result;

@@ -34,8 +34,8 @@ namespace function {
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   const auto& structType = input.arguments[0]->getDataType();
-  auto fieldIdx = StructType::getFieldIdx(structType, InternalKeyword::NODES);
-  auto resultType = StructType::getField(structType, fieldIdx).getType().copy();
+  auto fieldIdx = StructType::GetFieldIdx(structType, InternalKeyword::NODES);
+  auto resultType = StructType::GetChildType(structType, fieldIdx).copy();
   auto bindData =
       std::make_unique<StructExtractBindData>(std::move(resultType), fieldIdx);
   bindData->paramTypes = ExpressionUtil::getDataTypes(input.arguments);
@@ -45,8 +45,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 function_set NodesFunction::getFunctionSet() {
   function_set functionSet;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::RECURSIVE_REL},
-      LogicalTypeID::ANY);
+      name, std::vector<DataTypeId>{DataTypeId::kPath}, DataTypeId::kUnknown);
   function->bindFunc = bindFunc;
   function->compileFunc = StructExtractFunctions::compileFunc;
   functionSet.push_back(std::move(function));

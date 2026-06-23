@@ -34,7 +34,7 @@ std::vector<std::pair<std::string, std::unique_ptr<Value>>>
 NodeVal::getProperties(const Value* val) {
   throwIfNotNode(val);
   std::vector<std::pair<std::string, std::unique_ptr<Value>>> properties;
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   for (auto i = 0u; i < val->childrenSize; ++i) {
     auto currKey = fieldNames[i];
     if (currKey == InternalKeyword::ID || currKey == InternalKeyword::LABEL) {
@@ -47,13 +47,13 @@ NodeVal::getProperties(const Value* val) {
 
 uint64_t NodeVal::getNumProperties(const Value* val) {
   throwIfNotNode(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   return fieldNames.size() - OFFSET;
 }
 
 std::string NodeVal::getPropertyName(const Value* val, uint64_t index) {
   throwIfNotNode(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
     return "";
   }
@@ -62,7 +62,7 @@ std::string NodeVal::getPropertyName(const Value* val, uint64_t index) {
 
 Value* NodeVal::getPropertyVal(const Value* val, uint64_t index) {
   throwIfNotNode(val);
-  auto fieldNames = StructType::getFieldNames(val->dataType);
+  auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
     return nullptr;
   }
@@ -71,14 +71,14 @@ Value* NodeVal::getPropertyVal(const Value* val, uint64_t index) {
 
 Value* NodeVal::getNodeIDVal(const Value* val) {
   throwIfNotNode(val);
-  auto fieldIdx = StructType::getFieldIdx(val->dataType, InternalKeyword::ID);
+  auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::ID);
   return val->children[fieldIdx].get();
 }
 
 Value* NodeVal::getLabelVal(const Value* val) {
   throwIfNotNode(val);
   auto fieldIdx =
-      StructType::getFieldIdx(val->dataType, InternalKeyword::LABEL);
+      StructType::GetFieldIdx(val->dataType, InternalKeyword::LABEL);
   return val->children[fieldIdx].get();
 }
 
@@ -89,9 +89,9 @@ std::string NodeVal::toString(const Value* val) {
 
 void NodeVal::throwIfNotNode(const Value* val) {
   // LCOV_EXCL_START
-  if (val->dataType.getLogicalTypeID() != LogicalTypeID::NODE) {
+  if (val->dataType.id() != DataTypeId::kVertex) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(
-        "Expected NODE type, but got {} type", val->dataType.toString()));
+        "Expected NODE type, but got {} type", val->dataType.ToString()));
   }
   // LCOV_EXCL_STOP
 }

@@ -31,6 +31,7 @@
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
+#include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
@@ -113,15 +114,15 @@ const binder::Expression* childFunction(const binder::Expression* curExpr,
 }
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
-    const common::LogicalType& type) {
-  auto typeInfo =
-      type.getExtraTypeInfo()->constPtrCast<common::StructTypeInfo>();
+    const neug::DataType& type) {
+  auto& fieldNames = common::StructType::GetFieldNames(type);
+  auto& childTypes = common::StructType::GetChildTypes(type);
   auto tupleType = std::make_unique<::common::Tuple>();
-  for (auto& field : typeInfo->getStructFields()) {
-    auto childType = convertLogicalType(field.getType().copy());
+  for (size_t i = 0; i < fieldNames.size(); i++) {
+    auto childType = convertLogicalType(childTypes[i]);
     if (!childType) {
       THROW_EXCEPTION_WITH_FILE_LINE(
-          "Failed to convert child type for TUPLE type: " + type.toString());
+          "Failed to convert child type for TUPLE type: " + type.ToString());
     }
     if (!childType->has_data_type()) {
       THROW_EXCEPTION_WITH_FILE_LINE(
@@ -136,13 +137,13 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
 }
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
-    const common::LogicalType& type) {
+    const neug::DataType& type) {
   auto result = std::make_unique<::common::IrDataType>();
-  VLOG(1) << "Converting ARRAY child type: " << type.toString();
+  VLOG(1) << "Converting ARRAY child type: " << type.ToString();
   auto childType = convertLogicalType(type);
   if (!childType) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "Failed to convert child type for ARRAY type: " + type.toString());
+        "Failed to convert child type for ARRAY type: " + type.ToString());
   }
   if (childType->has_graph_type()) {
     auto listType = std::make_unique<::common::GraphTypeList>();
@@ -163,7 +164,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
   return result;
 }
 
-GNodeType* convertGNodeType(const common::LogicalType& type) {
+GNodeType* convertGNodeType(const neug::DataType& type) {
   auto extraTypeInfo = type.getExtraTypeInfo();
   if (!extraTypeInfo) {
     return nullptr;
@@ -176,7 +177,7 @@ GNodeType* convertGNodeType(const common::LogicalType& type) {
   return nodeTypeInfo->getNodeType();
 }
 
-GRelType* convertGRelType(const common::LogicalType& type) {
+GRelType* convertGRelType(const neug::DataType& type) {
   auto extraTypeInfo = type.getExtraTypeInfo();
   if (!extraTypeInfo) {
     return nullptr;
@@ -190,169 +191,145 @@ GRelType* convertGRelType(const common::LogicalType& type) {
 }
 
 std::unique_ptr<::common::IrDataType>
-GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type) {
-  switch (type.getLogicalTypeID()) {
-  case common::LogicalTypeID::NODE: {
+GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
+  switch (type.id()) {
+  case common::DataTypeId::kVertex: {
     auto gNodeType = convertGNodeType(type);
     if (gNodeType) {
       return convertNodeType(*gNodeType);
     } else {
       LOG(WARNING) << "Expected NodeType for NODE type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return NODE type with empty label";
       return convertNodeType(gopt::GNodeType({}));
     }
     break;
   }
-  case common::LogicalTypeID::REL: {
+  case common::DataTypeId::kEdge: {
     auto gRelType = convertGRelType(type);
     if (gRelType) {
       return convertRelType(*gRelType);
     } else {
       LOG(WARNING) << "Expected RelType for REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return REL type with empty label";
       return convertRelType(gopt::GRelType({}));
     }
     break;
   }
-  case common::LogicalTypeID::RECURSIVE_REL: {
-    if (type.getPhysicalType() != common::PhysicalTypeID::STRUCT) {
+  case common::DataTypeId::kPath: {
+    if (common::getPhysicalType(type.id()) != common::PhysicalTypeID::STRUCT) {
       LOG(WARNING) << "Expected StructType for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
     auto fieldIdx =
-        common::StructType::getFieldIdx(type, common::InternalKeyword::RELS);
+        common::StructType::GetFieldIdx(type, common::InternalKeyword::RELS);
     if (fieldIdx == common::INVALID_STRUCT_FIELD_IDX) {
       LOG(WARNING) << "Expected RELS field for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
+                   << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
 
-    auto& relsType = common::StructType::getField(type, fieldIdx).getType();
-    if (relsType.getPhysicalType() == common::PhysicalTypeID::LIST) {
-      auto& childType = common::ListType::getChildType(relsType);
+    const auto& relsType = common::StructType::GetChildType(type, fieldIdx);
+    if (common::getPhysicalType(relsType.id()) ==
+        common::PhysicalTypeID::LIST) {
+      auto& childType = common::ListType::GetChildType(relsType);
       auto gRelType = convertGRelType(childType);
       if (gRelType) {
         return convertPathType(*gRelType);
       } else {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
+                     << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
         return convertPathType(gopt::GRelType({}));
       }
-    } else if (relsType.getPhysicalType() == common::PhysicalTypeID::ARRAY) {
-      auto& childType = common::ArrayType::getChildType(relsType);
+    } else if (common::getPhysicalType(relsType.id()) ==
+               common::PhysicalTypeID::ARRAY) {
+      auto& childType = common::ArrayType::GetChildType(relsType);
       auto gRelType = convertGRelType(childType);
       if (gRelType) {
         return convertPathType(*gRelType);
       } else {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
+                     << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
         return convertPathType(gopt::GRelType({}));
       }
     } else {
       LOG(WARNING) << "Expected ListType or ArrayType for RECURSIVE_REL type, "
-                   << "but got: " << relsType.toString()
+                   << "but got: " << relsType.ToString()
                    << " , return RECURSIVE_REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
     break;
   }
-  case common::LogicalTypeID::ARRAY: {
-    auto extraTypeInfo = type.getExtraTypeInfo();
-    CHECK(extraTypeInfo) << "Array type should have extra type info: " +
-                                type.toString();
-    auto const_off = const_cast<common::ExtraTypeInfo*>(extraTypeInfo);
-    CHECK(const_off) << "Array type has null extra type info: " +
-                            type.toString();
-    auto array_type_info =
-        neug::common::neug_dynamic_cast<neug::common::ArrayTypeInfo*>(
-            const_off);
-    CHECK(array_type_info) << "Expected ArrayTypeInfo for ARRAY type, ";
-    auto& child_type = array_type_info->getChildType();
+  case common::DataTypeId::kArray: {
+    auto& child_type = common::ArrayType::GetChildType(type);
     return convertArrayType(child_type);
-    break;
   }
-  case common::LogicalTypeID::LIST: {
-    VLOG(1) << "Converting LIST type: " << type.toString();
-    auto extraTypeInfo = type.getExtraTypeInfo();
-    CHECK(extraTypeInfo) << "List type should have extra type info: " +
-                                type.toString();
-    auto const_off = const_cast<common::ExtraTypeInfo*>(extraTypeInfo);
-    CHECK(const_off) << "List type has null extra type info: " +
-                            type.toString();
-    auto list_type_info =
-        neug::common::neug_dynamic_cast<neug::common::ListTypeInfo*>(const_off);
-    CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
-    auto& child_type = list_type_info->getChildType();
+  case common::DataTypeId::kList: {
+    VLOG(1) << "Converting LIST type: " << type.ToString();
+    auto& child_type = common::ListType::GetChildType(type);
     return convertArrayType(child_type);
-    break;
   }
-  case common::LogicalTypeID::STRUCT: {
+  case common::DataTypeId::kStruct: {
     return convertStructType(type);
     break;
   }
   default:
     // For other types, we can convert them directly
-    VLOG(1) << "Converting simple logical type: " << type.toString();
+    VLOG(1) << "Converting simple logical type: " << type.ToString();
     return convertSimpleLogicalType(type);
   }
 }
 
 std::unique_ptr<::common::IrDataType>
-GPhysicalTypeConverter::convertSimpleLogicalType(
-    const common::LogicalType& type) {
+GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
   auto result = std::make_unique<::common::DataType>();
-  switch (type.getLogicalTypeID()) {
-  case common::LogicalTypeID::ANY: {
+  switch (type.id()) {
+  case common::DataTypeId::kUnknown: {
     result->set_primitive_type(::common::PrimitiveType::DT_ANY);
     break;
   }
-  case common::LogicalTypeID::BOOL: {
+  case common::DataTypeId::kBoolean: {
     result->set_primitive_type(::common::PrimitiveType::DT_BOOL);
     break;
   }
-  case common::LogicalTypeID::INT32: {
+  case common::DataTypeId::kInt32: {
     result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT32);
     break;
   }
-  case common::LogicalTypeID::INT64: {
+  case common::DataTypeId::kInt64: {
     result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT64);
     break;
   }
-  case common::LogicalTypeID::UINT32: {
+  case common::DataTypeId::kUInt32: {
     result->set_primitive_type(::common::PrimitiveType::DT_UNSIGNED_INT32);
     break;
   }
-  case common::LogicalTypeID::UINT64: {
+  case common::DataTypeId::kUInt64: {
     result->set_primitive_type(::common::PrimitiveType::DT_UNSIGNED_INT64);
     break;
   }
-  case common::LogicalTypeID::FLOAT: {
+  case common::DataTypeId::kFloat: {
     result->set_primitive_type(::common::PrimitiveType::DT_FLOAT);
     break;
   }
-  case common::LogicalTypeID::DOUBLE: {
+  case common::DataTypeId::kDouble: {
     result->set_primitive_type(::common::PrimitiveType::DT_DOUBLE);
     break;
   }
-  case common::LogicalTypeID::STRING: {
+  case common::DataTypeId::kVarchar: {
     auto extraInfo = type.getExtraTypeInfo();
     size_t maxLen;
     if (!extraInfo) {
-      LOG(WARNING)
-          << "Missing extra type info in string type, use default max length: "
-          << common::LogicalType::getDefaultStringMaxLen();
-      maxLen = common::LogicalType::getDefaultStringMaxLen();
+      maxLen = VARCHAR_DEFAULT_LENGTH;
     } else {
-      auto stringTypeInfo =
-          extraInfo->constPtrCast<neug::common::StringTypeInfo>();
-      maxLen = stringTypeInfo->getMaxLength();
+      auto& stringTypeInfo = extraInfo->Cast<neug::StringTypeInfo>();
+      maxLen = stringTypeInfo.max_length;
     }
     auto strType = std::make_unique<::common::String>();
     auto varChar = std::make_unique<::common::String::VarChar>();
@@ -361,44 +338,29 @@ GPhysicalTypeConverter::convertSimpleLogicalType(
     result->set_allocated_string(strType.release());
     break;
   }
-  case common::LogicalTypeID::INTERNAL_ID: {
+  case common::DataTypeId::kInternalId: {
     result->set_primitive_type(::common::PrimitiveType::DT_SIGNED_INT64);
     break;
   }
-  case common::LogicalTypeID::DATE32: {
+  case common::DataTypeId::kDate: {
     auto temporalType = std::make_unique<::common::Temporal>();
-    temporalType->set_allocated_date32(new ::common::Temporal::Date32());
+    auto date = new ::common::Temporal::Date();
+    date->set_date_format(::common::Temporal::DF_YYYY_MM_DD);
+    temporalType->set_allocated_date(date);
     result->set_allocated_temporal(temporalType.release());
     break;
   }
-  case common::LogicalTypeID::TIMESTAMP64: {
+  case common::DataTypeId::kTimestampMs: {
     auto temporalType = std::make_unique<::common::Temporal>();
-    temporalType->set_allocated_timestamp(new ::common::Temporal::Timestamp());
+    auto dateTime = new ::common::Temporal::DateTime();
+    dateTime->set_date_time_format(
+        ::common::Temporal::DTF_YYYY_MM_DD_HH_MM_SS_SSS);
+    dateTime->set_time_zone_format(::common::Temporal::TZF_UTC);
+    temporalType->set_allocated_date_time(dateTime);
     result->set_allocated_temporal(temporalType.release());
     break;
   }
-  case common::LogicalTypeID::DATE: {
-    auto temporalType = std::make_unique<::common::Temporal>();
-    auto date = std::make_unique<::common::Temporal_Date>();
-    date->set_date_format(
-        ::common::Temporal::DateFormat::Temporal_DateFormat_DF_YYYY_MM_DD);
-    temporalType->set_allocated_date(date.release());
-    result->set_allocated_temporal(temporalType.release());
-    break;
-  }
-  case common::LogicalTypeID::TIMESTAMP: {
-    auto temporalType = std::make_unique<::common::Temporal>();
-    auto datetime = std::make_unique<::common::Temporal_DateTime>();
-    datetime->set_date_time_format(
-        ::common::Temporal::DateTimeFormat::
-            Temporal_DateTimeFormat_DTF_YYYY_MM_DD_HH_MM_SS_SSS);
-    datetime->set_time_zone_format(
-        ::common::Temporal::TimeZoneFormat::Temporal_TimeZoneFormat_TZF_UTC);
-    temporalType->set_allocated_date_time(datetime.release());
-    result->set_allocated_temporal(temporalType.release());
-    break;
-  }
-  case common::LogicalTypeID::INTERVAL: {
+  case common::DataTypeId::kInterval: {
     auto temporalType = std::make_unique<::common::Temporal>();
     temporalType->set_allocated_interval(new ::common::Temporal::Interval());
     result->set_allocated_temporal(temporalType.release());
@@ -406,7 +368,7 @@ GPhysicalTypeConverter::convertSimpleLogicalType(
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported basic type for conversion: " +
-                                   type.toString());
+                                   type.ToString());
   }
   auto irType = std::make_unique<::common::IrDataType>();
   irType->set_allocated_data_type(result.release());
@@ -443,44 +405,39 @@ GPhysicalTypeConverter::convertRelTable(
   return result;
 }
 
-common::LogicalType GLogicalTypeConverter::convertDataType(
+neug::DataType GLogicalTypeConverter::convertDataType(
     const ::common::DataType& type) {
   switch (type.item_case()) {
   case ::common::DataType::kPrimitiveType: {
     // Handle primitive types
     switch (type.primitive_type()) {
     case ::common::PrimitiveType::DT_ANY:
-      return common::LogicalType::ANY();
+      return neug::DataType(DataTypeId::kUnknown);
     case ::common::PrimitiveType::DT_BOOL:
-      return common::LogicalType::BOOL();
+      return neug::DataType(DataTypeId::kBoolean);
     case ::common::PrimitiveType::DT_SIGNED_INT32:
-      return common::LogicalType::INT32();
+      return neug::DataType(DataTypeId::kInt32);
     case ::common::PrimitiveType::DT_UNSIGNED_INT32:
-      return common::LogicalType::UINT32();
+      return neug::DataType(DataTypeId::kUInt32);
     case ::common::PrimitiveType::DT_SIGNED_INT64:
-      return common::LogicalType::INT64();
+      return neug::DataType(DataTypeId::kInt64);
     case ::common::PrimitiveType::DT_UNSIGNED_INT64:
-      return common::LogicalType::UINT64();
+      return neug::DataType(DataTypeId::kUInt64);
     case ::common::PrimitiveType::DT_FLOAT:
-      return common::LogicalType::FLOAT();
+      return neug::DataType(DataTypeId::kFloat);
     case ::common::PrimitiveType::DT_DOUBLE:
-      return common::LogicalType::DOUBLE();
+      return neug::DataType(DataTypeId::kDouble);
     case ::common::PrimitiveType::DT_NULL:
-      return common::LogicalType::ANY();
+      return neug::DataType(DataTypeId::kUnknown);
     default:
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Unsupported PrimitiveType: " +
           std::to_string(static_cast<int>(type.primitive_type())));
     }
   }
-  case ::common::DataType::kDecimal: {
-    // Handle decimal type
-    const auto& decimal = type.decimal();
-    return common::LogicalType::DECIMAL(decimal.precision(), decimal.scale());
-  }
   case ::common::DataType::kString: {
     // Handle string types - all variants map to STRING
-    return common::LogicalType::STRING();
+    return neug::DataType::Varchar();
   }
   case ::common::DataType::kTemporal: {
     // Handle temporal types
@@ -488,16 +445,16 @@ common::LogicalType GLogicalTypeConverter::convertDataType(
     switch (temporal.item_case()) {
     case ::common::Temporal::kDate:
     case ::common::Temporal::kDate32:
-      return common::LogicalType::DATE();
+      return neug::DataType(DataTypeId::kDate);
     case ::common::Temporal::kDateTime:
     case ::common::Temporal::kTimestamp:
-      return common::LogicalType::TIMESTAMP();
+      return neug::DataType(DataTypeId::kTimestampMs);
     case ::common::Temporal::kInterval:
-      return common::LogicalType::INTERVAL();
+      return neug::DataType(DataTypeId::kInterval);
     case ::common::Temporal::kTime:
     case ::common::Temporal::kTime32:
       // Time types are not directly supported, map to TIMESTAMP
-      return common::LogicalType::TIMESTAMP();
+      return neug::DataType(DataTypeId::kTimestampMs);
     default:
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Unsupported Temporal type in convertDataType");
@@ -509,10 +466,9 @@ common::LogicalType GLogicalTypeConverter::convertDataType(
     auto childType = convertDataType(array.component_type());
     // If max_length is set and > 0, use ARRAY, otherwise use LIST
     if (array.max_length() > 0) {
-      return common::LogicalType::ARRAY(std::move(childType),
-                                        array.max_length());
+      return neug::DataType::Array(std::move(childType), array.max_length());
     } else {
-      return common::LogicalType::LIST(std::move(childType));
+      return neug::DataType::List(std::move(childType));
     }
   }
   case ::common::DataType::kMap: {
@@ -520,20 +476,21 @@ common::LogicalType GLogicalTypeConverter::convertDataType(
     const auto& map = type.map();
     auto keyType = convertDataType(map.key_type());
     auto valueType = convertDataType(map.value_type());
-    return common::LogicalType::MAP(std::move(keyType), std::move(valueType));
+    return neug::DataType::Map(std::move(keyType), std::move(valueType));
   }
   case ::common::DataType::kTuple: {
     // Handle tuple type - convert to STRUCT
     const auto& tuple = type.tuple();
-    std::vector<common::StructField> fields;
-    fields.reserve(tuple.component_types_size());
+    std::vector<std::string> fieldNames;
+    std::vector<neug::DataType> fieldTypes;
+    fieldNames.reserve(tuple.component_types_size());
+    fieldTypes.reserve(tuple.component_types_size());
     for (int i = 0; i < tuple.component_types_size(); ++i) {
       auto componentType = convertDataType(tuple.component_types(i));
-      // Use default field name for tuple components
-      fields.emplace_back("field_" + std::to_string(i),
-                          std::move(componentType));
+      fieldNames.push_back("field_" + std::to_string(i));
+      fieldTypes.push_back(std::move(componentType));
     }
-    return common::LogicalType::STRUCT(std::move(fields));
+    return neug::DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
   }
   case ::common::DataType::ITEM_NOT_SET:
   default:

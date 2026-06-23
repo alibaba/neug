@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
+import glob
+import os
+import re
+import shutil
+import subprocess
+import sys
+
 #
 # Copyright 2020 Alibaba Group Holding Limited. All Rights Reserved.
 #
@@ -16,15 +25,10 @@
 # limitations under the License.
 #
 
-import glob
-import os
-import re
-import shutil
-import subprocess
-import sys
 
 if sys.version_info < (3, 12):
     from distutils.cmd import Command
+
 from pathlib import Path
 
 from setuptools import Extension
@@ -85,7 +89,7 @@ _ENV_FLAGS = {
     "BUILD_HTTP_SERVER": "ON",
     "BUILD_COMPILER": "ON",
     "ENABLE_BACKTRACES": "OFF",
-    "WITH_MIMALLOC": "OFF",
+    "WITH_MIMALLOC": "ON",
     "BUILD_TEST": "OFF",
     "ENABLE_GCOV": "OFF",
 }

@@ -112,8 +112,11 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
         (config_.ptype == SPPredicateType::kPropertyLT ||
          config_.ptype == SPPredicateType::kPropertyGT)) {
       const auto& param_value = params.at(config_.param_names[0]);
-      auto ret = EdgeExpand::expand_vertex_ep_cmp(graph, std::move(ctx), eep_,
-                                                  param_value, config_.ptype);
+      auto ret = ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return EdgeExpand::expand_vertex_ep_cmp(
+                graph, std::move(chunk), eep_, param_value, config_.ptype);
+          });
       if (ret) {
         return ret.value();
       }
@@ -122,8 +125,11 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     auto expr = pred_->bind(&graph, params);
     GeneralPred expr_wrapper(std::move(expr));
     EdgePredicate<GeneralPred> pred(expr_wrapper);
-    return EdgeExpand::expand_vertex<decltype(pred)>(graph, std::move(ctx),
-                                                     eep_, pred);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_vertex<decltype(pred)>(
+              graph, std::move(chunk), eep_, pred);
+        });
   }
 
  private:
@@ -150,11 +156,17 @@ class EdgeExpandVOpr : public IOperator {
       auto expr = pred_->bind(&graph, params);
       GeneralPred expr_wrapper(std::move(expr));
       EdgePredicate pred(expr_wrapper);
-      return EdgeExpand::expand_vertex<decltype(pred)>(graph, std::move(ctx),
-                                                       eep_, pred);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return EdgeExpand::expand_vertex<decltype(pred)>(
+                graph, std::move(chunk), eep_, pred);
+          });
     } else {
-      return EdgeExpand::expand_vertex<DummyPred>(graph, std::move(ctx), eep_,
-                                                  DummyPred());
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return EdgeExpand::expand_vertex<DummyPred>(graph, std::move(chunk),
+                                                        eep_, DummyPred());
+          });
     }
   }
 
@@ -179,9 +191,12 @@ class EdgeExpandEWithSPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_edge_with_special_edge_predicate(
-        graph, std::move(ctx), eep_, config_,
-        params.at(config_.param_names[0]));
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_edge_with_special_edge_predicate(
+              graph, std::move(chunk), eep_, config_,
+              params.at(config_.param_names[0]));
+        });
   }
 
  private:
@@ -203,13 +218,20 @@ class EdgeExpandEOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (pred_ == nullptr) {
-      return EdgeExpand::expand_edge(graph, std::move(ctx), eep_, DummyPred());
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return EdgeExpand::expand_edge(graph, std::move(chunk), eep_,
+                                           DummyPred());
+          });
     } else {
       auto expr = pred_->bind(&graph, params);
       GeneralPred expr_wrapper(std::move(expr));
       EdgePredicate pred(expr_wrapper);
-      return EdgeExpand::expand_edge<decltype(pred)>(graph, std::move(ctx),
-                                                     eep_, pred);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return EdgeExpand::expand_edge<decltype(pred)>(
+                graph, std::move(chunk), eep_, pred);
+          });
     }
   }
 
@@ -234,8 +256,11 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_vertex_with_special_vertex_predicate(
-        graph, std::move(ctx), eep_, config_, params);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_vertex_with_special_vertex_predicate(
+              graph, std::move(chunk), eep_, config_, params);
+        });
   }
 
  private:
@@ -261,8 +286,11 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
     auto expr = pred_->bind(&graph, params);
     GeneralPred expr_wrapper(std::move(expr));
     EdgeNbrPredicate vpred(expr_wrapper);
-    return EdgeExpand::expand_vertex<EdgeNbrPredicate<GeneralPred>>(
-        graph, std::move(ctx), eep_, vpred);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_vertex<EdgeNbrPredicate<GeneralPred>>(
+              graph, std::move(chunk), eep_, vpred);
+        });
   }
 
  private:
@@ -280,7 +308,10 @@ class EdgeExpandDegreeOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_degree(graph, std::move(chunk), eep_);
+        });
   }
 
   std::string get_operator_name() const override {
@@ -482,7 +513,10 @@ class ExpandCountOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_count(graph, std::move(ctx), eep_);
+    return ctx.apply_chunks(
+        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          return EdgeExpand::expand_count(graph, std::move(chunk), eep_);
+        });
   }
 
   std::string get_operator_name() const override { return "ExpandCountOpr"; }

@@ -291,7 +291,7 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   EXPECT_EQ(ctx.row_num(), 3);
 
   // Verify the first column (id) is int32
-  auto column0 = ctx.columns[0];
+  auto column0 = ctx.chunk(0).columns()[0];
   ASSERT_EQ(column0->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn0 =
       std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column0);
@@ -300,7 +300,7 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
       << "Expected int32, but got: " << arrowType0->ToString();
 
   // Verify the third column (value) is int64
-  auto column2 = ctx.columns[2];
+  auto column2 = ctx.chunk(0).columns()[2];
   ASSERT_EQ(column2->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn2 =
       std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column2);
@@ -357,9 +357,9 @@ TEST_F(ReaderTest, TestBasicJsonRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createJsonSharedState(
-      "test_json_basic.json", columnNames, columnTypes,
-      {{"batch_read", "false"}});
+  auto sharedState =
+      createJsonSharedState("test_json_basic.json", columnNames, columnTypes,
+                            {{"batch_read", "false"}});
   auto reader = createArrowJsonReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -379,9 +379,9 @@ TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createJsonSharedState(
-      "test_json_nonexist.json", columnNames, columnTypes,
-      {{"batch_read", "false"}});
+  auto sharedState =
+      createJsonSharedState("test_json_nonexist.json", columnNames, columnTypes,
+                            {{"batch_read", "false"}});
   auto reader = createArrowJsonReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();

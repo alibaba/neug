@@ -270,7 +270,7 @@
            "node_type": {
             "data_type": {
              "temporal": {
-              "date32": {}
+              "date": {"date_format": "DF_YYYY_MM_DD"}
              }
             }
            }
@@ -278,7 +278,7 @@
           "node_type": {
            "data_type": {
             "temporal": {
-             "date32": {}
+             "date": {"date_format": "DF_YYYY_MM_DD"}
             }
            }
           }
@@ -644,7 +644,7 @@
      "type": {
       "data_type": {
        "temporal": {
-        "date32": {}
+        "date": {"date_format": "DF_YYYY_MM_DD"}
        }
       }
      },

@@ -14,13 +14,37 @@
  */
 
 #include <gtest/gtest.h>
+#include <sys/stat.h>
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <optional>
+#include <random>
 #include <string>
+#include <thread>
+#include <vector>
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "unittest/utils.h"
+
+namespace {
+
+// Creates a unique temporary directory for a single test instance.
+// Uses the system temp dir + a PID-based prefix + random suffix to avoid
+// collisions under parallel test execution or concurrent CI jobs.
+std::filesystem::path make_unique_test_dir(const std::string& test_name) {
+  std::mt19937_64 rng(
+      std::chrono::steady_clock::now().time_since_epoch().count() ^
+      static_cast<uint64_t>(::getpid()));
+  std::uniform_int_distribution<uint64_t> dist;
+  auto unique_dir = std::filesystem::temp_directory_path() /
+                    (test_name + "_" + std::to_string(::getpid()) + "_" +
+                     std::to_string(dist(rng)));
+  std::filesystem::create_directories(unique_dir);
+  return unique_dir;
+}
+
+}  // namespace
 
 static const size_t src_v_num = 5;
 static const size_t single_src_v_num = 10;
@@ -76,15 +100,193 @@ using Datatypes =
     ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
+namespace {
+
+struct CsrCowSignature {
+  size_t edge_num{0};
+  size_t src0_degree{0};
+  int64_t dst_sum{0};
+  int64_t data_sum{0};
+};
+
+template <typename CSR_T>
+CsrCowSignature build_cow_signature(const CSR_T& csr) {
+  CsrCowSignature sig;
+  sig.edge_num = csr.edge_num();
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (src == 0) {
+        ++sig.src0_degree;
+      }
+      sig.dst_sum += it.get_vertex();
+      sig.data_sum += *static_cast<const int32_t*>(it.get_data_ptr());
+    }
+  }
+  return sig;
+}
+
+template <typename CSR_T>
+std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                     reinterpret_cast<const char*>(edges.start_ptr)) /
+                    it.cfg.stride;
+      return {src, it.get_vertex(), static_cast<int32_t>(offset)};
+    }
+  }
+  return {std::numeric_limits<vid_t>::max(), std::numeric_limits<vid_t>::max(),
+          -1};
+}
+
+template <typename CSR_T>
+void apply_cow_mutations(CSR_T& csr, Allocator& alloc) {
+  csr.DetachVertex(0, alloc);
+  // csr.batch_put_edges({0}, {1}, {111}, 0);
+  csr.put_edge(0, 0, 111, 0, alloc);
+
+  auto [src, dst, offset] = find_first_edge(csr);
+  ASSERT_NE(offset, -1);
+  csr.DetachVertex(src, alloc);
+  csr.delete_edge(src, offset, 0);
+  csr.revert_delete_edge(src, dst, offset, 0);
+
+  csr.DetachVertex(2, alloc);
+  // csr.batch_put_edges({2}, {3}, {222}, 0);
+  csr.put_edge(2, 3, 222, 0, alloc);
+}
+
+void expect_signature_eq(const CsrCowSignature& lhs,
+                         const CsrCowSignature& rhs) {
+  EXPECT_EQ(lhs.edge_num, rhs.edge_num);
+  EXPECT_EQ(lhs.src0_degree, rhs.src0_degree);
+  EXPECT_EQ(lhs.dst_sum, rhs.dst_sum);
+  EXPECT_EQ(lhs.data_sum, rhs.data_sum);
+}
+
+template <MemoryLevel OPEN_LEVEL, MemoryLevel MATERIALIZE_LEVEL>
+struct CsrMaterializeLevelCase {
+  static constexpr MemoryLevel kOpenLevel = OPEN_LEVEL;
+  static constexpr MemoryLevel kMaterializeLevel = MATERIALIZE_LEVEL;
+};
+
+using MutableCsrMaterializeLevelCases = ::testing::Types<
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory, MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory, MemoryLevel::kSyncToFile>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kSyncToFile>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile,
+                            MemoryLevel::kSyncToFile>>;
+
+template <typename CASE_T>
+class MutableCsrCowTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ =
+        std::filesystem::temp_directory_path() /
+        ("mutable_csr_cow_" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()) +
+         "_" + GetTestName());
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+    std::filesystem::create_directories(temp_dir_);
+    checkpoint_mgr_.Open(temp_dir_.string());
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+  }
+
+  std::shared_ptr<Checkpoint> create_checkpoint() {
+    return make_checkpoint(checkpoint_mgr_);
+  }
+
+ private:
+  std::string GetTestName() const {
+    const testing::TestInfo* const test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
+    return std::string(test_info->name());
+  }
+
+ protected:
+  CheckpointManager checkpoint_mgr_;
+  std::filesystem::path temp_dir_;
+};
+
+TYPED_TEST_SUITE(MutableCsrCowTest, MutableCsrMaterializeLevelCases);
+
+TYPED_TEST(MutableCsrCowTest, CowIsolationAndDumpOpenMatrix) {
+  MutableCsr<int32_t> original;
+  auto base_ckp = this->create_checkpoint();
+  original.Open(*base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(src_v_num);
+  original.batch_put_edges(src_vid, dst_vid, int32_data, 0);
+
+  auto original_before = build_cow_signature(original);
+
+  auto cow_module = original.Clone();
+  auto* cow = dynamic_cast<MutableCsr<int32_t>*>(cow_module.get());
+  ASSERT_NE(cow, nullptr);
+  // Detach detaches IDataContainer so writes to cow don't affect
+  // original.
+  cow->Detach(*base_ckp, TypeParam::kMaterializeLevel);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+
+  apply_cow_mutations(*cow, alloc);
+  auto cow_after = build_cow_signature(*cow);
+
+  auto original_after_cow_mutation = build_cow_signature(original);
+  expect_signature_eq(original_after_cow_mutation, original_before);
+
+  apply_cow_mutations(original, alloc);
+  auto original_after_self_mutation = build_cow_signature(original);
+  EXPECT_NE(original_after_self_mutation.edge_num, original_before.edge_num);
+
+  auto cow_after_original_mutation = build_cow_signature(*cow);
+  expect_signature_eq(cow_after_original_mutation, cow_after);
+
+  auto dump_ckp = this->create_checkpoint();
+  auto cow_desc = cow->Dump(*dump_ckp);
+  MutableCsr<int32_t> reopened;
+  reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
+  auto reopened_sig = build_cow_signature(reopened);
+  expect_signature_eq(reopened_sig, cow_after);
+}
+
+}  // namespace
+
 template <typename EDATA_T>
 class MutableCsrTest : public ::testing::Test {
  protected:
-  static constexpr const char* TEST_DIR = "/tmp/mutable_csr_test";
-
   void SetUp() override {
+    test_dir_ = make_unique_test_dir("mutable_csr_test");
     allocators.emplace_back(
         std::make_unique<Allocator>(MemoryLevel::kInMemory, ""));
-    ws_.Open(TEST_DIR);
+    checkpoint_mgr_.Open(test_dir_.string());
+  }
+
+  void TearDown() override {
+    checkpoint_mgr_.Close();
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
+    }
   }
 
   size_t count_edge_num(MutableCsr<EDATA_T>& csr) {
@@ -101,17 +303,17 @@ class MutableCsrTest : public ::testing::Test {
 
   std::shared_ptr<Checkpoint> load_csr_data(MutableCsr<EDATA_T>& csr,
                                             MemoryLevel memory_level) {
-    if (std::filesystem::exists(TEST_DIR)) {
-      std::filesystem::remove_all(TEST_DIR);
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
     }
-    std::filesystem::create_directories(TEST_DIR);
-    // The previous helper invocation left checkpoints in ws_; the directory
-    // wipe above made them stale, so re-sync the workspace with disk before
-    // creating a new checkpoint.
-    ws_.Close();
-    ws_.Open(TEST_DIR);
+    std::filesystem::create_directories(test_dir_);
+    // The previous helper invocation left checkpoints in checkpoint_mgr_; the
+    // directory wipe above made them stale, so re-sync the workspace with disk
+    // before creating a new checkpoint.
+    checkpoint_mgr_.Close();
+    checkpoint_mgr_.Open(test_dir_.string());
 
-    auto ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
@@ -142,17 +344,17 @@ class MutableCsrTest : public ::testing::Test {
 
   std::shared_ptr<Checkpoint> load_single_csr_data(
       SingleMutableCsr<EDATA_T>& csr, MemoryLevel memory_level) {
-    if (std::filesystem::exists(TEST_DIR)) {
-      std::filesystem::remove_all(TEST_DIR);
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
     }
-    std::filesystem::create_directories(TEST_DIR);
-    // The previous helper invocation left checkpoints in ws_; the directory
-    // wipe above made them stale, so re-sync the workspace with disk before
-    // creating a new checkpoint.
-    ws_.Close();
-    ws_.Open(TEST_DIR);
+    std::filesystem::create_directories(test_dir_);
+    // The previous helper invocation left checkpoints in checkpoint_mgr_; the
+    // directory wipe above made them stale, so re-sync the workspace with disk
+    // before creating a new checkpoint.
+    checkpoint_mgr_.Close();
+    checkpoint_mgr_.Open(test_dir_.string());
 
-    auto ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(single_src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
@@ -343,8 +545,9 @@ class MutableCsrTest : public ::testing::Test {
   }
 
   std::vector<std::unique_ptr<neug::Allocator>> allocators;
-  CheckpointManager& workspace() { return ws_; }
-  CheckpointManager ws_;
+  CheckpointManager& workspace() { return checkpoint_mgr_; }
+  std::filesystem::path test_dir_;
+  CheckpointManager checkpoint_mgr_;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
 
@@ -691,5 +894,277 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
   empty_csr.delete_edge(0, 0, 0);
   empty_csr.revert_delete_edge(0, 0, 0, 0);
 }
+// ---------------------------------------------------------------------------
+// DumpDirty: Validate fast vs. slow path of Dump() and that mutations mark the
+// CSR dirty as expected.
+// ---------------------------------------------------------------------------
+class MutableCsrDumpDirtyTest : public ::testing::Test {
+ protected:
+  using CsrT = MutableCsr<int64_t>;
+  static constexpr vid_t VNUM = 5;
+  const std::vector<vid_t> src_ = {0, 0, 1, 2, 4};
+  const std::vector<vid_t> dst_ = {3, 4, 2, 1, 0};
+  const std::vector<int64_t> data_ = {10, 20, 30, 40, 50};
+
+  void SetUp() override {
+    test_dir_ = make_unique_test_dir("mutable_csr_dump_dirty_test");
+    checkpoint_mgr_.Open(test_dir_.string());
+    alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, "");
+  }
+  void TearDown() override {
+    checkpoint_mgr_.Close();
+    if (std::filesystem::exists(test_dir_))
+      std::filesystem::remove_all(test_dir_);
+  }
+
+  std::shared_ptr<Checkpoint> prepare(CsrT& csr, ModuleDescriptor& desc) {
+    CsrT orig;
+    auto ckp = make_checkpoint(checkpoint_mgr_);
+    orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    orig.resize(VNUM);
+    orig.batch_put_edges(src_, dst_, data_);
+    desc = orig.Dump(*ckp);
+    csr.Open(*ckp, desc, MemoryLevel::kInMemory);
+    return ckp;
+  }
+
+  // Returns the inode number of the file at `path`.
+  // Throws std::runtime_error on stat() failure so that any follow-on
+  // inode comparisons are never made against an uninitialized value.
+  static ino_t inode_of(const std::string& path) {
+    struct stat st {};
+    if (stat(path.c_str(), &st) != 0) {
+      throw std::runtime_error("stat() failed for path: " + path + " — " +
+                               std::strerror(errno));
+    }
+    return st.st_ino;
+  }
+  std::string nbr_path(const ModuleDescriptor& d) {
+    return d.get_path(ModuleDescriptor::kNbrListPath).value();
+  }
+  void expect_slow_after(const std::string& label,
+                         std::function<void(CsrT&)> mutate) {
+    CsrT csr;
+    ModuleDescriptor orig_desc;
+    auto ckp = prepare(csr, orig_desc);
+    auto orig_inode = inode_of(nbr_path(orig_desc));
+    mutate(csr);
+    auto new_inode = inode_of(nbr_path(csr.Dump(*ckp)));
+    EXPECT_NE(orig_inode, new_inode) << label << " should mark dirty";
+  }
+
+  std::filesystem::path test_dir_;
+  CheckpointManager checkpoint_mgr_;
+  std::unique_ptr<Allocator> alloc_;
+};
+
+TEST_F(MutableCsrDumpDirtyTest, FastAndSlowPath) {
+  CsrT csr;
+  ModuleDescriptor orig_desc;
+  auto ckp = prepare(csr, orig_desc);
+  auto orig = inode_of(nbr_path(orig_desc));
+  EXPECT_EQ(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+  int64_t val = 999;
+  csr.put_edge(0, 2, val, 1, *alloc_);
+  EXPECT_NE(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+}
+
+TEST_F(MutableCsrDumpDirtyTest, FastPath_DataIntegrity) {
+  CsrT csr;
+  ModuleDescriptor desc;
+  auto ckp = prepare(csr, desc);
+  auto fast_desc = csr.Dump(*ckp);
+  CsrT restored;
+  restored.Open(*ckp, fast_desc, MemoryLevel::kInMemory);
+  EXPECT_EQ(restored.edge_num(), src_.size());
+}
+
+TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
+  CsrT orig;
+  auto ckp = make_checkpoint(checkpoint_mgr_);
+  orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  orig.resize(VNUM);
+  orig.batch_put_edges(src_, dst_, data_);
+  auto d1 = orig.Dump(*ckp);
+  auto p1 = nbr_path(d1);
+
+  CsrT c2;
+  c2.Open(*ckp, d1, MemoryLevel::kInMemory);
+  auto p2 = nbr_path(c2.Dump(*ckp));
+  EXPECT_EQ(inode_of(p1), inode_of(p2));
+
+  c2.reset_timestamp();
+  auto d3 = c2.Dump(*ckp);
+  auto p3 = nbr_path(d3);
+  EXPECT_EQ(inode_of(p2), inode_of(p3));
+
+  CsrT c3;
+  c3.Open(*ckp, d3, MemoryLevel::kInMemory);
+  auto p4 = nbr_path(c3.Dump(*ckp));
+  EXPECT_EQ(inode_of(p3), inode_of(p4));
+}
+
+TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
+  expect_slow_after("delete_edge", [](CsrT& c) { c.delete_edge(0, 0, 1); });
+  expect_slow_after("batch_put_edges",
+                    [](CsrT& c) { c.batch_put_edges({0}, {1}, {123}); });
+  expect_slow_after(
+      "put_edge", [this](CsrT& c) { c.put_edge(0, 1, 123, 1, *this->alloc_); });
+  expect_slow_after("batch_delete_edges",
+                    [](CsrT& c) { c.batch_delete_edges({0}, {3}); });
+}
+// Concurrent read-write test: verifies that lock-free readers using
+// get_edges() / foreach_nbr_lt() see consistent (degree, buffer) snapshots
+// even when a concurrent writer triggers CSR buffer reallocation via put_edge.
+// This is a regression test for the torn-read bug fixed by using
+// std::atomic_ref in put_edge / GenericView / TypedView.
+// ---------------------------------------------------------------------------
+
+TYPED_TEST(MutableCsrTest, TestConcurrentPutEdgeAndRead) {
+  // Use int64_t for the typed view test (foreach_nbr_lt requires ordered data)
+  MutableCsr<TypeParam> csr;
+  this->load_csr_data(csr, MemoryLevel::kInMemory);
+
+  // Sort edges so that foreach_nbr_lt can use binary search path
+  csr.batch_sort_by_edge_data(1);
+
+  constexpr int kWriterIterations = 500;
+  constexpr int kReaderIterations = 2000;
+  constexpr int kNumReaders = 4;
+
+  std::atomic<bool> stop_flag{false};
+  std::atomic<int> reader_errors{0};
+
+  // Writer thread: continuously inserts edges to vertex 0, which will trigger
+  // multiple buffer reallocations (initial cap=8, grows by 1.5x each time).
+  std::thread writer([&]() {
+    for (int i = 0; i < kWriterIterations; ++i) {
+      vid_t dst = static_cast<vid_t>(i % 100);
+      timestamp_t ts = 2;  // visible to readers with ts >= 2
+      this->template put_single_edge<MutableCsr>(csr, 0, dst, ts,
+                                                 *(this->allocators[0]));
+    }
+    stop_flag.store(true, std::memory_order_release);
+  });
+
+  // Reader threads: continuously read edges via get_edges() and verify
+  // that the returned NbrList has consistent start/end pointers.
+  std::vector<std::thread> readers;
+  for (int r = 0; r < kNumReaders; ++r) {
+    readers.emplace_back([&, r]() {
+      int local_errors = 0;
+      for (int i = 0; i < kReaderIterations; ++i) {
+        // Test GenericView::get_edges
+        auto view = csr.get_generic_view(2);
+        auto edges = view.get_edges(0);
+
+        // Sanity check: end_ptr must be >= start_ptr
+        if (edges.end_ptr < edges.start_ptr) {
+          local_errors++;
+          continue;
+        }
+
+        // Verify that iteration doesn't crash (the original bug caused SIGSEGV
+        // here due to ptr/end being in different buffers)
+        size_t count = 0;
+        for (auto it = edges.begin(); it != edges.end(); ++it) {
+          ++count;
+          // Safety bound to prevent infinite loop in case of regression
+          if (count > 100000) {
+            local_errors++;
+            break;
+          }
+        }
+
+        // Test TypedView if data type supports comparison (foreach_nbr_lt)
+        if constexpr (!std::is_same_v<TypeParam, EmptyType> &&
+                      !std::is_same_v<TypeParam, Interval>) {
+          auto typed_view =
+              view.template get_typed_view<TypeParam,
+                                           CsrViewType::kMultipleMutable>();
+          size_t lt_count = 0;
+          typed_view.foreach_nbr_lt(0, std::numeric_limits<TypeParam>::max(),
+                                    [&](vid_t nbr, const TypeParam& data) {
+                                      ++lt_count;
+                                      if (lt_count > 100000) {
+                                        local_errors++;
+                                      }
+                                    });
+        }
+      }
+      reader_errors.fetch_add(local_errors, std::memory_order_relaxed);
+    });
+  }
+
+  writer.join();
+  for (auto& t : readers) {
+    t.join();
+  }
+
+  EXPECT_EQ(reader_errors.load(), 0)
+      << "Concurrent readers detected inconsistent state";
+  // Writer should have inserted all edges
+  EXPECT_GE(csr.edge_num(), edge_num + kWriterIterations);
+}
+
+// Test that concurrent readers on different vertices don't interfere with
+// a writer that reallocates a specific vertex's buffer.
+TYPED_TEST(MutableCsrTest, TestConcurrentPutEdgeMultiVertex) {
+  MutableCsr<TypeParam> csr;
+  this->load_csr_data(csr, MemoryLevel::kInMemory);
+
+  constexpr int kEdgesPerVertex = 200;
+  constexpr int kReaderIterations = 1000;
+  constexpr int kNumReaders = 3;
+
+  std::atomic<bool> stop_flag{false};
+  std::atomic<int> reader_errors{0};
+
+  // Writer: insert many edges to vertex 2 (will trigger reallocation)
+  std::thread writer([&]() {
+    for (int i = 0; i < kEdgesPerVertex; ++i) {
+      vid_t dst = static_cast<vid_t>(i % 50);
+      this->template put_single_edge<MutableCsr>(csr, 2, dst, 1,
+                                                 *(this->allocators[0]));
+    }
+    stop_flag.store(true, std::memory_order_release);
+  });
+
+  // Readers: read edges from vertex 2 (same vertex being written to)
+  std::vector<std::thread> readers;
+  for (int r = 0; r < kNumReaders; ++r) {
+    readers.emplace_back([&]() {
+      int local_errors = 0;
+      for (int i = 0; i < kReaderIterations; ++i) {
+        auto view = csr.get_generic_view(1);
+        auto edges = view.get_edges(2);
+
+        if (edges.end_ptr < edges.start_ptr) {
+          local_errors++;
+          continue;
+        }
+
+        size_t count = 0;
+        for (auto it = edges.begin(); it != edges.end(); ++it) {
+          ++count;
+          if (count > 100000) {
+            local_errors++;
+            break;
+          }
+        }
+      }
+      reader_errors.fetch_add(local_errors, std::memory_order_relaxed);
+    });
+  }
+
+  writer.join();
+  for (auto& t : readers) {
+    t.join();
+  }
+
+  EXPECT_EQ(reader_errors.load(), 0)
+      << "Concurrent readers on same vertex detected inconsistent state";
+}
+
 }  // namespace test
 }  // namespace neug

@@ -5,9 +5,9 @@ Limit is used to control the number of output results. In addition to being used
 ## Limit with Integer Value
 
 ```
-Match (a:person)
-Return a.age
-Limit 2;
+MATCH (a:Person)
+RETURN a.age
+LIMIT 2;
 ```
 Since there is no ordering of the output, the result may be any two results.
 
@@ -25,9 +25,9 @@ output:
 ## Limit with Integer Expression
 
 ```
-Match (a:person)
-Return a.age
-Limit 1+1;
+MATCH (a:Person)
+RETURN a.age
+LIMIT 1+1;
 ```
 
 output:
@@ -48,9 +48,9 @@ Limit controls the number of output results, which is equivalent to determining 
 ## Skip with Integer Value
 
 ```
-Match (a:person)
-Return a.age
-Skip 2;
+MATCH (a:Person)
+RETURN a.age
+SKIP 2;
 ```
 The query is used to skip the first two rows of results.
 
@@ -68,9 +68,9 @@ output:
 ## Skip with Integer Expression
 
 ```
-Match (a:person)
-Return a.age
-Skip 1+1;
+MATCH (a:Person)
+RETURN a.age
+SKIP 1+1;
 ```
 
 output:

@@ -16,15 +16,28 @@
 
 #include <stdint.h>
 #include <atomic>
-#include <condition_variable>
-#include <mutex>
-#include <shared_mutex>
 
-#include "neug/utils/bitset.h"
+#include "neug/transaction/timestamp_window.h"
 #include "neug/utils/spinlock.h"
 
 namespace neug {
 
+/**
+ * @brief Unified interface for transaction timestamp and concurrency control.
+ *
+ * IVersionManager defines the contract for managing timestamp acquisition,
+ * release, and inter-transaction synchronization. Each transaction type
+ * (Read, Insert, Update, Compact) interacts with this interface to obtain
+ * a timestamp and to coordinate exclusive/shared access with other
+ * transaction types.
+ *
+ * The current implementation is VersionManager, which uses an atomic
+ * state machine (update_state_) plus atomic counters for concurrency
+ * control, replacing the earlier rw_mutex_-based design.
+ *
+ * @see VersionManager for the concrete implementation and its
+ *      concurrency matrix.
+ */
 class IVersionManager {
  public:
   virtual void init_ts(uint32_t ts, int thread_num) = 0;
@@ -33,45 +46,81 @@ class IVersionManager {
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
+  virtual void begin_update_commit(uint32_t ts) = 0;
   virtual void release_update_timestamp(uint32_t ts) = 0;
-  virtual bool revert_update_timestamp(uint32_t ts) = 0;
-  virtual void clear() = 0;
+  virtual uint32_t acquire_compact_timestamp() = 0;
+  virtual void release_compact_timestamp(uint32_t ts) = 0;
+  virtual void revert_compact_timestamp(uint32_t ts) = 0;
+
   virtual ~IVersionManager() {}
 };
 
 /**
- * @brief TPVersionManager implements the version manager for Transactional
- * Processing (TP) workloads. It supports multiple concurrent read and insert
- * transactions, each receiving the same initial timestamp. Update transactions
- * are exclusive and will wait for all ongoing read and insert transactions to
- * complete before proceeding. The version manager uses a ring buffer to track
- * released timestamps, allowing efficient reuse of timestamps.
+ * @brief VersionManager — concurrency control via atomic state machine.
+ *
+ * update_state_ transitions: 0→1 (update-exec) →2 (update-commit);
+ *                            0→2 (compact).
+ *
+ * Concurrency (new acquisitions; in-flight ops are not interrupted):
+ *
+ *   |               | Read | Insert | Update-exec | Update-commit | Compact |
+ *   | Read          | yes  | yes    | yes         |   no*         |   no    |
+ *   | Insert        | yes  | yes    |   no        |   no          |   no    |
+ *   | Update-exec   | yes  |  no    |   no        |    -          |   no    |
+ *   | Update-commit |  no* |  no    |   -         |   no          |   no    |
+ *   | Compact       |  no  |  no    |   no        |   no          |   no    |
+ *   *New reads spin-wait; already-acquired reads continue.
+ *
+ * Mechanism:
+ * - write_ts_: next available write timestamp (monotonically increasing).
+ * - read_ts_: highest timestamp fully committed and visible to all readers.
+ * - active_readers_/active_inserters_: atomic counters for in-flight ops.
+ * - update_state_: 0=normal, 1=update-exec (inserters drained),
+ *   2=update-commit (new reads block; existing reads continue) /
+ *   compact (readers+inserters drained).
+ * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
+ *   + post-check) to prevent ABA races with begin_update_commit.
+ * - begin_update_commit uses seq_cst store + drain spin to ensure
+ *   any reader in the ABA window has rolled back before proceeding.
+ * - SpinLock lock_: serializes read_ts advancement (check-and-advance
+ *   in release_insert/update_timestamp).
+ * - TimestampWindow ts_window_: tracks completed timestamps for read_ts
+ * reclamation.
  */
-class TPVersionManager : public IVersionManager {
+class VersionManager : public IVersionManager {
  public:
-  TPVersionManager();
-  ~TPVersionManager();
+  VersionManager();
+  ~VersionManager();
 
   void init_ts(uint32_t ts, int thread_num) override;
 
-  void clear() override;
   uint32_t acquire_read_timestamp() override;
   void release_read_timestamp() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
+  void begin_update_commit(uint32_t ts) override;
   void release_update_timestamp(uint32_t ts) override;
-  bool revert_update_timestamp(uint32_t ts) override;
+  uint32_t acquire_compact_timestamp() override;
+  void release_compact_timestamp(uint32_t ts) override;
+  void revert_compact_timestamp(uint32_t ts) override;
 
  private:
   int thread_num_;
+  uint32_t acquire_read_timestamp_slow();
+  uint32_t acquire_insert_timestamp_slow();
+  void advance_read_ts_locked();
+
   std::atomic<uint32_t> write_ts_{1};
-  std::atomic<uint32_t> read_ts_{0};
+  std::atomic<uint32_t> read_ts_{1};
 
-  std::atomic<int> pending_reqs_{0};
-  std::atomic<int> pending_update_reqs_{0};
+  std::atomic<int> active_readers_{0};
+  std::atomic<int> active_inserters_{0};
 
-  Bitset buf_;
+  std::atomic<int> update_state_{0};
+
+  TimestampWindow ts_window_;
+
   SpinLock lock_;
 };
 

@@ -66,6 +66,9 @@ execution::Context writeExecFunc(
       schema, fs->toArrowFileSystem(), entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
+    if (status.error_code() == StatusCode::ERR_PERMISSION) {
+      THROW_PERMISSION_DENIED("Export failed: " + status.ToString());
+    }
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());
   }
   ctx.clear();

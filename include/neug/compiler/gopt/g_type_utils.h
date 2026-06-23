@@ -28,39 +28,14 @@
 #include <cstdint>
 
 namespace neug {
-namespace common {
-class LogicalType;
-class Serializer;
-}  // namespace common
 const static uint32_t VARCHAR_DEFAULT_LENGTH = 65536;
-
-class VarcharExtraInfo : public neug::common::ExtraTypeInfo {
- private:
-  uint64_t maxLength;
-
- protected:
-  void serializeInternal(neug::common::Serializer& serializer) const override {}
-
- public:
-  explicit VarcharExtraInfo(uint64_t maxLength) : maxLength{maxLength} {}
-  ~VarcharExtraInfo() override = default;
-  bool containsAny() const override { return false; }
-
-  bool operator==(const ExtraTypeInfo& other) const override {
-    return maxLength == other.constPtrCast<VarcharExtraInfo>()->maxLength;
-  }
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override {
-    return std::make_unique<VarcharExtraInfo>(maxLength);
-  }
-};
 
 class GTypeUtils {
  public:
-  static inline neug::common::LogicalType createLogicalType(YAML::Node& node) {
+  static inline neug::common::DataType createLogicalType(YAML::Node& node) {
     if (common::LogicalTypeRegistry::containsTypeYaml(node)) {
       auto typeID = common::LogicalTypeRegistry::getTypeID(node);
-      return neug::common::LogicalType(typeID);
+      return neug::common::DataType(typeID);
     }
 
     auto stringType = node["string"];
@@ -70,28 +45,26 @@ class GTypeUtils {
         auto varChar = stringType["var_char"];
         auto maxLength = varChar["max_length"];
         if (maxLength && maxLength.IsScalar()) {
-          return neug::common::LogicalType::STRING(maxLength.as<uint64_t>());
+          return neug::common::DataType::Varchar(maxLength.as<uint64_t>());
         } else {
-          return neug::common::LogicalType::STRING();
+          return neug::common::DataType::Varchar();
         }
       } else if (stringType["long_text"]) {
-        return neug::common::LogicalType::STRING();
+        return neug::common::DataType::Varchar();
       }
     }
     auto temporalType = node["temporal"];
     if (temporalType && temporalType.IsMap()) {
       if (temporalType["date32"].IsDefined()) {
-        return neug::common::LogicalType(neug::common::LogicalTypeID::DATE32);
+        return neug::common::DataType(neug::common::DataTypeId::kDate);
       } else if (temporalType["timestamp"].IsDefined()) {
-        return neug::common::LogicalType(
-            neug::common::LogicalTypeID::TIMESTAMP64);
+        return neug::common::DataType(neug::common::DataTypeId::kTimestampMs);
       } else if (temporalType["date"].IsDefined()) {
-        return neug::common::LogicalType(neug::common::LogicalTypeID::DATE);
+        return neug::common::DataType(neug::common::DataTypeId::kDate);
       } else if (temporalType["datetime"].IsDefined()) {
-        return neug::common::LogicalType(
-            neug::common::LogicalTypeID::TIMESTAMP);
+        return neug::common::DataType(neug::common::DataTypeId::kTimestampMs);
       } else if (temporalType["interval"].IsDefined()) {
-        return neug::common::LogicalType(neug::common::LogicalTypeID::INTERVAL);
+        return neug::common::DataType(neug::common::DataTypeId::kInterval);
       } else {
         THROW_RUNTIME_ERROR("Unsupported temporal type in YAML: " +
                             node.as<std::string>());
@@ -102,54 +75,47 @@ class GTypeUtils {
       auto componentType = arrayType["component_type"];
       CHECK(componentType.IsDefined())
           << "component type is undefined in array: " << componentType;
-      return neug::common::LogicalType::LIST(createLogicalType(componentType));
+      return neug::common::DataType::List(createLogicalType(componentType));
     }
     THROW_RUNTIME_ERROR("Unsupported type in YAML: " + node.as<std::string>());
   }
 
-  static inline YAML::Node toYAML(const neug::common::LogicalType& type) {
-    switch (type.getLogicalTypeID()) {
-    case neug::common::LogicalTypeID::INT64:
+  static inline YAML::Node toYAML(const neug::common::DataType& type) {
+    switch (type.id()) {
+    case neug::common::DataTypeId::kInt64:
       return YAML_NODE_DT_SIGNED_INT64;
-    case neug::common::LogicalTypeID::UINT64:
+    case neug::common::DataTypeId::kUInt64:
       return YAML_NODE_DT_UNSIGNED_INT64;
-    case neug::common::LogicalTypeID::INT32:
+    case neug::common::DataTypeId::kInt32:
       return YAML_NODE_DT_SIGNED_INT32;
-    case neug::common::LogicalTypeID::UINT32:
+    case neug::common::DataTypeId::kUInt32:
       return YAML_NODE_DT_UNSIGNED_INT32;
-    case neug::common::LogicalTypeID::FLOAT:
+    case neug::common::DataTypeId::kFloat:
       return YAML_NODE_DT_FLOAT;
-    case neug::common::LogicalTypeID::DOUBLE:
+    case neug::common::DataTypeId::kDouble:
       return YAML_NODE_DT_DOUBLE;
-    case neug::common::LogicalTypeID::BOOL:
+    case neug::common::DataTypeId::kBoolean:
       return YAML_NODE_DT_BOOL;
-    case neug::common::LogicalTypeID::STRING: {
-      size_t maxLen;
+    case neug::common::DataTypeId::kVarchar: {
+      size_t maxLen = VARCHAR_DEFAULT_LENGTH;
       auto extraInfo = type.getExtraTypeInfo();
       if (extraInfo) {
-        auto stringTypeInfo =
-            extraInfo->constPtrCast<neug::common::StringTypeInfo>();
-        maxLen = stringTypeInfo->getMaxLength();
-      } else {
-        maxLen = neug::common::LogicalType::getDefaultStringMaxLen();
+        auto& stringTypeInfo = extraInfo->Cast<neug::StringTypeInfo>();
+        maxLen = stringTypeInfo.max_length;
       }
       YAML::Node n;
       n["string"]["var_char"]["max_length"] = maxLen;
       return n;
     }
-    case neug::common::LogicalTypeID::DATE32:
+    case neug::common::DataTypeId::kDate:
       return YAML_NODE_TEMPORAL_DATE32();
-    case neug::common::LogicalTypeID::TIMESTAMP64:
+    case neug::common::DataTypeId::kTimestampMs:
       return YAML_NODE_TEMPORAL_TIMESTAMP64();
-    case neug::common::LogicalTypeID::DATE:
-      return YAML_NODE_TEMPORAL_DATE();
-    case neug::common::LogicalTypeID::TIMESTAMP:
-      return YAML_NODE_TEMPORAL_DATETIME();
-    case neug::common::LogicalTypeID::INTERVAL:
+    case neug::common::DataTypeId::kInterval:
       return YAML_NODE_TEMPORAL_INTERVAL();
     default:
       LOG(WARNING) << "Unsupported type in YAML: "
-                   << static_cast<uint8_t>(type.getLogicalTypeID());
+                   << static_cast<uint8_t>(type.id());
       return YAML_NODE_DT_ANY;
     }
   }

@@ -30,20 +30,22 @@ namespace reader {
  * @brief Parquet-specific parse options
  *
  * These options control Parquet file reading behavior:
- * - buffered_stream: Enable buffered I/O stream for better performance (default: true)
- * - pre_buffer: Pre-buffer data for high-latency filesystems like S3 (default: false)
- * - enable_io_coalescing: Enable Arrow I/O read coalescing (hole-filling cache) for
- *   improved performance when reading non-contiguous ranges (default: true).
- *   When true, uses lazy coalescing (CacheOptions::LazyDefaults); when false, uses
- *   eager coalescing (CacheOptions::Defaults).
- * - row_batch_size: Number of rows per Arrow batch when converting from Parquet (default: 65536)
+ * - buffered_stream: Enable buffered I/O stream for better performance
+ * (default: true)
+ * - pre_buffer: Pre-buffer data for high-latency filesystems like S3 (default:
+ * false)
+ * - enable_io_coalescing: Enable Arrow I/O read coalescing (hole-filling cache)
+ * for improved performance when reading non-contiguous ranges (default: true).
+ *   When true, uses lazy coalescing (CacheOptions::LazyDefaults); when false,
+ * uses eager coalescing (CacheOptions::Defaults).
+ * - row_batch_size: Number of rows per Arrow batch when converting from Parquet
+ * (default: 65536)
  *
  */
 struct ParquetParseOptions {
   Option<bool> buffered_stream =
       Option<bool>::BoolOption("BUFFERED_STREAM", true);
-  Option<bool> pre_buffer =
-      Option<bool>::BoolOption("PRE_BUFFER", false);
+  Option<bool> pre_buffer = Option<bool>::BoolOption("PRE_BUFFER", false);
   Option<bool> enable_io_coalescing =
       Option<bool>::BoolOption("ENABLE_IO_COALESCING", true);
   Option<int64_t> row_batch_size =
@@ -83,7 +85,8 @@ class ArrowParquetOptionsBuilder : public ArrowOptionsBuilder {
  public:
   /**
    * @brief Constructs an ArrowParquetOptionsBuilder with the given shared state
-   * @param state The shared read state containing Parquet schema and configuration
+   * @param state The shared read state containing Parquet schema and
+   * configuration
    */
   explicit ArrowParquetOptionsBuilder(std::shared_ptr<ReadSharedState> state)
       : ArrowOptionsBuilder(state){};

@@ -15,14 +15,15 @@
 
 #include "neug/execution/common/operators/insert/create_vertex.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/context_chunk.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
 namespace execution {
 namespace ops {
-neug::result<Context> CreateVertex::insert_vertex(
-    StorageInsertInterface& graph, Context&& ctx,
+neug::result<ContextChunk> CreateVertex::insert_vertex(
+    StorageInsertInterface& graph, ContextChunk&& chunk,
     const std::vector<label_t>& labels,
     std::vector<
         std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
@@ -57,14 +58,18 @@ neug::result<Context> CreateVertex::insert_vertex(
                           std::to_string(properties_name.size() + 1));
     }
 
-    Property pk_value;
-    std::vector<Property> property_values(properties.size() - 1);
-    for (size_t i = 0; i < ctx.row_num(); ++i) {
+    Value pk_value;
+    std::vector<execution::Value> property_values(properties.size() - 1);
+    // When the chunk has no rows (seed from DummySourceOpr), we still need to
+    // execute exactly once to create the vertex from constant expressions.
+    size_t num_rows = std::max(chunk.row_num(), (size_t) 1);
+    for (size_t i = 0; i < num_rows; ++i) {
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
-        Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
+        Value value =
+            prop_expr->Cast<RecordExprBase>().eval_record(chunk.chunk(), i);
         if (prop_name == std::get<1>(pk)) {
-          pk_value = value_to_property(value);
+          pk_value = value;
         } else {
           auto it = std::find(properties_name.begin(), properties_name.end(),
                               prop_name);
@@ -75,9 +80,9 @@ neug::result<Context> CreateVertex::insert_vertex(
           }
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = value_to_property(v_default_values[index]);
+            property_values[index] = v_default_values[index];
           } else {
-            property_values[index] = value_to_property(value);
+            property_values[index] = value;
           }
         }
       }
@@ -102,9 +107,9 @@ neug::result<Context> CreateVertex::insert_vertex(
       }
       builder.push_back_opt(vid);
     }
-    ctx.set(alias[i], builder.finish());
+    chunk.set(alias[i], builder.finish());
   }
-  return ctx;
+  return chunk;
 }
 }  // namespace ops
 }  // namespace execution

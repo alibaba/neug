@@ -29,12 +29,12 @@ using namespace common;
 
 namespace binder {
 
-void ParameterExpression::cast(const LogicalType& type) {
+void ParameterExpression::cast(const DataType& type) {
   if (!dataType.containsAny()) {
     // LCOV_EXCL_START
     THROW_BINDER_EXCEPTION(stringFormat(
         "Cannot change parameter expression data type from {} to {}.",
-        dataType.toString(), type.toString()));
+        dataType.ToString(), type.ToString()));
     // LCOV_EXCL_STOP
   }
   dataType = type.copy();

@@ -14,17 +14,17 @@
  */
 #pragma once
 
+#include "neug/execution/common/context_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 namespace execution {
-class Context;
 
 class Limit {
  public:
-  static neug::result<Context> limit(Context&& ctxs, size_t lower,
-                                     size_t upper);
+  static neug::result<ContextChunk> limit(ContextChunk&& chunk, size_t lower,
+                                          size_t upper);
 };
 
 }  // namespace execution

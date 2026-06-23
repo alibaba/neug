@@ -192,12 +192,12 @@ class NEUG_API Catalog {
   bool containsType(const transaction::Transaction* transaction,
                     const std::string& name) const;
   // Get type entry with name.
-  common::LogicalType getType(const transaction::Transaction*,
-                              const std::string& name) const;
+  common::DataType getType(const transaction::Transaction*,
+                           const std::string& name) const;
 
   // Create type entry.
   void createType(transaction::Transaction* transaction, std::string name,
-                  common::LogicalType type);
+                  common::DataType type);
 
   // ----------------------------- Indexes ----------------------------
 

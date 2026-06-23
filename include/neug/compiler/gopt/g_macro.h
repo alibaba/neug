@@ -18,16 +18,16 @@
 
 #include "neug/compiler/gopt/g_type_registry.h"
 
-#define REGISTER_YAML_NODE_TYPE(YAML_NODE_EXPR, TYPE_ID)  \
-  namespace {                                             \
-  struct _RegisterYaml_##TYPE_ID {                        \
-    _RegisterYaml_##TYPE_ID() {                           \
-      YAML::Node node = YAML_NODE_EXPR;                   \
-      neug::common::LogicalTypeRegistry::registerType(    \
-          node, neug::common::LogicalTypeID::TYPE_ID);    \
-    }                                                     \
-  };                                                      \
-  static _RegisterYaml_##TYPE_ID _registerYaml_##TYPE_ID; \
+#define REGISTER_YAML_NODE_TYPE(YAML_NODE_EXPR, TAG, TYPE_ID_ENUM) \
+  namespace {                                                      \
+  struct _RegisterYaml_##TAG {                                     \
+    _RegisterYaml_##TAG() {                                        \
+      YAML::Node node = YAML_NODE_EXPR;                            \
+      neug::common::LogicalTypeRegistry::registerType(             \
+          node, neug::DataTypeId::TYPE_ID_ENUM);                   \
+    }                                                              \
+  };                                                               \
+  static _RegisterYaml_##TAG _registerYaml_##TAG;                  \
   }
 
 #define YAML_NODE_DT_SIGNED_INT64            \

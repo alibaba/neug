@@ -151,13 +151,13 @@ CSVReaderConfig CSVReaderConfig::construct(
       bindBoolParsingOption(config, name,
                             isValidBooleanOptionValue(op.second, name));
     } else if (isValidStringParsingOption) {
-      if (op.second.getDataType() != LogicalType::STRING()) {
+      if (op.second.getDataType() != DataType::Varchar()) {
         THROW_BINDER_EXCEPTION(stringFormat(
             "The type of csv parsing option {} must be a string.", name));
       }
       bindStringParsingOption(config, name, op.second.getValue<std::string>());
     } else if (isValidIntParsingOption) {
-      if (op.second.getDataType() != LogicalType::INT64()) {
+      if (op.second.getDataType() != DataType(DataTypeId::kInt64)) {
         THROW_BINDER_EXCEPTION(stringFormat(
             "The type of csv parsing option {} must be a INT64.", name));
       }

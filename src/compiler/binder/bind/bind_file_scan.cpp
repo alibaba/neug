@@ -105,7 +105,7 @@ case_insensitive_map_t<Value> Binder::bindParsingOptions(
 std::unique_ptr<BoundBaseScanSource> Binder::bindScanSource(
     const BaseScanSource* source, const options_t& options,
     const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>& columnTypes) {
+    const std::vector<DataType>& columnTypes) {
   switch (source->type) {
   case ScanSourceType::FILE: {
     return bindFileScanSource(*source, options, columnNames, columnTypes);
@@ -141,7 +141,7 @@ std::shared_ptr<reader::EntrySchema> sniff(const FileScanInfo& fileScanInfo,
 std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
     const BaseScanSource& scanSource, const options_t& options,
     const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>& columnTypes) {
+    const std::vector<DataType>& columnTypes) {
   if (columnNames.size() != columnTypes.size()) {
     THROW_BINDER_EXCEPTION("Column names size " +
                            std::to_string(columnNames.size()) +
@@ -198,7 +198,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
           sniffSchema->columnNames.size(), columnNames.size()));
     }
     expectedColumnNames = sniffSchema->columnNames;
-    expectedColumnTypes = LogicalType::copy(columnTypes);
+    expectedColumnTypes = columnTypes;
   }
 
   extraInput->tableFunction = func;
@@ -212,8 +212,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
 
 std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
     const BaseScanSource& scanSource, const options_t& options,
-    const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>&) {
+    const std::vector<std::string>& columnNames, const std::vector<DataType>&) {
   auto querySource = scanSource.constPtrCast<QueryScanSource>();
   auto boundStatement = bind(*querySource->statement);
   auto columns = boundStatement->getStatementResult()->getColumns();
@@ -237,7 +236,7 @@ BoundTableScanInfo bindTableScanSourceInfo(
     Binder& binder, TableFunction func, const std::string& sourceName,
     std::unique_ptr<TableFuncBindData> bindData,
     const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>& columnTypes) {
+    const std::vector<DataType>& columnTypes) {
   expression_vector columns;
   if (columnTypes.empty()) {
   } else {
@@ -261,7 +260,7 @@ BoundTableScanInfo bindTableScanSourceInfo(
 std::unique_ptr<BoundBaseScanSource> Binder::bindObjectScanSource(
     const BaseScanSource& scanSource, const options_t& options,
     const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>& columnTypes) {
+    const std::vector<DataType>& columnTypes) {
   auto objectSource = scanSource.constPtrCast<ObjectScanSource>();
   TableFunction func;
   std::unique_ptr<TableFuncBindData> bindData;
@@ -305,7 +304,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindObjectScanSource(
 std::unique_ptr<BoundBaseScanSource> Binder::bindTableFuncScanSource(
     const BaseScanSource& scanSource, const options_t& options,
     const std::vector<std::string>& columnNames,
-    const std::vector<LogicalType>& columnTypes) {
+    const std::vector<DataType>& columnTypes) {
   if (!options.empty()) {
     THROW_BINDER_EXCEPTION(
         "No option is supported when copying from table functions.");

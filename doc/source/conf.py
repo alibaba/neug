@@ -103,6 +103,7 @@ exclude_patterns = [
     '_build',
     '.ipynb_checkpoints',
     'reference/java_api/index.rst',
+    'reference/nodejs_api/index.rst',
 ]
 
 # -- Options for HTML output -------------------------------------------------

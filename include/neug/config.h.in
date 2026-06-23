@@ -86,6 +86,7 @@ enum class MemoryLevel : uint8_t {
 struct NeugDBConfig {
   /// Default CSR reserve ratio for edge storage
   static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
+  static constexpr const int DEFAULT_STORAGE_SLOT_NUM = 128;
 
   /**
    * @brief Default constructor with sensible defaults.
@@ -100,7 +101,8 @@ struct NeugDBConfig {
         compact_csr(true),
         compact_on_close(true),
         checkpoint_on_close(false),
-        checkpoint_after_recovery(false) {}
+        checkpoint_after_recovery(false),
+        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
 
   /**
    * @brief Construct with data directory and thread count.
@@ -119,7 +121,8 @@ struct NeugDBConfig {
         compact_csr(true),
         compact_on_close(true),
         checkpoint_on_close(false),
-        checkpoint_after_recovery(false) {}
+        checkpoint_after_recovery(false),
+        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
 
   /// CSR storage reserve ratio for edge insertions (default: 1.2)
   float csr_reserve_ratio;
@@ -159,6 +162,9 @@ struct NeugDBConfig {
 
   /// Create checkpoint after recovering from WAL
   bool checkpoint_after_recovery;
+
+  /// Storage slot number
+  int storage_slot_num;
 };
 
 }  // namespace neug

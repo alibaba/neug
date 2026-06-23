@@ -25,7 +25,7 @@ class FunctionSignatureUtil {
  public:
   static std::string getSignatureName(
       const std::string& funcName,
-      const std::vector<neug::common::LogicalTypeID>& params) {
+      const std::vector<neug::common::DataTypeId>& params) {
     std::string sig = funcName + "(";
     for (size_t i = 0; i < params.size(); ++i) {
       if (i)

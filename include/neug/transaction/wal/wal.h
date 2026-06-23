@@ -21,9 +21,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/transaction/transaction_utils.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -208,77 +208,81 @@ struct DeleteEdgeTypeRedo {
 
 struct InsertVertexRedo {
   label_t label;
-  Property oid;
-  std::vector<Property> props;
+  execution::Value oid;
+  std::vector<execution::Value> props;
 
-  static void Serialize(InArchive& arc, label_t label, const Property& oid,
-                        const std::vector<Property>& props);
+  static void Serialize(InArchive& arc, label_t label,
+                        const execution::Value& oid,
+                        const std::vector<execution::Value>& props);
   static void Deserialize(OutArchive& arc, InsertVertexRedo& redo);
 };
 
 struct InsertEdgeRedo {
   label_t src_label;
-  Property src;
+  execution::Value src;
   label_t dst_label;
-  Property dst;
+  execution::Value dst;
   label_t edge_label;
-  std::vector<Property> properties;
+  std::vector<execution::Value> properties;
 
-  static void Serialize(InArchive& arc, label_t src_label, const Property& src,
-                        label_t dst_label, const Property& dst,
-                        label_t edge_label,
-                        const std::vector<Property>& properties);
+  static void Serialize(InArchive& arc, label_t src_label,
+                        const execution::Value& src, label_t dst_label,
+                        const execution::Value& dst, label_t edge_label,
+                        const std::vector<execution::Value>& properties);
   static void Deserialize(OutArchive& arc, InsertEdgeRedo& redo);
 };
 
 struct UpdateVertexPropRedo {
   label_t label;
-  Property oid;
+  execution::Value oid;
   int prop_id;
-  Property value;
+  execution::Value value;
 
-  static void Serialize(InArchive& arc, label_t label, const Property& oid,
-                        int prop_id, const Property& value);
+  static void Serialize(InArchive& arc, label_t label,
+                        const execution::Value& oid, int prop_id,
+                        const execution::Value& value);
   static void Deserialize(OutArchive& arc, UpdateVertexPropRedo& redo);
 };
 
 struct UpdateEdgePropRedo {
   label_t src_label;
-  Property src;
+  execution::Value src;
   label_t dst_label;
-  Property dst;
+  execution::Value dst;
   label_t edge_label;
   int32_t oe_offset, ie_offset;
   int prop_id;
-  Property value;
+  execution::Value value;
 
-  static void Serialize(InArchive& arc, label_t src_label, const Property& src,
-                        label_t dst_label, const Property& dst,
-                        label_t edge_label, int32_t oe_offset,
-                        int32_t ie_offset, int prop_id, const Property& value);
+  static void Serialize(InArchive& arc, label_t src_label,
+                        const execution::Value& src, label_t dst_label,
+                        const execution::Value& dst, label_t edge_label,
+                        int32_t oe_offset, int32_t ie_offset, int prop_id,
+                        const execution::Value& value);
   static void Deserialize(OutArchive& arc, UpdateEdgePropRedo& redo);
 };
 
 struct RemoveVertexRedo {
   label_t label;
-  Property oid;
+  execution::Value oid;
 
-  static void Serialize(InArchive& arc, label_t label, const Property& oid);
+  static void Serialize(InArchive& arc, label_t label,
+                        const execution::Value& oid);
   static void Deserialize(OutArchive& arc, RemoveVertexRedo& redo);
 };
 
 struct RemoveEdgeRedo {
   label_t src_label;
-  Property src;
+  execution::Value src;
   label_t dst_label;
-  Property dst;
+  execution::Value dst;
   label_t edge_label;
   int32_t oe_offset, ie_offset;
 
-  static void Serialize(InArchive& arc, label_t src_label, const Property& src,
-                        label_t dst_label, const Property& dst,
-                        label_t edge_label, int32_t oe_offset,
-                        int32_t ie_offset);
+  static void Serialize(InArchive& arc, label_t src_label,
+                        const execution::Value& src, label_t dst_label,
+                        const execution::Value& dst, label_t edge_label,
+                        int32_t oe_offset, int32_t ie_offset);
   static void Deserialize(OutArchive& arc, RemoveEdgeRedo& redo);
 };
 

@@ -32,8 +32,7 @@ namespace neug {
 namespace binder {
 
 std::unique_ptr<PropertyExpression> PropertyExpression::construct(
-    LogicalType type, const std::string& propertyName,
-    const Expression& child) {
+    DataType type, const std::string& propertyName, const Expression& child) {
   NEUG_ASSERT(child.expressionType == ExpressionType::PATTERN);
   auto& patternExpr = child.constCast<NodeOrRelExpression>();
   auto variableName = patternExpr.getVariableName();

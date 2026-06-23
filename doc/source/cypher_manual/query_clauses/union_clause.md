@@ -23,16 +23,16 @@ Inspired by [Neo4j](https://neo4j.com/docs/cypher-manual/current/subqueries/call
 
 Example：
 ```cypher
-MATCH (person:person {id: 123})
+MATCH (person:Person {id: 123})
 WITH person
 CALL (person) {
-  MATCH (person)-[k:knows]->(friend)
+  MATCH (person)-[k:KNOWS]->(friend)
   WHERE k.weight > 1.0
   RETURN friend
 
   UNION ALL
 
-  MATCH (person)-[k:knows]->(friend)
+  MATCH (person)-[k:KNOWS]->(friend)
   WHERE k.weight < 1.0
   RETURN friend
 }

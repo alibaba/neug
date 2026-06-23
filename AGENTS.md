@@ -31,7 +31,7 @@ make dev             # incremental rebuild; auto-bootstraps if root build
 For **C++ only** (no Python):
 ```bash
 make cpp-build                     # core + executables, Release
-make cpp-test                      # adds -DBUILD_TEST=ON and runs ctest
+BUILD_TEST=ON make cpp-test        # enable tests
 BUILD_TYPE=Debug make cpp-build    # override build type
 EXTRA_CMAKE_FLAGS="-DBUILD_HTTP_SERVER=ON" make cpp-build   # extra flags
 ```

@@ -36,7 +36,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
       common::ExpressionType::PATTERN;
 
  public:
-  NodeOrRelExpression(common::LogicalType dataType, std::string uniqueName,
+  NodeOrRelExpression(common::DataType dataType, std::string uniqueName,
                       std::string variableName,
                       std::vector<catalog::TableCatalogEntry*> entries)
       : Expression{expressionType_, std::move(dataType), std::move(uniqueName)},
@@ -45,7 +45,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
 
   // Note: ideally I would try to remove this function. But for now, we have to
   // create type after expression.
-  void setExtraTypeInfo(std::unique_ptr<common::ExtraTypeInfo> info) {
+  void setExtraTypeInfo(std::shared_ptr<common::ExtraTypeInfo> info) {
     dataType.setExtraTypeInfo(std::move(info));
   }
 

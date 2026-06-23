@@ -216,7 +216,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     tripletPB->set_allocated_param(valuePB.release_param());
   } else {
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
-                                   expr.getDataType().toString());
+                                   expr.getDataType().ToString());
   }
   tripletPB->set_cmp(::common::Logical::EQ);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
@@ -311,64 +311,54 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     valuePB->set_allocated_none(new ::common::None());
     return valuePB;
   }
-  switch (value.getDataType().getLogicalTypeID()) {
-  case common::LogicalTypeID::BOOL:
+  switch (value.getDataType().id()) {
+  case common::DataTypeId::kBoolean:
     valuePB->set_boolean(value.getValue<bool>());
     break;
-  case common::LogicalTypeID::INT32:
+  case common::DataTypeId::kInt32:
     valuePB->set_i32(value.getValue<int32_t>());
     break;
-  case common::LogicalTypeID::INT64:
+  case common::DataTypeId::kInt64:
     valuePB->set_i64(value.getValue<int64_t>());
     break;
-  case common::LogicalTypeID::FLOAT:
+  case common::DataTypeId::kFloat:
     valuePB->set_f32(value.getValue<float>());
     break;
-  case common::LogicalTypeID::DOUBLE:
+  case common::DataTypeId::kDouble:
     valuePB->set_f64(value.getValue<double>());
     break;
-  case common::LogicalTypeID::STRING:
+  case common::DataTypeId::kVarchar:
     valuePB->set_str(value.getValue<std::string>());
     break;
-  case common::LogicalTypeID::UINT32:
+  case common::DataTypeId::kUInt32:
     valuePB->set_u32(value.getValue<uint32_t>());
     break;
-  case common::LogicalTypeID::UINT64:
+  case common::DataTypeId::kUInt64:
     valuePB->set_u64(value.getValue<uint64_t>());
     break;
-  case common::LogicalTypeID::DATE:
+  case common::DataTypeId::kDate:
     valuePB->set_str(
         neug::common::Date::toString(value.getValue<neug::common::date_t>()));
     break;
-  case common::LogicalTypeID::TIMESTAMP:
+  case common::DataTypeId::kTimestampMs:
     valuePB->set_str(neug::common::Timestamp::toString(
         value.getValue<neug::common::timestamp_t>()));
     break;
-  case common::LogicalTypeID::INTERVAL:
+  case common::DataTypeId::kInterval:
     valuePB->set_str(neug::common::Interval::toString(
         value.getValue<neug::common::interval_t>()));
     break;
-  case common::LogicalTypeID::ARRAY: {
-    auto extraInfo = value.getDataType().getExtraTypeInfo();
-    if (extraInfo == nullptr) {
-      THROW_EXCEPTION_WITH_FILE_LINE("List type should have extra info");
-    }
-    auto arrayInfo = extraInfo->constPtrCast<common::ArrayTypeInfo>();
-    auto& childType = arrayInfo->getChildType();
+  case common::DataTypeId::kArray: {
+    auto& childType = common::ArrayType::GetChildType(value.getDataType());
     return convertToLiteralArray(value, childType);
   }
-  case common::LogicalTypeID::LIST: {
-    auto extraInfo = value.getDataType().getExtraTypeInfo();
-    if (extraInfo == nullptr) {
-      THROW_EXCEPTION_WITH_FILE_LINE("List type should have extra info");
-    }
-    auto listInfo = extraInfo->constPtrCast<common::ListTypeInfo>();
-    auto& childType = listInfo->getChildType();
+  case common::DataTypeId::kList: {
+    auto& childType = common::ListType::GetChildType(value.getDataType());
     return convertToLiteralArray(value, childType);
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
-                                   value.getDataType().toString());
+                                   value.getDataType().ToString());
   }
   return valuePB;
 }
@@ -423,42 +413,42 @@ std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
 }
 
 std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
-    const common::Value& value, const common::LogicalType& childType) {
+    const common::Value& value, const common::DataType& childType) {
   if (value.children.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Array function should have at least one child");
   }
   auto valuePB = std::make_unique<::common::Value>();
-  switch (childType.getLogicalTypeID()) {
-  case common::LogicalTypeID::INT32: {
+  switch (childType.id()) {
+  case common::DataTypeId::kInt32: {
     auto i32Array = valuePB->mutable_i32_array();
     for (auto& child : value.children) {
       i32Array->add_item(child->getValue<int32_t>());
     }
     break;
   }
-  case common::LogicalTypeID::INT64: {
+  case common::DataTypeId::kInt64: {
     auto i64Array = valuePB->mutable_i64_array();
     for (auto& child : value.children) {
       i64Array->add_item(child->getValue<int64_t>());
     }
     break;
   }
-  case common::LogicalTypeID::FLOAT: {
+  case common::DataTypeId::kFloat: {
     auto f32Array = valuePB->mutable_f64_array();
     for (auto& child : value.children) {
       f32Array->add_item(child->getValue<float>());
     }
     break;
   }
-  case common::LogicalTypeID::DOUBLE: {
+  case common::DataTypeId::kDouble: {
     auto f64Array = valuePB->mutable_f64_array();
     for (auto& child : value.children) {
       f64Array->add_item(child->getValue<double>());
     }
     break;
   }
-  case common::LogicalTypeID::STRING: {
+  case common::DataTypeId::kVarchar: {
     auto strArray = valuePB->mutable_str_array();
     for (auto& child : value.children) {
       strArray->add_item(child->getValue<std::string>());
@@ -467,7 +457,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
   }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
-                                   childType.toString());
+                                   childType.ToString());
   }
   return valuePB;
 }
@@ -575,12 +565,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
 
   // convert function opt: vertex or edge
   const auto& listType = expr.getChild(0)->getDataType();
-  const auto& childType = common::ListType::getChildType(listType);
+  const auto& childType = common::ListType::GetChildType(listType);
   // project properties for each node in path expand
-  if (childType.getLogicalTypeID() == common::LogicalTypeID::NODE) {
+  if (childType.id() == common::DataTypeId::kVertex) {
     pathFuncPB->set_opt(
         ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_VERTEX);
-  } else if (childType.getLogicalTypeID() == common::LogicalTypeID::REL) {
+  } else if (childType.id() == common::DataTypeId::kEdge) {
     pathFuncPB->set_opt(
         ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_EDGE);
   } else {

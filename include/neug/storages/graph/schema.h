@@ -28,6 +28,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -41,6 +42,27 @@ namespace neug {
 
 class PropertyGraph;
 class Schema;
+
+class LabelIndexer {
+ public:
+  bool add(const std::string& name, label_t& lid);
+  bool get_index(const std::string& name, label_t& lid) const;
+  const std::string& get_key(label_t lid) const;
+  label_t remove(const std::string& name);
+
+  size_t num_slots() const;
+  size_t size() const;
+  bool empty() const;
+  void Clear();
+
+  void Serialize(std::ostream& os) const;
+  void Deserialize(std::istream& is);
+
+ private:
+  std::vector<std::string> keys_;
+  std::unordered_map<std::string, label_t> index_;
+  std::vector<label_t> free_list_;
+};
 
 /**
  * @brief Schema definition for a vertex type (label).
@@ -130,8 +152,6 @@ struct VertexSchema {
   void delete_properties(const std::vector<std::string>& names,
                          bool is_soft = false);
 
-  void revert_delete_properties(const std::vector<std::string>& names);
-
   bool is_property_soft_deleted(const std::string& prop) const;
 
   /**
@@ -150,15 +170,6 @@ struct VertexSchema {
 
   const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
-  }
-
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
   }
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
@@ -289,23 +300,12 @@ struct EdgeSchema {
 
   bool is_property_soft_deleted(const std::string& prop) const;
 
-  void revert_delete_properties(const std::vector<std::string>& names);
-
   std::string get_property_name(size_t index) const;
 
   int32_t get_property_index(const std::string& prop) const;
 
   const std::vector<execution::Value>& get_default_property_values() const {
     return default_property_values;
-  }
-
-  std::vector<Property> get_default_properties() const {
-    std::vector<Property> result;
-    result.reserve(default_property_values.size());
-    for (const auto& val : default_property_values) {
-      result.emplace_back(execution::value_to_property(val));
-    }
-    return result;
   }
 
   std::string src_label_name, dst_label_name, edge_label_name;
@@ -489,20 +489,13 @@ class Schema {
 
   void DeleteVertexLabel(label_t label, bool is_soft = false);
 
-  void RevertDeleteVertexLabel(const std::string& label);
-
   void DeleteEdgeLabel(const std::string& label, bool is_soft = false);
-
-  void RevertDeleteEdgeLabel(label_t label);
 
   void DeleteEdgeLabel(const label_t& src, const label_t& dst,
                        const label_t& edge, bool is_soft = false);
 
   void DeleteEdgeLabel(const std::string& src, const std::string& dst,
                        const std::string& edge, bool is_soft = false);
-
-  void RevertDeleteEdgeLabel(const std::string& src, const std::string& dst,
-                             const std::string& edge);
 
   void AddVertexProperties(
       const std::string& label,
@@ -528,39 +521,9 @@ class Schema {
                             const std::vector<std::string>& properties_names,
                             const std::vector<std::string>& properties_renames);
 
-  bool is_vertex_label_soft_deleted(const std::string& label) const;
-
-  bool is_vertex_label_soft_deleted(label_t v_label) const;
-
-  bool is_edge_label_soft_deleted(label_t src_label, label_t dst_label,
-                                  label_t edge_label) const;
-
-  bool is_edge_label_soft_deleted(const std::string& src_label,
-                                  const std::string& dst_label,
-                                  const std::string& edge_label) const;
-
-  bool is_vertex_property_soft_deleted(const std::string& label,
-                                       const std::string& property) const;
-
-  bool is_vertex_property_soft_deleted(label_t label,
-                                       const std::string& property) const;
-
-  bool is_edge_property_soft_deleted(const std::string& src_label,
-                                     const std::string& dst_label,
-                                     const std::string& edge_label,
-                                     const std::string& property) const;
-
-  bool is_edge_property_soft_deleted(label_t src_label, label_t dst_label,
-                                     label_t edge_label,
-                                     const std::string& property) const;
-
   void DeleteVertexProperties(const std::string& label,
                               const std::vector<std::string>& properties_names,
                               bool is_soft = false);
-
-  void RevertDeleteVertexProperties(
-      const std::string& label,
-      const std::vector<std::string>& properties_names);
 
   void DeleteEdgeProperties(const std::string& src_label,
                             const std::string& dst_label,
@@ -568,24 +531,13 @@ class Schema {
                             const std::vector<std::string>& properties_names,
                             bool is_soft = false);
 
-  void RevertDeleteEdgeProperties(
-      const std::string& src_label, const std::string& dst_label,
-      const std::string& edge_label,
-      const std::vector<std::string>& properties_names);
-
-  void RevertDeleteEdgeProperties(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      const std::vector<std::string>& properties_names);
-
   label_t vertex_label_num() const;
 
   /**
    * @brief Get the next vertex label id to be assigned.
-   * Vertex label ids in the schema are monotonically incremented,
-   * and label ids are not recycled upon vertex label deletion.
-   * Each new vertex label is assigned an id one greater than the previous.
-   * This method returns the size of vlabel_indexer_, which equals
-   * the label id that will be used for the next newly created vertex label.
+   * This method returns the number of allocated vertex label slots.
+   * Physical deletion may recycle a lower vacant label id for the next label,
+   * but the slot frontier remains stable until a new slot is appended.
    */
   label_t vertex_label_frontier() const;
 
@@ -593,11 +545,9 @@ class Schema {
 
   /**
    * @brief Get the next edge label id to be assigned.
-   * Edge label ids in the schema are monotonically incremented,
-   * and label ids are not recycled upon edge label deletion.
-   * Each new edge label is assigned an id one greater than the previous.
-   * This method returns the size of vlabel_indexer_, which equals
-   * the label id that will be used for the next newly created edge label.
+   * This method returns the number of allocated edge label slots.
+   * Physical deletion may recycle a lower vacant label id for the next label,
+   * but the slot frontier remains stable until a new slot is appended.
    */
   label_t edge_label_frontier() const;
 
@@ -831,8 +781,8 @@ class Schema {
                                   const std::string& prop) const;
 
   std::string name_, id_;
-  IdIndexer<std::string, label_t> vlabel_indexer_;
-  IdIndexer<std::string, label_t> elabel_indexer_;
+  LabelIndexer vlabel_indexer_;
+  LabelIndexer elabel_indexer_;
   // We use shared_ptr to ensure the pointer to VertexSchema will not change
   // when resizing
   std::vector<std::shared_ptr<VertexSchema>> v_schemas_;

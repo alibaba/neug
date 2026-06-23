@@ -22,12 +22,16 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/module/module.h"
 #include "neug/utils/property/column.h"
-#include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
+
+class TableView;
 
 class Table {
  public:
@@ -40,13 +44,25 @@ class Table {
 
   void Init(Checkpoint& ckp, MemoryLevel level);
 
-  void SetColumn(int idx, std::shared_ptr<ColumnBase> col);
+  void SetColumn(int idx, std::unique_ptr<ColumnBase> col);
+
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level, const std::vector<std::string>& col_name,
+            const std::vector<DataType>& property_types);
+
+  ModuleDescriptor Dump(Checkpoint& ckp);
+
+  std::unique_ptr<Table> Clone() const;
+
+  void DetachColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level);
+
+  void DetachAllColumns(Checkpoint& ckp, MemoryLevel level);
 
   void reset_header(const std::vector<std::string>& col_name);
 
   void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
-                   const std::vector<Property>& default_property_values,
+                   const std::vector<execution::Value>& default_property_values,
                    size_t capacity,
                    MemoryLevel memory_level = MemoryLevel::kInMemory);
 
@@ -58,15 +74,15 @@ class Table {
 
   std::vector<DataTypeId> column_types() const;
 
-  std::shared_ptr<ColumnBase> get_column(const std::string& name);
+  ColumnBase* get_column(const std::string& name);
 
-  const std::shared_ptr<ColumnBase> get_column(const std::string& name) const;
+  const ColumnBase* get_column(const std::string& name) const;
 
-  std::vector<Property> get_row(size_t row_id) const;
+  std::vector<execution::Value> get_row(size_t row_id) const;
 
-  std::shared_ptr<ColumnBase> get_column_by_id(size_t index);
+  ColumnBase* get_column_by_id(size_t index);
 
-  const std::shared_ptr<ColumnBase> get_column_by_id(size_t index) const;
+  const ColumnBase* get_column_by_id(size_t index) const;
 
   void rename_column(const std::string& old_name, const std::string& new_name);
 
@@ -80,9 +96,8 @@ class Table {
       return columns_[0]->size();
     }
   }
-  std::vector<std::shared_ptr<ColumnBase>>& columns();
 
-  void insert(size_t index, const std::vector<Property>& values,
+  void insert(size_t index, const std::vector<execution::Value>& values,
               bool insert_safe);
 
   void resize(size_t row_num);
@@ -91,7 +106,8 @@ class Table {
    * values. Assume it is safe to insert the default value even if it is
    * reserving, since user could always override.
    */
-  void resize(size_t row_num, const std::vector<Property>& default_values);
+  void resize(size_t row_num,
+              const std::vector<execution::Value>& default_values);
 
   void ingest(uint32_t index, OutArchive& arc);
 
@@ -101,7 +117,9 @@ class Table {
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
 
-  std::vector<std::shared_ptr<ColumnBase>> columns_;
+  std::vector<std::unique_ptr<ColumnBase>> columns_;
+
+  friend class TableView;
 };
 
 }  // namespace neug

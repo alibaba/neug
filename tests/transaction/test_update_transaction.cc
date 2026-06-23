@@ -133,17 +133,14 @@ class UpdateTransactionTest : public ::testing::Test {
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto software_label = interface.schema().get_vertex_label_id("software");
     std::vector<std::pair<std::string, neug::execution::Value>> edge_props = {
-        std::make_pair("rating", neug::execution::property_to_value(
-                                     neug::Property::from_double(0.0))),
-        std::make_pair("year", neug::execution::property_to_value(
-                                   neug::Property::from_int64(2000)))};
+        std::make_pair("rating", neug::execution::Value::DOUBLE(0.0)),
+        std::make_pair("year", neug::execution::Value::INT64(2000))};
     EXPECT_TRUE(interface.CreateEdgeType(BuildCreateEdgeTypeParam(
         "person", "software", "developed", edge_props)));
     std::vector<std::pair<std::string, neug::execution::Value>> v_props = {
-        std::make_pair("id", neug::execution::property_to_value(
-                                 neug::Property::from_int64(0))),
-        std::make_pair("name", neug::execution::property_to_value(
-                                   neug::Property::from_string_view("")))};
+        std::make_pair("id", neug::execution::Value::INT64(0)),
+        std::make_pair("name",
+                       neug::execution::Value::STRING(std::string("")))};
     EXPECT_TRUE(interface.CreateVertexType(
         BuildCreateVertexTypeParam("company", v_props, {"id"})));
     EXPECT_TRUE(interface.CreateEdgeType(
@@ -153,22 +150,23 @@ class UpdateTransactionTest : public ::testing::Test {
     dev_label = interface.schema().get_edge_label_id("developed");
     neug::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(
-        cmp_label, neug::Property::from_int64(1),
-        {neug::Property::from_string_view("TechCorp")}, vid));
+        cmp_label, neug::execution::Value::INT64(1),
+        {neug::execution::Value::STRING(std::string("TechCorp"))}, vid));
     neug::vid_t p1_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
     neug::vid_t software_vid;
     EXPECT_TRUE(txn.GetVertexIndex(
-        software_label, neug::Property::from_int64(1), software_vid));
+        software_label, neug::execution::Value::INT64(1), software_vid));
     neug::vid_t cmp_vid;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(cmp_label, neug::Property::from_int64(1), cmp_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(cmp_label, neug::execution::Value::INT64(1),
+                                   cmp_vid));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(interface.AddEdge(
-        person_label, p1_vid, software_label, software_vid, dev_label,
-        {neug::Property::from_double(4.5), neug::Property::from_int64(2023)},
-        edge_prop));
+    EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, software_label,
+                                  software_vid, dev_label,
+                                  {neug::execution::Value::DOUBLE(4.5),
+                                   neug::execution::Value::INT64(2023)},
+                                  edge_prop));
     EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, cmp_label, cmp_vid,
                                   employ_label, {}, edge_prop));
   }
@@ -204,18 +202,17 @@ class UpdateTransactionTest : public ::testing::Test {
     auto person_label = graph.schema().get_vertex_label_id("person");
     auto software_label = graph.schema().get_vertex_label_id("software");
     std::vector<std::pair<std::string, neug::execution::Value>> edge_props = {
-        std::make_pair("review",
-                       neug::execution::property_to_value(
-                           neug::Property::from_string_view("no review")))};
+        std::make_pair("review", neug::execution::Value::STRING(
+                                     std::string("no review")))};
     EXPECT_TRUE(graph.CreateEdgeType(BuildCreateEdgeTypeParam(
         "person", "software", "reviewed", edge_props)));
     neug::label_t review_label = graph.schema().get_edge_label_id("reviewed");
     neug::vid_t p1_vid;
     EXPECT_TRUE(graph.GetVertexIndex(person_label,
-                                     neug::Property::from_int64(1), p1_vid));
+                                     neug::execution::Value::INT64(1), p1_vid));
     neug::vid_t s1_vid;
     EXPECT_TRUE(graph.GetVertexIndex(software_label,
-                                     neug::Property::from_int64(1), s1_vid));
+                                     neug::execution::Value::INT64(1), s1_vid));
     std::string review_text("Review number: ");
     std::vector<std::string> reviews;
     for (int i = 0; i < num_edges; i++) {
@@ -224,13 +221,14 @@ class UpdateTransactionTest : public ::testing::Test {
       const void* edge_prop = nullptr;
       EXPECT_TRUE(graph.AddEdge(
           person_label, p1_vid, software_label, s1_vid, review_label,
-          {neug::Property::from_string_view(full_review)}, edge_prop));
+          {neug::execution::Value::STRING(std::string(full_review))},
+          edge_prop));
     }
     return reviews;
   }
 
   // Helper function to fetch all edge string properties
-  std::vector<std::string_view> fetch_edge_string_properties(
+  std::vector<std::string> fetch_edge_string_properties(
       neug::StorageReadInterface& gi, neug::label_t person_label,
       neug::label_t software_label, neug::label_t review_label) {
     auto ed_accessor =
@@ -238,12 +236,12 @@ class UpdateTransactionTest : public ::testing::Test {
     auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
                                                review_label);
     auto vertex_set = gi.GetVertexSet(person_label);
-    std::vector<std::string_view> fetched_views;
+    std::vector<std::string> fetched_views;
     for (neug::vid_t vid : vertex_set) {
       auto edges = view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
         auto prop = ed_accessor.get_data(it);
-        fetched_views.push_back(prop.as_string_view());
+        fetched_views.push_back(prop.GetValue<std::string>());
       }
     }
     return fetched_views;
@@ -251,7 +249,7 @@ class UpdateTransactionTest : public ::testing::Test {
 
   // Helper function to verify expected and fetched string views match
   void verify_string_views(const std::vector<std::string>& expected,
-                           const std::vector<std::string_view>& fetched) {
+                           const std::vector<std::string>& fetched) {
     auto sorted_expected = expected;
     auto sorted_fetched = fetched;
     std::sort(sorted_expected.begin(), sorted_expected.end());
@@ -364,18 +362,20 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
-    EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(3),
-                              {neug::Property::from_string_view("Eve"),
-                               neug::Property::from_int64(28)},
-                              vid));
+    EXPECT_TRUE(
+        gui.AddVertex(person_label, neug::execution::Value::INT64(3),
+                      {neug::execution::Value::STRING(std::string("Eve")),
+                       neug::execution::Value::INT64(28)},
+                      vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
@@ -393,20 +393,22 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     for (int i = 4; i <= 10000; i++) {
       neug::vid_t vid;
-      EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(i),
-                                {neug::Property::from_string_view("User"),
-                                 neug::Property::from_int64(20 + i % 10)},
-                                vid));
+      EXPECT_TRUE(
+          gui.AddVertex(person_label, neug::execution::Value::INT64(i),
+                        {neug::execution::Value::STRING(std::string("User")),
+                         neug::execution::Value::INT64(20 + i % 10)},
+                        vid));
     }
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
   }
@@ -422,26 +424,28 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid));
     neug::vid_t vid2;
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(2), vid2));
+                                   neug::execution::Value::INT64(2), vid2));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid, software_label, vid2, created_label,
-        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)},
-        edge_prop));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid, software_label, vid2,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.9),
+                             neug::execution::Value::INT64(2022)},
+                            edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -452,7 +456,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
           edge_count++;
@@ -473,41 +477,46 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid2, vid4, vid3;
-    EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(4),
-                              {neug::Property::from_string_view("David"),
-                               neug::Property::from_int64(32)},
-                              vid4));
-    EXPECT_TRUE(txn.AddVertex(software_label, neug::Property::from_int64(3),
-                              {neug::Property::from_string_view("NeugDB"),
-                               neug::Property::from_string_view("C++")},
-                              vid3));
+    EXPECT_TRUE(
+        gui.AddVertex(person_label, neug::execution::Value::INT64(4),
+                      {neug::execution::Value::STRING(std::string("David")),
+                       neug::execution::Value::INT64(32)},
+                      vid4));
+    EXPECT_TRUE(
+        gui.AddVertex(software_label, neug::execution::Value::INT64(3),
+                      {neug::execution::Value::STRING(std::string("NeugDB")),
+                       neug::execution::Value::STRING(std::string("C++"))},
+                      vid3));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid4, software_label, vid3, created_label,
-        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)},
-        edge_prop));
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid2, software_label, vid3, created_label,
-        {neug::Property::from_double(0.75), neug::Property::from_int64(2021)},
-        edge_prop));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid4, software_label, vid3,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.85),
+                             neug::execution::Value::INT64(2023)},
+                            edge_prop));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), vid2));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid2, software_label, vid3,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.75),
+                             neug::execution::Value::INT64(2021)},
+                            edge_prop));
     neug::vid_t vid1;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
-    EXPECT_TRUE(txn.AddEdge(person_label, vid4, person_label, vid1,
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid1));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid4, person_label, vid1,
                             txn.schema().get_edge_label_id("knows"),
-                            {neug::Property::from_double(0.95)}, edge_prop));
+                            {neug::execution::Value::DOUBLE(0.95)}, edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -515,14 +524,14 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     auto created_label = gi.schema().get_edge_label_id("created");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     neug::vid_t david_vid;
-    EXPECT_TRUE(gi.GetVertexIndex(person_label, neug::Property::from_int64(4),
-                                  david_vid));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(4), david_vid));
     EXPECT_EQ(count_edges_filter_src(gi, person_label, software_label,
                                      created_label, david_vid, true),
               1);
     neug::vid_t neugdb_vid;
-    EXPECT_TRUE(gi.GetVertexIndex(software_label, neug::Property::from_int64(3),
-                                  neugdb_vid));
+    EXPECT_TRUE(gi.GetVertexIndex(
+        software_label, neug::execution::Value::INT64(3), neugdb_vid));
     EXPECT_EQ(count_edges_filter_src(gi, software_label, person_label,
                                      created_label, neugdb_vid, false),
               2);
@@ -543,29 +552,33 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid5, vid4;
-    EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(5),
-                              {neug::Property::from_string_view("Frank"),
-                               neug::Property::from_int64(27)},
-                              vid5));
-    EXPECT_TRUE(txn.AddVertex(software_label, neug::Property::from_int64(4),
-                              {neug::Property::from_string_view("UltraGraph"),
-                               neug::Property::from_string_view("Go")},
-                              vid4));
+    EXPECT_TRUE(
+        gui.AddVertex(person_label, neug::execution::Value::INT64(5),
+                      {neug::execution::Value::STRING(std::string("Frank")),
+                       neug::execution::Value::INT64(27)},
+                      vid5));
+    EXPECT_TRUE(gui.AddVertex(
+        software_label, neug::execution::Value::INT64(4),
+        {neug::execution::Value::STRING(std::string("UltraGraph")),
+         neug::execution::Value::STRING(std::string("Go"))},
+        vid4));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid5, software_label, vid4, created_label,
-        {neug::Property::from_double(0.65), neug::Property::from_int64(2022)},
-        edge_prop));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid5, software_label, vid4,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.65),
+                             neug::execution::Value::INT64(2022)},
+                            edge_prop));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -595,19 +608,20 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
                              vertex_id));
-    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vertex_id, 1,
-                                         neug::Property::from_int64(26)));
+    gui.UpdateVertexProperty(person_label, vertex_id, 1,
+                             neug::execution::Value::INT64(26));
 
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<int64_t>>(
@@ -615,7 +629,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 26);
       }
     }
@@ -631,19 +645,20 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vertex_id));
     update_edge_property(
         txn, person_label, software_label, created_label, vertex_id,
         [](neug::vid_t dst_vid) { return true; },
         [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 0, neug::Property::from_double(0.99));
+                                 0, neug::execution::Value::DOUBLE(0.99));
         });
 
     EXPECT_TRUE(txn.Commit());
@@ -651,7 +666,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -662,10 +677,10 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.99);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.99);
         }
       }
     }
@@ -682,18 +697,20 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
-    EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(4),
-                              {neug::Property::from_string_view("Charlie"),
-                               neug::Property::from_int64(29)},
-                              vid));
+    EXPECT_TRUE(
+        gui.AddVertex(person_label, neug::execution::Value::INT64(4),
+                      {neug::execution::Value::STRING(std::string("Charlie")),
+                       neug::execution::Value::INT64(29)},
+                      vid));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
@@ -715,25 +732,27 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid2, vid1;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), vid2));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(1), vid1));
+                                   neug::execution::Value::INT64(1), vid1));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid2, software_label, vid1, created_label,
-        {neug::Property::from_double(0.8), neug::Property::from_int64(2021)},
-        edge_prop));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid2, software_label, vid1,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.8),
+                             neug::execution::Value::INT64(2021)},
+                            edge_prop));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -743,7 +762,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
           edge_count++;
@@ -764,18 +783,19 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
                              vertex_id));
-    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vertex_id, 1,
-                                         neug::Property::from_int64(27)));
+    gui.UpdateVertexProperty(person_label, vertex_id, 1,
+                             neug::execution::Value::INT64(27));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<int64_t>>(
@@ -783,7 +803,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 2) {
+      if (oid.GetValue<int64_t>() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 25);
       }
     }
@@ -809,23 +829,24 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vertex_id));
 
     update_edge_property(
         txn, person_label, software_label, created_label, vertex_id,
         [](neug::vid_t dst_vid) { return true; },
         [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 0, neug::Property::from_double(0.9));
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 0, neug::execution::Value::DOUBLE(0.9));
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 1, neug::Property::from_int64(2023));
+                                 1, neug::execution::Value::INT64(2023));
         });
 
     txn.Abort();
@@ -833,7 +854,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -846,11 +867,11 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.8);
-          EXPECT_EQ(since_accessor.get_data(it).as_int64(), 2021);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.8);
+          EXPECT_EQ(since_accessor.get_data(it).GetValue<int64_t>(), 2021);
         }
       }
     }
@@ -872,6 +893,506 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
 }
 
+// Regression test for: DeleteVertex with intra-label edges must collect
+// incoming intra-label edges in the COW undo log so that Abort() can properly
+// restore them. See https://github.com/alibaba/neug/issues/558
+TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // Baseline: check edge counts before any mutation.
+  // Setup creates: person1 -[:knows]-> person2
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    // person1 has 1 outgoing knows edge, person2 has 0 outgoing knows edges
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              1);
+    // person1 has 0 incoming knows edges, person2 has 1 incoming knows edge
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
+              1);
+  }
+
+  // Delete person2 (the destination of an intra-label "knows" edge) then abort.
+  // The bug was that fetch_edges_related_to_vertex only collected outgoing
+  // intra-label edges (where lid is src), missing incoming ones (where lid is
+  // dst). Without the fix, the "knows" edge from person1 to person2 would not
+  // be properly reverted on abort.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid2;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
+                             vid2));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, vid2));
+    txn.Abort();
+  }
+
+  // After abort, all intra-label "knows" edges must be restored.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    // Both vertices must still exist
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
+    // Both outgoing and incoming intra-label edges must be fully restored
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              1);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
+              1);
+  }
+  db.Close();
+}
+
+// ============================================================================
+// Regression tests for Issue #2 and Issue #3 (cow_state_ consistency
+// after DDL operations that change table structure).
+//
+// Issue #2: After DeleteVertexProperties / DeleteEdgeProperties the
+// columns_detached vector was not updated to reflect column index shifting
+// caused by Table::delete_column().  This led to out-of-bounds
+// DetachColumn calls (crash) or wrong columns being marked as
+// detached.
+//
+// Issue #3: After DeleteVertexType / DeleteEdgeType the cow_state_
+// still contained entries for the deleted types, which could interfere
+// with subsequent DDL/DML in the same transaction.
+// ============================================================================
+
+// Issue #2 (vertex): delete a property then insert a vertex.
+// detachVertexTableForInsert iterates columns_detached — stale
+// entries cause DetachColumn(out-of-bounds) -> crash without the
+// fix.
+TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    // person has name(0), age(1) — 2 non-PK columns
+    // Delete "name" -> table now has age(0) — 1 column
+    EXPECT_TRUE(interface.DeleteVertexProperties(
+        BuildDeleteVertexPropertiesParam("person", {"name"})));
+
+    // Insert a new person vertex — triggers detachVertexTableForInsert
+    // which iterates columns_detached.  Without the fix
+    // columns_detached still has 2 entries -> DetachColumn(1)
+    // on a 1-column table -> crash.
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    EXPECT_TRUE(interface.AddVertex(person_label,
+                                    neug::execution::Value::INT64(3),
+                                    {neug::execution::Value::INT64(28)}, vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify the new vertex is readable and "name" is gone.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
+    neug::vid_t vid;
+    ASSERT_TRUE(
+        gi.GetVertexIndex(person_label, neug::execution::Value::INT64(3), vid));
+    auto age_col = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<int64_t>>(
+        gi.GetVertexPropColumn(person_label, "age"));
+    ASSERT_TRUE(age_col);
+    EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 28);
+  }
+  db.Close();
+}
+
+// Issue #2 (vertex, column index shift): add extra properties, detach one,
+// delete a middle property (shifting indices), then update a remaining
+// property and insert a vertex.  Without the fix, stale columns_detached
+// causes either stale detachment tracking or out-of-bounds
+// DetachColumn -> crash.
+TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // First transaction: add two more properties to person.
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
+    std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
+        std::make_pair("email",
+                       neug::execution::Value::STRING(std::string(""))),
+        std::make_pair("score", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(gui.AddVertexProperties(
+        BuildAddVertexPropertiesParam("person", new_props)));
+    // Set initial values for person id=1
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             vid));
+    // name(0), age(1), email(2), score(3)
+    gui.UpdateVertexProperty(
+        person_label, vid, 2,
+        neug::execution::Value::STRING(std::string("alice@test.com")));
+    gui.UpdateVertexProperty(person_label, vid, 3,
+                             neug::execution::Value::DOUBLE(95.5));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
+  // In this transaction:
+  //   1. Update "age" (col 1) -> columns_detached[1] = true
+  //   2. Delete "name" (col 0) -> age shifts to 0, email to 1, score to 2
+  //   3. Without fix: columns_detached = [false, true, false, false] (4
+  //   entries)
+  //      Update email (now col 1) -> columns_detached[1] = stale true ->
+  //      skip Insert vertex -> DetachColumn(3) on 3-column table
+  //      -> crash
+  //   4. With fix: columns_detached correctly has 3 entries after deletion
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             vid));
+
+    // Step 1: update "age" (col 1) to trigger detachment
+    interface.UpdateVertexProperty(person_label, vid, 1,
+                                   neug::execution::Value::INT64(31));
+
+    // Step 2: delete "name" (col 0) — shifts column indices
+    EXPECT_TRUE(interface.DeleteVertexProperties(
+        BuildDeleteVertexPropertiesParam("person", {"name"})));
+
+    // After deletion: age(0), email(1), score(2) — 3 non-PK columns
+    // Step 3: update remaining properties with shifted indices
+    interface.UpdateVertexProperty(
+        person_label, vid, 1,
+        neug::execution::Value::STRING(std::string("new@test.com")));
+    interface.UpdateVertexProperty(person_label, vid, 2,
+                                   neug::execution::Value::DOUBLE(88.0));
+
+    // Step 4: insert a new vertex — without the fix,
+    // detachVertexTableForInsert iterates stale columns_detached
+    // (4 entries for 3 cols) and calls DetachColumn(3) ->
+    // out-of-bounds crash.
+    neug::vid_t new_vid;
+    EXPECT_TRUE(interface.AddVertex(
+        person_label, neug::execution::Value::INT64(3),
+        {neug::execution::Value::INT64(22),
+         neug::execution::Value::STRING(std::string("charlie@test.com")),
+         neug::execution::Value::DOUBLE(77.0)},
+        new_vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify data correctness
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+
+    // "name" is gone
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
+
+    // person id=1: age=31, email=new@test.com, score=88.0
+    {
+      neug::vid_t vid;
+      CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                              vid));
+      auto age_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label, "age"));
+      ASSERT_TRUE(age_col);
+      EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 31);
+      auto email_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<std::string_view>>(
+          gi.GetVertexPropColumn(person_label, "email"));
+      ASSERT_TRUE(email_col);
+      EXPECT_EQ(email_col->get_any(vid).GetValue<std::string>(),
+                "new@test.com");
+      auto score_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<double>>(
+          gi.GetVertexPropColumn(person_label, "score"));
+      ASSERT_TRUE(score_col);
+      EXPECT_EQ(score_col->get_any(vid).GetValue<double>(), 88.0);
+    }
+
+    // person id=3: age=22, email=charlie@test.com, score=77.0
+    {
+      neug::vid_t vid;
+      CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(3),
+                              vid));
+      auto age_col = std::dynamic_pointer_cast<
+          neug::StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label, "age"));
+      ASSERT_TRUE(age_col);
+      EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 22);
+    }
+  }
+  db.Close();
+}
+
+// Issue #2 (edge): delete an edge property then insert an edge.
+// detachEdgeTableForInsert iterates columns_detached — stale
+// entries cause DetachColumn(out-of-bounds) -> crash without the
+// fix.
+TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // First, add a third property to "created" so that deleting one still
+  // leaves 2 properties (avoids bundled<->unbundled conversion path).
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
+    std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
+        std::make_pair("rating", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(gui.AddEdgeProperties(BuildAddEdgePropertiesParam(
+        "person", "software", "created", new_props)));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Now "created" has weight(0), since(1), rating(2) — 3 columns
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "since" -> table now has weight(0), rating(1) — 2 columns
+    EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
+        "person", "software", "created", {"since"})));
+
+    // Insert a new edge.  detachEdgeTableForInsert iterates
+    // columns_detached.  Without the fix columns_detached still has 3
+    // entries
+    // -> DetachColumn(2) on a 2-column table -> crash.
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    neug::vid_t p1_vid, s1_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    CHECK(txn.GetVertexIndex(software_label, neug::execution::Value::INT64(1),
+                             s1_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, software_label, s1_vid,
+                                  created_label,
+                                  {neug::execution::Value::DOUBLE(0.9),
+                                   neug::execution::Value::DOUBLE(4.5)},
+                                  edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify the new edge data is correct
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+
+    // "since" is gone
+    EXPECT_EQ(gi.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("since"),
+              -1);
+
+    // weight and rating should be accessible
+    auto weight_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+    auto rating_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 1);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
+    neug::vid_t p1_vid;
+    CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                            p1_vid));
+    int edge_count = 0;
+    auto edge_iter = view.get_edges(p1_vid);
+    for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+      edge_count++;
+      if (it.get_vertex() == [&]() {
+            neug::vid_t s1_vid;
+            CHECK(gi.GetVertexIndex(software_label,
+                                    neug::execution::Value::INT64(1), s1_vid));
+            return s1_vid;
+          }()) {
+        // One of the edges to software(1) should have the new values
+        double w = weight_accessor.get_data(it).GetValue<double>();
+        double r = rating_accessor.get_data(it).GetValue<double>();
+        if (w == 0.9) {
+          EXPECT_EQ(r, 4.5);
+        }
+      }
+    }
+    EXPECT_EQ(edge_count, 2);  // original + new
+  }
+  db.Close();
+}
+
+// Issue #3 (vertex): DeleteVertexType with edges then create new types
+// and insert data in the same transaction.  Without the fix,
+// cow_state_ retains stale entries for the deleted vertex table and
+// its related edge tables, which can interfere with subsequent DML.
+TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "software" — this also removes "created" edges
+    EXPECT_TRUE(interface.DeleteVertexType("software"));
+
+    // Create a new vertex type "company" and edge type "employed_by"
+    std::vector<std::pair<std::string, neug::execution::Value>> v_props = {
+        std::make_pair("id", neug::execution::Value::INT64(0)),
+        std::make_pair("name",
+                       neug::execution::Value::STRING(std::string("")))};
+    EXPECT_TRUE(interface.CreateVertexType(
+        BuildCreateVertexTypeParam("company", v_props, {"id"})));
+    EXPECT_TRUE(interface.CreateEdgeType(
+        BuildCreateEdgeTypeParam("person", "company", "employed_by", {})));
+
+    // Insert data into the new types
+    auto company_label = interface.schema().get_vertex_label_id("company");
+    neug::vid_t cmp_vid;
+    EXPECT_TRUE(interface.AddVertex(
+        company_label, neug::execution::Value::INT64(1),
+        {neug::execution::Value::STRING(std::string("TechCorp"))}, cmp_vid));
+
+    auto person_label = interface.schema().get_vertex_label_id("person");
+    auto employ_label = interface.schema().get_edge_label_id("employed_by");
+    neug::vid_t p1_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, company_label, cmp_vid,
+                                  employ_label, {}, edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify: "software" and "created" are gone; new types work correctly
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    EXPECT_FALSE(gi.schema().is_vertex_label_valid("software"));
+    EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
+    EXPECT_TRUE(gi.schema().is_vertex_label_valid("company"));
+    EXPECT_TRUE(gi.schema().is_edge_label_valid("employed_by"));
+
+    auto company_label = gi.schema().get_vertex_label_id("company");
+    EXPECT_EQ(count_vertices(gi, company_label), 1);
+
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto employ_label = gi.schema().get_edge_label_id("employed_by");
+    EXPECT_EQ(count_edges(gi, person_label, company_label, employ_label, true),
+              1);
+  }
+  db.Close();
+}
+
+// Issue #3 (edge): DeleteEdgeType then create a new edge type and
+// insert data in the same transaction.  Without the fix, cow_state_
+// retains stale entries for the deleted edge table.
+TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+
+    // Delete "knows" edge type
+    EXPECT_TRUE(interface.DeleteEdgeType("person", "person", "knows"));
+
+    // Create a new edge type "friend_of" between person and person
+    std::vector<std::pair<std::string, neug::execution::Value>> e_props = {
+        std::make_pair("closeness", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(interface.CreateEdgeType(
+        BuildCreateEdgeTypeParam("person", "person", "friend_of", e_props)));
+
+    // Insert a new edge
+    auto person_label = interface.schema().get_vertex_label_id("person");
+    auto friend_label = interface.schema().get_edge_label_id("friend_of");
+    neug::vid_t p1_vid, p2_vid;
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             p1_vid));
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
+                             p2_vid));
+    const void* edge_prop = nullptr;
+    EXPECT_TRUE(interface.AddEdge(
+        person_label, p1_vid, person_label, p2_vid, friend_label,
+        {neug::execution::Value::DOUBLE(0.75)}, edge_prop));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify: "knows" is gone; "friend_of" works correctly
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
+    EXPECT_FALSE(gi.schema().is_edge_label_valid("knows"));
+    EXPECT_TRUE(gi.schema().is_edge_label_valid("friend_of"));
+
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto friend_label = gi.schema().get_edge_label_id("friend_of");
+    EXPECT_EQ(count_edges(gi, person_label, person_label, friend_label, true),
+              1);
+
+    // Verify edge property value
+    auto ed_accessor =
+        gi.GetEdgeDataAccessor(person_label, person_label, friend_label, 0);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, person_label,
+                                               friend_label);
+    neug::vid_t p1_vid;
+    CHECK(gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                            p1_vid));
+    auto edges = view.get_edges(p1_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.75);
+    }
+  }
+  db.Close();
+}
+
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   // Update a bundled edge property and abort the transaction
   neug::NeugDB db;
@@ -882,19 +1403,20 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vertex_id));
 
     update_edge_property(
         txn, person_label, person_label, knows_label, vertex_id,
         [](neug::vid_t dst_vid) { return true; },
         [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
-          txn.UpdateEdgeProperty(person_label, vertex_id, person_label, dst_vid,
+          gui.UpdateEdgeProperty(person_label, vertex_id, person_label, dst_vid,
                                  knows_label, oe_offset, ie_offset, 0,
-                                 neug::Property::from_double(0.95));
+                                 neug::execution::Value::DOUBLE(0.95));
         });
 
     txn.Abort();
@@ -902,7 +1424,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     auto view =
@@ -912,10 +1434,10 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.9);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.9);
         }
       }
     }
@@ -947,30 +1469,32 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid1, vid2;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid1));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(2), vid2));
+                                   neug::execution::Value::INT64(2), vid2));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(txn.AddEdge(
-        person_label, vid1, software_label, vid2, created_label,
-        {neug::Property::from_double(0.85), neug::Property::from_int64(2023)},
-        edge_prop));
+    EXPECT_TRUE(gui.AddEdge(person_label, vid1, software_label, vid2,
+                            created_label,
+                            {neug::execution::Value::DOUBLE(0.85),
+                             neug::execution::Value::INT64(2023)},
+                            edge_prop));
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vertex_id));
 
     update_edge_property(
         txn, person_label, software_label, created_label, vertex_id,
         [](neug::vid_t dst_vid) { return true; },
         [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 0, neug::Property::from_double(0.9));
+                                 0, neug::execution::Value::DOUBLE(0.9));
         });
 
     txn.Abort();
@@ -978,7 +1502,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -990,11 +1514,11 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          if (ed_accessor.get_data(it).as_double() == 0.9 ||
-              ed_accessor.get_data(it).as_double() == 0.85) {
+          if (ed_accessor.get_data(it).GetValue<double>() == 0.9 ||
+              ed_accessor.get_data(it).GetValue<double>() == 0.85) {
             ADD_FAILURE() << "Found aborted edge update or addition.";
           } else {
             edge_count++;
@@ -1018,24 +1542,25 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
                              vertex_id));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, vertex_id));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, vertex_id));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     neug::vid_t vertex_id;
-    EXPECT_FALSE(gi.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   vertex_id));
+    EXPECT_FALSE(gi.GetVertexIndex(
+        person_label, neug::execution::Value::INT64(2), vertex_id));
     EXPECT_EQ(
         count_edges(gi, person_label, software_label, created_label, true), 1);
     EXPECT_EQ(
@@ -1045,11 +1570,12 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
     // Delete person label and then delete vertex should throw
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_TRUE(txn.DeleteVertexType("person"));
+    EXPECT_TRUE(gui.DeleteVertexType("person"));
     neug::vid_t vertex_id;
-    EXPECT_THROW(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                    vertex_id),
+    EXPECT_THROW(txn.GetVertexIndex(
+                     person_label, neug::execution::Value::INT64(1), vertex_id),
                  neug::exception::Exception);
   }
   db.Close();
@@ -1065,42 +1591,45 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid2, vid1;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid2));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid2));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(1), vid1));
-    EXPECT_TRUE(txn.DeleteEdges(person_label, vid2, software_label, vid1,
+                                   neug::execution::Value::INT64(1), vid1));
+    EXPECT_TRUE(gui.DeleteEdges(person_label, vid2, software_label, vid1,
                                 created_label));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vid1, vid2;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid1));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), vid2));
     EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
-    EXPECT_TRUE(
-        txn.DeleteEdges(person_label, vid1, person_label, vid2, knows_label));
+        gui.DeleteEdges(person_label, vid1, person_label, vid2, knows_label));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vid1, vid2;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid1));
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid2));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), vid1));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), vid2));
     auto oe_edges =
         txn.GetGenericOutgoingGraphView(person_label, person_label, knows_label)
             .get_edges(vid1);
@@ -1121,7 +1650,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
       }
       oe_offset++;
     }
-    EXPECT_TRUE(txn.DeleteEdge(person_label, vid1, person_label, vid2,
+    EXPECT_TRUE(gui.DeleteEdge(person_label, vid1, person_label, vid2,
                                knows_label, oe_offset, ie_offset));
     txn.Abort();
   }
@@ -1129,7 +1658,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
     // Check edge count
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
     auto s_label_id = gi.schema().get_vertex_label_id("software");
     auto e_label_id = gi.schema().get_edge_label_id("created");
@@ -1162,49 +1691,52 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     neug::StorageTPUpdateInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
                              vertex_id));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, vertex_id));
+    EXPECT_TRUE(interface.DeleteVertex(person_label, vertex_id));
     neug::vid_t vid;
-    EXPECT_TRUE(interface.AddVertex(person_label, neug::Property::from_int64(3),
-                                    {neug::Property::from_string_view("Eve"),
-                                     neug::Property::from_int64(28)},
-                                    vid));
+    EXPECT_TRUE(
+        interface.AddVertex(person_label, neug::execution::Value::INT64(3),
+                            {neug::execution::Value::STRING(std::string("Eve")),
+                             neug::execution::Value::INT64(28)},
+                            vid));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     neug::vid_t vertex_id;
-    EXPECT_TRUE(gi.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                  vertex_id));
-    EXPECT_FALSE(gi.GetVertexIndex(person_label, neug::Property::from_int64(3),
-                                   vertex_id));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(2), vertex_id));
+    EXPECT_FALSE(gi.GetVertexIndex(
+        person_label, neug::execution::Value::INT64(3), vertex_id));
   }
   {
     // Add again
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
-    EXPECT_TRUE(txn.AddVertex(person_label, neug::Property::from_int64(3),
-                              {neug::Property::from_string_view("Eve"),
-                               neug::Property::from_int64(28)},
-                              vid));
+    EXPECT_TRUE(
+        gui.AddVertex(person_label, neug::execution::Value::INT64(3),
+                      {neug::execution::Value::STRING(std::string("Eve")),
+                       neug::execution::Value::INT64(28)},
+                      vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     neug::vid_t vertex_id;
-    EXPECT_TRUE(gi.GetVertexIndex(person_label, neug::Property::from_int64(3),
-                                  vertex_id));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(3), vertex_id));
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
   db.Close();
@@ -1228,7 +1760,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_THROW(gi.schema().get_edge_label_id("developed"),
@@ -1268,7 +1800,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.schema().get_edge_label_id("developed"), dev_label);
@@ -1291,10 +1823,11 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto created_label = txn.schema().get_edge_label_id("created");
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_TRUE(txn.DeleteEdgeType("person", "software", "created"));
+    EXPECT_TRUE(gui.DeleteEdgeType("person", "software", "created"));
     EXPECT_FALSE(txn.schema().is_edge_triplet_valid(
         person_label, software_label, created_label));
     txn.Abort();
@@ -1302,7 +1835,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1324,43 +1857,46 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("email", neug::execution::property_to_value(
-                                    neug::Property::from_string_view(""))),
-        std::make_pair("height", neug::execution::property_to_value(
-                                     neug::Property::from_double(0.0)))};
-    EXPECT_TRUE(txn.AddVertexProperties(
+        std::make_pair("email",
+                       neug::execution::Value::STRING(std::string(""))),
+        std::make_pair("height", neug::execution::Value::DOUBLE(0.0))};
+    EXPECT_TRUE(gui.AddVertexProperties(
         BuildAddVertexPropertiesParam("person", new_props)));
     auto email_accessor = txn.get_vertex_property_column(person_label, "email");
     neug::vid_t vid;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid));
-    EXPECT_TRUE(txn.UpdateVertexProperty(
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
+                             vid));
+    gui.UpdateVertexProperty(
         person_label, vid, 2,
-        neug::Property::from_string_view("eve@example.com")));
+        neug::execution::Value::STRING(std::string("eve@example.com")));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("address", neug::execution::property_to_value(
-                                      neug::Property::from_string_view("")))};
-    EXPECT_TRUE(txn.AddVertexProperties(
+        std::make_pair("address",
+                       neug::execution::Value::STRING(std::string("")))};
+    EXPECT_TRUE(gui.AddVertexProperties(
         BuildAddVertexPropertiesParam("person", new_props)));
     neug::vid_t vid;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(2), vid));
-    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 3,
-                                         neug::Property::from_double(175.5)));
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(2),
+                             vid));
+    gui.UpdateVertexProperty(person_label, vid, 3,
+                             neug::execution::Value::DOUBLE(175.5));
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "address"), nullptr);
 
@@ -1371,10 +1907,13 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
         neug::StorageReadInterface::vertex_column_t<double>>(
         gi.GetVertexPropColumn(person_label, "height"));
     neug::vid_t vid;
-    CHECK(gi.GetVertexIndex(person_label, neug::Property::from_int64(1), vid));
-    EXPECT_EQ(email_accessor->get(vid).as_string_view(), "eve@example.com");
-    CHECK(gi.GetVertexIndex(person_label, neug::Property::from_int64(2), vid));
-    EXPECT_EQ(height_accessor->get(vid).as_double(), 0.0);
+    CHECK(
+        gi.GetVertexIndex(person_label, neug::execution::Value::INT64(1), vid));
+    EXPECT_EQ(email_accessor->get_any(vid).GetValue<std::string>(),
+              "eve@example.com");
+    CHECK(
+        gi.GetVertexIndex(person_label, neug::execution::Value::INT64(2), vid));
+    EXPECT_EQ(height_accessor->get_any(vid).GetValue<double>(), 0.0);
   }
   db.Close();
 }
@@ -1391,10 +1930,9 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("version", neug::execution::property_to_value(
-                                      neug::Property::from_int64(0))),
-        std::make_pair("license", neug::execution::property_to_value(
-                                      neug::Property::from_string_view("")))};
+        std::make_pair("version", neug::execution::Value::INT64(0)),
+        std::make_pair("license",
+                       neug::execution::Value::STRING(std::string("")))};
     EXPECT_TRUE(interface.AddEdgeProperties(BuildAddEdgePropertiesParam(
         "person", "software", "created", new_props)));
     EXPECT_TRUE(txn.Commit());
@@ -1404,8 +1942,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("contributions", neug::execution::property_to_value(
-                                            neug::Property::from_double(0.0)))};
+        std::make_pair("contributions", neug::execution::Value::DOUBLE(0.0))};
     EXPECT_TRUE(interface.AddEdgeProperties(BuildAddEdgePropertiesParam(
         "person", "software", "created", new_props)));
     txn.Abort();
@@ -1413,7 +1950,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    auto gi = neug::StorageReadInterface(txn.graph(), txn.timestamp());
+    auto gi = neug::StorageReadInterface(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1470,7 +2007,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "age"), nullptr);
@@ -1510,7 +2047,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1546,11 +2083,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
-    EXPECT_TRUE(txn.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
+    EXPECT_TRUE(interface.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "software", "created", {"since"})));
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("contributions", neug::execution::property_to_value(
-                                            neug::Property::from_double(0.0)))};
+        std::make_pair("contributions", neug::execution::Value::DOUBLE(0.0))};
     LOG(INFO) << "Adding new edge property 'contributions'.";
     EXPECT_TRUE(interface.AddEdgeProperties(BuildAddEdgePropertiesParam(
         "person", "software", "created", new_props)));
@@ -1570,7 +2106,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1595,7 +2131,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     for (neug::vid_t vid : vertex_set) {
       auto edges = view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
-        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.0);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.0);
       }
     }
     EXPECT_THROW(gi.GetEdgeDataAccessor(person_label, software_label,
@@ -1623,8 +2159,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("software", {"lang"})));
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("authors", neug::execution::property_to_value(
-                                      neug::Property::from_string_view("")))};
+        std::make_pair("authors",
+                       neug::execution::Value::STRING(std::string("")))};
     EXPECT_TRUE(interface.AddVertexProperties(
         BuildAddVertexPropertiesParam("software", new_props)));
     EXPECT_TRUE(txn.Commit());
@@ -1643,7 +2179,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "age"), nullptr);
@@ -1670,32 +2206,39 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     neug::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
-    EXPECT_TRUE(interface.AddVertex(person_label, neug::Property::from_int64(3),
-                                    {neug::Property::from_string_view("Eve"),
-                                     neug::Property::from_int64(28)},
-                                    vid));
+    EXPECT_TRUE(
+        interface.AddVertex(person_label, neug::execution::Value::INT64(3),
+                            {neug::execution::Value::STRING(std::string("Eve")),
+                             neug::execution::Value::INT64(28)},
+                            vid));
     EXPECT_TRUE(interface.CreateVertexType(BuildCreateVertexTypeParam(
         "company",
-        {std::make_pair("id", neug::execution::property_to_value(
-                                  neug::Property::from_int64(0))),
-         std::make_pair("name", neug::execution::property_to_value(
-                                    neug::Property::from_string_view("")))},
+        {std::make_pair("id", neug::execution::Value::INT64(0)),
+         std::make_pair("name",
+                        neug::execution::Value::STRING(std::string("")))},
         {"id"})));
     EXPECT_TRUE(interface.CreateEdgeType(
         BuildCreateEdgeTypeParam("person", "company", "employed_by", {})));
     EXPECT_TRUE(interface.DeleteEdgeType("person", "software", "created"));
     EXPECT_TRUE(interface.DeleteVertexType("software"));
     neug::vid_t src_p, dst_p;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), src_p));
-    EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(2), dst_p));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), src_p));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), dst_p));
 
-    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, src_p, 1,
-                                         neug::Property::from_int64(29)));
-    txn.UpdateEdgeProperty(person_label, src_p, person_label, dst_p,
-                           txn.schema().get_edge_label_id("knows"), 0,
-                           neug::Property::from_double(0.5));
+    interface.UpdateVertexProperty(person_label, src_p, 1,
+                                   neug::execution::Value::INT64(29));
+    update_edge_property(
+        txn, person_label, person_label,
+        txn.schema().get_edge_label_id("knows"), src_p,
+        [dst_p](neug::vid_t dst_vid) { return dst_vid == dst_p; },
+        [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          interface.UpdateEdgeProperty(person_label, src_p, person_label, dst_p,
+                                       txn.schema().get_edge_label_id("knows"),
+                                       oe_offset, ie_offset, 0,
+                                       neug::execution::Value::DOUBLE(0.5));
+        });
     EXPECT_TRUE(txn.Commit());
     db.Close();
   }
@@ -1705,18 +2248,18 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     neug::vid_t src_p, dst_p;
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(1), src_p));
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(2), dst_p));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(1), src_p));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(2), dst_p));
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<int64_t>>(
         gi.GetVertexPropColumn(person_label, "age"));
-    EXPECT_EQ(vprop_accessor->get(src_p).as_int64(), 29);
+    EXPECT_EQ(vprop_accessor->get_any(src_p).GetValue<int64_t>(), 29);
     auto knows_label = gi.schema().get_edge_label_id("knows");
     auto ed_accessor =
         gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
@@ -1726,7 +2269,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     bool found = false;
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
       if (it.get_vertex() == dst_p) {
-        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.5);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.5);
         found = true;
       }
     }
@@ -1745,15 +2288,15 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
 
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     neug::vid_t src_p, dst_p;
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(1), src_p));
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(2), dst_p));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(1), src_p));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(2), dst_p));
     auto ed_accessor =
         gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
     auto view =
@@ -1761,7 +2304,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     auto edge_iter = view.get_edges(src_p);
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
       if (it.get_vertex() == dst_p) {
-        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.5);
+        EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.5);
       }
     }
   }
@@ -1782,24 +2325,25 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
     EXPECT_TRUE(interface.DeleteVertexType("person"));
     neug::vid_t vid;
     EXPECT_THROW(
-        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid),
+        txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1), vid),
         neug::exception::Exception);
     EXPECT_THROW(
-        interface.AddVertex(person_label, neug::Property::from_int64(3),
-                            {neug::Property::from_string_view("Eve"),
-                             neug::Property::from_int64(28)},
+        interface.AddVertex(person_label, neug::execution::Value::INT64(3),
+                            {neug::execution::Value::STRING(std::string("Eve")),
+                             neug::execution::Value::INT64(28)},
                             vid),
         neug::exception::Exception);
-    EXPECT_THROW(interface.UpdateVertexProperty(person_label, 0, 1,
-                                                neug::Property::from_int64(30)),
+    EXPECT_THROW(interface.UpdateVertexProperty(
+                     person_label, 0, 1, neug::execution::Value::INT64(30)),
                  neug::exception::Exception);
     EXPECT_THROW(
-        interface.AddVertex(person_label, neug::Property::from_int64(3),
-                            {neug::Property::from_string_view("Eve"),
-                             neug::Property::from_int64(28)},
+        interface.AddVertex(person_label, neug::execution::Value::INT64(3),
+                            {neug::execution::Value::STRING(std::string("Eve")),
+                             neug::execution::Value::INT64(28)},
                             vid),
         neug::exception::Exception);
-    EXPECT_THROW(txn.DeleteVertex(person_label, 0), neug::exception::Exception);
+    EXPECT_THROW(interface.DeleteVertex(person_label, 0),
+                 neug::exception::Exception);
     txn.Abort();
   }
   {
@@ -1809,20 +2353,20 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
     auto person_label = interface.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexProperties(
         BuildDeleteVertexPropertiesParam("person", {"age"})));
-    EXPECT_THROW(
+    // Renaming a just-deleted property must fail. PropertyGraph::Rename*
+    // returns Status::ERR_SCHEMA_MISMATCH (not throw) for missing properties,
+    // so check the Status's bool conversion.
+    EXPECT_FALSE(
         interface.RenameVertexProperties(BuildRenameVertexPropertiesParam(
-            "person", {std::make_pair("age", "full_name")})),
-        neug::exception::Exception);
+            "person", {std::make_pair("age", "full_name")})));
     EXPECT_THROW(txn.GetVertexProperty(person_label, 0, 2),
                  neug::exception::Exception);
     EXPECT_NO_THROW(txn.GetVertexId(person_label, 0));
-    EXPECT_THROW(txn.get_vertex_property_column(person_label, "age"),
-                 neug::exception::Exception);
+    EXPECT_EQ(txn.get_vertex_property_column(person_label, "age"), nullptr);
 
     // add back age property
     std::vector<std::pair<std::string, neug::execution::Value>> new_props = {
-        std::make_pair("age", neug::execution::property_to_value(
-                                  neug::Property::from_int32(0)))};
+        std::make_pair("age", neug::execution::Value::INT32(0))};
     EXPECT_NO_THROW(interface.AddVertexProperties(
         BuildAddVertexPropertiesParam("person", new_props)));
     EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "age"));
@@ -1845,21 +2389,45 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
     neug::StorageTPUpdateInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto knows_label = interface.schema().get_edge_label_id("knows");
-    EXPECT_TRUE(interface.DeleteEdgeType("person", "person", "knows"));
     neug::vid_t src_vid, dst_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   src_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   dst_vid));
-    EXPECT_THROW(txn.UpdateEdgeProperty(person_label, src_vid, person_label,
-                                        dst_vid, knows_label, 0,
-                                        neug::Property::from_double(0.8)),
-                 neug::exception::Exception);
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), src_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), dst_vid));
+    int32_t oe_offset = -1, ie_offset = -1;
+    {
+      auto oe_view = interface.GetGenericOutgoingGraphView(
+          person_label, person_label, knows_label);
+      auto ie_view = interface.GetGenericIncomingGraphView(
+          person_label, person_label, knows_label);
+      auto e_prop_types =
+          txn.schema()
+              .get_edge_schema(person_label, person_label, knows_label)
+              ->properties;
+      auto edges = oe_view.get_edges(src_vid);
+      int cnt = 0;
+      for (auto it = edges.begin(); it != edges.end(); ++it, ++cnt) {
+        if (it.get_vertex() == dst_vid) {
+          oe_offset = cnt;
+          ie_offset = neug::search_other_offset_with_cur_offset(
+              oe_view, ie_view, src_vid, dst_vid, oe_offset, e_prop_types);
+          break;
+        }
+      }
+    }
+    EXPECT_GE(oe_offset, 0);
+    EXPECT_GE(ie_offset, 0);
+    EXPECT_TRUE(interface.DeleteEdgeType("person", "person", "knows"));
+
+    EXPECT_FALSE(interface.UpdateEdgeProperty(
+                     person_label, src_vid, person_label, dst_vid, knows_label,0,0,
+                     0, neug::execution::Value::DOUBLE(0.8)).ok());
+
     {
       const void* edge_prop = nullptr;
       EXPECT_THROW(
           interface.AddEdge(person_label, src_vid, person_label, dst_vid,
-                            knows_label, {neug::Property::from_double(0.7)},
+                            knows_label, {neug::execution::Value::DOUBLE(0.7)},
                             edge_prop),
           neug::exception::Exception);
     }
@@ -1875,19 +2443,22 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
     // Delete Edge Properties
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
-    EXPECT_TRUE(txn.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
+    EXPECT_TRUE(gui.DeleteEdgeProperties(BuildDeleteEdgePropertiesParam(
         "person", "person", "knows", {"closeness"})));
-    EXPECT_THROW(txn.RenameEdgeProperties(BuildRenameEdgePropertiesParam(
-                     "person", "person", "knows",
-                     {std::make_pair("closeness", "importance")})),
-                 neug::exception::Exception);
+    // Renaming a just-deleted property must fail. PropertyGraph::Rename*
+    // returns Status::ERR_SCHEMA_MISMATCH (not throw) for missing properties,
+    // so check the Status's bool conversion.
+    EXPECT_FALSE(gui.RenameEdgeProperties(BuildRenameEdgePropertiesParam(
+        "person", "person", "knows",
+        {std::make_pair("closeness", "importance")})));
     neug::vid_t src_vid, dst_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   src_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   dst_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), src_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), dst_vid));
     EXPECT_THROW(
         txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0),
         neug::exception::Exception);
@@ -1906,25 +2477,26 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
     auto knows_label = gi.schema().get_edge_label_id("knows");
 
     neug::vid_t p1_vid;
-    EXPECT_FALSE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(1), p1_vid));
+    EXPECT_FALSE(gi.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
     EXPECT_EQ(count_vertices(gi, person_label), 1);
     EXPECT_EQ(
         count_edges(gi, person_label, software_label, created_label, true), 1);
@@ -1944,23 +2516,24 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t p1_vid, p2_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   p2_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), p2_vid));
     const void* edge_prop_p2_p1 = nullptr;
-    EXPECT_TRUE(txn.AddEdge(person_label, p2_vid, person_label, p1_vid,
-                            knows_label, {neug::Property::from_double(0.85)},
+    EXPECT_TRUE(gui.AddEdge(person_label, p2_vid, person_label, p1_vid,
+                            knows_label, {neug::execution::Value::DOUBLE(0.85)},
                             edge_prop_p2_p1));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
@@ -1969,18 +2542,19 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
     EXPECT_TRUE(txn.Commit());
   }
 
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
@@ -2002,14 +2576,15 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t p1_vid, p2_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(1), p2_vid));
+                                   neug::execution::Value::INT64(1), p2_vid));
     auto oe_view = txn.GetGenericOutgoingGraphView(person_label, software_label,
                                                    created_label);
     auto ie_view = txn.GetGenericIncomingGraphView(software_label, person_label,
@@ -2028,7 +2603,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
           stride;
       auto ie_offset = neug::search_other_offset_with_cur_offset(
           oe_view, ie_view, p1_vid, p2_vid, oe_offset, props);
-      EXPECT_TRUE(txn.DeleteEdge(person_label, p1_vid, software_label, p2_vid,
+      EXPECT_TRUE(gui.DeleteEdge(person_label, p1_vid, software_label, p2_vid,
                                  created_label, oe_offset, ie_offset));
     }
     EXPECT_TRUE(txn.Commit());
@@ -2036,7 +2611,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -2049,25 +2624,26 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
     txn.Abort();
   }
   {
     // Verify person 1 and all edges are restored
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(1), p1_vid));
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     EXPECT_EQ(
         count_edges(gi, person_label, software_label, created_label, true),
@@ -2089,40 +2665,41 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::pair<std::string, neug::execution::Value>> edge_props = {
-        std::make_pair("since", neug::execution::property_to_value(
-                                    neug::Property::from_int64(2020)))};
-    EXPECT_TRUE(txn.CreateEdgeType(
+        std::make_pair("since", neug::execution::Value::INT64(2020))};
+    EXPECT_TRUE(gui.CreateEdgeType(
         BuildCreateEdgeTypeParam("person", "person", "follows", edge_props)));
 
     neug::vid_t p1_vid, p2_vid;
     auto follows_label = txn.schema().get_edge_label_id("follows");
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   p2_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), p2_vid));
     const void* edge_prop_follows = nullptr;
-    EXPECT_TRUE(txn.AddEdge(person_label, p1_vid, person_label, p2_vid,
-                            follows_label, {neug::Property::from_int64(2022)},
-                            edge_prop_follows));
+    EXPECT_TRUE(
+        gui.AddEdge(person_label, p1_vid, person_label, p2_vid, follows_label,
+                    {neug::execution::Value::INT64(2022)}, edge_prop_follows));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     // Verify all edge types are deleted
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -2188,10 +2765,10 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
     neug::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t alice_vid, bob_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   alice_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   bob_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(
+        person_label, neug::execution::Value::INT64(1), alice_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), bob_vid));
     std::vector<neug::vid_t> lids = {alice_vid, bob_vid};
     EXPECT_EQ(interface.BatchDeleteVertices(person_label, lids).error_code(),
               neug::StatusCode::OK);
@@ -2200,7 +2777,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 0);
   }
@@ -2222,14 +2799,14 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t p1_vid, p2_vid, s1_vid, s2_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   p1_vid));
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
-                                   p2_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(2), p2_vid));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(1), s1_vid));
+                                   neug::execution::Value::INT64(1), s1_vid));
     EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::Property::from_int64(2), s2_vid));
+                                   neug::execution::Value::INT64(2), s2_vid));
     std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges = {
         std::make_tuple(p1_vid, s1_vid), std::make_tuple(p2_vid, s2_vid)};
     EXPECT_EQ(interface.BatchDeleteEdges(person_label, software_label,
@@ -2241,7 +2818,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -2266,18 +2843,18 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
     neug::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t alice_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
-                                   alice_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(
+        person_label, neug::execution::Value::INT64(1), alice_vid));
     auto invalid_vid = std::numeric_limits<neug::vid_t>::max();
-    EXPECT_THROW(
-        interface.BatchDeleteVertices(person_label, {alice_vid, invalid_vid}),
-        neug::exception::Exception);
+    EXPECT_FALSE(
+        interface.BatchDeleteVertices(person_label, {alice_vid, invalid_vid})
+            .ok());
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
@@ -2301,15 +2878,14 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
     auto invalid_vid = std::numeric_limits<neug::vid_t>::max();
     std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges = {
         std::make_tuple(invalid_vid, invalid_vid)};
-    EXPECT_THROW(interface.BatchDeleteEdges(person_label, software_label,
-                                            created_label, edges),
-                 neug::exception::Exception);
+    EXPECT_FALSE(interface.BatchDeleteEdges(person_label, software_label,
+                                            created_label, edges).ok());
     txn.Abort();
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -2335,36 +2911,38 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid, p2_vid;
     EXPECT_TRUE(interface.GetVertexIndex(
-        person_label, neug::Property::from_int64(1), p1_vid));
+        person_label, neug::execution::Value::INT64(1), p1_vid));
     EXPECT_TRUE(interface.GetVertexIndex(
-        person_label, neug::Property::from_int64(2), p2_vid));
+        person_label, neug::execution::Value::INT64(2), p2_vid));
     std::string long_name(neug::STRING_DEFAULT_MAX_LENGTH + 10, 'a');
-    interface.UpdateVertexProperty(person_label, p1_vid, 0,
-                                   neug::Property::from_string_view(long_name));
+    interface.UpdateVertexProperty(
+        person_label, p1_vid, 0,
+        neug::execution::Value::STRING(std::string(long_name)));
     auto prop = interface.GetVertexProperty(person_label, p1_vid, 0);
-    EXPECT_EQ(prop.as_string_view(),
+    EXPECT_EQ(prop.GetValue<std::string>(),
               std::string(neug::STRING_DEFAULT_MAX_LENGTH, 'a'));  // truncated
     std::string valid_name(neug::STRING_DEFAULT_MAX_LENGTH - 10, 'b');
     EXPECT_NO_THROW(interface.UpdateVertexProperty(
-        person_label, p1_vid, 0, neug::Property::from_string_view(valid_name)));
+        person_label, p1_vid, 0,
+        neug::execution::Value::STRING(std::string(valid_name))));
     prop = interface.GetVertexProperty(person_label, p1_vid, 0);
-    EXPECT_EQ(prop.as_string_view(), valid_name);
+    EXPECT_EQ(prop.GetValue<std::string>(), valid_name);
     auto p2_prop = interface.GetVertexProperty(person_label, p2_vid, 0);
-    EXPECT_EQ(p2_prop.as_string_view(), "Bob");  // unchanged
+    EXPECT_EQ(p2_prop.GetValue<std::string>(), "Bob");  // unchanged
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
-    EXPECT_TRUE(
-        gi.GetVertexIndex(person_label, neug::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(gi.GetVertexIndex(person_label,
+                                  neug::execution::Value::INT64(1), p1_vid));
     auto vprop_accessor = std::dynamic_pointer_cast<
         neug::StorageReadInterface::vertex_column_t<std::string_view>>(
         gi.GetVertexPropColumn(person_label, "name"));
-    EXPECT_EQ(vprop_accessor->get(p1_vid).as_string_view(),
+    EXPECT_EQ(vprop_accessor->get_any(p1_vid).GetValue<std::string>(),
               std::string(neug::STRING_DEFAULT_MAX_LENGTH - 10, 'b'));
     EXPECT_TRUE(txn.Commit());
   }
@@ -2391,7 +2969,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto review_label = gi.schema().get_edge_label_id("reviewed");
@@ -2429,17 +3007,17 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
                              edges.cfg.stride;
         auto ie_offset = neug::search_other_offset_with_cur_offset(
             oe_view, ie_view, vid, it.get_vertex(), oe_offset, e_prop_types);
-        auto prop = ed_accessor.get_data(it).as_string_view();
+        auto prop = ed_accessor.get_data(it).GetValue<std::string>();
         std::string updated_review;
         if (prop.size() % 2 == 0) {
           updated_review = std::string(prop) + "_updated";
         } else {
           updated_review = "";
         }
-        txn.UpdateEdgeProperty(
+        interface.UpdateEdgeProperty(
             person_label, vid, software_label, it.get_vertex(), review_label,
             oe_offset, ie_offset, 0,
-            neug::Property::from_string_view(updated_review));
+            neug::execution::Value::STRING(std::string(updated_review)));
         updated_views.push_back(updated_review);
       }
     }
@@ -2450,7 +3028,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto review_label = gi.schema().get_edge_label_id("reviewed");
@@ -2472,7 +3050,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
     auto svc2 = std::make_shared<neug::NeugDBService>(db2);
     auto sess = svc2->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto review_label = gi.schema().get_edge_label_id("reviewed");
@@ -2499,23 +3077,24 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vertex_id;
-    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+    CHECK(txn.GetVertexIndex(person_label, neug::execution::Value::INT64(1),
                              vertex_id));
 
     update_edge_property(
         txn, person_label, software_label, created_label, vertex_id,
         [](neug::vid_t dst_vid) { return true; },
         [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 0, neug::Property::from_double(0.9));
-          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 0, neug::execution::Value::DOUBLE(0.9));
+          gui.UpdateEdgeProperty(person_label, vertex_id, software_label,
                                  dst_vid, created_label, oe_offset, ie_offset,
-                                 1, neug::Property::from_int64(2023));
+                                 1, neug::execution::Value::INT64(2023));
         });
 
     txn.Abort();
@@ -2523,7 +3102,7 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -2536,11 +3115,11 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
-      if (oid.as_int64() == 1) {
+      if (oid.GetValue<int64_t>() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
-          EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.8);
-          EXPECT_EQ(since_accessor.get_data(it).as_int64(), 2021);
+          EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.8);
+          EXPECT_EQ(since_accessor.get_data(it).GetValue<int64_t>(), 2021);
         }
       }
     }

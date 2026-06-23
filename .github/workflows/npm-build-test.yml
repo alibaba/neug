@@ -1,0 +1,277 @@
+name: NPM Test
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Trigger at 03:00 CST (19:00 UTC) every day
+    - cron: '00 19 * * *'
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths: &npm_paths
+      - 'cmake/**'
+      - 'src/**'
+      - 'include/**'
+      - 'proto/**'
+      - 'third_party/**'
+      - 'tools/nodejs_bind/**'
+      - '.github/workflows/npm-build-test.yml'
+      - 'scripts/install_deps.sh'
+      - 'CMakeLists.txt'
+      - 'NEUG_VERSION'
+  pull_request:
+    branches:
+      - main
+    paths: *npm_paths
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  format_check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    uses: ./.github/workflows/format-check.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
+
+  build_npm_linux_x86_64:
+    needs: format_check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      CONTAINER_NAME: neug-npm-x86_64-${{ github.run_id }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start container
+        run: |
+          docker run -d --name ${{ env.CONTAINER_NAME }} \
+            -u 1001:1001 \
+            -v ${{ github.workspace }}:/project \
+            -w /project \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-x86_64 \
+            sleep infinity
+
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            mkdir -p /home/neug/.local
+            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-x64.tar.xz \
+              | tar -xJ -C /home/neug/.local --strip-components=1
+            export PATH=/home/neug/.local/bin:$PATH
+            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
+            git config --global --add safe.directory /project
+            . /home/neug/.neug_env
+            git submodule update --init --recursive
+          '
+
+      - name: Build
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+          '
+
+      - name: Pack
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+          '
+
+      - name: Prepare test data
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
+            rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+            export FLEX_DATA_DIR=/project/example_dataset/modern_graph
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+            export FLEX_DATA_DIR=/project/example_dataset/tinysnb
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+            export FLEX_DATA_DIR=/project/gstest/flex/ldbc-sf01-long-date
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
+          '
+
+      - name: Test
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+          '
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker rm -f ${{ env.CONTAINER_NAME }} || true
+
+      - name: Upload npm tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-linux-x86_64-${{ github.run_id }}
+          path: ./tools/nodejs_bind/graphscope-neug-linux-x86_64-*.tgz
+          if-no-files-found: error
+
+  build_npm_linux_arm64:
+    needs: format_check
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      CONTAINER_NAME: neug-npm-arm64-${{ github.run_id }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start container
+        run: |
+          docker run -d --name ${{ env.CONTAINER_NAME }} \
+            -u 1001:1001 \
+            -v ${{ github.workspace }}:/project \
+            -w /project \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-arm64 \
+            sleep infinity
+
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            mkdir -p /home/neug/.local
+            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-arm64.tar.xz \
+              | tar -xJ -C /home/neug/.local --strip-components=1
+            export PATH=/home/neug/.local/bin:$PATH
+            cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
+            git config --global --add safe.directory /project
+            . /home/neug/.neug_env
+            git submodule update --init --recursive
+          '
+
+      - name: Build
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+          '
+
+      - name: Pack
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+          '
+
+      - name: Prepare test data
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git /project/gstest
+            rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+            export FLEX_DATA_DIR=/project/example_dataset/modern_graph
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/modern_graph/graph.yaml -l /project/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+            export FLEX_DATA_DIR=/project/example_dataset/tinysnb
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/tinysnb/graph.yaml -l /project/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+            export FLEX_DATA_DIR=/project/gstest/flex/ldbc-sf01-long-date
+            /project/build/tools/utils/bulk_loader -g /project/example_dataset/ldbc/graph.yaml -l /project/example_dataset/ldbc/import.yaml -d /tmp/ldbc
+          '
+
+      - name: Test
+        run: |
+          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+            export PATH=/home/neug/.local/bin:$PATH
+            . /home/neug/.neug_env
+            cd /project/tools/nodejs_bind
+            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+          '
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker rm -f ${{ env.CONTAINER_NAME }} || true
+
+      - name: Upload npm tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-linux-arm64-${{ github.run_id }}
+          path: ./tools/nodejs_bind/graphscope-neug-linux-arm64-*.tgz
+          if-no-files-found: error
+
+  build_npm_macos_aarch64:
+    needs: format_check
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    runs-on: macos-15
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '16.0.0'
+
+      - name: Install dependencies
+        run: |
+          bash scripts/install_deps.sh
+
+      - name: Build
+        run: |
+          source ~/.neug_env
+          cd tools/nodejs_bind
+          make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+
+      - name: Pack
+        run: |
+          source ~/.neug_env
+          cd tools/nodejs_bind
+          make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+
+      - name: Prepare test data
+        run: |
+          source ~/.neug_env
+          git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GITHUB_WORKSPACE}/gstest
+          rm -rf /tmp/modern_graph /tmp/tinysnb /tmp/ldbc
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/modern_graph/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/tinysnb/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+          export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/gstest/flex/ldbc-sf01-long-date
+          ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ${GITHUB_WORKSPACE}/example_dataset/ldbc/graph.yaml -l ${GITHUB_WORKSPACE}/example_dataset/ldbc/import.yaml -d /tmp/ldbc
+
+      - name: Test
+        run: |
+          source ~/.neug_env
+          cd tools/nodejs_bind
+          FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+
+      - name: Upload npm tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-macos-arm64-${{ github.run_id }}
+          path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
+          if-no-files-found: error

@@ -26,12 +26,12 @@ class LogicalTypeRegistry {
  public:
   LogicalTypeRegistry() {}
   static void registerType(const YAML::Node& typeYaml,
-                           const common::LogicalTypeID typeID) {
+                           const common::DataTypeId typeID) {
     auto yamlStr = YAML::Dump(typeYaml);
     yamlToIDMap()[yamlStr] = typeID;
   }
 
-  static common::LogicalTypeID& getTypeID(const YAML::Node& typeYaml) {
+  static common::DataTypeId& getTypeID(const YAML::Node& typeYaml) {
     auto yamlStr = YAML::Dump(typeYaml);
     return yamlToIDMap()[yamlStr];
   }
@@ -42,8 +42,8 @@ class LogicalTypeRegistry {
   }
 
  private:
-  static std::unordered_map<std::string, common::LogicalTypeID>& yamlToIDMap() {
-    static std::unordered_map<std::string, common::LogicalTypeID> map;
+  static std::unordered_map<std::string, common::DataTypeId>& yamlToIDMap() {
+    static std::unordered_map<std::string, common::DataTypeId> map;
     return map;
   }
 };

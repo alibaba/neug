@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/execution/common/context_chunk.h"
 #include "neug/execution/expression/predicates.h"
 
 #include "neug/utils/result.h"
@@ -27,22 +28,22 @@ struct EdgeExpandParams;
 
 class Intersect {
  public:
-  static neug::result<neug::execution::Context> Binary_Intersect(
+  static neug::result<ContextChunk> Binary_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+      ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
       EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int alias);
 
-  static neug::result<neug::execution::Context> Binary_Intersect_With_Edge(
+  static neug::result<ContextChunk> Binary_Intersect_With_Edge(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+      ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,
       EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int vertex_alias,
       const std::vector<int>& edge_alias);
 
-  static neug::result<neug::execution::Context> Multiple_Intersect(
+  static neug::result<ContextChunk> Multiple_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
+      ContextChunk&& chunk, std::vector<EdgeAndNbrPredicate>&& preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
 };
 

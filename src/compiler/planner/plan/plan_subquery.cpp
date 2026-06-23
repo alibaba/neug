@@ -226,7 +226,7 @@ void Planner::planRegularMatch(const QueryGraphCollection& queryGraphCollection,
   auto correlatedExprs = getCorrelatedExprs(
       queryGraphCollection, predicatesToPushDown, leftPlan.getSchema());
   auto joinNodeIDs = ExpressionUtil::getExpressionsWithDataType(
-      correlatedExprs, LogicalTypeID::INTERNAL_ID);
+      correlatedExprs, DataTypeId::kInternalId);
   auto info = QueryGraphPlanningInfo();
   info.predicates = predicatesToPushDown;
   info.hint = hint;
@@ -273,8 +273,7 @@ std::unique_ptr<Schema> Planner::combineSchema(LogicalPlan& outerPlan) {
       auto opSchema = op->getSchema();
       if (opSchema) {
         for (auto& expr : opSchema->getExpressionsInScope()) {
-          if (expr->getDataType().getLogicalTypeID() ==
-              LogicalTypeID::INTERNAL_ID) {
+          if (expr->getDataType().id() == DataTypeId::kInternalId) {
             combinedSchema->insertToScopeMayRepeat(expr, 0);
           }
         }

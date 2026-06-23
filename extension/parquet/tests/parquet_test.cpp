@@ -447,7 +447,7 @@ TEST_F(ParquetTest, TestTypeMapping_StringToLargeUtf8) {
   reader->read(localState, ctx);
 
   // Verify string column is converted to large_utf8
-  auto col1 = ctx.columns[1];
+  auto col1 = ctx.chunk(0).columns()[1];
   ASSERT_EQ(col1->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn1 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col1);
   auto arrowType1 = arrayColumn1->GetArrowType();
@@ -506,19 +506,19 @@ TEST_F(ParquetTest, TestTypeMapping_PreserveNumericTypes) {
   EXPECT_EQ(ctx.row_num(), 1);
 
   // Verify types are preserved correctly
-  auto col0 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.columns[0]);
+  auto col0 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.chunk(0).columns()[0]);
   EXPECT_TRUE(col0->GetArrowType()->Equals(arrow::int32()))
       << "Extension should preserve int32 type mapping";
   
-  auto col1 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.columns[1]);
+  auto col1 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.chunk(0).columns()[1]);
   EXPECT_TRUE(col1->GetArrowType()->Equals(arrow::int64()))
       << "Extension should preserve int64 type mapping";
   
-  auto col2 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.columns[2]);
+  auto col2 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.chunk(0).columns()[2]);
   EXPECT_TRUE(col2->GetArrowType()->Equals(arrow::float64()))
       << "Extension should preserve double type mapping";
   
-  auto col3 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.columns[3]);
+  auto col3 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.chunk(0).columns()[3]);
   EXPECT_TRUE(col3->GetArrowType()->Equals(arrow::boolean()))
       << "Extension should preserve boolean type mapping";
 }
@@ -670,7 +670,7 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
       << "Should filter to 3 rows with score > 90.0";
   
   // Verify the filtered data
-  auto col1 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.columns[1]);
+  auto col1 = std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(ctx.chunk(0).columns()[1]);
   ASSERT_NE(col1, nullptr);
   const auto& columns = col1->GetColumns();
   ASSERT_FALSE(columns.empty());
@@ -700,7 +700,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
 
   EXPECT_EQ(ctx.col_num(), 3);
   // Verify extension translates batch_read option to streaming column type
-  auto col0 = ctx.columns[0];
+  auto col0 = ctx.chunk(0).columns()[0];
   EXPECT_EQ(col0->column_type(), execution::ContextColumnType::kArrowStream)
       << "Extension should use ArrowStream column type when batch_read=true";
   
@@ -716,7 +716,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   execution::Context ctx2;
   reader2->read(localState2, ctx2);
 
-  auto col0_2 = ctx2.columns[0];
+  auto col0_2 = ctx2.chunk(0).columns()[0];
   EXPECT_EQ(col0_2->column_type(), execution::ContextColumnType::kArrowArray)
       << "Extension should use ArrowArray column type when batch_read=false";
 }

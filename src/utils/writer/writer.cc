@@ -20,6 +20,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
 
+#include <arrow/util/io_util.h>
 #include <climits>
 #include <cstdint>
 #include <cstdio>
@@ -352,9 +353,11 @@ neug::Status CsvQueryExportWriter::writeTable(
   }
   auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
   if (!stream_result.ok()) {
-    return neug::Status(
-        StatusCode::ERR_IO_ERROR,
-        "Failed to open file stream: " + stream_result.status().ToString());
+    int err = arrow::internal::ErrnoFromStatus(stream_result.status());
+    auto code = (err == EACCES || err == EPERM) ? StatusCode::ERR_PERMISSION
+                                                : StatusCode::ERR_IO_ERROR;
+    return neug::Status(code, "Failed to open file stream: " +
+                                  stream_result.status().ToString());
   }
   auto stream = stream_result.ValueOrDie();
 

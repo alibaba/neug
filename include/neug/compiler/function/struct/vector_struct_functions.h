@@ -31,7 +31,7 @@ namespace function {
 struct StructExtractBindData : public FunctionBindData {
   common::idx_t childIdx;
 
-  StructExtractBindData(common::LogicalType dataType, common::idx_t childIdx)
+  StructExtractBindData(common::DataType dataType, common::idx_t childIdx)
       : FunctionBindData{std::move(dataType)}, childIdx{childIdx} {}
 
   std::unique_ptr<FunctionBindData> copy() const override {
@@ -51,6 +51,18 @@ struct StructExtractFunctions {
       FunctionBindData* bindData,
       const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
       std::shared_ptr<common::ValueVector>& result);
+};
+
+struct StructPackFunctions {
+  static constexpr const char* name = "STRUCT_PACK";
+
+  static function_set getFunctionSet();
+
+  static void execFunc(
+      const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
+      const std::vector<common::SelectionVector*>& parameterSelVectors,
+      common::ValueVector& result, common::SelectionVector* resultSelVector,
+      void* /*dataPtr*/ = nullptr);
 };
 
 }  // namespace function

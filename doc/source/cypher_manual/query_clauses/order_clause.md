@@ -5,8 +5,8 @@ Order is used to sort the current results based on properties to ensure determin
 ## Order by Single Property
 
 ```
-Match (a)
-Return a.name
+MATCH (a)
+RETURN a.name
 ORDER BY a.name ASC;
 ```
 
@@ -32,8 +32,8 @@ output:
 ## Order by Multiple Properties
 
 ```
-Match (a)-[b]->(c)
-Return a.name, b.weight
+MATCH (a)-[b]->(c)
+RETURN a.name, b.weight
 ORDER BY a.name ASC, b.weight ASC;
 ```
 
@@ -63,8 +63,8 @@ In addition to sorting by properties directly, the Order BY key can also be more
 ### Order by Pre-computed Expression
 
 ```
-Match (a)-[b]->(c)
-Return a.age, c.name
+MATCH (a)-[b]->(c)
+RETURN a.age, c.name
 ORDER BY a.age + 10 ASC, c.name;
 ```
 
@@ -90,9 +90,9 @@ output:
 ### Order by Scalar Function Results
 
 ```
-Match (a)-[b]->(c)
-Return a.name, c.name
-Order BY label(a);
+MATCH (a)-[b]->(c)
+RETURN a.name, c.name
+ORDER BY label(a);
 ```
 
 <!-- todo: label function is not included in current pip package -->
@@ -104,10 +104,10 @@ For more Scalar Function operations, see the [Function Section](../../expression
 Additionally, in BI (Business Intelligence) query scenarios, TopK is one of the most common operations, truncating and outputting only the most significant results. NeuG also supports such queries.
 
 ```
-Match (a)-[b]->(c)
-Return a.age, c.name
+MATCH (a)-[b]->(c)
+RETURN a.age, c.name
 ORDER BY a.age + 10 ASC, c.name ASC
-Limit 2;
+LIMIT 2;
 ``` 
 
 output:

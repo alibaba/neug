@@ -221,7 +221,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
                          default_property_values, config.IsTemporary());
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
-  fresh_vt.Init(*ckp_, memory_level_);
+  fresh_vt.Init(ckp_, memory_level_);
   if (vertex_label_id < vertex_tables_.size()) {
     vertex_tables_[vertex_label_id].Swap(fresh_vt);
   } else {
@@ -318,7 +318,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   auto edge_schema =
       schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i);
   EdgeTable fresh_et(edge_schema);
-  fresh_et.Init(*ckp_, memory_level_);  // see CreateVertexType for rationale
+  fresh_et.Init(ckp_, memory_level_);  // see CreateVertexType for rationale
   edge_tables_.emplace(index, std::move(fresh_et));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
@@ -353,15 +353,10 @@ Status PropertyGraph::AddVertexProperties(
   }
   schema_.AddVertexProperties(vertex_type_name, add_property_names,
                               add_property_types, add_default_property_values);
-  // Convert Value to Property for the storage layer
-  std::vector<Property> add_default_props;
-  add_default_props.reserve(add_default_property_values.size());
-  for (const auto& val : add_default_property_values) {
-    add_default_props.emplace_back(execution::value_to_property(val));
-  }
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(*ckp_, add_property_names,
-                                        add_property_types, add_default_props);
+                                        add_property_types,
+                                        add_default_property_values);
   return neug::Status::OK();
 }
 
@@ -374,7 +369,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<execution::Value> add_default_property_values;
+  std::vector<execution::Value> add_default_props;
   for (size_t i = 0; i < add_properties.size(); i++) {
     const auto& [property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
@@ -390,7 +385,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(default_value.type());
-    add_default_property_values.emplace_back(default_value);
+    add_default_props.emplace_back(default_value);
   }
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
@@ -398,7 +393,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
 
   schema_.AddEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                             add_property_names, add_property_types,
-                            add_default_property_values);
+                            add_default_props);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   if (!edge_tables_.count(index)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
@@ -410,12 +405,6 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
                       "] does not exist, cannot add properties.");
   }
 
-  // Convert Value to Property for the storage layer
-  std::vector<Property> add_default_props;
-  add_default_props.reserve(add_default_property_values.size());
-  for (const auto& val : add_default_property_values) {
-    add_default_props.emplace_back(execution::value_to_property(val));
-  }
   auto& edge_table = edge_tables_.at(index);
   edge_table.AddProperties(*ckp_, add_property_names, add_property_types,
                            add_default_props);
@@ -672,7 +661,7 @@ Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
   return Status::OK();
 }
 
-Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
+Status PropertyGraph::DeleteVertex(label_t label, const execution::Value& oid,
                                    timestamp_t ts) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
   vid_t lid;
@@ -766,7 +755,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
     vertex_tables_.emplace_back(VertexTable::OpenFrom(
-        *ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
+        ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
     auto v_size = vertex_tables_[i].Size();
     vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
                                                    : v_size + v_size / 4);
@@ -777,7 +766,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
     auto [src_label_i, dst_label_i, e_label_i] =
         schema_.parse_edge_label(index);
     EdgeTable et =
-        EdgeTable::OpenFrom(*ckp, edge_schema, store, meta, memory_level_);
+        EdgeTable::OpenFrom(ckp, edge_schema, store, meta, memory_level_);
     auto e_size = et.PropTableSize();
     size_t e_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
     et.EnsureCapacity(vertex_capacities[src_label_i],
@@ -943,12 +932,14 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
         schema_.is_vertex_label_temporary(src_label_i)) {
       continue;
     }
+    auto src_label = schema_.get_vertex_label_name(src_label_i);
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.is_vertex_label_valid(dst_label_i) ||
           schema_.is_vertex_label_temporary(dst_label_i)) {
         continue;
       }
+      auto dst_label = schema_.get_vertex_label_name(dst_label_i);
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
         if (!schema_.is_edge_label_valid(e_label_i) ||
@@ -956,6 +947,7 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
                                            e_label_i)) {
           continue;
         }
+        auto edge_label = schema_.get_edge_label_name(e_label_i);
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (schema_.is_edge_label_temporary(index)) {
@@ -1024,20 +1016,20 @@ size_t PropertyGraph::EdgeNum(label_t src_label, label_t edge_label,
   }
 }
 
-bool PropertyGraph::get_lid(label_t label, const Property& oid, vid_t& lid,
-                            timestamp_t ts) const {
+bool PropertyGraph::get_lid(label_t label, const execution::Value& oid,
+                            vid_t& lid, timestamp_t ts) const {
   schema_.ensure_vertex_label_valid(label);
   return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
-Property PropertyGraph::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
-  schema_.ensure_vertex_label_valid(label);
+execution::Value PropertyGraph::GetOid(label_t label, vid_t lid,
+                                       timestamp_t ts) const {
   return vertex_tables_[label].GetOid(lid, ts);
 }
 
-Status PropertyGraph::AddVertex(label_t label, const Property& id,
-                                const std::vector<Property>& props, vid_t& ret,
-                                timestamp_t ts, bool insert_safe) {
+Status PropertyGraph::AddVertex(label_t label, const execution::Value& id,
+                                const std::vector<execution::Value>& props,
+                                vid_t& ret, timestamp_t ts, bool insert_safe) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
   if (!vertex_tables_[label].AddVertex(id, props, ret, ts, insert_safe)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
@@ -1045,10 +1037,14 @@ Status PropertyGraph::AddVertex(label_t label, const Property& id,
   return Status::OK();
 }
 
-Status PropertyGraph::AddEdge(
-    label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
-    label_t edge_label, const std::vector<Property>& properties, timestamp_t ts,
-    Allocator& alloc, int32_t& oe_offset, const void*& prop, bool insert_safe) {
+Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
+                              label_t dst_label, vid_t dst_lid,
+                              label_t edge_label,
+                              const std::vector<execution::Value>& properties,
+                              timestamp_t ts, Allocator& alloc,
+                              int32_t& oe_offset, const void*& prop,
+                              bool insert_safe) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_label, dst_label, edge_label));
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
@@ -1072,7 +1068,7 @@ Status PropertyGraph::AddEdge(
 
 Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
                                            int32_t prop_id,
-                                           const Property& value,
+                                           const execution::Value& value,
                                            timestamp_t ts) {
   assert(prop_id >= 0);
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
@@ -1087,7 +1083,7 @@ Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
                                          label_t dst_v_label, vid_t dst_vid,
                                          label_t e_label, int32_t oe_offset,
                                          int32_t ie_offset, int32_t prop_id,
-                                         const Property& value,
+                                         const execution::Value& value,
                                          timestamp_t ts) {
   assert(prop_id >= 0);
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
@@ -1250,6 +1246,40 @@ Status PropertyGraph::edge_triplet_check(label_t src_label, label_t dst_label,
                       std::to_string(edge_label) + "> is not valid");
   }
   return Status::OK();
+}
+
+std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
+  auto cow_clone = std::make_shared<PropertyGraph>();
+
+  cow_clone->schema_ = schema_.Clone();
+
+  cow_clone->vertex_tables_.reserve(vertex_tables_.size());
+  for (size_t i = 0; i < vertex_tables_.size(); ++i) {
+    if (schema_.is_vertex_label_valid(i)) {
+      cow_clone->vertex_tables_.push_back(vertex_tables_[i].Clone());
+      cow_clone->vertex_tables_[i].SetVertexSchema(
+          cow_clone->schema_.get_vertex_schema(i));
+    } else {
+      cow_clone->vertex_tables_.push_back(VertexTable());
+    }
+  }
+
+  for (const auto& [key, et] : edge_tables_) {
+    auto [src_label, dst_label, edge_label] = schema_.parse_edge_label(key);
+    if (schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
+      auto cow_edge_table = et.Clone();
+      cow_edge_table.SetEdgeSchema(
+          cow_clone->schema_.get_all_edge_schemas().at(key));
+      cow_clone->edge_tables_.emplace(key, std::move(cow_edge_table));
+    }
+  }
+
+  cow_clone->ckp_ = ckp_;
+  cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
+  cow_clone->edge_label_total_count_ = edge_label_total_count_;
+  cow_clone->memory_level_ = memory_level_;
+
+  return cow_clone;
 }
 
 }  // namespace neug
