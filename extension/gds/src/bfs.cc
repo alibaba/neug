@@ -135,7 +135,6 @@ function::function_set BFSFunction::getFunctionSet() {
                                                               outputColumns);
   function->bindFunc = bind;
   function->execFunc = exec;
-  wrapTableBindFuncWithPathFix(function.get());
   funcSet.emplace_back(std::move(function));
   return funcSet;
 }

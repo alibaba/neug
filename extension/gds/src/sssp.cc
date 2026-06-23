@@ -140,7 +140,6 @@ function::function_set SSSPFunction::getFunctionSet() {
                                                               output_columns);
   function->bindFunc = bind;
   function->execFunc = exec;
-  wrapTableBindFuncWithPathFix(function.get());
   func_set.emplace_back(std::move(function));
   return func_set;
 }

@@ -35,51 +35,6 @@
 namespace neug {
 namespace gds {
 
-// Build the proper DataType for a GDS path output column.  NeuG's type
-// converter expects kPath to carry a StructTypeInfo with _NODES (list of
-// vertex) and _RELS (list of edge) fields, matching what the Cypher pattern
-// matcher produces.  A bare DataTypeId::kPath crashes the converter.
-inline common::DataType buildPathDataType() {
-  auto nodeType = common::DataType(common::DataTypeId::kVertex);
-  auto relType = common::DataType(common::DataTypeId::kEdge);
-
-  auto nodesListType = common::DataType::List(nodeType.copy());
-  auto relsListType = common::DataType::List(relType.copy());
-
-  std::vector<std::string> fieldNames;
-  fieldNames.push_back(common::InternalKeyword::NODES);
-  fieldNames.push_back(common::InternalKeyword::RELS);
-
-  std::vector<common::DataType> fieldTypes;
-  fieldTypes.push_back(std::move(nodesListType));
-  fieldTypes.push_back(std::move(relsListType));
-
-  return common::DataType(common::DataTypeId::kPath,
-                          std::make_shared<common::StructTypeInfo>(
-                              std::move(fieldNames), std::move(fieldTypes)));
-}
-
-// Wrap the TableFunction::bindFunc to patch path column expressions with
-// the proper Struct-wrapped DataType.  Without this, the type converter
-// crashes on bare kPath during physical plan generation.
-inline void wrapTableBindFuncWithPathFix(function::GDSAlgoFunction* func) {
-  auto* tableFunc = static_cast<function::TableFunction*>(func);
-  auto originalBind = tableFunc->bindFunc;
-  tableFunc->bindFunc = [originalBind](
-                            main::ClientContext* ctx,
-                            const function::TableFuncBindInput* input)
-      -> std::unique_ptr<function::TableFuncBindData> {
-    auto result = originalBind(ctx, input);
-    auto pathType = buildPathDataType();
-    for (auto& col : result->columns) {
-      if (col->getDataType().id() == common::DataTypeId::kPath) {
-        col->dataType = pathType.copy();
-      }
-    }
-    return result;
-  };
-}
-
 // Build a Path object from a predecessor chain, looking up real edge data
 // pointers from the CSR graph view.  The caller provides the vertex chain in
 // source-to-target order.
