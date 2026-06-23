@@ -35,10 +35,8 @@ using neug::DataTypeId;
 using neug::EdgeStrategy;
 using neug::label_t;
 using neug::MemoryLevel;
-using neug::Property;
 using neug::PropertyGraph;
 using neug::Schema;
-using neug::execution::property_to_value;
 using neug::execution::Value;
 
 // ============================================================================
@@ -290,10 +288,8 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
         graph_
             ->CreateVertexType(
                 builder.VertexLabel("person")
-                    .AddProperty("id",
-                                 property_to_value(Property::from_int64(0)))
-                    .AddProperty("name", property_to_value(
-                                             Property::from_string_view("")))
+                    .AddProperty("id", Value::INT64(0))
+                    .AddProperty("name", Value::STRING(""))
                     .AddPrimaryKeyName("id")
                     .Build())
             .ok());
@@ -305,11 +301,8 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
         graph_
             ->CreateVertexType(
                 builder.VertexLabel("temp_user")
-                    .AddProperty("uid",
-                                 property_to_value(Property::from_int64(0)))
-                    .AddProperty(
-                        "username",
-                        property_to_value(Property::from_string_view("")))
+                    .AddProperty("uid", Value::INT64(0))
+                    .AddProperty("username", Value::STRING(""))
                     .AddPrimaryKeyName("uid")
                     .Temporary(true)
                     .Build())
@@ -343,8 +336,7 @@ TEST_F(PropertyGraphTemporaryTest, CreateTemporaryEdgeType) {
                       builder.SrcLabel("temp_user")
                           .DstLabel("person")
                           .EdgeLabel("temp_follows")
-                          .AddProperty("since", property_to_value(
-                                                    Property::from_int64(0)))
+                          .AddProperty("since", Value::INT64(0))
                           .Temporary(true)
                           .Build())
                   .ok());
@@ -365,7 +357,7 @@ TEST_F(PropertyGraphTemporaryTest, PersistentEdgeCannotReferenceTempVertex) {
       builder.SrcLabel("temp_user")
           .DstLabel("person")
           .EdgeLabel("bad_edge")
-          .AddProperty("w", property_to_value(Property::from_double(0.0)))
+          .AddProperty("w", Value::DOUBLE(0.0))
           .Temporary(false)
           .Build());
   EXPECT_FALSE(status.ok());
@@ -379,7 +371,7 @@ TEST_F(PropertyGraphTemporaryTest, PersistentEdgeBetweenPersistentVerticesOk) {
       builder.SrcLabel("person")
           .DstLabel("person")
           .EdgeLabel("knows")
-          .AddProperty("w", property_to_value(Property::from_double(0.0)))
+          .AddProperty("w", Value::DOUBLE(0.0))
           .Temporary(false)
           .Build());
   EXPECT_TRUE(status.ok());
@@ -393,8 +385,8 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
   label_t temp_label = graph_->schema().get_vertex_label_id("temp_user");
   neug::vid_t vid;
   EXPECT_TRUE(graph_
-                  ->AddVertex(temp_label, Property::from_int64(1),
-                              {Property::from_string_view("alice")}, vid, 0)
+                  ->AddVertex(temp_label, Value::INT64(1),
+                              {Value::STRING("alice")}, vid, 0)
                   .ok());
   EXPECT_EQ(graph_->VertexNum(temp_label), 1);
 
@@ -402,8 +394,8 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
   label_t person_label = graph_->schema().get_vertex_label_id("person");
   neug::vid_t vid2;
   EXPECT_TRUE(graph_
-                  ->AddVertex(person_label, Property::from_int64(100),
-                              {Property::from_string_view("Bob")}, vid2, 0)
+                  ->AddVertex(person_label, Value::INT64(100),
+                              {Value::STRING("Bob")}, vid2, 0)
                   .ok());
 
   // Dump (checkpoint)
@@ -532,32 +524,43 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryTypes) {
 
   // Create temporary type via storage API
   CreateVertexTypeParamBuilder builder;
-  EXPECT_TRUE(
-      db_->graph()
-          .CreateVertexType(
+  {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
+    EXPECT_TRUE(
+        pg->CreateVertexType(
               builder.VertexLabel("temp_node")
-                  .AddProperty("id", property_to_value(Property::from_int64(0)))
+                  .AddProperty("id", Value::INT64(0))
                   .AddProperty(
-                      "val", property_to_value(Property::from_string_view("")))
+                      "val", Value::STRING(""))
                   .AddPrimaryKeyName("id")
                   .Temporary(true)
                   .Build())
           .ok());
+  }
 
   // Verify temp type exists before close
-  EXPECT_TRUE(db_->schema().is_vertex_label_valid("temp_node"));
-  auto temp_labels = db_->schema().get_temporary_vertex_labels();
-  EXPECT_EQ(temp_labels.size(), 1);
+  {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
+    EXPECT_TRUE(pg->schema().is_vertex_label_valid("temp_node"));
+    auto temp_labels = pg->schema().get_temporary_vertex_labels();
+    EXPECT_EQ(temp_labels.size(), 1);
+  }
 
   // Close connection
   conn->Close();
 
   // Temp type should be cleaned up
-  temp_labels = db_->schema().get_temporary_vertex_labels();
-  EXPECT_TRUE(temp_labels.empty());
+  {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
+    auto temp_labels = pg->schema().get_temporary_vertex_labels();
+    EXPECT_TRUE(temp_labels.empty());
 
-  // Persistent type should remain
-  EXPECT_TRUE(db_->schema().is_vertex_label_valid("person"));
+    // Persistent type should remain
+    EXPECT_TRUE(pg->schema().is_vertex_label_valid("person"));
+  }
 }
 
 TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryEdges) {
@@ -570,34 +573,34 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryEdges) {
 
   // Create temp vertex + temp edge via storage API
   {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
     CreateVertexTypeParamBuilder vbuilder;
-    EXPECT_TRUE(db_->graph()
-                    .CreateVertexType(
+    EXPECT_TRUE(pg->CreateVertexType(
                         vbuilder.VertexLabel("temp_src")
-                            .AddProperty("id", property_to_value(
-                                                   Property::from_int64(0)))
+                            .AddProperty("id", Value::INT64(0))
                             .AddPrimaryKeyName("id")
                             .Temporary(true)
                             .Build())
                     .ok());
-  }
-  {
     CreateEdgeTypeParamBuilder ebuilder;
-    EXPECT_TRUE(db_->graph()
-                    .CreateEdgeType(
+    EXPECT_TRUE(pg->CreateEdgeType(
                         ebuilder.SrcLabel("temp_src")
                             .DstLabel("person")
                             .EdgeLabel("temp_link")
-                            .AddProperty("w", property_to_value(
-                                                  Property::from_double(0.0)))
+                            .AddProperty("w", Value::DOUBLE(0.0))
                             .Temporary(true)
                             .Build())
                     .ok());
   }
 
   // Verify both exist
-  EXPECT_EQ(db_->schema().get_temporary_vertex_labels().size(), 1);
-  EXPECT_EQ(db_->schema().get_temporary_edge_triplet_keys().size(), 1);
+  {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
+    EXPECT_EQ(pg->schema().get_temporary_vertex_labels().size(), 1);
+    EXPECT_EQ(pg->schema().get_temporary_edge_triplet_keys().size(), 1);
+  }
 
   conn->Close();
 
@@ -626,15 +629,18 @@ TEST_F(ConnectionTemporaryCleanupTest, DoubleCloseIsIdempotent) {
   ASSERT_NE(conn, nullptr);
 
   CreateVertexTypeParamBuilder builder;
-  EXPECT_TRUE(
-      db_->graph()
-          .CreateVertexType(
+  {
+    neug::SnapshotGuard guard(db_->graph_snapshot_store());
+    auto* pg = guard.get().mutable_graph();
+    EXPECT_TRUE(
+        pg->CreateVertexType(
               builder.VertexLabel("temp_x")
-                  .AddProperty("id", property_to_value(Property::from_int64(0)))
+                  .AddProperty("id", Value::INT64(0))
                   .AddPrimaryKeyName("id")
                   .Temporary(true)
                   .Build())
           .ok());
+  }
 
   conn->Close();
   conn->Close();  // should not crash or throw

@@ -4,7 +4,13 @@
 
 You can apply standard relational operations — projection, filtering, type casting, aggregation, sorting — directly on the loaded data. This makes `LOAD FROM` ideal for data exploration, validation, and ad-hoc analysis.
 
-## Basic Syntax
+With the `AS` clause (`LOAD NODE TABLE ... AS` / `LOAD REL TABLE ... AS`), the loaded data is materialized as **temporary graph tables** (nodes and edges) that persist for the lifetime of the Connection. Once loaded as a graph, you can run full Cypher graph queries — `MATCH`, path traversal, pattern matching — on the temporary data, and mix it with persistent graph data in the same query. See [LOAD AS (Temporary Graph)](#load-as-temporary-graph) below.
+
+---
+
+## LOAD FROM
+
+### Basic Syntax
 
 ```cypher
 LOAD FROM "<file_path>" (<options>)
@@ -173,3 +179,161 @@ LOAD FROM "large_person.csv" (
 )
 RETURN name, age;
 ```
+
+---
+
+## LOAD AS (Temporary Graph)
+
+`LOAD NODE TABLE AS` / `LOAD REL TABLE AS` creates **temporary graph tables** from external files. Unlike `LOAD FROM` which produces a flat result set for relational operations, `LOAD AS` materializes the data as graph nodes and edges, enabling full Cypher graph queries (`MATCH`, path traversal, pattern matching) on the loaded data.
+
+Use cases:
+
+- **Graph analysis** — load external data as graph structure for exploration without defining a persistent schema.
+- **Data blending** — query temporary tables together with persistent graph data in the same Cypher statement.
+- **Prototyping** — test graph queries on external data without modifying persistent storage.
+
+### Syntax
+
+**Node Table:**
+
+```cypher
+LOAD NODE TABLE FROM "<file_path>" (
+    primary_key = '<column_name>',
+    ...
+)
+[WHERE <condition>]
+[RETURN <column_list>]
+AS <label_name>;
+```
+
+**Relationship Table:**
+
+```cypher
+LOAD REL TABLE FROM "<file_path>" (
+    from = '<source_label>',
+    to = '<target_label>',
+    from_col = '<source_key_column>',
+    to_col = '<target_key_column>',
+    ...
+)
+[WHERE <condition>]
+[RETURN <column_list>]
+AS <label_name>;
+```
+
+> **Note:** Unlike `LOAD FROM`, `LOAD AS` does not support `ORDER BY`, `LIMIT`, aggregation, or `DISTINCT` — these are relational operations on result sets. `LOAD AS` creates an unordered graph table; use subsequent `MATCH` queries for ordering and aggregation.
+
+### LOAD AS-specific Options
+
+**Node Table:**
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `primary_key` | string | First column | Primary key column name. Must appear in `RETURN` if specified. |
+
+**Relationship Table:**
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `from` | string | **Required** | Source node label name (must already exist). |
+| `to` | string | **Required** | Target node label name (must already exist). |
+| `from_col` | string | First column | Column containing source node keys. Auto-reorders keys to schema positions [0/1]. |
+| `to_col` | string | Second column | Column containing target node keys. Auto-reorders keys to schema positions [0/1]. |
+
+Format and performance options (CSV `header`, `delim`, JSON, Parquet, `parallel`) are the same as `LOAD FROM` described above.
+
+### WHERE Filtering
+
+Filter rows during loading. Non-matching rows are skipped at read time:
+
+```cypher
+LOAD NODE TABLE FROM "person.csv" (
+    primary_key = 'id', header = true
+)
+WHERE age >= 18
+AS AdultPerson;
+```
+
+### RETURN Projection
+
+Select which columns become properties. Columns not in `RETURN` are not loaded:
+
+```cypher
+LOAD NODE TABLE FROM "person.csv" (
+    primary_key = 'id', header = true
+)
+RETURN id, name
+AS PersonSlim;
+```
+
+Columns referenced only in `WHERE` (but not in `RETURN`) are used for filtering but do not become properties.
+
+### Relationship Table Key Column Ordering
+
+The first two columns of the relationship table schema are always treated as source/destination keys:
+
+1. **With `from_col`/`to_col` (recommended)**: keys are automatically placed at positions [0/1] regardless of file order or RETURN order.
+2. **Without `from_col`/`to_col`**: first two columns in output order become keys. User must ensure keys are first.
+
+```cypher
+// File: weight(0), src_id(1), dst_id(2)
+// from_col/to_col auto-reorder: schema becomes [src_id, dst_id, weight]
+LOAD REL TABLE FROM "edges.csv" (
+    from = 'Person', to = 'Person',
+    from_col = 'src_id', to_col = 'dst_id', header = true
+) AS Knows;
+```
+
+> **Best practice**: Always specify `from_col`/`to_col` for relationship tables to avoid positional ambiguity.
+
+### Lifecycle Management
+
+**Automatic cleanup:** Temporary tables are deleted when the Connection is closed.
+
+```python
+conn.execute('LOAD NODE TABLE FROM "person.csv" (primary_key=\'id\', header=true) AS Temp;')
+conn.execute("MATCH (n:Temp) RETURN count(n);")  # works
+conn.close()
+# Temp is gone
+```
+
+**Manual cleanup:** Use `DROP TABLE` to release a temporary table early:
+
+```cypher
+DROP TABLE TempPerson;
+```
+
+**Mixed queries:** Temporary tables can be used alongside persistent tables:
+
+```cypher
+MATCH (a:Person)-[r:TempEdges]->(b:Person)
+RETURN a.name, b.name, r.weight;
+```
+
+### Full Example
+
+```cypher
+// 1. Load temporary nodes and edges.
+LOAD NODE TABLE FROM "users.csv" (
+    primary_key = 'user_id', header = true
+) AS TempUser;
+
+LOAD REL TABLE FROM "follows.csv" (
+    from = 'TempUser', to = 'TempUser',
+    from_col = 'follower_id', to_col = 'followee_id', header = true
+) WHERE strength > 0.7
+RETURN follower_id, followee_id, strength
+AS TempFollows;
+
+// 2. Run graph queries on temporary data.
+MATCH (u:TempUser)<-[f:TempFollows]-(:TempUser)
+RETURN u.name, count(f) AS followers
+ORDER BY followers DESC
+LIMIT 10;
+```
+
+### Known Limitations
+
+1. **No ACID guarantees**: If loading fails mid-way, the empty temporary schema remains until Connection close. Use `DROP TABLE` to retry.
+2. **Temporary edge constraints**: Temporary edges can connect to persistent nodes, but persistent edges cannot reference temporary nodes.
+3. **Single connection**: Only supported in read-write mode (one Connection at a time).

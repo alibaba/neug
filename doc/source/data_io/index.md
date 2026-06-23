@@ -40,7 +40,6 @@ External Files (CSV, JSON, Parquet, ...)
 
 ## What's Next
 
-- **[LOAD FROM](load_data)** — Read external files into temporary tables with relational operations
+- **[LOAD FROM / LOAD AS](load_data)** — Read external files for relational operations or create temporary graph tables
 - **[COPY FROM](import_data)** — Persist external data into graph storage
-- **[LOAD AS](load_as)** — Create temporary graph tables from external files (auto-cleanup on connection close)
 - **[COPY TO](export_data)** — Export query results to external files
