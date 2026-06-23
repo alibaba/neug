@@ -675,7 +675,7 @@ struct CsrView {
   __attribute__((always_inline)) void prefetch_metadata(vid_t v) const {
     if (degrees_ == nullptr) {
       const char* start_ptr = adjlists_ + v * cfg_.stride;
-      prefetch_read(start_ptr, prefetch_policy_.head_locality);
+      prefetch_read(start_ptr, prefetch_policy_.metadata_locality);
     } else {
       auto* adjlist_ptrs = reinterpret_cast<const int64_t*>(adjlists_);
       prefetch_read(degrees_ + v, prefetch_policy_.metadata_locality);

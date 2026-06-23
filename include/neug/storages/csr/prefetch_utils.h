@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include <cmath>
 
 namespace neug {
 

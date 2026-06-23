@@ -287,7 +287,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             prefetch_next_vertex_column(view, input, idx);
             expand_sv_np_ms(v, idx, view, builder, offsets);
           }
-        };
+        }
       } else {
         for (size_t idx = 0; idx < input.size(); ++idx) {
           auto vertex = input.get_vertex(idx);
