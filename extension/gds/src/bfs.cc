@@ -54,7 +54,6 @@ struct BFSInput : public function::CallFuncInputBase {
   int32_t concurrency;
   bool directed;
   bool return_path;
-  std::string path_properties;
   int32_t node_alias;
   int32_t distance_alias;
   int32_t path_alias;
@@ -77,8 +76,6 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
   input->directed = get_option_value<bool>(options, "directed", false);
-  input->path_properties =
-      get_option_value<std::string>(options, "path_properties", "full");
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
@@ -102,7 +99,6 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
-  bool full_encoding = bfs_input.path_properties != "lightweight";
   execution::Context ret;
   if (bfs_input.vertex_pred != nullptr || bfs_input.edge_pred != nullptr) {
     BFSPred bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
@@ -111,13 +107,13 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
                 bfs_input.return_path);
     bfs.compute();
     bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-             bfs_input.path_alias, full_encoding);
+             bfs_input.path_alias);
   } else {
     BFS bfs(graph, bfs_input.vertex_label, bfs_input.edge_label, source_vid,
             bfs_input.directed, bfs_input.concurrency, bfs_input.return_path);
     bfs.compute();
     bfs.sink(ret, bfs_input.node_alias, bfs_input.distance_alias,
-             bfs_input.path_alias, full_encoding);
+             bfs_input.path_alias);
   }
   return ret;
 }

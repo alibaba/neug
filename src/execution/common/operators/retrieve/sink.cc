@@ -122,11 +122,10 @@ void append_property_to_json(const std::string& key, const Value& prop,
 // Used internally by convert_path_to_json to avoid the string→parse→copy
 // cycle when embedding vertex/edge objects inside a path array.
 //
-// In lightweight mode (default): only encode _ID, _LABEL, and PK
-// In full mode: encode all properties
+// Encode all vertex properties
 static rapidjson::Value build_vertex_json_value(
     const StorageReadInterface& graph, const VertexRecord& record,
-    rapidjson::Document::AllocatorType& allocator, bool full_encoding) {
+    rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value obj(rapidjson::kObjectType);
   if (record.label_ == std::numeric_limits<label_t>::max() ||
       record.vid_ == std::numeric_limits<vid_t>::max()) {
@@ -141,8 +140,8 @@ static rapidjson::Value build_vertex_json_value(
   auto pk_types = graph.schema().get_vertex_primary_key(record.label_);
   append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
 
-  // Only encode non-PK properties in full mode
-  if (full_encoding) {
+  {
+
     const auto& property_names =
         graph.schema().get_vertex_property_names(record.label_);
     for (size_t i = 0; i < property_names.size(); ++i) {
@@ -156,11 +155,10 @@ static rapidjson::Value build_vertex_json_value(
 // Build a rapidjson object for an edge directly into the given allocator,
 // without the serialize-to-string round-trip used by convert_edge_to_json.
 //
-// In lightweight mode (default): only encode _ID, _LABEL, _SRC_ID, _DST_ID
-// In full mode: encode all properties
+// Encode all edge properties
 static rapidjson::Value build_edge_json_value(
     const StorageReadInterface& graph, const EdgeRecord& record,
-    rapidjson::Document::AllocatorType& allocator, bool full_encoding) {
+    rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value obj(rapidjson::kObjectType);
   if (record.label.src_label == std::numeric_limits<label_t>::max() ||
       record.label.dst_label == std::numeric_limits<label_t>::max() ||
@@ -183,8 +181,7 @@ static rapidjson::Value build_edge_json_value(
   obj.AddMember("_SRC_ID", rapidjson::Value(src_gid), allocator);
   obj.AddMember("_DST_ID", rapidjson::Value(dst_gid), allocator);
 
-  // Only encode properties in full mode
-  if (full_encoding) {
+  {
     auto property_types = graph.schema().get_edge_properties(
         record.label.src_label, record.label.dst_label,
         record.label.edge_label);
@@ -278,7 +275,7 @@ std::string convert_edge_to_json(const StorageReadInterface& graph,
 }
 
 std::string convert_path_to_json(const StorageReadInterface& graph,
-                                 const Path& path, bool full_encoding) {
+                                 const Path& path) {
   if (path.is_null()) {
     return "";
   }
@@ -288,13 +285,13 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
 
   rapidjson::Value nodes(rapidjson::kArrayType);
   for (const auto& node : path.nodes()) {
-    nodes.PushBack(build_vertex_json_value(graph, node, allocator, full_encoding), allocator);
+    nodes.PushBack(build_vertex_json_value(graph, node, allocator), allocator);
   }
   doc.AddMember("nodes", nodes, allocator);
 
   rapidjson::Value edges(rapidjson::kArrayType);
   for (const auto& edge : path.relationships()) {
-    edges.PushBack(build_edge_json_value(graph, edge, allocator, full_encoding), allocator);
+    edges.PushBack(build_edge_json_value(graph, edge, allocator), allocator);
   }
   doc.AddMember("rels", edges, allocator);
 
@@ -504,10 +501,9 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     auto casted = std::dynamic_pointer_cast<PathColumn>(col);
     auto path_col = column->mutable_path_array();
     path_col->mutable_values()->Reserve(casted->size());
-    bool full_encoding = casted->full_encoding();
     for (size_t i = 0; i < casted->size(); ++i) {
       auto path = casted->get_path(i);
-      path_col->add_values(convert_path_to_json(graph, path, full_encoding));
+      path_col->add_values(convert_path_to_json(graph, path));
     }
     if (casted->is_optional()) {
       vector_t<bool> validity(casted->size());

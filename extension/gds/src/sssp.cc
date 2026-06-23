@@ -56,7 +56,6 @@ struct SSSPInput : public function::CallFuncInputBase {
   std::string edge_weight;
   int32_t concurrency;
   bool return_path;
-  std::string path_properties;
   int32_t node_alias;
   int32_t distance_alias;
   int32_t path_alias;
@@ -80,8 +79,6 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
   input->edge_weight = get_option_value<std::string>(options, "weight", "");
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
-  input->path_properties =
-      get_option_value<std::string>(options, "path_properties", "full");
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
@@ -106,7 +103,6 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
     return execution::Context{};
   }
 
-  bool full_encoding = sssp_input.path_properties != "lightweight";
   execution::Context ret;
   if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
       sssp_input.edge_pred != nullptr) {
@@ -116,7 +112,7 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                   sssp_input.edge_pred.get(), sssp_input.return_path);
     sssp.compute();
     sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
-              sssp_input.path_alias, full_encoding);
+              sssp_input.path_alias);
   } else {
     SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
               sssp_input.directed, sssp_input.edge_weight,

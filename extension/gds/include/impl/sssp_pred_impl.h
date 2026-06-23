@@ -41,7 +41,7 @@ class SSSPPred {
            bool return_path = false);
 
   void sink(execution::Context& ctx, int node_alias, int distance_alias,
-            int path_alias = -1, bool full_encoding = true);
+            int path_alias);
 
   void compute();
 

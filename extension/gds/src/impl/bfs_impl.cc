@@ -158,7 +158,7 @@ void BFS::compute() {
 }
 
 void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
-               int path_alias, bool full_encoding) {
+               int path_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
   execution::ValueColumnBuilder<int64_t> distance_builder;
 
@@ -190,7 +190,6 @@ void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
     };
 
     execution::PathColumnBuilder path_builder;
-    path_builder.set_full_encoding(full_encoding);
     for (vid_t v : vertices_) {
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();

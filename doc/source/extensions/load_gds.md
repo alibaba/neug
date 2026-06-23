@@ -170,7 +170,6 @@ RETURN node, distance;
 |---|---|---|---|
 | `source` | STRING | *(required)* | The source node's primary key value |
 | `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
-| `path_properties` | STRING | `"full"` | Path encoding mode: `"full"` (all properties, default) or `"lightweight"` (structure only) |
 | `concurrency` | INT | CPU cores | Number of threads |
 
 **Output columns:**
@@ -197,22 +196,12 @@ CALL bfs('social', {source: '0'})
 YIELD node, distance, path
 RETURN node.fName, distance, path;
 
--- Path with all properties (default, same as omitting path_properties)
-CALL bfs('social', {source: '0', path_properties: 'full'})
-YIELD node, distance, path
-RETURN node.fName, distance, path;
-
 -- Extract path details
 CALL bfs('social', {source: '0'})
 YIELD node, distance, path
 RETURN node.fName, distance,
        nodes(path) AS path_nodes,
        relationships(path) AS path_edges;
-
--- Lightweight path (structure only, better performance)
-CALL bfs('social', {source: '0', path_properties: 'lightweight'})
-YIELD node, distance, path
-RETURN node.fName, distance, path;
 ```
 
 **Predicate support:** Both node and edge predicates are supported.
@@ -237,7 +226,6 @@ RETURN node, distance;
 | `source` | STRING | *(required)* | The source node's primary key value |
 | `directed` | BOOL | `false` | Whether to follow edges in their stored direction only |
 | `weight` | STRING | `""` | Edge property name to use as weight (empty = unit weight) |
-| `path_properties` | STRING | `"full"` | Path encoding mode: `"full"` (all properties, default) or `"lightweight"` (structure only) |
 | `concurrency` | INT | CPU cores | Number of threads |
 
 **Output columns:**
@@ -529,33 +517,6 @@ YIELD node, distance, path
 RETURN node, distance, path;
 ```
 
-### Path Properties Encoding
-
-The `path_properties` option controls what information is included in the path:
-
-**Full mode** (default, `path_properties: "full"` or unspecified):
-- **Nodes**: All properties
-- **Relationships**: All properties
-- **Performance**: ~1.3s for 62K paths on LDBC SF10
-- **Backward compatible**: Same behavior as standard `MATCH p = ...` path queries
-
-**Lightweight mode** (`path_properties: "lightweight"`):
-- **Nodes**: `_ID`, `_LABEL`, and primary key only
-- **Relationships**: `_ID`, `_LABEL`, `_SRC_ID`, `_DST_ID` only
-- **Performance**: ~0.5s for 62K paths on LDBC SF10 (2.6x faster)
-- **Use case**: When you only need path structure, not all properties
-
-```cypher
--- Full path with all properties (default)
-CALL bfs('graph', {source: '0'})
-YIELD node, distance, path
-RETURN node, path;
-
--- Lightweight path (faster, structure only)
-CALL bfs('graph', {source: '0', path_properties: 'lightweight'})
-YIELD node, distance, path
-RETURN node, path;
-```
 
 ### Working with Paths
 
@@ -588,17 +549,17 @@ RETURN distance, path;
   no performance penalty compared to distance-only queries.
 - **Default is full mode**: By default, paths include all vertex and edge properties,
   matching the behavior of standard `MATCH p = ...` queries for backward compatibility.
-- **Large result sets**: When returning paths for many nodes, consider using
-  `path_properties: "lightweight"` for better performance if you only need the path
-  structure (node IDs and relationship connections).
+- **Large result sets**: When returning paths for many nodes, be aware that
+  path serialization includes all vertex and edge properties, which can be
+  memory-intensive for large graphs.
 
 ## Algorithm Summary
 
 | Algorithm | CALL Name | Output Columns | Key Options |
 |---|---|---|---|
 | PageRank | `page_rank` | `node`, `rank` | `damping_factor`, `max_iterations`, `directed` |
-| BFS | `bfs` | `node`, `distance`, `path` | `source` (required), `path_properties` |
-| SSSP | `sssp` | `node`, `distance`, `path` | `source` (required), `weight`, `directed`, `path_properties` |
+| BFS | `bfs` | `node`, `distance`, `path` | `source` (required), `directed` |
+| SSSP | `sssp` | `node`, `distance`, `path` | `source` (required), `weight`, `directed` |
 | WCC | `wcc` | `node`, `comp` | `concurrency` |
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |

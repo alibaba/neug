@@ -136,7 +136,7 @@ void SSSPPred::compute() {
 }
 
 void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
-                    int path_alias, bool full_encoding) {
+                    int path_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
   execution::ValueColumnBuilder<double> distance_builder;
   distance_builder.reserve(vertices_.size());
@@ -195,7 +195,6 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
     };
 
     execution::PathColumnBuilder path_builder;
-    path_builder.set_full_encoding(full_encoding);
     for (vid_t v : vertices_) {
       if (distances_[v] < 0) {
         path_builder.push_back_null();

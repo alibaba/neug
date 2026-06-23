@@ -32,7 +32,7 @@ class BFS {
 
   void compute();
   void sink(execution::Context& ctx, int node_alias, int distance_alias,
-            int path_alias = -1, bool full_encoding = true);
+            int path_alias);
 
  private:
   const StorageReadInterface& graph_;
