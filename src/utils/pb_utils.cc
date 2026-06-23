@@ -53,6 +53,19 @@ execution::Value make_array_like_value(const DataType& type,
   return execution::Value::LIST(child_type, std::move(elems));
 }
 
+bool validate_array_element_count(const DataType& type, int actual_size) {
+  if (type.id() != DataTypeId::kArray) {
+    return true;
+  }
+  auto expected_size = ArrayType::GetNumElements(type);
+  if (static_cast<uint64_t>(actual_size) == expected_size) {
+    return true;
+  }
+  LOG(ERROR) << "ARRAY value element count mismatch, expected " << expected_size
+             << ", got " << actual_size;
+  return false;
+}
+
 }  // namespace
 
 std::string proto_to_string(const google::protobuf::Message& proto) {
@@ -324,6 +337,9 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
     break;
   case common::Value::kI32Array: {
     const auto& arr = value.i32_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
     DataType child_type = type.id() == DataTypeId::kArray
                               ? ArrayType::GetChildType(type)
                               : DataType::INT32;
@@ -337,6 +353,9 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   }
   case common::Value::kI64Array: {
     const auto& arr = value.i64_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
     DataType child_type = type.id() == DataTypeId::kArray
                               ? ArrayType::GetChildType(type)
                               : DataType::INT64;
@@ -350,6 +369,9 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   }
   case common::Value::kF64Array: {
     const auto& arr = value.f64_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
     DataType child_type = type.id() == DataTypeId::kArray
                               ? ArrayType::GetChildType(type)
                               : DataType::DOUBLE;
@@ -363,6 +385,9 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   }
   case common::Value::kStrArray: {
     const auto& arr = value.str_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
     DataType child_type = type.id() == DataTypeId::kArray
                               ? ArrayType::GetChildType(type)
                               : DataType::VARCHAR;
@@ -376,6 +401,10 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   }
   case common::Value::ITEM_NOT_SET: {
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
+    return false;
+  }
+  default: {
+    LOG(ERROR) << "Unsupported value type: " << value.DebugString();
     return false;
   }
   }

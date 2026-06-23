@@ -47,10 +47,7 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return std::make_shared<ListColumnBuilder>(elem_type);
   }
   case DataTypeId::kArray: {
-    DataType elem_type = ArrayType::GetChildType(type);
-    uint32_t array_size =
-        static_cast<uint32_t>(ArrayType::GetNumElements(type));
-    return std::make_shared<ArrayColumnBuilder>(type, array_size);
+    return std::make_shared<ArrayColumnBuilder>(type);
   }
   case DataTypeId::kPath: {
     return std::make_shared<PathColumnBuilder>();

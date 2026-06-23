@@ -22,9 +22,10 @@ namespace execution {
 
 std::shared_ptr<IContextColumn> ArrayColumn::shuffle(
     const sel_vec_t& offsets) const {
-  if (!datas_) return nullptr;
+  if (!datas_)
+    return nullptr;
 
-  auto result = std::make_shared<ArrayColumn>(type_, array_size_);
+  auto result = std::make_shared<ArrayColumn>(type_);
   sel_vec_t data_offsets;
   data_offsets.reserve(offsets.size() * array_size_);
 

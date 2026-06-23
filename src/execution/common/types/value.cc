@@ -918,76 +918,35 @@ Value performCastToString(const Value& input) {
 
 namespace {
 
-template <typename TARGET>
-TARGET castScalarValue(const Value& value) {
-  TARGET result{};
-  bool ok = false;
-  switch (value.type().id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                \
-  case DataTypeId::enum_val: {                                         \
-    ok = ValueConverter<TARGET>::cast(value.GetValue<type>(), result); \
-    break;                                                             \
-  }
-    FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-  case DataTypeId::kVarchar:
-    ok = ValueConverter<TARGET>::cast(StringValue::Get(value), result);
-    break;
-  default:
-    THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
-  }
-  if (!ok) {
-    THROW_OVERFLOW_EXCEPTION("Failed to cast value.");
-  }
-  return result;
+bool isListLikeType(DataTypeId type_id) {
+  return type_id == DataTypeId::kList || type_id == DataTypeId::kArray;
 }
 
-Value castValueToType(const Value& value, const DataType& target_type) {
-  if (value.type() == target_type) {
-    return value;
-  }
-  if (value.IsNull()) {
-    return Value(target_type);
-  }
+Value castListArrayElementToType(const Value& value,
+                                 const DataType& target_type) {
   switch (target_type.id()) {
   case DataTypeId::kBoolean:
     THROW_CONVERSION_EXCEPTION("Unsupported type for casting to bool.");
   case DataTypeId::kInt32:
-    return Value::INT32(castScalarValue<int32_t>(value));
+    return performCast<int32_t>(value);
   case DataTypeId::kInt64:
-    return Value::INT64(castScalarValue<int64_t>(value));
+    return performCast<int64_t>(value);
   case DataTypeId::kUInt32:
-    return Value::UINT32(castScalarValue<uint32_t>(value));
+    return performCast<uint32_t>(value);
   case DataTypeId::kUInt64:
-    return Value::UINT64(castScalarValue<uint64_t>(value));
+    return performCast<uint64_t>(value);
   case DataTypeId::kFloat:
-    return Value::FLOAT(castScalarValue<float>(value));
+    return performCast<float>(value);
   case DataTypeId::kDouble:
-    return Value::DOUBLE(castScalarValue<double>(value));
+    return performCast<double>(value);
   case DataTypeId::kDate:
     return performCast<date_t>(value);
   case DataTypeId::kTimestampMs:
-    if (value.type().id() == DataTypeId::kDate ||
-        value.type().id() == DataTypeId::kVarchar) {
-      neug::DateTime result;
-      bool ok = value.type().id() == DataTypeId::kDate
-                    ? ValueConverter<timestamp_ms_t>::cast(
-                          value.GetValue<date_t>(), result)
-                    : ValueConverter<timestamp_ms_t>::cast(
-                          StringValue::Get(value), result);
-      if (ok) {
-        return Value::CreateValue<timestamp_ms_t>(result);
-      }
-    }
-    THROW_CONVERSION_EXCEPTION(
-        "Only string/date type is supported for casting to DateTime.");
+    return performCast<timestamp_t>(value);
   case DataTypeId::kInterval:
     return performCast<interval_t>(value);
   case DataTypeId::kVarchar:
     return performCastToString(value);
-  case DataTypeId::kArray:
-  case DataTypeId::kList:
-    return convertValueIfNeeded(value, target_type);
   default:
     THROW_RUNTIME_ERROR("Property type mismatch: expected " +
                         target_type.ToString() + ", got " +
@@ -995,54 +954,84 @@ Value castValueToType(const Value& value, const DataType& target_type) {
   }
 }
 
-}  // namespace
+Value convertListArrayElementValue(const Value& value,
+                                   const DataType& target_type);
 
-Value convertValueIfNeeded(const Value& value, const DataType& target_type) {
+Value convertListLikeValue(const Value& value, const DataType& target_type) {
   auto src_id = value.type().id();
   auto dst_id = target_type.id();
+  if (!isListLikeType(src_id) || !isListLikeType(dst_id)) {
+    THROW_RUNTIME_ERROR("Cannot convert " + value.type().ToString() + " to " +
+                        target_type.ToString());
+  }
+
+  const auto& src_children = src_id == DataTypeId::kList
+                                 ? ListValue::GetChildren(value)
+                                 : ArrayValue::GetChildren(value);
+  std::vector<Value> new_children;
+  new_children.reserve(src_children.size());
+  const auto child_type = dst_id == DataTypeId::kArray
+                              ? ArrayType::GetChildType(target_type)
+                              : ListType::GetChildType(target_type);
+  if (dst_id == DataTypeId::kArray) {
+    auto expected_size = ArrayType::GetNumElements(target_type);
+    if (src_children.size() != expected_size) {
+      THROW_CONVERSION_EXCEPTION(
+          "Unsupported casting LIST/ARRAY with incorrect size to ARRAY. "
+          "Expected: " +
+          std::to_string(expected_size) +
+          ", Actual: " + std::to_string(src_children.size()) + ".");
+    }
+  }
+  for (const auto& child : src_children) {
+    new_children.push_back(convertListArrayElementValue(child, child_type));
+  }
+  if (dst_id == DataTypeId::kArray) {
+    return Value::ARRAY(target_type, std::move(new_children));
+  }
+  return Value::LIST(child_type, std::move(new_children));
+}
+
+Value convertListArrayElementValue(const Value& value,
+                                   const DataType& target_type) {
   if (value.type() == target_type) {
     return value;
   }
   if (value.IsNull()) {
     return Value(target_type);
   }
-  if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
-      (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
-    const std::vector<Value>* src_children = nullptr;
-    if (src_id == DataTypeId::kList) {
-      src_children = &ListValue::GetChildren(value);
-    } else {
-      src_children = &ArrayValue::GetChildren(value);
-    }
-    std::vector<Value> new_children;
-    new_children.reserve(src_children->size());
-    const auto child_type = dst_id == DataTypeId::kArray
-                                ? ArrayType::GetChildType(target_type)
-                                : ListType::GetChildType(target_type);
-    if (dst_id == DataTypeId::kArray) {
-      auto expected_size = ArrayType::GetNumElements(target_type);
-      if (src_children->size() != expected_size) {
-        THROW_CONVERSION_EXCEPTION(
-            "Unsupported casting LIST/ARRAY with incorrect size to ARRAY. "
-            "Expected: " +
-            std::to_string(expected_size) +
-            ", Actual: " + std::to_string(src_children->size()) + ".");
-      }
-    }
-    for (const auto& child : *src_children) {
-      new_children.push_back(castValueToType(child, child_type));
-    }
-    if (dst_id == DataTypeId::kArray) {
-      return Value::ARRAY(target_type, std::move(new_children));
-    } else {
-      return Value::LIST(child_type, std::move(new_children));
-    }
+  auto src_id = value.type().id();
+  auto dst_id = target_type.id();
+  if (isListLikeType(src_id) || isListLikeType(dst_id)) {
+    return convertListLikeValue(value, target_type);
   }
-  if (dst_id == DataTypeId::kArray || dst_id == DataTypeId::kList) {
-    THROW_RUNTIME_ERROR("Cannot convert " + value.type().ToString() + " to " +
+  return castListArrayElementToType(value, target_type);
+}
+
+}  // namespace
+
+Value convertListArrayValueIfNeeded(const Value& value,
+                                    const DataType& target_type) {
+  auto src_id = value.type().id();
+  auto dst_id = target_type.id();
+  if (!isListLikeType(dst_id)) {
+    THROW_RUNTIME_ERROR(
+        "Cannot convert LIST/ARRAY value to non-LIST/ARRAY "
+        "target type " +
+        target_type.ToString());
+  }
+  if (value.type() == target_type) {
+    return value;
+  }
+  if (value.IsNull()) {
+    return Value(target_type);
+  }
+  if (!isListLikeType(src_id)) {
+    THROW_RUNTIME_ERROR("Cannot convert non-LIST/ARRAY value " +
+                        value.type().ToString() + " to " +
                         target_type.ToString());
   }
-  return castValueToType(value, target_type);
+  return convertListLikeValue(value, target_type);
 }
 
 }  // namespace execution

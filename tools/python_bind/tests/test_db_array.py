@@ -1034,3 +1034,31 @@ def test_nested_array_checkpoint_reopen(tmp_path):
 
     conn2.close()
     db2.close()
+
+
+def test_unwind_array_property(tmp_path):
+    """UNWIND accepts fixed-size array properties."""
+    db_dir = tmp_path / "array_unwind"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE Sensor("
+        "  id INT64,"
+        "  readings INT32[3],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.execute("CREATE (s:Sensor {id: 1, readings: [3, 1, 2]});")
+
+    rows = list(
+        conn.execute(
+            "MATCH (s:Sensor) UNWIND s.readings AS reading "
+            "RETURN reading ORDER BY reading;"
+        )
+    )
+    assert [row[0] for row in rows] == [1, 2, 3]
+
+    conn.close()
+    db.close()

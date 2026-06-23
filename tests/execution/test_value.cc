@@ -159,8 +159,32 @@ TEST_F(ValueTest, ConvertListToArrayRequiresExactLength) {
   auto list_value = Value::LIST(DataType::INT32, std::move(values));
   auto target_type = DataType::Array(DataType::INT32, 3);
 
-  EXPECT_THROW({ convertValueIfNeeded(list_value, target_type); },
+  EXPECT_THROW({ convertListArrayValueIfNeeded(list_value, target_type); },
                exception::ConversionException);
+}
+
+TEST_F(ValueTest, ConvertListArrayRejectsTopLevelScalar) {
+  auto scalar_value = Value::INT32(1);
+  auto target_type = DataType::Array(DataType::INT32, 1);
+
+  EXPECT_THROW({ convertListArrayValueIfNeeded(scalar_value, target_type); },
+               exception::RuntimeError);
+}
+
+TEST_F(ValueTest, ConvertListArrayCastsScalarElements) {
+  std::vector<Value> values = {Value::INT32(1), Value::INT32(2)};
+  auto list_value = Value::LIST(DataType::INT32, std::move(values));
+  auto target_type = DataType::Array(DataType::DOUBLE, 2);
+
+  auto result = convertListArrayValueIfNeeded(list_value, target_type);
+
+  EXPECT_EQ(result.type(), target_type);
+  const auto& children = ArrayValue::GetChildren(result);
+  ASSERT_EQ(children.size(), 2);
+  EXPECT_EQ(children[0].type().id(), DataTypeId::kDouble);
+  EXPECT_DOUBLE_EQ(children[0].GetValue<double>(), 1.0);
+  EXPECT_EQ(children[1].type().id(), DataTypeId::kDouble);
+  EXPECT_DOUBLE_EQ(children[1].GetValue<double>(), 2.0);
 }
 
 TEST_F(ValueTest, StructConstruction) {

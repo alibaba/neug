@@ -40,6 +40,20 @@
 namespace neug {
 namespace gopt {
 
+namespace {
+
+template <typename PropertyDefPbT>
+void setDefaultValueIfPresent(PropertyDefPbT* property,
+                              GExprConverter& exprConverter,
+                              const binder::PropertyDefinition& propertyDef) {
+  auto default_value = exprConverter.convertDefaultValue(propertyDef);
+  if (default_value) {
+    property->set_allocated_default_value(default_value.release());
+  }
+}
+
+}  // namespace
+
 void GDDLConverter::convertCreateTable(const planner::LogicalCreateTable& op,
                                        ::physical::PhysicalPlan* plan) {
   const auto* info = op.getInfo();
@@ -173,8 +187,7 @@ GDDLConverter::convertToCreateVertexSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
-        exprConverter.convertDefaultValue(prop).release());
+    setDefaultValueIfPresent(propertyDef, exprConverter, prop);
   }
 
   // Set primary key
@@ -267,8 +280,7 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
-        exprConverter.convertDefaultValue(prop).release());
+    setDefaultValueIfPresent(propertyDef, exprConverter, prop);
   }
 
   // Set conflict action
@@ -316,8 +328,7 @@ GDDLConverter::convertToCreateEdgeSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
-    propertyDef->set_allocated_default_value(
-        exprConverter.convertDefaultValue(prop).release());
+    setDefaultValueIfPresent(propertyDef, exprConverter, prop);
   }
 
   // Set conflict action
@@ -414,8 +425,7 @@ GDDLConverter::convertToAddVertexPropertySchema(
   property->set_name(propertyDef.getName());
   auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
-  property->set_allocated_default_value(
-      exprConverter.convertDefaultValue(propertyDef).release());
+  setDefaultValueIfPresent(property, exprConverter, propertyDef);
 
   // Set conflict action
   add_property->set_conflict_action(
@@ -457,8 +467,7 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   property->set_name(propertyDef.getName());
   auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
-  property->set_allocated_default_value(
-      exprConverter.convertDefaultValue(propertyDef).release());
+  setDefaultValueIfPresent(property, exprConverter, propertyDef);
 
   // Set conflict action
   add_property->set_conflict_action(

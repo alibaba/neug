@@ -2330,7 +2330,7 @@ OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
       type = DataType::Struct(child_types);
     } else if (id == DataTypeId::kArray) {
       DataType child_type;
-      uint32_t array_size;
+      uint64_t array_size;
       out_archive >> child_type >> array_size;
       type = DataType::Array(child_type, array_size);
     } else if (id == DataTypeId::kVarchar) {

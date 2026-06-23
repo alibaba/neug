@@ -33,15 +33,16 @@ class ArrayColumnBuilder;
  */
 class ArrayColumn : public IContextColumn {
  public:
-  explicit ArrayColumn(const DataType& array_type, uint32_t array_size)
+  explicit ArrayColumn(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         type_(array_type),
-        array_size_(array_size) {}
+        array_size_(ArrayType::GetNumElements(array_type)) {}
   ~ArrayColumn() = default;
 
   size_t size() const override {
-    if (!datas_)
+    if (!datas_) {
       return 0;
+    }
     return datas_->size() / array_size_;
   }
 
@@ -87,18 +88,19 @@ class ArrayColumn : public IContextColumn {
  */
 class ArrayColumnBuilder : public IContextColumnBuilder {
  public:
-  explicit ArrayColumnBuilder(const DataType& array_type, uint32_t array_size)
+  explicit ArrayColumnBuilder(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
-        type_(array_type),
-        array_size_(array_size) {
+        array_type_(array_type),
+        array_size_(ArrayType::GetNumElements(array_type)) {
     child_builder_ = ColumnsUtils::create_builder(elem_type_);
   }
 
   ~ArrayColumnBuilder() = default;
 
   void reserve(size_t size) override {
-    if (child_builder_)
+    if (child_builder_) {
       child_builder_->reserve(size * array_size_);
+    }
   }
 
   void push_back_elem(const Value& val) override {
@@ -122,14 +124,14 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   }
 
   std::shared_ptr<IContextColumn> finish() override {
-    auto ret = std::make_shared<ArrayColumn>(type_, array_size_);
+    auto ret = std::make_shared<ArrayColumn>(array_type_);
     ret->datas_ = child_builder_->finish();
     return ret;
   }
 
  private:
   DataType elem_type_;
-  DataType type_;
+  DataType array_type_;
   uint32_t array_size_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };

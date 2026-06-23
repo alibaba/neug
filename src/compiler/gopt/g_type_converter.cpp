@@ -15,7 +15,9 @@
 
 #include "neug/compiler/gopt/g_type_converter.h"
 
+#include <cstdint>
 #include <google/protobuf/wrappers.pb.h>
+#include <limits>
 #include <memory>
 #include <vector>
 #include "neug/compiler/binder/expression/case_expression.h"
@@ -138,12 +140,22 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
     const neug::DataType& type) {
+  const neug::DataType* child_logical_type = &type;
+  uint64_t max_length = 0;
+  if (type.id() == common::DataTypeId::kArray) {
+    child_logical_type = &common::ArrayType::GetChildType(type);
+    max_length = common::ArrayType::GetNumElements(type);
+  } else if (type.id() == common::DataTypeId::kList) {
+    child_logical_type = &common::ListType::GetChildType(type);
+  }
+
   auto result = std::make_unique<::common::IrDataType>();
-  VLOG(1) << "Converting ARRAY child type: " << type.ToString();
-  auto childType = convertLogicalType(type);
+  VLOG(1) << "Converting ARRAY child type: " << child_logical_type->ToString();
+  auto childType = convertLogicalType(*child_logical_type);
   if (!childType) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "Failed to convert child type for ARRAY type: " + type.ToString());
+        "Failed to convert child type for ARRAY type: " +
+        child_logical_type->ToString());
   }
   if (childType->has_graph_type()) {
     auto listType = std::make_unique<::common::GraphTypeList>();
@@ -152,6 +164,9 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
   } else if (childType->has_data_type()) {
     auto arrayType = std::make_unique<::common::Array>();
     arrayType->set_allocated_component_type(childType->release_data_type());
+    if (max_length > 0) {
+      arrayType->set_max_length(static_cast<uint32_t>(max_length));
+    }
     result->mutable_data_type()->set_allocated_array(arrayType.release());
   } else {
     LOG(WARNING) << "Component type of Array should be basic or graph element, "
@@ -267,13 +282,11 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
     break;
   }
   case common::DataTypeId::kArray: {
-    auto& child_type = common::ArrayType::GetChildType(type);
-    return convertArrayType(child_type);
+    return convertArrayType(type);
   }
   case common::DataTypeId::kList: {
     VLOG(1) << "Converting LIST type: " << type.ToString();
-    auto& child_type = common::ListType::GetChildType(type);
-    return convertArrayType(child_type);
+    return convertArrayType(type);
   }
   case common::DataTypeId::kStruct: {
     return convertStructType(type);
@@ -369,10 +382,16 @@ GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
   case common::DataTypeId::kArray: {
     auto& childType = ArrayType::GetChildType(type);
     auto numElements = ArrayType::GetNumElements(type);
+    if (numElements >
+        static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "ARRAY length is too large for GOpt max_length: " +
+          std::to_string(numElements));
+    }
     auto childIrType = convertSimpleLogicalType(childType);
     auto arrayPb = std::make_unique<::common::Array>();
     arrayPb->set_allocated_component_type(childIrType->release_data_type());
-    arrayPb->set_max_length(numElements);
+    arrayPb->set_max_length(static_cast<uint32_t>(numElements));
     result->set_allocated_array(arrayPb.release());
     break;
   }

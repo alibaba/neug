@@ -88,9 +88,19 @@ neug::result<ContextChunk> CreateEdge::insert_edge(
           if (value.IsNull()) {
             property_values[index] = default_values[index];
           } else {
-            if (properties_type[index].id() != value.type().id()) {
-              value = execution::convertValueIfNeeded(
-                  value, properties_type[index]);
+            if (properties_type[index] != value.type()) {
+              auto src_id = value.type().id();
+              auto dst_id = properties_type[index].id();
+              if ((src_id == DataTypeId::kList ||
+                   src_id == DataTypeId::kArray) &&
+                  (dst_id == DataTypeId::kList ||
+                   dst_id == DataTypeId::kArray)) {
+                value = execution::convertListArrayValueIfNeeded(
+                    value, properties_type[index]);
+              } else {
+                THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                    prop_name);
+              }
             }
             property_values[index] = value;
           }

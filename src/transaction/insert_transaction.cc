@@ -94,7 +94,7 @@ Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
   int col_num = props.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
-    if (prop.type().id() != types[col_i].id()) {
+    if (prop.type() != types[col_i]) {
       std::string label_name = view_->schema().get_vertex_label_name(label);
       LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
                  << "] property type not match, expected "
@@ -136,7 +136,7 @@ Status InsertTransaction::AddEdge(
                       std::to_string(properties.size()));
   }
   for (size_t i = 0; i < properties.size(); ++i) {
-    if (properties[i].type().id() != types[i].id()) {
+    if (properties[i].type() != types[i]) {
       std::string label_name = view_->schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i].ToString()

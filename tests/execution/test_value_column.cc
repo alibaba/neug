@@ -28,7 +28,7 @@ class ValueColumnTest : public ::testing::Test {};
 
 TEST_F(ValueColumnTest, ArrayColumnBuilderRejectsNonArrayLikeValue) {
   auto array_type = DataType::Array(DataType::INT32, 2);
-  ArrayColumnBuilder builder(array_type, 2);
+  ArrayColumnBuilder builder(array_type);
 
   EXPECT_THROW({ builder.push_back_elem(Value::INT32(42)); },
                exception::InvalidArgumentException);
