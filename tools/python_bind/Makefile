@@ -50,6 +50,7 @@ dev:  ## Fast incremental rebuild via cmake (no env-var forwarding)
 dev-full:  ## Configure root build + build neug_py_bind from scratch
 	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_PYTHON=ON \
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	    -DOPTIMIZE_FOR_HOST=OFF \
 	    -DPython_EXECUTABLE=$(PYTHON) -DPYTHON_EXECUTABLE=$(PYTHON) \
 	    $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) --target neug_py_bind -j$(JOBS)

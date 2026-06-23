@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <thread>
@@ -33,9 +32,11 @@ namespace neug {
 namespace gds {
 namespace {
 
+constexpr double kInf = std::numeric_limits<double>::infinity();
+
 inline bool relax_distance(std::atomic<double>* ptr, double candidate) {
   double old = ptr->load(std::memory_order_relaxed);
-  while (candidate < old || old < 0) {
+  while (candidate < old) {
     if (ptr->compare_exchange_weak(old, candidate, std::memory_order_relaxed,
                                    std::memory_order_relaxed)) {
       return true;
@@ -61,7 +62,7 @@ SSSP::SSSP(const StorageReadInterface& graph, label_t vertex_label,
   size_t vertex_count = graph_.GetVertexSet(vertex_label_).size();
   distances_.reset(new std::atomic<double>[vertex_count]);
   for (size_t i = 0; i < vertex_count; ++i) {
-    distances_[i] = -1.0;
+    distances_[i] = kInf;
   }
   distances_[source_] = 0.0;
 
@@ -83,58 +84,22 @@ void SSSP::compute() {
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
 
+  const size_t vertex_count = vertices_.size();
   std::vector<vid_t> frontier;
   frontier.reserve(1024);
   frontier.push_back(source_);
-  std::vector<uint8_t> dedup_buffer(graph_.GetVertexSet(vertex_label_).size(),
-                                    0);
 
-  size_t rounds = 0;
-  bool need_continue = false;
-  size_t vertex_count = graph_.GetVertexSet(vertex_label_).size();
-  while (!frontier.empty() || need_continue) {
+  while (!frontier.empty()) {
     std::vector<std::vector<vid_t>> local_next(concurrency_);
-    if (need_continue) {
-      need_continue = false;
-      ParallelUtils::parallel_for(
-          vertices_.data(), vertices_.size(),
-          [&](vid_t v, int tid) {
-            if (dedup_buffer[v] == 1) {
-              dedup_buffer[v] = 0;
+    const bool use_dense = frontier.size() * 20 > vertex_count;
 
-              double dist = distances_[v].load(std::memory_order_relaxed);
-              if (dist < 0) {
-                return;
-              }
-              auto relax = [&](auto& it, vid_t dst) {
-                double weight = 1.0;
-                if (has_edge_weight_) {
-                  weight = edge_weight_accessor_->get_typed_data<double>(it);
-                }
-                double cand = dist + weight;
-                if (relax_distance(&distances_[dst], cand)) {
-                  local_next[tid].push_back(dst);
-                }
-              };
-              auto oe = oe_view.get_edges(v);
-              for (auto it = oe.begin(); it != oe.end(); ++it) {
-                relax(it, *it);
-              }
-              if (!directed_) {
-                auto ie = ie_view.get_edges(v);
-                for (auto it = ie.begin(); it != ie.end(); ++it) {
-                  relax(it, *it);
-                }
-              }
-            }
-          },
-          concurrency_);
-    } else {
+    if (!use_dense) {
       ParallelUtils::parallel_for(
           frontier.data(), frontier.size(),
           [&](vid_t src, int tid) {
-            double src_dist = distances_[src].load(std::memory_order_relaxed);
-            if (src_dist < 0) {
+            const double src_dist =
+                distances_[src].load(std::memory_order_relaxed);
+            if (src_dist >= kInf) {
               return;
             }
 
@@ -143,7 +108,7 @@ void SSSP::compute() {
               if (has_edge_weight_) {
                 weight = edge_weight_accessor_->get_typed_data<double>(it);
               }
-              double cand = src_dist + weight;
+              const double cand = src_dist + weight;
               if (relax_distance(&distances_[dst], cand)) {
                 local_next[tid].push_back(dst);
               }
@@ -153,7 +118,6 @@ void SSSP::compute() {
             for (auto it = oe.begin(); it != oe.end(); ++it) {
               relax(it, *it);
             }
-
             if (!directed_) {
               auto ie = ie_view.get_edges(src);
               for (auto it = ie.begin(); it != ie.end(); ++it) {
@@ -162,38 +126,56 @@ void SSSP::compute() {
             }
           },
           concurrency_);
+    } else {
+      ParallelUtils::parallel_for(
+          vertices_.data(), vertices_.size(),
+          [&](vid_t dst, int tid) {
+            double best = distances_[dst].load(std::memory_order_relaxed);
+
+            auto relax_in = [&](auto& it, vid_t src) {
+              const double src_dist =
+                  distances_[src].load(std::memory_order_relaxed);
+              if (src_dist >= kInf) {
+                return;
+              }
+              double weight = 1.0;
+              if (has_edge_weight_) {
+                weight = edge_weight_accessor_->get_typed_data<double>(it);
+              }
+              best = std::min(best, src_dist + weight);
+            };
+
+            auto ie = ie_view.get_edges(dst);
+            for (auto it = ie.begin(); it != ie.end(); ++it) {
+              relax_in(it, *it);
+            }
+            if (!directed_) {
+              auto oe = oe_view.get_edges(dst);
+              for (auto it = oe.begin(); it != oe.end(); ++it) {
+                relax_in(it, *it);
+              }
+            }
+
+            if (best < distances_[dst].load(std::memory_order_relaxed) &&
+                relax_distance(&distances_[dst], best)) {
+              local_next[tid].push_back(dst);
+            }
+          },
+          concurrency_);
     }
+
     size_t total = 0;
     for (const auto& bucket : local_next) {
       total += bucket.size();
     }
-    for (vid_t v : frontier) {
-      dedup_buffer[v] = 0;
+
+    std::vector<vid_t> next_frontier;
+    next_frontier.reserve(total);
+    for (const auto& bucket : local_next) {
+      next_frontier.insert(next_frontier.end(), bucket.begin(), bucket.end());
     }
-
-    frontier.clear();
-
-    if (total >= vertex_count * 0.05) {
-      need_continue = true;
-      for (vid_t v = 0; v < vertex_count; ++v) {
-        if (dedup_buffer[v] == 0) {
-          dedup_buffer[v] = 1;
-        }
-      }
-    } else {
-      for (const auto& bucket : local_next) {
-        for (vid_t v : bucket) {
-          if (dedup_buffer[v] == 0) {
-            dedup_buffer[v] = 1;
-            frontier.push_back(v);
-          }
-        }
-      }
-    }
-
-    ++rounds;
+    frontier.swap(next_frontier);
   }
-  (void)rounds;
 }
 
 void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias) {
@@ -203,7 +185,8 @@ void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias) {
   distance_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {
-    distance_builder.push_back_opt(distances_[v]);
+    const double dist = distances_[v].load(std::memory_order_relaxed);
+    distance_builder.push_back_opt(std::isinf(dist) ? -1.0 : dist);
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 

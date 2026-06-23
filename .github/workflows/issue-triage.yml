@@ -2,7 +2,7 @@ name: Auto-triage new issue
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
 
 permissions:
   issues: write
@@ -15,7 +15,9 @@ concurrency:
 jobs:
   triage:
     runs-on: [self-hosted, Linux, X64]
-    if: github.event.issue.state == 'open'
+    if: |
+      github.event.issue.state == 'open' &&
+      contains('OWNER,MEMBER,COLLABORATOR', github.event.issue.author_association)
     steps:
       - uses: actions/checkout@v4
 
