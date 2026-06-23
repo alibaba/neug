@@ -24,30 +24,30 @@ namespace http {
 
 /**
  * Centralized definition of all HTTP-related configuration keys
- * 
+ *
  * These keys are used in FileSchema.options map
  */
 struct HTTPConfigOptionKeys {
   // Authentication
   static constexpr const char* kBearerToken = "BEARER_TOKEN";
   static constexpr const char* kAuthorizationHeader = "AUTHORIZATION";
-  
+
   // Custom headers (format: "Key1:Value1;Key2:Value2")
   static constexpr const char* kCustomHeaders = "HTTP_HEADERS";
-  
+
   // TLS/SSL configuration
   static constexpr const char* kCACertFile = "CA_CERT_FILE";
   static constexpr const char* kVerifySSL = "VERIFY_SSL";  // "true" or "false"
-  
+
   // Proxy configuration
   static constexpr const char* kHTTPProxy = "HTTP_PROXY";
   static constexpr const char* kHTTPProxyUsername = "HTTP_PROXY_USERNAME";
   static constexpr const char* kHTTPProxyPassword = "HTTP_PROXY_PASSWORD";
-  
+
   // Timeouts (in seconds)
   static constexpr const char* kConnectTimeout = "CONNECT_TIMEOUT";
   static constexpr const char* kRequestTimeout = "REQUEST_TIMEOUT";
-  
+
   // Retry configuration
   static constexpr const char* kMaxRetries = "MAX_RETRIES";
   static constexpr const char* kRetryDelay = "RETRY_DELAY_MS";  // milliseconds

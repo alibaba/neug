@@ -24,7 +24,8 @@
 namespace neug {
 
 result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
-QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
+QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
+                                            const std::string& query_string,
                                             const std::string& user_access_mode,
                                             int32_t num_threads) {
   if (num_threads == 0) {
@@ -41,7 +42,7 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
   auto access_mode = user_access_mode.empty()
                          ? planner_->analyzeMode(query_string)
                          : ParseAccessMode(user_access_mode);
-  GS_AUTO(cache_value, global_query_cache_->Get(g_.schema(), query_string));
+  GS_AUTO(cache_value, global_query_cache_->Get(pg.schema(), query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;
   if (is_read_only_) {
@@ -59,17 +60,18 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
 result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
-  GS_AUTO(
-      access_mode_pipeline,
-      check_and_retrieve_pipeline(query_string, user_access_mode, num_threads));
+  SnapshotGuard guard(snapshot_store_);
+  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
+                                    *guard.get().mutable_graph(), query_string,
+                                    user_access_mode, num_threads));
   if (need_exclusive_lock(access_mode_pipeline.first)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, access_mode_pipeline.second,
+    return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, parameters,
                             num_threads);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, access_mode_pipeline.second,
+    return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, parameters,
                             num_threads);
   }
@@ -79,10 +81,12 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
                                             const std::string& user_access_mode,
                                             const rapidjson::Value& parameters,
                                             int32_t num_threads) {
-  GS_AUTO(
-      access_mode_pipeline,
-      check_and_retrieve_pipeline(query_string, user_access_mode, num_threads));
+  SnapshotGuard guard(snapshot_store_);
+  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
+                                    *guard.get().mutable_graph(), query_string,
+                                    user_access_mode, num_threads));
   const auto& param_types = access_mode_pipeline.second->params_type;
+
   execution::ParamsMap params_map;
   if (parameters.IsObject()) {
     for (const auto& member : parameters.GetObject()) {
@@ -98,12 +102,12 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
   }
   if (need_exclusive_lock(access_mode_pipeline.first)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, access_mode_pipeline.second,
+    return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, params_map,
                             num_threads);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, access_mode_pipeline.second,
+    return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, params_map,
                             num_threads);
   }
@@ -111,10 +115,12 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
 
 // The concurrency control is done outside this function.
 result<QueryResult> QueryProcessor::execute_internal(
-    const std::string& query_string,
+    SnapshotGuard& guard, const std::string& query_string,
     std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
-  StorageAPUpdateInterface graph(g_, 0, allocator_);
+  auto& slot = guard.get();
+  auto& pg = *slot.mutable_graph();
+  StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_);
   std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
   auto ctx_res = cache_value->pipeline.Execute(graph, execution::Context(),
                                                parameters, timer_ptr.get());
@@ -126,14 +132,13 @@ result<QueryResult> QueryProcessor::execute_internal(
   }
 
   google::protobuf::Arena arena;
-  // Create a QueryResponse message on the arena to hold the results.
   neug::QueryResponse* response =
       google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
   neug::execution::Sink::sink_results(ctx_res.value(), graph, response);
   response->mutable_schema()->CopyFrom(cache_value->result_schema);
   QueryResult ret = QueryResult::From(response->SerializeAsString());
 
-  update_compiler_meta_if_needed(cache_value->flags, access_mode);
+  update_compiler_meta_if_needed(pg, cache_value->flags, access_mode);
   return ret;
 }
 
@@ -145,17 +150,18 @@ bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
 }
 
 void QueryProcessor::update_compiler_meta_if_needed(
-    const physical::ExecutionFlag& flags, AccessMode mode) {
+    const PropertyGraph& pg, const physical::ExecutionFlag& flags,
+    AccessMode mode) {
   YAML::Node schema_yaml;
   std::string statistics_json;
   bool need_update = false;
   if (flags.schema() || flags.create_temp_table() ||
       mode == AccessMode::kSchema) {
-    schema_yaml = g_.schema().to_yaml().value();
+    schema_yaml = pg.schema().to_yaml().value();
     need_update = true;
   }
   if (flags.batch() || flags.insert() || flags.update()) {
-    statistics_json = g_.get_statistics_json();
+    statistics_json = pg.get_statistics_json();
     need_update = true;
   }
   if (need_update) {

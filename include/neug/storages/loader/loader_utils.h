@@ -239,7 +239,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         arrow::csv::ParseOptions& parse_options,
                         arrow::csv::ConvertOptions& convert_options);
 
-void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
+void set_properties_column(neug::ColumnBase* col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids,
                            std::shared_mutex& mutex);

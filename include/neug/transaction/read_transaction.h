@@ -32,8 +32,10 @@
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
@@ -66,18 +68,15 @@ class TypedMutableCsrBase;
 class ReadTransaction {
  public:
   /**
-   * @brief Construct a ReadTransaction.
+   * @brief Construct a ReadTransaction with a pinned SnapshotSlot.
    *
-   * @param session Reference to the database session
-   * @param graph Const reference to the property graph
-   * @param vm Reference to version manager
-   * @param timestamp Snapshot timestamp for this transaction
-   *
-   * Implementation: Stores all parameters as member references/values.
+   * @param guard SnapshotGuard managing the pinned SnapshotSlot.
+   * @param vm Reference to version manager.
+   * @param timestamp Snapshot timestamp for this transaction.
    *
    * @since v0.1.0
    */
-  ReadTransaction(const PropertyGraph& graph, IVersionManager& vm,
+  ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
                   timestamp_t timestamp);
 
   /**
@@ -95,11 +94,13 @@ class ReadTransaction {
 
   void Abort();
 
-  const PropertyGraph& graph() const;
+  const GraphView& view() const { return guard_.get().view(); }
+
+  const Schema& schema() const;
 
  private:
   void release();
-  const PropertyGraph& graph_;
+  SnapshotGuard guard_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 };

@@ -1192,3 +1192,26 @@ def test_in_memory_service_start_and_stop():
     db.serve(19001, "127.0.0.1", False)
     db.stop_serving()
     db.close()
+
+
+def test_checkpoint():
+    db_dir = "/tmp/test_checkpoint"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.close()
+
+    uri = db.serve(10007, "localhost", False)
+    wait_for_server_ready(uri)
+    session = Session(uri, timeout="10s")
+    session.execute("CHECKPOINT;")
+    session.execute("MATCH (n:person) RETURN n.id ORDER BY n.id;")
+    session.close()
+    db.stop_serving()
+    db.close()

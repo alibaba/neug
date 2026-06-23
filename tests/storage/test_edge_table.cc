@@ -112,13 +112,13 @@ class EdgeTableTest : public ::testing::Test {
         schema_.get_edge_schema(src_label, dst_label, edge_label));
   }
 
-  void OpenEdgeTable(neug::Checkpoint& ckp,
+  void OpenEdgeTable(std::shared_ptr<neug::Checkpoint> ckp,
                      const neug::CheckpointManifest& meta,
                      MemoryLevel mem_level) {
     OpenEdgeTableLegacy(*edge_table, ckp, meta, mem_level);
   }
 
-  void OpenEdgeTableInMemory(neug::Checkpoint& ckp,
+  void OpenEdgeTableInMemory(std::shared_ptr<neug::Checkpoint> ckp,
                              const neug::CheckpointManifest& meta,
                              size_t src_v_cap, size_t dst_v_cap) {
     OpenEdgeTableLegacy(*edge_table, ckp, meta, MemoryLevel::kInMemory);
@@ -271,7 +271,7 @@ TEST_F(EdgeTableTest, TestBundledInt32) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTable(*ckp, neug::CheckpointManifest(),
+  this->OpenEdgeTable(ckp, neug::CheckpointManifest(),
                       neug::MemoryLevel::kSyncToFile);
   this->ExpectBundledStats(0);
   this->BatchInsert(std::move(batches));
@@ -343,7 +343,7 @@ TEST_F(EdgeTableTest, TestSeperatedString) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_);
-  this->OpenEdgeTable(*ckp, neug::CheckpointManifest(),
+  this->OpenEdgeTable(ckp, neug::CheckpointManifest(),
                       neug::MemoryLevel::kSyncToFile);
   this->ExpectUnbundledStats(0, 0);
   this->BatchInsert(std::move(batches));
@@ -418,7 +418,7 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTable(*ckp, neug::CheckpointManifest(),
+  this->OpenEdgeTable(ckp, neug::CheckpointManifest(),
                       neug::MemoryLevel::kSyncToFile);
   this->ExpectUnbundledStats(0, 0);
   this->BatchInsert(std::move(batches));
@@ -480,7 +480,7 @@ TEST_F(EdgeTableTest, TestSeperatedIntString) {
   this->edge_table.reset();
 
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTable(*ckp, desc, MemoryLevel::kSyncToFile);
+  this->OpenEdgeTable(ckp, desc, MemoryLevel::kSyncToFile);
   this->ExpectUnbundledStats(edge_num, ExpectedBatchInsertCapacity(edge_num));
   {
     std::vector<int64_t> srcs, dsts;
@@ -551,7 +551,7 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTable(*ckp, neug::CheckpointManifest(),
+  this->OpenEdgeTable(ckp, neug::CheckpointManifest(),
                       neug::MemoryLevel::kSyncToFile);
   this->BatchInsert(std::move(batches));
 
@@ -585,12 +585,13 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTable(*ckp, neug::CheckpointManifest(),
+  this->OpenEdgeTable(ckp, neug::CheckpointManifest(),
                       neug::MemoryLevel::kSyncToFile);
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(edge_num);
   auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
   auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
+  neug::Allocator delete_alloc(neug::MemoryLevel::kInMemory, allocator_dir_);
 
   size_t delete_count = 0;
   for (size_t i = 0; i < edge_num; ++i) {
@@ -655,19 +656,6 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
     this->ExpectBundledStats(edge_num - delete_count -
                              soft_deleted_edges.size());
   }
-  // Revert soft deleted edges
-  for (const auto& edge_record : soft_deleted_edges) {
-    this->edge_table->RevertDeleteEdge(
-        std::get<0>(edge_record), std::get<1>(edge_record),
-        std::get<2>(edge_record), std::get<3>(edge_record), 0);
-  }
-  {
-    std::vector<int64_t> tmp_srcs, tmp_dsts;
-    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, neug::MAX_TIMESTAMP);
-    ASSERT_EQ(tmp_srcs.size(), edge_num - delete_count);
-    ASSERT_EQ(tmp_dsts.size(), edge_num - delete_count);
-    this->ExpectBundledStats(edge_num - delete_count);
-  }
 }
 
 TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
@@ -687,7 +675,7 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
 
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   this->ExpectBundledStats(0);
   this->BatchInsert(std::move(batches));
@@ -735,7 +723,7 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
                                 {src_arrs, dst_arrs, data0_arrs, data1_arrs});
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   this->ExpectUnbundledStats(0, 0);
   this->BatchInsert(std::move(batches));
@@ -775,7 +763,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   int64_t edge_num = 100;
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
@@ -850,24 +838,6 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   ASSERT_EQ(srcs.size(), edge_num - edges_to_delete.size());
   ASSERT_EQ(dsts.size(), edge_num - edges_to_delete.size());
 
-  // Revert deleted edges
-  for (const auto& edge_record : edges_to_delete) {
-    this->edge_table->RevertDeleteEdge(
-        std::get<0>(edge_record), std::get<1>(edge_record),
-        std::get<2>(edge_record), std::get<3>(edge_record), 0);
-  }
-  srcs.clear();
-  dsts.clear();
-  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
-  ASSERT_EQ(srcs.size(), edge_num);
-  ASSERT_EQ(dsts.size(), edge_num);
-  this->ExpectBundledStats(edge_num);
-  srcs.clear();
-  dsts.clear();
-  this->OutputIncomingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
-  ASSERT_EQ(srcs.size(), edge_num);
-  ASSERT_EQ(dsts.size(), edge_num);
-
   // Test Delete multiple same edges with different timestamp.
   for (timestamp_t ts = 1; ts < 10; ++ts) {
     this->edge_table->AddEdge(0, 1, edge_data[0], ts, allocator, false);
@@ -902,23 +872,6 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
     EXPECT_FALSE(it.get_vertex() == 0 && it.get_timestamp() % 2 == 1);
   }
   this->ExpectBundledStats(edge_num + 9 - multi_edges_to_delete.size());
-  for (const auto& pair : multi_edges_to_delete) {
-    const auto& edge_record = pair.first;
-    this->edge_table->RevertDeleteEdge(
-        std::get<0>(edge_record), std::get<1>(edge_record),
-        std::get<2>(edge_record), std::get<3>(edge_record), pair.second);
-  }
-  auto view_after_revert =
-      this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
-  auto es_after_revert = view_after_revert.get_edges(1);
-  size_t revert_count = 0;
-  for (auto it = es_after_revert.begin(); it != es_after_revert.end(); ++it) {
-    if (it.get_vertex() == 0 && it.get_timestamp() % 2 == 1) {
-      revert_count++;
-    }
-  }
-  EXPECT_EQ(revert_count, multi_edges_to_delete.size());
-  this->ExpectBundledStats(edge_num + 9);
 }
 
 TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
@@ -929,7 +882,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   int64_t edge_num = 100;
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
@@ -1016,7 +969,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
   int64_t edge_num = 1000;
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
@@ -1091,7 +1044,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   int64_t edge_num = 100;
   this->InitIndexers(*ckp, src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), src_num,
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
@@ -1164,7 +1117,7 @@ TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_empty_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), 4, 4);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 4, 4);
   this->ExpectBundledStats(0);
 
   std::vector<std::pair<int64_t, int64_t>> endpoints = {{0, 1}, {1, 2}, {2, 3}};
@@ -1225,7 +1178,7 @@ TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_empty_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), 4, 4);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 4, 4);
   this->ExpectBundledStats(0);
 
   std::vector<int64_t> src_list = {0, 1, 2};
@@ -1272,7 +1225,7 @@ TEST_F(EdgeTableTest,
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), 4, 4);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 4, 4);
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
                                    this->dst_indexer.size(), 100);
   this->ExpectUnbundledStats(0, 4096);
@@ -1281,9 +1234,10 @@ TEST_F(EdgeTableTest,
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
   neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
+    auto src_lid = this->GetSrcLid(neug::execution::Value::INT64(src_oid));
+    auto dst_lid = this->GetDstLid(neug::execution::Value::INT64(dst_oid));
     this->edge_table->AddEdge(
-        this->GetSrcLid(neug::execution::Value::INT64(src_oid)),
-        this->GetDstLid(neug::execution::Value::INT64(dst_oid)),
+        src_lid, dst_lid,
         {neug::execution::Value::STRING(std::string(data0)),
          neug::execution::Value::INT32(data1)},
         0, allocator, false);
@@ -1327,10 +1281,11 @@ TEST_F(EdgeTableTest,
   ASSERT_EQ(srcs.size(), input.size());
   ASSERT_EQ(dsts.size(), input.size());
 
-  this->edge_table->AddEdge(this->GetSrcLid(neug::execution::Value::INT64(3)),
-                            this->GetDstLid(neug::execution::Value::INT64(0)),
-                            std::vector<neug::execution::Value>{}, 0, allocator,
-                            false);
+  {
+    auto src_lid = this->GetSrcLid(neug::execution::Value::INT64(3));
+    auto dst_lid = this->GetDstLid(neug::execution::Value::INT64(0));
+    this->edge_table->AddEdge(src_lid, dst_lid, {}, 0, allocator, false);
+  }
   this->ExpectBundledStats(input.size() + 1);
   srcs.clear();
   dsts.clear();
@@ -1343,7 +1298,7 @@ TEST_F(EdgeTableTest, TestDeletePropertiesTransitionFromUnbundledToBundled) {
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), 4, 4);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 4, 4);
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
                                    this->dst_indexer.size(), 100);
   this->ExpectUnbundledStats(0, 4096);
@@ -1352,12 +1307,12 @@ TEST_F(EdgeTableTest, TestDeletePropertiesTransitionFromUnbundledToBundled) {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
   neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
-    this->edge_table->AddEdge(
-        this->GetSrcLid(neug::execution::Value::INT64(src_oid)),
-        this->GetDstLid(neug::execution::Value::INT64(dst_oid)),
-        {neug::execution::Value::STRING(std::string(data0)),
-         neug::execution::Value::INT32(data1)},
-        0, allocator, false);
+    auto src_lid = this->GetSrcLid(neug::execution::Value::INT64(src_oid));
+    auto dst_lid = this->GetDstLid(neug::execution::Value::INT64(dst_oid));
+    this->edge_table->AddEdge(src_lid, dst_lid,
+                              {neug::execution::Value::STRING(data0),
+                               neug::execution::Value::INT32(data1)},
+                              0, allocator, false);
   }
   this->ExpectUnbundledStats(input.size(), 4096);
 
@@ -1391,10 +1346,13 @@ TEST_F(EdgeTableTest, TestDeletePropertiesTransitionFromUnbundledToBundled) {
   ASSERT_EQ(dsts.size(), input.size());
 
   this->ExpectBundledStats(input.size());
-  this->edge_table->AddEdge(this->GetSrcLid(neug::execution::Value::INT64(3)),
-                            this->GetDstLid(neug::execution::Value::INT64(0)),
-                            {neug::execution::Value::INT32(44)}, 0, allocator,
-                            false);
+  {
+    auto src_lid = this->GetSrcLid(neug::execution::Value::INT64(3));
+    auto dst_lid = this->GetDstLid(neug::execution::Value::INT64(0));
+    this->edge_table->AddEdge(src_lid, dst_lid,
+                              {neug::execution::Value::INT32(44)}, 0, allocator,
+                              false);
+  }
   this->ExpectBundledStats(input.size() + 1);
 }
 
@@ -1402,7 +1360,7 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
-  this->OpenEdgeTableInMemory(*ckp, neug::CheckpointManifest(), 4, 4);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 4, 4);
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
                                    this->dst_indexer.size(), 100);
   this->ExpectUnbundledStats(0, 4096);
@@ -1411,9 +1369,10 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
   neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
+    auto src_lid = this->GetSrcLid(neug::execution::Value::INT64(src_oid));
+    auto dst_lid = this->GetDstLid(neug::execution::Value::INT64(dst_oid));
     this->edge_table->AddEdge(
-        this->GetSrcLid(neug::execution::Value::INT64(src_oid)),
-        this->GetDstLid(neug::execution::Value::INT64(dst_oid)),
+        src_lid, dst_lid,
         {neug::execution::Value::STRING(std::string(data0)),
          neug::execution::Value::INT32(data1)},
         0, allocator, false);
@@ -1584,7 +1543,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   }
 
   EdgeTable e_table = EdgeTable(edge_schema);
-  OpenEdgeTableLegacy(e_table, *temp_ckp, neug::CheckpointManifest(),
+  OpenEdgeTableLegacy(e_table, temp_ckp, neug::CheckpointManifest(),
                       MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
@@ -1637,7 +1596,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<std::string> new_property_name = {"new_property"};
   std::vector<DataType> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
-  OpenEdgeTableLegacy(e_table, *temp_ckp, neug::CheckpointManifest(),
+  OpenEdgeTableLegacy(e_table, temp_ckp, neug::CheckpointManifest(),
                       MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);

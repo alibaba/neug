@@ -96,7 +96,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
    * well for service mode, where concurrent queries will be processed.
    *
    * But before all, we need to close the database, dump the data to disk, and
-   * then reload the database with TPVersionManager and multiple contexts. By
+   * then reload the database with VersionManager and multiple contexts. By
    * doing this, we make sure all changes made during AP mode is persisted.
    */
 

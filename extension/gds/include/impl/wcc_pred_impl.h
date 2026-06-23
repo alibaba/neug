@@ -36,8 +36,8 @@ namespace gds {
 class WCCPred {
  public:
   WCCPred(const StorageReadInterface& graph, label_t vertex_label,
-          label_t edge_label, int concurrency,
-          execution::ExprBase* vertex_pred, execution::ExprBase* edge_pred);
+          label_t edge_label, int concurrency, execution::ExprBase* vertex_pred,
+          execution::ExprBase* edge_pred);
 
   void compute();
   void sink(execution::Context& ctx, int node_alias, int component_alias);

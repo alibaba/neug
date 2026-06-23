@@ -26,7 +26,7 @@ class PropertyGraphTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
 
   void SetUp() override {
     work_dir_ = std::string("/tmp/test_property_graph") +
@@ -36,8 +36,8 @@ class PropertyGraphTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    ws_.Open(work_dir_);
-    auto ckp = make_checkpoint(ws_);
+    checkpoint_mgr_.Open(work_dir_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     graph_->Open(ckp, MemoryLevel::kInMemory);
   }
 

@@ -82,10 +82,9 @@ class Leiden {
 };
 
 /// @brief Run Leiden community detection.
-LeidenResult RunLeiden(const StorageReadInterface& graph,
-                       label_t vertex_label, label_t edge_label,
-                       bool directed, double resolution, double threshold,
-                       int concurrency);
+LeidenResult RunLeiden(const StorageReadInterface& graph, label_t vertex_label,
+                       label_t edge_label, bool directed, double resolution,
+                       double threshold, int concurrency);
 
 }  // namespace community
 }  // namespace gds
