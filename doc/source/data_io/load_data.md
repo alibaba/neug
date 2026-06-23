@@ -46,6 +46,8 @@ LOAD FROM "person.csv" (delim=',', header=true)
 RETURN name, age;
 ```
 
+> **Array limitation:** `LOAD FROM` CSV currently does not parse CSV fields into fixed-size `ARRAY` values. A quoted field such as `"[1,2,3]"` is read as a `STRING`, and casting CSV columns to `INT64[3]`/other fixed-size array targets inside `LOAD FROM` is not supported yet.
+
 ### JSON / JSONL
 
 Since NeuG v0.1.2, JSON/JSONL is a built-in format — no extension installation is needed. You can use `LOAD FROM` to read `.json` and `.jsonl` files directly:

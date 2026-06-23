@@ -165,6 +165,12 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
     auto arrayType = std::make_unique<::common::Array>();
     arrayType->set_allocated_component_type(childType->release_data_type());
     if (max_length > 0) {
+      if (max_length >
+          static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "ARRAY length is too large for GOpt max_length: " +
+            std::to_string(max_length));
+      }
       arrayType->set_max_length(static_cast<uint32_t>(max_length));
     }
     result->mutable_data_type()->set_allocated_array(arrayType.release());

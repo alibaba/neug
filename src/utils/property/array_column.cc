@@ -48,7 +48,8 @@ const std::vector<execution::Value>& GetArrayChildren(
 
 ArrayColumn::ArrayColumn(const DataType& array_type)
     : array_type_(array_type),
-      array_size_(ArrayType::GetNumElements(array_type)),
+      array_size_(static_cast<uint32_t>(
+          ArrayType::GetNumElements(array_type))),
       size_(0) {
   auto child_type = ArrayType::GetChildType(array_type);
   child_column_ = CreateColumn(child_type);
