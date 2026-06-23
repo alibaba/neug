@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/common/columns/columns_utils.h"
+#include "neug/execution/common/columns/array_columns.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
@@ -47,7 +48,9 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
   }
   case DataTypeId::kArray: {
     DataType elem_type = ArrayType::GetChildType(type);
-    return std::make_shared<ListColumnBuilder>(elem_type);
+    uint32_t array_size =
+        static_cast<uint32_t>(ArrayType::GetNumElements(type));
+    return std::make_shared<ArrayColumnBuilder>(type, array_size);
   }
   case DataTypeId::kPath: {
     return std::make_shared<PathColumnBuilder>();

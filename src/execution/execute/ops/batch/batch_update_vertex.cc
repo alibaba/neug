@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_vertex.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/pb_utils.h"
 
@@ -102,12 +103,8 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
       if (property_types[col_id].id() != value.type().id()) {
-        LOG(ERROR) << "Property type mismatch for property " << prop_name
-                   << ": expected " << property_types[col_id].ToString()
-                   << ", got " << value.type().ToString();
-        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
-                            ": expected " + property_types[col_id].ToString() +
-                            ", got " + value.type().ToString());
+        // Handle implicit LIST <-> ARRAY (and other compatible) conversions.
+        value = execution::convertValueIfNeeded(value, property_types[col_id]);
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }

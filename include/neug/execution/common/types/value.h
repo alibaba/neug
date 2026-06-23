@@ -745,6 +745,13 @@ inline Value performCast<neug::Date>(const Value& input) {
 
 Value performCastToString(const Value& input);
 
+/// Convert a Value between LIST and ARRAY types when the value's type id
+/// does not match the target type id.  If the value is NULL, a typed NULL
+/// of the target type is returned.  If the types already match, the value
+/// is returned unchanged.  Only LIST<->ARRAY conversions are supported;
+/// any other type mismatch throws a runtime_error.
+Value convertValueIfNeeded(const Value& value, const DataType& target_type);
+
 void encode_value(const Value& val, Encoder& encoder);
 
 }  // namespace execution

@@ -42,6 +42,18 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+namespace {
+
+execution::Value make_array_like_value(const DataType& type,
+                                       const DataType& child_type,
+                                       std::vector<execution::Value>&& elems) {
+  if (type.id() == DataTypeId::kArray) {
+    return execution::Value::ARRAY(type, std::move(elems));
+  }
+  return execution::Value::LIST(child_type, std::move(elems));
+}
+
+}  // namespace
 
 std::string proto_to_string(const google::protobuf::Message& proto) {
   std::string json_str;
@@ -312,38 +324,60 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
     break;
   case common::Value::kI32Array: {
     const auto& arr = value.i32_array();
-    auto child_type = ArrayType::GetChildType(type);
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::INT32;
     std::vector<execution::Value> elements;
     elements.reserve(arr.item_size());
     for (int i = 0; i < arr.item_size(); ++i) {
       elements.emplace_back(execution::Value::INT32(arr.item(i)));
     }
-    out_value = execution::Value::ARRAY(type, std::move(elements));
+    out_value = make_array_like_value(type, child_type, std::move(elements));
     break;
   }
   case common::Value::kI64Array: {
     const auto& arr = value.i64_array();
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::INT64;
     std::vector<execution::Value> elements;
     elements.reserve(arr.item_size());
     for (int i = 0; i < arr.item_size(); ++i) {
       elements.emplace_back(execution::Value::INT64(arr.item(i)));
     }
-    out_value = execution::Value::ARRAY(type, std::move(elements));
+    out_value = make_array_like_value(type, child_type, std::move(elements));
     break;
   }
   case common::Value::kF64Array: {
     const auto& arr = value.f64_array();
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::DOUBLE;
     std::vector<execution::Value> elements;
     elements.reserve(arr.item_size());
     for (int i = 0; i < arr.item_size(); ++i) {
       elements.emplace_back(execution::Value::DOUBLE(arr.item(i)));
     }
-    out_value = execution::Value::ARRAY(type, std::move(elements));
+    out_value = make_array_like_value(type, child_type, std::move(elements));
     break;
   }
-  default:
+  case common::Value::kStrArray: {
+    const auto& arr = value.str_array();
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::VARCHAR;
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::STRING(arr.item(i)));
+    }
+    out_value = make_array_like_value(type, child_type, std::move(elements));
+    break;
+  }
+  case common::Value::ITEM_NOT_SET: {
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
     return false;
+  }
   }
   return true;
 }

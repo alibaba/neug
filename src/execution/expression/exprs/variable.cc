@@ -68,10 +68,12 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     }
   }
   case ::common::DataType::kArray: {
-    const auto& element_type = ddt.array().component_type();
-    auto data_type = parse_from_data_type(element_type);
-    return DataType(DataTypeId::kList,
-                    std::make_shared<ListTypeInfo>(data_type));
+    const auto& array = ddt.array();
+    auto data_type = parse_from_data_type(array.component_type());
+    if (array.max_length() > 0) {
+      return DataType::Array(data_type, array.max_length());
+    }
+    return DataType::List(data_type);
   }
   case ::common::DataType::kTuple: {
     const auto& component_types = ddt.tuple().component_types();

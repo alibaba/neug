@@ -30,6 +30,7 @@
 
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/column.h"
 #include "neug/utils/string_utils.h"
 
 namespace arrow {

@@ -15,6 +15,7 @@
 
 #include "neug/storages/csr/mutable_csr.h"
 
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 
 #include <errno.h>
@@ -108,7 +109,8 @@ bool is_nbr_list_unmodified(MD5_CTX& ctx, FileHeader& header,
 }
 
 template <typename EDATA_T>
-ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                               const std::string& key) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set("unsorted_since", std::to_string(unsorted_since_));
@@ -156,7 +158,7 @@ ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
 
   descriptor.set_path(ModuleDescriptor::kCapacityListPath,
                       ckp.Commit(*cap_list_));
-  return descriptor;
+  meta.set_module(key, descriptor);
 }
 
 template <typename EDATA_T>
@@ -542,12 +544,22 @@ void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
 }
 
 template <typename EDATA_T>
-ModuleDescriptor SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
+                                     CheckpointManifest& meta,
+                                     const std::string& key) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_));
   descriptor.set("edge_num", std::to_string(edge_num_.load()));
-  return descriptor;
+  meta.set_module(key, descriptor);
+}
+
+template <typename EDATA_T>
+void EmptyCsr<EDATA_T>::Dump(Checkpoint&, CheckpointManifest& meta,
+                             const std::string& key) {
+  ModuleDescriptor desc;
+  desc.module_type = ModuleTypeName();
+  meta.set_module(key, desc);
 }
 
 template <typename EDATA_T>

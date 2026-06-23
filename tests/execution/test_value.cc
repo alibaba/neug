@@ -154,6 +154,15 @@ TEST_F(ValueTest, ListConstruction) {
   EXPECT_EQ(children[2].GetValue<int32_t>(), 3);
 }
 
+TEST_F(ValueTest, ConvertListToArrayRequiresExactLength) {
+  std::vector<Value> values = {Value::INT32(1), Value::INT32(2)};
+  auto list_value = Value::LIST(DataType::INT32, std::move(values));
+  auto target_type = DataType::Array(DataType::INT32, 3);
+
+  EXPECT_THROW({ convertValueIfNeeded(list_value, target_type); },
+               exception::ConversionException);
+}
+
 TEST_F(ValueTest, StructConstruction) {
   std::vector<Value> values = {Value::INT32(42), Value::STRING("test"),
                                Value::DOUBLE(3.14)};

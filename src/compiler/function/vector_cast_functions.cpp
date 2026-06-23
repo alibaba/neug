@@ -688,6 +688,8 @@ function_set CastToIntervalFunction::getFunctionSet() {
   return result;
 }
 
+static execution::Value castFunc(const std::vector<execution::Value>& args);
+
 static std::unique_ptr<FunctionBindData> castBindFunc(
     ScalarBindFuncInput input) {
   NEUG_ASSERT(input.arguments.size() == 2);
@@ -712,12 +714,17 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
     input.arguments[0]->cast(targetType);
     return nullptr;
   }
-  try {
-    func->execFunc = CastFunction::bindCastFunction(
-                         "CAST_TO_" + targetTypeStr,
-                         input.arguments[0]->getDataType(), targetType)
-                         ->execFunc;
-  } catch (...) {}
+  if (targetType.id() != DataTypeId::kArray &&
+      targetType.id() != DataTypeId::kList) {
+    try {
+      func->execFunc = CastFunction::bindCastFunction(
+                           "CAST_TO_" + targetTypeStr,
+                           input.arguments[0]->getDataType(), targetType)
+                           ->execFunc;
+    } catch (...) {}
+  } else if (auto neugFunc = dynamic_cast<NeugScalarFunction*>(func)) {
+    neugFunc->neugExecFunc = castFunc;
+  }
   auto bindData =
       std::make_unique<function::CastFunctionBindData>(targetType.copy());
   auto inputTypes = ExpressionUtil::getDataTypes(input.arguments);
@@ -733,30 +740,8 @@ static execution::Value castFunc(const std::vector<execution::Value>& args) {
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
   auto type = execution::StringValue::Get(arg1);
-
-  if (type == "INT64") {
-    return performCast<int64_t>(arg0);
-  } else if (type == "INT32") {
-    return performCast<int32_t>(arg0);
-  } else if (type == "FLOAT") {
-    return performCast<float>(arg0);
-  } else if (type == "DOUBLE") {
-    return performCast<double>(arg0);
-  } else if (type == "STRING") {
-    return performCastToString(arg0);
-  } else if (type == "DATE") {
-    return performCast<neug::Date>(arg0);
-  } else if (type == "TIMESTAMP") {
-    return performCast<neug::DateTime>(arg0);
-  } else if (type == "UINT32") {
-    return performCast<uint32_t>(arg0);
-  } else if (type == "UINT64") {
-    return performCast<uint64_t>(arg0);
-  } else {
-    THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
-                        std::string(type));
-  }
-  return execution::Value(DataType::SQLNULL);
+  return execution::convertValueIfNeeded(
+      arg0, common::convertFromString(std::string(type), nullptr));
 }
 
 function_set CastAnyFunction::getFunctionSet() {

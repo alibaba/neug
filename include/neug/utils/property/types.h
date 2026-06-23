@@ -605,23 +605,23 @@ struct convert<neug::DataType> {
 
   static Node encode(const neug::DataType& type) {
     YAML::Node node;
-    if (type == neug::DataTypeId::kBoolean ||
-        type == neug::DataTypeId::kInt32 || type == neug::DataTypeId::kUInt32 ||
-        type == neug::DataTypeId::kFloat || type == neug::DataTypeId::kInt64 ||
-        type == neug::DataTypeId::kUInt64 ||
-        type == neug::DataTypeId::kDouble) {
+    auto id = type.id();
+    if (id == neug::DataTypeId::kBoolean || id == neug::DataTypeId::kInt32 ||
+        id == neug::DataTypeId::kUInt32 || id == neug::DataTypeId::kFloat ||
+        id == neug::DataTypeId::kInt64 || id == neug::DataTypeId::kUInt64 ||
+        id == neug::DataTypeId::kDouble) {
       node["primitive_type"] =
           neug::config_parsing::PrimitivePropertyTypeToString(type.id());
-    } else if (type == neug::DataTypeId::kVarchar) {
+    } else if (id == neug::DataTypeId::kVarchar) {
       const auto* extra_type_info = type.getExtraTypeInfo();
       const auto* string_type_info =
           dynamic_cast<const neug::StringTypeInfo*>(extra_type_info);
       node["string"]["varchar"]["max_length"] =
           string_type_info ? string_type_info->max_length
                            : neug::STRING_DEFAULT_MAX_LENGTH;
-    } else if (type == neug::DataTypeId::kDate) {
+    } else if (id == neug::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
-    } else if (type == neug::DataTypeId::kArray) {
+    } else if (id == neug::DataTypeId::kArray) {
       auto child_type = neug::ArrayType::GetChildType(type);
       uint32_t array_size = neug::ArrayType::GetNumElements(type);
       node["array"]["component_type"] = encode(child_type);

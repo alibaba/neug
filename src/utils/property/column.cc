@@ -17,6 +17,7 @@
 
 #include <limits>
 
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/id_indexer.h"
@@ -98,6 +99,10 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::kVarchar: {
     return std::make_shared<TypedRefColumn<std::string_view>>(
         dynamic_cast<const StringColumn&>(column));
+  }
+  case DataTypeId::kArray: {
+    return std::make_shared<ArrayRefColumn>(
+        dynamic_cast<const ArrayColumn&>(column));
   }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +

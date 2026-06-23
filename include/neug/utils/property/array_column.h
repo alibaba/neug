@@ -40,8 +40,11 @@ class ArrayColumn : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override;
+  void Open(Checkpoint& ckp, const CheckpointManifest& manifest,
+            const ModuleDescriptor& desc, MemoryLevel level) override;
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
 
   size_t size() const override { return size_; }
 
@@ -62,10 +65,34 @@ class ArrayColumn : public ColumnBase {
   static std::string type_name() { return "column<array>"; }
 
  private:
+  void OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
+                    const ModuleDescriptor& desc, MemoryLevel level);
+  ModuleDescriptor DumpSelfDescriptor() const;
+
   DataType array_type_;
   uint32_t array_size_;
   size_t size_;
   std::unique_ptr<ColumnBase> child_column_;
+};
+
+/**
+ * @brief Lightweight reference wrapper for ArrayColumn used in scanning.
+ */
+class ArrayRefColumn : public RefColumnBase {
+ public:
+  explicit ArrayRefColumn(const ArrayColumn& column) : column_(column) {}
+  ~ArrayRefColumn() override = default;
+
+  execution::Value get_any(size_t index) const override {
+    return column_.get_any(index);
+  }
+
+  DataTypeId type() const override { return DataTypeId::kArray; }
+
+  ColType col_type() const override { return ColType::kInternal; }
+
+ private:
+  const ArrayColumn& column_;
 };
 
 }  // namespace neug
