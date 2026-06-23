@@ -312,7 +312,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
             expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                            view, gpred, builder, offsets);
           }
-        };
+        }
       }
     }
     if constexpr (is_optional) {
