@@ -28,6 +28,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_set>
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
@@ -2357,7 +2358,23 @@ Schema Schema::StripTemporary() const {
   }
 
   // Copy non-temporary edge labels.
-  for (label_t e_label = 0; e_label < elabel_indexer_.size(); ++e_label) {
+  // An edge label should be copied only if it's used by at least one
+  // non-temporary edge triplet.
+  std::unordered_set<label_t> non_temp_edge_labels;
+  for (const auto& [key, es] : e_schemas_) {
+    if (!es || es->temporary) {
+      continue;
+    }
+    label_t src_v, dst_v, e_label;
+    std::tie(src_v, dst_v, e_label) = parse_edge_label(key);
+    // Skip edges whose src/dst vertices are temporary.
+    if (is_vertex_label_temporary(src_v) || is_vertex_label_temporary(dst_v)) {
+      continue;
+    }
+    non_temp_edge_labels.insert(e_label);
+  }
+
+  for (label_t e_label : non_temp_edge_labels) {
     if (elabel_tomb_.get(e_label)) {
       continue;
     }
@@ -2403,7 +2420,7 @@ Schema Schema::StripTemporary() const {
   stripped.vlabel_tomb_.resize(stripped.v_schemas_.size());
   stripped.elabel_tomb_.resize(stripped.elabel_indexer_.size());
   stripped.elabel_triplet_tomb_.resize(
-      max_e_triplet_index > 0 ? max_e_triplet_index + 1 : 0);
+      stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
 
   return stripped;
 }
@@ -2521,9 +2538,7 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
 }
 
 result<rapidjson::Document> Schema::ToJson() const {
-  // Persistence path: excludes temporary labels; call StripTemporary()
-  // first, then DumpToYaml on the stripped schema.
-  auto yaml_result = Schema::DumpToYaml(this->StripTemporary());
+  auto yaml_result = Schema::DumpToYaml(*this);
   if (!yaml_result) {
     return tl::unexpected(yaml_result.error());
   }
