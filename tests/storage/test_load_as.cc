@@ -31,8 +31,7 @@ class LoadAsTest : public ::testing::Test {
 
   std::unique_ptr<NeugDB> db_;
 
-  void write_csv(const std::string& filename,
-                 const std::string& content) {
+  void write_csv(const std::string& filename, const std::string& content) {
     std::ofstream ofs(std::string(CSV_DIR) + "/" + filename);
     ofs << content;
   }
@@ -115,17 +114,13 @@ class LoadAsTest : public ::testing::Test {
   // (QueryResult is move-only and the expected specialization disables
   // operator=), so each call needs its own variable.
   void insertPersistentVertices(std::shared_ptr<Connection> conn) {
-    auto r1 = conn->Query(
-        "CREATE (p:Person {id: 1, name: 'Alice', age: 30});");
+    auto r1 = conn->Query("CREATE (p:Person {id: 1, name: 'Alice', age: 30});");
     EXPECT_TRUE(r1) << r1.error().ToString();
-    auto r2 = conn->Query(
-        "CREATE (p:Person {id: 2, name: 'Bob', age: 25});");
+    auto r2 = conn->Query("CREATE (p:Person {id: 2, name: 'Bob', age: 25});");
     EXPECT_TRUE(r2) << r2.error().ToString();
-    auto r3 = conn->Query(
-        "CREATE (p:Person {id: 3, name: 'Carol', age: 35});");
+    auto r3 = conn->Query("CREATE (p:Person {id: 3, name: 'Carol', age: 35});");
     EXPECT_TRUE(r3) << r3.error().ToString();
-    auto r4 = conn->Query(
-        "CREATE (p:Person {id: 4, name: 'Dave', age: 20});");
+    auto r4 = conn->Query("CREATE (p:Person {id: 4, name: 'Dave', age: 20});");
     EXPECT_TRUE(r4) << r4.error().ToString();
   }
 };
@@ -138,14 +133,14 @@ TEST_F(LoadAsTest, LoadNodeTableBasic) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempPeople;");
+  auto res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempPeople;");
   EXPECT_TRUE(res) << res.error().ToString();
 
   // Verify data is queryable
-  auto match_res = conn->Query(
-      "MATCH (n:TempPeople) RETURN n.id ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempPeople) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
 
   const auto& table = match_res.value().response();
@@ -168,12 +163,12 @@ TEST_F(LoadAsTest, LoadNodeTableDefaultPrimaryKey) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // No primary_key option: should default to first column (id)
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path + "\" (header = true) AS TempDefault;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (header = true) AS TempDefault;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempDefault) RETURN n.id, n.name ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempDefault) RETURN n.id, n.name ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 4);
   conn->Close();
@@ -223,8 +218,8 @@ TEST_F(LoadAsTest, LoadNodeTableWithReturn) {
   EXPECT_TRUE(res) << res.error().ToString();
 
   // id and name should be accessible
-  auto match_res = conn->Query(
-      "MATCH (n:TempSlim) RETURN n.id, n.name ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempSlim) RETURN n.id, n.name ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 4);
   conn->Close();
@@ -245,8 +240,8 @@ TEST_F(LoadAsTest, LoadNodeTableWhereAndReturn) {
       "AS TempFiltered;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempFiltered) RETURN n.id, n.age ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempFiltered) RETURN n.id, n.age ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
 
   const auto& table = match_res.value().response();
@@ -276,9 +271,9 @@ TEST_F(LoadAsTest, LoadRelTableBasic) {
 
   // First load the src/dst vertices as temp tables too (for index lookup)
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPerson;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPerson;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
@@ -323,8 +318,8 @@ TEST_F(LoadAsTest, LoadRelTableMissingFromTo) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/edges.csv";
 
-  auto res = conn->Query(
-      "LOAD REL TABLE FROM \"" + csv_path + "\" (header = true) AS TempEdge;");
+  auto res = conn->Query("LOAD REL TABLE FROM \"" + csv_path +
+                         "\" (header = true) AS TempEdge;");
   EXPECT_FALSE(res);
   conn->Close();
 }
@@ -337,9 +332,9 @@ TEST_F(LoadAsTest, LoadNodeTableReturnNonexistentColumn) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) RETURN id, nonexistent AS TempMissing;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) RETURN id, "
+                         "nonexistent AS TempMissing;");
   EXPECT_FALSE(res);
   conn->Close();
 }
@@ -353,13 +348,12 @@ TEST_F(LoadAsTest, CleanupOnClose) {
   {
     auto conn = db_->Connect();
     std::string csv_path = std::string(CSV_DIR) + "/people.csv";
-    auto res = conn->Query(
-        "LOAD NODE TABLE FROM \"" + csv_path +
-        "\" (primary_key = 'id', header = true) AS TempEphemeral;");
+    auto res =
+        conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                    "\" (primary_key = 'id', header = true) AS TempEphemeral;");
     EXPECT_TRUE(res) << res.error().ToString();
 
-    auto match_res = conn->Query(
-        "MATCH (n:TempEphemeral) RETURN count(n);");
+    auto match_res = conn->Query("MATCH (n:TempEphemeral) RETURN count(n);");
     EXPECT_TRUE(match_res) << match_res.error().ToString();
     conn->Close();
   }
@@ -382,8 +376,7 @@ TEST_F(LoadAsTest, CleanupOnClose) {
     auto conn2 = db2->Connect();
 
     // TempEphemeral should not exist after checkpoint+reopen
-    auto match_res = conn2->Query(
-        "MATCH (n:TempEphemeral) RETURN n.id;");
+    auto match_res = conn2->Query("MATCH (n:TempEphemeral) RETURN n.id;");
     // This may fail with "label not found" or return empty
     // depending on how the catalog handles unknown labels
     conn2->Close();
@@ -404,9 +397,8 @@ TEST_F(LoadAsTest, LoadAsLabelConflict) {
 
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
   // Try to LOAD AS 'Person' — should conflict
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS Person;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) AS Person;");
   EXPECT_FALSE(res);
   conn->Close();
 }
@@ -419,15 +411,13 @@ TEST_F(LoadAsTest, DuplicateLoadAsSameLabel) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res1 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempDup;");
+  auto res1 = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                          "\" (primary_key = 'id', header = true) AS TempDup;");
   EXPECT_TRUE(res1) << res1.error().ToString();
 
   // Second LOAD AS with the same label should fail.
-  auto res2 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempDup;");
+  auto res2 = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                          "\" (primary_key = 'id', header = true) AS TempDup;");
   EXPECT_FALSE(res2);
   conn->Close();
 }
@@ -441,12 +431,11 @@ TEST_F(LoadAsTest, ReloadAfterCleanup) {
   {
     auto conn = db_->Connect();
     std::string csv_path = std::string(CSV_DIR) + "/people.csv";
-    auto res = conn->Query(
-        "LOAD NODE TABLE FROM \"" + csv_path +
-        "\" (primary_key = 'id', header = true) AS TempReusable;");
+    auto res =
+        conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                    "\" (primary_key = 'id', header = true) AS TempReusable;");
     EXPECT_TRUE(res) << res.error().ToString();
-    auto match_res = conn->Query(
-        "MATCH (n:TempReusable) RETURN count(n);");
+    auto match_res = conn->Query("MATCH (n:TempReusable) RETURN count(n);");
     EXPECT_TRUE(match_res) << match_res.error().ToString();
     conn->Close();
     db_->RemoveConnection(conn);
@@ -456,12 +445,11 @@ TEST_F(LoadAsTest, ReloadAfterCleanup) {
   {
     auto conn2 = db_->Connect();
     std::string csv_path = std::string(CSV_DIR) + "/people.csv";
-    auto res2 = conn2->Query(
-        "LOAD NODE TABLE FROM \"" + csv_path +
-        "\" (primary_key = 'id', header = true) AS TempReusable;");
+    auto res2 =
+        conn2->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                     "\" (primary_key = 'id', header = true) AS TempReusable;");
     EXPECT_TRUE(res2) << res2.error().ToString();
-    auto match_res = conn2->Query(
-        "MATCH (n:TempReusable) RETURN count(n);");
+    auto match_res = conn2->Query("MATCH (n:TempReusable) RETURN count(n);");
     EXPECT_TRUE(match_res) << match_res.error().ToString();
     conn2->Close();
     db_->RemoveConnection(conn2);
@@ -477,9 +465,9 @@ TEST_F(LoadAsTest, TempNotPersistedAfterCheckpoint) {
   {
     auto conn = db_->Connect();
     std::string csv_path = std::string(CSV_DIR) + "/people.csv";
-    auto res = conn->Query(
-        "LOAD NODE TABLE FROM \"" + csv_path +
-        "\" (primary_key = 'id', header = true) AS TempGhost;");
+    auto res =
+        conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                    "\" (primary_key = 'id', header = true) AS TempGhost;");
     EXPECT_TRUE(res) << res.error().ToString();
     conn->Close();
   }
@@ -497,8 +485,7 @@ TEST_F(LoadAsTest, TempNotPersistedAfterCheckpoint) {
     config.enable_auto_compaction = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
-    auto match_res = conn2->Query(
-        "MATCH (n:TempGhost) RETURN n.id;");
+    auto match_res = conn2->Query("MATCH (n:TempGhost) RETURN n.id;");
     EXPECT_FALSE(match_res);
     conn2->Close();
     db2->Close();
@@ -514,10 +501,10 @@ TEST_F(LoadAsTest, LoadRelTableNonexistentVertexLabel) {
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
 
   // 'Nope' does not exist as a vertex label.
-  auto res = conn->Query(
-      "LOAD REL TABLE FROM \"" + edges_csv +
-      "\" (header = true, from = 'Nope', to = 'Nope', "
-      "from_col = 'src_id', to_col = 'dst_id') AS TempBadEdge;");
+  auto res =
+      conn->Query("LOAD REL TABLE FROM \"" + edges_csv +
+                  "\" (header = true, from = 'Nope', to = 'Nope', "
+                  "from_col = 'src_id', to_col = 'dst_id') AS TempBadEdge;");
   EXPECT_FALSE(res);
   conn->Close();
 }
@@ -533,18 +520,18 @@ TEST_F(LoadAsTest, LoadRelTableTempToPersistent) {
 
   // Load src vertices as temp table.
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempSrc;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempSrc;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // edges.csv: src_id → dst_id.  src is TempSrc (temp), dst is Person
   // (persistent).
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
-  auto load_edges_res = conn->Query(
-      "LOAD REL TABLE FROM \"" + edges_csv +
-      "\" (header = true, from = 'TempSrc', to = 'Person', "
-      "from_col = 'src_id', to_col = 'dst_id') AS TempMixedEdge;");
+  auto load_edges_res =
+      conn->Query("LOAD REL TABLE FROM \"" + edges_csv +
+                  "\" (header = true, from = 'TempSrc', to = 'Person', "
+                  "from_col = 'src_id', to_col = 'dst_id') AS TempMixedEdge;");
   EXPECT_TRUE(load_edges_res) << load_edges_res.error().ToString();
 
   auto match_res = conn->Query(
@@ -562,9 +549,9 @@ TEST_F(LoadAsTest, LoadRelTableTempToPersistent) {
 TEST_F(LoadAsTest, LoadRelTableDanglingReference) {
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonD;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonD;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // dangling_edges.csv has src_id=99 which does not exist in TempPersonD.
@@ -596,25 +583,23 @@ TEST_F(LoadAsTest, MultipleTempTablesCleanup) {
     std::string people_csv = std::string(CSV_DIR) + "/people.csv";
     std::string items_csv = std::string(CSV_DIR) + "/items.csv";
 
-    auto r1 = conn->Query(
-        "LOAD NODE TABLE FROM \"" + people_csv +
-        "\" (primary_key = 'id', header = true) AS TempA;");
+    auto r1 = conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                          "\" (primary_key = 'id', header = true) AS TempA;");
     EXPECT_TRUE(r1) << r1.error().ToString();
 
-    auto r2 = conn->Query(
-        "LOAD NODE TABLE FROM \"" + items_csv +
-        "\" (primary_key = 'item_id', header = true) AS TempB;");
+    auto r2 =
+        conn->Query("LOAD NODE TABLE FROM \"" + items_csv +
+                    "\" (primary_key = 'item_id', header = true) AS TempB;");
     EXPECT_TRUE(r2) << r2.error().ToString();
 
-    auto r3 = conn->Query(
-        "LOAD NODE TABLE FROM \"" + people_csv +
-        "\" (primary_key = 'id', header = true) AS TempC;");
+    auto r3 = conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                          "\" (primary_key = 'id', header = true) AS TempC;");
     EXPECT_TRUE(r3) << r3.error().ToString();
 
     // Verify all three exist.
     for (const auto& label : {"TempA", "TempB", "TempC"}) {
-      auto res = conn->Query(
-          std::string("MATCH (n:") + label + ") RETURN count(n);");
+      auto res =
+          conn->Query(std::string("MATCH (n:") + label + ") RETURN count(n);");
       EXPECT_TRUE(res) << res.error().ToString();
     }
     conn->Close();
@@ -634,8 +619,8 @@ TEST_F(LoadAsTest, MultipleTempTablesCleanup) {
     db2->Open(config);
     auto conn2 = db2->Connect();
     for (const auto& label : {"TempA", "TempB", "TempC"}) {
-      auto res = conn2->Query(
-          std::string("MATCH (n:") + label + ") RETURN n.id;");
+      auto res =
+          conn2->Query(std::string("MATCH (n:") + label + ") RETURN n.id;");
       EXPECT_FALSE(res) << "label " << label << " should not exist after close";
     }
     conn2->Close();
@@ -651,16 +636,17 @@ TEST_F(LoadAsTest, PersistentSurvivesTempCleanup) {
   {
     auto conn = db_->Connect();
     auto create_res = conn->Query(
-        "CREATE NODE TABLE Persistent(id INT64, name STRING, PRIMARY KEY(id));");
+        "CREATE NODE TABLE Persistent(id INT64, name STRING, PRIMARY "
+        "KEY(id));");
     EXPECT_TRUE(create_res) << create_res.error().ToString();
-    auto insert_res = conn->Query(
-        "CREATE (p:Persistent {id: 1, name: 'Alice'});");
+    auto insert_res =
+        conn->Query("CREATE (p:Persistent {id: 1, name: 'Alice'});");
     EXPECT_TRUE(insert_res) << insert_res.error().ToString();
 
     std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-    auto load_res = conn->Query(
-        "LOAD NODE TABLE FROM \"" + people_csv +
-        "\" (primary_key = 'id', header = true) AS TempGone;");
+    auto load_res =
+        conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                    "\" (primary_key = 'id', header = true) AS TempGone;");
     EXPECT_TRUE(load_res) << load_res.error().ToString();
     conn->Close();
   }
@@ -679,13 +665,12 @@ TEST_F(LoadAsTest, PersistentSurvivesTempCleanup) {
     db2->Open(config);
     auto conn2 = db2->Connect();
 
-    auto persist_res = conn2->Query(
-        "MATCH (n:Persistent) RETURN n.id, n.name;");
+    auto persist_res =
+        conn2->Query("MATCH (n:Persistent) RETURN n.id, n.name;");
     EXPECT_TRUE(persist_res) << persist_res.error().ToString();
     EXPECT_EQ(persist_res.value().response().row_count(), 1);
 
-    auto temp_res = conn2->Query(
-        "MATCH (n:TempGone) RETURN n.id;");
+    auto temp_res = conn2->Query("MATCH (n:TempGone) RETURN n.id;");
     EXPECT_FALSE(temp_res);
 
     conn2->Close();
@@ -701,14 +686,14 @@ TEST_F(LoadAsTest, PropertyTypeInference) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempTyped;");
+  auto res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempTyped;");
   EXPECT_TRUE(res) << res.error().ToString();
 
   // age should be queryable as an integer (e.g., arithmetic works).
-  auto match_res = conn->Query(
-      "MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   EXPECT_EQ(table.row_count(), 4);
@@ -734,8 +719,8 @@ TEST_F(LoadAsTest, ReturnColumnOrdering) {
 
   // MATCH returns properties in the order they were declared in DDL.
   // Since ddlColumns is built from returnColumns order, name should come first.
-  auto match_res = conn->Query(
-      "MATCH (n:TempOrder) RETURN n.name, n.id ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempOrder) RETURN n.name, n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   EXPECT_EQ(table.row_count(), 4);
@@ -754,9 +739,9 @@ TEST_F(LoadAsTest, ReturnColumnOrdering) {
 TEST_F(LoadAsTest, LoadRelTableWithWhere) {
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonW;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonW;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // Only load edges where weight > 0.6 (rows: 1.0 and 0.8, skip 0.5).
@@ -784,9 +769,9 @@ TEST_F(LoadAsTest, LoadRelTableWithWhere) {
 TEST_F(LoadAsTest, LoadRelTableWithReturn) {
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonR;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonR;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // Only project src_id, dst_id, weight (weight is the only extra property).
@@ -813,9 +798,9 @@ TEST_F(LoadAsTest, LoadRelTableWithReturn) {
 TEST_F(LoadAsTest, LoadRelTableWhereAndReturn) {
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonWR;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonWR;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   // Filter weight >= 0.8, project only weight (src_id/dst_id implicit).
@@ -847,13 +832,12 @@ TEST_F(LoadAsTest, EmptyCsvFile) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/empty.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempEmpty;");
+  auto res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempEmpty;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempEmpty) RETURN count(n);");
+  auto match_res = conn->Query("MATCH (n:TempEmpty) RETURN count(n);");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   const auto& count_col = table.arrays(0).int64_array();
@@ -875,8 +859,7 @@ TEST_F(LoadAsTest, WhereFiltersOutAllRows) {
       "\" (primary_key = 'id', header = true) WHERE age > 1000 AS TempNone;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempNone) RETURN count(n);");
+  auto match_res = conn->Query("MATCH (n:TempNone) RETURN count(n);");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   const auto& count_col = table.arrays(0).int64_array();
@@ -893,14 +876,14 @@ TEST_F(LoadAsTest, WhereReferencesOnlyReturnColumns) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // WHERE age >= 30, RETURN id, age — age is in both WHERE and RETURN
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) WHERE age >= 30 "
-      "RETURN id, age AS TempOverlap;");
+  auto res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) WHERE age >= 30 "
+                  "RETURN id, age AS TempOverlap;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempOverlap) RETURN n.id, n.age ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempOverlap) RETURN n.id, n.age ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   // Alice(1,30) and Carol(3,35) pass age >= 30
@@ -950,13 +933,13 @@ TEST_F(LoadAsTest, WhereWithArithmeticExpression) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // WHERE age * 2 > 60 (i.e., age > 30)
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) WHERE age * 2 > 60 AS TempArith;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) WHERE age * 2 "
+                         "> 60 AS TempArith;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempArith) RETURN n.id ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempArith) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   // Only Carol(3, age=35) passes age * 2 > 60
@@ -979,8 +962,8 @@ TEST_F(LoadAsTest, ReturnOnlyPrimaryKey) {
       "\" (primary_key = 'id', header = true) RETURN id AS TempIdOnly;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempIdOnly) RETURN n.id ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempIdOnly) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 4);
   conn->Close();
@@ -1002,9 +985,9 @@ TEST_F(LoadAsTest, TempAndPersistentJoin) {
             "2|Bobby\n"
             "5|Eve\n");
   std::string extra_csv = std::string(CSV_DIR) + "/extra_people.csv";
-  auto load_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + extra_csv +
-      "\" (primary_key = 'id', header = true) AS TempExtra;");
+  auto load_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + extra_csv +
+                  "\" (primary_key = 'id', header = true) AS TempExtra;");
   EXPECT_TRUE(load_res) << load_res.error().ToString();
 
   // JOIN query: match nodes from both temp and persistent tables
@@ -1027,9 +1010,9 @@ TEST_F(LoadAsTest, MultipleQueriesOnSameTempTable) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempStable;");
+  auto res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempStable;");
   EXPECT_TRUE(res) << res.error().ToString();
 
   // Query 1: count
@@ -1037,14 +1020,12 @@ TEST_F(LoadAsTest, MultipleQueriesOnSameTempTable) {
   EXPECT_TRUE(q1) << q1.error().ToString();
 
   // Query 2: filter
-  auto q2 = conn->Query(
-      "MATCH (n:TempStable) WHERE n.age > 25 RETURN n.id;");
+  auto q2 = conn->Query("MATCH (n:TempStable) WHERE n.age > 25 RETURN n.id;");
   EXPECT_TRUE(q2) << q2.error().ToString();
   EXPECT_EQ(q2.value().response().row_count(), 2);
 
   // Query 3: aggregation
-  auto q3 = conn->Query(
-      "MATCH (n:TempStable) RETURN sum(n.age);");
+  auto q3 = conn->Query("MATCH (n:TempStable) RETURN sum(n.age);");
   EXPECT_TRUE(q3) << q3.error().ToString();
 
   // Query 4: order + limit
@@ -1064,9 +1045,8 @@ TEST_F(LoadAsTest, AggregationOnTempTable) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempAgg;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) AS TempAgg;");
   EXPECT_TRUE(res) << res.error().ToString();
 
   // SUM, AVG, MIN, MAX
@@ -1091,14 +1071,13 @@ TEST_F(LoadAsTest, SameSessionMultipleTempTables) {
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
   std::string items_csv = std::string(CSV_DIR) + "/items.csv";
 
-  auto r1 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempP;");
+  auto r1 = conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                        "\" (primary_key = 'id', header = true) AS TempP;");
   EXPECT_TRUE(r1) << r1.error().ToString();
 
-  auto r2 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + items_csv +
-      "\" (primary_key = 'item_id', header = true) AS TempI;");
+  auto r2 =
+      conn->Query("LOAD NODE TABLE FROM \"" + items_csv +
+                  "\" (primary_key = 'item_id', header = true) AS TempI;");
   EXPECT_TRUE(r2) << r2.error().ToString();
 
   // Query both in a single query (cross-product style)
@@ -1124,14 +1103,12 @@ TEST_F(LoadAsTest, WhereWithStringComparison) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // WHERE name = 'Alice'
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) "
-      "WHERE name = 'Alice' AS TempAlice;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) "
+                         "WHERE name = 'Alice' AS TempAlice;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempAlice) RETURN n.id, n.name;");
+  auto match_res = conn->Query("MATCH (n:TempAlice) RETURN n.id, n.name;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 1);
   const auto& name_col = match_res.value().response().arrays(1).string_array();
@@ -1146,9 +1123,9 @@ TEST_F(LoadAsTest, WhereWithStringComparison) {
 TEST_F(LoadAsTest, LoadRelTableReturnMissingFromToCol) {
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonRFC;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonRFC;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
@@ -1174,13 +1151,14 @@ TEST_F(LoadAsTest, LoadRelTableWithWhereOnlyColumns) {
             "3|4|0.8|A\n");
   auto conn = db_->Connect();
   std::string people_csv = std::string(CSV_DIR) + "/people.csv";
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + people_csv +
-      "\" (primary_key = 'id', header = true) AS TempPersonEWC;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + people_csv +
+                  "\" (primary_key = 'id', header = true) AS TempPersonEWC;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   std::string edges_csv = std::string(CSV_DIR) + "/edges_extra.csv";
-  // WHERE category = 'B' (category is WHERE-only), RETURN src_id, dst_id, weight
+  // WHERE category = 'B' (category is WHERE-only), RETURN src_id, dst_id,
+  // weight
   auto load_edges_res = conn->Query(
       "LOAD REL TABLE FROM \"" + edges_csv +
       "\" (header = true, from = 'TempPersonEWC', to = 'TempPersonEWC', "
@@ -1207,13 +1185,12 @@ TEST_F(LoadAsTest, WhereWithOrExpression) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // WHERE age < 22 OR age > 32 (Dave=20, Carol=35)
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) WHERE age < 22 OR age > 32 AS TempOr;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) WHERE age < "
+                         "22 OR age > 32 AS TempOr;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempOr) RETURN n.id ORDER BY n.id;");
+  auto match_res = conn->Query("MATCH (n:TempOr) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   EXPECT_EQ(table.row_count(), 2);
@@ -1232,14 +1209,13 @@ TEST_F(LoadAsTest, WhereWithRange) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
   // WHERE age >= 25 AND age <= 30 (Bob=25, Alice=30)
-  auto res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) "
-      "WHERE age >= 25 AND age <= 30 AS TempRange;");
+  auto res = conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                         "\" (primary_key = 'id', header = true) "
+                         "WHERE age >= 25 AND age <= 30 AS TempRange;");
   EXPECT_TRUE(res) << res.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempRange) RETURN n.id ORDER BY n.id;");
+  auto match_res =
+      conn->Query("MATCH (n:TempRange) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   const auto& table = match_res.value().response();
   EXPECT_EQ(table.row_count(), 2);
@@ -1257,14 +1233,13 @@ TEST_F(LoadAsTest, DropTemporaryNodeTable) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto load_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempToDrop;");
+  auto load_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempToDrop;");
   EXPECT_TRUE(load_res) << load_res.error().ToString();
 
   // Verify it exists before DROP.
-  auto match_before = conn->Query(
-      "MATCH (n:TempToDrop) RETURN count(n);");
+  auto match_before = conn->Query("MATCH (n:TempToDrop) RETURN count(n);");
   EXPECT_TRUE(match_before) << match_before.error().ToString();
   EXPECT_EQ(match_before.value().response().row_count(), 1);
 
@@ -1273,8 +1248,7 @@ TEST_F(LoadAsTest, DropTemporaryNodeTable) {
   EXPECT_TRUE(drop_res) << drop_res.error().ToString();
 
   // MATCH on the dropped label must fail.
-  auto match_after = conn->Query(
-      "MATCH (n:TempToDrop) RETURN n.id;");
+  auto match_after = conn->Query("MATCH (n:TempToDrop) RETURN n.id;");
   EXPECT_FALSE(match_after);
 
   // Close must still succeed (idempotent cleanup).
@@ -1289,9 +1263,9 @@ TEST_F(LoadAsTest, DropTemporaryEdgeTable) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto load_nodes_res = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempNodeKeep;");
+  auto load_nodes_res =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempNodeKeep;");
   EXPECT_TRUE(load_nodes_res) << load_nodes_res.error().ToString();
 
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
@@ -1318,8 +1292,7 @@ TEST_F(LoadAsTest, DropTemporaryEdgeTable) {
   EXPECT_FALSE(match_after);
 
   // Node table must still be accessible after dropping the edge.
-  auto node_match = conn->Query(
-      "MATCH (n:TempNodeKeep) RETURN count(n);");
+  auto node_match = conn->Query("MATCH (n:TempNodeKeep) RETURN count(n);");
   EXPECT_TRUE(node_match) << node_match.error().ToString();
 
   // Close must still succeed (idempotent cleanup).
@@ -1334,22 +1307,21 @@ TEST_F(LoadAsTest, DropTemporaryNodeThenRecreate) {
   auto conn = db_->Connect();
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
 
-  auto load1 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempRecycle;");
+  auto load1 =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempRecycle;");
   EXPECT_TRUE(load1) << load1.error().ToString();
 
   auto drop_res = conn->Query("DROP TABLE TempRecycle;");
   EXPECT_TRUE(drop_res) << drop_res.error().ToString();
 
   // Re-LOAD the same label name must succeed.
-  auto load2 = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempRecycle;");
+  auto load2 =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempRecycle;");
   EXPECT_TRUE(load2) << load2.error().ToString();
 
-  auto match_res = conn->Query(
-      "MATCH (n:TempRecycle) RETURN count(n);");
+  auto match_res = conn->Query("MATCH (n:TempRecycle) RETURN count(n);");
   EXPECT_TRUE(match_res) << match_res.error().ToString();
   EXPECT_EQ(match_res.value().response().row_count(), 1);
   conn->Close();
@@ -1364,9 +1336,9 @@ TEST_F(LoadAsTest, DropTemporaryEdgeThenRecreate) {
   std::string csv_path = std::string(CSV_DIR) + "/people.csv";
   std::string edges_csv = std::string(CSV_DIR) + "/edges.csv";
 
-  auto load_nodes = conn->Query(
-      "LOAD NODE TABLE FROM \"" + csv_path +
-      "\" (primary_key = 'id', header = true) AS TempReEdgeNode;");
+  auto load_nodes =
+      conn->Query("LOAD NODE TABLE FROM \"" + csv_path +
+                  "\" (primary_key = 'id', header = true) AS TempReEdgeNode;");
   EXPECT_TRUE(load_nodes) << load_nodes.error().ToString();
 
   auto load_edges1 = conn->Query(

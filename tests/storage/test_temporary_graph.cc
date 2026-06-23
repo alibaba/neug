@@ -33,13 +33,13 @@ using neug::CreateVertexTypeParamBuilder;
 using neug::DataType;
 using neug::DataTypeId;
 using neug::EdgeStrategy;
+using neug::label_t;
 using neug::MemoryLevel;
 using neug::Property;
 using neug::PropertyGraph;
 using neug::Schema;
-using neug::execution::Value;
 using neug::execution::property_to_value;
-using neug::label_t;
+using neug::execution::Value;
 
 // ============================================================================
 // Part 1: Schema layer temporary marking tests
@@ -50,21 +50,14 @@ class SchemaTemporaryTest : public ::testing::Test {
   Schema schema_;
 
   void SetUp() override {
-    schema_.AddVertexLabel(
-        "Person",
-        {DataTypeId::kVarchar, DataTypeId::kInt32},
-        {"name", "age"},
-        {std::make_tuple(DataTypeId::kInt64, "id", 0)},
-        4096, "persistent person");
+    schema_.AddVertexLabel("Person", {DataTypeId::kVarchar, DataTypeId::kInt32},
+                           {"name", "age"},
+                           {std::make_tuple(DataTypeId::kInt64, "id", 0)}, 4096,
+                           "persistent person");
 
-    schema_.AddVertexLabel(
-        "TempUser",
-        {DataTypeId::kVarchar},
-        {"username"},
-        {std::make_tuple(DataTypeId::kInt64, "uid", 0)},
-        1024, "temporary user",
-        {},
-        true);
+    schema_.AddVertexLabel("TempUser", {DataTypeId::kVarchar}, {"username"},
+                           {std::make_tuple(DataTypeId::kInt64, "uid", 0)},
+                           1024, "temporary user", {}, true);
   }
 };
 
@@ -84,12 +77,9 @@ TEST_F(SchemaTemporaryTest, GetTemporaryVertexLabels) {
 
 TEST_F(SchemaTemporaryTest, GetTemporaryVertexLabelsEmpty) {
   Schema clean_schema;
-  clean_schema.AddVertexLabel(
-      "A",
-      {DataTypeId::kVarchar},
-      {"name"},
-      {std::make_tuple(DataTypeId::kInt64, "id", 0)},
-      100, "");
+  clean_schema.AddVertexLabel("A", {DataTypeId::kVarchar}, {"name"},
+                              {std::make_tuple(DataTypeId::kInt64, "id", 0)},
+                              100, "");
   auto temp_labels = clean_schema.get_temporary_vertex_labels();
   EXPECT_TRUE(temp_labels.empty());
 }
@@ -99,13 +89,10 @@ TEST_F(SchemaTemporaryTest, InvalidLabelReturnsFalse) {
 }
 
 TEST_F(SchemaTemporaryTest, EdgeLabelTemporaryFlag) {
-  schema_.AddEdgeLabel(
-      "TempUser", "Person", "TempFollows",
-      {DataTypeId::kInt64}, {"since"},
-      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-      true, true, std::nullopt, "temporary edge",
-      {},
-      true);
+  schema_.AddEdgeLabel("TempUser", "Person", "TempFollows",
+                       {DataTypeId::kInt64}, {"since"}, EdgeStrategy::kMultiple,
+                       EdgeStrategy::kMultiple, true, true, std::nullopt,
+                       "temporary edge", {}, true);
 
   auto src = schema_.get_vertex_label_id("TempUser");
   auto dst = schema_.get_vertex_label_id("Person");
@@ -116,11 +103,10 @@ TEST_F(SchemaTemporaryTest, EdgeLabelTemporaryFlag) {
 }
 
 TEST_F(SchemaTemporaryTest, PersistentEdgeLabelNotTemporary) {
-  schema_.AddEdgeLabel(
-      "Person", "Person", "Knows",
-      {DataTypeId::kDouble}, {"weight"},
-      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-      true, true, std::nullopt, "persistent edge");
+  schema_.AddEdgeLabel("Person", "Person", "Knows", {DataTypeId::kDouble},
+                       {"weight"}, EdgeStrategy::kMultiple,
+                       EdgeStrategy::kMultiple, true, true, std::nullopt,
+                       "persistent edge");
 
   auto src = schema_.get_vertex_label_id("Person");
   auto dst = schema_.get_vertex_label_id("Person");
@@ -131,19 +117,14 @@ TEST_F(SchemaTemporaryTest, PersistentEdgeLabelNotTemporary) {
 }
 
 TEST_F(SchemaTemporaryTest, GetTemporaryEdgeTripletKeys) {
-  schema_.AddEdgeLabel(
-      "Person", "Person", "Knows",
-      {DataTypeId::kDouble}, {"weight"},
-      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-      true, true, std::nullopt, "");
+  schema_.AddEdgeLabel("Person", "Person", "Knows", {DataTypeId::kDouble},
+                       {"weight"}, EdgeStrategy::kMultiple,
+                       EdgeStrategy::kMultiple, true, true, std::nullopt, "");
 
-  schema_.AddEdgeLabel(
-      "TempUser", "Person", "TempFollows",
-      {DataTypeId::kInt64}, {"since"},
-      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-      true, true, std::nullopt, "",
-      {},
-      true);
+  schema_.AddEdgeLabel("TempUser", "Person", "TempFollows",
+                       {DataTypeId::kInt64}, {"since"}, EdgeStrategy::kMultiple,
+                       EdgeStrategy::kMultiple, true, true, std::nullopt, "",
+                       {}, true);
 
   auto temp_edges = schema_.get_temporary_edge_triplet_keys();
   ASSERT_EQ(temp_edges.size(), 1);
@@ -168,49 +149,40 @@ class SchemaSerializationTest : public ::testing::Test {
   Schema schema_;
 
   void SetUp() override {
-    schema_.AddVertexLabel(
-        "Person",
-        {DataTypeId::kVarchar},
-        {"name"},
-        {std::make_tuple(DataTypeId::kInt64, "id", 0)},
-        4096, "");
+    schema_.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
+                           {std::make_tuple(DataTypeId::kInt64, "id", 0)}, 4096,
+                           "");
 
-    schema_.AddVertexLabel(
-        "TempUser",
-        {DataTypeId::kVarchar},
-        {"username"},
-        {std::make_tuple(DataTypeId::kInt64, "uid", 0)},
-        1024, "",
-        {},
-        true);
+    schema_.AddVertexLabel("TempUser", {DataTypeId::kVarchar}, {"username"},
+                           {std::make_tuple(DataTypeId::kInt64, "uid", 0)},
+                           1024, "", {}, true);
 
-    schema_.AddEdgeLabel(
-        "Person", "Person", "Knows",
-        {DataTypeId::kDouble}, {"weight"},
-        EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-        true, true, std::nullopt, "");
+    schema_.AddEdgeLabel("Person", "Person", "Knows", {DataTypeId::kDouble},
+                         {"weight"}, EdgeStrategy::kMultiple,
+                         EdgeStrategy::kMultiple, true, true, std::nullopt, "");
 
-    schema_.AddEdgeLabel(
-        "TempUser", "Person", "TempFollows",
-        {DataTypeId::kInt64}, {"since"},
-        EdgeStrategy::kMultiple, EdgeStrategy::kMultiple,
-        true, true, std::nullopt, "",
-        {},
-        true);
+    schema_.AddEdgeLabel("TempUser", "Person", "TempFollows",
+                         {DataTypeId::kInt64}, {"since"},
+                         EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                         true, std::nullopt, "", {}, true);
   }
 
   bool yaml_has_vertex_type(const YAML::Node& yaml, const std::string& name) {
-    if (!yaml["schema"]["vertex_types"]) return false;
+    if (!yaml["schema"]["vertex_types"])
+      return false;
     for (const auto& v : yaml["schema"]["vertex_types"]) {
-      if (v["type_name"].as<std::string>() == name) return true;
+      if (v["type_name"].as<std::string>() == name)
+        return true;
     }
     return false;
   }
 
   bool yaml_has_edge_type(const YAML::Node& yaml, const std::string& name) {
-    if (!yaml["schema"]["edge_types"]) return false;
+    if (!yaml["schema"]["edge_types"])
+      return false;
     for (const auto& e : yaml["schema"]["edge_types"]) {
-      if (e["type_name"].as<std::string>() == name) return true;
+      if (e["type_name"].as<std::string>() == name)
+        return true;
     }
     return false;
   }
@@ -258,10 +230,10 @@ TEST_F(SchemaSerializationTest, DumpToYamlExcludesTemporaryLabels) {
 }
 
 // Verifies the binary Schema::Serialize path does not propagate the
-// `temporary` flag. operator<<(InArchive, VertexSchema/EdgeSchema) intentionally
-// omits the field, so a round-trip through Serialize/Deserialize yields a
-// non-temporary copy of every label. This guards the spec L28 invariant that
-// any persistence path drops temp markers.
+// `temporary` flag. operator<<(InArchive, VertexSchema/EdgeSchema)
+// intentionally omits the field, so a round-trip through Serialize/Deserialize
+// yields a non-temporary copy of every label. This guards the spec L28
+// invariant that any persistence path drops temp markers.
 TEST_F(SchemaSerializationTest, SerializeStripsTemporaryFlag) {
   // Sanity: source schema has temp labels.
   ASSERT_FALSE(schema_.get_temporary_vertex_labels().empty());
@@ -318,8 +290,8 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
         graph_
             ->CreateVertexType(
                 builder.VertexLabel("person")
-                    .AddProperty("id", property_to_value(
-                                           Property::from_int64(0)))
+                    .AddProperty("id",
+                                 property_to_value(Property::from_int64(0)))
                     .AddProperty("name", property_to_value(
                                              Property::from_string_view("")))
                     .AddPrimaryKeyName("id")
@@ -333,10 +305,11 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
         graph_
             ->CreateVertexType(
                 builder.VertexLabel("temp_user")
-                    .AddProperty("uid", property_to_value(
-                                            Property::from_int64(0)))
-                    .AddProperty("username", property_to_value(
-                                                 Property::from_string_view("")))
+                    .AddProperty("uid",
+                                 property_to_value(Property::from_int64(0)))
+                    .AddProperty(
+                        "username",
+                        property_to_value(Property::from_string_view("")))
                     .AddPrimaryKeyName("uid")
                     .Temporary(true)
                     .Build())
@@ -365,17 +338,16 @@ TEST_F(PropertyGraphTemporaryTest, CreateTemporaryEdgeType) {
   CreateTemporaryUser();
 
   CreateEdgeTypeParamBuilder builder;
-  EXPECT_TRUE(
-      graph_
-          ->CreateEdgeType(
-              builder.SrcLabel("temp_user")
-                  .DstLabel("person")
-                  .EdgeLabel("temp_follows")
-                  .AddProperty("since", property_to_value(
-                                            Property::from_int64(0)))
-                  .Temporary(true)
-                  .Build())
-          .ok());
+  EXPECT_TRUE(graph_
+                  ->CreateEdgeType(
+                      builder.SrcLabel("temp_user")
+                          .DstLabel("person")
+                          .EdgeLabel("temp_follows")
+                          .AddProperty("since", property_to_value(
+                                                    Property::from_int64(0)))
+                          .Temporary(true)
+                          .Build())
+                  .ok());
 
   auto src = graph_->schema().get_vertex_label_id("temp_user");
   auto dst = graph_->schema().get_vertex_label_id("person");
@@ -384,8 +356,7 @@ TEST_F(PropertyGraphTemporaryTest, CreateTemporaryEdgeType) {
   EXPECT_TRUE(graph_->schema().is_edge_label_temporary(key));
 }
 
-TEST_F(PropertyGraphTemporaryTest,
-       PersistentEdgeCannotReferenceTempVertex) {
+TEST_F(PropertyGraphTemporaryTest, PersistentEdgeCannotReferenceTempVertex) {
   CreatePersistentPerson();
   CreateTemporaryUser();
 
@@ -400,8 +371,7 @@ TEST_F(PropertyGraphTemporaryTest,
   EXPECT_FALSE(status.ok());
 }
 
-TEST_F(PropertyGraphTemporaryTest,
-       PersistentEdgeBetweenPersistentVerticesOk) {
+TEST_F(PropertyGraphTemporaryTest, PersistentEdgeBetweenPersistentVerticesOk) {
   CreatePersistentPerson();
 
   CreateEdgeTypeParamBuilder builder;
@@ -422,21 +392,19 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
   // Add a vertex to the temp type
   label_t temp_label = graph_->schema().get_vertex_label_id("temp_user");
   neug::vid_t vid;
-  EXPECT_TRUE(
-      graph_
-          ->AddVertex(temp_label, Property::from_int64(1),
-                      {Property::from_string_view("alice")}, vid, 0)
-          .ok());
+  EXPECT_TRUE(graph_
+                  ->AddVertex(temp_label, Property::from_int64(1),
+                              {Property::from_string_view("alice")}, vid, 0)
+                  .ok());
   EXPECT_EQ(graph_->VertexNum(temp_label), 1);
 
   // Add a vertex to the persistent type
   label_t person_label = graph_->schema().get_vertex_label_id("person");
   neug::vid_t vid2;
-  EXPECT_TRUE(
-      graph_
-          ->AddVertex(person_label, Property::from_int64(100),
-                      {Property::from_string_view("Bob")}, vid2, 0)
-          .ok());
+  EXPECT_TRUE(graph_
+                  ->AddVertex(person_label, Property::from_int64(100),
+                              {Property::from_string_view("Bob")}, vid2, 0)
+                  .ok());
 
   // Dump (checkpoint)
   auto ckp2 = make_checkpoint(ws_);
@@ -479,7 +447,8 @@ TEST_F(PropertyGraphTemporaryTest, DumpManifestFileExcludesTemporary) {
   // Persistent label name appears, temporary label name does not.
   EXPECT_NE(manifest_text.find("person"), std::string::npos);
   EXPECT_EQ(manifest_text.find("temp_user"), std::string::npos)
-      << "temporary label leaked into on-disk manifest:\n" << manifest_text;
+      << "temporary label leaked into on-disk manifest:\n"
+      << manifest_text;
 }
 
 TEST_F(PropertyGraphTemporaryTest, DumpToYamlExcludesTemporary) {
@@ -494,8 +463,10 @@ TEST_F(PropertyGraphTemporaryTest, DumpToYamlExcludesTemporary) {
   bool found_temp = false;
   for (const auto& v : yaml["schema"]["vertex_types"]) {
     auto name = v["type_name"].as<std::string>();
-    if (name == "person") found_person = true;
-    if (name == "temp_user") found_temp = true;
+    if (name == "person")
+      found_person = true;
+    if (name == "temp_user")
+      found_temp = true;
   }
   EXPECT_TRUE(found_person);
   EXPECT_FALSE(found_temp);
@@ -513,8 +484,10 @@ TEST_F(PropertyGraphTemporaryTest, ToYamlIncludesTemporary) {
   bool found_temp = false;
   for (const auto& v : yaml["schema"]["vertex_types"]) {
     auto name = v["type_name"].as<std::string>();
-    if (name == "person") found_person = true;
-    if (name == "temp_user") found_temp = true;
+    if (name == "person")
+      found_person = true;
+    if (name == "temp_user")
+      found_temp = true;
   }
   EXPECT_TRUE(found_person);
   EXPECT_TRUE(found_temp);
@@ -563,10 +536,9 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryTypes) {
       db_->graph()
           .CreateVertexType(
               builder.VertexLabel("temp_node")
-                  .AddProperty("id", property_to_value(
-                                         Property::from_int64(0)))
-                  .AddProperty("val", property_to_value(
-                                          Property::from_string_view("")))
+                  .AddProperty("id", property_to_value(Property::from_int64(0)))
+                  .AddProperty(
+                      "val", property_to_value(Property::from_string_view("")))
                   .AddPrimaryKeyName("id")
                   .Temporary(true)
                   .Build())
@@ -599,30 +571,28 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryEdges) {
   // Create temp vertex + temp edge via storage API
   {
     CreateVertexTypeParamBuilder vbuilder;
-    EXPECT_TRUE(
-        db_->graph()
-            .CreateVertexType(
-                vbuilder.VertexLabel("temp_src")
-                    .AddProperty("id", property_to_value(
-                                           Property::from_int64(0)))
-                    .AddPrimaryKeyName("id")
-                    .Temporary(true)
-                    .Build())
-            .ok());
+    EXPECT_TRUE(db_->graph()
+                    .CreateVertexType(
+                        vbuilder.VertexLabel("temp_src")
+                            .AddProperty("id", property_to_value(
+                                                   Property::from_int64(0)))
+                            .AddPrimaryKeyName("id")
+                            .Temporary(true)
+                            .Build())
+                    .ok());
   }
   {
     CreateEdgeTypeParamBuilder ebuilder;
-    EXPECT_TRUE(
-        db_->graph()
-            .CreateEdgeType(
-                ebuilder.SrcLabel("temp_src")
-                    .DstLabel("person")
-                    .EdgeLabel("temp_link")
-                    .AddProperty("w", property_to_value(
-                                          Property::from_double(0.0)))
-                    .Temporary(true)
-                    .Build())
-            .ok());
+    EXPECT_TRUE(db_->graph()
+                    .CreateEdgeType(
+                        ebuilder.SrcLabel("temp_src")
+                            .DstLabel("person")
+                            .EdgeLabel("temp_link")
+                            .AddProperty("w", property_to_value(
+                                                  Property::from_double(0.0)))
+                            .Temporary(true)
+                            .Build())
+                    .ok());
   }
 
   // Verify both exist
@@ -660,8 +630,7 @@ TEST_F(ConnectionTemporaryCleanupTest, DoubleCloseIsIdempotent) {
       db_->graph()
           .CreateVertexType(
               builder.VertexLabel("temp_x")
-                  .AddProperty("id", property_to_value(
-                                         Property::from_int64(0)))
+                  .AddProperty("id", property_to_value(Property::from_int64(0)))
                   .AddPrimaryKeyName("id")
                   .Temporary(true)
                   .Build())

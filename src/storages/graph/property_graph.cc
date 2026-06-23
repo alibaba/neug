@@ -280,10 +280,9 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   bool src_temp = schema_.is_vertex_label_temporary(src_lid);
   bool dst_temp = schema_.is_vertex_label_temporary(dst_lid);
   if ((src_temp || dst_temp) && !config.IsTemporary()) {
-    return Status(
-        StatusCode::ERR_INVALID_ARGUMENT,
-        "Persistent edge cannot reference temporary vertex. Edge [" +
-            edge_type_name + "] must be temporary.");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Persistent edge cannot reference temporary vertex. Edge [" +
+                      edge_type_name + "] must be temporary.");
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;

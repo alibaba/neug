@@ -2383,8 +2383,7 @@ Schema Schema::StripTemporary() const {
       continue;
     }
     // Skip edges whose src/dst vertices are temporary.
-    if (is_vertex_label_temporary(src_v) ||
-        is_vertex_label_temporary(dst_v)) {
+    if (is_vertex_label_temporary(src_v) || is_vertex_label_temporary(dst_v)) {
       continue;
     }
     auto src_name = vlabel_indexer_.get_key(src_v);
@@ -2396,8 +2395,7 @@ Schema Schema::StripTemporary() const {
         !stripped.elabel_indexer_.get_index(e_name, new_e)) {
       continue;  // label was stripped (temporary)
     }
-    auto new_index =
-        stripped.generate_edge_label(new_src, new_dst, new_e);
+    auto new_index = stripped.generate_edge_label(new_src, new_dst, new_e);
     max_e_triplet_index = std::max(max_e_triplet_index, new_index);
     stripped.e_schemas_[new_index] = std::make_shared<EdgeSchema>(*es);
   }

@@ -43,8 +43,9 @@ class CreateVertexTypeOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     CreateVertexTypeParamBuilder builder;
-    builder.VertexLabel(type_name_).PrimaryKeyNames(pks_).Temporary(
-        is_temporary_);
+    builder.VertexLabel(type_name_)
+        .PrimaryKeyNames(pks_)
+        .Temporary(is_temporary_);
     for (const auto& [prop_name, prop_value] : properties_) {
       builder.AddProperty(prop_name, prop_value);
     }
