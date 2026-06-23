@@ -1,4 +1,4 @@
-name: NeuG Test
+name: NeuG Test (Linux)
 
 on:
   # Trigger the workflow on push or pull request,
@@ -17,7 +17,7 @@ on:
       - 'tools/java_driver/**'
       - 'tools/utils/**'
       - 'tests/**'
-      - '.github/workflows/neug-test.yml'
+      - '.github/workflows/Linux.yml'
       - 'scripts/install_deps.sh'
       - 'include/**'
       - 'CMakeLists.txt'
@@ -33,7 +33,7 @@ on:
       - 'tools/java_driver/**'
       - 'tools/utils/**'
       - 'tests/**'
-      - '.github/workflows/neug-test.yml'
+      - '.github/workflows/Linux.yml'
       - 'scripts/install_deps.sh'
       - 'include/**'
       - 'CMakeLists.txt'

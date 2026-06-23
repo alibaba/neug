@@ -66,7 +66,7 @@ jobs:
             - 'tests/**'
             - '!tests/extension/**'
             - '!tests/extensions/**'
-            - '.github/workflows/neug-test.yml'
+            - '.github/workflows/Linux.yml'
             - '.github/workflows/OSX.yml'
             - 'scripts/install_deps.sh'
             - 'include/**'
@@ -111,7 +111,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ inputs.os-type == 'macos' && '~/Library/Caches/ccache' || '~/.cache/ccache' }}
-        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/neug-test.yml', '.github/workflows/OSX.yml') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
         restore-keys: |
           ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-
           ${{ runner.os }}-${{ runner.arch }}-ccache-main-
