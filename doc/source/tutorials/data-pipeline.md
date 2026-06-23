@@ -74,6 +74,8 @@ result = conn.execute('''
 
 ## Step 3: Import Nodes — One Line, No DDL
 
+> **Note:** `COPY FROM` is only supported in [embedded mode](../data_io/index.md#embedded-mode-only), not in service mode.
+
 Traditionally, importing data into a graph database requires you to first define the schema (column names, types, primary key) with a `CREATE NODE TABLE` statement. In NeuG v0.1.2, you can skip all of that:
 
 ```python
