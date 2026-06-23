@@ -188,6 +188,40 @@ class EdgeExpand {
       const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const ParamsMap& query_params);
 
+  // Triangle-counting inner loop: for each neighbor nbr1 of `es1`, expand the
+  // second hop csr2.get_edges(nbr1) and emit pairs whose endpoint is in d0_set.
+  // csr2.get_edges(nbr1) is a random gather into csr2's body; software-pipeline
+  // it by running a single lookahead cursor ahead of the consumer and
+  // prefetching the head (body) of the upcoming nbr1. The body is the dominant
+  // second-hop miss; measurements show prefetching csr2 metadata in addition
+  // adds nothing here.
+  __attribute__((always_inline)) static inline void tc_match_second_hop(
+      const CsrView& csr2, const NbrList& es1,
+      const flat_hash_set<vid_t>& d0_set, MSVertexColumnBuilder& builder1,
+      MSVertexColumnBuilder& builder2, sel_vec_t& offsets, sel_t idx) {
+    size_t head_dist = csr2.prefetch_head_dist();
+    NbrIterator end = es1.end();
+    NbrIterator hd_pf = es1.begin();
+    for (size_t s = 0; s < head_dist && hd_pf != end; ++s) {
+      ++hd_pf;
+    }
+    for (auto it1 = es1.begin(); it1 != end; ++it1) {
+      if (head_dist != 0 && hd_pf != end) {
+        csr2.prefetch_head(hd_pf.get_vertex());
+        ++hd_pf;
+      }
+      vid_t nbr1 = it1.get_vertex();
+      NbrList es2 = csr2.get_edges(nbr1);
+      for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
+        vid_t nbr2 = it2.get_vertex();
+        if (d0_set.find(nbr2) != d0_set.end()) {
+          builder1.push_back_opt(nbr1);
+          builder2.push_back_opt(nbr2);
+          offsets.push_back(idx);
+        }
+      }
+    }
+  }
   template <typename T1>
   static neug::result<ContextChunk> tc(
       const StorageReadInterface& graph, ContextChunk&& chunk,
@@ -253,18 +287,8 @@ class EdgeExpand {
             continue;
           }
           auto es1 = csr1.get_edges(v);
-          for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
-            auto nbr1 = it1.get_vertex();
-            auto es2 = csr2.get_edges(nbr1);
-            for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
-              auto nbr2 = it2.get_vertex();
-              if (d0_set.find(nbr2) != d0_set.end()) {
-                builder1.push_back_opt(nbr1);
-                builder2.push_back_opt(nbr2);
-                offsets.push_back(idx);
-              }
-            }
-          }
+          tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
+                              idx);
           d0_set.clear();
           ++idx;
         }
@@ -276,18 +300,8 @@ class EdgeExpand {
             continue;
           }
           auto es1 = csr1.get_edges(v);
-          for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
-            auto nbr1 = it1.get_vertex();
-            auto es2 = csr2.get_edges(nbr1);
-            for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
-              auto nbr2 = it2.get_vertex();
-              if (d0_set.find(nbr2) != d0_set.end()) {
-                builder1.push_back_opt(nbr1);
-                builder2.push_back_opt(nbr2);
-                offsets.push_back(idx);
-              }
-            }
-          }
+          tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
+                              idx);
           d0_set.clear();
           ++idx;
         }
@@ -304,18 +318,8 @@ class EdgeExpand {
             }
           }
           auto es1 = csr1.get_edges(v);
-          for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
-            auto nbr1 = it1.get_vertex();
-            auto es2 = csr2.get_edges(nbr1);
-            for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
-              auto nbr2 = it2.get_vertex();
-              if (d0_set.find(nbr2) != d0_set.end()) {
-                builder1.push_back_opt(nbr1);
-                builder2.push_back_opt(nbr2);
-                offsets.push_back(idx);
-              }
-            }
-          }
+          tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
+                              idx);
           d0_set.clear();
           ++idx;
         }
@@ -330,26 +334,16 @@ class EdgeExpand {
             }
           }
           auto es1 = csr1.get_edges(v);
-          for (auto it1 = es1.begin(); it1 != es1.end(); ++it1) {
-            auto nbr1 = it1.get_vertex();
-            auto es2 = csr2.get_edges(nbr1);
-            for (auto it2 = es2.begin(); it2 != es2.end(); ++it2) {
-              auto nbr2 = it2.get_vertex();
-              if (d0_set.find(nbr2) != d0_set.end()) {
-                builder1.push_back_opt(nbr1);
-                builder2.push_back_opt(nbr2);
-                offsets.push_back(idx);
-              }
-            }
-          }
+          tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
+                              idx);
           d0_set.clear();
           ++idx;
         }
       }
     }
 
-    std::shared_ptr<IContextColumn> col1 = builder1.finish();
-    std::shared_ptr<IContextColumn> col2 = builder2.finish();
+    auto col1 = builder1.finish();
+    auto col2 = builder2.finish();
     chunk.set_with_reshuffle(alias1, col1, offsets);
     chunk.set(alias2, col2);
     return chunk;

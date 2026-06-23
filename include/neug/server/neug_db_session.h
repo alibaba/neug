@@ -38,6 +38,7 @@ class ColumnBase;
 class Encoder;
 class PropertyGraph;
 class RefColumnBase;
+class Schema;
 class AppManager;
 class IVersionManager;
 
@@ -114,6 +115,8 @@ class NeugDBSession {
   UpdateTransaction GetUpdateTransaction();
 
   CompactTransaction GetCompactTransaction();
+
+  const Schema& schema() const;
 
   /**
    * @brief Execute a Cypher query within the session.
