@@ -356,11 +356,11 @@ class StorageReadInterface : virtual public IStorageInterface {
    * key. Callers that need a stable identity should key off `&property_graph()`
    * instead.
    */
-  const PropertyGraph& property_graph() const { return graph_; }
+  const PropertyGraph& property_graph() const { return *graph_; }
   timestamp_t read_timestamp() const { return read_ts_; }
 
  private:
-  const PropertyGraph& graph_;
+  const PropertyGraph* graph_ = nullptr;
  protected:
   const GraphView& view_;
   timestamp_t read_ts_;
