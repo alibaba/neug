@@ -98,6 +98,11 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
+  if (!validate_projected_graph(graph, sssp_input.vertex_label,
+                                sssp_input.edge_label, "SSSP")) {
+    return execution::Context{};
+  }
+
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, sssp_input.vertex_label,
                                sssp_input.source, source_vid)) {
@@ -107,24 +112,29 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
   }
 
   bool full_encoding = sssp_input.path_properties != "lightweight";
-  execution::Context ret;
-  if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
-      sssp_input.edge_pred != nullptr) {
-    SSSPPred sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
-                  source_vid, sssp_input.directed, sssp_input.edge_weight,
-                  sssp_input.concurrency, sssp_input.vertex_pred.get(),
-                  sssp_input.edge_pred.get(), sssp_input.return_path);
-    sssp.compute();
-    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
-              sssp_input.path_alias, full_encoding);
-  } else {
-    SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
-              sssp_input.directed, sssp_input.edge_weight,
-              sssp_input.concurrency);
-    sssp.compute();
-    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+  try {
+    execution::Context ret;
+    if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
+        sssp_input.edge_pred != nullptr) {
+      SSSPPred sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
+                    source_vid, sssp_input.directed, sssp_input.edge_weight,
+                    sssp_input.concurrency, sssp_input.vertex_pred.get(),
+                    sssp_input.edge_pred.get(), sssp_input.return_path);
+      sssp.compute();
+      sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
+                sssp_input.path_alias, full_encoding);
+    } else {
+      SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
+                source_vid, sssp_input.directed, sssp_input.edge_weight,
+                sssp_input.concurrency);
+      sssp.compute();
+      sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+    }
+    return ret;
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "SSSP execution failed: " << e.what();
+    return execution::Context{};
   }
-  return ret;
 }
 
 function::function_set SSSPFunction::getFunctionSet() {

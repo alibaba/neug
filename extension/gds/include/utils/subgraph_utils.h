@@ -56,5 +56,13 @@ bool try_parse_source_vertex(const StorageReadInterface& graph,
                              label_t vertex_label,
                              const std::string& source_str, vid_t& out);
 
+// Validate that the projected graph's vertex and edge labels still exist
+// in the current schema. Returns false (and logs an error) if any label is
+// out of range or missing, which can happen if the graph was modified after
+// project_graph was called.
+bool validate_projected_graph(const StorageReadInterface& graph,
+                              label_t vertex_label, label_t edge_label,
+                              const std::string& algo_name);
+
 }  // namespace gds
 }  // namespace neug

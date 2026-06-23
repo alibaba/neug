@@ -134,5 +134,26 @@ bool try_parse_source_vertex(const StorageReadInterface& graph,
   return true;
 }
 
+bool validate_projected_graph(const StorageReadInterface& graph,
+                              label_t vertex_label, label_t edge_label,
+                              const std::string& algo_name) {
+  const auto& schema = graph.schema();
+  if (vertex_label >= schema.vertex_label_num()) {
+    LOG(ERROR) << algo_name << ": vertex label " << static_cast<int>(vertex_label)
+               << " is out of range (schema has "
+               << schema.vertex_label_num() << " vertex labels)."
+               << " The graph may have been modified after project_graph.";
+    return false;
+  }
+  if (edge_label >= schema.edge_label_num()) {
+    LOG(ERROR) << algo_name << ": edge label " << static_cast<int>(edge_label)
+               << " is out of range (schema has "
+               << schema.edge_label_num() << " edge labels)."
+               << " The graph may have been modified after project_graph.";
+    return false;
+  }
+  return true;
+}
+
 }  // namespace gds
 }  // namespace neug
