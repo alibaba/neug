@@ -765,8 +765,15 @@ class Schema {
 
   static neug::result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
 
-  static neug::result<YAML::Node> DumpToYaml(
-        const Schema& schema, bool include_temporary = false);
+  static neug::result<YAML::Node> DumpToYaml(const Schema& schema);
+
+  /**
+   * @brief Create a copy of this Schema with all temporary labels removed.
+   *
+   * Used by the persistence/checkpoint path: temporary labels are
+   * session-scoped and must not be written to disk.
+   */
+  Schema StripTemporary() const;
 
   bool Equals(const Schema& other) const;
 

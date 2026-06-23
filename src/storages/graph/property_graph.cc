@@ -975,15 +975,10 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
   }
 
   store.Dump(*ckp, meta);
-  // Persist a temporary-stripped schema. The disk JSON (via Schema::ToJson →
-  // DumpToYaml) already excludes temporary labels; we must mirror that into
-  // the in-memory CheckpointManifest so a subsequent Open(ckp) — which uses
-  // the in-memory meta_ rather than reloading the JSON — also sees a
-  // temp-free schema.
-  auto persistable_yaml = Schema::DumpToYaml(schema_);
-  auto persistable_schema =
-      Schema::LoadFromYamlNode(persistable_yaml.value());
-  meta.SetSchema(persistable_schema.value());
+  // Persist a temporary-stripped schema. Temporary labels are session-scoped
+  // and must not appear in the checkpoint. StripTemporary() creates a clean
+  // copy without any temporary vertex/edge labels.
+  meta.SetSchema(schema_.StripTemporary());
   ckp->UpdateMeta(
       std::move(meta));  // Persist meta and set checkpoint to use this meta.
   LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
