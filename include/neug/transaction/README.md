@@ -38,20 +38,17 @@ When reading graph data with a `ReadTransaction` or `UpdateTransaction`, only re
 
 There is no synchronization between read and insert transactions in the normal state. All read and insert transactions can be executed concurrently.
 
-The `VersionManager` state machine has four effective states:
+The `VersionManager` state machine has three effective states for read, insert, and update transactions:
 
 | State | Meaning | New Reads | New Inserts | New Updates | Existing Reads |
 |-------|---------|-----------|-------------|-------------|----------------|
 | `0` | Normal | allowed | allowed | allowed | continue |
 | `1` | Update execution | allowed | blocked | blocked | continue |
 | `2` from update | Update commit | blocked | blocked | blocked | continue |
-| `2` from compact | Compaction | blocked | blocked | blocked | drained before compaction |
 
 When an `UpdateTransaction` is created, it enters the update-exec phase (`update_state_`: `0 -> 1`). It waits for all in-flight insert transactions to finish, but does not block or wait for read transactions. New insert transactions and new update transactions are blocked during this phase; existing and new reads continue.
 
 When `begin_update_commit` is called, the update enters the commit phase (`update_state_`: `1 -> 2`). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
-
-When a `CompactTransaction` is created, it enters state `2` directly. It waits for all active insert and read transactions to finish, and blocks new read, insert, update, and compact transactions until compaction commits or aborts.
 
 ## Serializability
 

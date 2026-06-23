@@ -119,12 +119,11 @@ NeuG uses **Multi-Version Concurrency Control (MVCC)** plus copy-on-write (COW) 
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read | Concurrent with reads, inserts, and the update execution phase. New reads wait only during the update commit publish window or compaction. Already-acquired reads continue on their pinned snapshot. |
-| Insert | Concurrent with reads and other inserts while no update or compaction is active. Blocked during update execution, update commit, and compaction. |
+| Read | Concurrent with reads, inserts, and the update execution phase. New reads wait only during the update commit publish window. Already-acquired reads continue on their pinned snapshot. |
+| Insert | Concurrent with reads and other inserts while no update is active. Blocked during update execution and update commit. |
 | Update | Serialized: only one update can be open. The execution phase waits for in-flight inserts, blocks new inserts/updates, and mutates a COW snapshot while reads continue. The commit phase briefly blocks new reads/inserts while publishing the COW snapshot; existing reads continue. |
 | Schema (DDL) | Uses the same two-phase `UpdateTransaction` path as update operations. |
 | Checkpoint | Uses the `UpdateTransaction` path in TP service: reads continue during checkpoint execution, while new reads/inserts wait during the commit publish window. |
-| Compaction | Requires a quiescent point: waits for active readers/inserters and blocks new reads, inserts, and updates until compaction completes. |
 
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
@@ -255,7 +254,6 @@ session.close()
 - Consolidates WAL entries into a unified checkpoint
 - Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
-- Background compaction, when enabled, is stricter: it waits for active readers and inserters to finish, then blocks new transactions while compacting
 
 ## Error Recovery
 
@@ -356,10 +354,10 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for read/insert, COW two-phase update/DDL, exclusive compaction |
+| **Isolation** | Exclusive write locks | MVCC for read/insert, COW two-phase update/DDL |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes |
-| **Concurrent Inserts** | No | Yes, unless an update/compaction is active |
+| **Concurrent Inserts** | No | Yes, unless an update is active |
 | **Concurrent Updates** | No | No, updates are serialized while reads continue on snapshots |
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
 
