@@ -28,16 +28,9 @@ External Files (CSV, JSON, Parquet, ...)
 
 ## Embedded Mode Only
 
-> **Important:** `LOAD FROM`, `COPY FROM`, and `COPY TO` are supported **only in embedded mode**. They are not available when NeuG is running as a service (HTTP/TP mode).
+> **Important:** `LOAD FROM`, `COPY FROM`, and `COPY TO` are supported **only in embedded mode**. They are not available when NeuG is running as a service (HTTP/TP mode). This is a current limitation; support for bulk loading in service mode is planned for a future release.
 
-NeuG operates in two modes — [embedded mode](../overview/introduction) for analytics and ETL, and service mode for high-throughput transactional processing (OLTP). Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading or writing large files, which are long-running, I/O-intensive operations that would block the transaction processing pipeline. For this reason, they are restricted to embedded mode.
-
-**To load data before starting a service:**
-
-1. **Embedded mode + serve:** Open the database in embedded mode, load data with `COPY FROM`, then call `db.serve()` to start the HTTP service on the pre-populated database.
-2. **Standalone bulk loader:** Use the `bulk_loader` command-line tool to create a pre-populated database directory, then open it with `db.serve()`.
-
-Once the service is running, you can still insert individual records via `CREATE` statements, modify data with `MERGE`/`SET`/`DELETE`, and manage schema with `CREATE/DROP/ALTER TABLE` — but bulk file import/export is not available. This is a current limitation; support for bulk loading in service mode is planned for a future release.
+Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading or writing large files, which are long-running, I/O-intensive operations that would block the transaction processing pipeline. For this reason, they are restricted to embedded mode.  Once the service is running, you can still insert individual records via `CREATE` statements, modify data with `MERGE`/`SET`/`DELETE`, and manage schema with `CREATE/DROP/ALTER TABLE`.
 
 ## Supported Formats
 
