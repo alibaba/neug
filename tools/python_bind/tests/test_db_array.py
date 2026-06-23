@@ -368,6 +368,26 @@ def test_alter_add_drop_array_column(tmp_path):
     db.close()
 
 
+def test_array_ddl_explicit_default_unsupported(tmp_path):
+    """Explicit array DEFAULT literals in DDL are not supported yet."""
+    db_dir = tmp_path / "array_explicit_default"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    with pytest.raises(Exception):
+        conn.execute(
+            "CREATE NODE TABLE Sensor("
+            "  id INT64,"
+            "  readings INT32[3] DEFAULT [0, 0, 0],"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+
+    conn.close()
+    db.close()
+
+
 def test_checkpoint_reopens_array_column(tmp_path):
     """Array column descriptors and child files survive checkpoint/reopen."""
     db_dir = tmp_path / "array_checkpoint"
@@ -710,15 +730,8 @@ def test_array_create_with_null_property(tmp_path):
     db.close()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Storage layer does not support setting an ARRAY property to NULL; "
-        "ArrayValue::GetChildren throws on null values. "
-        "Needs storage-level NULL array support first."
-    )
-)
 def test_array_update_to_null(tmp_path):
-    """SET an array property to NULL should use default values."""
+    """SET an existing array property to NULL is not supported yet."""
     db_dir = tmp_path / "array_update_null"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
@@ -733,11 +746,31 @@ def test_array_update_to_null(tmp_path):
     )
     conn.execute("CREATE (p:Point {id: 1, coords: [100, 200]});")
 
-    conn.execute("MATCH (p:Point) WHERE p.id = 1 SET p.coords = NULL;")
+    with pytest.raises(Exception):
+        conn.execute("MATCH (p:Point) WHERE p.id = 1 SET p.coords = NULL;")
 
-    rows = list(conn.execute("MATCH (p:Point) RETURN p.coords;"))
-    assert len(rows) == 1
-    assert _nested_list(rows[0][0]) == [0, 0]
+    conn.close()
+    db.close()
+
+
+def test_cast_list_array_conversions(tmp_path):
+    """CAST supports explicit LIST <-> ARRAY conversion with size checks."""
+    db_dir = tmp_path / "array_cast"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    rows = list(conn.execute("RETURN CAST([1, 2, 3], 'INT64[3]');"))
+    assert _nested_list(rows[0][0]) == [1, 2, 3]
+
+    rows = list(conn.execute("RETURN CAST(CAST([1, 2, 3], 'INT64[3]'), 'INT64[]');"))
+    assert _nested_list(rows[0][0]) == [1, 2, 3]
+
+    rows = list(conn.execute("RETURN CAST([[1, 2, 3], [4, 5, 6]], 'INT64[2][3]');"))
+    assert _nested_list(rows[0][0]) == [[1, 2, 3], [4, 5, 6]]
+
+    with pytest.raises(Exception):
+        conn.execute("RETURN CAST([1, 2], 'INT64[3]');")
 
     conn.close()
     db.close()
@@ -1059,6 +1092,31 @@ def test_unwind_array_property(tmp_path):
         )
     )
     assert [row[0] for row in rows] == [1, 2, 3]
+
+    conn.close()
+    db.close()
+
+
+def test_list_index_supported_but_array_index_unsupported(tmp_path):
+    """List extraction works, but direct fixed-size array indexing does not."""
+    db_dir = tmp_path / "array_index_unsupported"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    rows = list(conn.execute("RETURN [10, 20, 30][0];"))
+    assert rows[0][0] == 10
+
+    conn.execute(
+        "CREATE NODE TABLE Sensor("
+        "  id INT64,"
+        "  readings INT32[3],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.execute("CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});")
+    with pytest.raises(Exception):
+        list(conn.execute("MATCH (s:Sensor) RETURN s.readings[0];"))
 
     conn.close()
     db.close()

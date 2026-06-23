@@ -10,7 +10,7 @@ CAST(expression, 'TARGET_TYPE')
 
 **Parameters:**
 - `expression`: The value or expression to be converted. Can be a literal, variable, property, or any valid Cypher expression.
-- `'TARGET_TYPE'`: A string literal specifying the target data type (e.g., `'INT32'`, `'DOUBLE'`, `'STRING'`, `'DATE'`).
+- `'TARGET_TYPE'`: A string literal specifying the target data type (e.g., `'INT32'`, `'DOUBLE'`, `'STRING'`, `'DATE'`, `'INT64[]'`, `'INT64[3]'`).
 
 **Returns:** The value converted to the specified target type.
 
@@ -35,6 +35,27 @@ RETURN CAST(123, 'STRING');
 
 # Convert string to temporal type
 RETURN CAST('2012-01-02', 'DATE');
+```
+
+### List and Array Conversions
+
+`CAST` supports explicit conversion between variable-length `LIST` values and fixed-size `ARRAY` values. `T[]` is a list target, and `T[N]` is an array target with exactly `N` elements.
+
+```cypher
+RETURN CAST([1, 2, 3], 'INT64[3]');
+
+RETURN CAST(CAST([1, 2, 3], 'INT64[3]'), 'INT64[]');
+
+RETURN CAST([[1, 2, 3], [4, 5, 6]], 'INT64[2][3]');
+```
+
+The input size must match every fixed-size dimension in the target array. For example, `CAST([1, 2], 'INT64[3]')` fails because the target requires 3 elements.
+
+Parameterized list values can also be cast before list-style operations:
+
+```text
+UNWIND CAST($ids, 'INT64[]') AS id
+RETURN id;
 ```
 
 ### Converting Property Values
@@ -75,7 +96,7 @@ NeuG's type system includes four major categories:
 | **Numeric**  | `INT32`, `INT64`, `UINT32`, `UINT64`, `FLOAT`, `DOUBLE` | ✅ (with overflow rules) |
 | **String**   | `STRING`                         | ✅ |
 | **Temporal** | `DATE`, `DATETIME`               | ✅ (limited, see conversion table below) |
-| **Composite**| `ARRAY`, `LIST`, `TUPLE`, `MAP`  | ❌ (not supported currently) |
+| **Composite**| `LIST`, `ARRAY`                  | ✅ for explicit `LIST` ↔ `ARRAY` conversion; other composite casts are not supported currently |
 
 ## Type Conversion Rules
 
@@ -164,6 +185,19 @@ RETURN CAST(DATE('2012-01-02'), 'STRING');  # Returns '2012-01-02'
 RETURN CAST(DATETIME('2012-01-02 10:30:00'), 'STRING'); # Returns '2012-01-02 10:30:00'
 ```
 
+### LIST and ARRAY Conversion
+
+NeuG supports the following list-like conversions:
+
+| From | To | Rule |
+|------|----|------|
+| `LIST<T>` | `ARRAY<T, N>` | Succeeds only when the list has exactly `N` elements |
+| `ARRAY<T, N>` | `LIST<T>` | Preserves all elements in order |
+| `ARRAY<T, N>` | `ARRAY<U, N>` | Succeeds when each element can be cast from `T` to `U` |
+| `LIST<T>` | `LIST<U>` | Succeeds when each element can be cast from `T` to `U` |
+
+The same rules apply recursively to nested values. For example, `INT64[2][3]` expects an outer array of 2 elements, where each element is an `INT64[3]`.
+
 ## Error Handling
 
 The `CAST` function may fail in the following scenarios:
@@ -171,3 +205,4 @@ The `CAST` function may fail in the following scenarios:
 1. **Invalid type conversion**: Attempting to convert between incompatible types (e.g., `ARRAY` to `INT32`)
 2. **Parse errors**: Converting a string that cannot be parsed as the target type (e.g., `CAST('abc', 'INT32')`)
 3. **Overflow errors** (Debug mode only): Converting a value that exceeds the target type's range
+4. **Array length errors**: Converting a list-like value to an array target with a different fixed length
