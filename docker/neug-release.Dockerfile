@@ -1,5 +1,8 @@
 FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3 as builder
 
+ARG NEUG_PACKAGE_BUILD=ON
+ARG NEUG_NATIVE_ARCH=OFF
+
 USER neug
 
 RUN mkdir -p /home/neug/neug
@@ -13,7 +16,7 @@ ENV WITH_MIMALLOC=ON
 ENV ENABLE_BACKTRACES=OFF
 ENV BUILD_TYPE=RELEASE
 ENV BUILD_TEST=OFF
-RUN bash -c "source /home/neug/.neug_env && make python-dev && make python-wheel"
+RUN bash -c "source /home/neug/.neug_env && make python-dev EXTRA_CMAKE_FLAGS=\"-DNEUG_PACKAGE_BUILD=${NEUG_PACKAGE_BUILD} -DNEUG_NATIVE_ARCH=${NEUG_NATIVE_ARCH}\" && make python-wheel"
 RUN bash -c "sudo apt install patchelf -y"
 RUN bash -c "pip install auditwheel && auditwheel repair -w tools/python_bind/dist/wheelhouse tools/python_bind/dist/*.whl"
 
