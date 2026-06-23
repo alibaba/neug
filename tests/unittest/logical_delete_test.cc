@@ -35,8 +35,8 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
     }
     std::filesystem::create_directories(test_dir_);
 
-    ws_.Open(test_dir_);
-    auto ckp = make_checkpoint(ws_);
+    checkpoint_mgr_.Open(test_dir_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     graph_.Open(ckp, MemoryLevel::kInMemory);
   }
 
@@ -48,7 +48,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 
   PropertyGraph graph_;
   std::string test_dir_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
 
   CreateVertexTypeParam BuildCreateVertexTypeParam(
       const std::string& name,
@@ -263,32 +263,6 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
 }
 
-// Test RevertDeleteVertexProperties
-TEST_F(PropertyGraphLogicalDeleteTest,
-       RevertDeleteVertexProperties_RestoresProperties) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))},
-      {"age", execution::Value::INT32(0)}};
-  std::vector<std::string> pk_names = {"id"};
-
-  auto status = graph_.CreateVertexType(
-      BuildCreateVertexTypeParam("Person", properties, pk_names));
-  ASSERT_TRUE(status.ok());
-
-  label_t v_label = graph_.schema().get_vertex_label_id("Person");
-
-  // Delete logically then revert
-  std::vector<std::string> delete_props = {"age"};
-  graph_.mutable_schema().DeleteVertexProperties("Person", delete_props, true);
-
-  EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
-
-  graph_.mutable_schema().RevertDeleteVertexProperties("Person", delete_props);
-  // Property should be visible again
-  EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
-}
-
 // Test DeleteEdgeProperties
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeleteEdgePropertiesPhysical_RemovesProperties) {
@@ -362,43 +336,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
                                                  "position"));
 }
 
-// Test RevertDeleteEdgeProperties
-TEST_F(PropertyGraphLogicalDeleteTest,
-       RevertDeleteEdgeProperties_RestoresProperties) {
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)}};
-  std::vector<std::string> pk_names = {"id"};
-
-  graph_.CreateVertexType(
-      BuildCreateVertexTypeParam("Person", v_props, pk_names));
-  graph_.CreateVertexType(
-      BuildCreateVertexTypeParam("Company", v_props, pk_names));
-
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
-  graph_.CreateEdgeType(
-      BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
-
-  label_t src_label = graph_.schema().get_vertex_label_id("Person");
-  label_t dst_label = graph_.schema().get_vertex_label_id("Company");
-  label_t e_label = graph_.schema().get_edge_label_id("WorksAt");
-
-  // Delete logically then revert
-  std::vector<std::string> delete_props = {"position"};
-  graph_.mutable_schema().DeleteEdgeProperties("Person", "Company", "WorksAt",
-                                               delete_props, true);
-  EXPECT_FALSE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
-                                                 "position"));
-  graph_.mutable_schema().RevertDeleteEdgeProperties("Person", "Company",
-                                                     "WorksAt", delete_props);
-  EXPECT_TRUE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
-                                                "position"));
-}
-
-// Test corner case: Multiple logical deletes and reverts
-TEST_F(PropertyGraphLogicalDeleteTest,
-       MultipleLogicalDeletesAndReverts_WorksCorrectly) {
+// Test corner case: Multiple logical deletes
+TEST_F(PropertyGraphLogicalDeleteTest, MultipleLogicalDeletes_WorksCorrectly) {
   std::vector<std::pair<std::string, execution::Value>> properties = {
       {"id", execution::Value::INT64(0L)},
       {"name", execution::Value::STRING(std::string("string"))},
@@ -419,16 +358,6 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.mutable_schema().DeleteVertexProperties("Person", {"email"}, true);
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "email"));
-
-  // Revert age
-  graph_.mutable_schema().RevertDeleteVertexProperties("Person", {"age"});
-  EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
-  EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "email"));
-
-  // Revert email
-  graph_.mutable_schema().RevertDeleteVertexProperties("Person", {"email"});
-  EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
-  EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "email"));
 }
 
 // Test corner case: Cannot delete primary key property

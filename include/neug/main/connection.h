@@ -26,6 +26,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -82,9 +83,11 @@ class NeugDB;
  */
 class Connection {
  public:
-  Connection(PropertyGraph& graph,
+  Connection(GraphSnapshotStore& snapshot_store,
              std::shared_ptr<QueryProcessor> query_processor)
-      : graph_(graph), query_processor_(query_processor), is_closed_(false) {}
+      : snapshot_store_(snapshot_store),
+        query_processor_(query_processor),
+        is_closed_(false) {}
   ~Connection() { Close(); }
 
   /**
@@ -198,7 +201,7 @@ class Connection {
   bool IsClosed() const { return is_closed_.load(); }
 
  private:
-  PropertyGraph& graph_;
+  GraphSnapshotStore& snapshot_store_;
 
   std::shared_ptr<QueryProcessor> query_processor_;
 

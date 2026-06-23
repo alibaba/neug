@@ -17,60 +17,26 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits>
-#include <map>
 #include <memory>
-#include <stack>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-#include "neug/common/extra_type_info.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/property_graph_cow_state.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/transaction_utils.h"
-#include "neug/transaction/undo_log.h"
-#include "neug/utils/id_indexer.h"
+#include "neug/transaction/wal/wal_builder.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/serialization/in_archive.h"
-
-#define ENSURE_VERTEX_LABEL_NOT_DELETED(label)                            \
-  do {                                                                    \
-    if (deleted_vertex_labels_.count(label)) {                            \
-      THROW_RUNTIME_ERROR("Vertex label is deleted in this transaction"); \
-    }                                                                     \
-  } while (0)
-
-#define ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label) \
-  do {                                                                  \
-    if (deleted_edge_labels_.count(                                     \
-            std::make_tuple(src_label, dst_label, edge_label))) {       \
-      THROW_RUNTIME_ERROR("Edge label is deleted in this transaction"); \
-    }                                                                   \
-  } while (0)
-
-#define ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name)                 \
-  do {                                                                       \
-    if (label < deleted_vertex_properties_.size() &&                         \
-        deleted_vertex_properties_[label].count(prop_name)) {                \
-      THROW_RUNTIME_ERROR("Vertex property is deleted in this transaction"); \
-    }                                                                        \
-  } while (0)
-
-#define ENSURE_EDGE_PROPERTY_NOT_DELETED(index, prop_name)                 \
-  do {                                                                     \
-    if (deleted_edge_properties_.find(index) !=                            \
-            deleted_edge_properties_.end() &&                              \
-        deleted_edge_properties_.at(index).count(prop_name)) {             \
-      THROW_RUNTIME_ERROR("Edge property is deleted in this transaction"); \
-    }                                                                      \
-  } while (0)
 
 namespace neug {
 
@@ -78,311 +44,158 @@ class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
 class Schema;
-template <typename INDEX_T>
-class IdIndexerBase;
 
 /**
- * @brief Transaction for updating existing graph elements (vertices and edges).
+ * @brief Resource holder and lifecycle manager for update transactions.
  *
- * UpdateTransaction handles modifications to existing graph data with ACID
- * guarantees. It supports updating vertex properties, edge properties, and
- * provides options for vertex column resizing during updates.
+ * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
+ * resources (WAL buffer, allocator, version manager, snapshot store).
+ * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
+ * which accesses UpdateTransaction's private members via friend declaration.
  *
- * **Key Features:**
- * - Update vertex and edge properties
- * - Configurable vertex column resizing behavior
- * - Write-Ahead Logging for durability
- * - MVCC support with timestamp management
- * - Commit/abort transaction semantics
- *
- * **Implementation Details:**
- * - Uses work_dir for temporary storage during updates
- * - Destructor calls release() for cleanup
- * - Integrates with version manager for timestamp coordination
+ * **COW Design:**
+ * - Holds a shared_ptr to a COW-cloned PropertyGraph
+ * - StorageTPUpdateInterface performs all DDL/DML modifications on the COW copy
+ * - Commit flushes WAL and publishes the COW copy via
+ * GraphSnapshotStore::PublishSnapshot()
+ * - Abort discards the COW copy (no effect on original)
  *
  * @since v0.1.0
  */
 class UpdateTransaction {
  public:
   /**
-   * @brief Construct an UpdateTransaction.
+   * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
-   * @param session Reference to the database session
-   * @param graph Reference to the property graph (mutable for updates)
+   * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
-   * @param work_dir Working directory for temporary files
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
+   * @param snapshot_store Reference to GraphSnapshotStore for commit
+   * @param cache Reference to query cache
    * @param timestamp Transaction timestamp
    *
+   * @note NeugDB is responsible for creating the COW copy via Clone()
    * @since v0.1.0
    */
-  UpdateTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, execution::LocalQueryCache& cache,
-                    timestamp_t timestamp);
+  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
+                    IWalWriter& logger, IVersionManager& vm,
+                    GraphSnapshotStore& snapshot_store,
+                    execution::LocalQueryCache& cache, timestamp_t timestamp);
 
   /**
-   * @brief Destructor that calls release().
-   *
-   * Implementation: Calls release() to clean up resources and release
-   * timestamp.
-   *
+   * @brief Destructor that calls Abort().
    * @since v0.1.0
    */
   ~UpdateTransaction();
 
   /**
    * @brief Get the transaction timestamp.
-   *
-   * @return timestamp_t The timestamp for this transaction
-   *
-   * Implementation: Returns timestamp_ member variable.
-   *
    * @since v0.1.0
    */
   timestamp_t timestamp() const;
-
-  /**
-   * @brief Get read-only access to the graph schema.
-   *
-   * @return const Schema& Reference to the graph schema
-   *
-   * Implementation: Returns graph_.schema().
-   *
-   * @since v0.1.0
-   */
-  const Schema& schema() const { return graph_.schema(); }
 
   bool Commit();
 
   void Abort();
 
-  Status CreateVertexType(const CreateVertexTypeParam& config);
-
-  Status CreateEdgeType(const CreateEdgeTypeParam& config);
-
-  Status AddVertexProperties(const AddVertexPropertiesParam& config);
-
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config);
-
-  Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
-
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config);
-
-  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config);
-
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
-
-  Status DeleteVertexType(const std::string& vertex_type_name);
-
-  Status DeleteEdgeType(const std::string& src_type,
-                        const std::string& dst_type,
-                        const std::string& edge_type);
-
-  Status AddVertex(label_t label, const execution::Value& oid,
-                   const std::vector<execution::Value>& props, vid_t& vid);
-
-  /**
-   * @brief Delete vertex and its associated edges.
-   * @param label Vertex label id.
-   * @param lid Local vertex id.
-   * @return true if deletion is successful, false otherwise.
-   * @note We always delete vertex in detach mode.
-   */
-  bool DeleteVertex(label_t label, vid_t lid);
-
-  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label,
-                 const std::vector<execution::Value>& properties,
-                 const void*& prop);
-
-  bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                   label_t edge_label);
-
-  bool DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                  label_t edge_label, int32_t oe_offset, int32_t ie_offset);
-
-  std::shared_ptr<RefColumnBase> get_vertex_property_column(
-      uint8_t label, const std::string& col_name) const {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-    ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, col_name);
-    return graph_.GetVertexPropertyColumn(label, col_name);
-  }
-
-  execution::Value GetVertexProperty(label_t label, vid_t lid,
-                                     int col_id) const;
-
-  bool UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                            const execution::Value& value);
-
-  bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                          vid_t dst, label_t edge_label, int32_t col_id,
-                          const execution::Value& value);
-
-  bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                          vid_t dst, label_t edge_label, int32_t oe_offset,
-                          int32_t ie_offset, int32_t col_id,
-                          const execution::Value& value);
-
-  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
-                                      label_t edge_label) const {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
-    ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
-    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
-  }
-
-  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
-                                      label_t edge_label) const {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
-    ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
-    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
-  }
-
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
+
+  PropertyGraph& graph() const { return *cow_graph_; }
+
+  const GraphView& view() const { return view_; }
+
+  // --- Read-only accessors (not graph modifications) ---
+  const Schema& schema() const { return cow_graph_->schema(); }
+
   execution::Value GetVertexId(label_t label, vid_t lid) const;
 
   bool GetVertexIndex(label_t label, const execution::Value& id,
                       vid_t& index) const;
 
-  PropertyGraph& graph() const { return graph_; }
+  execution::Value GetVertexProperty(label_t label, vid_t lid,
+                                     int col_id) const;
+
+  std::shared_ptr<RefColumnBase> get_vertex_property_column(
+      uint8_t label, const std::string& col_name) const {
+    return cow_graph_->GetVertexPropertyColumn(label, col_name);
+  }
+
+  CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
+    return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                                   edge_label, timestamp_);
+  }
+
+  CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
+                                      label_t edge_label) const {
+    return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
+                                                   edge_label, timestamp_);
+  }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-    ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-    auto edge_schema =
-        graph_.schema().get_edge_schema(src_label, dst_label, edge_label);
-    if (edge_schema->property_names.size() <= static_cast<size_t>(prop_id)) {
-      if (edge_schema->property_names.size() != 0) {
-        THROW_RUNTIME_ERROR("Invalid edge property id");
-      }
-    }
-    auto index =
-        graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
-    ENSURE_EDGE_PROPERTY_NOT_DELETED(index,
-                                     edge_schema->property_names[prop_id]);
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_id);
+    return cow_graph_->GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                           prop_id);
   }
 
-  void CreateCheckpoint();
-
-  /**
-   * Batch add vertices with given label, ids and property table.
-   * We will not generate wal log for this operation. Assume the ids and
-   * table are valid.
-   * @param v_label_id The label id of the vertices to be added.
-   * @param ids The ids of the vertices to be added.
-   * @param table The property table of the vertices to be added.
-   * @return Status
-   */
-  // TODO(zhanglei): Remove batch method from UpdateTransaction after
-  // refactoring GraphInterface.
-  inline Status BatchAddVertices(
-      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
-    return graph_.BatchAddVertices(v_label_id, supplier);
-  }
-
-  // TODO(zhanglei): Remove batch method from UpdateTransaction after
-  // refactoring GraphInterface.
-  inline Status BatchAddEdges(label_t src_label, label_t dst_label,
-                              label_t edge_label,
-                              std::shared_ptr<IRecordBatchSupplier> supplier) {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-    ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-    return graph_.BatchAddEdges(src_label, dst_label, edge_label,
-                                std::move(supplier));
-  }
-
-  // TODO(zhanglei): Remove batch method from UpdateTransaction after
-  // refactoring GraphInterface.
-  inline Status BatchDeleteVertices(label_t v_label_id,
-                                    const std::vector<vid_t>& vids) {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
-    return graph_.BatchDeleteVertices(v_label_id, vids);
-  }
+  friend class StorageTPUpdateInterface;
 
  private:
-  bool IsValidLid(label_t label, vid_t lid) const;
-
   void release();
 
-  void applyVertexTypeDeletions();
+  // COW storage - the cloned PropertyGraph
+  std::shared_ptr<PropertyGraph> cow_graph_;
+  PropertyGraphCowState cow_state_;
+  GraphView view_;
 
-  void applyEdgeTypeDeletions();
-
-  void applyVertexPropDeletion();
-
-  void applyEdgePropDeletion();
-
-  void invalidate_query_cache_if_needed();
-
-  // Revert all changes made in this transaction.
-  void revert_changes();
-
-  PropertyGraph& graph_;
   Allocator& alloc_;
   IWalWriter& logger_;
   IVersionManager& vm_;
+  GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
-  InArchive arc_;
-  int op_num_;
-  bool schema_changed_{false};
-
-  std::unordered_set<label_t> deleted_vertex_labels_;
-  std::unordered_set<std::tuple<label_t, label_t, label_t>,
-                     hash_tuple::hash<label_t, label_t, label_t>>
-      deleted_edge_labels_;
-  std::vector<std::unordered_set<std::string>> deleted_vertex_properties_;
-  std::unordered_map<uint32_t, std::unordered_set<std::string>>
-      deleted_edge_properties_;
-  std::stack<std::unique_ptr<IUndoLog>> undo_logs_;
+  std::shared_ptr<Checkpoint> ckp_;
+  WalBuilder wal_builder_;
 };
 
 class StorageTPUpdateInterface : public StorageUpdateInterface {
  public:
   explicit StorageTPUpdateInterface(UpdateTransaction& txn)
-      : StorageUpdateInterface(txn.graph(), txn.timestamp()), txn_(txn) {}
-  ~StorageTPUpdateInterface() {}
+      : StorageUpdateInterface(txn.view(), txn.timestamp()),
+        cow_graph_(txn.cow_graph_),
+        cow_state_(txn.cow_state_),
+        mut_view_(txn.view_),
+        alloc_(txn.alloc_),
+        ckp_(txn.ckp_),
+        wal_(txn.wal_builder_) {}
+  ~StorageTPUpdateInterface() = default;
 
-  void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                            const execution::Value& value) override {
-    txn_.UpdateVertexProperty(label, lid, col_id, value);
-  }
-
-  void UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                          vid_t dst, label_t edge_label, int32_t oe_offset,
-                          int32_t ie_offset, int32_t col_id,
-                          const execution::Value& value) override {
-    txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
-                            oe_offset, ie_offset, col_id, value);
-  }
-
+  // --- DML methods ---
+  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                              const execution::Value& value) override;
+  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                            vid_t dst, label_t edge_label, int32_t oe_offset,
+                            int32_t ie_offset, int32_t col_id,
+                            const execution::Value& value) override;
   Status AddVertex(label_t label, const execution::Value& id,
                    const std::vector<execution::Value>& props,
-                   vid_t& vid) override {
-    return txn_.AddVertex(label, id, props, vid);
-  }
-
+                   vid_t& vid) override;
   Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                  label_t edge_label,
                  const std::vector<execution::Value>& properties,
-                 const void*& prop) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
-                        prop);
-  }
-  void CreateCheckpoint() override;
+                 const void*& prop) override;
+  Status DeleteVertex(label_t label, vid_t lid) override;
+  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label) override;
+  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                    label_t edge_label, int32_t oe_offset,
+                    int32_t ie_offset) override;
 
+  // --- Batch methods ---
+  void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;
@@ -397,6 +210,8 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
+
+  // --- DDL methods ---
   Status CreateVertexType(const CreateVertexTypeParam& config) override;
   Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
   Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
@@ -413,7 +228,26 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                         const std::string& edge_type) override;
 
  private:
-  UpdateTransaction& txn_;
+  // --- COW detach helpers ---
+  Status detachVertexTableForInsert(label_t label);
+  Status detachVertexTableForDelete(label_t label);
+  Status detachVertexColumn(label_t label, int32_t col_id);
+  Status detachEdgeTableForInsert(uint32_t edge_triplet_id);
+  Status detachEdgeTableForDelete(uint32_t edge_triplet_id);
+  Status detachEdgeColumn(uint32_t edge_triplet_id, int32_t col_id);
+  Status detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid, vid_t dst_lid,
+                        Allocator& alloc);
+  Status detachForResize(label_t label, size_t capacity);
+  Status detachForResize(label_t src_label, label_t dst_label,
+                         label_t edge_label, size_t capacity);
+  Status prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
+
+  std::shared_ptr<PropertyGraph>& cow_graph_;
+  PropertyGraphCowState& cow_state_;
+  GraphView& mut_view_;
+  Allocator& alloc_;
+  std::shared_ptr<Checkpoint>& ckp_;
+  WalBuilder& wal_;
 };
 
 }  // namespace neug

@@ -31,6 +31,7 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -278,12 +279,20 @@ class NeugDB {
    */
   void CloseAllConnection();
 
-  inline const PropertyGraph& graph() const { return graph_; }
-  inline PropertyGraph& graph() { return graph_; }
+  inline const PropertyGraph& graph() const {
+    return snapshot_store_->CurrentSnapshot();
+  }
 
-  inline const Schema& schema() const { return graph_.schema(); }
+  inline const Schema& schema() const {
+    return snapshot_store_->CurrentSnapshot().schema();
+  }
 
-  std::string work_dir() const { return ws_.db_dir(); }
+  inline GraphSnapshotStore& graph_snapshot_store() { return *snapshot_store_; }
+  inline const GraphSnapshotStore& graph_snapshot_store() const {
+    return *snapshot_store_;
+  }
+
+  std::string work_dir() const { return checkpoint_mgr_.db_dir(); }
 
   inline const NeugDBConfig& config() const { return config_; }
 
@@ -299,8 +308,9 @@ class NeugDB {
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);
   void openGraphAndIngestWals();
-  void ingestWals(IWalParser& parser);
+  void ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlannerAndQueryProcessor();
+
   /**
    * @brief Create a checkpoint of the current graph.
    * @param force_compaction Whether to force compaction before creating the
@@ -322,11 +332,12 @@ class NeugDB {
   bool is_pure_memory_;
   int thread_num_;
   NeugDBConfig config_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   std::unique_ptr<FileLock> file_lock_;
 
-  // The property graph and transaction controls
-  PropertyGraph graph_;
+  // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
+  std::unique_ptr<GraphSnapshotStore> snapshot_store_;
+
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;

@@ -171,4 +171,17 @@ bool MMapContainer::IsDirty() {
                 MD5_DIGEST_LENGTH) != 0;
 }
 
+std::unique_ptr<IDataContainer> MMapContainer::Fork(Checkpoint& checkpoint,
+                                                    MemoryLevel level) {
+  Sync();
+  if (!IsDirty()) {
+    return checkpoint.OpenFile(path_, level);
+  } else {
+    auto ret = checkpoint.CreateRuntimeContainer(this->GetDataSize(), level);
+    memcpy(ret->GetData(), data_, size_);
+    ret->Sync();
+    return ret;
+  }
+}
+
 }  // namespace neug

@@ -99,9 +99,30 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     LOG(FATAL) << "not implemented...";
     return {};
+  }
+
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "DetachVertex is not implemented for immutable csr");
+  }
+
+  // Zero-copy COW clone: share IDataContainer buffers via shared_ptr.
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<ImmutableCsr<EDATA_T>>();
+    cow_clone->adj_list_buffer_ = adj_list_buffer_;
+    cow_clone->degree_list_buffer_ = degree_list_buffer_;
+    cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
+    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
+  }
+
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "Detach is not implemented for immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -111,9 +132,9 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> adj_list_buffer_;
-  std::unique_ptr<IDataContainer> degree_list_buffer_;
-  std::unique_ptr<IDataContainer> nbr_list_buffer_;
+  std::shared_ptr<IDataContainer> adj_list_buffer_;
+  std::shared_ptr<IDataContainer> degree_list_buffer_;
+  std::shared_ptr<IDataContainer> nbr_list_buffer_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
 };
@@ -187,9 +208,27 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
                        timestamp_t ts = 0) override;
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     LOG(FATAL) << "not implemented...";
     return {};
+  }
+
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "DetachVertex is not implemented for single immutable csr");
+  }
+
+  // Zero-copy COW clone: share IDataContainer buffer via shared_ptr.
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<SingleImmutableCsr<EDATA_T>>();
+    cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
+  }
+
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(
+        "Detach is not implemented for single immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }
@@ -199,7 +238,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> nbr_list_buffer_;
+  std::shared_ptr<IDataContainer> nbr_list_buffer_;
   std::atomic<uint64_t> edge_num_{0};
 };
 

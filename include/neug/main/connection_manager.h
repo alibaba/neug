@@ -21,7 +21,7 @@
 
 namespace neug {
 
-class PropertyGraph;
+class GraphSnapshotStore;
 class Connection;
 class IGraphPlanner;
 class QueryProcessor;
@@ -29,11 +29,11 @@ struct NeugDBConfig;
 
 class ConnectionManager {
  public:
-  ConnectionManager(PropertyGraph& graph,
+  ConnectionManager(GraphSnapshotStore& snapshot_store,
                     std::shared_ptr<IGraphPlanner> planner,
                     std::shared_ptr<QueryProcessor> query_processor,
                     const NeugDBConfig& config)
-      : graph_(graph),
+      : snapshot_store_(snapshot_store),
         planner_(planner),
         query_processor_(query_processor),
         config_(config) {}
@@ -61,7 +61,7 @@ class ConnectionManager {
   }
 
  private:
-  PropertyGraph& graph_;
+  GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   const NeugDBConfig& config_;

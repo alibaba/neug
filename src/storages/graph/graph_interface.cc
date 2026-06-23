@@ -17,18 +17,18 @@
 
 namespace neug {
 
-void StorageAPUpdateInterface::UpdateVertexProperty(
+Status StorageAPUpdateInterface::UpdateVertexProperty(
     label_t label, vid_t lid, int col_id, const execution::Value& value) {
-  graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
 }
 
-void StorageAPUpdateInterface::UpdateEdgeProperty(
+Status StorageAPUpdateInterface::UpdateEdgeProperty(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const execution::Value& value) {
-  graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
-                            oe_offset, ie_offset, col_id, value,
-                            neug::timestamp_t(0));
+  return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
+                                   oe_offset, ie_offset, col_id, value,
+                                   neug::timestamp_t(0));
 }
 
 Status StorageAPUpdateInterface::AddVertex(
@@ -84,7 +84,33 @@ Status StorageAPUpdateInterface::AddEdge(
   return status;
 }
 
-void StorageAPUpdateInterface::CreateCheckpoint() { graph_.Dump(); }
+void StorageAPUpdateInterface::CreateCheckpoint() {
+  graph_.Dump();
+  // Dump(reopen=true) clears and re-opens the graph, replacing all vertex/edge
+  // tables.  Rebuild the view so cached pointers stay valid.
+  mut_view_.Rebuild(graph_);
+}
+
+Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
+  return graph_.DeleteVertex(label, lid, timestamp_);
+}
+
+Status StorageAPUpdateInterface::DeleteEdge(label_t src_label, vid_t src,
+                                            label_t dst_label, vid_t dst,
+                                            label_t edge_label,
+                                            int32_t oe_offset,
+                                            int32_t ie_offset) {
+  return graph_.DeleteEdge(src_label, src, dst_label, dst, edge_label,
+                           oe_offset, ie_offset, timestamp_);
+}
+
+Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
+                                             label_t dst_label, vid_t dst,
+                                             label_t edge_label) {
+  // AP mode: delegate to batch version with single pair
+  std::vector<std::tuple<vid_t, vid_t>> edges = {{src, dst}};
+  return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
+}
 
 Status StorageAPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
@@ -120,22 +146,44 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
 
 Status StorageAPUpdateInterface::CreateVertexType(
     const CreateVertexTypeParam& config) {
-  return graph_.CreateVertexType(config);
+  auto status = graph_.CreateVertexType(config);
+  if (status.ok()) {
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::CreateEdgeType(
     const CreateEdgeTypeParam& config) {
-  return graph_.CreateEdgeType(config);
+  auto status = graph_.CreateEdgeType(config);
+  if (status.ok()) {
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::AddVertexProperties(
     const AddVertexPropertiesParam& config) {
-  return graph_.AddVertexProperties(config);
+  auto status = graph_.AddVertexProperties(config);
+  if (status.ok()) {
+    // Adding columns replaces the table header/column list cached by
+    // GraphView, so refresh the mutable view before subsequent reads.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::AddEdgeProperties(
     const AddEdgePropertiesParam& config) {
-  return graph_.AddEdgeProperties(config);
+  auto status = graph_.AddEdgeProperties(config);
+  if (status.ok()) {
+    // Adding edge properties may trigger a bundled→unbundled CSR rebuild
+    // (dropAndCreateNewUnbundledCSR), which replaces the underlying CsrBase
+    // objects.  The mutable view caches raw pointers to those objects, so we
+    // must rebuild to pick up the new pointers.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::RenameVertexProperties(
@@ -150,23 +198,43 @@ Status StorageAPUpdateInterface::RenameEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexProperties(
     const DeleteVertexPropertiesParam& config) {
-  return graph_.DeleteVertexProperties(config);
+  auto status = graph_.DeleteVertexProperties(config);
+  if (status.ok()) {
+    // Deleting columns shifts the table column vector cached by GraphView.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeProperties(
     const DeleteEdgePropertiesParam& config) {
-  return graph_.DeleteEdgeProperties(config);
+  auto status = graph_.DeleteEdgeProperties(config);
+  if (status.ok()) {
+    // Deleting edge properties may trigger a CSR rebuild (unbundled→bundled or
+    // unbundled→empty), which replaces the underlying CsrBase objects.  Rebuild
+    // the mutable view so cached pointers stay valid.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::DeleteVertexType(
     const std::string& vertex_type_name) {
-  return graph_.DeleteVertexType(vertex_type_name);
+  auto status = graph_.DeleteVertexType(vertex_type_name);
+  if (status.ok()) {
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
                                                 const std::string& dst_type,
                                                 const std::string& edge_type) {
-  return graph_.DeleteEdgeType(src_type, dst_type, edge_type);
+  auto status = graph_.DeleteEdgeType(src_type, dst_type, edge_type);
+  if (status.ok()) {
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 }  // namespace neug
