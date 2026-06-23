@@ -172,8 +172,10 @@ When executing queries, you can specify an `access_mode` to control transaction 
 **Access Mode Hierarchy:** Access modes follow a hierarchy where higher modes provide stronger guarantees but lower concurrency:
 
 ```
-read < insert < update ~= schema
+read < insert < update
 ```
+
+`schema` uses the same serialized update path as `update`.
 
 - **Upward compatibility**: Using a higher access mode than required always works (e.g., `update` mode for a read-only query), but may reduce throughput due to stronger locking
 - **Downward restriction**: Using a lower access mode than required causes an error (e.g., `read` mode for an insert operation)

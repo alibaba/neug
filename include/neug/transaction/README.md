@@ -48,7 +48,7 @@ The `VersionManager` state machine has three effective states for read, insert, 
 
 When an `UpdateTransaction` is created, it enters the update-exec phase (`update_state_`: `0 -> 1`). It waits for all in-flight insert transactions to finish, but does not block or wait for read transactions. New insert transactions and new update transactions are blocked during this phase; existing and new reads continue.
 
-When `begin_update_commit` is called, the update enters the commit phase (`update_state_`: `1 -> 2`). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+When `VersionManager::begin_update_commit` is called, the update enters the commit phase (`update_state_`: `1 -> 2`). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 
 ## Serializability
 
