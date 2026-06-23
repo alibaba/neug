@@ -115,20 +115,22 @@ Schema constraints and referential integrity are enforced. All concurrent operat
 
 #### Isolation
 
-NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable isolation, with operation-specific concurrency rules:
+NeuG uses **Multi-Version Concurrency Control (MVCC)** plus copy-on-write (COW) snapshots to provide serializable isolation, with operation-specific concurrency rules:
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read | Concurrent with all reads and inserts |
-| Insert | Concurrent with reads and other inserts |
-| Update | Acquires global write lock, blocks all operations |
-| Schema (DDL) | Acquires global write lock, blocks all operations |
-| Checkpoint | Acquires global write lock, blocks all operations |
+| Read | Concurrent with reads, inserts, and the update execution phase. New reads wait only during the update commit publish window or compaction. Already-acquired reads continue on their pinned snapshot. |
+| Insert | Concurrent with reads and other inserts while no update or compaction is active. Blocked during update execution, update commit, and compaction. |
+| Update | Serialized: only one update can be open. The execution phase waits for in-flight inserts, blocks new inserts/updates, and mutates a COW snapshot while reads continue. The commit phase briefly blocks new reads/inserts while publishing the COW snapshot; existing reads continue. |
+| Schema (DDL) | Uses the same two-phase `UpdateTransaction` path as update operations. |
+| Checkpoint | Uses the `UpdateTransaction` path in TP service: reads continue during checkpoint execution, while new reads/inserts wait during the commit publish window. |
+| Compaction | Requires a quiescent point: waits for active readers/inserters and blocks new reads, inserts, and updates until compaction completes. |
 
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
 - **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
-- **Updates and schema changes** are relatively rare and can tolerate exclusive locking
+- **Updates and schema changes** are relatively rare and are serialized with other writes, but COW snapshots let long-running reads continue without blocking update execution or commit
+- The short **update commit** window gates new reads and inserts so timestamp visibility and the published snapshot advance in the same order
 - Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
 
 ```python
@@ -142,7 +144,8 @@ session2 = Session("http://localhost:10000/")
 session1.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
 session2.execute("CREATE (p:Person {name: 'Bob'})", access_mode="insert")
 
-# This will block other operations (update takes global lock)
+# This is serialized with inserts and other updates. Existing reads continue
+# on their pinned snapshots; new reads may wait briefly during commit.
 session1.execute("MATCH (p:Person) SET p.updated = true", access_mode="update")
 ```
 
@@ -170,7 +173,7 @@ When executing queries, you can specify an `access_mode` to control transaction 
 **Access Mode Hierarchy:** Access modes follow a hierarchy where higher modes provide stronger guarantees but lower concurrency:
 
 ```
-read < insert < update ≈ schema
+read < insert < update ~= schema
 ```
 
 - **Upward compatibility**: Using a higher access mode than required always works (e.g., `update` mode for a read-only query), but may reduce throughput due to stronger locking
@@ -182,15 +185,15 @@ read < insert < update ≈ schema
 | `read` | insert/update | ❌ Error |
 | `insert` | read/insert | ✅ OK |
 | `insert` | update/schema | ❌ Error |
-| `update`/`schema` | any | ✅ OK (global lock) |
+| `update`/`schema` | any | ✅ OK (serialized update path) |
 
 ```python
 # Optimal: match access mode to operation for best concurrency
 conn.execute("MATCH (n) RETURN n", access_mode="read")        # read lock only
 conn.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")  # insert lock
 
-# Works but suboptimal: update mode for read query (takes global lock)
-conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but blocks other operations
+# Works but suboptimal: update mode for read query enters the update path
+conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduces write concurrency
 ```
 
 ## Data Persistence
@@ -245,10 +248,14 @@ session.close()
 ```
 
 **Service Mode Checkpoint:**
-- Temporarily blocks all operations
+- Uses the same two-phase `UpdateTransaction` path as update operations
+- Blocks new inserts and other updates while the checkpoint transaction is open
+- Lets reads continue during checkpoint execution; already-acquired reads continue through commit
+- Briefly blocks new reads and inserts during the commit publish window
 - Consolidates WAL entries into a unified checkpoint
 - Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
+- Background compaction, when enabled, is stricter: it waits for active readers and inserters to finish, then blocks new transactions while compacting
 
 ## Error Recovery
 
@@ -331,7 +338,8 @@ try:
     # Reads don't block inserts
     result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
     
-    # Updates take global lock - use sparingly in high-concurrency scenarios
+    # Updates are serialized with inserts and other updates. Reads continue
+    # on snapshots, but keep update transactions short in high-concurrency scenarios.
     session.execute("MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true", 
                    access_mode="update")
     
@@ -348,11 +356,11 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for read/insert, exclusive lock for update/DDL |
+| **Isolation** | Exclusive write locks | MVCC for read/insert, COW two-phase update/DDL, exclusive compaction |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes |
-| **Concurrent Inserts** | No | Yes |
-| **Concurrent Updates** | No | No (global lock) |
+| **Concurrent Inserts** | No | Yes, unless an update/compaction is active |
+| **Concurrent Updates** | No | No, updates are serialized while reads continue on snapshots |
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
 
 ## Roadmap
@@ -367,4 +375,3 @@ finally:
 - Delta checkpointing for efficient incremental persistence
 - Reduced checkpoint blocking time for large datasets
 - Automatic checkpoint
-

@@ -60,6 +60,14 @@ class Schema;
  * GraphSnapshotStore::PublishSnapshot()
  * - Abort discards the COW copy (no effect on original)
  *
+ * **Concurrency contract** (VersionManager state machine):
+ * - Acquisition enters update-exec (`update_state_ == 1`): waits for
+ *   in-flight inserts, blocks new inserts/updates/compaction, and lets reads
+ *   continue on their pinned snapshots.
+ * - Commit calls begin_update_commit (`update_state_ == 2`): briefly blocks
+ *   new reads and inserts while the COW snapshot is published. Existing reads
+ *   continue unaffected.
+ *
  * @since v0.1.0
  */
 class UpdateTransaction {
