@@ -40,6 +40,10 @@ bool ReadTransaction::Commit() {
 
 void ReadTransaction::Abort() { release(); }
 
+const Schema& ReadTransaction::schema() const {
+  return guard_.get().mutable_graph()->schema();
+}
+
 void ReadTransaction::release() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     vm_.release_read_timestamp();
