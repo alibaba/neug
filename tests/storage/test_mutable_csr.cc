@@ -100,6 +100,178 @@ using Datatypes =
     ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
+namespace {
+
+struct CsrCowSignature {
+  size_t edge_num{0};
+  size_t src0_degree{0};
+  int64_t dst_sum{0};
+  int64_t data_sum{0};
+};
+
+template <typename CSR_T>
+CsrCowSignature build_cow_signature(const CSR_T& csr) {
+  CsrCowSignature sig;
+  sig.edge_num = csr.edge_num();
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (src == 0) {
+        ++sig.src0_degree;
+      }
+      sig.dst_sum += it.get_vertex();
+      sig.data_sum += *static_cast<const int32_t*>(it.get_data_ptr());
+    }
+  }
+  return sig;
+}
+
+template <typename CSR_T>
+std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                     reinterpret_cast<const char*>(edges.start_ptr)) /
+                    it.cfg.stride;
+      return {src, it.get_vertex(), static_cast<int32_t>(offset)};
+    }
+  }
+  return {std::numeric_limits<vid_t>::max(), std::numeric_limits<vid_t>::max(),
+          -1};
+}
+
+template <typename CSR_T>
+void apply_cow_mutations(CSR_T& csr, Allocator& alloc) {
+  csr.DetachVertex(0, alloc);
+  // csr.batch_put_edges({0}, {1}, {111}, 0);
+  csr.put_edge(0, 0, 111, 0, alloc);
+
+  auto [src, dst, offset] = find_first_edge(csr);
+  ASSERT_NE(offset, -1);
+  csr.DetachVertex(src, alloc);
+  csr.delete_edge(src, offset, 0);
+  csr.revert_delete_edge(src, dst, offset, 0);
+
+  csr.DetachVertex(2, alloc);
+  // csr.batch_put_edges({2}, {3}, {222}, 0);
+  csr.put_edge(2, 3, 222, 0, alloc);
+}
+
+void expect_signature_eq(const CsrCowSignature& lhs,
+                         const CsrCowSignature& rhs) {
+  EXPECT_EQ(lhs.edge_num, rhs.edge_num);
+  EXPECT_EQ(lhs.src0_degree, rhs.src0_degree);
+  EXPECT_EQ(lhs.dst_sum, rhs.dst_sum);
+  EXPECT_EQ(lhs.data_sum, rhs.data_sum);
+}
+
+template <MemoryLevel OPEN_LEVEL, MemoryLevel MATERIALIZE_LEVEL>
+struct CsrMaterializeLevelCase {
+  static constexpr MemoryLevel kOpenLevel = OPEN_LEVEL;
+  static constexpr MemoryLevel kMaterializeLevel = MATERIALIZE_LEVEL;
+};
+
+using MutableCsrMaterializeLevelCases = ::testing::Types<
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory, MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kInMemory, MemoryLevel::kSyncToFile>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kHugePagePreferred,
+                            MemoryLevel::kSyncToFile>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kInMemory>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile,
+                            MemoryLevel::kHugePagePreferred>,
+    CsrMaterializeLevelCase<MemoryLevel::kSyncToFile,
+                            MemoryLevel::kSyncToFile>>;
+
+template <typename CASE_T>
+class MutableCsrCowTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ =
+        std::filesystem::temp_directory_path() /
+        ("mutable_csr_cow_" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()) +
+         "_" + GetTestName());
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+    std::filesystem::create_directories(temp_dir_);
+    checkpoint_mgr_.Open(temp_dir_.string());
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+  }
+
+  std::shared_ptr<Checkpoint> create_checkpoint() {
+    return make_checkpoint(checkpoint_mgr_);
+  }
+
+ private:
+  std::string GetTestName() const {
+    const testing::TestInfo* const test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
+    return std::string(test_info->name());
+  }
+
+ protected:
+  CheckpointManager checkpoint_mgr_;
+  std::filesystem::path temp_dir_;
+};
+
+TYPED_TEST_SUITE(MutableCsrCowTest, MutableCsrMaterializeLevelCases);
+
+TYPED_TEST(MutableCsrCowTest, CowIsolationAndDumpOpenMatrix) {
+  MutableCsr<int32_t> original;
+  auto base_ckp = this->create_checkpoint();
+  original.Open(*base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(src_v_num);
+  original.batch_put_edges(src_vid, dst_vid, int32_data, 0);
+
+  auto original_before = build_cow_signature(original);
+
+  auto cow_module = original.Clone();
+  auto* cow = dynamic_cast<MutableCsr<int32_t>*>(cow_module.get());
+  ASSERT_NE(cow, nullptr);
+  // Detach detaches IDataContainer so writes to cow don't affect
+  // original.
+  cow->Detach(*base_ckp, TypeParam::kMaterializeLevel);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+
+  apply_cow_mutations(*cow, alloc);
+  auto cow_after = build_cow_signature(*cow);
+
+  auto original_after_cow_mutation = build_cow_signature(original);
+  expect_signature_eq(original_after_cow_mutation, original_before);
+
+  apply_cow_mutations(original, alloc);
+  auto original_after_self_mutation = build_cow_signature(original);
+  EXPECT_NE(original_after_self_mutation.edge_num, original_before.edge_num);
+
+  auto cow_after_original_mutation = build_cow_signature(*cow);
+  expect_signature_eq(cow_after_original_mutation, cow_after);
+
+  auto dump_ckp = this->create_checkpoint();
+  auto cow_desc = cow->Dump(*dump_ckp);
+  MutableCsr<int32_t> reopened;
+  reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
+  auto reopened_sig = build_cow_signature(reopened);
+  expect_signature_eq(reopened_sig, cow_after);
+}
+
+}  // namespace
+
 template <typename EDATA_T>
 class MutableCsrTest : public ::testing::Test {
  protected:
@@ -107,11 +279,11 @@ class MutableCsrTest : public ::testing::Test {
     test_dir_ = make_unique_test_dir("mutable_csr_test");
     allocators.emplace_back(
         std::make_unique<Allocator>(MemoryLevel::kInMemory, ""));
-    ws_.Open(test_dir_.string());
+    checkpoint_mgr_.Open(test_dir_.string());
   }
 
   void TearDown() override {
-    ws_.Close();
+    checkpoint_mgr_.Close();
     if (std::filesystem::exists(test_dir_)) {
       std::filesystem::remove_all(test_dir_);
     }
@@ -135,13 +307,13 @@ class MutableCsrTest : public ::testing::Test {
       std::filesystem::remove_all(test_dir_);
     }
     std::filesystem::create_directories(test_dir_);
-    // The previous helper invocation left checkpoints in ws_; the directory
-    // wipe above made them stale, so re-sync the workspace with disk before
-    // creating a new checkpoint.
-    ws_.Close();
-    ws_.Open(test_dir_.string());
+    // The previous helper invocation left checkpoints in checkpoint_mgr_; the
+    // directory wipe above made them stale, so re-sync the workspace with disk
+    // before creating a new checkpoint.
+    checkpoint_mgr_.Close();
+    checkpoint_mgr_.Open(test_dir_.string());
 
-    auto ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
@@ -176,13 +348,13 @@ class MutableCsrTest : public ::testing::Test {
       std::filesystem::remove_all(test_dir_);
     }
     std::filesystem::create_directories(test_dir_);
-    // The previous helper invocation left checkpoints in ws_; the directory
-    // wipe above made them stale, so re-sync the workspace with disk before
-    // creating a new checkpoint.
-    ws_.Close();
-    ws_.Open(test_dir_.string());
+    // The previous helper invocation left checkpoints in checkpoint_mgr_; the
+    // directory wipe above made them stale, so re-sync the workspace with disk
+    // before creating a new checkpoint.
+    checkpoint_mgr_.Close();
+    checkpoint_mgr_.Open(test_dir_.string());
 
-    auto ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     csr.Open(*ckp, ModuleDescriptor(), memory_level);
     csr.resize(single_src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
@@ -373,9 +545,9 @@ class MutableCsrTest : public ::testing::Test {
   }
 
   std::vector<std::unique_ptr<neug::Allocator>> allocators;
-  CheckpointManager& workspace() { return ws_; }
+  CheckpointManager& workspace() { return checkpoint_mgr_; }
   std::filesystem::path test_dir_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
 
@@ -736,18 +908,18 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
 
   void SetUp() override {
     test_dir_ = make_unique_test_dir("mutable_csr_dump_dirty_test");
-    ws_.Open(test_dir_.string());
+    checkpoint_mgr_.Open(test_dir_.string());
     alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, "");
   }
   void TearDown() override {
-    ws_.Close();
+    checkpoint_mgr_.Close();
     if (std::filesystem::exists(test_dir_))
       std::filesystem::remove_all(test_dir_);
   }
 
   std::shared_ptr<Checkpoint> prepare(CsrT& csr, ModuleDescriptor& desc) {
     CsrT orig;
-    auto ckp = make_checkpoint(ws_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     orig.resize(VNUM);
     orig.batch_put_edges(src_, dst_, data_);
@@ -782,7 +954,7 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
   }
 
   std::filesystem::path test_dir_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   std::unique_ptr<Allocator> alloc_;
 };
 
@@ -809,7 +981,7 @@ TEST_F(MutableCsrDumpDirtyTest, FastPath_DataIntegrity) {
 
 TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
   CsrT orig;
-  auto ckp = make_checkpoint(ws_);
+  auto ckp = make_checkpoint(checkpoint_mgr_);
   orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
   orig.resize(VNUM);
   orig.batch_put_edges(src_, dst_, data_);

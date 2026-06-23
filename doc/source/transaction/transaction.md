@@ -298,7 +298,7 @@ conn = db.connect()
 # 1. Create schema and checkpoint
 conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
 conn.execute("CREATE NODE TABLE Company(id INT64, name STRING, PRIMARY KEY(id))")
-conn.execute("CREATE REL TABLE WorksAt(FROM Person TO Company)")
+conn.execute("CREATE REL TABLE WORKS_AT(FROM Person TO Company)")
 conn.execute("CHECKPOINT")
 
 # 2. Load data in batches with periodic checkpoints
@@ -307,11 +307,11 @@ conn.execute("COPY Person FROM 'employees_batch2.csv'")
 conn.execute("CHECKPOINT")
 
 conn.execute("COPY Company FROM 'companies.csv'")
-conn.execute("COPY WorksAt FROM 'employment.csv'")
+conn.execute("COPY WORKS_AT FROM 'employment.csv'")
 conn.execute("CHECKPOINT")
 
 # 3. Run analytical queries (read-only, high performance)
-result = conn.execute("MATCH (p:Person)-[:WorksAt]->(c:Company) RETURN c.name, count(p)")
+result = conn.execute("MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN c.name, count(p)")
 
 conn.close()
 db.close()

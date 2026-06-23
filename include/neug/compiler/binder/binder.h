@@ -254,6 +254,9 @@ class Binder {
       const std::string& tableFuncName, const parser::ParsedExpression& expr,
       std::vector<parser::YieldVariable> yieldVariables);
 
+  std::shared_ptr<Expression> convertParam(
+      const std::shared_ptr<Expression>& expr) const;
+
   /*** bind create macro ***/
   std::unique_ptr<BoundStatement> bindCreateMacro(
       const parser::Statement& statement) const;

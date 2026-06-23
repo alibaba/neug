@@ -6,8 +6,8 @@ In addition to the various relational data-based function operations introduced 
 
 Function | Description | Example
 ---------|-------------|--------
-ID() | Get the Internal ID of a node/edge | Return (a) Return ID(a)
-LABEL()/LABELS() | Get the label of a node/edge | Match (a) Return LABEL(a)
+ID() | Get the Internal ID of a node/edge | MATCH (a) RETURN ID(a)
+LABEL()/LABELS() | Get the label of a node/edge | MATCH (a) RETURN LABEL(a)
 
 ## Edge Function
 
@@ -15,16 +15,16 @@ In addition to ID and LABEL functions, there are the following edge-based functi
 
 Function | Description | Example
 ---------|-------------|--------
-START_NODE() | Returns the starting node of edge data | Match ()-[b]->() Return START_NODE(b);
-END_NODE() | Returns the ending node of edge data | Match ()-[b]->() Return END_NODE(b);
+START_NODE() | Returns the starting node of edge data | MATCH ()-[b]->() RETURN START_NODE(b);
+END_NODE() | Returns the ending node of edge data | MATCH ()-[b]->() RETURN END_NODE(b);
 
 ## Repeated Path Function
 
 Function | Description | Example
 ---------|-------------|--------
-NODES | Returns all nodes from a path | Match (a)-[b*2..3]->() Return NODES(b);
-RELS | Returns all edges from a path | Match (a)-[b*2..3]->() Return RELS(b);
-PROPERTIES | Returns given property from nodes/edges | Match (a)-[b*2..3]->() Return PROPERTIES(nodes(b), 'name'), PROPERTIES(rels(b), 'weight');
-IS_TRAIL | Checks if path contains repeated edges (`true` if no) | Match (a)-[b*2..3]->() Return IS_TRAIL(b);
-IS_ACYCLIC | Checks if path contains repeated nodes (`true` if no) | Match (a)-[b*2..3]->() Return IS_ACYCLIC(b);
-LENGTH | Returns the length of a path | Match (a)-[b*2..3]->() Return LENGTH(b);
+NODES | Returns all nodes from a path | MATCH (a)-[b*2..3]->() RETURN NODES(b);
+RELS | Returns all edges from a path | MATCH (a)-[b*2..3]->() RETURN RELS(b);
+PROPERTIES | Returns given property from nodes/edges | MATCH (a)-[b*2..3]->() RETURN PROPERTIES(nodes(b), 'name'), PROPERTIES(rels(b), 'weight');
+IS_TRAIL | Checks if path contains repeated edges (`true` if no) | MATCH (a)-[b*2..3]->() RETURN IS_TRAIL(b);
+IS_ACYCLIC | Checks if path contains repeated nodes (`true` if no) | MATCH (a)-[b*2..3]->() RETURN IS_ACYCLIC(b);
+LENGTH | Returns the length of a path | MATCH (a)-[b*2..3]->() RETURN LENGTH(b);

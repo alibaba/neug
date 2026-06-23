@@ -126,13 +126,13 @@ fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
 
 std::unordered_map<uint32_t,
                    std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
-fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
-                              vid_t lid, timestamp_t ts) {
+fetch_edges_related_to_vertex(const StorageReadInterface& graph,
+                              const Schema& schema, label_t v_label, vid_t lid,
+                              timestamp_t ts) {
   std::unordered_map<uint32_t,
                      std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
       related_edges;  // edge_triplet_id -> <src, dst, oe_offset, ie_offset>
 
-  const auto& schema = txn.schema();
   auto v_label_num = schema.vertex_label_frontier();
   auto e_label_num = schema.edge_label_frontier();
 
@@ -143,9 +143,9 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
     auto props = schema.get_edge_properties(src_label, dst_label, e_label);
     auto triplet_id = schema.generate_edge_label(src_label, dst_label, e_label);
     auto oe_view =
-        txn.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
+        graph.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
     auto ie_view =
-        txn.GetGenericIncomingGraphView(dst_label, src_label, e_label);
+        graph.GetGenericIncomingGraphView(dst_label, src_label, e_label);
     auto edges = fetch_edges_related_to_vertex_from_view(
         props, oe_view, ie_view, lid, is_src, ts);
     auto& bucket = related_edges[triplet_id];
@@ -181,19 +181,26 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
   return related_edges;
 }
 
-UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
-                                     IWalWriter& logger, IVersionManager& vm,
+// =============================================================================
+// UpdateTransaction — lifecycle methods only
+// =============================================================================
+
+UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
+                                     Allocator& alloc, IWalWriter& logger,
+                                     IVersionManager& vm,
+                                     GraphSnapshotStore& snapshot_store,
                                      execution::LocalQueryCache& cache,
                                      timestamp_t timestamp)
-    : graph_(graph),
+    : cow_graph_(std::move(cow_graph)),
+      cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
+      view_(*cow_graph_),
       alloc_(alloc),
       logger_(logger),
       vm_(vm),
+      snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
       timestamp_(timestamp),
-      op_num_(0) {
-  arc_.Resize(sizeof(WalHeader));
-}
+      ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
 
@@ -203,383 +210,395 @@ bool UpdateTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
-  if (op_num_ == 0) {
+  if (wal_builder_.op_num() == 0 && wal_builder_.content_size() == 0) {
     release();
     return true;
   }
 
-  auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
-  header->length = arc_.GetSize() - sizeof(WalHeader);
-  header->type = 1;
-  header->timestamp = timestamp_;
-  if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+  if (!snapshot_store_.HasFreeSlot()) {
+    LOG(ERROR) << "GraphSnapshotStore slot exhausted; refusing to commit";
+    Abort();
+    return false;
+  }
+
+  wal_builder_.finalize(timestamp_);
+  if (!logger_.append(wal_builder_.data(), wal_builder_.size())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
   }
 
-  // Should delete edge types before vertex types
-  applyEdgeTypeDeletions();
-  applyVertexTypeDeletions();
-  // Apply properties deletions after type deletions
-  applyVertexPropDeletion();
-  applyEdgePropDeletion();
-  invalidate_query_cache_if_needed();
+  vm_.begin_update_commit(timestamp_);
+
+  if (wal_builder_.schema_changed()) {
+    pipeline_cache_.clearGlobalCache(cow_graph_->schema().to_yaml().value());
+  }
+
+  // PublishSnapshot MUST happen BEFORE release() which calls
+  // release_update_timestamp (advancing read_ts_). This ordering guarantees
+  // that any new reader observing the advanced read_ts will also see the new
+  // slot.
+  auto status = snapshot_store_.PublishSnapshot(cow_graph_);
+  if (!status.ok()) {
+    // We should never fail to publish the snapshot.
+    LOG(FATAL) << "Failed to publish snapshot: " << status.ToString();
+  }
+
+  // The COW PG is now owned by the new slot. Drop our reference so this
+  // transaction does not appear to still hold the snapshot. view_ wraps
+  // cow_graph_, so reset it too to keep pg_ from dangling.
+  view_ = GraphView();
   release();
   return true;
 }
 
-void UpdateTransaction::Abort() {
-  revert_changes();
-  release();
-}
+void UpdateTransaction::Abort() { release(); }
 
-void UpdateTransaction::revert_changes() {
-  while (!undo_logs_.empty()) {
-    auto& log = undo_logs_.top();
-    log->Undo(graph_, timestamp_);
-    undo_logs_.pop();
+void UpdateTransaction::release() {
+  if (timestamp_ != INVALID_TIMESTAMP) {
+    wal_builder_.clear();
+    vm_.release_update_timestamp(timestamp_);
+    timestamp_ = INVALID_TIMESTAMP;
   }
+  cow_graph_.reset();
 }
 
-Status UpdateTransaction::CreateVertexType(
+Status StorageTPUpdateInterface::CreateVertexType(
     const CreateVertexTypeParam& config) {
-  auto name = config.GetVertexLabel();
-  if (graph_.schema().is_vertex_label_valid(name)) {
+  const auto& name = config.GetVertexLabel();
+  if (cow_graph_->schema().is_vertex_label_valid(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Vertex type " + name + " already exists.");
   }
-  CreateVertexTypeRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.CreateVertexType(config);
+  wal_.LogCreateVertexType(config);
+  auto status = cow_graph_->CreateVertexType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create vertex type " << name << ": "
                << status.ToString();
     return status;
   }
-  undo_logs_.push(std::make_unique<CreateVertexTypeUndo>(name));
-  auto label_id = graph_.schema().get_vertex_label_id(name);
-  if (deleted_vertex_labels_.find(label_id) != deleted_vertex_labels_.end()) {
-    deleted_vertex_labels_.erase(label_id);
+
+  // Expand cow_state for the newly created vertex type.
+  label_t new_label = cow_graph_->schema().get_vertex_label_id(name);
+  if (new_label >= cow_state_.vertex_tables.size()) {
+    cow_state_.vertex_tables.resize(new_label + 1);
   }
-  schema_changed_ = true;
+  auto& new_state = cow_state_.vertex_tables[new_label];
+  new_state.indexer_detached = true;
+  new_state.vertex_timestamp_detached = true;
+  size_t col_count = config.GetProperties().size();
+  new_state.columns_detached.assign(col_count, true);
+
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
-Status UpdateTransaction::CreateEdgeType(const CreateEdgeTypeParam& config) {
+Status StorageTPUpdateInterface::CreateEdgeType(
+    const CreateEdgeTypeParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
-  if (graph_.schema().is_edge_triplet_valid(src_type, dst_type, edge_type)) {
+  if (cow_graph_->schema().is_edge_triplet_valid(src_type, dst_type,
+                                                 edge_type)) {
     LOG(ERROR) << "Edge type " << edge_type << " already exists between "
                << src_type << " and " << dst_type << ".";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Edge type " + edge_type + " already exists between " +
                       src_type + " and " + dst_type + ".");
   }
-  CreateEdgeTypeRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.CreateEdgeType(config);
+  wal_.LogCreateEdgeType(config);
+  auto status = cow_graph_->CreateEdgeType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create edge type " << edge_type << " between "
                << src_type << " and " << dst_type << ": " << status.ToString();
     return status;
   }
-  undo_logs_.push(
-      std::make_unique<CreateEdgeTypeUndo>(src_type, dst_type, edge_type));
-  auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
-  auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
-  auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
-  if (deleted_edge_labels_.find(
-          std::make_tuple(src_label_id, dst_label_id, edge_label_id)) !=
-      deleted_edge_labels_.end()) {
-    deleted_edge_labels_.erase(
-        std::make_tuple(src_label_id, dst_label_id, edge_label_id));
-  }
-  schema_changed_ = true;
+
+  const auto& schema = cow_graph_->schema();
+  label_t src_label = schema.get_vertex_label_id(src_type);
+  label_t dst_label = schema.get_vertex_label_id(dst_type);
+  label_t edge_label = schema.get_edge_label_id(edge_type);
+  uint32_t triplet_id =
+      schema.generate_edge_label(src_label, dst_label, edge_label);
+  EdgeTableCowState new_edge_state;
+  new_edge_state.out_csr_detached = true;
+  new_edge_state.in_csr_detached = true;
+  new_edge_state.columns_detached.assign(config.GetProperties().size(), true);
+  cow_state_.edge_tables.emplace(triplet_id, std::move(new_edge_state));
+
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
-Status UpdateTransaction::AddVertexProperties(
+Status StorageTPUpdateInterface::AddVertexProperties(
     const AddVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
-  const auto& add_properties = config.GetProperties();
   label_t v_label;
   RETURN_IF_NOT_OK(
-      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  AddVertexPropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.AddVertexProperties(config);
+      resolveVertexLabel(cow_graph_->schema(), vertex_type_name, v_label));
+  wal_.LogAddVertexProperties(config);
+  auto status = cow_graph_->AddVertexProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type " << vertex_type_name
                << ": " << status.ToString();
     return status;
   }
-  std::vector<std::string> add_property_names;
-  for (const auto& prop : add_properties) {
-    add_property_names.push_back(prop.first);
-  }
-  undo_logs_.push(
-      std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
-  if (deleted_vertex_properties_.size() > v_label) {
-    for (const auto& prop : add_properties) {
-      if (deleted_vertex_properties_[v_label].find(prop.first) !=
-          deleted_vertex_properties_[v_label].end()) {
-        deleted_vertex_properties_[v_label].erase(prop.first);
-      }
-    }
-  }
-  schema_changed_ = true;
+
+  auto& vt_state = cow_state_.vertex_tables[v_label];
+  size_t new_col_count =
+      cow_graph_->schema().get_vertex_schema(v_label)->property_names.size();
+  vt_state.columns_detached.resize(new_col_count, true);
+
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
-Status UpdateTransaction::AddEdgeProperties(
+Status StorageTPUpdateInterface::AddEdgeProperties(
     const AddEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
-  const auto& add_properties = config.GetProperties();
   label_t src_label_id, dst_label_id, edge_label_id;
-  RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
+  RETURN_IF_NOT_OK(resolveEdgeTriplet(cow_graph_->schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  AddEdgePropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.AddEdgeProperties(config);
+  wal_.LogAddEdgeProperties(config);
+  auto status = cow_graph_->AddEdgeProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
     return status;
   }
-  std::vector<std::string> add_property_names;
-  for (const auto& prop : add_properties) {
-    add_property_names.push_back(prop.first);
-  }
-  undo_logs_.push(std::make_unique<AddEdgePropUndo>(
-      src_label_id, dst_label_id, edge_label_id, add_property_names));
-  auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
-                                                   edge_label_id);
-  if (deleted_edge_properties_.find(index) != deleted_edge_properties_.end()) {
-    for (const auto& prop : add_properties) {
-      if (deleted_edge_properties_[index].find(prop.first) !=
-          deleted_edge_properties_[index].end()) {
-        deleted_edge_properties_[index].erase(prop.first);
-      }
-    }
-  }
-  schema_changed_ = true;
+
+  uint32_t triplet_id = cow_graph_->schema().generate_edge_label(
+      src_label_id, dst_label_id, edge_label_id);
+  auto& et_state = cow_state_.edge_tables[triplet_id];
+  auto edge_schema = cow_graph_->schema().get_edge_schema(
+      src_label_id, dst_label_id, edge_label_id);
+  et_state.columns_detached.resize(edge_schema->property_names.size(), true);
+
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
-Status UpdateTransaction::RenameVertexProperties(
+Status StorageTPUpdateInterface::RenameVertexProperties(
     const RenameVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
-  const auto& rename_properties = config.GetRenameProperties();
   label_t v_label;
   RETURN_IF_NOT_OK(
-      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
-  for (const auto& [old_name, _] : rename_properties) {
-    ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, old_name);
-  }
-  RenameVertexPropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.RenameVertexProperties(config);
+      resolveVertexLabel(cow_graph_->schema(), vertex_type_name, v_label));
+  wal_.LogRenameVertexProperties(config);
+  auto status = cow_graph_->RenameVertexProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
                << vertex_type_name << ": " << status.ToString();
     return status;
   }
-  undo_logs_.push(
-      std::make_unique<RenameVertexPropUndo>(v_label, rename_properties));
-  schema_changed_ = true;
   return status;
 }
 
-Status UpdateTransaction::RenameEdgeProperties(
+Status StorageTPUpdateInterface::RenameEdgeProperties(
     const RenameEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
-  const auto& rename_properties = config.GetRenameProperties();
   label_t src_label_id, dst_label_id, edge_label_id;
-  RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
+  RETURN_IF_NOT_OK(resolveEdgeTriplet(cow_graph_->schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label_id);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label_id);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label_id, dst_label_id, edge_label_id);
-  for (const auto& [old_name, _] : rename_properties) {
-    auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
-                                                     edge_label_id);
-    ENSURE_EDGE_PROPERTY_NOT_DELETED(index, old_name);
-  }
-  RenameEdgePropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  auto status = graph_.RenameEdgeProperties(config);
+  wal_.LogRenameEdgeProperties(config);
+  auto status = cow_graph_->RenameEdgeProperties(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
     return status;
   }
-  undo_logs_.push(std::make_unique<RenameEdgePropUndo>(
-      src_label_id, dst_label_id, edge_label_id, rename_properties));
-  schema_changed_ = true;
   return status;
 }
 
-Status UpdateTransaction::DeleteVertexProperties(
+Status StorageTPUpdateInterface::DeleteVertexProperties(
     const DeleteVertexPropertiesParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
-  const auto& delete_properties = config.GetDeleteProperties();
   label_t v_label;
   RETURN_IF_NOT_OK(
-      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  for (auto& prop_name : delete_properties) {
-    ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, prop_name);
-    if (!graph_.schema().vertex_has_property(vertex_type_name, prop_name)) {
+      resolveVertexLabel(cow_graph_->schema(), vertex_type_name, v_label));
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    if (!cow_graph_->schema().vertex_has_property(vertex_type_name,
+                                                  prop_name)) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Property [" + prop_name + "] does not exist in vertex [" +
                         vertex_type_name + "].");
     }
   }
-  DeleteVertexPropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  graph_.mutable_schema().DeleteVertexProperties(vertex_type_name,
-                                                 delete_properties, true);
-  undo_logs_.push(
-      std::make_unique<DeleteVertexPropUndo>(v_label, delete_properties));
-  if (deleted_vertex_properties_.size() <= v_label) {
-    deleted_vertex_properties_.resize(v_label + 1);
+
+  std::vector<int> del_col_ids;
+  auto& v_table = cow_graph_->get_vertex_table(v_label);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    int col_id = v_table.get_table().get_column_id_by_name(prop_name);
+    if (col_id >= 0) {
+      del_col_ids.push_back(col_id);
+    }
   }
-  for (const auto& prop_name : delete_properties) {
-    deleted_vertex_properties_[v_label].emplace(prop_name);
+
+  wal_.LogDeleteVertexProperties(config);
+  auto status = cow_graph_->DeleteVertexProperties(config);
+  if (status.ok()) {
+    std::sort(del_col_ids.rbegin(), del_col_ids.rend());
+    auto& columns_detached = cow_state_.vertex_tables[v_label].columns_detached;
+    for (int col_id : del_col_ids) {
+      if (static_cast<size_t>(col_id) < columns_detached.size()) {
+        columns_detached.erase(columns_detached.begin() + col_id);
+      }
+    }
+    mut_view_.Rebuild(*cow_graph_);
   }
-  schema_changed_ = true;
-  return Status::OK();
+  return status;
 }
 
-Status UpdateTransaction::DeleteEdgeProperties(
+Status StorageTPUpdateInterface::DeleteEdgeProperties(
     const DeleteEdgePropertiesParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
-  const auto& delete_properties = config.GetDeleteProperties();
   label_t src_label_id, dst_label_id, edge_label_id;
-  RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
+  RETURN_IF_NOT_OK(resolveEdgeTriplet(cow_graph_->schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  for (auto& prop_name : delete_properties) {
-    auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
-                                                     edge_label_id);
-    ENSURE_EDGE_PROPERTY_NOT_DELETED(index, prop_name);
-    if (!graph_.schema().edge_has_property(src_type, dst_type, edge_type,
-                                           prop_name)) {
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    if (!cow_graph_->schema().edge_has_property(src_type, dst_type, edge_type,
+                                                prop_name)) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Property [" + prop_name + "] does not exist in edge [" +
                         edge_type + "] between [" + src_type + "] and [" +
                         dst_type + "].");
     }
   }
-  DeleteEdgePropertiesRedo::Serialize(arc_, config);
-  op_num_ += 1;
-  graph_.mutable_schema().DeleteEdgeProperties(src_type, dst_type, edge_type,
-                                               delete_properties, true);
-  undo_logs_.push(std::make_unique<DeleteEdgePropUndo>(
-      src_label_id, dst_label_id, edge_label_id, delete_properties));
-  auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
-                                                   edge_label_id);
-  if (deleted_edge_properties_.find(index) == deleted_edge_properties_.end()) {
-    deleted_edge_properties_[index] = std::unordered_set<std::string>();
+
+  // Collect pre-deletion state so we can update cow_state_ correctly.
+  // EdgeTable::DeleteProperties may recreate the table entirely
+  // (bundled↔unbundled conversion) in which case we must reset the
+  // entire COW state rather than erasing individual entries.
+  uint32_t triplet_id = cow_graph_->schema().generate_edge_label(
+      src_label_id, dst_label_id, edge_label_id);
+  auto& edge_table = cow_graph_->get_edge_table_by_index(triplet_id);
+  bool was_bundled = edge_table.get_edge_schema_ptr()->is_bundled();
+  size_t old_col_count =
+      cow_state_.edge_tables.count(triplet_id)
+          ? cow_state_.edge_tables.at(triplet_id).columns_detached.size()
+          : 0;
+  std::vector<int> del_col_ids;
+  if (!was_bundled) {
+    auto* table = edge_table.table();
+    if (table) {
+      for (const auto& prop_name : config.GetDeleteProperties()) {
+        int col_id = table->get_column_id_by_name(prop_name);
+        if (col_id >= 0) {
+          del_col_ids.push_back(col_id);
+        }
+      }
+    }
   }
-  for (const auto& prop_name : delete_properties) {
-    deleted_edge_properties_[index].emplace(prop_name);
+
+  wal_.LogDeleteEdgeProperties(config);
+  auto status = cow_graph_->DeleteEdgeProperties(config);
+  if (status.ok()) {
+    auto& state = cow_state_.edge_tables[triplet_id];
+    auto edge_schema = cow_graph_->schema().get_edge_schema(
+        src_label_id, dst_label_id, edge_label_id);
+    size_t new_col_count = edge_schema ? edge_schema->property_names.size() : 0;
+    bool is_now_bundled = edge_schema && edge_schema->is_bundled();
+
+    if (was_bundled != is_now_bundled ||
+        new_col_count != old_col_count - del_col_ids.size()) {
+      state.out_csr_detached = true;
+      state.in_csr_detached = true;
+      state.columns_detached.assign(new_col_count, true);
+      state.out_adjlists_detached.clear();
+      state.in_adjlists_detached.clear();
+    } else {
+      std::sort(del_col_ids.rbegin(), del_col_ids.rend());
+      for (int col_id : del_col_ids) {
+        if (static_cast<size_t>(col_id) < state.columns_detached.size()) {
+          state.columns_detached.erase(state.columns_detached.begin() + col_id);
+        }
+      }
+    }
+    mut_view_.Rebuild(*cow_graph_);
   }
-  schema_changed_ = true;
-  return Status::OK();
+  return status;
 }
 
-Status UpdateTransaction::DeleteVertexType(
+Status StorageTPUpdateInterface::DeleteVertexType(
     const std::string& vertex_type_name) {
   label_t v_label;
   RETURN_IF_NOT_OK(
-      resolveVertexLabel(graph_.schema(), vertex_type_name, v_label));
-  if (graph_.schema().is_vertex_label_soft_deleted(v_label)) {
-    LOG(ERROR) << "Vertex type " << vertex_type_name
-               << " is already deleted (soft delete).";
-    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
-                  "Vertex type " + vertex_type_name +
-                      " is already deleted (soft delete).");
-  }
-  DeleteVertexTypeRedo::Serialize(arc_, vertex_type_name);
-  op_num_ += 1;
-  graph_.mutable_schema().DeleteVertexLabel(vertex_type_name, true);
-  undo_logs_.push(std::make_unique<DeleteVertexTypeUndo>(vertex_type_name));
-  // Mark the vertex table as deleted in this transaction
-  deleted_vertex_labels_.emplace(v_label);
-  auto vertex_label_num = graph_.schema().vertex_label_frontier();
-  auto edge_label_num = graph_.schema().edge_label_frontier();
-  for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
-    if (!graph_.schema().is_vertex_label_valid(dst_label)) {
+      resolveVertexLabel(cow_graph_->schema(), vertex_type_name, v_label));
+
+  // Collect related edge triplet IDs before deletion.
+  // PropertyGraph::DeleteVertexType removes them from edge_tables_, so
+  // we must capture them while the schema is still intact.
+  std::vector<uint32_t> related_edge_ids;
+  const auto& schema = cow_graph_->schema();
+  auto v_label_count = schema.vertex_label_frontier();
+  auto e_label_count = schema.edge_label_frontier();
+  for (label_t i = 0; i < v_label_count; ++i) {
+    if (!schema.is_vertex_label_valid(i)) {
       continue;
     }
-    for (label_t edge_label = 0; edge_label < edge_label_num; ++edge_label) {
-      if (graph_.schema().is_edge_triplet_valid(v_label, dst_label,
-                                                edge_label)) {
-        deleted_edge_labels_.emplace(
-            std::make_tuple(v_label, dst_label, edge_label));
+    for (label_t e = 0; e < e_label_count; ++e) {
+      if (schema.is_edge_triplet_valid(v_label, i, e)) {
+        related_edge_ids.push_back(schema.generate_edge_label(v_label, i, e));
       }
-      if (graph_.schema().is_edge_triplet_valid(dst_label, v_label,
-                                                edge_label)) {
-        deleted_edge_labels_.emplace(
-            std::make_tuple(dst_label, v_label, edge_label));
+      if (v_label != i && schema.is_edge_triplet_valid(i, v_label, e)) {
+        related_edge_ids.push_back(schema.generate_edge_label(i, v_label, e));
       }
     }
   }
-  schema_changed_ = true;
-  return Status::OK();
+
+  wal_.LogDeleteVertexType(vertex_type_name);
+  auto status = cow_graph_->DeleteVertexType(v_label);
+  if (status.ok()) {
+    cow_state_.vertex_tables[v_label] = VertexTableCowState();
+    for (uint32_t edge_id : related_edge_ids) {
+      cow_state_.edge_tables.erase(edge_id);
+    }
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return status;
 }
 
-Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
-                                         const std::string& dst_type,
-                                         const std::string& edge_type) {
+Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
+                                                const std::string& dst_type,
+                                                const std::string& edge_type) {
   label_t src_label_id, dst_label_id, edge_label_id;
-  RETURN_IF_NOT_OK(resolveEdgeTriplet(graph_.schema(), src_type, dst_type,
+  RETURN_IF_NOT_OK(resolveEdgeTriplet(cow_graph_->schema(), src_type, dst_type,
                                       edge_type, src_label_id, dst_label_id,
                                       edge_label_id));
-  if (graph_.schema().is_edge_label_soft_deleted(src_label_id, dst_label_id,
-                                                 edge_label_id)) {
-    LOG(ERROR) << "Edge type " << edge_type << " between " << src_type
-               << " and " << dst_type << " is already deleted (soft delete).";
-    return Status(StatusCode::ERR_SCHEMA_MISMATCH,
-                  "Edge type " + edge_type + " between " + src_type + " and " +
-                      dst_type + " is already deleted (soft delete).");
+  uint32_t triplet_id = cow_graph_->schema().generate_edge_label(
+      src_label_id, dst_label_id, edge_label_id);
+
+  wal_.LogDeleteEdgeType(src_type, dst_type, edge_type);
+  auto status =
+      cow_graph_->DeleteEdgeType(src_label_id, dst_label_id, edge_label_id);
+  if (status.ok()) {
+    cow_state_.edge_tables.erase(triplet_id);
+    mut_view_.Rebuild(*cow_graph_);
   }
-  DeleteEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type);
-  op_num_ += 1;
-  graph_.mutable_schema().DeleteEdgeLabel(src_label_id, dst_label_id,
-                                          edge_label_id, true);
-  undo_logs_.push(
-      std::make_unique<DeleteEdgeTypeUndo>(src_type, dst_type, edge_type));
-  // Mark the edge table as deleted in this transaction
-  deleted_edge_labels_.emplace(
-      std::make_tuple(src_label_id, dst_label_id, edge_label_id));
-  schema_changed_ = true;
-  return Status::OK();
+  return status;
 }
 
-Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
-                                    const std::vector<execution::Value>& props,
-                                    vid_t& vid) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
+Status StorageTPUpdateInterface::AddVertex(
+    label_t label, const execution::Value& oid,
+    const std::vector<execution::Value>& props, vid_t& vid) {
+  std::vector<DataType> types =
+      cow_graph_->schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Property count mismatch for vertex of label " +
-                      graph_.schema().get_vertex_label_name(label));
+                      cow_graph_->schema().get_vertex_label_name(label));
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
@@ -587,198 +606,154 @@ Status UpdateTransaction::AddVertex(label_t label, const execution::Value& oid,
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Property type mismatch at column " +
                         std::to_string(col_i) + " for vertex of label " +
-                        graph_.schema().get_vertex_label_name(label));
+                        cow_graph_->schema().get_vertex_label_name(label));
     }
   }
 
-  const auto& v_table = graph_.get_vertex_table(label);
+  const auto& v_table = cow_graph_->get_vertex_table(label);
   if (v_table.Size() >= v_table.Capacity()) {
     size_t new_capacity =
         v_table.Size() < 4096 ? 4096 : v_table.Size() + v_table.Size() / 4;
-    auto status = graph_.EnsureCapacity(label, new_capacity);
+    RETURN_IF_NOT_OK(detachForResize(label, new_capacity));
+    auto status = cow_graph_->EnsureCapacity(label, new_capacity);
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space for vertex of label "
-                 << graph_.schema().get_vertex_label_name(label) << ": "
+                 << cow_graph_->schema().get_vertex_label_name(label) << ": "
                  << status.ToString();
       return status;
     }
   }
 
-  InsertVertexRedo::Serialize(arc_, label, oid, props);
-  op_num_ += 1;
-  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
+  RETURN_IF_NOT_OK(detachVertexTableForInsert(label));
+  wal_.LogInsertVertex(label, oid, props);
+  auto status = cow_graph_->AddVertex(label, oid, props, vid, read_ts_, true);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
+               << cow_graph_->schema().get_vertex_label_name(label) << ": "
                << status.ToString();
     return status;
   }
-  undo_logs_.push(std::make_unique<InsertVertexUndo>(label, vid));
   return Status::OK();
 }
 
-bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  if (!graph_.IsValidLid(label, lid, timestamp_)) {
-    THROW_RUNTIME_ERROR("Vertex id is out of range or already deleted");
+Status StorageTPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
+  if (!cow_graph_->IsValidLid(label, lid, read_ts_)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex id is out of range or already deleted");
   }
-  auto oid = graph_.GetOid(label, lid, timestamp_);
-  RemoveVertexRedo::Serialize(arc_, label, oid);
-  op_num_ += 1;
-  // edge_triplet_id: < src, dst, oe_offset, ie_offset>
-  std::unordered_map<uint32_t,
-                     std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
-      related_edges =
-          fetch_edges_related_to_vertex(*this, label, lid, timestamp_);
-  undo_logs_.push(
-      std::make_unique<RemoveVertexUndo>(label, lid, related_edges));
-  auto status = graph_.DeleteVertex(label, lid, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to delete vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
-               << status.ToString();
-    undo_logs_.pop();
-    return false;
-  }
-  return true;
+  auto oid = cow_graph_->GetOid(label, lid, read_ts_);
+
+  prepareVertexDelete(label, {lid});
+  wal_.LogRemoveVertex(label, oid);
+  return cow_graph_->DeleteVertex(label, lid, read_ts_);
 }
 
-Status UpdateTransaction::AddEdge(
+Status StorageTPUpdateInterface::AddEdge(
     label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
     label_t edge_label, const std::vector<execution::Value>& properties,
     const void*& prop) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-
   const auto& edge_table =
-      graph_.get_edge_table(src_label, dst_label, edge_label);
+      cow_graph_->get_edge_table(src_label, dst_label, edge_label);
   if (edge_table.PropTableSize() >= edge_table.Capacity()) {
     auto new_capacity =
         edge_table.PropTableSize() < 4096
             ? 4096
             : edge_table.PropTableSize() + edge_table.PropTableSize() / 4;
-    auto status =
-        graph_.EnsureCapacity(src_label, dst_label, edge_label, new_capacity);
+    RETURN_IF_NOT_OK(
+        detachForResize(src_label, dst_label, edge_label, new_capacity));
+    auto status = cow_graph_->EnsureCapacity(src_label, dst_label, edge_label,
+                                             new_capacity);
     if (!status.ok()) {
       LOG(ERROR) << "Failed to ensure space before insert edge: "
                  << status.ToString();
       return status;
     }
   }
-  InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
-                            dst_label, GetVertexId(dst_label, dst_lid),
-                            edge_label, properties);
-  op_num_ += 1;
+  uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_idx));
+  RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
+  wal_.LogInsertEdge(src_label, GetVertexId(src_label, src_lid), dst_label,
+                     GetVertexId(dst_label, dst_lid), edge_label, properties);
   int32_t oe_offset = 0;
-  const void* edge_prop = nullptr;
-  auto add_status = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
-                                   edge_label, properties, timestamp_, alloc_,
-                                   oe_offset, edge_prop, true);
-  if (!add_status.ok()) {
-    LOG(ERROR) << "Failed to add edge: " << add_status.ToString();
-    return add_status;
-  }
-  auto ie_offset = search_other_offset_with_cur_offset(
-      graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
-      graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
-      src_lid, dst_lid, oe_offset,
-      graph_.schema()
-          .get_edge_schema(src_label, dst_label, edge_label)
-          ->properties);
-  undo_logs_.push(std::make_unique<InsertEdgeUndo>(src_label, dst_label,
-                                                   edge_label, src_lid, dst_lid,
-                                                   oe_offset, ie_offset));
-  prop = edge_prop;
-  return Status::OK();
+  return cow_graph_->AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
+                             properties, read_ts_, alloc_, oe_offset, prop,
+                             true);
 }
 
-bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
-                                    label_t dst_label, vid_t dst_lid,
-                                    label_t edge_label) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-  if (!graph_.IsValidLid(src_label, src_lid, timestamp_) ||
-      !graph_.IsValidLid(dst_label, dst_lid, timestamp_)) {
-    THROW_RUNTIME_ERROR(
-        "Source or destination vertex id is out of range or "
-        "already deleted");
+Status StorageTPUpdateInterface::DeleteEdges(label_t src_label, vid_t src_lid,
+                                             label_t dst_label, vid_t dst_lid,
+                                             label_t edge_label) {
+  if (!cow_graph_->IsValidLid(src_label, src_lid, read_ts_) ||
+      !cow_graph_->IsValidLid(dst_label, dst_lid, read_ts_)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Source or destination vertex id is out of range or "
+                  "already deleted");
   }
+
+  uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_idx));
+  RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
 
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src_lid);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
                       .get_edges(dst_lid);
-  auto search_edge_prop_type = determine_search_prop_type(
-      graph_.schema().get_edge_properties(src_label, dst_label, edge_label));
+  auto search_edge_prop_type =
+      determine_search_prop_type(cow_graph_->schema().get_edge_properties(
+          src_label, dst_label, edge_label));
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst_lid) {
       auto ie_offset = fuzzy_search_offset_from_nbr_list(
           ie_edges, src_lid, it.get_data_ptr(), search_edge_prop_type);
-      {
-        RemoveEdgeRedo::Serialize(
-            arc_, src_label, GetVertexId(src_label, src_lid), dst_label,
-            GetVertexId(dst_label, dst_lid), edge_label, oe_offset, ie_offset);
-        op_num_ += 1;
-      }
+      wal_.LogRemoveEdge(src_label, GetVertexId(src_label, src_lid), dst_label,
+                         GetVertexId(dst_label, dst_lid), edge_label, oe_offset,
+                         ie_offset);
       auto status =
-          graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                            oe_offset, ie_offset, timestamp_);
+          cow_graph_->DeleteEdge(src_label, src_lid, dst_label, dst_lid,
+                                 edge_label, oe_offset, ie_offset, read_ts_);
       if (!status.ok()) {
         LOG(ERROR) << "Failed to delete edge: " << status.ToString();
-        return false;
+        return status;
       }
-      undo_logs_.push(std::make_unique<RemoveEdgeUndo>(
-          src_label, dst_label, edge_label, src_lid, dst_lid, oe_offset,
-          ie_offset));
     }
     oe_offset++;
   }
 
-  return true;
+  return Status::OK();
 }
 
-bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
-                                   label_t dst_label, vid_t dst_lid,
-                                   label_t edge_label, int32_t oe_offset,
-                                   int32_t ie_offset) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-  if (!graph_.IsValidLid(src_label, src_lid, timestamp_) ||
-      !graph_.IsValidLid(dst_label, dst_lid, timestamp_)) {
-    THROW_RUNTIME_ERROR(
-        "Source or destination vertex id is out of range or "
-        "already deleted");
+Status StorageTPUpdateInterface::DeleteEdge(label_t src_label, vid_t src_lid,
+                                            label_t dst_label, vid_t dst_lid,
+                                            label_t edge_label,
+                                            int32_t oe_offset,
+                                            int32_t ie_offset) {
+  if (!cow_graph_->IsValidLid(src_label, src_lid, read_ts_) ||
+      !cow_graph_->IsValidLid(dst_label, dst_lid, read_ts_)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Source or destination vertex id is out of range or "
+                  "already deleted");
   }
 
-  RemoveEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
-                            dst_label, GetVertexId(dst_label, dst_lid),
-                            edge_label, oe_offset, ie_offset);
-  op_num_ += 1;
+  uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_idx));
+  RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
 
-  auto status = graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid,
-                                  edge_label, oe_offset, ie_offset, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to delete edge: " << status.ToString();
-    return false;
-  }
-  undo_logs_.push(std::make_unique<RemoveEdgeUndo>(src_label, dst_label,
-                                                   edge_label, src_lid, dst_lid,
-                                                   oe_offset, ie_offset));
-  return true;
+  wal_.LogRemoveEdge(src_label, GetVertexId(src_label, src_lid), dst_label,
+                     GetVertexId(dst_label, dst_lid), edge_label, oe_offset,
+                     ie_offset);
+
+  return cow_graph_->DeleteEdge(src_label, src_lid, dst_label, dst_lid,
+                                edge_label, oe_offset, ie_offset, read_ts_);
 }
 
 execution::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
                                                       int col_id) const {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  auto prop_name =
-      graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
-  ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name);
-  auto col = graph_.GetVertexPropertyColumn(label, col_id);
-  if (!graph_.IsValidLid(label, lid, timestamp_)) {
+  auto col = cow_graph_->GetVertexPropertyColumn(label, col_id);
+  if (!cow_graph_->IsValidLid(label, lid, timestamp_)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Vertex lid is not valid in this transaction");
   }
@@ -790,162 +765,59 @@ execution::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
 
 execution::Value UpdateTransaction::GetVertexId(label_t label,
                                                 vid_t lid) const {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.GetOid(label, lid, timestamp_);
+  return cow_graph_->GetOid(label, lid, timestamp_);
 }
 
 bool UpdateTransaction::GetVertexIndex(label_t label,
                                        const execution::Value& id,
                                        vid_t& index) const {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.get_lid(label, id, index, timestamp_);
+  return cow_graph_->get_lid(label, id, index, timestamp_);
 }
 
-bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
-                                             int col_id,
-                                             const execution::Value& value) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  auto prop_name =
-      graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
-  ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name);
-  if (!graph_.IsValidLid(label, lid, timestamp_)) {
-    LOG(ERROR) << "Vertex lid " << lid << " of label "
-               << graph_.schema().get_vertex_label_name(label)
-               << " is not valid in this transaction.";
-    return false;
+Status StorageTPUpdateInterface::UpdateVertexProperty(
+    label_t label, vid_t lid, int col_id, const execution::Value& value) {
+  if (!cow_graph_->IsValidLid(label, lid, read_ts_)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex lid " + std::to_string(lid) + " of label " +
+                      cow_graph_->schema().get_vertex_label_name(label) +
+                      " is not valid in this transaction.");
   }
-  std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
+  std::vector<DataType> types =
+      cow_graph_->schema().get_vertex_properties(label);
   if (static_cast<size_t>(col_id) >= types.size()) {
-    return false;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Column id " + std::to_string(col_id) + " is out of range.");
   }
   if (types[col_id].id() != value.type().id()) {
-    return false;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Type mismatch for column " + std::to_string(col_id) + ".");
   }
-  UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
-                                  value);
+  RETURN_IF_NOT_OK(detachVertexColumn(label, col_id));
+  wal_.LogUpdateVertexProp(label, GetVertexId(label, lid), col_id, value);
 
-  auto old_prop = GetVertexProperty(label, lid, col_id);
-  auto status =
-      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to update vertex property: " << status.ToString();
-    return false;
-  }
-  undo_logs_.push(
-      std::make_unique<UpdateVertexPropUndo>(label, lid, col_id, old_prop));
-  op_num_ += 1;
-  return true;
+  return cow_graph_->UpdateVertexProperty(label, lid, col_id, value, read_ts_);
 }
 
-bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
-                                           label_t dst_label, vid_t dst,
-                                           label_t edge_label, int32_t col_id,
-                                           const execution::Value& value) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-  auto index =
-      graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
-  auto prop_name = graph_.schema()
-                       .get_edge_schema(src_label, dst_label, edge_label)
-                       ->get_property_name(col_id);
-  ENSURE_EDGE_PROPERTY_NOT_DELETED(index, prop_name);
-  if (!graph_.IsValidLid(src_label, src, timestamp_) ||
-      !graph_.IsValidLid(dst_label, dst, timestamp_)) {
-    THROW_RUNTIME_ERROR(
-        "Source or destination vertex id is out of range or "
-        "already deleted");
+Status StorageTPUpdateInterface::UpdateEdgeProperty(
+    label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+    label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
+    const execution::Value& value) {
+  if (!cow_graph_->IsValidLid(src_label, src, read_ts_) ||
+      !cow_graph_->IsValidLid(dst_label, dst, read_ts_)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Source or destination vertex id is out of range or "
+                  "already deleted");
   }
-  auto prop_getter =
-      graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label, col_id);
-  auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
-                      .get_edges(src);
-  auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
-                      .get_edges(dst);
-  auto edge_prop_types =
-      graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
-  assert(col_id >= 0 && static_cast<size_t>(col_id) < edge_prop_types.size());
-  auto search_prop_type = determine_search_prop_type(edge_prop_types);
-  int32_t oe_offset = 0;
-  for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-    if (it.get_vertex() == dst) {
-      auto ie_offset = fuzzy_search_offset_from_nbr_list(
-          ie_edges, src, it.get_data_ptr(), search_prop_type);
-      auto old_prop = prop_getter.get_data(it);
-      {
-        UpdateEdgePropRedo::Serialize(arc_, src_label,
-                                      GetVertexId(src_label, src), dst_label,
-                                      GetVertexId(dst_label, dst), edge_label,
-                                      oe_offset, ie_offset, col_id, value);
-        op_num_ += 1;
-      }
-      auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
-                                              edge_label, oe_offset, ie_offset,
-                                              col_id, value, timestamp_);
-      if (!status.ok()) {
-        LOG(ERROR) << "Failed to update edge property: " << status.ToString();
-        return false;
-      }
-      undo_logs_.push(std::make_unique<UpdateEdgePropUndo>(
-          src_label, dst_label, edge_label, src, dst, oe_offset, ie_offset,
-          col_id, old_prop));
-    }
-    oe_offset += 1;
-  }
-
-  return true;
-}
-
-bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
-                                           label_t dst_label, vid_t dst,
-                                           label_t edge_label,
-                                           int32_t oe_offset, int32_t ie_offset,
-                                           int32_t col_id,
-                                           const execution::Value& value) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
-  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-  auto index =
-      graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
-  auto prop_name = graph_.schema()
-                       .get_edge_schema(src_label, dst_label, edge_label)
-                       ->get_property_name(col_id);
-  ENSURE_EDGE_PROPERTY_NOT_DELETED(index, prop_name);
-  if (!graph_.IsValidLid(src_label, src, timestamp_) ||
-      !graph_.IsValidLid(dst_label, dst, timestamp_)) {
-    THROW_RUNTIME_ERROR(
-        "Source or destination vertex id is out of range or "
-        "already deleted");
-  }
-  {
-    UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
-                                  dst_label, GetVertexId(dst_label, dst),
-                                  edge_label, oe_offset, ie_offset, col_id,
-                                  value);
-    op_num_ += 1;
-  }
-  auto prop_accessor =
-      graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label, col_id);
-  auto oe_edges =
-      graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
-          .get_edges(src);
-  auto oe_iter = oe_edges.begin();
-  for (int32_t i = 0; i < oe_offset; ++i) {
-    ++oe_iter;
-  }
-  assert(oe_iter != oe_edges.end());
-  auto old_prop = prop_accessor.get_data(oe_iter);
-  auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
-                                          edge_label, oe_offset, ie_offset,
-                                          col_id, value, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to update edge property: " << status.ToString();
-    return false;
-  }
-  undo_logs_.push(std::make_unique<UpdateEdgePropUndo>(
-      src_label, dst_label, edge_label, src, dst, oe_offset, ie_offset, col_id,
-      old_prop));
-  return true;
+  uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeColumn(edge_idx, col_id));
+  RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src, dst, alloc_));
+  wal_.LogUpdateEdgeProp(src_label, GetVertexId(src_label, src), dst_label,
+                         GetVertexId(dst_label, dst), edge_label, oe_offset,
+                         ie_offset, col_id, value);
+  return cow_graph_->UpdateEdgeProperty(src_label, src, dst_label, dst,
+                                        edge_label, oe_offset, ie_offset,
+                                        col_id, value, read_ts_);
 }
 
 void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
@@ -1081,121 +953,239 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
   }
 }
 
-void UpdateTransaction::CreateCheckpoint() {
-  // Create a checkpoint for the current graph. Expect no changes are made to
-  // this transaction
-  if (op_num_ != 0) {
+Status StorageTPUpdateInterface::detachVertexTableForInsert(label_t label) {
+  auto& state = cow_state_.vertex_tables[label];
+  auto& vertex_table = cow_graph_->get_vertex_table(label);
+  bool did_detach = false;
+  if (!state.indexer_detached) {
+    vertex_table.DetachIndexer();
+    state.indexer_detached = true;
+    did_detach = true;
+  }
+  if (!state.vertex_timestamp_detached) {
+    vertex_table.DetachVertexTimestamp();
+    state.vertex_timestamp_detached = true;
+    did_detach = true;
+  }
+  for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+    if (!state.columns_detached[i]) {
+      vertex_table.get_table().DetachColumn(i, *ckp_,
+                                            cow_graph_->memory_level());
+      state.columns_detached[i] = true;
+      did_detach = true;
+    }
+  }
+  if (did_detach) {
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachVertexTableForDelete(label_t label) {
+  auto& state = cow_state_.vertex_tables[label];
+  if (!state.vertex_timestamp_detached) {
+    cow_graph_->get_vertex_table(label).DetachVertexTimestamp();
+    state.vertex_timestamp_detached = true;
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachVertexColumn(label_t label,
+                                                    int32_t col_id) {
+  auto& state = cow_state_.vertex_tables[label];
+  if (col_id >= 0 &&
+      static_cast<size_t>(col_id) < state.columns_detached.size() &&
+      !state.columns_detached[col_id]) {
+    auto& vertex_table = cow_graph_->get_vertex_table(label);
+    vertex_table.get_table().DetachColumn(col_id, *ckp_,
+                                          cow_graph_->memory_level());
+    state.columns_detached[col_id] = true;
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachEdgeTableForInsert(
+    uint32_t edge_triplet_id) {
+  if (!cow_graph_->HasEdgeTable(edge_triplet_id)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table for edge label triplet not found");
+  }
+  auto& state = cow_state_.edge_tables[edge_triplet_id];
+  auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
+  bool did_detach = false;
+  if (!state.out_csr_detached) {
+    edge_table.DetachOutCsr();
+    state.out_csr_detached = true;
+    did_detach = true;
+  }
+  if (!state.in_csr_detached) {
+    edge_table.DetachInCsr();
+    state.in_csr_detached = true;
+    did_detach = true;
+  }
+  if (edge_table.table()) {
+    for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+      if (!state.columns_detached[i]) {
+        edge_table.table()->DetachColumn(i, *ckp_, cow_graph_->memory_level());
+        state.columns_detached[i] = true;
+        did_detach = true;
+      }
+    }
+  }
+  if (did_detach) {
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachEdgeTableForDelete(
+    uint32_t edge_triplet_id) {
+  if (!cow_graph_->HasEdgeTable(edge_triplet_id)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table for edge label triplet not found");
+  }
+  auto& state = cow_state_.edge_tables[edge_triplet_id];
+  auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
+  bool did_detach = false;
+  if (!state.out_csr_detached) {
+    edge_table.DetachOutCsr();
+    state.out_csr_detached = true;
+    did_detach = true;
+  }
+  if (!state.in_csr_detached) {
+    edge_table.DetachInCsr();
+    state.in_csr_detached = true;
+    did_detach = true;
+  }
+  if (did_detach) {
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachEdgeColumn(uint32_t edge_triplet_id,
+                                                  int32_t col_id) {
+  RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_triplet_id));
+  auto& state = cow_state_.edge_tables[edge_triplet_id];
+  auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
+  if (!edge_table.get_edge_schema_ptr()->is_bundled() && edge_table.table() &&
+      col_id >= 0 &&
+      static_cast<size_t>(col_id) < state.columns_detached.size() &&
+      !state.columns_detached[col_id]) {
+    edge_table.table()->DetachColumn(col_id, *ckp_, cow_graph_->memory_level());
+    state.columns_detached[col_id] = true;
+    mut_view_.Rebuild(*cow_graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachAdjlists(uint32_t edge_triplet_id,
+                                                vid_t src_lid, vid_t dst_lid,
+                                                Allocator& alloc) {
+  auto& state = cow_state_.edge_tables[edge_triplet_id];
+  auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
+  if (state.out_adjlists_detached.find(src_lid) ==
+      state.out_adjlists_detached.end()) {
+    edge_table.DetachOutAdjlist(src_lid, alloc);
+    state.out_adjlists_detached.insert(src_lid);
+  }
+  if (state.in_adjlists_detached.find(dst_lid) ==
+      state.in_adjlists_detached.end()) {
+    edge_table.DetachInAdjlist(dst_lid, alloc);
+    state.in_adjlists_detached.insert(dst_lid);
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachForResize(label_t label,
+                                                 size_t capacity) {
+  const auto& vertex_table = cow_graph_->get_vertex_table(label);
+  if (capacity <= vertex_table.Capacity()) {
+    return Status::OK();
+  }
+  RETURN_IF_NOT_OK(detachVertexTableForInsert(label));
+  const auto& schema = cow_graph_->schema();
+  auto vertex_label_count = schema.vertex_label_frontier();
+  auto edge_label_count = schema.edge_label_frontier();
+  for (label_t dst = 0; dst < vertex_label_count; ++dst) {
+    if (!schema.is_vertex_label_valid(dst)) {
+      continue;
+    }
+    for (label_t e = 0; e < edge_label_count; ++e) {
+      if (schema.is_edge_triplet_valid(label, dst, e)) {
+        uint32_t idx = schema.generate_edge_label(label, dst, e);
+        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
+      }
+      if (label != dst && schema.is_edge_triplet_valid(dst, label, e)) {
+        uint32_t idx = schema.generate_edge_label(dst, label, e);
+        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::detachForResize(label_t src_label,
+                                                 label_t dst_label,
+                                                 label_t edge_label,
+                                                 size_t capacity) {
+  uint32_t idx = cow_graph_->schema().generate_edge_label(src_label, dst_label,
+                                                          edge_label);
+  return detachEdgeTableForInsert(idx);
+}
+
+Status StorageTPUpdateInterface::prepareVertexDelete(
+    label_t label, const std::vector<vid_t>& lids) {
+  // Step 1: detach vertex timestamp for delete.
+  RETURN_IF_NOT_OK(detachVertexTableForDelete(label));
+
+  // Step 2: detach all related edge tables' CSRs (structure-level COW).
+  const auto& schema = cow_graph_->schema();
+  auto vertex_label_count = schema.vertex_label_frontier();
+  auto edge_label_count = schema.edge_label_frontier();
+  for (label_t i = 0; i < vertex_label_count; ++i) {
+    if (!schema.is_vertex_label_valid(i))
+      continue;
+    for (label_t e = 0; e < edge_label_count; ++e) {
+      if (schema.is_edge_triplet_valid(i, label, e)) {
+        uint32_t idx = schema.generate_edge_label(i, label, e);
+        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
+      }
+      if (schema.is_edge_triplet_valid(label, i, e)) {
+        uint32_t idx = schema.generate_edge_label(label, i, e);
+        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
+      }
+    }
+  }
+
+  // Step 3: Adjlist-level COW — ensure each touched adjacency list is
+  // writable before the storage layer mutates them.
+  for (vid_t lid : lids) {
+    if (!cow_graph_->IsValidLid(label, lid, read_ts_)) {
+      continue;
+    }
+    auto related_edges =
+        fetch_edges_related_to_vertex(*this, schema, label, lid, read_ts_);
+    for (auto& [edge_triplet_id, edges] : related_edges) {
+      for (auto& [src, dst, oe_off, ie_off] : edges) {
+        RETURN_IF_NOT_OK(detachAdjlists(edge_triplet_id, src, dst, alloc_));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+void StorageTPUpdateInterface::CreateCheckpoint() {
+  if (wal_.op_num() != 0) {
     THROW_INTERNAL_EXCEPTION(
         "Checkpoint should be created in a update "
         "transaction without any updates");
   }
-  graph_.Dump();
+  cow_graph_->Dump();
+  wal_.LogCheckpoint();
 }
-
-bool UpdateTransaction::IsValidLid(label_t label, vid_t lid) const {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.IsValidLid(label, lid, timestamp_);
-}
-
-void UpdateTransaction::release() {
-  if (timestamp_ != INVALID_TIMESTAMP) {
-    arc_.Clear();
-    vm_.release_update_timestamp(timestamp_);
-    timestamp_ = INVALID_TIMESTAMP;
-
-    op_num_ = 0;
-
-    deleted_vertex_labels_.clear();
-    deleted_edge_labels_.clear();
-    while (!undo_logs_.empty()) {
-      undo_logs_.pop();
-    }
-  }
-}
-
-void UpdateTransaction::applyVertexTypeDeletions() {
-  for (auto label : deleted_vertex_labels_) {
-    auto status = graph_.DeleteVertexType(label);
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to delete vertex type " << (int32_t) label << ": "
-                 << status.ToString();
-    }
-  }
-  deleted_vertex_labels_.clear();
-}
-
-void UpdateTransaction::applyEdgeTypeDeletions() {
-  for (auto& triple : deleted_edge_labels_) {
-    auto status = graph_.DeleteEdgeType(
-        std::get<0>(triple), std::get<1>(triple), std::get<2>(triple));
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to delete edge type (" << std::get<0>(triple)
-                 << ", " << std::get<1>(triple) << ", " << std::get<2>(triple)
-                 << "): " << status.ToString();
-    }
-  }
-  deleted_edge_labels_.clear();
-}
-
-void UpdateTransaction::applyVertexPropDeletion() {
-  for (label_t v_label = 0; v_label < deleted_vertex_properties_.size();
-       ++v_label) {
-    if (!graph_.schema().is_vertex_label_valid(v_label)) {
-      continue;
-    }
-    auto v_label_name = graph_.schema().get_vertex_label_name(v_label);
-    std::vector<std::string> prop_names;
-    for (const auto& prop_name : deleted_vertex_properties_[v_label]) {
-      prop_names.push_back(prop_name);
-    }
-    DeleteVertexPropertiesParamBuilder builder;
-    auto config =
-        builder.VertexLabel(v_label_name).DeleteProperties(prop_names).Build();
-    graph_.DeleteVertexProperties(config);
-  }
-  deleted_vertex_properties_.clear();
-}
-
-void UpdateTransaction::applyEdgePropDeletion() {
-  for (auto iter : deleted_edge_properties_) {
-    uint32_t index = iter.first;
-    auto& prop_names_set = iter.second;
-    if (prop_names_set.empty()) {
-      continue;
-    }
-    label_t src_label, dst_label, edge_label;
-    std::tie(src_label, dst_label, edge_label) =
-        graph_.schema().parse_edge_label(index);
-    if (!graph_.schema().is_edge_triplet_valid(src_label, dst_label,
-                                               edge_label)) {
-      continue;
-    }
-
-    auto src_label_name = graph_.schema().get_vertex_label_name(src_label);
-    auto dst_label_name = graph_.schema().get_vertex_label_name(dst_label);
-    auto edge_label_name = graph_.schema().get_edge_label_name(edge_label);
-    std::vector<std::string> prop_names;
-    for (const auto& prop_name : prop_names_set) {
-      prop_names.push_back(prop_name);
-    }
-    DeleteEdgePropertiesParamBuilder builder;
-    auto config = builder.SrcLabel(src_label_name)
-                      .DstLabel(dst_label_name)
-                      .EdgeLabel(edge_label_name)
-                      .DeleteProperties(prop_names)
-                      .Build();
-    graph_.DeleteEdgeProperties(config);
-  }
-  deleted_edge_properties_.clear();
-}
-
-void UpdateTransaction::invalidate_query_cache_if_needed() {
-  if (schema_changed_) {
-    pipeline_cache_.clearGlobalCache(graph_.schema().to_yaml().value());
-  }
-}
-
-void StorageTPUpdateInterface::CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
 Status StorageTPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
@@ -1215,7 +1205,7 @@ Status StorageTPUpdateInterface::BatchAddEdges(
 Status StorageTPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
   for (vid_t lid : vids) {
-    if (!txn_.DeleteVertex(v_label_id, lid)) {
+    if (!DeleteVertex(v_label_id, lid)) {
       LOG(ERROR) << "Failed to delete vertex " << lid << " of label "
                  << v_label_id << " in batch request.";
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1231,8 +1221,8 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
   for (const auto& edge : edges) {
     vid_t src_lid = std::get<0>(edge);
     vid_t dst_lid = std::get<1>(edge);
-    if (!txn_.DeleteEdges(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
-                          edge_label_id)) {
+    if (!DeleteEdges(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
+                     edge_label_id)) {
       LOG(ERROR) << "Failed to delete edge from vertex " << src_lid
                  << " to vertex " << dst_lid << " in batch request.";
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1254,8 +1244,8 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
     vid_t dst_lid = ie_edges[i].first;
     int32_t oe_offset = oe_edges[i].second;
     int32_t ie_offset = ie_edges[i].second;
-    if (!txn_.DeleteEdge(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
-                         edge_label_id, oe_offset, ie_offset)) {
+    if (!DeleteEdge(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
+                    edge_label_id, oe_offset, ie_offset)) {
       LOG(ERROR) << "Failed to delete edge from vertex " << src_lid
                  << " to vertex " << dst_lid << " in batch request.";
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1265,56 +1255,6 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
     }
   }
   return Status::OK();
-}
-
-Status StorageTPUpdateInterface::CreateVertexType(
-    const CreateVertexTypeParam& config) {
-  return txn_.CreateVertexType(config);
-}
-
-Status StorageTPUpdateInterface::CreateEdgeType(
-    const CreateEdgeTypeParam& config) {
-  return txn_.CreateEdgeType(config);
-}
-
-Status StorageTPUpdateInterface::AddVertexProperties(
-    const AddVertexPropertiesParam& config) {
-  return txn_.AddVertexProperties(config);
-}
-
-Status StorageTPUpdateInterface::AddEdgeProperties(
-    const AddEdgePropertiesParam& config) {
-  return txn_.AddEdgeProperties(config);
-}
-
-Status StorageTPUpdateInterface::RenameVertexProperties(
-    const RenameVertexPropertiesParam& config) {
-  return txn_.RenameVertexProperties(config);
-}
-Status StorageTPUpdateInterface::RenameEdgeProperties(
-    const RenameEdgePropertiesParam& config) {
-  return txn_.RenameEdgeProperties(config);
-}
-
-Status StorageTPUpdateInterface::DeleteVertexProperties(
-    const DeleteVertexPropertiesParam& config) {
-  return txn_.DeleteVertexProperties(config);
-}
-
-Status StorageTPUpdateInterface::DeleteEdgeProperties(
-    const DeleteEdgePropertiesParam& config) {
-  return txn_.DeleteEdgeProperties(config);
-}
-
-Status StorageTPUpdateInterface::DeleteVertexType(
-    const std::string& vertex_type_name) {
-  return txn_.DeleteVertexType(vertex_type_name);
-}
-
-Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
-                                                const std::string& dst_type,
-                                                const std::string& edge_type) {
-  return txn_.DeleteEdgeType(src_type, dst_type, edge_type);
 }
 
 }  // namespace neug

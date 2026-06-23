@@ -28,8 +28,8 @@ conn = db.connect()
 
 # Run analytics
 result = conn.execute("""
-    MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person),
-        (a)-[:knows]->(c)
+    MATCH (a:Person)-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person),
+        (a)-[:KNOWS]->(c)
     RETURN a.fName, b.fName, c.fName
 """)
 

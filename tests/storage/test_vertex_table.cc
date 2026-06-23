@@ -116,7 +116,7 @@ class VertexTableTest : public ::testing::Test {
 TEST_F(VertexTableTest, VertexTableBasicOps) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(vertex_count_);
 
   neug::vid_t lid1, lid2, lid3;
@@ -163,7 +163,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
   neug::CheckpointManifest desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(),
+    OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(),
                           memory_level_);
     table.EnsureCapacity(vertex_count_);
 
@@ -181,7 +181,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
 
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(new_table, *ckp, desc, memory_level_);
+    OpenVertexTableLegacy(new_table, ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
     EXPECT_EQ(new_table.VertexNum(2), 3);
@@ -198,7 +198,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   neug::CheckpointManifest desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(),
+    OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(),
                           memory_level_);
     table.EnsureCapacity(vertex_count_);
 
@@ -220,7 +220,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   neug::CheckpointManifest desc2;
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(new_table, *ckp, desc, memory_level_);
+    OpenVertexTableLegacy(new_table, ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
 
@@ -238,7 +238,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(new_table, *ckp, desc2, memory_level_);
+    OpenVertexTableLegacy(new_table, ckp, desc2, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 1);
     EXPECT_EQ(new_table.LidNum(), 3);
 
@@ -252,7 +252,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 TEST_F(VertexTableTest, AddVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid1 = neug::execution::Value::INT64(100);
@@ -291,7 +291,7 @@ TEST_F(VertexTableTest, AddVertexBasic) {
 TEST_F(VertexTableTest, AddVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
 
   // AddVertex must return false on an opened table whose capacity is still 0
   // (no EnsureCapacity call yet).
@@ -325,7 +325,7 @@ TEST_F(VertexTableTest, AddVertex) {
 TEST_F(VertexTableTest, DeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid1 = neug::execution::Value::INT64(1);
@@ -358,7 +358,7 @@ TEST_F(VertexTableTest, DeleteVertexBasic) {
 TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid1 = neug::execution::Value::INT64(1);
@@ -388,7 +388,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
 TEST_F(VertexTableTest, AddDeleteRevertCombination) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   std::vector<neug::execution::Value> oids;
@@ -433,7 +433,7 @@ TEST_F(VertexTableTest, AddDeleteRevertCombination) {
 TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid = neug::execution::Value::INT64(42);
@@ -468,7 +468,7 @@ TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
 TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(50);
 
   std::vector<neug::vid_t> lids;
@@ -492,7 +492,7 @@ TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
 TEST_F(VertexTableTest, TemporalVisibilityComplex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid1 = neug::execution::Value::INT64(1);
@@ -535,7 +535,7 @@ TEST_F(VertexTableTest, TemporalVisibilityComplex) {
 TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid = neug::execution::Value::INT64(1);
@@ -558,7 +558,7 @@ TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
 TEST_F(VertexTableTest, RevertNonDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   auto oid = neug::execution::Value::INT64(1);
@@ -584,7 +584,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
   neug::CheckpointManifest desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(),
+    OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(),
                           memory_level_);
     table.EnsureCapacity(100);
 
@@ -610,7 +610,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
   // Reload and verify
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(new_table, *ckp, desc, memory_level_);
+    OpenVertexTableLegacy(new_table, ckp, desc, memory_level_);
 
     EXPECT_EQ(new_table.VertexNum(), 15);
     EXPECT_EQ(new_table.LidNum(), 20);
@@ -638,7 +638,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 TEST_F(VertexTableTest, StressAddDeleteRevert) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(1000);
 
   std::vector<neug::execution::Value> oids;
@@ -690,7 +690,7 @@ TEST_F(VertexTableTest, StressAddDeleteRevert) {
 TEST_F(VertexTableTest, VertexTableResizeTest) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   auto record_batches = generate_record_batches(10000);
   std::shared_ptr<neug::IRecordBatchSupplier> batch_supplier =
       std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
@@ -706,7 +706,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
 
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    OpenVertexTableLegacy(new_table, *ckp, desc, memory_level_);
+    OpenVertexTableLegacy(new_table, ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 10000);
     EXPECT_EQ(new_table.LidNum(), 10000);
     EXPECT_EQ(new_table.get_vertex_timestamp().InitVertexNum(), 10000);
@@ -747,7 +747,7 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
-  OpenVertexTableLegacy(table, *ckp, neug::CheckpointManifest(), memory_level_);
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
   table.EnsureCapacity(100);
 
   std::vector<neug::execution::Value> oids;

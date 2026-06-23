@@ -58,10 +58,10 @@ const { Database } = require('neug');
 const db = new Database({ databasePath: '', mode: 'w' });
 const conn = db.connect();
 
-conn.execute('CREATE NODE TABLE person(id INT64, name STRING, age INT32, PRIMARY KEY(id));');
-conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});");
+conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, age INT32, PRIMARY KEY(id));');
+conn.execute("CREATE (p:Person {id: 1, name: 'Alice', age: 30});");
 
-const result = conn.execute('MATCH (p:person) RETURN p.id, p.name, p.age;');
+const result = conn.execute('MATCH (p:Person) RETURN p.id, p.name, p.age;');
 for (const row of result) {
   console.log(`id=${row[0]}, name=${row[1]}, age=${row[2]}`);
 }
@@ -79,7 +79,7 @@ The `execute` method accepts an optional access mode to hint the query type:
 ```javascript
 // Specify access mode for the query
 const result = conn.execute(
-  'MATCH (p:person) RETURN p.name, p.age',
+  'MATCH (p:Person) RETURN p.name, p.age',
   'read'
 );
 ```
@@ -91,7 +91,7 @@ Supported modes: `'read'`/`'r'`, `'insert'`/`'i'`, `'update'`/`'u'`, `'schema'`/
 ```javascript
 // Safe parameter passing
 const result = conn.execute(
-  'MATCH (p:person) WHERE p.age > $min_age RETURN p.name, p.age',
+  'MATCH (p:Person) WHERE p.age > $min_age RETURN p.name, p.age',
   'read',
   { min_age: 25 }
 );

@@ -4,11 +4,11 @@ The WHERE clause is used to further filter the results produced by previous quer
 
 ## Filter by Properties
 
-In the previous chapter, we introduced how to restrict node and relationship property key-value pairs through expressions like `(a:person {name: 'marko'})`. Here we further supplement how to express the same effect through the WHERE clause.
+In the previous chapter, we introduced how to restrict node and relationship property key-value pairs through expressions like `(a:Person {name: 'marko'})`. Here we further supplement how to express the same effect through the WHERE clause.
 
 ### Filter by Node Properties
 ```cypher
-MATCH (a:person) 
+MATCH (a:Person) 
 WHERE a.name = 'marko' OR a.age > 27
 RETURN a.name, a.age;
 ```
@@ -28,7 +28,7 @@ output:
 
 ### Filter by Node/Relationship Properties
 ```cypher
-MATCH (a:person)-[b:knows]->(c:person) 
+MATCH (a:Person)-[b:KNOWS]->(c:Person) 
 WHERE a.name = 'marko' AND b.weight = 1.0
 RETURN a.name, b.weight;
 ```
@@ -44,7 +44,7 @@ output:
 
 ### Filter by Correlated Properties
 ```cypher
-MATCH (a:person)-[b:knows]->(c:person) 
+MATCH (a:Person)-[b:KNOWS]->(c:Person) 
 WHERE a.name <> c.name AND a.age > c.age 
 RETURN a.name, a.age, c.name, c.age;
 ```
@@ -82,7 +82,7 @@ RETURN a.name;
 ### Filter Optional Data with NULL
 ```cypher
 MATCH (a) 
-OPTIONAL MATCH (a)-[:knows]->(b) 
+OPTIONAL MATCH (a)-[:KNOWS]->(b) 
 WHERE b IS NULL 
 RETURN a.name;
 ```
@@ -92,7 +92,7 @@ RETURN a.name;
 ### Filter Out Optional Data with IS NOT NULL
 ```cypher
 MATCH (a) 
-OPTIONAL MATCH (a)-[:knows]->(b) 
+OPTIONAL MATCH (a)-[:KNOWS]->(b) 
 WHERE b IS NOT NULL 
 RETURN a.name;
 ```
@@ -104,7 +104,7 @@ The WHERE clause can also be used with subqueries to perform more complex filter
 ### Exists Pattern
 ```cypher
 MATCH (a) 
-WHERE (a)-[:knows]->(b) 
+WHERE (a)-[:KNOWS]->(b) 
 RETURN a.name;
 ```
 This query returns all `a.name` values that have a `knows` relationship.
@@ -112,7 +112,7 @@ This query returns all `a.name` values that have a `knows` relationship.
 ### Not Exists Pattern
 ```cypher
 MATCH (a) 
-WHERE NOT (a)-[:knows]->(b) 
+WHERE NOT (a)-[:KNOWS]->(b) 
 RETURN a.name;
 ```
 This query returns all `a.name` values where there are no `knows` relationships, equivalent to the ANTI_JOIN semantics in SQL.

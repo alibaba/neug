@@ -8,6 +8,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/neug-extension-test.yml'
+      - 'extension/**'
+      - 'tools/python_bind/tests/test_gds.py'
+      - 'tools/python_bind/tests/test_graphalytics.py'
+      - 'tools/python_bind/tests/resources/graphalytics/**'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:
@@ -86,7 +90,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -125,6 +129,16 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "httpfs"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "httpfs"
+
+    - name: Run GDS Tests
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pytest -sv tests/test_gds.py
+
+    - name: Run LDBC Graphalytics Conformance Tests
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pytest -sv tests/test_graphalytics.py
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, daily, linux, x64]

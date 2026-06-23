@@ -36,7 +36,9 @@ When read graph with a `ReadTransaction` or `UpdateTransaction`, only edges with
 
 There is no synchronization between read and insert transactions. All read and insert transactions can be executed concurrently.
 
-When an `UpdateTransaction` is created, it will wait for all read and insert transactions to finish. Then, the `UpdateTransaction` will read the graph with the latest timestamp, and all read and insert transactions will be blocked until the `UpdateTransaction` is committed or aborted.
+When an `UpdateTransaction` is created, it enters the update-exec phase (VersionManager update_state_: 0→1). It waits for all in-flight insert transactions to finish, but does NOT block or wait for read transactions. New insert transactions are blocked during this phase; existing and new reads continue.
+
+When `begin_update_commit` is called, the update enters the commit phase (update_state_: 1→2). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected.
 
 ## Serializability
 

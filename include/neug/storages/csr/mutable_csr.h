@@ -25,6 +25,7 @@
 #include <cassert>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <set>
 #include <string>
@@ -126,7 +127,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     locks_[src].lock();
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
-    if (sz == cap) {
+    if (sz == cap) {  // including cap == 0
       cap += (cap >> 1);
       cap = std::max(cap, 8);
       nbr_t* new_buffer =
@@ -153,7 +154,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* const* adjlists =
@@ -172,8 +173,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -186,6 +186,49 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  void DetachVertex(vid_t vid, Allocator& alloc) override {
+    auto v_cap = vertex_capacity();
+    if (vid >= v_cap) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Vertex id out of range: " + std::to_string(vid) +
+          " >= " + std::to_string(v_cap));
+    }
+    std::lock_guard<SpinLock> guard(locks_[vid]);
+    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
+    const auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(degree_list_->GetData());
+    auto cap = caps[vid];
+    if (cap == 0) {
+      return;
+    }
+    auto deg = degrees[vid].load(std::memory_order_acquire);
+    void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
+    memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * deg);
+    buffers[vid] = static_cast<nbr_t*>(new_adj_list);
+  }
+
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<MutableCsr<EDATA_T>>();
+    auto v_cap = vertex_capacity();
+    cow_clone->locks_ = std::make_unique<SpinLock[]>(v_cap);
+    cow_clone->adj_list_buffer_ = adj_list_buffer_;
+    cow_clone->degree_list_ = degree_list_;
+    cow_clone->cap_list_ = cap_list_;
+    cow_clone->nbr_list_ = nbr_list_;
+    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
+  }
+
+  // Detach shared buffers for COW writes.
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
+    degree_list_ = degree_list_->Fork(ckp, level);
+    cap_list_ = cap_list_->Fork(ckp, level);
+    // nbr_list_ need no deep copy
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -194,10 +237,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
  private:
   std::unique_ptr<SpinLock[]> locks_;
-  std::unique_ptr<IDataContainer> adj_list_buffer_;
-  std::unique_ptr<IDataContainer> degree_list_;
-  std::unique_ptr<IDataContainer> cap_list_;
-  std::unique_ptr<IDataContainer> nbr_list_;
+  std::shared_ptr<IDataContainer> adj_list_buffer_;
+  std::shared_ptr<IDataContainer> degree_list_;
+  std::shared_ptr<IDataContainer> cap_list_;
+  std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
 
@@ -291,7 +334,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
     const nbr_t* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
@@ -304,8 +347,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted =
-          std::dynamic_pointer_cast<TypedColumn<EDATA_T>>(prev_data_col);
+      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
       if (!casted) {
         THROW_INTERNAL_EXCEPTION(
             "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
@@ -318,6 +360,20 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+
+  std::unique_ptr<Module> Clone() const override {
+    auto cow_clone = std::make_unique<SingleMutableCsr<EDATA_T>>();
+    cow_clone->nbr_list_ = nbr_list_;
+    cow_clone->edge_num_ = edge_num_.load();
+    return cow_clone;
+  }
+
+  // Detach shared buffers for COW writes.
+  void Detach(Checkpoint& ckp, MemoryLevel level) override {
+    nbr_list_ = nbr_list_->Fork(ckp, level);
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -325,7 +381,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  std::unique_ptr<IDataContainer> nbr_list_;
+  std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
 
   size_t vertex_capacity() const {
@@ -395,6 +451,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
+  void DetachVertex(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+
   std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
                                            const EDATA_T& data, timestamp_t ts,
                                            Allocator&) override {
@@ -402,9 +460,15 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
-      std::shared_ptr<ColumnBase> prev_data_col) const override {
+      ColumnBase* /*prev_data_col*/) const override {
     return {};
   }
+
+  std::unique_ptr<Module> Clone() const override {
+    return std::make_unique<EmptyCsr<EDATA_T>>();
+  }
+
+  void Detach(Checkpoint&, MemoryLevel) override {}
 
   std::string ModuleTypeName() const override { return type_name(); }
 

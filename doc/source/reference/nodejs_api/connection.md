@@ -64,7 +64,7 @@ execute(query, accessMode = '', parameters = null) -> QueryResult
 Execute a cypher query on the database. User could specify multiple queries in a single string,
 separated by semicolons. The query will be executed in the order they are specified.
 If any query fails, the whole execution will be rolled back.
-If the query is a DDL query, such as `CREATE TABLE`, `DROP TABLE`, etc., the database will be
+If the query is a DDL query, such as `CREATE NODE TABLE`, `CREATE REL TABLE`, `DROP TABLE`, etc., the database will be
 modified accordingly.
 
 For the details of the query syntax, please refer to the documentation of cypher manual.
@@ -75,7 +75,7 @@ such as `hasNext()` and `getNext()`.
 
 If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
 
-Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`,
+Some of the cypher queries could change the state of the database, such as `CREATE NODE TABLE`, `INSERT`,
 `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
 the database, but will return the results of the query.
 
@@ -88,18 +88,18 @@ database will be changed accordingly.
     const { Database } = require('neug');
     const db = new Database({ databasePath: '/tmp/test.db', mode: 'w' });
     const conn = db.connect();
-    conn.execute('CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));');
-    conn.execute('CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);');
-    conn.execute('COPY person FROM "person.csv"');
-    conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");');
+    conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));');
+    conn.execute('CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);');
+    conn.execute('COPY Person FROM "person.csv"');
+    conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");');
     const res = conn.execute('MATCH(n) RETURN n.id');
     for (const row of res) {
         console.log(row);
     }
-    const res2 = conn.execute('MATCH(p:person)-[knows]->(q:person) RETURN p.id, q.id LIMIT 10;');
+    const res2 = conn.execute('MATCH(p:Person)-[:KNOWS]->(q:Person) RETURN p.id, q.id LIMIT 10;');
     // submitting query with parameters
     const res3 = conn.execute(
-        'MATCH (n:person) WHERE n.id = $id RETURN n.name', 'read', { id: 12345 });
+        'MATCH (n:Person) WHERE n.id = $id RETURN n.name', 'read', { id: 12345 });
 
 ```
 

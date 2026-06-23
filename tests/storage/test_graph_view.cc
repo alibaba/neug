@@ -34,7 +34,7 @@ class GraphViewTest : public ::testing::Test {
  protected:
   std::string work_dir_;
   std::unique_ptr<PropertyGraph> graph_;
-  CheckpointManager ws_;
+  CheckpointManager checkpoint_mgr_;
   // Owns the buffers backing the SetUp edges' adjacency lists. Must outlive
   // graph_; tests that need to mutate the graph reuse this allocator so the
   // SetUp buffers stay live alongside any new ones they add.
@@ -48,8 +48,8 @@ class GraphViewTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    ws_.Open(work_dir_);
-    auto ckp = make_checkpoint(ws_);
+    checkpoint_mgr_.Open(work_dir_);
+    auto ckp = make_checkpoint(checkpoint_mgr_);
     graph_->Open(ckp, MemoryLevel::kInMemory);
 
     // Create vertex type: person with id as primary key and name as property
@@ -141,12 +141,12 @@ TEST_F(GraphViewTest, GetOid) {
   GraphView view(*graph_);
   label_t person_label = view.schema().get_vertex_label_id("person");
 
-  auto oid0 = view.GetOid(person_label, 0);
+  auto oid0 = view.GetOid(person_label, 0, MAX_TIMESTAMP);
   EXPECT_EQ(oid0.type(), DataTypeId::kInt64);
   EXPECT_EQ(oid0.GetValue<int64_t>(), 1);
 
-  EXPECT_EQ(view.GetOid(person_label, 1).GetValue<int64_t>(), 2);
-  EXPECT_EQ(view.GetOid(person_label, 2).GetValue<int64_t>(), 3);
+  EXPECT_EQ(view.GetOid(person_label, 1, MAX_TIMESTAMP).GetValue<int64_t>(), 2);
+  EXPECT_EQ(view.GetOid(person_label, 2, MAX_TIMESTAMP).GetValue<int64_t>(), 3);
 }
 
 TEST_F(GraphViewTest, SchemaAccess) {
@@ -197,10 +197,8 @@ TEST_F(GraphViewTest, GetVertexPropertyColumnByIdSkipsPk) {
   ASSERT_NE(col0, nullptr);
 
   // Negative / out-of-range ids return null rather than throw.
-  EXPECT_THROW(view.GetVertexPropertyColumn(person_label, -1),
-               exception::InvalidArgumentException);
-  EXPECT_THROW(view.GetVertexPropertyColumn(person_label, 100),
-               exception::InvalidArgumentException);
+  EXPECT_EQ(view.GetVertexPropertyColumn(person_label, -1), nullptr);
+  EXPECT_EQ(view.GetVertexPropertyColumn(person_label, 100), nullptr);
 }
 
 TEST_F(GraphViewTest, EdgeBasicTraversal) {
@@ -217,8 +215,9 @@ TEST_F(GraphViewTest, EdgeBasicTraversal) {
     auto nbrs = out_csr.get_edges(v);
     for (auto it = nbrs.begin(); it != nbrs.end(); ++it) {
       edges.emplace_back(
-          view.GetOid(person_label, v).GetValue<int64_t>(),
-          view.GetOid(person_label, it.get_vertex()).GetValue<int64_t>());
+          view.GetOid(person_label, v, MAX_TIMESTAMP).GetValue<int64_t>(),
+          view.GetOid(person_label, it.get_vertex(), MAX_TIMESTAMP)
+              .GetValue<int64_t>());
     }
   }
 

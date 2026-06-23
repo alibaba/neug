@@ -185,7 +185,7 @@ Close the query result and release resources.
 Makes QueryResult iterable with `for...of` loops. Each iteration yields a row as an array of values.
 
 ```javascript
-const result = conn.execute('MATCH (p:person) RETURN p.name, p.age');
+const result = conn.execute('MATCH (p:Person) RETURN p.name, p.age');
 for (const row of result) {
   console.log(`${row[0]}: ${row[1]}`);
 }
