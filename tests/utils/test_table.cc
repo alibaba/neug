@@ -90,7 +90,7 @@ static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
   // Table holds columns by unique_ptr; dump inline directly.
   CheckpointManifest meta;
   for (size_t i = 0; i < t.col_num(); ++i) {
-    meta.set_module(TablePropKey(i), t.get_column_by_id(i)->Dump(ckp));
+    t.get_column_by_id(i)->Dump(ckp, meta, TablePropKey(i));
   }
   return meta;
 }
@@ -128,6 +128,41 @@ class TableTest : public ::testing::Test {
     return std::string(test_info->name());
   }
 };
+
+TEST_F(TableTest, ModuleBrokerDoesNotSkipUnmarkedReferencedTopLevelModule) {
+  auto ckp = Workspace().GetCheckpoint(Workspace().CreateCheckpoint());
+
+  ModuleDescriptor top_level_desc;
+  top_level_desc.module_type = TypedColumn<int32_t>::type_name();
+
+  ModuleDescriptor owner_desc;
+  owner_desc.set_ref("borrowed", "top_level");
+
+  CheckpointManifest meta;
+  meta.set_module("top_level", top_level_desc);
+  meta.set_module("owner", owner_desc);
+
+  ModuleBroker store;
+  store.Open(*ckp, meta, MemoryLevel::kInMemory);
+
+  EXPECT_TRUE(store.Contains("top_level"));
+}
+
+TEST_F(TableTest, ModuleBrokerSkipsMarkedReferencedModule) {
+  auto ckp = Workspace().GetCheckpoint(Workspace().CreateCheckpoint());
+
+  ModuleDescriptor child_desc;
+  child_desc.module_type = TypedColumn<int32_t>::type_name();
+  child_desc.mark_as_referenced_module();
+
+  CheckpointManifest meta;
+  meta.set_module("child", child_desc);
+
+  ModuleBroker store;
+  store.Open(*ckp, meta, MemoryLevel::kInMemory);
+
+  EXPECT_FALSE(store.Contains("child"));
+}
 
 TEST_F(TableTest, TestTableBasic) {
   auto& ws = Workspace();
@@ -416,9 +451,12 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
       true);
   EXPECT_EQ(string_column->get_any(1).GetValue<std::string>(),
             "new value new value new value");
-  auto desc = string_column->Dump(*ckp);
+  CheckpointManifest meta;
+  string_column->Dump(*ckp, meta, TablePropKey(0));
+  auto desc = meta.module(TablePropKey(0));
+  ASSERT_TRUE(desc.has_value());
   StringColumn new_string_column;
-  new_string_column.Open(*ckp, desc, MemoryLevel::kInMemory);
+  new_string_column.Open(*ckp, desc.value(), MemoryLevel::kInMemory);
   EXPECT_EQ(new_string_column.get_any(0).GetValue<std::string>(),
             "default_value");
   EXPECT_EQ(new_string_column.get_any(1).GetValue<std::string>(),

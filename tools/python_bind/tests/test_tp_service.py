@@ -62,7 +62,8 @@ def test_batch_loading(setup_database):
     sess.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
-    sess.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    sess.execute(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     sess.execute(f'COPY person from "{person_csv}"')
     sess.execute(
         f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
@@ -72,7 +73,8 @@ def test_batch_loading(setup_database):
     assert len(res) == 1
     assert res[0][0] == "marko"
 
-    res = sess.execute("MATCH (n:person)-[e:knows]->(:person) WHERE n.id = 1 RETURN e;")
+    res = sess.execute(
+        "MATCH (n:person)-[e:knows]->(:person) WHERE n.id = 1 RETURN e;")
     assert len(res) == 2
 
     # get service status
@@ -87,7 +89,8 @@ def test_start_service_on_pure_memory_db():
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
     conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
     conn.execute(
@@ -115,7 +118,8 @@ def test_start_serving_and_dump(tmp_path):
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
     conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
     conn.execute(
@@ -145,7 +149,8 @@ def test_start_service_and_stop(tmp_path):
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
     conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
     conn.execute(
@@ -186,7 +191,8 @@ def test_access_mode_validation():
     for mode in valid_access_modes:
         assert is_access_mode_valid(mode) is True
 
-    invalid_modes = ["readwrite", "write", "delete", "modify", "execute", "rwx", ""]
+    invalid_modes = ["readwrite", "write",
+                     "delete", "modify", "execute", "rwx", ""]
     for mode in invalid_modes:
         assert is_access_mode_valid(mode) is False
 
@@ -266,7 +272,8 @@ def test_delete_vertices(tmp_path):
     time.sleep(1)
 
     session = Session(uri, timeout="10s")
-    session.execute("CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
+    session.execute(
+        "CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
     session.execute("MATCH (n:Person) DELETE n;")
 
     session.execute("Create (n:Person {id: 111111, name: 6666})")
@@ -285,7 +292,8 @@ def test_delete_edges(tmp_path):
     time.sleep(1)
 
     session = Session(uri, timeout="10s")
-    session.execute("CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
+    session.execute(
+        "CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
     session.execute("CREATE REL TABLE Knows(FROM Person TO Person)")
 
     session.execute("Create (a:Person {id: 1, name: 1111})")
@@ -301,8 +309,10 @@ def test_delete_edges(tmp_path):
     session.execute(
         "MATCH (a:Person {id: 2}), (d:Person {id: 4}) CREATE (a)-[:Knows]->(d)"
     )
-    session.execute("MATCH (a:Person {id: 1})-[e:Knows]->(b : Person{id: 2}) DELETE e;")
-    session.execute("MATCH (a:Person {id: 1})-[e:Knows]->(c : Person{id: 3}) DELETE e;")
+    session.execute(
+        "MATCH (a:Person {id: 1})-[e:Knows]->(b : Person{id: 2}) DELETE e;")
+    session.execute(
+        "MATCH (a:Person {id: 1})-[e:Knows]->(c : Person{id: 3}) DELETE e;")
     session.execute("MATCH (a:Person {id: 1}) DELETE a;")
 
     result = session.execute("MATCH (n:Person) RETURN n;")
@@ -330,15 +340,18 @@ def test_merge_vertex(tmp_path):
     )
     session.execute("CREATE (:User {name: 'Adam', age: 29});")
 
-    existing = list(session.execute("MERGE (u:User {name: 'Adam'}) RETURN u.age;"))
+    existing = list(session.execute(
+        "MERGE (u:User {name: 'Adam'}) RETURN u.age;"))
     assert existing == [[29]]
 
     created = list(
-        session.execute("MERGE (u:User {name: 'Bob', age: 45}) RETURN u.name, u.age;")
+        session.execute(
+            "MERGE (u:User {name: 'Bob', age: 45}) RETURN u.name, u.age;")
     )
     assert created == [["Bob", 45]]
 
-    names = sorted(r[0] for r in session.execute("MATCH (u:User) RETURN u.name;"))
+    names = sorted(r[0]
+                   for r in session.execute("MATCH (u:User) RETURN u.name;"))
     assert names == ["Adam", "Bob"]
 
     session.close()
@@ -385,7 +398,8 @@ def test_merge_edge(tmp_path):
     )
     assert created == [["Adam", 2012, "Bob"]]
 
-    edge_count = list(session.execute("MATCH ()-[e:follows]->() RETURN count(e);"))
+    edge_count = list(session.execute(
+        "MATCH ()-[e:follows]->() RETURN count(e);"))
     assert edge_count == [[2]]
 
     session.close()
@@ -506,7 +520,8 @@ def test_parameterized_query(tmp_path):
 
     for query, params, expected in cases:
         res = session.execute(query, parameters=params)
-        assert len(res) == 1, f"Failed for query: {query} with params: {params}"
+        assert len(
+            res) == 1, f"Failed for query: {query} with params: {params}"
         assert res[0][0] == expected
 
     session.execute(
@@ -534,7 +549,8 @@ def test_parameterized_query(tmp_path):
     conn = db.connect()
     for query, params, expected in cases:
         res = conn.execute(query, parameters=params)
-        assert len(res) == 1, f"Failed for query: {query} with params: {params}"
+        assert len(
+            res) == 1, f"Failed for query: {query} with params: {params}"
         assert res[0][0] == expected
     conn.close()
     db.close()
@@ -576,7 +592,8 @@ def test_iu_1(tmp_path):
     )
 
     # Create prerequisite data
-    conn.execute("CREATE (c:PLACE {id: 1, name: 'City1', url: 'url1', type: 'City'});")
+    conn.execute(
+        "CREATE (c:PLACE {id: 1, name: 'City1', url: 'url1', type: 'City'});")
     conn.execute("CREATE (t1:TAG {id: 10, name: 'Tag1', url: 'tag1'});")
     conn.execute("CREATE (t2:TAG {id: 11, name: 'Tag2', url: 'tag2'});")
     conn.execute(
@@ -867,7 +884,8 @@ def test_iu_6(tmp_path):
     )
 
     # Verify the post was created
-    result = session.execute("MATCH (p:POST {id: 1000}) RETURN p.content, p.length;")
+    result = session.execute(
+        "MATCH (p:POST {id: 1000}) RETURN p.content, p.length;")
     assert len(result) == 1
     assert result[0][0] == "Test post content"
     assert result[0][1] == 100
@@ -1116,7 +1134,8 @@ def test_insert_string_column_exaustion(tmp_path):
         sess = Session.open(endpoint, timeout="10s")
         str_prop = "a" * 256
         for i in range(7000):
-            sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
+            sess.execute(
+                f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
     except Exception as e:
         assert "not enough space" in e.__str__(), f"Unexpected exception: {e}"
     finally:
@@ -1135,7 +1154,8 @@ def test_insert_string_column_exaustion(tmp_path):
 def test_readonly_db_rejects_write_queries_via_session(tmp_path):
     """A database opened in read-only mode must reject INSERT/UPDATE queries
     submitted through a Session, while still serving read queries correctly."""
-    db_dir = str(tmp_path / "test_readonly_db_rejects_write_queries_via_session")
+    db_dir = str(
+        tmp_path / "test_readonly_db_rejects_write_queries_via_session")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
 
@@ -1145,7 +1165,8 @@ def test_readonly_db_rejects_write_queries_via_session(tmp_path):
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
-    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
     conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
     conn.execute(
@@ -1256,8 +1277,10 @@ def test_session_create_schema_basic_types(tmp_path):
     assert record[3] == 4
     assert record[4] == "test"
     assert record[5] is True
-    assert (record[6] == 1.23) or (abs(record[6] - 1.23) < 1e-6)  # float comparison
-    assert (record[7] == 2.34) or (abs(record[7] - 2.34) < 1e-6)  # double comparison
+    assert (record[6] == 1.23) or (
+        abs(record[6] - 1.23) < 1e-6)  # float comparison
+    assert (record[7] == 2.34) or (
+        abs(record[7] - 2.34) < 1e-6)  # double comparison
 
     sess.close()
     db.stop_serving()
@@ -1271,7 +1294,8 @@ def test_session_alter_vertex_table(tmp_path):
     db = Database(db_path=str(db_dir), mode="w")
     endpoint = db.serve(host="localhost", port=10010, blocking=False)
     sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
-    sess.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
+    sess.execute(
+        "CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
     # 1. add property
     # correctly add a new property
     sess.execute("ALTER TABLE person ADD grade INT64;")
@@ -1411,7 +1435,115 @@ def test_complex_example(tmp_path):
         print(f"User: {record[0]}, Created: {record[1]}")
 
     session.close()
+    db.stop_serving()
+    db.close()
 
+
+def test_tp_array_node_create_query():
+    """Array property node CREATE/QUERY via session (Bolt/SQL protocol)."""
+    db_dir = "/tmp/test_tp_array_node"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Sensor("
+        "  id INT64,"
+        "  readings INT32[3],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.close()
+
+    uri = db.serve(10015, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});")
+    session.execute("CREATE (s:Sensor {id: 2, readings: [40, 50, 60]});")
+
+    result = session.execute(
+        "MATCH (s:Sensor) WHERE s.id = 1 RETURN s.readings;")
+    assert len(result) == 1
+    assert list(result[0][0]) == [10, 20, 30]
+
+    result = session.execute(
+        "MATCH (s:Sensor) WHERE s.readings = [10, 20, 30] RETURN s.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_tp_array_edge_create_query():
+    """Array property edge CREATE/QUERY via session."""
+    db_dir = "/tmp/test_tp_array_edge"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE Knows(FROM Person TO Person, weights INT64[2]);")
+    conn.execute("CREATE (p:Person {id: 1});")
+    conn.execute("CREATE (p:Person {id: 2});")
+    conn.close()
+
+    uri = db.serve(10016, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
+        "CREATE (a)-[:Knows {weights: [7, 9]}]->(b);"
+    )
+
+    result = session.execute(
+        "MATCH (a:Person)-[e:Knows]->(b:Person) " "RETURN a.id, b.id, e.weights;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+    assert result[0][1] == 2
+    assert list(result[0][2]) == [7, 9]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_tp_array_update_set():
+    """SET array property on node via session."""
+    db_dir = "/tmp/test_tp_array_update_set"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Device("
+        "  id INT64,"
+        "  values DOUBLE[2],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.execute("CREATE (d:Device {id: 1, values: [1.0, 2.0]});")
+    conn.close()
+
+    uri = db.serve(10017, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("MATCH (d:Device {id: 1}) SET d.values = [9.9, 8.8];")
+
+    result = session.execute("MATCH (d:Device {id: 1}) RETURN d.values;")
+    assert len(result) == 1
+    values = list(result[0][0])
+    assert abs(values[0] - 9.9) < 0.01
+    assert abs(values[1] - 8.8) < 0.01
+
+    session.close()
     db.stop_serving()
     db.close()
 

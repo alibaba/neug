@@ -15,6 +15,7 @@
 
 #include "neug/storages/csr/immutable_csr.h"
 
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 
 #include <glog/logging.h>
@@ -75,7 +76,8 @@ void ImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
 }
 
 template <typename EDATA_T>
-ModuleDescriptor ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                                 const std::string& key) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("unsorted_since", std::to_string(unsorted_since_));
@@ -83,7 +85,7 @@ ModuleDescriptor ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   desc.set_path(ModuleDescriptor::kDegreeListPath,
                 ckp.Commit(*degree_list_buffer_));
   desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
-  return desc;
+  meta.set_module(key, desc);
 }
 
 template <typename EDATA_T>
@@ -398,12 +400,14 @@ void SingleImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
 }
 
 template <typename EDATA_T>
-ModuleDescriptor SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+void SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
+                                       CheckpointManifest& meta,
+                                       const std::string& key) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
-  return desc;
+  meta.set_module(key, desc);
 }
 
 template <typename EDATA_T>

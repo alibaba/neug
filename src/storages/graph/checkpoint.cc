@@ -46,6 +46,22 @@ static void CollectReferencedFiles(const ModuleDescriptor& desc,
   }
 }
 
+static void ResolveDescriptorPaths(ModuleDescriptor& desc,
+                                   const CheckpointFileManager& file_mgr,
+                                   const std::string& checkpoint_root) {
+  for (auto& [_, v] : desc.mutable_paths()) {
+    v = file_mgr.ResolveAbsolutePath(v, checkpoint_root);
+  }
+}
+
+static void RelativizeDescriptorPaths(ModuleDescriptor& desc,
+                                      const CheckpointFileManager& file_mgr,
+                                      const std::string& checkpoint_root) {
+  for (auto& [_, v] : desc.mutable_paths()) {
+    v = file_mgr.MakeRelativePath(v, checkpoint_root);
+  }
+}
+
 Checkpoint::~Checkpoint() = default;
 
 Checkpoint::Checkpoint(std::string path, uint32_t id)
@@ -67,9 +83,7 @@ void Checkpoint::initialize() {
 
   for (const auto& [key, desc] : meta_->modules()) {
     ModuleDescriptor absolute_desc = desc;
-    for (auto& [_, v] : absolute_desc.mutable_paths()) {
-      v = file_mgr_->ResolveAbsolutePath(v, path_);
-    }
+    ResolveDescriptorPaths(absolute_desc, *file_mgr_, path_);
     meta_->set_module(key, std::move(absolute_desc));
   }
 
@@ -124,9 +138,7 @@ void Checkpoint::UpdateMeta(CheckpointManifest&& meta) {
     CheckpointManifest meta_with_relative_paths = meta;
     for (const auto& [key, desc] : meta.modules()) {
       ModuleDescriptor relative_desc = desc;
-      for (auto& [_, v] : relative_desc.mutable_paths()) {
-        v = file_mgr_->MakeRelativePath(v, path_);
-      }
+      RelativizeDescriptorPaths(relative_desc, *file_mgr_, path_);
       meta_with_relative_paths.set_module(key, std::move(relative_desc));
     }
     meta_with_relative_paths.Save(meta_path());

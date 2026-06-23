@@ -393,7 +393,7 @@ inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
   // leaves transfer ownership into a transient store that Dumps + cleans up.
   auto table = vt.TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    meta.set_module(VertexPropKey(i), table->get_column_by_id(i)->Dump(ckp));
+    table->get_column_by_id(i)->Dump(ckp, meta, VertexPropKey(i));
   }
   neug::ModuleBroker store;
   store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
@@ -448,7 +448,7 @@ inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
     meta.SetScalar(kEdgeTableIdx, std::to_string(et.GetTableIdx()));
     auto table = et.TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
-      meta.set_module(EdgePropKey(i), table->get_column_by_id(i)->Dump(ckp));
+      table->get_column_by_id(i)->Dump(ckp, meta, EdgePropKey(i));
     }
   }
   neug::ModuleBroker store;

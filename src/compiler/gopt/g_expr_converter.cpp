@@ -245,7 +245,13 @@ std::unique_ptr<::common::Value> GExprConverter::castLiteral(
   }
   auto sourceExpr =
       castExpr.getChild(0)->constPtrCast<binder::LiteralExpression>();
-  auto& targetType = castExpr.getDataType();
+  const auto& targetType = scalarExpr.getBindData()
+                               ? scalarExpr.getBindData()->resultType
+                               : castExpr.getDataType();
+  if (targetType.id() == common::DataTypeId::kArray ||
+      targetType.id() == common::DataTypeId::kList) {
+    return nullptr;
+  }
   // construct parameters of the cast function
   // construct input parameters
   auto inputVec =
@@ -950,8 +956,15 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
         "CAST function should have at least one children");
   }
   auto sourceExpr = children[0];
+  const auto& targetType = scalarExpr.getBindData()
+                               ? scalarExpr.getBindData()->resultType
+                               : expr.getDataType();
   switch (sourceExpr->expressionType) {
   case common::ExpressionType::LITERAL: {
+    if (targetType.id() == common::DataTypeId::kArray ||
+        targetType.id() == common::DataTypeId::kList) {
+      return convertExtensionFunc(scalarExpr, schemaAlias);
+    }
     auto valuePB = castLiteral(expr);
     if (valuePB) {
       auto exprPB = std::make_unique<::common::Expression>();
