@@ -161,10 +161,11 @@ def test_connect_remote_database_fails_without_uri(runner):
     assert "Error: Missing argument 'DB_URI'." in result.output
 
 
-def test_start_remote_database_neug_ui(runner):
+def test_start_remote_database_neug_ui(runner, tmp_path):
     db_endpoint = "http://127.0.0.1:10010"
-    db_path = "/tmp/modern_graph"
-    db = Database(db_path=db_path, mode="w")
+    db_path = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_path), mode="w")
+    db.load_builtin_dataset("modern_graph")
     db.serve(host="127.0.0.1", port=10010, blocking=False)
 
     time.sleep(1)
@@ -194,9 +195,10 @@ def test_start_remote_database_neug_ui(runner):
     assert expected_output in response.text
 
 
-def test_start_local_database_neug_ui(runner):
-    db_path = "/tmp/modern_graph"
-    db = Database(db_path=db_path, mode="w")
+def test_start_local_database_neug_ui(runner, tmp_path):
+    db_path = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_path), mode="w")
+    db.load_builtin_dataset("modern_graph")
     connection = db.connect()
     shell = neug_cli.NeugShell(connection)
     thread = threading.Thread(

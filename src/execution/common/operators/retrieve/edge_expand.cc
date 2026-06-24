@@ -66,8 +66,9 @@ neug::result<ContextChunk> EdgeExpand::expand_degree(
     chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return chunk;
   }
+  int64_t degree = 0;
   foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
-    int64_t degree = 0;
+    degree = 0;
     if (v == graph.kInvalidVid) {
       return;
     }

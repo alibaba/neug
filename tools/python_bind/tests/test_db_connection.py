@@ -36,8 +36,8 @@ from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 # DB-002-01
 # DB-002-02
 def test_local_connection(tmp_path):
-    shutil.rmtree("/tmp/local_conn_db", ignore_errors=True)
     db_dir = tmp_path / "local_conn_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     assert conn is not None
@@ -46,8 +46,8 @@ def test_local_connection(tmp_path):
 
 
 def test_open_after_close(tmp_path):
-    shutil.rmtree("/tmp/test_open_after_close_db", ignore_errors=True)
     db_dir = tmp_path / "test_open_after_close_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     assert conn is not None
@@ -61,8 +61,8 @@ def test_open_after_close(tmp_path):
 
 # DB-002-03
 def test_local_connection_params(tmp_path):
-    shutil.rmtree("/tmp/local_conn_param_db", ignore_errors=True)
     db_dir = tmp_path / "local_conn_param_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w", max_thread_num=os.cpu_count())
     conn = db.connect()
     assert conn is not None
@@ -72,8 +72,8 @@ def test_local_connection_params(tmp_path):
 
 # DB-002-04
 def test_local_connection_invalid_param(tmp_path):
-    shutil.rmtree("/tmp/local_conn_invalid_db", ignore_errors=True)
     db_dir = tmp_path / "local_conn_invalid_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w", max_thread_num=-1)
     assert str(ERR_CONFIG_INVALID) in str(excinfo.value)
@@ -205,8 +205,8 @@ def test_server_load_overflow(started_server):
 # DB-002-12
 def test_local_connection_after_close(tmp_path):
     # local connection after close
-    shutil.rmtree("/tmp/conn_after_close_db", ignore_errors=True)
     db_dir = tmp_path / "conn_after_close_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     conn.close()
@@ -233,15 +233,16 @@ def test_remote_connection_after_close(started_server):
 
 
 # DB-002-13
-def test_server_restart(started_server):
+def test_server_restart(started_server, tmp_path):
     db, endpoint = started_server
     from neug.session import Session
 
     session = Session.open(endpoint)
     db.close()
     time.sleep(2)
-    shutil.rmtree("/tmp/remote_db", ignore_errors=True)
-    db2 = Database(db_path="/tmp/remote_db", mode="w")
+    db_dir = tmp_path / "remote_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db2 = Database(db_path=str(db_dir), mode="w")
     # get port from the original db
     port = int(endpoint.split(":")[-1])
     db2.serve(port=port, host="localhost", blocking=False)
@@ -274,8 +275,8 @@ def test_connection_pool_exhausted(started_server):
 
 
 def test_parallel_connections(tmp_path):
-    shutil.rmtree("/tmp/parallel_conn_db", ignore_errors=True)
     db_dir = tmp_path / "parallel_conn_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="r")
     connections = []
     for _ in range(5):
@@ -288,8 +289,8 @@ def test_parallel_connections(tmp_path):
 
 
 def test_parallel_query_executions(tmp_path):
-    shutil.rmtree("/tmp/parallel_query_db", ignore_errors=True)
     db_dir = tmp_path / "parallel_query_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
 
@@ -315,8 +316,8 @@ def test_parallel_query_executions(tmp_path):
 
 
 def test_access_mode(tmp_path):
-    shutil.rmtree("/tmp/access_mode_db", ignore_errors=True)
     db_dir = tmp_path / "access_mode_db"
+    shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn_rw = db.connect()
     supported_access_modes = ["read", "r", "insert", "i", "update", "u"]

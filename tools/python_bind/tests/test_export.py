@@ -19,10 +19,11 @@
 import csv
 import json
 import os
-import shutil
 import sys
 
 import pytest
+from conftest import COMPREHENSIVE_GRAPH_DIR
+from conftest import HAS_COMPREHENSIVE_GRAPH
 
 from neug.database import Database
 
@@ -82,17 +83,10 @@ class TestExport:
     """COPY TO CSV tests using tinysnb. Assert header and data row count only."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tmp_path):
-        self.db_dir = "/tmp/tinysnb"
-        if not os.path.exists(self.db_dir):
-            pytest.fail(f"Database not found at {self.db_dir}")
-        self.db = Database(db_path=self.db_dir, mode="w")
-        self.conn = self.db.connect()
+    def setup(self, tmp_path, tinysnb):
+        self.conn = tinysnb
         self.tmp_path = tmp_path
         yield
-        self.conn.close()
-        self.db.close()
-        shutil.rmtree(self.tmp_path, ignore_errors=True)
 
     def test_export_person_with_header(self):
         out_path = self.tmp_path / "person.csv"
@@ -610,21 +604,20 @@ class TestExport:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
 
+@pytest.mark.skipif(
+    not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
+)
 class TestExportComprehensiveGraph:
     """COPY TO CSV/JSON tests using comprehensive_graph (bulk-loaded to /tmp/comprehensive_graph in CI)."""
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
-        self.db_dir = "/tmp/comprehensive_graph"
-        if not os.path.exists(self.db_dir):
-            pytest.fail(f"Database not found at {self.db_dir}")
-        self.db = Database(db_path=self.db_dir, mode="w")
+        self.db = Database(db_path=COMPREHENSIVE_GRAPH_DIR, mode="w")
         self.conn = self.db.connect()
         self.tmp_path = tmp_path
         yield
         self.conn.close()
         self.db.close()
-        shutil.rmtree(self.tmp_path, ignore_errors=True)
 
     def test_export_comprehensive_graph_to_csv(self):
         """Export node_a vertices from comprehensive_graph to CSV; verify header and row count."""
@@ -767,21 +760,14 @@ class TestParquetExport:
     """COPY TO Parquet export tests using tinysnb."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, tmp_path):
-        self.db_dir = "/tmp/tinysnb"
-        if not os.path.exists(self.db_dir):
-            pytest.fail(f"Database not found at {self.db_dir}")
-        self.db = Database(db_path=self.db_dir, mode="rw")
-        self.conn = self.db.connect()
+    def setup(self, tmp_path, tinysnb):
+        self.conn = tinysnb
         self.tmp_path = tmp_path
 
         # Load parquet extension
         self.conn.execute("load parquet")
 
         yield
-        self.conn.close()
-        self.db.close()
-        shutil.rmtree(self.tmp_path, ignore_errors=True)
 
     @extension_test
     def test_export_person_to_parquet(self):
@@ -889,12 +875,9 @@ class TestExportHTTPFS:
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
-        src_db = "/tmp/tinysnb"
-        if not os.path.exists(src_db):
-            pytest.fail(f"Database not found at {src_db}")
         self.db_dir = str(tmp_path / "tinysnb")
-        shutil.copytree(src_db, self.db_dir)
         self.db = Database(db_path=self.db_dir, mode="w")
+        self.db.load_builtin_dataset("tinysnb")
         self.conn = self.db.connect()
         self.conn.execute("LOAD HTTPFS")
         self.conn.execute("LOAD PARQUET")
