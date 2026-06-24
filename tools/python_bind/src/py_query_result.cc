@@ -737,7 +737,7 @@ pybind11::object PyQueryResult::to_arrow() const {
   auto array_holder = new OwnedArray();
   array_holder->response = response;  // root also holds a reference
   // Struct root has 1 buffer (validity – nullptr means all-valid).
-  array_holder->buffer_ptrs = {nullptr};
+  array_holder->buffer_ptrs.resize(1, nullptr);
   array_holder->children.resize(n_cols);
   array_holder->child_ptrs.resize(n_cols);
 
