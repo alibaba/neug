@@ -1437,16 +1437,17 @@ def test_complex_example(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_cow_concurrent_updates_serialized(tmp_path):
-    """Two update transactions sent concurrently must both succeed.
+def test_cow_concurrent_updates_same_vertex(tmp_path):
+    """Two concurrent updates to the SAME vertex must not corrupt data.
 
-    Validates: the server serializes concurrent updates (does not reject
-    the second one) and both commits are visible. Sessions are created
-    before threads start and passed in, so each session is reused across
-    multiple queries (update + read verification) on the same connection.
+    Both threads update person 1's age concurrently. Without proper
+    serialization (e.g., broken COW or no locking), the concurrent
+    writes could corrupt the vertex or produce an unexpected value.
 
-    If COW is broken, one update might corrupt the other's snapshot or
-    the second update might be rejected instead of queued.
+    With serialization: one update commits fully before the other
+    starts. Final age is either 40 or 35 — the value from whichever
+    update committed last. It must NOT be 30 (original), 0 (default),
+    or any other corrupted value.
     """
     import threading
 
@@ -1459,48 +1460,52 @@ def test_cow_concurrent_updates_serialized(tmp_path):
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
     conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
-    conn.execute("CREATE (p:person {id: 2, name: 'Bob', age: 25});")
     conn.close()
 
     uri = db.serve(10060, "localhost", False)
     wait_for_server_ready(uri)
 
-    # Create sessions before starting threads — each will be reused
-    # across update + read verification queries
+    # Create sessions before starting threads
     sess1 = Session(uri, timeout="15s")
     sess2 = Session(uri, timeout="15s")
 
-    results = {}
     errors = {}
 
-    def do_update_and_verify(sess, thread_id, person_id, new_age):
+    def do_update(sess, thread_id, new_age):
         try:
             sess.execute(
-                f"MATCH (p:person {{id: {person_id}}}) SET p.age = {new_age};",
+                "MATCH (p:person {id: 1}) SET p.age = %d;" % new_age,
                 access_mode="update",
             )
-            result = sess.execute(
-                f"MATCH (p:person {{id: {person_id}}}) RETURN p.age;",
-                access_mode="read",
-            )
-            results[thread_id] = list(result)[0][0]
         except Exception as e:
             errors[thread_id] = str(e)
 
-    t1 = threading.Thread(target=do_update_and_verify, args=(sess1, 1, 1, 40))
-    t2 = threading.Thread(target=do_update_and_verify, args=(sess2, 2, 2, 35))
+    # Both threads update the SAME vertex — tests serialization
+    t1 = threading.Thread(target=do_update, args=(sess1, 1, 40))
+    t2 = threading.Thread(target=do_update, args=(sess2, 2, 35))
     t1.start()
     t2.start()
     t1.join(timeout=30)
     t2.join(timeout=30)
 
-    # Close sessions after threads complete
     sess1.close()
     sess2.close()
 
     assert len(errors) == 0, f"Update errors: {errors}"
-    assert results.get(1) == 40, f"Thread 1: expected age 40, got {results.get(1)}"
-    assert results.get(2) == 35, f"Thread 2: expected age 35, got {results.get(2)}"
+
+    # Final age must be one of the two values (whichever committed last),
+    # not the original (30) and not corrupted
+    verify_sess = Session(uri, timeout="10s")
+    result = verify_sess.execute(
+        "MATCH (p:person {id: 1}) RETURN p.age;", access_mode="read"
+    )
+    final_age = list(result)[0][0]
+    verify_sess.close()
+
+    assert final_age in (
+        40,
+        35,
+    ), f"Corrupted or unexpected age: {final_age}. Expected 40 or 35."
 
     db.stop_serving()
     db.close()
