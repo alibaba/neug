@@ -304,6 +304,11 @@ std::string BrpcServiceManager::Start() {
   std::string ip_port = service_config_.host_str + ":" +
                         std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
+  LOG(INFO) << "Brpc server config: db_thread_num="
+            << neug_db_.config().thread_num
+            << ", configured_shard_num=" << service_config_.shard_num
+            << ", resolved_num_threads=" << options.num_threads
+            << ", session_pool_size=" << session_pool_.SessionNum();
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
@@ -327,10 +332,17 @@ void BrpcServiceManager::Stop() {
   LOG(INFO) << "Brpc server stopped";
 }
 
+uint32_t BrpcServiceManager::resolve_num_threads() const {
+  if (service_config_.shard_num != 0) {
+    return service_config_.shard_num;
+  }
+  return static_cast<uint32_t>(std::max<size_t>(1, session_pool_.SessionNum()));
+}
+
 brpc::ServerOptions BrpcServiceManager::get_server_options() const {
   brpc::ServerOptions options;
   options.idle_timeout_sec = 60;  // 1 minute
-  options.num_threads = service_config_.shard_num;
+  options.num_threads = resolve_num_threads();
 
   return options;
 }
