@@ -135,10 +135,8 @@ def test_shell_do_quit(capsys, tmp_path):
     connection.close()
 
 
-def test_shell_do_max_rows(capsys):
-    db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_max_rows(capsys, modern_graph):
+    connection = modern_graph
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) RETURN n;")
     captured = capsys.readouterr()
@@ -176,8 +174,6 @@ def test_shell_do_max_rows(capsys):
 | ...                                                   |
 +-------------------------------------------------------+
     """
-    connection.close()
-    database.close()
 
 
 def test_shell_do_max_rows_invalid(capsys, tmp_path):
@@ -192,10 +188,8 @@ def test_shell_do_max_rows_invalid(capsys, tmp_path):
     connection.close()
 
 
-def test_shell_do_query(capsys):
-    db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_query(capsys, modern_graph):
+    connection = modern_graph
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) where n.name = 'marko' RETURN n;")
     captured = capsys.readouterr()
@@ -229,13 +223,10 @@ def test_shell_do_query(capsys):
 +------+--------+-------+
     """
     assert expected_output.strip() == captured.out.strip()
-    connection.close()
 
 
-def test_shell_do_query_multiline(capsys):
-    db_path = "/tmp/modern_graph"
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_query_multiline(capsys, modern_graph):
+    connection = modern_graph
     shell = neug_cli.NeugShell(connection)
     shell.default("MATCH (n) where n.name = 'marko'")
     shell.default("RETURN n;")
@@ -248,7 +239,6 @@ def test_shell_do_query_multiline(capsys):
 +-------------------------------------------------------+
     """
     assert expected_output.strip() == captured.out.strip()
-    connection.close()
 
 
 def test_shell_do_query_in_write_mode(capsys, tmp_path):

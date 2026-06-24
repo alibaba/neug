@@ -35,8 +35,11 @@ from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
 
 
 # DB-004-01
-def test_ap_read_concurrent():
-    db_dir = "/tmp/modern_graph"
+def test_ap_read_concurrent(tmp_path):
+    db_dir = tmp_path / "modern_graph"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("modern_graph")
+    db.close()
     db = Database(db_path=str(db_dir), mode="r")
     conns = [db.connect() for _ in range(4)]
     for conn in conns:
@@ -61,8 +64,8 @@ def test_ap_write_concurrent(tmp_path):
 
 
 # DB-004-03
-def test_ap_read_write_concurrent():
-    db_dir = "/tmp/modern_graph"
+def test_ap_read_write_concurrent(tmp_path):
+    db_dir = tmp_path / "modern_graph"
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
