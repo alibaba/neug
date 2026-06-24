@@ -61,8 +61,8 @@ bool InsertTransaction::GetVertexIndex(label_t label,
   return false;
 }
 
-execution::Value InsertTransaction::GetVertexId(label_t label,
-                                                vid_t lid) const {
+execution::Value InsertTransaction::get_vertex_id(label_t label,
+                                                  vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
     return view_->GetOid(label, lid, timestamp_);
   }
@@ -121,8 +121,8 @@ Status InsertTransaction::AddEdge(
     label_t src_label, vid_t src_vid, label_t dst_label, vid_t dst_vid,
     label_t edge_label, const std::vector<execution::Value>& properties,
     const void*& prop) {
-  const auto& src = GetVertexId(src_label, src_vid);
-  const auto& dst = GetVertexId(dst_label, dst_vid);
+  const auto& src = get_vertex_id(src_label, src_vid);
+  const auto& dst = get_vertex_id(dst_label, dst_vid);
   const auto& types =
       view_->schema().get_edge_properties(src_label, dst_label, edge_label);
   if (properties.size() != types.size()) {
@@ -215,10 +215,8 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
       InsertEdgeRedo redo;
       arc >> redo;
       vid_t src_lid, dst_lid;
-      CHECK(get_vertex_with_retries(view, redo.src_label, redo.src, src_lid,
-                                    timestamp));
-      CHECK(get_vertex_with_retries(view, redo.dst_label, redo.dst, dst_lid,
-                                    timestamp));
+      CHECK(view.get_lid(redo.src_label, redo.src, src_lid, timestamp));
+      CHECK(view.get_lid(redo.dst_label, redo.dst, dst_lid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
       auto ret = view.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
@@ -244,24 +242,6 @@ void InsertTransaction::clear() {
 }
 
 const Schema& InsertTransaction::schema() const { return view_->schema(); }
-
-bool InsertTransaction::get_vertex_with_retries(GraphView& graph, label_t label,
-                                                const execution::Value& oid,
-                                                vid_t& lid,
-                                                timestamp_t timestamp) {
-  if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
-    return true;
-  }
-  for (int i = 0; i < 10; ++i) {
-    std::this_thread::sleep_for(std::chrono::microseconds(1000000));
-    if (NEUG_LIKELY(graph.get_lid(label, oid, lid, timestamp))) {
-      return true;
-    }
-  }
-
-  LOG(ERROR) << "get_vertex [" << oid.to_string() << "] failed";
-  return false;
-}
 
 void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   if (label >= added_vertices_.size()) {

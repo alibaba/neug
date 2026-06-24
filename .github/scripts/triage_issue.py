@@ -20,6 +20,7 @@ The script is intentionally single-file with no third-party deps beyond
 `pyyaml` and `requests` (installed in the workflow).
 """
 from __future__ import annotations
+
 import json
 import os
 import sys
@@ -39,8 +40,13 @@ CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1}
 ISSUE_TYPES = {"Bug": 242038, "Feature": 242040, "Task": 242035}
 
 SUBSYSTEM_LABELS = [
-    "compiler", "executor", "store", "transaction",
-    "extension", "client", "ci",
+    "compiler",
+    "executor",
+    "store",
+    "transaction",
+    "extension",
+    "client",
+    "ci",
 ]
 
 SYSTEM_PROMPT = """\
@@ -213,8 +219,26 @@ def post_comment(repo: str, number: int, body: str) -> bool:
     return True
 
 
-def render_comment(cfg: dict, result: dict, auto_linked: bool,
-                   type_set: bool, labels_set: list[str]) -> str:
+def has_triage_comment(repo: str, number: int) -> bool:
+    """Check if a triage comment was already posted by the bot."""
+    resp = requests.get(
+        f"{GITHUB_API}/repos/{repo}/issues/{number}/comments",
+        headers=gh_headers(),
+        params={"per_page": 100},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        return False
+    for c in resp.json():
+        user = c.get("user", {})
+        if user.get("type") == "Bot" and "🤖" in c.get("body", ""):
+            return True
+    return False
+
+
+def render_comment(
+    cfg: dict, result: dict, auto_linked: bool, type_set: bool, labels_set: list[str]
+) -> str:
     umbrella = result.get("umbrella")
     confidence = result.get("confidence", "low")
     reason = result.get("reason", "")
@@ -288,6 +312,10 @@ def main() -> int:
         print(f"#{number} looks like an umbrella issue; skipping.")
         return 0
 
+    if has_triage_comment(repo, number):
+        print(f"#{number} already has a triage comment; skipping.")
+        return 0
+
     user_prompt = build_user_prompt(cfg, issue)
     try:
         result = call_qwen(api_key, SYSTEM_PROMPT, user_prompt)
@@ -318,7 +346,9 @@ def main() -> int:
     type_set = False
     existing_type = issue.get("type")
     if existing_type:
-        print(f"Issue already has type '{existing_type.get('name', '')}'; skipping type assignment")
+        print(
+            f"Issue already has type '{existing_type.get('name', '')}'; skipping type assignment"
+        )
     elif issue_type in ISSUE_TYPES:
         type_set = set_issue_type(repo, number, issue_type)
         if type_set:
@@ -327,7 +357,9 @@ def main() -> int:
     # set subsystem labels (only add labels not already present)
     pred_labels = result.get("labels", [])
     existing_labels = {l["name"] for l in issue.get("labels", [])}
-    labels_to_add = [l for l in pred_labels if l in SUBSYSTEM_LABELS and l not in existing_labels]
+    labels_to_add = [
+        l for l in pred_labels if l in SUBSYSTEM_LABELS and l not in existing_labels
+    ]
     labels_set = []
     if labels_to_add:
         if set_issue_labels(repo, number, labels_to_add):
