@@ -54,9 +54,6 @@ void StatementVisitor::visit(const Statement& statement) {
   case StatementType::COPY_FROM: {
     visitCopyFrom(statement);
   } break;
-  case StatementType::LOAD_AS: {
-    visitLoadAs(statement);
-  } break;
   case StatementType::COPY_TO: {
     visitCopyTo(statement);
   } break;

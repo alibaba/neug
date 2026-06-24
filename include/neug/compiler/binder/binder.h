@@ -191,10 +191,12 @@ class Binder {
   std::unique_ptr<BoundStatement> bindCopyRelFromNoSchema(
       const parser::Statement& statement,
       const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
-
-  /*** bind load-as ***/
-  std::unique_ptr<BoundStatement> bindLoadAs(
-      const parser::Statement& statement);
+  std::unique_ptr<BoundStatement> bindCopyTempNodeFrom(
+      const parser::Statement& statement,
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
+  std::unique_ptr<BoundStatement> bindCopyTempRelFrom(
+      const parser::Statement& statement,
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
 
   std::unique_ptr<BoundStatement> bindCopyToClause(
       const parser::Statement& statement);

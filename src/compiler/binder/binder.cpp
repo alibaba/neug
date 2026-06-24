@@ -66,9 +66,6 @@ std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
   case StatementType::COPY_FROM: {
     boundStatement = bindCopyFromClause(statement);
   } break;
-  case StatementType::LOAD_AS: {
-    boundStatement = bindLoadAs(statement);
-  } break;
   case StatementType::COPY_TO: {
     boundStatement = bindCopyToClause(statement);
   } break;

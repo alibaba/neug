@@ -47,7 +47,6 @@ enum class StatementType : uint8_t {
   USE_DATABASE = 36,
   CREATE_SEQUENCE = 37,
   CREATE_TYPE = 39,
-  LOAD_AS = 40,
 };
 
 }  // namespace common

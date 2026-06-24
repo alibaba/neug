@@ -1,7 +1,6 @@
 add_library(neug_parser_transform
         OBJECT
         transform_copy.cpp
-        transform_load_as.cpp
         transform_ddl.cpp
         transform_expression.cpp
         transform_graph_pattern.cpp

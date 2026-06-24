@@ -68,7 +68,6 @@ class StatementVisitor {
   virtual void visitCreateType(const Statement& /*statement*/) {}
   virtual void visitAlter(const Statement& /*statement*/) {}
   virtual void visitCopyFrom(const Statement& /*statement*/) {}
-  virtual void visitLoadAs(const Statement& /*statement*/) {}
   virtual void visitCopyTo(const Statement& /*statement*/) {}
   virtual void visitStandaloneCall(const Statement& /*statement*/) {}
   virtual void visitExplain(const Statement& /*statement*/);

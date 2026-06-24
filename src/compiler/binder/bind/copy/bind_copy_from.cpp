@@ -195,6 +195,18 @@ static bool autoDetectEnabled(
 std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     const Statement& statement) {
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
+
+  // --- COPY TEMP: always infer schema, create temporary table ---
+  if (copyStatement.isTemporary()) {
+    auto boundOpts = bindParsingOptions(copyStatement.getParsingOptions());
+    auto fromIt = boundOpts.find(CopyConstants::FROM_OPTION_NAME);
+    auto toIt = boundOpts.find(CopyConstants::TO_OPTION_NAME);
+    if (fromIt != boundOpts.end() && toIt != boundOpts.end()) {
+      return bindCopyTempRelFrom(statement, boundOpts);
+    }
+    return bindCopyTempNodeFrom(statement, boundOpts);
+  }
+
   auto tableName = copyStatement.getTableName();
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
@@ -462,6 +474,96 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
   auto extraTableInfo =
       std::make_unique<DDLEdgeInfo>(edgeLabel, fromLabel, toLabel, srcTableID,
                                     dstTableID, columns, expressionBinder);
+  auto boundCopyFromInfo =
+      BoundCopyFromInfo(std::move(boundSource), std::move(offset),
+                        std::move(columns), std::move(evaluateTypes),
+                        std::move(extraCopyRelInfo), std::move(extraTableInfo));
+  return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCopyTempNodeFrom(
+    const Statement& statement,
+    const case_insensitive_map_t<Value>& boundCopyOptions) {
+  (void) boundCopyOptions;
+  auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
+  auto boundSource = bindScanSource(copyStatement.getSource(),
+                                    copyStatement.getParsingOptions(), {}, {});
+  expression_vector columns = boundSource->getColumns();
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
+  auto offset = createInvisibleVariable(
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
+  const auto& labelName = copyStatement.getTableName();
+  if (columns.empty()) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "No columns found for table {}, cannot set primary key", labelName));
+  }
+  const auto& primaryKey = columns[0]->rawName();
+  auto ddlTableInfo = std::make_unique<DDLVertexInfo>(
+      labelName, primaryKey, columns, expressionBinder, /*temporary=*/true);
+  auto boundCopyFromInfo =
+      BoundCopyFromInfo(std::move(boundSource), std::move(offset),
+                        std::move(columns), std::move(evaluateTypes),
+                        nullptr /* extraInfo */, std::move(ddlTableInfo));
+  return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCopyTempRelFrom(
+    const Statement& statement,
+    const case_insensitive_map_t<Value>& boundCopyOptions) {
+  auto& copyStatement = statement.constCast<CopyFrom>();
+  auto fromIt = boundCopyOptions.find(CopyConstants::FROM_OPTION_NAME);
+  auto toIt = boundCopyOptions.find(CopyConstants::TO_OPTION_NAME);
+  if (fromIt == boundCopyOptions.end() || toIt == boundCopyOptions.end()) {
+    THROW_BINDER_EXCEPTION(
+        "COPY TEMP into an edge type requires FROM and TO options naming "
+        "existing vertex types.");
+  }
+  auto fromLabel = fromIt->second.getValue<std::string>();
+  auto toLabel = toIt->second.getValue<std::string>();
+  auto* srcCatalogEntry = bindNodeTableEntry(fromLabel);
+  auto* dstCatalogEntry = bindNodeTableEntry(toLabel);
+  Binder::validateNodeTableType(srcCatalogEntry);
+  Binder::validateNodeTableType(dstCatalogEntry);
+  auto* srcNode = srcCatalogEntry->ptrCast<NodeTableCatalogEntry>();
+  auto* dstNode = dstCatalogEntry->ptrCast<NodeTableCatalogEntry>();
+
+  auto boundSource = bindScanSource(
+      copyStatement.getSource(), getScanSourceOptions(copyStatement), {}, {});
+  expression_vector warningDataExprs;
+  auto offset = createInvisibleVariable(
+      std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
+  auto srcTableID = srcNode->getTableID();
+  auto dstTableID = dstNode->getTableID();
+
+  auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
+                                  DataType(DataTypeId::kInt64));
+  auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
+                                  DataType(DataTypeId::kInt64));
+  expression_vector columns = boundSource->getColumns();
+  if (columns.size() < 2u) {
+    THROW_BINDER_EXCEPTION(
+        "Cannot infer edge schema: need at least two columns (source key, "
+        "destination key).");
+  }
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
+  std::shared_ptr<Expression> srcKey = columns[0], dstKey = columns[1];
+
+  auto srcLookUpInfo =
+      IndexLookupInfo(srcTableID, srcOffset, srcKey, warningDataExprs);
+  auto dstLookUpInfo =
+      IndexLookupInfo(dstTableID, dstOffset, dstKey, warningDataExprs);
+  auto lookupInfos = std::vector<IndexLookupInfo>{srcLookUpInfo, dstLookUpInfo};
+  auto internalIDColumnIndices = std::vector<idx_t>{0, 1, 2};
+  auto extraCopyRelInfo = std::make_unique<ExtraBoundCopyRelInfo>(
+      internalIDColumnIndices, lookupInfos);
+
+  const auto& edgeLabel = copyStatement.getTableName();
+  auto extraTableInfo =
+      std::make_unique<DDLEdgeInfo>(edgeLabel, fromLabel, toLabel, srcTableID,
+                                    dstTableID, columns, expressionBinder,
+                                    /*temporary=*/true);
   auto boundCopyFromInfo =
       BoundCopyFromInfo(std::move(boundSource), std::move(offset),
                         std::move(columns), std::move(evaluateTypes),

@@ -83,6 +83,8 @@ class Transformer {
       CypherParser::NEUG_CopyFromContext& ctx);
   std::unique_ptr<Statement> transformCopyFromByColumn(
       CypherParser::NEUG_CopyFromByColumnContext& ctx);
+  std::unique_ptr<Statement> transformCopyTemp(
+      CypherParser::NEUG_CopyTempContext& ctx);
   std::vector<std::string> transformColumnNames(
       CypherParser::NEUG_ColumnNamesContext& ctx);
   std::vector<std::string> transformFilePaths(
@@ -90,14 +92,6 @@ class Transformer {
   std::unique_ptr<BaseScanSource> transformScanSource(
       CypherParser::NEUG_ScanSourceContext& ctx);
   options_t transformOptions(CypherParser::NEUG_OptionsContext& ctx);
-
-  // Transform load-as statement.
-  std::unique_ptr<Statement> transformLoadNodeTable(
-      CypherParser::NEUG_LoadNodeTableContext& ctx);
-  std::unique_ptr<Statement> transformLoadRelTable(
-      CypherParser::NEUG_LoadRelTableContext& ctx);
-  std::vector<std::string> transformReturnColumns(
-      CypherParser::NEUG_ReturnColumnsContext& ctx);
 
   std::unique_ptr<Statement> transformExportDatabase(
       CypherParser::NEUG_ExportDatabaseContext& ctx);
