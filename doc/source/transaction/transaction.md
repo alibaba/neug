@@ -115,21 +115,21 @@ Schema constraints and referential integrity are enforced. All concurrent operat
 
 #### Isolation
 
-NeuG uses **Multi-Version Concurrency Control (MVCC)** plus copy-on-write (COW) snapshots to provide serializable isolation, with operation-specific concurrency rules:
+Service mode provides serializable isolation with operation-specific concurrency rules:
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read | Concurrent with reads, inserts, and the update execution phase. New reads wait only during the update commit publish window. Already-acquired reads continue on their pinned snapshot. |
-| Insert | Concurrent with reads and other inserts while no update is active. Blocked during update execution and update commit. |
-| Update | Serialized: only one update can be open. The execution phase waits for in-flight inserts, blocks new inserts/updates, and mutates a COW snapshot while reads continue. The commit phase briefly blocks new reads/inserts while publishing the COW snapshot; existing reads continue. |
-| Schema (DDL) | Uses the same two-phase `UpdateTransaction` path as update operations. |
-| Checkpoint | Uses the `UpdateTransaction` path in TP service: reads continue during checkpoint execution, while new reads/inserts wait during the commit publish window. |
+| Read | Concurrent with reads, inserts, and updates. Reads observe a consistent snapshot and do not wait for active updates. |
+| Insert | Concurrent with reads and other inserts while no update is active. Inserts wait until the active update finishes. |
+| Update | Only one update at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
+| Schema (DDL) | Serialized like updates. Reads continue on a consistent snapshot; inserts and updates wait until the schema change finishes. |
+| Checkpoint | Serialized like updates. Reads continue on a consistent snapshot; inserts and updates wait until the checkpoint finishes. |
 
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
 - **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
-- **Updates and schema changes** are relatively rare and are serialized with other writes, but COW snapshots let long-running reads continue without blocking update execution or commit
-- The short **update commit** window gates new reads and inserts so timestamp visibility and the published snapshot advance in the same order
+- **Updates, schema changes, and checkpoints** are relatively rare and are serialized with other writes
+- Reads continue to observe a consistent snapshot while updates are running
 - Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
 
 ```python
@@ -143,8 +143,8 @@ session2 = Session("http://localhost:10000/")
 session1.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
 session2.execute("CREATE (p:Person {name: 'Bob'})", access_mode="insert")
 
-# This is serialized with inserts and other updates. Existing reads continue
-# on their pinned snapshots; new reads may wait briefly during commit.
+# This is serialized with inserts and other updates. Reads continue on a
+# consistent snapshot while the update runs.
 session1.execute("MATCH (p:Person) SET p.updated = true", access_mode="update")
 ```
 
@@ -249,10 +249,9 @@ session.close()
 ```
 
 **Service Mode Checkpoint:**
-- Uses the same two-phase `UpdateTransaction` path as update operations
-- Blocks new inserts and other updates while the checkpoint transaction is open
-- Lets reads continue during checkpoint execution; already-acquired reads continue through commit
-- Briefly blocks new reads and inserts during the commit publish window
+- Serialized like update operations
+- Blocks new inserts and other updates while the checkpoint is running
+- Lets reads continue on a consistent snapshot
 - Consolidates WAL entries into a unified checkpoint
 - Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
@@ -338,8 +337,8 @@ try:
     # Reads don't block inserts
     result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
     
-    # Updates are serialized with inserts and other updates. Reads continue
-    # on snapshots, but keep update transactions short in high-concurrency scenarios.
+    # Updates are serialized with inserts and other updates. Reads continue on
+    # consistent snapshots, but keep updates short in high-concurrency scenarios.
     session.execute("MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true", 
                    access_mode="update")
     
@@ -356,11 +355,11 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for read/insert, COW two-phase update/DDL |
+| **Isolation** | Exclusive write locks | MVCC for reads/inserts, serialized updates/DDL |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes |
 | **Concurrent Inserts** | No | Yes, unless an update is active |
-| **Concurrent Updates** | No | No, updates are serialized while reads continue on snapshots |
+| **Concurrent Updates** | No | No, updates are serialized while reads continue on consistent snapshots |
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
 
 ## Roadmap

@@ -28,6 +28,12 @@ After insertion and update, the transaction can be committed by calling `UpdateT
 
 # Version Management
 
+> Note: The user-facing transaction guide (`doc/source/transaction/transaction.md`)
+> intentionally omits the implementation details in this section. It describes
+> only application-observable concurrency behavior; `VersionManager` states,
+> timestamp visibility rules, and storage mechanics belong in this developer
+> documentation.
+
 ## Visibility
 
 Graph records that participate in MVCC visibility are associated with a timestamp, which is the timestamp of the transaction that creates or publishes the record version.
