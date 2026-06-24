@@ -73,6 +73,8 @@ class ArrayColumn : public IContextColumn {
 
   bool is_optional() const override { return false; }
 
+  std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold() const;
+
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
   uint32_t array_size() const { return array_size_; }
 

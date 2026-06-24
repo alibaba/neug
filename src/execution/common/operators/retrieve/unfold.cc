@@ -63,14 +63,8 @@ neug::result<ContextChunk> Unfold::unfold(ContextChunk&& chunk, int key,
   }
   if (col->elem_type().id() == DataTypeId::kArray) {
     auto array_col = std::dynamic_pointer_cast<ArrayColumn>(col);
-    sel_vec_t offsets;
-    offsets.reserve(array_col->size() * array_col->array_size());
-    for (size_t i = 0; i < array_col->size(); ++i) {
-      for (uint32_t j = 0; j < array_col->array_size(); ++j) {
-        offsets.push_back(i);
-      }
-    }
-    chunk.set_with_reshuffle(alias, array_col->data_column(), offsets);
+    auto [ptr, offsets] = array_col->unfold();
+    chunk.set_with_reshuffle(alias, ptr, offsets);
     return chunk;
   }
   auto list_col = std::dynamic_pointer_cast<ListColumn>(col);

@@ -688,12 +688,6 @@ function_set CastToIntervalFunction::getFunctionSet() {
   return result;
 }
 
-static execution::Value castFunc(const std::vector<execution::Value>& args);
-
-static bool isListArrayType(DataTypeId type_id) {
-  return type_id == DataTypeId::kList || type_id == DataTypeId::kArray;
-}
-
 static std::unique_ptr<FunctionBindData> castBindFunc(
     ScalarBindFuncInput input) {
   NEUG_ASSERT(input.arguments.size() == 2);

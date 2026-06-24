@@ -34,6 +34,8 @@ class IrDataType;
 }  // namespace common
 
 namespace neug {
+class InArchive;
+class OutArchive;
 enum class DataTypeId : uint8_t {
   kInvalid = 0,
   kNull = 1,
@@ -233,5 +235,8 @@ struct MapType {
 DataType parse_from_data_type(const ::common::DataType& ddt);
 
 DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
+
+InArchive& operator<<(InArchive& arc, const DataType& type);
+OutArchive& operator>>(OutArchive& arc, DataType& type);
 
 }  // namespace neug

@@ -775,8 +775,6 @@ class Schema {
   friend class PropertyGraph;
 };
 
-InArchive& operator<<(InArchive& arc, const DataType& type);
-OutArchive& operator>>(OutArchive& arc, DataType& type);
 InArchive& operator<<(InArchive& arc, const VertexSchema& schema);
 InArchive& operator<<(InArchive& arc, const EdgeSchema& schema);
 OutArchive& operator>>(OutArchive& arc, VertexSchema& schema);

@@ -25,8 +25,6 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-#include "neug/storages/graph/schema.h"
-
 namespace neug {
 namespace execution {
 enum class ExtraValueInfoType : uint8_t {
