@@ -620,7 +620,7 @@ struct convert<neug::DataType> {
           string_type_info ? string_type_info->max_length
                            : neug::STRING_DEFAULT_MAX_LENGTH;
     } else if (id == neug::DataTypeId::kDate) {
-      node["temporal"]["datetime"] = "";
+      node["temporal"]["date"] = "";
     } else if (id == neug::DataTypeId::kArray) {
       auto child_type = neug::ArrayType::GetChildType(type);
       uint32_t array_size = neug::ArrayType::GetNumElements(type);
