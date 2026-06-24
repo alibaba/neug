@@ -249,9 +249,7 @@ jobs:
         ctest -R utils_test -V
         ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
-        if [[ "${{ inputs.enable-gopt-test }}" == "true" ]]; then
-          ctest -R gopt_test -V
-        fi
+        ctest -R gopt_test -V
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
         ctest -R test_mmap_container -V
