@@ -115,21 +115,23 @@ Schema constraints and referential integrity are enforced. All concurrent operat
 
 #### Isolation
 
-Service mode provides serializable isolation with operation-specific concurrency rules:
+NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable isolation, with operation-specific concurrency rules:
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read | Concurrent with reads, inserts, and updates. Reads observe a consistent snapshot and do not wait for active updates. |
-| Insert | Concurrent with reads and other inserts while no update is active. Inserts wait until the active update finishes. |
-| Update | Only one update at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
-| Schema (DDL) | Serialized like updates. Reads continue on a consistent snapshot; inserts and updates wait until the schema change finishes. |
-| Checkpoint | Serialized like updates. Reads continue on a consistent snapshot; inserts and updates wait until the checkpoint finishes. |
+| Read | Reads a consistent snapshot and continues during active inserts/updates. |
+| Insert | Concurrent with reads and other inserts. Waits if an update is in progress. |
+| Update | One at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
+| Schema (DDL) | Same concurrency behavior as update. |
+| Checkpoint | Same concurrency behavior as update. |
+
+> Note: A read that arrives while an update is finishing may wait briefly,
+> typically at millisecond scale.
 
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
 - **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
-- **Updates, schema changes, and checkpoints** are relatively rare and are serialized with other writes
-- Reads continue to observe a consistent snapshot while updates are running
+- **Updates, schema changes, and checkpoints** are relatively rare and are serialized, while reads continue on a consistent snapshot with only brief waits when they arrive as a write is finishing
 - Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
 
 ```python
@@ -249,9 +251,9 @@ session.close()
 ```
 
 **Service Mode Checkpoint:**
-- Serialized like update operations
-- Blocks new inserts and other updates while the checkpoint is running
-- Lets reads continue on a consistent snapshot
+- Does not block active reads
+- Briefly waits for in-flight inserts before starting
+- New reads and inserts wait briefly during checkpoint finalization
 - Consolidates WAL entries into a unified checkpoint
 - Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
@@ -355,7 +357,7 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for reads/inserts, serialized updates/DDL |
+| **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL/checkpoints |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes |
 | **Concurrent Inserts** | No | Yes, unless an update is active |

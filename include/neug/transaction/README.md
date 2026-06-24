@@ -1,5 +1,9 @@
 # Transactions
 
+> Note: This file documents internal transaction implementation details. For
+> application-facing behavior, see
+> [Transaction Management](../../../doc/source/transaction/transaction.md).
+
 ## Read Transaction
 
 With an `ReadTransaction`, a specific version of the graph can be read. The version is determined by the timestamp of the transaction.
@@ -27,12 +31,6 @@ After insertion and update, the transaction can be committed by calling `UpdateT
 `UpdateTransaction` mutates a copy-on-write `PropertyGraph` clone. Its changes are invisible until commit publishes the clone through `GraphSnapshotStore`.
 
 # Version Management
-
-> Note: The user-facing transaction guide (`doc/source/transaction/transaction.md`)
-> intentionally omits the implementation details in this section. It describes
-> only application-observable concurrency behavior; `VersionManager` states,
-> timestamp visibility rules, and storage mechanics belong in this developer
-> documentation.
 
 ## Visibility
 
