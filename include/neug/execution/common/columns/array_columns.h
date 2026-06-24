@@ -36,8 +36,8 @@ class ArrayColumn : public IContextColumn {
   explicit ArrayColumn(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         type_(array_type),
-        array_size_(static_cast<uint32_t>(
-            ArrayType::GetNumElements(array_type))) {}
+        array_size_(
+            static_cast<uint32_t>(ArrayType::GetNumElements(array_type))) {}
   ~ArrayColumn() = default;
 
   size_t size() const override {
@@ -92,8 +92,8 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   explicit ArrayColumnBuilder(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         array_type_(array_type),
-        array_size_(static_cast<uint32_t>(
-            ArrayType::GetNumElements(array_type))) {
+        array_size_(
+            static_cast<uint32_t>(ArrayType::GetNumElements(array_type))) {
     child_builder_ = ColumnsUtils::create_builder(elem_type_);
   }
 
