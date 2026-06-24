@@ -103,7 +103,7 @@ TEST_F(NeugDBServiceTest, GetServiceConfig) {
   auto retrieved_config = service.GetServiceConfig();
   EXPECT_EQ(retrieved_config.query_port, config_.query_port);
   EXPECT_EQ(retrieved_config.host_str, config_.host_str);
-  EXPECT_EQ(retrieved_config.shard_num, 0U);
+  EXPECT_EQ(retrieved_config.shard_num, config_.shard_num);
 }
 
 TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {

@@ -306,7 +306,7 @@ std::string BrpcServiceManager::Start() {
   brpc::ServerOptions options = get_server_options();
   LOG(INFO) << "Brpc server config: db_thread_num="
             << neug_db_.config().thread_num
-            << ", configured_shard_num=" << service_config_.shard_num
+            << ", configured_num_threads=" << service_config_.shard_num
             << ", resolved_num_threads=" << options.num_threads
             << ", session_pool_size=" << session_pool_.SessionNum();
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
@@ -336,7 +336,11 @@ uint32_t BrpcServiceManager::resolve_num_threads() const {
   if (service_config_.shard_num != 0) {
     return service_config_.shard_num;
   }
-  return static_cast<uint32_t>(std::max<size_t>(1, session_pool_.SessionNum()));
+  const auto session_num = session_pool_.SessionNum();
+  if (session_num == 0) {
+    return 1;
+  }
+  return static_cast<uint32_t>(session_num);
 }
 
 brpc::ServerOptions BrpcServiceManager::get_server_options() const {
