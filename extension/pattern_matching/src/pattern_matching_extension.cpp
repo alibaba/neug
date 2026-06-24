@@ -24,8 +24,6 @@ extern "C" {
 // pattern_matching table functions with the catalog and publishes the
 // extension metadata so SQL callers can invoke them.
 void Init() {
-  std::cout << "[pattern_matching extension] init called" << std::endl;
-
   try {
     // Graph cache bootstrap: loads / prepares the in-memory data graph.
     neug::extension::ExtensionAPI::registerFunction<
@@ -61,19 +59,22 @@ void Init() {
         neug::extension::ExtensionInfo{
             "pattern_matching",
             "Provides subgraph matching and property access functions. "
-            "Functions: CALL INITIALIZE([checkpoint_dir]) - initializes graph data cache, "
-            "CALL SAVE_SAMPLEDMATCH_CHECKPOINT(checkpoint_dir) - saves graph cache to files, "
+            "Functions: CALL INITIALIZE([checkpoint_dir]) - initializes graph "
+            "data cache, "
+            "CALL SAVE_SAMPLEDMATCH_CHECKPOINT(checkpoint_dir) - saves graph "
+            "cache to files, "
             "CALL PATTERN_MATCH(cypher_text_or_file, limit), "
             "CALL SAMPLED_PATTERN_MATCH(cypher_text_or_file, sample_size), "
-            "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, prop_names_json), "
-            "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
-            "Both match functions accept mini-Cypher text, mini-Cypher files, "
-            "JSON text, or JSON pattern files."});
-
-    std::cout << "[pattern_matching extension] functions registered successfully" << std::endl;
+            "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, "
+            "prop_names_json), "
+            "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, "
+            "prop_names_json). "
+            "Both match functions accept Cypher pattern text, Cypher pattern "
+            "files, JSON text, or JSON pattern files."});
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "[pattern_matching extension] registration failed: " + std::string(e.what()));
+        "[pattern_matching extension] registration failed: " +
+        std::string(e.what()));
   } catch (...) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "[pattern_matching extension] registration failed: unknown exception");

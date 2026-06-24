@@ -16,6 +16,7 @@
 
 /**
  * This file is originally from the FaSTest project
- * (https://github.com/SNUCSE-CTA/FaSTest) Licensed under the MIT License. Modified by
- * Yunkai Lou and Shunyang Li in 2025 to support Neug-specific features.
+ * (https://github.com/SNUCSE-CTA/FaSTest) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
  */

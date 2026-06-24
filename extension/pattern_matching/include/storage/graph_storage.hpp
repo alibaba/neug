@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-/**
- * This file is originally from the FaSTest project
- * (https://github.com/SNUCSE-CTA/FaSTest) Licensed under the MIT License. Modified by
- * Yunkai Lou and Shunyang Li in 2025 to support Neug-specific features.
- */
+#pragma once
 
-#include "SubgraphMatching/candidate_space.h"
+#include "graph_element.hpp"
 
-namespace GraphLib::SubgraphMatching {
-    
-}
+namespace gbi {
+
+class GraphStorage {
+ public:
+  virtual ~GraphStorage() = default;
+  virtual bool HasEdge(EIdType source, EIdType target) = 0;
+  virtual bool HasEdge(EIdType source, EIdType target, int label) = 0;
+};
+
+}  // namespace gbi

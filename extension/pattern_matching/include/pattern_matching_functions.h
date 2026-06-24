@@ -38,6 +38,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <glog/logging.h>
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
@@ -55,7 +56,6 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
 
-#include "../storage/graph_storage.hpp"
 #include "daf_lib/include/backtrack.h"
 #include "daf_lib/include/candidate_space.h"
 #include "daf_lib/include/dag.h"
@@ -63,18 +63,9 @@
 #include "daf_lib/include/query_graph.h"
 #include "fastest_lib/src/SubgraphCounting/cardinality_estimation.h"
 #include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
+#include "pattern_cypher_translator.h"
 #include "pattern_matching_data_graph_meta.h"
-
-namespace neug {
-namespace pattern_matching {
-// Forward declaration — implementation lives in pattern_dsl.cpp. Keeping the
-// definition out of this header avoids dragging the DSL parser internals
-// into every TU that consumes the extension's CALL functions. Returns the
-// JSON document text on success, or "" if the DSL didn't parse (with the
-// reason already logged via glog).
-std::string TranslatePatternDslToJson(std::string_view dsl);
-}  // namespace pattern_matching
-}  // namespace neug
+#include "storage/graph_storage.hpp"
 
 namespace neug {
 namespace function {
@@ -376,9 +367,9 @@ inline std::string WritePatternJsonTempFile(const std::string& pattern_json) {
 
 // Normalize a user pattern argument to a JSON file path. The argument may be:
 //   * path to a JSON pattern file
-//   * path to a mini-Cypher/DSL pattern file
+//   * path to a Cypher pattern file
 //   * inline JSON pattern text
-//   * inline mini-Cypher/DSL text
+//   * inline Cypher pattern text
 inline std::string NormalizePatternInputToJsonFile(const std::string& arg,
                                                    const char* log_tag) {
   std::string content;
@@ -403,9 +394,9 @@ inline std::string NormalizePatternInputToJsonFile(const std::string& arg,
   }
 
   std::string pattern_json =
-      ::neug::pattern_matching::TranslatePatternDslToJson(content);
+      ::neug::pattern_matching::TranslatePatternCypherToJson(content);
   if (pattern_json.empty()) {
-    LOG(ERROR) << "[" << log_tag << "] mini-Cypher pattern translation failed";
+    LOG(ERROR) << "[" << log_tag << "] Cypher pattern translation failed";
     return "";
   }
   return WritePatternJsonTempFile(pattern_json);
@@ -560,7 +551,7 @@ inline bool SaveGraphCheckpoint(const StorageReadInterface& graph,
                                 const std::string& checkpoint_dir) {
   auto& cache = GraphDataCache::Instance();
   if (!cache.HasCache(&graph)) {
-    std::cerr << "[SaveGraphCheckpoint] No cached data to save." << std::endl;
+    LOG(WARNING) << "[SaveGraphCheckpoint] No cached data to save.";
     return false;
   }
   auto& cached_data = cache.GetOrCreate(&graph);
@@ -576,11 +567,11 @@ inline bool SaveGraphCheckpoint(const StorageReadInterface& graph,
        ok;
 
   if (ok) {
-    std::cout << "[SaveGraphCheckpoint] Checkpoint saved to: " << checkpoint_dir
-              << std::endl;
+    LOG(INFO) << "[SaveGraphCheckpoint] Checkpoint saved to: "
+              << checkpoint_dir;
   } else {
-    std::cerr << "[SaveGraphCheckpoint] Failed to save checkpoint to: "
-              << checkpoint_dir << std::endl;
+    LOG(ERROR) << "[SaveGraphCheckpoint] Failed to save checkpoint to: "
+               << checkpoint_dir;
   }
   return ok;
 }
@@ -596,8 +587,8 @@ inline bool LoadGraphCheckpoint(const StorageReadInterface& graph,
 
   if (!std::filesystem::exists(meta_path) ||
       !std::filesystem::exists(sg_path)) {
-    std::cout << "[LoadGraphCheckpoint] No checkpoint files in: "
-              << checkpoint_dir << std::endl;
+    VLOG(1) << "[LoadGraphCheckpoint] No checkpoint files in: "
+            << checkpoint_dir;
     return false;
   }
 
@@ -612,15 +603,12 @@ inline bool LoadGraphCheckpoint(const StorageReadInterface& graph,
   }
 
   cached_data.preprocessed = true;
-  std::cout << "[LoadGraphCheckpoint] Checkpoint loaded from: "
-            << checkpoint_dir << std::endl;
-  std::cout << "  Vertices: " << cached_data.data_meta->GetNumVertices()
-            << std::endl;
-  std::cout << "  Edges: " << cached_data.data_meta->GetNumEdges() << std::endl;
-  std::cout << "  Max degree: " << cached_data.data_meta->GetMaxDegree()
-            << std::endl;
-  std::cout << "  Degeneracy: " << cached_data.data_meta->GetDegeneracy()
-            << std::endl;
+  LOG(INFO) << "[LoadGraphCheckpoint] Checkpoint loaded from: "
+            << checkpoint_dir
+            << ", vertices=" << cached_data.data_meta->GetNumVertices()
+            << ", edges=" << cached_data.data_meta->GetNumEdges()
+            << ", max_degree=" << cached_data.data_meta->GetMaxDegree()
+            << ", degeneracy=" << cached_data.data_meta->GetDegeneracy();
   return true;
 }
 
@@ -646,12 +634,9 @@ inline bool DoGraphInitialization(const StorageReadInterface& graph,
 
   if (cached_data.preprocessed) {
     if (verbose) {
-      std::cout << "[Initialize] Graph already initialized, skipping..."
-                << std::endl;
-      std::cout << "  Vertices: " << cached_data.data_meta->GetNumVertices()
-                << std::endl;
-      std::cout << "  Edges: " << cached_data.data_meta->GetNumEdges()
-                << std::endl;
+      LOG(INFO) << "[Initialize] Graph already initialized, skipping. "
+                << "vertices=" << cached_data.data_meta->GetNumVertices()
+                << ", edges=" << cached_data.data_meta->GetNumEdges();
     }
     return true;
   }
@@ -660,19 +645,18 @@ inline bool DoGraphInitialization(const StorageReadInterface& graph,
   if (!checkpoint_dir.empty()) {
     if (LoadGraphCheckpoint(graph, checkpoint_dir)) {
       if (verbose) {
-        std::cout << "[Initialize] Graph loaded from checkpoint." << std::endl;
+        LOG(INFO) << "[Initialize] Graph loaded from checkpoint.";
       }
       return true;
     }
     if (verbose) {
-      std::cout << "[Initialize] Checkpoint not available, falling back to "
-                   "full initialization..."
-                << std::endl;
+      LOG(INFO) << "[Initialize] Checkpoint not available, falling back to "
+                   "full initialization.";
     }
   }
 
   if (verbose) {
-    std::cout << "[0] Building label mappings..." << std::endl;
+    LOG(INFO) << "[Initialize] Building label mappings.";
   }
 
   // Build schema_graph: mapping (src_label, dst_label) -> [edge_labels]
@@ -685,32 +669,26 @@ inline bool DoGraphInitialization(const StorageReadInterface& graph,
       const std::string& src_name = schema.get_vertex_label_name(src_label);
       const std::string& dst_name = schema.get_vertex_label_name(dst_label);
       const std::string& edge_name = schema.get_edge_label_name(e_label);
-      std::cout << "  Edge triplet: " << src_name << " -[" << edge_name
-                << "]-> " << dst_name << std::endl;
+      VLOG(2) << "[Initialize] Edge triplet: " << src_name << " -[" << edge_name
+              << "]-> " << dst_name;
     }
   }
 
   if (verbose) {
-    std::cout << "  Found " << cached_data.schema_graph->size()
-              << " source labels in schema" << std::endl;
-    std::cout << std::endl;
-    std::cout << "[1] Preprocessing data graph..." << std::endl;
+    LOG(INFO) << "[Initialize] Found " << cached_data.schema_graph->size()
+              << " source labels in schema.";
+    LOG(INFO) << "[Initialize] Preprocessing data graph.";
   }
 
   cached_data.data_meta->Preprocess();
   cached_data.preprocessed = true;
 
   if (verbose) {
-    std::cout << "  Vertices: " << cached_data.data_meta->GetNumVertices()
-              << std::endl;
-    std::cout << "  Edges: " << cached_data.data_meta->GetNumEdges()
-              << std::endl;
-    std::cout << "  Max degree: " << cached_data.data_meta->GetMaxDegree()
-              << std::endl;
-    std::cout << "  Degeneracy: " << cached_data.data_meta->GetDegeneracy()
-              << std::endl;
-    std::cout << std::endl;
-    std::cout << "[Initialize] Graph initialization completed." << std::endl;
+    LOG(INFO) << "[Initialize] Graph initialization completed. vertices="
+              << cached_data.data_meta->GetNumVertices()
+              << ", edges=" << cached_data.data_meta->GetNumEdges()
+              << ", max_degree=" << cached_data.data_meta->GetMaxDegree()
+              << ", degeneracy=" << cached_data.data_meta->GetDegeneracy();
   }
 
   return true;
@@ -736,6 +714,25 @@ struct PatternOutputEdgeInfo {
   int src = -1;
   int dst = -1;
   std::string alias;
+};
+
+struct PatternOrderBySpec {
+  PatternOutputKind kind = PatternOutputKind::kVertex;
+  int index = -1;
+  std::string variable;
+  std::string property;
+  bool ascending = true;
+};
+
+struct PatternExecutionModifiers {
+  std::vector<PatternOrderBySpec> order_by;
+  uint64_t skip = 0;
+  uint64_t limit = std::numeric_limits<uint64_t>::max();
+  bool has_skip = false;
+  bool has_limit = false;
+
+  bool HasOrderBy() const { return !order_by.empty(); }
+  bool HasSkipOrLimit() const { return has_skip || has_limit; }
 };
 
 inline bool ReadJsonId(const rapidjson::Value& obj, const char* key, int* out) {
@@ -776,6 +773,131 @@ inline std::string MakeUniquePatternAlias(
   return alias + "_" + std::to_string(next);
 }
 
+inline bool ReadJsonUint64(const rapidjson::Value& value, uint64_t* out) {
+  if (value.IsUint64()) {
+    *out = value.GetUint64();
+    return true;
+  }
+  if (value.IsInt64() && value.GetInt64() >= 0) {
+    *out = static_cast<uint64_t>(value.GetInt64());
+    return true;
+  }
+  if (value.IsString()) {
+    try {
+      std::string raw = value.GetString();
+      size_t pos = 0;
+      auto parsed = std::stoull(raw, &pos);
+      if (pos == raw.size()) {
+        *out = parsed;
+        return true;
+      }
+    } catch (...) { return false; }
+  }
+  return false;
+}
+
+inline std::optional<PatternExecutionModifiers> ParsePatternExecutionModifiers(
+    const rapidjson::Document& doc,
+    const std::vector<std::string>& vertex_aliases,
+    const std::vector<PatternOutputEdgeInfo>& edge_aliases,
+    const char* log_tag) {
+  PatternExecutionModifiers modifiers;
+  std::unordered_map<std::string, PatternOrderBySpec> by_alias;
+  std::unordered_set<std::string> ambiguous_aliases;
+
+  auto add_alias = [&](std::string alias, PatternOutputKind kind, int index) {
+    if (alias.empty()) {
+      return;
+    }
+    PatternOrderBySpec spec;
+    spec.kind = kind;
+    spec.index = index;
+    spec.variable = alias;
+    auto [it, inserted] = by_alias.emplace(alias, spec);
+    if (!inserted) {
+      ambiguous_aliases.insert(alias);
+    }
+  };
+
+  for (int i = 0; i < static_cast<int>(vertex_aliases.size()); ++i) {
+    add_alias(vertex_aliases[i], PatternOutputKind::kVertex, i);
+  }
+  for (int i = 0; i < static_cast<int>(edge_aliases.size()); ++i) {
+    add_alias(edge_aliases[i].alias, PatternOutputKind::kEdge, i);
+  }
+
+  if (doc.HasMember("order_by")) {
+    if (!doc["order_by"].IsArray()) {
+      LOG(ERROR) << "[" << log_tag << "] order_by must be an array";
+      return std::nullopt;
+    }
+    for (const auto& item : doc["order_by"].GetArray()) {
+      if (!item.IsObject()) {
+        LOG(ERROR) << "[" << log_tag << "] order_by entries must be objects";
+        return std::nullopt;
+      }
+      std::string variable;
+      for (const char* key : {"variable", "alias", "name"}) {
+        if (item.HasMember(key) && item[key].IsString()) {
+          variable = item[key].GetString();
+          break;
+        }
+      }
+      if (variable.empty()) {
+        LOG(ERROR) << "[" << log_tag << "] order_by entry missing variable";
+        return std::nullopt;
+      }
+      if (ambiguous_aliases.contains(variable)) {
+        LOG(ERROR) << "[" << log_tag << "] order_by variable '" << variable
+                   << "' is ambiguous";
+        return std::nullopt;
+      }
+      auto found = by_alias.find(variable);
+      if (found == by_alias.end()) {
+        LOG(ERROR) << "[" << log_tag << "] order_by variable '" << variable
+                   << "' does not exist in the pattern";
+        return std::nullopt;
+      }
+      if (!item.HasMember("property") || !item["property"].IsString() ||
+          item["property"].GetStringLength() == 0) {
+        LOG(ERROR) << "[" << log_tag << "] order_by entry missing property";
+        return std::nullopt;
+      }
+
+      auto spec = found->second;
+      spec.property = item["property"].GetString();
+      spec.ascending = true;
+      if (item.HasMember("ascending") && item["ascending"].IsBool()) {
+        spec.ascending = item["ascending"].GetBool();
+      } else if (item.HasMember("order") && item["order"].IsString()) {
+        std::string order = item["order"].GetString();
+        std::transform(order.begin(), order.end(), order.begin(),
+                       [](unsigned char c) { return std::toupper(c); });
+        if (order == "DESC" || order == "DESCENDING") {
+          spec.ascending = false;
+        }
+      }
+      modifiers.order_by.push_back(std::move(spec));
+    }
+  }
+
+  if (doc.HasMember("skip")) {
+    if (!ReadJsonUint64(doc["skip"], &modifiers.skip)) {
+      LOG(ERROR) << "[" << log_tag << "] skip must be a non-negative integer";
+      return std::nullopt;
+    }
+    modifiers.has_skip = true;
+  }
+  if (doc.HasMember("limit")) {
+    if (!ReadJsonUint64(doc["limit"], &modifiers.limit)) {
+      LOG(ERROR) << "[" << log_tag << "] limit must be a non-negative integer";
+      return std::nullopt;
+    }
+    modifiers.has_limit = true;
+  }
+  return modifiers;
+}
+
 inline std::vector<PatternOutputColumn> BuildPatternOutputColumnsFromAliases(
     const std::vector<std::string>& vertex_aliases,
     const std::vector<PatternOutputEdgeInfo>& edges) {
@@ -792,18 +914,18 @@ inline std::vector<PatternOutputColumn> BuildPatternOutputColumnsFromAliases(
     std::string alias = vertex_aliases[vertex_idx].empty()
                             ? "v" + std::to_string(vertex_idx)
                             : vertex_aliases[vertex_idx];
-    output.push_back(PatternOutputColumn{
-        PatternOutputKind::kVertex, vertex_idx,
-        MakeUniquePatternAlias(alias, &seen_aliases)});
+    output.push_back(
+        PatternOutputColumn{PatternOutputKind::kVertex, vertex_idx,
+                            MakeUniquePatternAlias(alias, &seen_aliases)});
     emitted_vertices[vertex_idx] = true;
   };
 
   auto emit_edge = [&](int edge_idx, const std::string& raw_alias) {
     std::string alias =
         raw_alias.empty() ? "e" + std::to_string(edge_idx) : raw_alias;
-    output.push_back(PatternOutputColumn{
-        PatternOutputKind::kEdge, edge_idx,
-        MakeUniquePatternAlias(alias, &seen_aliases)});
+    output.push_back(
+        PatternOutputColumn{PatternOutputKind::kEdge, edge_idx,
+                            MakeUniquePatternAlias(alias, &seen_aliases)});
   };
 
   for (int edge_idx = 0; edge_idx < static_cast<int>(edges.size());
@@ -824,8 +946,8 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
                                   const char* log_tag) {
   std::string json_text;
   if (!ReadTextFile(pattern_json_file, &json_text)) {
-    LOG(ERROR) << "[" << log_tag << "] Cannot read pattern JSON file: "
-               << pattern_json_file;
+    LOG(ERROR) << "[" << log_tag
+               << "] Cannot read pattern JSON file: " << pattern_json_file;
     return std::nullopt;
   }
 
@@ -871,8 +993,7 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
       return std::nullopt;
     }
     edges.push_back(PatternOutputEdgeInfo{
-        src, dst,
-        ReadPatternAlias(edge, "e", static_cast<int>(edges.size()))});
+        src, dst, ReadPatternAlias(edge, "e", static_cast<int>(edges.size()))});
   }
   return BuildPatternOutputColumnsFromAliases(vertex_aliases, edges);
 }
@@ -924,7 +1045,7 @@ class SampledSubgraphMatcher {
 
     // Step 2: always reload the pattern — callers can vary it per
     // invocation. Two flavours: file path (legacy JSON callers) or in-memory
-    // JSON text (DSL caller; spares disk I/O).
+    // JSON text (Cypher translator caller; spares disk I/O).
     if (!pattern_json_.empty()) {
       VLOG(1) << "[SAMPLED_PATTERN_MATCH] Loading pattern graph from in-memory "
                  "JSON ("
@@ -1102,6 +1223,10 @@ class SampledSubgraphMatcher {
     return output_columns_;
   }
 
+  const PatternExecutionModifiers& GetPatternExecutionModifiers() const {
+    return modifiers_;
+  }
+
   std::string GetPatternVertexAlias(int pattern_vertex_idx) const {
     if (pattern_vertex_idx < 0 ||
         pattern_vertex_idx >= static_cast<int>(vertex_aliases_.size())) {
@@ -1162,7 +1287,7 @@ class SampledSubgraphMatcher {
     return CreatePatternFromJsonText(buffer.str(), pattern_file);
   }
 
-  // Core pattern loader. Takes the JSON text directly so DSL callers can
+  // Core pattern loader. Takes the JSON text directly so Cypher callers can
   // skip the write-tempfile / re-read / re-parse round-trip. The
   // `origin_label` is purely for log lines (file path or "<inline>").
   std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph>
@@ -1348,6 +1473,12 @@ class SampledSubgraphMatcher {
 
     output_columns_ =
         BuildPatternOutputColumnsFromAliases(vertex_aliases_, edge_aliases_);
+    auto modifiers = ParsePatternExecutionModifiers(
+        doc, vertex_aliases_, edge_aliases_, "SAMPLED_PATTERN_MATCH");
+    if (!modifiers.has_value()) {
+      return nullptr;
+    }
+    modifiers_ = std::move(*modifiers);
 
     return pattern;
   }
@@ -1356,7 +1487,7 @@ class SampledSubgraphMatcher {
   const StorageReadInterface& graph_;
   // Exactly one of these is non-empty: pattern_file_ for the legacy JSON
   // path that reads a file off disk, pattern_json_ for callers that
-  // already have the JSON text in memory (e.g. the DSL translator).
+  // already have the JSON text in memory (e.g. the Cypher translator).
   std::string pattern_file_;
   std::string pattern_json_;
   std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> pattern_graph_;
@@ -1374,6 +1505,7 @@ class SampledSubgraphMatcher {
   std::vector<std::string> vertex_aliases_;
   std::vector<PatternOutputEdgeInfo> edge_aliases_;
   std::vector<PatternOutputColumn> output_columns_;
+  PatternExecutionModifiers modifiers_;
 
  public:
   /**
@@ -2149,6 +2281,7 @@ struct ExactPatternSpec {
   std::vector<VertexSpec> vertices;
   std::vector<EdgeSpec> edges;
   std::vector<PatternOutputColumn> output_columns;
+  PatternExecutionModifiers modifiers;
 };
 
 inline std::vector<std::string> ParseRequiredProps(
@@ -2234,7 +2367,8 @@ inline std::optional<ExactPatternSpec> ParseExactPatternJsonFile(
     ExactPatternSpec::EdgeSpec out;
     out.src = src;
     out.dst = dst;
-    out.alias = ReadPatternAlias(edge, "e", static_cast<int>(spec.edges.size()));
+    out.alias =
+        ReadPatternAlias(edge, "e", static_cast<int>(spec.edges.size()));
     if (edge.HasMember("label") && edge["label"].IsString()) {
       out.label_name = edge["label"].GetString();
       if (!schema.is_edge_label_valid(out.label_name)) {
@@ -2263,11 +2397,17 @@ inline std::optional<ExactPatternSpec> ParseExactPatternJsonFile(
   std::vector<PatternOutputEdgeInfo> edge_aliases;
   edge_aliases.reserve(spec.edges.size());
   for (const auto& edge : spec.edges) {
-    edge_aliases.push_back(PatternOutputEdgeInfo{edge.src, edge.dst,
-                                                 edge.alias});
+    edge_aliases.push_back(
+        PatternOutputEdgeInfo{edge.src, edge.dst, edge.alias});
   }
   spec.output_columns =
       BuildPatternOutputColumnsFromAliases(vertex_aliases, edge_aliases);
+  auto modifiers = ParsePatternExecutionModifiers(
+      doc, vertex_aliases, edge_aliases, "PATTERN_MATCH");
+  if (!modifiers.has_value()) {
+    return std::nullopt;
+  }
+  spec.modifiers = std::move(*modifiers);
 
   return spec;
 }
@@ -2412,6 +2552,101 @@ inline std::optional<execution::Value> GetDirectedEdgeProperty(
   return std::nullopt;
 }
 
+inline std::optional<execution::Value> GetVertexPropertyByName(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    int global_id, label_t expected_label, const std::string& prop_name) {
+  auto [label, local_vid] = data_meta.ToLocalId(global_id);
+  if (label != expected_label) {
+    return std::nullopt;
+  }
+  const auto prop_names = graph.schema().get_vertex_property_names(label);
+  auto it = std::find(prop_names.begin(), prop_names.end(), prop_name);
+  if (it == prop_names.end()) {
+    return std::nullopt;
+  }
+  int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+  try {
+    return graph.GetVertexProperty(label, local_vid, prop_idx);
+  } catch (...) { return std::nullopt; }
+}
+
+inline std::optional<execution::Value> GetEdgePropertyByName(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    int src_global, int dst_global, label_t edge_label,
+    const std::string& prop_name) {
+  auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
+  auto [dst_label, dst_vid] = data_meta.ToLocalId(dst_global);
+  (void) src_vid;
+  (void) dst_vid;
+  const auto prop_names =
+      graph.schema().get_edge_property_names(src_label, dst_label, edge_label);
+  auto it = std::find(prop_names.begin(), prop_names.end(), prop_name);
+  if (it == prop_names.end()) {
+    return std::nullopt;
+  }
+  int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+  return GetDirectedEdgeProperty(graph, data_meta, src_global, dst_global,
+                                 edge_label, prop_idx);
+}
+
+inline int CompareExecutionValues(const std::optional<execution::Value>& lhs,
+                                  const std::optional<execution::Value>& rhs) {
+  const bool lhs_null = !lhs.has_value() || lhs->IsNull();
+  const bool rhs_null = !rhs.has_value() || rhs->IsNull();
+  if (lhs_null && rhs_null)
+    return 0;
+  if (lhs_null)
+    return 1;
+  if (rhs_null)
+    return -1;
+
+  double lhs_num = 0.0;
+  double rhs_num = 0.0;
+  if (IsNumericValue(*lhs, &lhs_num) && IsNumericValue(*rhs, &rhs_num)) {
+    if (lhs_num < rhs_num)
+      return -1;
+    if (lhs_num > rhs_num)
+      return 1;
+    return 0;
+  }
+
+  try {
+    if (lhs->type() == rhs->type()) {
+      if (*lhs == *rhs)
+        return 0;
+      return *lhs < *rhs ? -1 : 1;
+    }
+  } catch (...) {}
+
+  const std::string lhs_s = lhs->to_string();
+  const std::string rhs_s = rhs->to_string();
+  if (lhs_s < rhs_s)
+    return -1;
+  if (lhs_s > rhs_s)
+    return 1;
+  return 0;
+}
+
+template <class Rows>
+inline void ApplyPatternWindow(const PatternExecutionModifiers& modifiers,
+                               Rows* rows) {
+  if (rows == nullptr || !modifiers.HasSkipOrLimit()) {
+    return;
+  }
+  if (modifiers.has_skip && modifiers.skip >= rows->size()) {
+    rows->clear();
+    return;
+  }
+  if (modifiers.has_skip && modifiers.skip > 0) {
+    rows->erase(rows->begin(),
+                rows->begin() + static_cast<typename Rows::difference_type>(
+                                    modifiers.skip));
+  }
+  if (modifiers.has_limit && modifiers.limit < rows->size()) {
+    rows->resize(static_cast<typename Rows::size_type>(modifiers.limit));
+  }
+}
+
 inline bool CheckEdgeConstraints(const StorageReadInterface& graph,
                                  const DataGraphMeta& data_meta, int src_global,
                                  int dst_global,
@@ -2466,6 +2701,62 @@ inline bool ValidateExactEmbedding(const StorageReadInterface& graph,
     }
   }
   return true;
+}
+
+inline std::optional<execution::Value> ResolveExactOrderValue(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    const ExactPatternSpec& spec, const std::vector<daf::Vertex>& match,
+    const PatternOrderBySpec& order_by) {
+  if (order_by.kind == PatternOutputKind::kVertex) {
+    if (order_by.index < 0 ||
+        order_by.index >= static_cast<int>(spec.vertices.size()) ||
+        order_by.index >= static_cast<int>(match.size())) {
+      return std::nullopt;
+    }
+    const auto& vertex = spec.vertices[order_by.index];
+    return GetVertexPropertyByName(graph, data_meta,
+                                   static_cast<int>(match[order_by.index]),
+                                   vertex.label, order_by.property);
+  }
+
+  if (order_by.index < 0 ||
+      order_by.index >= static_cast<int>(spec.edges.size())) {
+    return std::nullopt;
+  }
+  const auto& edge = spec.edges[order_by.index];
+  if (edge.src >= static_cast<int>(match.size()) ||
+      edge.dst >= static_cast<int>(match.size())) {
+    return std::nullopt;
+  }
+  return GetEdgePropertyByName(
+      graph, data_meta, static_cast<int>(match[edge.src]),
+      static_cast<int>(match[edge.dst]), edge.label, order_by.property);
+}
+
+inline void ApplyExactPatternModifiers(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    const ExactPatternSpec& spec,
+    std::vector<std::vector<daf::Vertex>>* matches) {
+  if (matches == nullptr) {
+    return;
+  }
+  if (spec.modifiers.HasOrderBy()) {
+    std::stable_sort(
+        matches->begin(), matches->end(),
+        [&](const auto& lhs, const auto& rhs) {
+          for (const auto& order_by : spec.modifiers.order_by) {
+            int cmp = CompareExecutionValues(
+                ResolveExactOrderValue(graph, data_meta, spec, lhs, order_by),
+                ResolveExactOrderValue(graph, data_meta, spec, rhs, order_by));
+            if (cmp == 0) {
+              continue;
+            }
+            return order_by.ascending ? cmp < 0 : cmp > 0;
+          }
+          return lhs < rhs;
+        });
+  }
+  ApplyPatternWindow(spec.modifiers, matches);
 }
 
 inline std::vector<std::vector<daf::Vertex>> EnumerateExactMatchesWithNeug(
@@ -2730,8 +3021,7 @@ inline std::string FetchAndWriteExactProperties(
 inline bool FindDirectedEdgeDataPtr(const StorageReadInterface& graph,
                                     const DataGraphMeta& data_meta,
                                     int src_global, int dst_global,
-                                    label_t edge_label,
-                                    const void** data_ptr) {
+                                    label_t edge_label, const void** data_ptr) {
   if (data_ptr != nullptr) {
     *data_ptr = nullptr;
   }
@@ -2795,8 +3085,7 @@ inline execution::Context BuildExactNativePatternContext(
       const auto& edge = spec.edges[column.index];
       label_t src_label = spec.vertices[edge.src].label;
       label_t dst_label = spec.vertices[edge.dst].label;
-      builder.edge_builder =
-          std::make_unique<execution::MSEdgeColumnBuilder>();
+      builder.edge_builder = std::make_unique<execution::MSEdgeColumnBuilder>();
       builder.edge_builder->reserve(matches.size());
       builder.edge_builder->start_label_dir(
           execution::LabelTriplet(src_label, dst_label, edge.label),
@@ -2838,6 +3127,45 @@ inline execution::Context BuildExactNativePatternContext(
   return MakeNativePatternContext(builders);
 }
 
+inline std::optional<execution::Value> ResolveSampledOrderValue(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    const SampledSubgraphMatcher& matcher, const std::vector<int>& results,
+    int pattern_vertex_count,
+    const std::vector<std::tuple<int, int, label_t>>& pattern_edges,
+    int sample_idx, const PatternOrderBySpec& order_by) {
+  if (sample_idx < 0 || pattern_vertex_count <= 0) {
+    return std::nullopt;
+  }
+  const int row_offset = sample_idx * pattern_vertex_count;
+  if (row_offset < 0 || row_offset >= static_cast<int>(results.size())) {
+    return std::nullopt;
+  }
+  if (order_by.kind == PatternOutputKind::kVertex) {
+    if (order_by.index < 0 || order_by.index >= pattern_vertex_count ||
+        row_offset + order_by.index >= static_cast<int>(results.size())) {
+      return std::nullopt;
+    }
+    return GetVertexPropertyByName(
+        graph, data_meta, results[row_offset + order_by.index],
+        matcher.GetPatternVertexLabel(order_by.index), order_by.property);
+  }
+
+  if (order_by.index < 0 ||
+      order_by.index >= static_cast<int>(pattern_edges.size())) {
+    return std::nullopt;
+  }
+  auto [src, dst, edge_label] = pattern_edges[order_by.index];
+  if (src < 0 || dst < 0 || src >= pattern_vertex_count ||
+      dst >= pattern_vertex_count ||
+      row_offset + src >= static_cast<int>(results.size()) ||
+      row_offset + dst >= static_cast<int>(results.size())) {
+    return std::nullopt;
+  }
+  return GetEdgePropertyByName(graph, data_meta, results[row_offset + src],
+                               results[row_offset + dst], edge_label,
+                               order_by.property);
+}
+
 inline execution::Context BuildSampledNativePatternContext(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const SampledSubgraphMatcher& matcher,
@@ -2845,6 +3173,30 @@ inline execution::Context BuildSampledNativePatternContext(
     int sample_count) {
   const auto& output_columns = matcher.GetPatternOutputColumns();
   const auto pattern_edges = matcher.GetPatternEdgeList();
+  const auto& modifiers = matcher.GetPatternExecutionModifiers();
+
+  std::vector<int> row_indices(sample_count);
+  std::iota(row_indices.begin(), row_indices.end(), 0);
+  if (modifiers.HasOrderBy()) {
+    std::stable_sort(
+        row_indices.begin(), row_indices.end(), [&](int lhs, int rhs) {
+          for (const auto& order_by : modifiers.order_by) {
+            int cmp = CompareExecutionValues(
+                ResolveSampledOrderValue(graph, data_meta, matcher,
+                                         sampled_results, pattern_vertex_count,
+                                         pattern_edges, lhs, order_by),
+                ResolveSampledOrderValue(graph, data_meta, matcher,
+                                         sampled_results, pattern_vertex_count,
+                                         pattern_edges, rhs, order_by));
+            if (cmp == 0) {
+              continue;
+            }
+            return order_by.ascending ? cmp < 0 : cmp > 0;
+          }
+          return lhs < rhs;
+        });
+  }
+  ApplyPatternWindow(modifiers, &row_indices);
 
   std::vector<NativePatternColumnBuilder> builders;
   builders.reserve(output_columns.size());
@@ -2855,14 +3207,13 @@ inline execution::Context BuildSampledNativePatternContext(
       label_t label = matcher.GetPatternVertexLabel(column.index);
       builder.vertex_builder =
           std::make_unique<execution::MSVertexColumnBuilder>(label);
-      builder.vertex_builder->reserve(sample_count);
+      builder.vertex_builder->reserve(row_indices.size());
     } else {
       auto [src, dst, edge_label] = pattern_edges[column.index];
       label_t src_label = matcher.GetPatternVertexLabel(src);
       label_t dst_label = matcher.GetPatternVertexLabel(dst);
-      builder.edge_builder =
-          std::make_unique<execution::MSEdgeColumnBuilder>();
-      builder.edge_builder->reserve(sample_count);
+      builder.edge_builder = std::make_unique<execution::MSEdgeColumnBuilder>();
+      builder.edge_builder->reserve(row_indices.size());
       builder.edge_builder->start_label_dir(
           execution::LabelTriplet(src_label, dst_label, edge_label),
           execution::Direction::kOut);
@@ -2870,7 +3221,7 @@ inline execution::Context BuildSampledNativePatternContext(
     builders.push_back(std::move(builder));
   }
 
-  for (int sample_idx = 0; sample_idx < sample_count; ++sample_idx) {
+  for (int sample_idx : row_indices) {
     for (auto& builder : builders) {
       if (builder.column.kind == PatternOutputKind::kVertex) {
         int pattern_vertex = builder.column.index;
@@ -2970,8 +3321,23 @@ inline execution::Context ExecutePatternMatchPipeline(
     return execution::Context();
 
   std::vector<std::vector<daf::Vertex>> valid_matches;
-  uint64_t limit = input.limit <= 0 ? std::numeric_limits<uint64_t>::max()
+  const uint64_t caller_limit = input.limit <= 0
+                                    ? std::numeric_limits<uint64_t>::max()
                                     : static_cast<uint64_t>(input.limit);
+  uint64_t match_limit = caller_limit;
+  if (spec.modifiers.HasOrderBy()) {
+    match_limit = std::numeric_limits<uint64_t>::max();
+  } else if (spec.modifiers.has_limit) {
+    uint64_t needed = spec.modifiers.limit;
+    if (spec.modifiers.has_skip) {
+      if (needed > std::numeric_limits<uint64_t>::max() - spec.modifiers.skip) {
+        needed = std::numeric_limits<uint64_t>::max();
+      } else {
+        needed += spec.modifiers.skip;
+      }
+    }
+    match_limit = std::min(match_limit, needed);
+  }
   try {
     daf::DataGraph daf_data(data_file);
     daf_data.LoadAndProcessGraph(label_mapping);
@@ -2992,7 +3358,7 @@ inline execution::Context ExecutePatternMatchPipeline(
         if (backtrack.match_leaves_) {
           backtrack.match_leaves_->ori_data_graph = &adapter;
         }
-        backtrack.FindMatches(limit);
+        backtrack.FindMatches(match_limit);
         valid_matches.reserve(backtrack.match_results_.size());
         for (const auto& match : backtrack.match_results_) {
           if (ValidateExactEmbedding(*readInterface, data_meta, spec, match)) {
@@ -3007,9 +3373,9 @@ inline execution::Context ExecutePatternMatchPipeline(
     LOG(ERROR) << "[PATTERN_MATCH] DAF execution failed with unknown error";
   }
 
-  if (valid_matches.size() < limit) {
-    auto fallback_matches =
-        EnumerateExactMatchesWithNeug(*readInterface, data_meta, spec, limit);
+  if (valid_matches.size() < match_limit) {
+    auto fallback_matches = EnumerateExactMatchesWithNeug(
+        *readInterface, data_meta, spec, match_limit);
     if (fallback_matches.size() != valid_matches.size()) {
       LOG(INFO) << "[PATTERN_MATCH] DAF produced " << valid_matches.size()
                 << " validated matches; NeuG exact enumeration produced "
@@ -3018,6 +3384,7 @@ inline execution::Context ExecutePatternMatchPipeline(
     valid_matches = std::move(fallback_matches);
   }
 
+  ApplyExactPatternModifiers(*readInterface, data_meta, spec, &valid_matches);
   return BuildExactNativePatternContext(*readInterface, data_meta, spec,
                                         valid_matches);
 }
@@ -3028,9 +3395,8 @@ struct PatternMatchFunction {
   static function_set getFunctionSet() {
     function_set functionSet;
     auto func = std::make_unique<NeugCallFunction>(
-        name,
-        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                        common::DataTypeId::kInt64});
+        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
+                                              common::DataTypeId::kInt64});
 
     auto* table_func = static_cast<TableFunction*>(func.get());
     table_func->bindFunc = [](main::ClientContext* /*clientContext*/,
@@ -3077,17 +3443,18 @@ struct PatternMatchFunction {
 // ============================================================================
 // SampledPatternMatchFunction: CALL SAMPLED_PATTERN_MATCH(pattern, sample_size)
 // runs sampled subgraph matching against the cached graph. The first argument
-// accepts the same mini-Cypher/JSON text-or-file forms as PATTERN_MATCH and is
+// accepts the same Cypher/JSON text-or-file forms as PATTERN_MATCH and is
 // normalized to a JSON file before FaSTest reads it.
 // ============================================================================
 
 struct SampledMatchInput : public CallFuncInputBase {
-  std::string patternFilePath;  // legacy JSON-file path; empty for the DSL flow
-  std::string patternJsonText;  // in-memory JSON pattern; populated by DSL flow
+  std::string patternFilePath;  // legacy JSON-file path; empty for text flow
+  // In-memory JSON pattern, populated by the Cypher text flow.
+  std::string patternJsonText;
   long long sampleSize;
   SampledMatchInput(std::string path, long long sample_size)
       : patternFilePath(std::move(path)), sampleSize(sample_size) {}
-  // Tag-dispatched ctor for the in-memory variant — keeps the call site
+  // Tag-dispatched ctor for the in-memory variant; keeps the call site
   // explicit about which pattern source it is using.
   struct InlineJsonTag {};
   SampledMatchInput(InlineJsonTag, std::string json, long long sample_size)
@@ -3160,9 +3527,8 @@ struct SampledPatternMatchFunction {
     function_set functionSet;
 
     auto func = std::make_unique<NeugCallFunction>(
-        name,
-        std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                        common::DataTypeId::kInt64});
+        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
+                                              common::DataTypeId::kInt64});
 
     auto* table_func = static_cast<TableFunction*>(func.get());
     table_func->bindFunc = [](main::ClientContext* /*clientContext*/,

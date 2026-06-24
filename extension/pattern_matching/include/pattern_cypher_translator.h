@@ -10,6 +10,8 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #pragma once
@@ -18,15 +20,12 @@
 #include <string_view>
 
 namespace neug {
-namespace sampled_match {
+namespace pattern_matching {
 
-// Translates a sampled_match pattern DSL string into the JSON pattern format
-// the existing matcher consumes. Returns the JSON document text on success
-// or "" on parse/validation failure (the cause is logged via glog).
-//
-// The matcher (SampledSubgraphMatcher::PatternJsonText) consumes the result
-// directly — no tempfile round-trip.
-std::string TranslatePatternDslToJson(std::string_view dsl);
+// Translates the supported NeuG Cypher MATCH subset into the JSON pattern
+// format consumed by PATTERN_MATCH and SAMPLED_PATTERN_MATCH. Returns "" when
+// the input is syntactically invalid or outside the supported subset.
+std::string TranslatePatternCypherToJson(std::string_view cypher);
 
-}  // namespace sampled_match
+}  // namespace pattern_matching
 }  // namespace neug

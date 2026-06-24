@@ -1,7 +1,30 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #include "include/dag.h"
 
 namespace daf {
-DAG::DAG(const DataGraph &data, const QueryGraph &query)
+DAG::DAG(const DataGraph& data, const QueryGraph& query)
     : data_(data), query_(query) {
   // initialize
   bfs_sequence_ = new Vertex[query_.GetNumVertices()];
@@ -9,8 +32,8 @@ DAG::DAG(const DataGraph &data, const QueryGraph &query)
   num_children_ = new Size[query.GetNumVertices()];
   num_parents_ = new Size[query.GetNumVertices()];
 
-  children_ = new Vertex *[query_.GetNumVertices()];
-  parents_ = new Vertex *[query_.GetNumVertices()];
+  children_ = new Vertex*[query_.GetNumVertices()];
+  parents_ = new Vertex*[query_.GetNumVertices()];
 
   for (Size i = 0; i < query_.GetNumVertices(); ++i) {
     children_[i] = new Vertex[query_.GetNumVertices()];
@@ -40,8 +63,8 @@ DAG::~DAG() {
 }
 
 void DAG::BuildDAG() {
-  bool *visit = new bool[query_.GetNumVertices()];
-  bool *popped = new bool[query_.GetNumVertices()];
+  bool* visit = new bool[query_.GetNumVertices()];
+  bool* popped = new bool[query_.GetNumVertices()];
 
   std::fill(visit, visit + query_.GetNumVertices(), false);
   std::fill(popped, popped + query_.GetNumVertices(), false);
@@ -66,7 +89,8 @@ void DAG::BuildDAG() {
                        Label l2 = query_.GetLabel(v2);
                        Size lf1 = data_.GetLabelFrequency(l1);
                        Size lf2 = data_.GetLabelFrequency(l2);
-                       if (lf1 != lf2) return lf1 < lf2;
+                       if (lf1 != lf2)
+                         return lf1 < lf2;
                        return l1 < l2;
                      });
 
@@ -112,7 +136,8 @@ Vertex DAG::SelectRootVertex() {
     Size d = query_.GetDegree(v);
     init_cand_size_[v] = data_.GetInitCandSize(l, d);
 
-    if (query_.GetCoreNum(v) < 2 && !query_.IsTree()) continue;
+    if (query_.GetCoreNum(v) < 2 && !query_.IsTree())
+      continue;
 
     double rank =
         static_cast<double>(init_cand_size_[v]) / static_cast<double>(d);

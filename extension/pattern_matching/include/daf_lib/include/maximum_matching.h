@@ -1,3 +1,26 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #ifndef MAXIMUM_MATCHING_H_
 #define MAXIMUM_MATCHING_H_
 
@@ -12,13 +35,13 @@
 namespace daf {
 class MaximumMatching {
  public:
-  inline MaximumMatching(const DataGraph &data, const QueryGraph &query,
-                         const CandidateSpace &cs,
-                         BacktrackHelper *backtrack_helpers);
+  inline MaximumMatching(const DataGraph& data, const QueryGraph& query,
+                         const CandidateSpace& cs,
+                         BacktrackHelper* backtrack_helpers);
   inline ~MaximumMatching();
 
-  MaximumMatching &operator=(const MaximumMatching &) = delete;
-  MaximumMatching(const MaximumMatching &) = delete;
+  MaximumMatching& operator=(const MaximumMatching&) = delete;
+  MaximumMatching(const MaximumMatching&) = delete;
 
   inline Size ComputeMaximumMatching(Label label);
 
@@ -27,26 +50,26 @@ class MaximumMatching {
 
   inline bool IsAddedToV(Size v);
 
-  inline void Clear(Vertex *nec_distinct_cands, Size *num_nec_distinct_cands);
+  inline void Clear(Vertex* nec_distinct_cands, Size* num_nec_distinct_cands);
 
  private:
-  const DataGraph &data_;
-  const QueryGraph &query_;
-  const CandidateSpace &cs_;
-  BacktrackHelper *backtrack_helpers_;
+  const DataGraph& data_;
+  const QueryGraph& query_;
+  const CandidateSpace& cs_;
+  BacktrackHelper* backtrack_helpers_;
 
   Size NIL = 0;
   Size INF = std::numeric_limits<Size>::max();
 
-  Size *pair_U;
-  Size *pair_V;
+  Size* pair_U;
+  Size* pair_V;
 
-  Size *cand_to_v;
+  Size* cand_to_v;
 
-  Size *dist;
-  Size *queue;
+  Size* dist;
+  Size* queue;
 
-  Size *nec_index;
+  Size* nec_index;
 
   Size size_U;
   Size size_V;
@@ -56,10 +79,10 @@ class MaximumMatching {
   inline bool DFS(Size u);
 };
 
-inline MaximumMatching::MaximumMatching(const DataGraph &data,
-                                        const QueryGraph &query,
-                                        const CandidateSpace &cs,
-                                        BacktrackHelper *backtrack_helpers)
+inline MaximumMatching::MaximumMatching(const DataGraph& data,
+                                        const QueryGraph& query,
+                                        const CandidateSpace& cs,
+                                        BacktrackHelper* backtrack_helpers)
     : data_(data),
       query_(query),
       cs_(cs),
@@ -103,7 +126,8 @@ inline Size MaximumMatching::ComputeMaximumMatching(Label label) {
   while (BFS()) {
     for (Size u = 1; u <= size_U; ++u) {
       if (pair_U[u] == NIL) {
-        if (DFS(u)) maximum_matching += 1;
+        if (DFS(u))
+          maximum_matching += 1;
       }
     }
   }
@@ -125,8 +149,8 @@ inline bool MaximumMatching::IsAddedToV(Size v) {
   return cand_to_v[v] != INVALID_SZ;
 }
 
-inline void MaximumMatching::Clear(Vertex *nec_distinct_cands,
-                                   Size *num_nec_distinct_cands) {
+inline void MaximumMatching::Clear(Vertex* nec_distinct_cands,
+                                   Size* num_nec_distinct_cands) {
   size_U = 0;
   size_V = 0;
 
@@ -159,7 +183,7 @@ inline bool MaximumMatching::BFS() {
     if (dist[u] < dist[NIL]) {
       Size j = nec_index[u];
       Vertex represent = query_.GetNECElement(j).represent;
-      BacktrackHelper *helper = backtrack_helpers_ + represent;
+      BacktrackHelper* helper = backtrack_helpers_ + represent;
 
       for (Size k = 0; k < helper->GetNumUnmappedExtendable(); k++) {
         Vertex cand =
@@ -181,7 +205,7 @@ inline bool MaximumMatching::DFS(Size u) {
   if (u != NIL) {
     Size j = nec_index[u];
     Vertex represent = query_.GetNECElement(j).represent;
-    BacktrackHelper *helper = backtrack_helpers_ + represent;
+    BacktrackHelper* helper = backtrack_helpers_ + represent;
 
     for (Size k = 0; k < helper->GetNumUnmappedExtendable(); k++) {
       Vertex cand = cs_.GetCandidate(represent, helper->GetExtendableIndex(k));

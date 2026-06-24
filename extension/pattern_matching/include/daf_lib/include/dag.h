@@ -1,3 +1,26 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #ifndef DAG_H_
 #define DAG_H_
 
@@ -10,11 +33,11 @@
 namespace daf {
 class DAG {
  public:
-  DAG(const DataGraph &data, const QueryGraph &query);
+  DAG(const DataGraph& data, const QueryGraph& query);
   ~DAG();
 
-  DAG &operator=(const DAG &) = delete;
-  DAG(const DAG &) = delete;
+  DAG& operator=(const DAG&) = delete;
+  DAG(const DAG&) = delete;
 
   void BuildDAG();
 
@@ -27,15 +50,15 @@ class DAG {
   inline Vertex GetVertexOrderedByBFS(Size i) const;
 
  private:
-  const DataGraph &data_;
-  const QueryGraph &query_;
+  const DataGraph& data_;
+  const QueryGraph& query_;
 
-  Vertex *bfs_sequence_;
-  Size *num_children_;
-  Size *num_parents_;
-  Vertex **children_;
-  Vertex **parents_;
-  Size *init_cand_size_;
+  Vertex* bfs_sequence_;
+  Size* num_children_;
+  Size* num_parents_;
+  Vertex** children_;
+  Vertex** parents_;
+  Size* init_cand_size_;
 
   Vertex SelectRootVertex();
 };

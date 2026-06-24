@@ -1,33 +1,59 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #include "include/query_graph.h"
 
 namespace daf {
-QueryGraph::QueryGraph(const std::string &filename) : Graph(filename) {}
+QueryGraph::QueryGraph(const std::string& filename) : Graph(filename) {}
 QueryGraph::~QueryGraph() {
   delete[] NEC_map_;
   delete[] NEC_elems_;
 
-  if (NEC_start_offs_) delete[] NEC_start_offs_;
+  if (NEC_start_offs_)
+    delete[] NEC_start_offs_;
   delete[] NEC_size_;
 }
 
-void QueryGraph::SetVertexPropertyConstraints(Vertex v, const std::vector<gbi::PropCons>& constraints) {
+void QueryGraph::SetVertexPropertyConstraints(
+    Vertex v, const std::vector<gbi::PropCons>& constraints) {
   if (v < vertex_property_constraints_.size()) {
     vertex_property_constraints_[v] = constraints;
   }
 }
 
-void QueryGraph::SetEdgePropertyConstraints(Size edge_idx, const std::vector<gbi::PropCons>& constraints) {
-    if (edge_idx < edge_property_constraints_.size()) {
-        edge_property_constraints_[edge_idx] = constraints;
-    }
+void QueryGraph::SetEdgePropertyConstraints(
+    Size edge_idx, const std::vector<gbi::PropCons>& constraints) {
+  if (edge_idx < edge_property_constraints_.size()) {
+    edge_property_constraints_[edge_idx] = constraints;
+  }
 }
 
 bool QueryGraph::IsLeafVertex(Vertex u) const {
-    // A leaf vertex is one with degree 1 (connected to only one other vertex)
-    return GetDegree(u) == 1;
+  // A leaf vertex is one with degree 1 (connected to only one other vertex)
+  return GetDegree(u) == 1;
 }
 
-bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
+bool QueryGraph::LoadAndProcessGraph(const DataGraph& data) {
   std::vector<std::vector<Vertex>> adj_list;
 
   LoadRoughGraph(&adj_list);
@@ -51,12 +77,15 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
   // transfer label & construct adj list and label frequency
   for (Vertex v = 0; v < GetNumVertices(); ++v) {
     Label l = data.GetTransferredLabel(label_[v]);
-    if (l == INVALID_LB) return false;
-    if (label_frequency_[l] == 0) num_label_ += 1;
+    if (l == INVALID_LB)
+      return false;
+    if (label_frequency_[l] == 0)
+      num_label_ += 1;
     label_[v] = l;
     max_label_ = std::max(max_label_, l);
     label_frequency_[l] += 1;
-    if (adj_list[v].size() > max_degree_) max_degree_ = adj_list[v].size();
+    if (adj_list[v].size() > max_degree_)
+      max_degree_ = adj_list[v].size();
 
     start_off_[v] = cur_idx;
     core_num_[v] = adj_list[v].size();
@@ -70,7 +99,7 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
 
   // preprocess for query graph
   computeCoreNum();
-  
+
   // Initialize property constraints vectors
   vertex_property_constraints_.resize(GetNumVertices());
   edge_property_constraints_.resize(GetNumEdges());
@@ -97,7 +126,8 @@ struct NECInfo {
 }  // namespace
 
 void QueryGraph::ExtractResidualStructure() {
-  NECInfo *NEC_infos_temp = new NECInfo[(max_label_ + 1) * num_edge_labels_ * GetNumVertices()];
+  NECInfo* NEC_infos_temp =
+      new NECInfo[(max_label_ + 1) * num_edge_labels_ * GetNumVertices()];
   NEC_elems_ = new NECElement[GetNumVertices()];
   NEC_map_ = new Vertex[GetNumVertices()];
   NEC_size_ = new Size[GetNumVertices()];
@@ -116,7 +146,8 @@ void QueryGraph::ExtractResidualStructure() {
       Label l = GetLabel(v);
       Label el = GetEdgeLabel(GetEdgeIndex(v, p));
 
-      NECInfo &info = NEC_infos_temp[l * num_edge_labels_ * GetNumVertices() + el * GetNumVertices() + p];
+      NECInfo& info = NEC_infos_temp[l * num_edge_labels_ * GetNumVertices() +
+                                     el * GetNumVertices() + p];
       if (!info.visit) {
         info = {true, v, num_NEC_elems_};
         NEC_map_[v] = v;
@@ -126,8 +157,8 @@ void QueryGraph::ExtractResidualStructure() {
           Vertex nbr = GetNeighbor(nbr_idx);
           Label nbr_el = GetEdgeLabel(GetEdgeIndex(p, nbr));
           if (nbr == v && el == nbr_el) {
-            NEC_elems_[num_NEC_elems_] = {l, el, p, v, 0,
-                                          nbr_idx - GetStartOffset(p)};
+            NEC_elems_[num_NEC_elems_] = {l, el, p,
+                                          v, 0,  nbr_idx - GetStartOffset(p)};
             break;
           }
         }
@@ -152,7 +183,7 @@ void QueryGraph::ExtractResidualStructure() {
   if (num_NEC_elems_ > 0) {
     // sort NEC elems by label
     std::sort(NEC_elems_, NEC_elems_ + num_NEC_elems_,
-              [](const NECElement &a, const NECElement &b) -> bool {
+              [](const NECElement& a, const NECElement& b) -> bool {
                 return a.label < b.label;
               });
 

@@ -1,6 +1,29 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #include "include/match_leaves.h"
-#include "../../../storage/graph_storage.hpp"
 #include <iostream>
+#include "storage/graph_storage.hpp"
 
 namespace daf {
 namespace {
@@ -9,10 +32,10 @@ constexpr uint64_t Factorial(Size n) {
 }
 }  // namespace
 
-MatchLeaves::MatchLeaves(const DataGraph &data, const QueryGraph &query,
-                         const CandidateSpace &cs, Vertex *mapped_query_vtx,
-                         BacktrackHelper *helpers,
-                         SearchTreeNode **mapped_nodes)
+MatchLeaves::MatchLeaves(const DataGraph& data, const QueryGraph& query,
+                         const CandidateSpace& cs, Vertex* mapped_query_vtx,
+                         BacktrackHelper* helpers,
+                         SearchTreeNode** mapped_nodes)
     : data_(data),
       query_(query),
       cs_(cs),
@@ -49,22 +72,28 @@ MatchLeaves::~MatchLeaves() {
   delete maximum_matching_;
 }
 
-uint64_t MatchLeaves::Match(uint64_t limit, std::vector<Vertex> &current_mapping, std::vector<std::vector<Vertex>> &match_results) {
+uint64_t MatchLeaves::Match(uint64_t limit,
+                            std::vector<Vertex>& current_mapping,
+                            std::vector<std::vector<Vertex>>& match_results) {
   // Ensure current_mapping has enough space
   if (current_mapping.size() < query_.GetNumVertices()) {
     current_mapping.resize(query_.GetNumVertices(), INVALID_VTX);
   }
 
   // Enumerate all possible mappings for leaf vertices
-  uint64_t result = EnumerateLeafMappings(0, limit, current_mapping, match_results);
+  uint64_t result =
+      EnumerateLeafMappings(0, limit, current_mapping, match_results);
 
   return result;
 }
 
-// Helper method to enumerate leaf vertex mappings (now directly using current_mapping)
-uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::vector<Vertex> &current_mapping, std::vector<std::vector<Vertex>> &match_results) {
+// Helper method to enumerate leaf vertex mappings (now directly using
+// current_mapping)
+uint64_t MatchLeaves::EnumerateLeafMappings(
+    Size leaf_idx, uint64_t limit, std::vector<Vertex>& current_mapping,
+    std::vector<std::vector<Vertex>>& match_results) {
   uint64_t count = 0;
-  
+
   if (match_results.size() >= limit) {
     return count;
   }
@@ -77,7 +106,7 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
       break;
     }
   }
-  
+
   // If all leaf vertices are mapped, we found a complete match
   if (next_leaf == INVALID_VTX) {
     // Add a copy of current mapping to results
@@ -92,11 +121,12 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
   if (query_.IsInNEC(next_leaf) && !query_.IsNECRepresentation(next_leaf)) {
     candidate_source = query_.GetNECRepresentative(next_leaf);
   }
-  
-  BacktrackHelper *leaf_helper = backtrack_helpers_ + candidate_source;
+
+  BacktrackHelper* leaf_helper = backtrack_helpers_ + candidate_source;
   for (Size k = 0; k < leaf_helper->GetNumExtendable(); ++k) {
-    Vertex cand = cs_.GetCandidate(candidate_source, leaf_helper->GetExtendableIndex(k));
-    
+    Vertex cand =
+        cs_.GetCandidate(candidate_source, leaf_helper->GetExtendableIndex(k));
+
     // Check if candidate is already used
     bool candidate_used = false;
     for (Vertex v = 0; v < query_.GetNumVertices(); ++v) {
@@ -105,7 +135,7 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
         break;
       }
     }
-    
+
     if (candidate_used || backtrack_mapped_query_vtx[cand] != INVALID_VTX) {
       continue;
     }
@@ -116,7 +146,8 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
       Vertex u_nbr = query_.no_edge_pairs[next_leaf][i].first;
       Label edge_label = query_.no_edge_pairs[next_leaf][i].second;
       if (current_mapping[u_nbr] != INVALID_VTX) {
-        Size data_edge_idx = data_.GetEdgeIndex(current_mapping[u_nbr], cand, edge_label);
+        Size data_edge_idx =
+            data_.GetEdgeIndex(current_mapping[u_nbr], cand, edge_label);
         if (data_edge_idx != INVALID_SZ) {
           has_forbidden_edge = true;
           break;
@@ -132,7 +163,8 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
       Vertex u_nbr = query_.has_out_edge_pairs[next_leaf][i].first;
       Label edge_label = query_.has_out_edge_pairs[next_leaf][i].second;
       if (current_mapping[u_nbr] != INVALID_VTX && ori_data_graph) {
-        if (!ori_data_graph->HasEdge(cand, current_mapping[u_nbr], edge_label)) {
+        if (!ori_data_graph->HasEdge(cand, current_mapping[u_nbr],
+                                     edge_label)) {
           is_valid = false;
           break;
         }
@@ -144,7 +176,8 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
       Vertex u_nbr = query_.has_in_edge_pairs[next_leaf][i].first;
       Label edge_label = query_.has_in_edge_pairs[next_leaf][i].second;
       if (current_mapping[u_nbr] != INVALID_VTX && ori_data_graph) {
-        if (!ori_data_graph->HasEdge(current_mapping[u_nbr], cand, edge_label)) {
+        if (!ori_data_graph->HasEdge(current_mapping[u_nbr], cand,
+                                     edge_label)) {
           is_valid = false;
           break;
         }
@@ -156,15 +189,16 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
     // Map this leaf vertex to the candidate
     current_mapping[next_leaf] = cand;
     backtrack_mapped_query_vtx[cand] = next_leaf;
-    
+
     // Recursively map remaining leaf vertices
-    uint64_t sub_count = EnumerateLeafMappings(leaf_idx + 1, limit, current_mapping, match_results);
+    uint64_t sub_count = EnumerateLeafMappings(leaf_idx + 1, limit,
+                                               current_mapping, match_results);
     count += sub_count;
-    
+
     // Backtrack: restore the original state
     current_mapping[next_leaf] = INVALID_VTX;
     backtrack_mapped_query_vtx[cand] = INVALID_VTX;
-    
+
     if (match_results.size() >= limit) {
       break;
     }
@@ -172,9 +206,6 @@ uint64_t MatchLeaves::EnumerateLeafMappings(Size leaf_idx, uint64_t limit, std::
 
   return count;
 }
-
-
-
 
 uint64_t MatchLeaves::Combine(uint64_t limit) {
   uint64_t result = 0;
@@ -224,7 +255,8 @@ uint64_t MatchLeaves::Combine(uint64_t limit) {
   for (Size k = 0; k < cand_to_nec_idx_[max_cand].size(); ++k) {
     Size j = cand_to_nec_idx_[max_cand][k];
 
-    if (num_remaining_nec_vertices_[j] == 0) continue;
+    if (num_remaining_nec_vertices_[j] == 0)
+      continue;
 
     std::swap(cand_to_nec_idx_[max_cand][k], cand_to_nec_idx_[max_cand].back());
     cand_to_nec_idx_[max_cand].pop_back();
@@ -232,14 +264,14 @@ uint64_t MatchLeaves::Combine(uint64_t limit) {
 
     if (num_remaining_nec_vertices_[j] == 0) {
       Vertex represent = query_.GetNECElement(j).represent;
-      BacktrackHelper *repr_helper = backtrack_helpers_ + represent;
+      BacktrackHelper* repr_helper = backtrack_helpers_ + represent;
 
       for (Size k = 0; k < repr_helper->GetNumUnmappedExtendable(); ++k) {
         Vertex cand =
             cs_.GetCandidate(represent, repr_helper->GetExtendableIndex(k));
 
         if (backtrack_mapped_query_vtx[cand] == INVALID_VTX) {
-          for (auto &elem : cand_to_nec_idx_[cand]) {
+          for (auto& elem : cand_to_nec_idx_[cand]) {
             if (elem == j) {
               std::swap(elem, cand_to_nec_idx_[cand].back());
               break;
@@ -261,7 +293,7 @@ uint64_t MatchLeaves::Combine(uint64_t limit) {
 
     if (num_remaining_nec_vertices_[j] == 0) {
       Vertex represent = query_.GetNECElement(j).represent;
-      BacktrackHelper *repr_helper = backtrack_helpers_ + represent;
+      BacktrackHelper* repr_helper = backtrack_helpers_ + represent;
 
       for (Size k = 0; k < repr_helper->GetNumUnmappedExtendable(); ++k) {
         Vertex cand =
@@ -295,7 +327,7 @@ uint64_t MatchLeaves::Combine(uint64_t limit) {
 }
 
 void MatchLeaves::ReserveVertex(Vertex represent,
-                                BacktrackHelper *repr_helper) {
+                                BacktrackHelper* repr_helper) {
   repr_helper->GetMappingState() = RESERVED;
   reserved_query_vtx_.push_back(represent);
   for (Size k = 0; k < repr_helper->GetNumUnmappedExtendable(); ++k) {
@@ -317,10 +349,10 @@ void MatchLeaves::ClearMemoryForBacktrack() {
   while (!reserved_query_vtx_.empty()) {
     Vertex represent = reserved_query_vtx_.back();
     reserved_query_vtx_.pop_back();
-    BacktrackHelper *repr_helper = backtrack_helpers_ + represent;
+    BacktrackHelper* repr_helper = backtrack_helpers_ + represent;
     repr_helper->GetMappingState() = UNMAPPED;
   }
-  // No longer need to clear current_leaf_mapping_ and full_embedding_ 
+  // No longer need to clear current_leaf_mapping_ and full_embedding_
   // since we now operate directly on the passed current_mapping parameter
 }
 }  // namespace daf

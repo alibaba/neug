@@ -1,3 +1,26 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #ifndef BACKTRACK_HELPER_H_
 #define BACKTRACK_HELPER_H_
 
@@ -22,8 +45,8 @@ class BacktrackHelper {
   inline BacktrackHelper();
   inline ~BacktrackHelper();
 
-  BacktrackHelper &operator=(const BacktrackHelper &) = delete;
-  BacktrackHelper(const BacktrackHelper &) = delete;
+  BacktrackHelper& operator=(const BacktrackHelper&) = delete;
+  BacktrackHelper(const BacktrackHelper&) = delete;
 
   inline void Initialize(Size num_query_vtx, Size degree, Size cs_size,
                          Vertex u);
@@ -37,22 +60,22 @@ class BacktrackHelper {
   }
   void RemoveMapping() { num_mapped_neighbors_ -= 1; }
 
-  inline boost::dynamic_bitset<> &GetAncestor() {
+  inline boost::dynamic_bitset<>& GetAncestor() {
     return ancestors_[num_mapped_neighbors_];
   }
-  inline Size &GetNumExtendable() {
+  inline Size& GetNumExtendable() {
     return num_extendable_indices_[num_mapped_neighbors_];
   }
-  inline Size &GetNumUnmappedExtendable() {
+  inline Size& GetNumUnmappedExtendable() {
     return num_unmapped_extendable_indices_[num_mapped_neighbors_];
   }
-  inline Size *GetExtendableIndices() {
+  inline Size* GetExtendableIndices() {
     return extendable_indices_[num_mapped_neighbors_ - 1];
   }
   inline Size GetNumPrevExtendable() {
     return num_extendable_indices_[num_mapped_neighbors_ - 1];
   }
-  inline Size *GetPrevExtendableIndices() {
+  inline Size* GetPrevExtendableIndices() {
     return extendable_indices_[num_mapped_neighbors_ - 2];
   }
   inline Size GetExtendableIndex(Size i) {
@@ -61,7 +84,7 @@ class BacktrackHelper {
     else
       return extendable_indices_[num_mapped_neighbors_ - 1][i];
   }
-  inline MappingState &GetMappingState() { return mapping_state_; }
+  inline MappingState& GetMappingState() { return mapping_state_; }
   inline Size GetNumMappedNeighbors() { return num_mapped_neighbors_; }
   inline Vertex GetLastMappedNeighbor() {
     return last_mapped_neighbor_[num_mapped_neighbors_];
@@ -69,11 +92,11 @@ class BacktrackHelper {
 
  private:
   Size num_mapped_neighbors_;
-  boost::dynamic_bitset<> *ancestors_;
-  Size **extendable_indices_;
-  Size *num_extendable_indices_;
-  Size *num_unmapped_extendable_indices_;
-  Vertex *last_mapped_neighbor_;
+  boost::dynamic_bitset<>* ancestors_;
+  Size** extendable_indices_;
+  Size* num_extendable_indices_;
+  Size* num_unmapped_extendable_indices_;
+  Vertex* last_mapped_neighbor_;
   MappingState mapping_state_;
 
   Size degree_;
@@ -99,7 +122,7 @@ inline void BacktrackHelper::Initialize(Size num_query_vtx, Size degree,
                                         Size cs_size, Vertex u) {
   num_mapped_neighbors_ = 0;
   ancestors_ = new boost::dynamic_bitset<>[degree + 1];
-  extendable_indices_ = new Size *[degree];
+  extendable_indices_ = new Size*[degree];
   num_extendable_indices_ = new Size[degree + 1];
   num_unmapped_extendable_indices_ = new Size[degree + 1];
   last_mapped_neighbor_ = new Vertex[degree + 1];

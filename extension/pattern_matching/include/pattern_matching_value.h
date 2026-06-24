@@ -25,20 +25,18 @@ namespace execution {
 // full set of relational operators, so round out the interface here using the
 // two primitives the upstream class provides.
 
-inline bool operator>(const Value& lhs, const Value& rhs) {
-    return rhs < lhs;
-}
+inline bool operator>(const Value& lhs, const Value& rhs) { return rhs < lhs; }
 
 inline bool operator<=(const Value& lhs, const Value& rhs) {
-    return !(rhs < lhs);
+  return !(rhs < lhs);
 }
 
 inline bool operator>=(const Value& lhs, const Value& rhs) {
-    return !(lhs < rhs);
+  return !(lhs < rhs);
 }
 
 inline bool operator!=(const Value& lhs, const Value& rhs) {
-    return !(lhs == rhs);
+  return !(lhs == rhs);
 }
 
 }  // namespace execution

@@ -16,24 +16,25 @@
 
 /**
  * This file is originally from the FaSTest project
- * (https://github.com/SNUCSE-CTA/FaSTest) Licensed under the MIT License. Modified by
- * Yunkai Lou and Shunyang Li in 2025 to support Neug-specific features.
+ * (https://github.com/SNUCSE-CTA/FaSTest) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
  */
 
 #pragma once
 #include "../SubgraphMatching/candidate_space.h"
 namespace GraphLib {
-    namespace CardinalityEstimation {
-        enum TreegenerationStrategy {
-            TREEGEN_EDGE_MST, 
-            TREEGEN_DENSITY_MST,
-            TREEGEN_RANDOM
-        };
-        class CardEstOption : public SubgraphMatching::SubgraphMatchingOption {
-        public:
-            int ub_initial = 100000;
-            double strata_ratio = 0.5;
-            int treegen_strategy = TREEGEN_DENSITY_MST;
-        };
-    }
-}
+namespace CardinalityEstimation {
+enum TreegenerationStrategy {
+  TREEGEN_EDGE_MST,
+  TREEGEN_DENSITY_MST,
+  TREEGEN_RANDOM
+};
+class CardEstOption : public SubgraphMatching::SubgraphMatchingOption {
+ public:
+  int ub_initial = 100000;
+  double strata_ratio = 0.5;
+  int treegen_strategy = TREEGEN_DENSITY_MST;
+};
+}  // namespace CardinalityEstimation
+}  // namespace GraphLib

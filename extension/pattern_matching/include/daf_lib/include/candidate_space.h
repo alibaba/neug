@@ -1,3 +1,26 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the DAF project
+ * (https://github.com/SNUCSE-CTA/DAF) Licensed under the MIT License.
+ * Modified by Yunkai Lou and Shunyang Li in 2025 to support Neug-specific
+ * features.
+ */
+
 #ifndef CANDIDATE_SPACE_H_
 #define CANDIDATE_SPACE_H_
 
@@ -11,12 +34,12 @@
 namespace daf {
 class CandidateSpace {
  public:
-  CandidateSpace(const DataGraph &data, const QueryGraph &query,
-                 const DAG &dag);
+  CandidateSpace(const DataGraph& data, const QueryGraph& query,
+                 const DAG& dag);
   ~CandidateSpace();
 
-  CandidateSpace &operator=(const CandidateSpace &) = delete;
-  CandidateSpace(const CandidateSpace &) = delete;
+  CandidateSpace& operator=(const CandidateSpace&) = delete;
+  CandidateSpace(const CandidateSpace&) = delete;
 
   bool BuildCS();
 
@@ -29,18 +52,18 @@ class CandidateSpace {
   inline Size GetCandidateIndex(Size idx) const;
 
  private:
-  const DataGraph &data_;
-  const QueryGraph &query_;
-  const DAG &dag_;
+  const DataGraph& data_;
+  const QueryGraph& query_;
+  const DAG& dag_;
 
-  Size *candidate_set_size_;
-  Vertex **candidate_set_;
-  Size ***candidate_offsets_;
-  Vertex *linear_cs_adj_list_;
+  Size* candidate_set_size_;
+  Vertex** candidate_set_;
+  Size*** candidate_offsets_;
+  Vertex* linear_cs_adj_list_;
 
-  QueryDegree *num_visit_cs_;
-  Vertex *visited_candidates_;
-  Size *cand_to_cs_idx_;
+  QueryDegree* num_visit_cs_;
+  Vertex* visited_candidates_;
+  Size* cand_to_cs_idx_;
   Size num_visitied_candidates_;
 
   Size num_cs_edges_;
@@ -52,10 +75,12 @@ class CandidateSpace {
   void ConstructCS();
   bool InitRootCandidates();
 
-  void ComputeNbrInformation(Vertex u, Size *max_nbr_degree,
-                             uint64_t *label_set);
+  void ComputeNbrInformation(Vertex u, Size* max_nbr_degree,
+                             uint64_t* label_set);
   bool CheckCandidateVertexAttributes(Vertex query_u, Vertex data_v) const;
-  bool CheckCandidateEdgeAttributes(Vertex query_parent, Vertex query_child, Vertex data_parent, Vertex data_child) const;
+  bool CheckCandidateEdgeAttributes(Vertex query_parent, Vertex query_child,
+                                    Vertex data_parent,
+                                    Vertex data_child) const;
 };
 
 inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {
