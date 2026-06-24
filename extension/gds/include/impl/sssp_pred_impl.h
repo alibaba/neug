@@ -37,10 +37,13 @@ class SSSPPred {
   SSSPPred(const StorageReadInterface& graph, label_t vertex_label,
            label_t edge_label, vid_t source, bool directed,
            const std::string& edge_weight_prop, int concurrency,
-           execution::ExprBase* vertex_pred, execution::ExprBase* edge_pred);
+           execution::ExprBase* vertex_pred, execution::ExprBase* edge_pred,
+           bool return_path = false);
+
+  void sink(execution::Context& ctx, int node_alias, int distance_alias,
+            int path_alias);
 
   void compute();
-  void sink(execution::Context& ctx, int node_alias, int distance_alias);
 
  private:
   const StorageReadInterface& graph_;
@@ -50,6 +53,7 @@ class SSSPPred {
   bool directed_;
   std::string edge_weight_prop_;
   int concurrency_;
+  bool return_path_;
   execution::ExprBase* vertex_pred_;
   execution::ExprBase* edge_pred_;
 

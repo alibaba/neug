@@ -27,10 +27,12 @@ namespace gds {
 class BFS {
  public:
   BFS(const StorageReadInterface& graph, label_t vertex_label,
-      label_t edge_label, vid_t source, bool directed, int concurrency);
+      label_t edge_label, vid_t source, bool directed, int concurrency,
+      bool return_path = false);
 
   void compute();
-  void sink(execution::Context& ctx, int node_alias, int distance_alias);
+  void sink(execution::Context& ctx, int node_alias, int distance_alias,
+            int path_alias);
 
  private:
   const StorageReadInterface& graph_;
@@ -39,6 +41,7 @@ class BFS {
   vid_t source_;
   bool directed_;
   int concurrency_;
+  bool return_path_;
   std::unique_ptr<uint32_t[]> distances_;
   vector_t<vid_t> vertices_;
 };
