@@ -9,6 +9,10 @@ target_link_libraries(bulk_loader
     ${GFLAGS_LIBRARIES}
 )
 
+if (BUILD_HTTP_SERVER)
+    target_link_libraries(bulk_loader PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
+endif()
+
 if (ENABLE_GCOV)
     target_compile_options(bulk_loader PRIVATE --coverage)
     target_link_options(bulk_loader PRIVATE --coverage)

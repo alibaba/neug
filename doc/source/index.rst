@@ -63,6 +63,8 @@ NeuG documentation
 
    extensions/index
    extensions/load_json
+   extensions/load_parquet
+   extensions/pattern_match
 
 .. toctree::
    :maxdepth: 1
