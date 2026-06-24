@@ -1419,28 +1419,34 @@ def test_complex_example(tmp_path):
 # ---------------------------------------------------------------------------
 # COW transaction correctness tests
 #
-# These tests verify the copy-on-write update transaction model:
-#   1. Concurrent updates are serialized (both succeed, no corruption)
-#   2. Reads are not blocked during updates (no global write lock)
-#   3. Data remains consistent after concurrent read + update
+# These tests verify the copy-on-write update transaction model by
+# sending concurrent HTTP requests from multiple threads. Python's GIL
+# is released during socket I/O, so threads achieve real concurrency
+# for HTTP requests — multiple requests are in-flight simultaneously
+# on the server side.
 #
-# Python threads achieve real concurrency for HTTP I/O because the GIL is
-# released during socket operations. Each sess.execute() sends an HTTP
-# request and blocks on the response — while one thread waits for its
-# response, another thread can send its own request.
+# What we can deterministically test:
+#   - Concurrent updates are serialized (both succeed, no corruption)
+#   - Data remains consistent after concurrent read + update
+#
+# What we cannot test from the HTTP client side:
+#   - Whether reads see old vs new data during update (requires guaranteed
+#     timing overlap, which is non-deterministic)
+#   - Whether reads are "blocked" vs "not blocked" (update is too fast
+#     to distinguish brief blocking from no blocking)
 # ---------------------------------------------------------------------------
 
 
-def test_cow_concurrent_updates_both_succeed(tmp_path):
+def test_cow_concurrent_updates_serialized(tmp_path):
     """Two update transactions sent concurrently must both succeed.
 
-    Validates: the server serializes updates (does not reject the second
-    one) and both commits are visible afterward. If COW is broken, one
-    update might corrupt the other's COW copy or fail outright.
+    Validates: the server serializes concurrent updates (does not reject
+    the second one) and both commits are visible. Each thread keeps its
+    session open across update + verification queries to test session
+    reuse under concurrency.
 
-    Note: Python threading achieves real HTTP concurrency because the GIL
-    is released during socket I/O — both HTTP requests are in-flight
-    simultaneously on the server side.
+    If COW is broken, one update might corrupt the other's snapshot or
+    the second update might be rejected instead of queued.
     """
     import threading
 
@@ -1459,129 +1465,53 @@ def test_cow_concurrent_updates_both_succeed(tmp_path):
     uri = db.serve(10060, "localhost", False)
     wait_for_server_ready(uri)
 
-    successes = []
-    errors = []
+    results = {}
+    errors = {}
 
-    def do_update(person_id, new_age):
+    def do_update_and_verify(thread_id, person_id, new_age):
+        # Keep session open across update + read to verify
+        sess = Session(uri, timeout="15s")
         try:
-            sess = Session(uri, timeout="15s")
             sess.execute(
                 f"MATCH (p:person {{id: {person_id}}}) SET p.age = {new_age};",
                 access_mode="update",
             )
-            successes.append(person_id)
-            sess.close()
+            # Verify on the same session that the update took effect
+            result = sess.execute(
+                f"MATCH (p:person {{id: {person_id}}}) RETURN p.age;",
+                access_mode="read",
+            )
+            age = list(result)[0][0]
+            results[thread_id] = age
         except Exception as e:
-            errors.append((person_id, str(e)))
+            errors[thread_id] = str(e)
+        finally:
+            sess.close()
 
-    # Send both update requests concurrently — server must serialize them
-    t1 = threading.Thread(target=do_update, args=(1, 40))
-    t2 = threading.Thread(target=do_update, args=(2, 35))
+    t1 = threading.Thread(target=do_update_and_verify, args=(1, 1, 40))
+    t2 = threading.Thread(target=do_update_and_verify, args=(2, 2, 35))
     t1.start()
     t2.start()
     t1.join(timeout=30)
     t2.join(timeout=30)
 
     assert len(errors) == 0, f"Update errors: {errors}"
-    assert len(successes) == 2, f"Expected 2 successes, got {successes}"
-
-    # Verify both updates were applied correctly
-    sess = Session(uri, timeout="10s")
-    result = sess.execute("MATCH (p:person {id: 1}) RETURN p.age;", access_mode="read")
-    assert list(result)[0][0] == 40, "Update from thread 1 not visible"
-    result = sess.execute("MATCH (p:person {id: 2}) RETURN p.age;", access_mode="read")
-    assert list(result)[0][0] == 35, "Update from thread 2 not visible"
-    sess.close()
-
-    db.stop_serving()
-    db.close()
-
-
-def test_cow_reads_not_blocked_during_update(tmp_path):
-    """Reads must succeed while an update is in progress.
-
-    Validates: the COW model does not use a global write lock that blocks
-    reads. If the old global-lock behavior were restored, reads sent
-    during the update would block until the update finishes — with a
-    short timeout, they would fail.
-
-    Approach: create enough data (500 vertices) so the update takes
-    measurable time. Send read requests from a separate thread
-    concurrently. If reads are blocked, the 3-second timeout will
-    cause failures.
-    """
-    import threading
-
-    db_dir = str(tmp_path / "cow_read_during_update")
-    shutil.rmtree(db_dir, ignore_errors=True)
-    os.makedirs(db_dir, exist_ok=True)
-    db = Database(db_dir, "w")
-    conn = db.connect()
-    conn.execute(
-        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
-    )
-    for i in range(500):
-        conn.execute(
-            f"CREATE (p:person {{id: {i}, name: 'p{i}', age: {20 + i % 50}}});"
-        )
-    conn.close()
-
-    uri = db.serve(10061, "localhost", False)
-    wait_for_server_ready(uri)
-
-    read_errors = []
-    read_counts = []
-
-    def continuous_reads():
-        """Send read requests in a loop. Each request has a 3-second
-        timeout — if reads are blocked by the update, this will fail."""
-        try:
-            sess = Session(uri, timeout="3s")
-            for _ in range(20):
-                result = sess.execute(
-                    "MATCH (p:person) RETURN count(p);", access_mode="read"
-                )
-                count = list(result)[0][0]
-                read_counts.append(count)
-            sess.close()
-        except Exception as e:
-            read_errors.append(str(e))
-
-    # Start reader thread — it will send reads while we run the update
-    reader = threading.Thread(target=continuous_reads)
-    reader.start()
-
-    # Give the reader a moment to start sending requests
-    time.sleep(0.05)
-
-    # Run a batch update — this should take measurable time with 500 vertices
-    sess = Session(uri, timeout="15s")
-    sess.execute("MATCH (p:person) SET p.age = p.age + 1;", access_mode="update")
-    sess.close()
-
-    reader.join(timeout=30)
-
-    # All reads should have succeeded — no blocking, no errors
-    assert (
-        len(read_errors) == 0
-    ), f"Reads failed during update (possibly blocked): {read_errors}"
-    assert len(read_counts) > 0, "No read results collected"
-
-    # Every read should see exactly 500 persons — count doesn't change
-    # during an update (only property values change, not vertex count)
-    for count in read_counts:
-        assert count == 500, f"Read saw {count} persons, expected 500"
+    assert results.get(1) == 40, f"Thread 1: expected age 40, got {results.get(1)}"
+    assert results.get(2) == 35, f"Thread 2: expected age 35, got {results.get(2)}"
 
     db.stop_serving()
     db.close()
 
 
 def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
-    """After concurrent reads and an update, the final state must be consistent.
+    """After concurrent reads and an update, all snapshots must be consistent.
 
-    Validates: the COW copy is correctly published — no partial updates,
-    no lost writes, no corrupted data. Reads that overlap with the update
-    see either the old or new state, never an inconsistent mix.
+    A reader thread continuously reads all persons' ages on a single
+    session. Meanwhile, the main thread updates all ages (age += 1000).
+
+    Validates: each read snapshot is internally consistent — either all
+    ages are old (0..99) or all are new (1000..1099), never a mix. This
+    would catch a broken COW publish that exposes partial updates.
     """
     import threading
 
@@ -1597,35 +1527,32 @@ def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
         conn.execute(f"CREATE (p:person {{id: {i}, name: 'p{i}', age: {i}}});")
     conn.close()
 
-    uri = db.serve(10062, "localhost", False)
+    uri = db.serve(10061, "localhost", False)
     wait_for_server_ready(uri)
 
-    read_results = []
+    read_snapshots = []
     read_errors = []
 
     def reader():
-        """Read all persons' ages and record them. Each read is a
-        separate transaction, so it sees either all-old or all-new
-        values — never a mix."""
+        # Single session, multiple queries — tests session reuse
+        sess = Session(uri, timeout="10s")
         try:
-            sess = Session(uri, timeout="10s")
-            for _ in range(10):
+            for _ in range(15):
                 result = sess.execute(
                     "MATCH (p:person) RETURN p.id, p.age ORDER BY p.id;",
                     access_mode="read",
                 )
                 ages = [row[1] for row in result]
-                read_results.append(ages)
-            sess.close()
+                read_snapshots.append(ages)
         except Exception as e:
             read_errors.append(str(e))
+        finally:
+            sess.close()
 
-    # Start reader thread
     reader_thread = threading.Thread(target=reader)
     reader_thread.start()
     time.sleep(0.05)
 
-    # Update all ages: age = age + 1000
     sess = Session(uri, timeout="15s")
     sess.execute("MATCH (p:person) SET p.age = p.age + 1000;", access_mode="update")
     sess.close()
@@ -1633,26 +1560,24 @@ def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
     reader_thread.join(timeout=30)
 
     assert len(read_errors) == 0, f"Read errors: {read_errors}"
+    assert len(read_snapshots) > 0, "No read snapshots collected"
 
-    # Every read snapshot should be internally consistent:
-    # either all ages are original (0..99) or all are updated (1000..1099)
-    for ages in read_results:
+    # Each snapshot must be all-old or all-new, never mixed
+    for ages in read_snapshots:
         all_old = all(0 <= a < 1000 for a in ages)
         all_new = all(1000 <= a < 1100 for a in ages)
         assert (
             all_old or all_new
         ), f"Inconsistent snapshot: ages span old and new values: {ages[:5]}..."
 
-    # Final state should be all updated
+    # Final state must be all updated
     sess = Session(uri, timeout="10s")
     result = sess.execute(
         "MATCH (p:person) RETURN p.id, p.age ORDER BY p.id;", access_mode="read"
     )
     final_ages = [row[1] for row in result]
     for i, age in enumerate(final_ages):
-        assert (
-            age == i + 1000
-        ), f"Final age for person {i}: expected {i + 1000}, got {age}"
+        assert age == i + 1000, f"Person {i}: expected {i + 1000}, got {age}"
     sess.close()
 
     db.stop_serving()
