@@ -25,6 +25,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/copy_constructors.h"
@@ -36,6 +37,9 @@ class ClientContext;
 }
 namespace planner {
 class Schema;
+}
+namespace function {
+struct TableFuncBindInput;
 }
 namespace graph {
 
@@ -176,10 +180,17 @@ class NEUG_API GDSFunction {
       main::ClientContext& clientContext,
       const std::vector<std::string>& triplets, const std::string& predicate);
 
-  static std::shared_ptr<binder::Expression> bindNodeOutput(
+  static std::shared_ptr<binder::NodeExpression> bindNodeOutput(
       const function::TableFuncBindInput& bindInput,
       const std::vector<catalog::TableCatalogEntry*>& nodeEntries,
       const std::string& name,
+      const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);
+
+  static std::shared_ptr<binder::Expression> bindRelOutput(
+      const function::TableFuncBindInput& bindInput,
+      const std::vector<catalog::TableCatalogEntry*>& relEntries,
+      std::shared_ptr<binder::NodeExpression> srcNode,
+      std::shared_ptr<binder::NodeExpression> dstNode, const std::string& name,
       const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);
 };
 
