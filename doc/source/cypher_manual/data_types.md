@@ -181,6 +181,7 @@ CREATE (m:Matrix {id: 1, grid: [[1, 2, 3], [4, 5, 6]]});
 **Key Technical Details:**
 - Array values must match the declared length at every fixed-size dimension
 - Missing or `NULL` array properties during `CREATE` use the child type's default value for each element
+- Explicit array default literals in DDL, such as `prop INT32[3] DEFAULT [1, 2, 3]`, are not supported yet
 - `RETURN`, equality filters, `SET`, `MERGE`, `collect()`, and `UNWIND` support array-valued properties
 - `CAST` supports conversion between `LIST` and `ARRAY` when the target array length matches the input value
 - Setting an existing array property to `NULL` is not supported yet

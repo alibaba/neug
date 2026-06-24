@@ -640,7 +640,7 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
     const auto& rhs_children = ArrayValue::GetChildren(rhs);
     // TODO(zhanglei, lexiao): how to handle the case when lhs_children.size() <
     // rhs_children.size()
-    if (lhs_children.size() < rhs_children.size()) {
+    if (lhs_children.size() != rhs_children.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Array size not equal.");
     }
     for (size_t i = 0; i < lhs_children.size(); ++i) {

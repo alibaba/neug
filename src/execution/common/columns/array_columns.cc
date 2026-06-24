@@ -20,6 +20,18 @@
 namespace neug {
 namespace execution {
 
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ArrayColumn::unfold()
+    const {
+  sel_vec_t offsets;
+  offsets.reserve(size() * array_size_);
+  for (size_t i = 0; i < size(); ++i) {
+    for (uint32_t j = 0; j < array_size_; ++j) {
+      offsets.push_back(i);
+    }
+  }
+  return {datas_, offsets};
+}
+
 std::shared_ptr<IContextColumn> ArrayColumn::shuffle(
     const sel_vec_t& offsets) const {
   if (!datas_)
