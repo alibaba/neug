@@ -117,6 +117,89 @@ void append_property_to_json(const std::string& key, const Value& prop,
   }
 }
 
+// Build a rapidjson object for a vertex directly into the given allocator,
+// without the serialize-to-string round-trip used by convert_vertex_to_json.
+// Used internally by convert_path_to_json to avoid the string→parse→copy
+// cycle when embedding vertex/edge objects inside a path array.
+//
+// Encode all vertex properties
+static rapidjson::Value build_vertex_json_value(
+    const StorageReadInterface& graph, const VertexRecord& record,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value obj(rapidjson::kObjectType);
+  if (record.label_ == std::numeric_limits<label_t>::max() ||
+      record.vid_ == std::numeric_limits<vid_t>::max()) {
+    return obj;
+  }
+  auto label_name = graph.schema().get_vertex_label_name(record.label_);
+  auto gid = encode_unique_vertex_id(record.label_, record.vid_);
+  obj.AddMember("_ID", rapidjson::Value(gid), allocator);
+  obj.AddMember("_LABEL", rapidjson::Value(label_name.c_str(), allocator),
+                allocator);
+  auto pk_prop = graph.GetVertexId(record.label_, record.vid_);
+  auto pk_types = graph.schema().get_vertex_primary_key(record.label_);
+  append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
+
+  {
+
+    const auto& property_names =
+        graph.schema().get_vertex_property_names(record.label_);
+    for (size_t i = 0; i < property_names.size(); ++i) {
+      auto prop = graph.GetVertexProperty(record.label_, record.vid_, i);
+      append_property_to_json(property_names[i], prop, obj, allocator);
+    }
+  }
+  return obj;
+}
+
+// Build a rapidjson object for an edge directly into the given allocator,
+// without the serialize-to-string round-trip used by convert_edge_to_json.
+//
+// Encode all edge properties
+static rapidjson::Value build_edge_json_value(
+    const StorageReadInterface& graph, const EdgeRecord& record,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value obj(rapidjson::kObjectType);
+  if (record.label.src_label == std::numeric_limits<label_t>::max() ||
+      record.label.dst_label == std::numeric_limits<label_t>::max() ||
+      record.label.edge_label == std::numeric_limits<label_t>::max() ||
+      record.src == std::numeric_limits<vid_t>::max() ||
+      record.dst == std::numeric_limits<vid_t>::max()) {
+    return obj;
+  }
+  auto edge_label_name =
+      graph.schema().get_edge_label_name(record.label.edge_label);
+  auto edge_id = encode_unique_edge_id(
+      generate_edge_label_id(record.label.src_label, record.label.dst_label,
+                             record.label.edge_label),
+      record.src, record.dst);
+  obj.AddMember("_ID", rapidjson::Value(edge_id), allocator);
+  obj.AddMember("_LABEL", rapidjson::Value(edge_label_name.c_str(), allocator),
+                allocator);
+  auto src_gid = encode_unique_vertex_id(record.label.src_label, record.src);
+  auto dst_gid = encode_unique_vertex_id(record.label.dst_label, record.dst);
+  obj.AddMember("_SRC_ID", rapidjson::Value(src_gid), allocator);
+  obj.AddMember("_DST_ID", rapidjson::Value(dst_gid), allocator);
+
+  {
+    auto property_types = graph.schema().get_edge_properties(
+        record.label.src_label, record.label.dst_label,
+        record.label.edge_label);
+    auto property_names = graph.schema().get_edge_property_names(
+        record.label.src_label, record.label.dst_label,
+        record.label.edge_label);
+    for (size_t i = 0; i < property_types.size(); ++i) {
+      auto value = graph
+                       .GetEdgeDataAccessor(record.label.src_label,
+                                            record.label.dst_label,
+                                            record.label.edge_label, i)
+                       .get_data_from_ptr(record.prop);
+      append_property_to_json(property_names[i], value, obj, allocator);
+    }
+  }
+  return obj;
+}
+
 std::string convert_vertex_to_json(const StorageReadInterface& graph,
                                    const VertexRecord& record) {
   if (record.label_ == std::numeric_limits<label_t>::max() ||
@@ -200,31 +283,15 @@ std::string convert_path_to_json(const StorageReadInterface& graph,
   doc.SetObject();
   auto& allocator = doc.GetAllocator();
 
-  // nodes
   rapidjson::Value nodes(rapidjson::kArrayType);
   for (const auto& node : path.nodes()) {
-    std::string node_json_str = convert_vertex_to_json(graph, node);
-
-    rapidjson::Document node_doc;
-    node_doc.Parse(node_json_str.c_str());
-
-    rapidjson::Value node_val;
-    node_val.CopyFrom(node_doc, allocator);
-    nodes.PushBack(node_val, allocator);
+    nodes.PushBack(build_vertex_json_value(graph, node, allocator), allocator);
   }
   doc.AddMember("nodes", nodes, allocator);
 
-  // edges
   rapidjson::Value edges(rapidjson::kArrayType);
   for (const auto& edge : path.relationships()) {
-    std::string edge_json_str = convert_edge_to_json(graph, edge);
-
-    rapidjson::Document edge_doc;
-    edge_doc.Parse(edge_json_str.c_str());
-
-    rapidjson::Value edge_val;
-    edge_val.CopyFrom(edge_doc, allocator);
-    edges.PushBack(edge_val, allocator);
+    edges.PushBack(build_edge_json_value(graph, edge, allocator), allocator);
   }
   doc.AddMember("rels", edges, allocator);
 

@@ -10,6 +10,8 @@ on:
       - '.github/workflows/neug-extension-test.yml'
       - 'extension/**'
       - 'tools/python_bind/tests/test_gds.py'
+      - 'tools/python_bind/tests/test_gds_path.py'
+      - 'tools/python_bind/tests/test_gds_concurrency.py'
       - 'tools/python_bind/tests/test_graphalytics.py'
       - 'tools/python_bind/tests/resources/graphalytics/**'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
@@ -134,6 +136,8 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest -sv tests/test_gds.py
+        python3 -m pytest -sv tests/test_gds_path.py
+        python3 -m pytest -sv tests/test_gds_concurrency.py
 
     - name: Run LDBC Graphalytics Conformance Tests
       run: |

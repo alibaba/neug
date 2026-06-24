@@ -178,6 +178,7 @@ RETURN node, distance;
 |---|---|---|
 | `node` | NODE | The node |
 | `distance` | INT64 | Hop count from the source node |
+| `path` | PATH | Shortest path from source to this node (optional, only when YIELDed) |
 
 **Example:**
 
@@ -185,6 +186,22 @@ RETURN node, distance;
 CALL bfs('social', {source: '0'})
 RETURN node.fName, distance
 ORDER BY distance;
+```
+
+**With path return:**
+
+```cypher
+-- Return the actual shortest path
+CALL bfs('social', {source: '0'})
+YIELD node, distance, path
+RETURN node.fName, distance, path;
+
+-- Extract path details
+CALL bfs('social', {source: '0'})
+YIELD node, distance, path
+RETURN node.fName, distance,
+       nodes(path) AS path_nodes,
+       relationships(path) AS path_edges;
 ```
 
 **Predicate support:** Both node and edge predicates are supported.
@@ -217,12 +234,28 @@ RETURN node, distance;
 |---|---|---|
 | `node` | NODE | The node |
 | `distance` | DOUBLE | Shortest path distance from the source |
+| `path` | PATH | Shortest path from source to this node (optional, only when YIELDed) |
 
 **Example:**
 
 ```cypher
 CALL sssp('social', {source: '0', weight: 'cost', directed: true})
 RETURN node.fName, distance;
+```
+
+**With path return:**
+
+```cypher
+-- Return the actual shortest path
+CALL sssp('social', {source: '0', weight: 'cost'})
+YIELD node, distance, path
+RETURN node.fName, distance, path;
+
+-- Find path to a specific target
+CALL sssp('social', {source: '0', weight: 'cost'})
+YIELD node, distance, path
+WHERE node.id = '42'
+RETURN distance, path;
 ```
 
 **Predicate support:** Both node and edge predicates are supported.
@@ -463,19 +496,78 @@ ORDER BY community;
 or better detection of small communities. Use Louvain when you need the fastest
 possible execution.
 
+## Shortest Path Return
+
+BFS and SSSP algorithms support returning the actual shortest path (sequence of nodes
+and relationships) in addition to the distance. The path is returned as a `PATH` type
+that supports all standard Cypher path functions.
+
+### Requesting the Path
+
+The path column is optional and only returned when explicitly YIELDed:
+
+```cypher
+-- Without path (default, fastest)
+CALL bfs('graph', {source: '0'})
+RETURN node, distance;
+
+-- With path (returns shortest path from source to each node)
+CALL bfs('graph', {source: '0'})
+YIELD node, distance, path
+RETURN node, distance, path;
+```
+
+
+### Working with Paths
+
+Use standard Cypher path functions to extract information:
+
+```cypher
+-- Get nodes and relationships in the path
+CALL bfs('graph', {source: '0'})
+YIELD node, distance, path
+RETURN nodes(path) AS path_nodes,
+       relationships(path) AS path_rels,
+       length(path) AS path_length;
+
+-- Filter paths by length
+CALL bfs('graph', {source: '0'})
+YIELD node, distance, path
+WHERE length(path) > 2
+RETURN node, distance, path;
+
+-- Find specific target
+CALL sssp('graph', {source: '0', weight: 'cost'})
+YIELD node, distance, path
+WHERE node.id = '42'
+RETURN distance, path;
+```
+
+### Performance Considerations
+
+- **Zero overhead when not YIELDed**: If you don't request the `path` column, there is
+  no performance penalty compared to distance-only queries.
+- **Default is full mode**: By default, paths include all vertex and edge properties,
+  matching the behavior of standard `MATCH p = ...` queries for backward compatibility.
+- **Large result sets**: When returning paths for many nodes, be aware that
+  path serialization includes all vertex and edge properties, which can be
+  memory-intensive for large graphs.
+
 ## Algorithm Summary
 
 | Algorithm | CALL Name | Output Columns | Key Options |
 |---|---|---|---|
 | PageRank | `page_rank` | `node`, `rank` | `damping_factor`, `max_iterations`, `directed` |
-| BFS | `bfs` | `node`, `distance` | `source` (required) |
-| SSSP | `sssp` | `node`, `distance` | `source` (required), `weight`, `directed` |
+| BFS | `bfs` | `node`, `distance`, `path` | `source` (required), `directed` |
+| SSSP | `sssp` | `node`, `distance`, `path` | `source` (required), `weight`, `directed` |
 | WCC | `wcc` | `node`, `comp` | `concurrency` |
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | CDLP | `cdlp` | `node`, `label` | `max_iterations` |
 | Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
 | Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
+
+**Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. See the individual algorithm sections for details.
 
 ## Common Options
 

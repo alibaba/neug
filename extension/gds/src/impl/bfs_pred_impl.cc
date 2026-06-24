@@ -16,6 +16,7 @@
 
 #include "impl/bfs_pred_impl.h"
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -23,6 +24,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
+#include "utils/path_utils.h"
 
 namespace neug {
 namespace gds {
@@ -30,19 +32,17 @@ namespace gds {
 BFSPred::BFSPred(const StorageReadInterface& graph, label_t vertex_label,
                  label_t edge_label, vid_t source, bool directed,
                  int concurrency, execution::ExprBase* vertex_pred,
-                 execution::ExprBase* edge_pred)
+                 execution::ExprBase* edge_pred, bool return_path)
     : graph_(graph),
       vertex_label_(vertex_label),
       edge_label_(edge_label),
       source_(source),
       directed_(directed),
       concurrency_(concurrency),
+      return_path_(return_path),
       vertex_pred_(vertex_pred),
       edge_pred_(edge_pred) {}
 
-// Performance is not a concern on the predicate path, so this is a simple
-// sequential level-synchronous BFS rather than the optimized push/pull hybrid
-// used by the plain BFS.
 void BFSPred::compute() {
   const auto& vertex_set = graph_.GetVertexSet(vertex_label_);
   size_t n = vertex_set.size();
@@ -77,7 +77,7 @@ void BFSPred::compute() {
                                                     vertex_label_, edge_label_);
 
   if (!in_subgraph[source_]) {
-    return;  // source not in the subgraph -> every vertex stays unreachable
+    return;
   }
 
   distances_[source_] = 0;
@@ -120,23 +120,80 @@ void BFSPred::compute() {
   }
 }
 
-void BFSPred::sink(execution::Context& ctx, int node_alias,
-                   int distance_alias) {
+void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
+                   int path_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
   execution::ValueColumnBuilder<int64_t> distance_builder;
   distance_builder.reserve(vertices_.size());
 
+  std::shared_ptr<execution::IContextColumn> path_column;
+  if (return_path_) {
+    auto oe_view = graph_.GetGenericOutgoingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(
+        vertex_label_, vertex_label_, edge_label_);
+
+    std::unique_ptr<execution::GeneralPred> epred;
+    if (edge_pred_ != nullptr) {
+      epred =
+          std::make_unique<execution::GeneralPred>(edge_pred_->bind(&graph_, {}));
+    }
+    execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+
+    auto find_pred = [&](vid_t v) -> vid_t {
+      auto ie_edges = ie_view.get_edges(v);
+      for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+        vid_t u = *it;
+        if (distances_[u] == distances_[v] - 1) {
+          if (!epred || (*epred)(triplet, u, v, it.get_data_ptr())) {
+            return u;
+          }
+        }
+      }
+      if (!directed_) {
+        auto oe_edges = oe_view.get_edges(v);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          vid_t u = *it;
+          if (distances_[u] == distances_[v] - 1) {
+            if (!epred || (*epred)(triplet, v, u, it.get_data_ptr())) {
+              return u;
+            }
+          }
+        }
+      }
+      return source_;
+    };
+
+    execution::PathColumnBuilder path_builder;
+    for (vid_t v : vertices_) {
+      if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
+        path_builder.push_back_null();
+      } else {
+        auto path = reconstruct_path(
+            v, source_, find_pred, vertex_label_, edge_label_, directed_,
+            graph_);
+        path_builder.push_back_opt(std::move(path));
+      }
+    }
+    path_column = path_builder.finish();
+  }
+
   for (vid_t v : vertices_) {
-    distance_builder.push_back_opt(
-        distances_[v] == std::numeric_limits<uint32_t>::max()
-            ? -1
-            : static_cast<int64_t>(distances_[v]));
+    distance_builder.push_back_opt(distances_[v] ==
+                                           std::numeric_limits<uint32_t>::max()
+                                       ? -1
+                                       : static_cast<int64_t>(distances_[v]));
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
   execution::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(distance_alias, distance_builder.finish());
+
+  if (path_column) {
+    chunk.set(path_alias, path_column);
+  }
+
   ctx.append_chunk(std::move(chunk));
 }
 

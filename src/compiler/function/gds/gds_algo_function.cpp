@@ -17,6 +17,9 @@
 #include "neug/compiler/function/gds/gds_algo_function.h"
 
 #include "neug/compiler/binder/binder.h"
+#include "neug/compiler/binder/expression/path_expression.h"
+#include "neug/compiler/binder/expression/rel_expression.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
 #include "neug/compiler/function/table/table_function.h"
@@ -64,7 +67,8 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
   if (typeId == common::DataTypeId::kStruct) {
     for (auto i = 0u; i < common::StructType::GetNumFields(value.getDataType());
          ++i) {
-      auto& fieldName = common::StructType::GetChildName(value.getDataType(), i);
+      auto& fieldName =
+          common::StructType::GetChildName(value.getDataType(), i);
       const auto* child = common::NestedVal::getChildVal(&value, i);
       out.emplace(fieldName, extractOptionValue(*child));
     }
@@ -90,8 +94,48 @@ static common::case_insensitive_map_t<std::string> extractStringOptions(
     return out;
   }
   THROW_BINDER_EXCEPTION(
-      "Second argument to GDS CALL must be a map literal or struct literal, got " +
+      "Second argument to GDS CALL must be a map literal or struct literal, "
+      "got " +
       value.getDataType().ToString() + ".");
+}
+
+static std::shared_ptr<binder::Expression> bindGDSOutputColumn(
+    const TableFuncBindInput& input, binder::Binder& binder,
+    const graph::GraphEntry& graphEntry, const std::string& name,
+    common::DataTypeId typeID) {
+  switch (typeID) {
+  case common::DataTypeId::kVertex:
+    return graph::GDSFunction::bindNodeOutput(
+        input, graphEntry.getNodeEntries(), name);
+  case common::DataTypeId::kEdge: {
+    auto srcNode =
+        binder.createQueryNode(name + "_src", graphEntry.getNodeEntries());
+    auto dstNode =
+        binder.createQueryNode(name + "_dst", graphEntry.getNodeEntries());
+    return graph::GDSFunction::bindRelOutput(input, graphEntry.getRelEntries(),
+                                             srcNode, dstNode, name);
+  }
+  case common::DataTypeId::kPath: {
+    auto srcNode =
+        binder.createQueryNode(name + "_src", graphEntry.getNodeEntries());
+    auto dstNode =
+        binder.createQueryNode(name + "_dst", graphEntry.getNodeEntries());
+
+    auto rel = binder.createNonRecursiveQueryRel(
+        name + "_rel", graphEntry.getRelEntries(), srcNode, dstNode,
+        binder::RelDirectionType::SINGLE);
+    auto nodeType = srcNode->getDataType();
+    auto relType = rel->getDataType();
+    binder::expression_vector children;
+    auto pathExpr = std::make_shared<binder::PathExpression>(
+        binder.getRecursiveRelLogicalType(nodeType, relType), name, name,
+        std::move(nodeType), std::move(relType), children);
+    binder.addToScope(name, pathExpr);
+    return pathExpr;
+  }
+  default:
+    return binder.createVariable(name, typeID);
+  }
 }
 
 }  // namespace
@@ -125,13 +169,8 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
         if (var.hasAlias()) {
           alias = var.alias;
         }
-        std::shared_ptr<binder::Expression> columnExpr;
-        if (column->second == common::DataTypeId::kVertex) {
-          columnExpr = graph::GDSFunction::bindNodeOutput(
-              *input, graphEntry.getNodeEntries(), alias);
-        } else {
-          columnExpr = binder.createVariable(alias, column->second);
-        }
+        auto columnExpr = bindGDSOutputColumn(*input, binder, graphEntry, alias,
+                                              column->second);
         columns.push_back(std::move(columnExpr));
       } else {
         THROW_BINDER_EXCEPTION("Output variable " + var.name +
@@ -141,14 +180,8 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
   } else {
     for (auto& outputColumn : outputColumns) {
       // add ouput columns to scope if exists
-      std::shared_ptr<binder::Expression> columnExpr;
-      if (outputColumn.second == common::DataTypeId::kVertex) {
-        columnExpr = graph::GDSFunction::bindNodeOutput(
-            *input, graphEntry.getNodeEntries(), outputColumn.first);
-      } else {
-        columnExpr =
-            binder.createVariable(outputColumn.first, outputColumn.second);
-      }
+      auto columnExpr = bindGDSOutputColumn(
+          *input, binder, graphEntry, outputColumn.first, outputColumn.second);
       columns.push_back(std::move(columnExpr));
     }
   }
