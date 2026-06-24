@@ -1441,9 +1441,9 @@ def test_cow_concurrent_updates_serialized(tmp_path):
     """Two update transactions sent concurrently must both succeed.
 
     Validates: the server serializes concurrent updates (does not reject
-    the second one) and both commits are visible. Each thread keeps its
-    session open across update + verification queries to test session
-    reuse under concurrency.
+    the second one) and both commits are visible. Sessions are created
+    before threads start and passed in, so each session is reused across
+    multiple queries (update + read verification) on the same connection.
 
     If COW is broken, one update might corrupt the other's snapshot or
     the second update might be rejected instead of queued.
@@ -1465,35 +1465,38 @@ def test_cow_concurrent_updates_serialized(tmp_path):
     uri = db.serve(10060, "localhost", False)
     wait_for_server_ready(uri)
 
+    # Create sessions before starting threads — each will be reused
+    # across update + read verification queries
+    sess1 = Session(uri, timeout="15s")
+    sess2 = Session(uri, timeout="15s")
+
     results = {}
     errors = {}
 
-    def do_update_and_verify(thread_id, person_id, new_age):
-        # Keep session open across update + read to verify
-        sess = Session(uri, timeout="15s")
+    def do_update_and_verify(sess, thread_id, person_id, new_age):
         try:
             sess.execute(
                 f"MATCH (p:person {{id: {person_id}}}) SET p.age = {new_age};",
                 access_mode="update",
             )
-            # Verify on the same session that the update took effect
             result = sess.execute(
                 f"MATCH (p:person {{id: {person_id}}}) RETURN p.age;",
                 access_mode="read",
             )
-            age = list(result)[0][0]
-            results[thread_id] = age
+            results[thread_id] = list(result)[0][0]
         except Exception as e:
             errors[thread_id] = str(e)
-        finally:
-            sess.close()
 
-    t1 = threading.Thread(target=do_update_and_verify, args=(1, 1, 40))
-    t2 = threading.Thread(target=do_update_and_verify, args=(2, 2, 35))
+    t1 = threading.Thread(target=do_update_and_verify, args=(sess1, 1, 1, 40))
+    t2 = threading.Thread(target=do_update_and_verify, args=(sess2, 2, 2, 35))
     t1.start()
     t2.start()
     t1.join(timeout=30)
     t2.join(timeout=30)
+
+    # Close sessions after threads complete
+    sess1.close()
+    sess2.close()
 
     assert len(errors) == 0, f"Update errors: {errors}"
     assert results.get(1) == 40, f"Thread 1: expected age 40, got {results.get(1)}"
@@ -1506,8 +1509,9 @@ def test_cow_concurrent_updates_serialized(tmp_path):
 def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
     """After concurrent reads and an update, all snapshots must be consistent.
 
-    A reader thread continuously reads all persons' ages on a single
-    session. Meanwhile, the main thread updates all ages (age += 1000).
+    A reader session is created before the thread starts and reused for
+    15 read queries. Meanwhile, the main thread updates all ages on a
+    separate session. After both complete, sessions are closed.
 
     Validates: each read snapshot is internally consistent — either all
     ages are old (0..99) or all are new (1000..1099), never a mix. This
@@ -1530,12 +1534,14 @@ def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
     uri = db.serve(10061, "localhost", False)
     wait_for_server_ready(uri)
 
+    # Create sessions before starting threads
+    reader_sess = Session(uri, timeout="10s")
+    updater_sess = Session(uri, timeout="15s")
+
     read_snapshots = []
     read_errors = []
 
-    def reader():
-        # Single session, multiple queries — tests session reuse
-        sess = Session(uri, timeout="10s")
+    def reader(sess):
         try:
             for _ in range(15):
                 result = sess.execute(
@@ -1546,18 +1552,20 @@ def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
                 read_snapshots.append(ages)
         except Exception as e:
             read_errors.append(str(e))
-        finally:
-            sess.close()
 
-    reader_thread = threading.Thread(target=reader)
+    reader_thread = threading.Thread(target=reader, args=(reader_sess,))
     reader_thread.start()
     time.sleep(0.05)
 
-    sess = Session(uri, timeout="15s")
-    sess.execute("MATCH (p:person) SET p.age = p.age + 1000;", access_mode="update")
-    sess.close()
+    updater_sess.execute(
+        "MATCH (p:person) SET p.age = p.age + 1000;", access_mode="update"
+    )
 
     reader_thread.join(timeout=30)
+
+    # Close sessions after all operations complete
+    reader_sess.close()
+    updater_sess.close()
 
     assert len(read_errors) == 0, f"Read errors: {read_errors}"
     assert len(read_snapshots) > 0, "No read snapshots collected"
@@ -1571,14 +1579,14 @@ def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
         ), f"Inconsistent snapshot: ages span old and new values: {ages[:5]}..."
 
     # Final state must be all updated
-    sess = Session(uri, timeout="10s")
-    result = sess.execute(
+    verify_sess = Session(uri, timeout="10s")
+    result = verify_sess.execute(
         "MATCH (p:person) RETURN p.id, p.age ORDER BY p.id;", access_mode="read"
     )
     final_ages = [row[1] for row in result]
     for i, age in enumerate(final_ages):
         assert age == i + 1000, f"Person {i}: expected {i + 1000}, got {age}"
-    sess.close()
+    verify_sess.close()
 
     db.stop_serving()
     db.close()
