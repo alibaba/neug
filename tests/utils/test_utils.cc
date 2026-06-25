@@ -914,7 +914,7 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
   prop1->set_name("age");
   prop1->mutable_type()->set_primitive_type(
       ::common::PrimitiveType::DT_SIGNED_INT32);
-  prop1->mutable_default_value()->set_i32(18);
+  prop1->mutable_default_expr()->add_operators()->mutable_const_()->set_i32(18);
 
   auto* prop2 = props.Add();
   prop2->set_name("name");
@@ -959,7 +959,8 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     auto* p = props.Add();
     p->set_name("flag");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_BOOL);
-    p->mutable_default_value()->set_boolean(true);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_boolean(
+        true);
   }
   // INT64
   {
@@ -967,7 +968,8 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("big_id");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_SIGNED_INT64);
-    p->mutable_default_value()->set_i64(9876543210LL);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_i64(
+        9876543210LL);
   }
   // UINT32
   {
@@ -975,7 +977,7 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("count");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_UNSIGNED_INT32);
-    p->mutable_default_value()->set_u32(100U);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_u32(100U);
   }
   // UINT64
   {
@@ -983,21 +985,22 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("big_count");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_UNSIGNED_INT64);
-    p->mutable_default_value()->set_u64(123456789012345ULL);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_u64(
+        123456789012345ULL);
   }
   // FLOAT
   {
     auto* p = props.Add();
     p->set_name("weight");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_FLOAT);
-    p->mutable_default_value()->set_f32(1.5f);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_f32(1.5f);
   }
   // DOUBLE
   {
     auto* p = props.Add();
     p->set_name("ratio");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_DOUBLE);
-    p->mutable_default_value()->set_f64(3.14);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_f64(3.14);
   }
 
   auto result = property_defs_to_value(props);
@@ -1024,6 +1027,70 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
   EXPECT_DOUBLE_EQ(tuples[5].second.GetValue<double>(), 3.14);
 }
 
+TEST_F(PBUtilsTest, PropertyDefsToTuple_ArrayDefaultExpression) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("values");
+  auto* array_type = prop->mutable_type()->mutable_array();
+  array_type->set_fixed_length(2);
+  array_type->mutable_component_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT32);
+
+  auto* to_array =
+      prop->mutable_default_expr()->add_operators()->mutable_to_array();
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(1);
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(2);
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result.value().size(), 1U);
+  const auto& value = result.value()[0].second;
+  EXPECT_EQ(value.type().id(), DataTypeId::kArray);
+  const auto& children = execution::ArrayValue::GetChildren(value);
+  ASSERT_EQ(children.size(), 2U);
+  EXPECT_EQ(children[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(children[1].GetValue<int32_t>(), 2);
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_NestedArrayDefaultExpression) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("matrix");
+  auto* outer_type = prop->mutable_type()->mutable_array();
+  outer_type->set_fixed_length(2);
+  auto* inner_type = outer_type->mutable_component_type()->mutable_array();
+  inner_type->set_fixed_length(2);
+  inner_type->mutable_component_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT32);
+
+  auto* outer_array =
+      prop->mutable_default_expr()->add_operators()->mutable_to_array();
+  for (int row = 0; row < 2; ++row) {
+    auto* inner_array =
+        outer_array->add_fields()->add_operators()->mutable_to_array();
+    inner_array->add_fields()->add_operators()->mutable_const_()->set_i32(
+        row * 2 + 1);
+    inner_array->add_fields()->add_operators()->mutable_const_()->set_i32(
+        row * 2 + 2);
+  }
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  const auto& rows =
+      execution::ArrayValue::GetChildren(result.value()[0].second);
+  ASSERT_EQ(rows.size(), 2U);
+  const auto& first_row = execution::ArrayValue::GetChildren(rows[0]);
+  const auto& second_row = execution::ArrayValue::GetChildren(rows[1]);
+  ASSERT_EQ(first_row.size(), 2U);
+  ASSERT_EQ(second_row.size(), 2U);
+  EXPECT_EQ(first_row[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(first_row[1].GetValue<int32_t>(), 2);
+  EXPECT_EQ(second_row[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(second_row[1].GetValue<int32_t>(), 4);
+}
+
 TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
   // VarChar with default max_length
   {
@@ -1031,7 +1098,8 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
     auto* p = props.Add();
     p->set_name("tag");
     p->mutable_type()->mutable_string()->mutable_var_char();
-    p->mutable_default_value()->set_str("hello");
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_str(
+        "hello");
 
     auto result = property_defs_to_value(props);
     ASSERT_TRUE(result.has_value());

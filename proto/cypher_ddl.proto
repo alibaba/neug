@@ -31,8 +31,7 @@ message EdgeType {
 message PropertyDef {
     string name = 1;
     common.DataType type = 2;
-    // to be deprecated as we need to support nested list
-    common.Value default_value = 3;
+    reserved 3;
     common.Expression default_expr = 4;
 }
 
