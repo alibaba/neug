@@ -87,7 +87,7 @@ To import the same data as a **temporary** graph (no DDL, no persistence):
 COPY TEMP TempUser FROM "users.csv" (header=true, delimiter=",");
 
 -- Temporary relationship table (from/to specify endpoint labels)
-COPY TEMP TempFriends FROM "friendships.csv" (
+COPY TEMP TEMP_FRIENDS FROM "friendships.csv" (
 header=true,
 delimiter=",",
 from='TempUser',
@@ -95,7 +95,7 @@ to='TempUser'
 );
 
 -- Query works the same way
-MATCH (u1:TempUser)-[f:TempFriends]->(u2:TempUser)
+MATCH (u1:TempUser)-[f:TEMP_FRIENDS]->(u2:TempUser)
 RETURN u1.name, u2.name, f.since_year;
 
 -- Temporary tables dropped when the connection closes.
@@ -153,14 +153,14 @@ COPY KNOWS FROM "person_knows_person.csv" (from="Person", to="Person", header=tr
 
 ```cypher
 -- Simple: first two columns are src/dst keys
-COPY TEMP TempKnows FROM "edges.csv" (
+COPY TEMP TEMP_KNOWS FROM "edges.csv" (
     header=true,
     from='Person',
     to='Person'
 );
 
 -- With column reordering (when keys are NOT at positions [0/1]):
-COPY TEMP TempKnows FROM (
+COPY TEMP TEMP_KNOWS FROM (
     LOAD FROM "edges_shuffled.csv" (header=true)
     RETURN src_id, dst_id, weight
 ) (from='Person', to='Person');
