@@ -171,9 +171,10 @@ void QueryProcessor::update_compiler_meta_if_needed(
 
 void QueryProcessor::clear_cache() {
   SnapshotGuard guard(snapshot_store_);
-  auto schema_yaml = guard.get().mutable_graph()->schema().to_yaml().value();
-  std::string statistics_json = guard.get().mutable_graph()->get_statistics_json();
-  global_query_cache_->clear(schema_yaml, statistics_json);
+  auto& pg = *guard.get().mutable_graph();
+  physical::ExecutionFlag flags;
+  flags.set_create_temp_table(true);
+  update_compiler_meta_if_needed(pg, flags, AccessMode::kSchema);
 }
 
 }  // namespace neug

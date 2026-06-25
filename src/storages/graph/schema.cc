@@ -1670,14 +1670,10 @@ static Status parse_schema_config_file(const std::string& path,
 bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
   auto v_labels = schema.get_vertex_label_ids();
   for (auto& v_label : v_labels) {
-    bool is_temp = schema.is_vertex_label_temporary(v_label);
     YAML::Node cur_node(YAML::NodeType::Map);
     cur_node["type_name"] = schema.get_vertex_label_name(v_label);
     cur_node["description"] = schema.get_vertex_description(v_label);
     cur_node["type_id"] = std::to_string(v_label);
-    if (is_temp) {
-      cur_node["temporary"] = true;
-    }
     cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
     auto properties = schema.get_vertex_properties(v_label);
     auto property_names = schema.get_vertex_property_names(v_label);
@@ -1720,17 +1716,10 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     cur_node["vertex_type_pair_relations"] =
         YAML::Node(YAML::NodeType::Sequence);
     bool properties_set = false;
-    bool has_temp_triplet = false;
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
         if (schema.is_edge_triplet_valid(src_v, dst_v, e_label)) {
-          uint32_t triplet_key =
-              schema.generate_edge_label(src_v, dst_v, e_label);
-          bool is_temp = schema.is_edge_label_temporary(triplet_key);
-          if (is_temp) {
-            has_temp_triplet = true;
-          }
           if (!properties_set) {
             auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
             auto property_names =
@@ -1770,9 +1759,6 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     }
     if (cur_node["vertex_type_pair_relations"].size() == 0) {
       continue;
-    }
-    if (has_temp_triplet) {
-      cur_node["temporary"] = true;
     }
     node.push_back(cur_node);
   }

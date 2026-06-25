@@ -18,6 +18,7 @@
 
 import os
 import shutil
+import time
 
 import pytest
 
@@ -827,3 +828,34 @@ class TestCopyTempReadOnlyRejection:
                 f'COPY TEMP TempEdgeFail FROM "{self.people_csv}" '
                 f"(header = true, from = 'Person', to = 'Person')"
             )
+
+
+# ======================================================================
+# COPY TEMP rejected in Session (Service Mode)
+# ======================================================================
+def test_copy_temp_rejected_in_session(tmp_path):
+    """COPY TEMP must be rejected when submitted via Session (Service Mode)."""
+    from neug.session import Session
+
+    db_dir = str(tmp_path / "test_copy_temp_session_db")
+    csv_dir = str(tmp_path / "csv")
+    os.makedirs(csv_dir, exist_ok=True)
+    people_csv = os.path.join(csv_dir, "people.csv")
+    with open(people_csv, "w") as f:
+        f.write("id|name|age\n1|Alice|30\n2|Bob|25\n")
+
+    db = Database(db_path=db_dir, mode="w")
+    uri = db.serve(10086, "localhost", False)
+    time.sleep(1)
+
+    try:
+        session = Session(uri, timeout="10s")
+        with pytest.raises(Exception):
+            session.execute(
+                f'COPY TEMP TempFail FROM "{people_csv}" '
+                f"(primary_key = 'id', header = true)"
+            )
+    finally:
+        db.stop_serving()
+        db.close()
+        shutil.rmtree(db_dir, ignore_errors=True)

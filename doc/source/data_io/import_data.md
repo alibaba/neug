@@ -166,7 +166,9 @@ COPY TEMP TEMP_KNOWS FROM (
 ) (from='Person', to='Person');
 ```
 
-> **Note:** `from`/`to` are graph-semantic options at the `COPY TEMP` level — they are not placed inside `LOAD FROM`. 
+> **Note:** `from`/`to` are graph-semantic options at the `COPY TEMP` level — they are not placed inside `LOAD FROM`.
+
+> **Tip:** If the CSV has no header row, property names default to the auto-generated column names from the file reader (e.g., `f0`, `f1`, `f2`, ...).
 
 ## Import without a predefined schema
 
@@ -224,14 +226,14 @@ In addition to CSV, the same schema-flexible import with automatic type inferenc
 
 The following options control how CSV files are parsed during `COPY FROM`. These are the same options supported by [`LOAD FROM`](load_data#csv):
 
-| Option     | Type | Default | Description |
-| ---------- | ---- | ------- | ----------- |
-| `delim`    | char | `\|`    | Field delimiter |
-| `header`   | bool | `true`  | Whether the first row contains column names |
-| `quote`    | char | `"`     | Quote character |
-| `escape`   | char | `\`     | Escape character |
-| `quoting`  | bool | `true`  | Whether to enable quote processing |
-| `escaping` | bool | `true`  | Whether to enable escape character processing |
+| Option       | Type | Default  | Description                                   |
+| ------------ | ---- | -------- | --------------------------------------------- |
+| `delim`    | char | `\|`    | Field delimiter                               |
+| `header`   | bool | `true` | Whether the first row contains column names   |
+| `quote`    | char | `"`    | Quote character                               |
+| `escape`   | char | `\`    | Escape character                              |
+| `quoting`  | bool | `true` | Whether to enable quote processing            |
+| `escaping` | bool | `true` | Whether to enable escape character processing |
 
 ### JSON/JSONL
 
@@ -324,11 +326,11 @@ For the full set of relational operations available in `LOAD FROM` subqueries, s
 
 ## Performance Options
 
-| Option       | Type  | Default        | Description |
-| ------------ | ----- | -------------- | ----------- |
-| `batch_read` | bool  | `false`        | Read data incrementally in batches. |
-| `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled. |
-| `parallel`   | bool  | `false`        | Enable parallel reading using multiple threads (max core number). |
+| Option         | Type  | Default           | Description                                                       |
+| -------------- | ----- | ----------------- | ----------------------------------------------------------------- |
+| `batch_read` | bool  | `false`         | Read data incrementally in batches.                               |
+| `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled.               |
+| `parallel`   | bool  | `false`         | Enable parallel reading using multiple threads (max core number). |
 
 ```cypher
 COPY User FROM "large_users.csv" (header=true, parallel=true);
