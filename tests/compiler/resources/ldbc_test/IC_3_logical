@@ -23,4 +23,4 @@ CHILD:
     EXTEND[message-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->otherP Cardinality: 286744]
     GET_V[GET_V(AND(LESS_THAN(message.creationDate,$endDate),GREATER_THAN_EQUALS(message.creationDate,$startDate))) Cardinality: 286744]
     EXTEND[country<-ISLOCATEDIN_COMMENT_PLACE,ISLOCATEDIN_POST_PLACE,-message Cardinality: 286744]
-    SCAN_NODE_TABLE[country._ID country.url,country.name,country.id,country.type,country._LABELType: INTERNAL_ID Predicates: OR(EQUALS(country.name,$countryXName),EQUALS(country.name,$countryYName)) Cardinality: 1460]
+    SCAN_NODE_TABLE[country._ID country.name,country._LABEL,country.id,country.url,country.typeType: INTERNAL_ID Predicates: OR(EQUALS(country.name,$countryXName),EQUALS(country.name,$countryYName)) Cardinality: 1460]

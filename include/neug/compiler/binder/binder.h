@@ -441,6 +441,9 @@ class Binder {
       const common::DataType& outDataType, const std::string& uniqueName,
       const std::string& aliasName);
 
+  static DataType getRecursiveRelLogicalType(const DataType& nodeType,
+                                             const DataType& relType);
+
  private:
   common::idx_t lastExpressionId;
   BinderScope scope;

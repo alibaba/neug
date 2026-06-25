@@ -27,13 +27,13 @@ namespace neug {
 Napi::FunctionReference NodeDatabase::constructor;
 
 Napi::Object NodeDatabase::Init(Napi::Env env, Napi::Object exports) {
-  Napi::Function func = DefineClass(
-      env, "NodeDatabase",
-      {
-          InstanceMethod("connect", &NodeDatabase::Connect),
-          InstanceMethod("close", &NodeDatabase::Close),
-          StaticMethod("cpuCount", &NodeDatabase::GetCpuCount),
-      });
+  Napi::Function func =
+      DefineClass(env, "NodeDatabase",
+                  {
+                      InstanceMethod("connect", &NodeDatabase::Connect),
+                      InstanceMethod("close", &NodeDatabase::Close),
+                      StaticMethod("cpuCount", &NodeDatabase::GetCpuCount),
+                  });
   constructor = Napi::Persistent(func);
   constructor.SuppressDestruct();
   exports.Set("NodeDatabase", func);
@@ -74,8 +74,10 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
   }
 
   bool checkpoint_on_close = true;
-  if (opts.Has("checkpointOnClose") && opts.Get("checkpointOnClose").IsBoolean()) {
-    checkpoint_on_close = opts.Get("checkpointOnClose").As<Napi::Boolean>().Value();
+  if (opts.Has("checkpointOnClose") &&
+      opts.Get("checkpointOnClose").IsBoolean()) {
+    checkpoint_on_close =
+        opts.Get("checkpointOnClose").As<Napi::Boolean>().Value();
   }
 
   std::string buffer_strategy = "M_FULL";
@@ -93,8 +95,7 @@ NodeDatabase::NodeDatabase(const Napi::CallbackInfo& info)
              mode == "read-write") {
     mode_ = DBMode::READ_WRITE;
   } else {
-    Napi::Error::New(env, "Invalid mode: " + mode)
-        .ThrowAsJavaScriptException();
+    Napi::Error::New(env, "Invalid mode: " + mode).ThrowAsJavaScriptException();
     return;
   }
 

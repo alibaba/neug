@@ -23,6 +23,8 @@ import sys
 import time
 import unittest
 
+import pytest
+
 from neug.database import Database
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,10 @@ class TestBachLoading(unittest.TestCase):
     """
     Test running query on a graph that is already created and loaded
     """
+
+    @pytest.fixture(autouse=True)
+    def inject_tmp_path(self, tmp_path):
+        self.tmp_path = tmp_path
 
     @classmethod
     def setUpClass(cls):
@@ -49,7 +55,7 @@ class TestBachLoading(unittest.TestCase):
 
     def test_batch_loading_modern_graph(self):
         # create a tmp directory for the graph
-        db_dir = "/tmp/test_batch_loading"
+        db_dir = str(self.tmp_path / "test_batch_loading")
         shutil.rmtree(db_dir, ignore_errors=True)
         # get env : FLEX_DATA_DIR
         flex_data_dir = os.environ.get("FLEX_DATA_DIR")
@@ -105,8 +111,7 @@ class TestBachLoading(unittest.TestCase):
         db2.close()
 
     def test_open_close(self):
-        tmp_path = os.environ.get("TMPDIR", "/tmp")
-        db_dir = tmp_path + "/test_open_close"
+        db_dir = str(self.tmp_path / "test_open_close")
         if os.path.exists(db_dir):
             os.system("rm -rf %s" % db_dir)
         if not os.path.exists(db_dir):
@@ -126,8 +131,7 @@ class TestBachLoading(unittest.TestCase):
             conn.execute("MATCH (n) return count(n);")
 
     def test_copy_from(self):
-        tmp_path = os.environ.get("TMPDIR", "/tmp")
-        db_dir = tmp_path + "/test_copy_from"
+        db_dir = str(self.tmp_path / "test_copy_from")
         if os.path.exists(db_dir):
             os.system("rm -rf %s" % db_dir)
         db = Database(str(db_dir), "w")
@@ -152,7 +156,7 @@ class TestBachLoading(unittest.TestCase):
         assert res.__next__()[0] == "Charlie"
 
     def test_loading_with_invalid_vertices(self):
-        db_dir = "/tmp/test_loading_with_invalid_vertices"
+        db_dir = str(self.tmp_path / "test_loading_with_invalid_vertices")
         shutil.rmtree(db_dir, ignore_errors=True)
         db = Database(db_dir, "w")
         conn = db.connect()
@@ -262,7 +266,7 @@ class TestBachLoading(unittest.TestCase):
         1. Create a simple graph with vertex label person, software and edge label knows, created.
         2. Iteratively load data to the graph, each time load 100000 vertices and 200000 edges.
         """
-        db_dir = "/tmp/test_loading_with_large_dataset"
+        db_dir = str(self.tmp_path / "test_loading_with_large_dataset")
         shutil.rmtree(db_dir, ignore_errors=True)
         db = Database(db_dir, "w", checkpoint_on_close=True)
         conn = db.connect()
@@ -370,8 +374,7 @@ class TestBachLoading(unittest.TestCase):
 
     def test_bulk_loading_for_different_types(self):
         # Bulk load edges that cover every supported property type.
-        tmp_path = os.environ.get("TMPDIR", "/tmp")
-        db_dir = tmp_path + "/test_bulk_loading_for_different_types"
+        db_dir = str(self.tmp_path / "test_bulk_loading_for_different_types")
         shutil.rmtree(db_dir, ignore_errors=True)
         os.makedirs(db_dir, exist_ok=True)
         db = Database(db_dir, "w")

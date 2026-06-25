@@ -94,8 +94,8 @@ QueryGraph Binder::bindPatternElement(const PatternElement& patternElement) {
   return queryGraph;
 }
 
-static DataType getRecursiveRelLogicalType(const DataType& nodeType,
-                                           const DataType& relType) {
+DataType Binder::getRecursiveRelLogicalType(const DataType& nodeType,
+                                            const DataType& relType) {
   auto nodesType = DataType::List(nodeType.copy());
   auto relsType = DataType::List(relType.copy());
   std::vector<std::string> fieldNames;
