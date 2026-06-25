@@ -14,7 +14,6 @@
  */
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -50,14 +49,14 @@ namespace neug {
  * @since v0.1.0
  */
 struct ServiceConfig {
-  /// Default number of shards for distributed processing
-  static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
+  /// Default worker count policy: 0 means auto-select from session pool size.
+  static constexpr const uint32_t DEFAULT_SHARD_NUM = 0;
   /// Default HTTP port for query endpoint
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
 
   /// HTTP port for the query endpoint (default: 10000)
   uint32_t query_port;
-  /// Number of shards for distributed processing (default: 1)
+  /// Number of brpc worker threads. 0 means auto-select from session pool size.
   uint32_t shard_num;
   /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all
   /// interfaces)
@@ -68,7 +67,7 @@ struct ServiceConfig {
    *
    * Default configuration:
    * - query_port: 10000
-   * - shard_num: 1
+   * - shard_num: 0 (auto-select from session pool size)
    * - host_str: "127.0.0.1" (localhost only)
    */
   ServiceConfig()

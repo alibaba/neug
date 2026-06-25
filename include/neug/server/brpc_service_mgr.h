@@ -182,6 +182,7 @@ class BrpcServiceManager : public IServiceManager {
  private:
   neug::NeugDB& neug_db_;
   SessionPool& session_pool_;
+  uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 
   ServiceConfig service_config_;

@@ -140,7 +140,8 @@ class NeugDB {
    *
    * @param data_dir Path to the graph data directory
    * @param max_num_threads Maximum threads for concurrent operations.
-   *        If 0, uses hardware concurrency (number of CPU cores)
+   *        If 0, uses hardware concurrency (number of CPU cores), falling
+   *        back to 1 if the runtime cannot detect it.
    * @param mode Database access mode (READ_ONLY or READ_WRITE)
    * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or
    * "greedy"

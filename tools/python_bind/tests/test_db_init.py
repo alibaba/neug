@@ -185,7 +185,7 @@ def test_config_param(tmp_path):
     db6 = Database(db_path=str(db_dir), mode="write", max_thread_num=0)
     assert db6 is not None
     db6.close()
-    # max_thread_num: 0 means no limit
+    # max_thread_num: 0 means auto-select from hardware concurrency
     db7 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
     assert db7 is not None
     db7.close()
@@ -219,6 +219,15 @@ def test_config_param_boundary(tmp_path):
         # max_thread_num should not exceed the number of cores
         Database(str(db_dir), "w", max_thread_num=max_cores + 1)
     assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+
+
+def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "cpu_count", lambda: None)
+
+    db_dir = tmp_path / "unknown_cpu_count_db"
+    db = Database(db_path=str(db_dir), mode="w", max_thread_num=0)
+    assert db is not None
+    db.close()
 
 
 # DB-001-12

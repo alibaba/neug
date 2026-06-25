@@ -68,8 +68,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
    * @brief Start the database server.
    * @param port The port to listen on, default is 10000.
    * @param host The host to bind to, default is "localhost".
-   * @param num_thread The number of threads to use, default is 0, which means
-   * use all hardware threads.
+   * @param num_thread The number of brpc worker threads to use. 0 means
+   * auto-select from the service session pool size.
    * @param blocking Whether to block the function until the server shuts down.
    * @return A string containing the URL of the server.
    * @note This method will block until the server is stopped.

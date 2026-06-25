@@ -57,13 +57,16 @@ void PyDatabase::initialize(pybind11::handle& m) {
       .def("close", &PyDatabase::close,
            "Close the database connection and "
            "release resources.\n")
-      .def("serve", &PyDatabase::serve,
+      .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,
+           pybind11::arg("host") = "localhost", pybind11::arg("num_thread") = 0,
+           pybind11::arg("blocking") = false,
            "Start the database server.\n\n"
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
            "    host (str): The host to bind to, default is 'localhost'.\n"
-           "    num_thread (int): The number of threads to use, default is 0, "
-           "which means use all hardware threads.\n"
+           "    num_thread (int): The number of brpc worker threads to use, "
+           "default is 0, which means auto-select from the service session "
+           "pool size.\n"
            "    blocking (bool): Whether to block the function until the "
            "server shuts down.\n"
            "Returns:\n"
@@ -90,6 +93,11 @@ std::string PyDatabase::serve(int port, const std::string& host,
   if (service_) {
     THROW_RUNTIME_ERROR("Server is already running.");
   }
+  if (num_thread < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid num_thread: " + std::to_string(num_thread) +
+        ". Must be a non-negative integer.");
+  }
   /**
    * Attention here: We utilize the NeugDBService to start the server, based on
    * database. But we need to make some changes to the NeugDB to make it works
@@ -107,8 +115,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   neug::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
-  config.shard_num =
-      (num_thread == 0) ? std::thread::hardware_concurrency() : num_thread;
+  config.shard_num = static_cast<uint32_t>(num_thread);
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";

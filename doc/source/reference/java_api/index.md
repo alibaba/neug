@@ -79,7 +79,7 @@ from neug import Database
 
 db = Database("/path/to/graph", mode="rw")
 # Blocks until the process is killed (Ctrl+C or SIGTERM)
-db.serve(port=10000, host="0.0.0.0", blocking=True)
+db.serve(port=10000, host="0.0.0.0", blocking=True, num_thread=0)
 ```
 
 To run non-blocking (e.g. inside a larger script):
@@ -89,7 +89,7 @@ import time
 from neug import Database
 
 db = Database("/path/to/graph", mode="rw")
-uri = db.serve(port=10000, host="0.0.0.0", blocking=False)
+uri = db.serve(port=10000, host="0.0.0.0", blocking=False, num_thread=0)
 print("Server started at:", uri)
 
 try:
@@ -99,6 +99,10 @@ except KeyboardInterrupt:
     db.stop_serving()
 ```
 
+`num_thread` sets the server-side brpc worker thread count. The default `0`
+auto-selects from the service session pool size. With the default database
+thread setting, that pool size is resolved from hardware concurrency and falls
+back to `1` if the runtime cannot detect it.
 
 ### Option B: Start with the C++ binary
 
@@ -108,13 +112,16 @@ From the repository root:
 
 ```bash
 cmake -S . -B build -DBUILD_EXECUTABLES=ON -DBUILD_HTTP_SERVER=ON
-cmake --build build --target rt_server -j
+# macOS
+cmake --build build --target rt_server -j$(sysctl -n hw.ncpu)
+# Linux
+cmake --build build --target rt_server -j$(nproc)
 ```
 
 #### 2. Start the server
 
 ```bash
-./build/bin/rt_server --data-path /path/to/graph --http-port 10000 --host 0.0.0.0 --shard-num 16
+./build/bin/rt_server --data-path /path/to/graph --http-port 10000 --host 0.0.0.0 --shard-num 0
 ```
 
 Common options:
@@ -122,7 +129,12 @@ Common options:
 - `--data-path`: path to the NeuG data directory
 - `--http-port`: HTTP port for Java clients, default is `10000`
 - `--host`: bind address, default is `127.0.0.1`
-- `--shard-num`: shard number of actor system, default is `9`
+- `--shard-num`: database/session-pool thread count and brpc worker thread
+  count. The default is `0`: NeuG first resolves the database thread count,
+  then resolves brpc worker threads from the resulting service session pool
+  size. With the default database thread setting, the database thread count is
+  resolved from hardware concurrency and falls back to `1` if the runtime
+  cannot detect it.
 
 > **Note:** Make sure all local connections are closed before calling `db.serve()`.
 > Once the server is running, no new local connections are allowed until `db.stop_serving()` is called.
