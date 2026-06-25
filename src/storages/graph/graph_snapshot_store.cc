@@ -156,6 +156,35 @@ void GraphSnapshotStore::UnpinSnapshotByIndex(int slot_index) {
   }
 }
 
+std::unordered_set<int32_t> GraphSnapshotStore::ActiveCheckpointIds() {
+  std::unordered_set<int32_t> ids;
+  for (int slot_index = 0; slot_index < slot_num_; ++slot_index) {
+    while (true) {
+      int observed =
+          slots_[slot_index].reader_count_.load(std::memory_order_acquire);
+      if (observed <= 0) {
+        break;
+      }
+      if (!slots_[slot_index].reader_count_.compare_exchange_weak(
+              observed, observed + 1, std::memory_order_acq_rel,
+              std::memory_order_acquire)) {
+        continue;
+      }
+
+      auto storage = slots_[slot_index].storage_;
+      if (storage) {
+        auto checkpoint = storage->checkpoint_ptr();
+        if (checkpoint) {
+          ids.insert(static_cast<int32_t>(checkpoint->id()));
+        }
+      }
+      UnpinSnapshotByIndex(slot_index);
+      break;
+    }
+  }
+  return ids;
+}
+
 const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
   int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   CHECK(slots_[slot_index].storage_ != nullptr);

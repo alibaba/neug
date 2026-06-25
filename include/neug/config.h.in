@@ -87,6 +87,7 @@ struct NeugDBConfig {
   /// Default CSR reserve ratio for edge storage
   static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
   static constexpr const int DEFAULT_STORAGE_SLOT_NUM = 128;
+  static constexpr const int DEFAULT_MAX_CHECKPOINTS = @NEUG_DEFAULT_MAX_CHECKPOINTS@;
 
   /**
    * @brief Default constructor with sensible defaults.
@@ -102,7 +103,8 @@ struct NeugDBConfig {
         compact_on_close(true),
         checkpoint_on_close(false),
         checkpoint_after_recovery(false),
-        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
+        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM),
+        max_checkpoints(DEFAULT_MAX_CHECKPOINTS) {}
 
   /**
    * @brief Construct with data directory and thread count.
@@ -122,7 +124,8 @@ struct NeugDBConfig {
         compact_on_close(true),
         checkpoint_on_close(false),
         checkpoint_after_recovery(false),
-        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
+        storage_slot_num(DEFAULT_STORAGE_SLOT_NUM),
+        max_checkpoints(DEFAULT_MAX_CHECKPOINTS) {}
 
   /// CSR storage reserve ratio for edge insertions (default: 1.2)
   float csr_reserve_ratio;
@@ -165,6 +168,9 @@ struct NeugDBConfig {
 
   /// Storage slot number
   int storage_slot_num;
+
+  /// Maximum number of valid checkpoint directories to keep. 0 disables GC.
+  int max_checkpoints;
 };
 
 }  // namespace neug

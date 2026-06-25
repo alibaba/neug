@@ -590,6 +590,16 @@ void create_file(const std::string& path, size_t size) {
   ::close(fd);
 }
 
+bool fsync_directory(const std::string& dir_path) {
+  int dir_fd = ::open(dir_path.c_str(), O_RDONLY);
+  if (dir_fd < 0) {
+    return false;
+  }
+  bool ok = (::fsync(dir_fd) == 0);
+  ::close(dir_fd);
+  return ok;
+}
+
 }  // namespace file_utils
 
 void ensure_directory_exists(const std::string& dir_path) {
