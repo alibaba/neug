@@ -429,6 +429,9 @@ neug::result<ContextChunk> Intersect::Multiple_Intersect_With_Edge(
     std::vector<EdgeAndNbrPredicate>&& preds,
     const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
     const std::vector<int>& edge_aliases) {
+  CHECK_EQ(preds.size(), eeps.size());
+  CHECK_EQ(edge_aliases.size(), eeps.size());
+
   using EdgeValue =
       std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
   using EdgeValues = std::vector<EdgeValue>;
@@ -475,6 +478,9 @@ neug::result<ContextChunk> Intersect::Multiple_Intersect_With_Edge(
           if (iter == previous->end()) {
             return;
           }
+          // Each edge combination is a distinct Cypher path and must be
+          // retained. This Cartesian product can be large on dense
+          // multi-edge graphs; callers should expect output-sized memory.
           for (auto values : iter->second) {
             values[eep_idx] = edge_value;
             target[nbr].emplace_back(std::move(values));

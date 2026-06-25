@@ -47,19 +47,17 @@ class IntersectOprMultip : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    std::vector<EdgeAndNbrPredicate> preds;
+    for (size_t i = 0; i < edge_preds_.size(); ++i) {
+      std::unique_ptr<BindedExprBase> v_pred =
+          vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
+      std::unique_ptr<BindedExprBase> e_pred =
+          edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
+      preds.emplace_back(std::move(v_pred), std::move(e_pred));
+    }
     if (eeps_.size() == 2) {
       return ctx.apply_chunks(
           [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            std::vector<EdgeAndNbrPredicate> preds;
-            for (size_t i = 0; i < edge_preds_.size(); ++i) {
-              std::unique_ptr<BindedExprBase> v_pred =
-                  vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params)
-                                   : nullptr;
-              std::unique_ptr<BindedExprBase> e_pred =
-                  edge_preds_[i] ? edge_preds_[i]->bind(&graph, params)
-                                 : nullptr;
-              preds.emplace_back(std::move(v_pred), std::move(e_pred));
-            }
             return Intersect::Binary_Intersect(
                 graph, params, std::move(chunk), std::move(preds[0]),
                 std::move(preds[1]), eeps_[0], eeps_[1], alias_);
@@ -68,15 +66,6 @@ class IntersectOprMultip : public IOperator {
 
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          std::vector<EdgeAndNbrPredicate> preds;
-          for (size_t i = 0; i < edge_preds_.size(); ++i) {
-            std::unique_ptr<BindedExprBase> v_pred =
-                vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params)
-                                 : nullptr;
-            std::unique_ptr<BindedExprBase> e_pred =
-                edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
-            preds.emplace_back(std::move(v_pred), std::move(e_pred));
-          }
           return Intersect::Multiple_Intersect(graph, params, std::move(chunk),
                                                std::move(preds), eeps_, alias_);
         });
@@ -110,17 +99,16 @@ class IntersectWithEdgeOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    std::vector<EdgeAndNbrPredicate> preds;
+    for (size_t i = 0; i < edge_preds_.size(); ++i) {
+      std::unique_ptr<BindedExprBase> v_pred =
+          vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
+      std::unique_ptr<BindedExprBase> e_pred =
+          edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
+      preds.emplace_back(std::move(v_pred), std::move(e_pred));
+    }
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          std::vector<EdgeAndNbrPredicate> preds;
-          for (size_t i = 0; i < edge_preds_.size(); ++i) {
-            std::unique_ptr<BindedExprBase> v_pred =
-                vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params)
-                                 : nullptr;
-            std::unique_ptr<BindedExprBase> e_pred =
-                edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
-            preds.emplace_back(std::move(v_pred), std::move(e_pred));
-          }
           if (eeps_.size() == 2) {
             return Intersect::Binary_Intersect_With_Edge(
                 graph, params, std::move(chunk), std::move(preds[0]),
