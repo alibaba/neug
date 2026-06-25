@@ -593,6 +593,12 @@ set(ARROW_JSON ON CACHE BOOL "" FORCE)
 set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)
 # Point Arrow to use the project's RapidJSON
 set(RapidJSON_ROOT "${CMAKE_SOURCE_DIR}/third_party/rapidjson" CACHE PATH "" FORCE)
+# Disable config-mode find_package(RapidJSON) so Arrow's FindRapidJSONAlt falls
+# back to RapidJSON_ROOT above. Otherwise it picks up the apt-installed
+# /usr/lib/cmake/RapidJSON config, whose include dir is /usr/include (rapidjson
+# 1.1.0 release, which fails to compile: GenericStringRef::operator= at
+# document.h:319 assigns to const members and has no return statement).
+set(CMAKE_DISABLE_FIND_PACKAGE_RapidJSON ON CACHE BOOL "" FORCE)
 message(STATUS "Arrow JSON support enabled (built-in)")
 
 # Configure Arrow Parquet support if parquet extension is enabled

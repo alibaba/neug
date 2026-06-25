@@ -27,17 +27,16 @@ import pytest
 from conftest import wait_for_server_ready
 
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.session import Session
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
-def setup_database():
-    db_dir = "/tmp/test_batch_loading"
-    if os.path.exists(db_dir):
-        os.system("rm -rf %s" % db_dir)
-    os.makedirs(db_dir)
+def setup_database(tmp_path_factory):
+    db_dir = str(tmp_path_factory.mkdtemp("test_batch_loading"))
     db = Database(db_dir, "w")
 
     uri = db.serve(10000, "localhost", False)
@@ -107,8 +106,8 @@ def test_start_service_on_pure_memory_db():
     db.close()
 
 
-def test_start_serving_and_dump():
-    db_dir = "/tmp/test_start_serving_and_dump"
+def test_start_serving_and_dump(tmp_path):
+    db_dir = str(tmp_path / "test_start_serving_and_dump")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -137,8 +136,8 @@ def test_start_serving_and_dump():
     db2.close()
 
 
-def test_start_service_and_stop():
-    db_dir = "/tmp/test_start_service_and_stop"
+def test_start_service_and_stop(tmp_path):
+    db_dir = str(tmp_path / "test_start_service_and_stop")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -216,8 +215,8 @@ def test_readable_function():
             pass
 
 
-def test_invalid_access_mode_in_session():
-    db_dir = "/tmp/test_invalid_access_mode_in_session"
+def test_invalid_access_mode_in_session(tmp_path):
+    db_dir = str(tmp_path / "test_invalid_access_mode_in_session")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -258,8 +257,8 @@ def test_invalid_access_mode_in_session():
     db.close()
 
 
-def test_delete_vertices():
-    db_dir = "/tmp/test_delete_vertices"
+def test_delete_vertices(tmp_path):
+    db_dir = str(tmp_path / "test_delete_vertices")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -277,8 +276,8 @@ def test_delete_vertices():
     db.close()
 
 
-def test_delete_edges():
-    db_dir = "/tmp/test_delete_edges"
+def test_delete_edges(tmp_path):
+    db_dir = str(tmp_path / "test_delete_edges")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -317,8 +316,8 @@ def test_delete_edges():
     db.close()
 
 
-def test_merge_vertex():
-    db_dir = "/tmp/test_merge_vertex"
+def test_merge_vertex(tmp_path):
+    db_dir = str(tmp_path / "test_merge_vertex")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -347,8 +346,8 @@ def test_merge_vertex():
     db.close()
 
 
-def test_merge_edge():
-    db_dir = "/tmp/test_merge_edge"
+def test_merge_edge(tmp_path):
+    db_dir = str(tmp_path / "test_merge_edge")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -394,8 +393,8 @@ def test_merge_edge():
     db.close()
 
 
-def test_query_cache():
-    db_dir = "/tmp/test_query_cache"
+def test_query_cache(tmp_path):
+    db_dir = str(tmp_path / "test_query_cache")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -422,8 +421,8 @@ def test_query_cache():
     db.close()
 
 
-def test_parameterized_query():
-    db_dir = "/tmp/test_parameterized_query"
+def test_parameterized_query(tmp_path):
+    db_dir = str(tmp_path / "test_parameterized_query")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -541,12 +540,12 @@ def test_parameterized_query():
     db.close()
 
 
-def test_iu_1():
+def test_iu_1(tmp_path):
     """
     Test IU_1: Create PERSON with connections to PLACE, TAG, ORGANISATION
     Corresponds to FlagTest.IU_1 in flag_test.cpp
     """
-    db_dir = "/tmp/test_iu_1"
+    db_dir = str(tmp_path / "test_iu_1")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -685,12 +684,12 @@ def test_iu_1():
     db.close()
 
 
-def test_iu_4():
+def test_iu_4(tmp_path):
     """
     Test IU_4: Create FORUM with connections to PERSON and TAG
     Corresponds to FlagTest.IU_4 in flag_test.cpp
     """
-    db_dir = "/tmp/test_iu_4"
+    db_dir = str(tmp_path / "test_iu_4")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -771,12 +770,12 @@ def test_iu_4():
     db.close()
 
 
-def test_iu_6():
+def test_iu_6(tmp_path):
     """
     Test IU_6: Create POST with connections to PERSON, PLACE, FORUM, TAG
     Corresponds to FlagTest.IU_6 in flag_test.cpp
     """
-    db_dir = "/tmp/test_iu_6"
+    db_dir = str(tmp_path / "test_iu_6")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -903,13 +902,13 @@ def test_iu_6():
     db.close()
 
 
-def test_iu_7():
+def test_iu_7(tmp_path):
     """
     Test IU_7: Create COMMENT with connections to PERSON, PLACE, COMMENT, POST, TAG
     Corresponds to FlagTest.IU_7 in flag_test.cpp
     Note: The CALL syntax in the original query may not be supported, so we'll simplify it
     """
-    db_dir = "/tmp/test_iu_7"
+    db_dir = str(tmp_path / "test_iu_7")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -1095,10 +1094,10 @@ def test_iu_7():
     db.close()
 
 
-def test_insert_string_column_exaustion():
+def test_insert_string_column_exaustion(tmp_path):
     logging.disable(logging.CRITICAL)
     try:
-        db_dir = "/tmp/test_insert_string_column_exhaustion"
+        db_dir = str(tmp_path / "test_insert_string_column_exhaustion")
         shutil.rmtree(db_dir, ignore_errors=True)
         db = Database(db_path=db_dir, mode="w")
         conn = db.connect()
@@ -1133,10 +1132,10 @@ def test_insert_string_column_exaustion():
         logging.disable(logging.NOTSET)
 
 
-def test_readonly_db_rejects_write_queries_via_session():
+def test_readonly_db_rejects_write_queries_via_session(tmp_path):
     """A database opened in read-only mode must reject INSERT/UPDATE queries
     submitted through a Session, while still serving read queries correctly."""
-    db_dir = "/tmp/test_readonly_db_rejects_write_queries_via_session"
+    db_dir = str(tmp_path / "test_readonly_db_rejects_write_queries_via_session")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
 
@@ -1194,8 +1193,8 @@ def test_in_memory_service_start_and_stop():
     db.close()
 
 
-def test_checkpoint():
-    db_dir = "/tmp/test_checkpoint"
+def test_checkpoint(tmp_path):
+    db_dir = str(tmp_path / "test_checkpoint")
     shutil.rmtree(db_dir, ignore_errors=True)
     os.makedirs(db_dir, exist_ok=True)
     db = Database(db_dir, "w")
@@ -1213,5 +1212,386 @@ def test_checkpoint():
     session.execute("CHECKPOINT;")
     session.execute("MATCH (n:person) RETURN n.id ORDER BY n.id;")
     session.close()
+    db.stop_serving()
+    db.close()
+
+
+# ---------------------------------------------------------------------------
+# Tests merged from test_service.py (embedded + service mode integration)
+# ---------------------------------------------------------------------------
+
+logger = logging.getLogger(__name__)
+
+
+def test_session_create_schema_basic_types(tmp_path):
+    db_dir = tmp_path / "schema_basic_types"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    endpoint = db.serve(host="127.0.0.1", port=10010, blocking=False)
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+
+    sess.execute(
+        "CREATE NODE TABLE PERSON(int32_prop INT32, uint32_prop UINT32, "
+        "int64_prop INT64, uint64_prop UINT64, string_prop STRING, "
+        "bool_prop BOOL, float_prop FLOAT, double_prop DOUBLE, "
+        "PRIMARY KEY(int32_prop));"
+    )
+
+    sess.execute(
+        "CREATE (n:PERSON {int32_prop: 1, uint32_prop: 2, "
+        "int64_prop: 3, uint64_prop: 4, string_prop: 'test', "
+        "bool_prop: true, float_prop: 1.23, double_prop: 2.34});"
+    )
+
+    result = sess.execute(
+        "MATCH (n:PERSON) RETURN n.int32_prop, n.uint32_prop, "
+        "n.int64_prop, n.uint64_prop, n.string_prop, "
+        "n.bool_prop, n.float_prop, n.double_prop;"
+    )
+    record = result.__next__()
+    logger.info(f"Record: {record}")
+    assert record[0] == 1
+    assert record[1] == 2
+    assert record[2] == 3
+    assert record[3] == 4
+    assert record[4] == "test"
+    assert record[5] is True
+    assert (record[6] == 1.23) or (abs(record[6] - 1.23) < 1e-6)  # float comparison
+    assert (record[7] == 2.34) or (abs(record[7] - 2.34) < 1e-6)  # double comparison
+
+    sess.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_session_alter_vertex_table(tmp_path):
+    db_dir = tmp_path / "alter_table"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    endpoint = db.serve(host="localhost", port=10010, blocking=False)
+    sess = Session.open(endpoint=endpoint, timeout="30s", num_threads=5)
+    sess.execute("CREATE NODE TABLE person(name STRING, age INT64, PRIMARY KEY(name));")
+    # 1. add property
+    # correctly add a new property
+    sess.execute("ALTER TABLE person ADD grade INT64;")
+    # incorrectly add a property that already exists
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person ADD age INT64;")
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
+    # 2. rename property
+    # correctly rename a property
+    sess.execute("ALTER TABLE person RENAME age TO newAge;")
+    # incorrectly rename a property that does not exist
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person RENAME age1 TO newAge1;")
+    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
+    # 3. drop property
+    # correctly drop a property
+    sess.execute("ALTER TABLE person DROP newAge;")
+    # incorrectly drop a property that does not exist
+    with pytest.raises(Exception) as excinfo:
+        sess.execute("ALTER TABLE person DROP age1;")
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    sess.close()
+    db.close()
+
+
+# DB-003-24
+def test_complex_example(tmp_path):
+    db_dir = tmp_path / "complex_example"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        """
+        CREATE NODE TABLE Person(
+            id INT64 PRIMARY KEY,
+            name STRING,
+            age INT32,
+            email STRING
+        )
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE NODE TABLE Company(
+            id INT64 PRIMARY KEY,
+            name STRING,
+            industry STRING,
+            founded_year INT32
+        )
+    """
+    )
+
+    # Create edge tables
+    conn.execute(
+        """
+        CREATE REL TABLE WORKS_FOR(
+            FROM Person TO Company,
+            position STRING,
+            start_date DATE,
+            salary DOUBLE
+        )
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE REL TABLE KNOWS(
+            FROM Person TO Person,
+            since_year INT32,
+            relationship_type STRING
+        )
+    """
+    )
+
+    conn.execute(
+        """
+    CREATE (p:Person {id: 1, name: 'Alice Johnson', age: 30, email: 'alice@example.com'})
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE (p:Person {id: 2, name: 'Bob Smith', age: 35, email: 'bob@example.com'})
+    """
+    )
+
+    conn.execute(
+        """
+        CREATE (c:Company {id: 1, name: 'TechCorp', industry: 'Technology', founded_year: 2010})
+    """
+    )
+
+    # Insert relationships
+    conn.execute(
+        """
+        MATCH (p:Person), (c:Company) WHERE p.id = 1 AND c.id = 1
+        CREATE (p)-[:WORKS_FOR {position: 'Software Engineer', start_date: date('2020-01-15'), salary: 75000.0}]->(c)
+    """
+    )
+
+    conn.execute(
+        """
+        MATCH (p1:Person {id: 1}), (p2:Person {id: 2})
+        CREATE (p1)-[:KNOWS {since_year: 2018, relationship_type: 'colleague'}]->(p2)
+    """
+    )
+
+    conn.close()
+
+    service_endpoint = db.serve(host="localhost", port=10010, blocking=False)
+    print(f"Serving database at {service_endpoint}")
+
+    session = Session("http://localhost:10010/")
+
+    session.execute(
+        """
+        CREATE NODE TABLE User(
+            id INT64 PRIMARY KEY,
+            username STRING,
+            created_at TIMESTAMP
+        )
+    """
+    )
+
+    session.execute(
+        """
+        CREATE (u:User {id: 1, username: 'user1', created_at: timestamp('2024-01-01 10:00:00')})
+    """
+    )
+
+    result = session.execute("MATCH (u:User) RETURN u.username, u.created_at")
+    for record in result:
+        print(f"User: {record[0]}, Created: {record[1]}")
+
+    session.close()
+
+    db.stop_serving()
+    db.close()
+
+
+# ---------------------------------------------------------------------------
+# COW transaction correctness tests
+#
+# These tests verify the copy-on-write update transaction model by
+# sending concurrent HTTP requests from multiple threads. Python's GIL
+# is released during socket I/O, so threads achieve real concurrency
+# for HTTP requests — multiple requests are in-flight simultaneously
+# on the server side.
+#
+# What we can deterministically test:
+#   - Concurrent updates are serialized (both succeed, no corruption)
+#   - Data remains consistent after concurrent read + update
+#
+# What we cannot test from the HTTP client side:
+#   - Whether reads see old vs new data during update (requires guaranteed
+#     timing overlap, which is non-deterministic)
+#   - Whether reads are "blocked" vs "not blocked" (update is too fast
+#     to distinguish brief blocking from no blocking)
+# ---------------------------------------------------------------------------
+
+
+def test_cow_concurrent_updates_same_vertex(tmp_path):
+    """Two concurrent updates to the SAME vertex must not corrupt data.
+
+    Both threads update person 1's age concurrently. Without proper
+    serialization (e.g., broken COW or no locking), the concurrent
+    writes could corrupt the vertex or produce an unexpected value.
+
+    With serialization: one update commits fully before the other
+    starts. Final age is either 40 or 35 — the value from whichever
+    update committed last. It must NOT be 30 (original), 0 (default),
+    or any other corrupted value.
+    """
+    import threading
+
+    db_dir = str(tmp_path / "cow_concurrent_updates")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (p:person {id: 1, name: 'Alice', age: 30});")
+    conn.close()
+
+    uri = db.serve(10060, "localhost", False)
+    wait_for_server_ready(uri)
+
+    # Create sessions before starting threads
+    sess1 = Session(uri, timeout="15s")
+    sess2 = Session(uri, timeout="15s")
+
+    errors = {}
+
+    def do_update(sess, thread_id, new_age):
+        try:
+            sess.execute(
+                "MATCH (p:person {id: 1}) SET p.age = %d;" % new_age,
+                access_mode="update",
+            )
+        except Exception as e:
+            errors[thread_id] = str(e)
+
+    # Both threads update the SAME vertex — tests serialization
+    t1 = threading.Thread(target=do_update, args=(sess1, 1, 40))
+    t2 = threading.Thread(target=do_update, args=(sess2, 2, 35))
+    t1.start()
+    t2.start()
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+
+    sess1.close()
+    sess2.close()
+
+    assert len(errors) == 0, f"Update errors: {errors}"
+
+    # Final age must be one of the two values (whichever committed last),
+    # not the original (30) and not corrupted
+    verify_sess = Session(uri, timeout="10s")
+    result = verify_sess.execute(
+        "MATCH (p:person {id: 1}) RETURN p.age;", access_mode="read"
+    )
+    final_age = list(result)[0][0]
+    verify_sess.close()
+
+    assert final_age in (
+        40,
+        35,
+    ), f"Corrupted or unexpected age: {final_age}. Expected 40 or 35."
+
+    db.stop_serving()
+    db.close()
+
+
+def test_cow_data_consistency_after_concurrent_read_update(tmp_path):
+    """After concurrent reads and an update, all snapshots must be consistent.
+
+    A reader session is created before the thread starts and reused for
+    15 read queries. Meanwhile, the main thread updates all ages on a
+    separate session. After both complete, sessions are closed.
+
+    Validates: each read snapshot is internally consistent — either all
+    ages are old (0..99) or all are new (1000..1099), never a mix. This
+    would catch a broken COW publish that exposes partial updates.
+    """
+    import threading
+
+    db_dir = str(tmp_path / "cow_consistency")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    for i in range(100):
+        conn.execute(f"CREATE (p:person {{id: {i}, name: 'p{i}', age: {i}}});")
+    conn.close()
+
+    uri = db.serve(10061, "localhost", False)
+    wait_for_server_ready(uri)
+
+    # Create sessions before starting threads
+    reader_sess = Session(uri, timeout="10s")
+    updater_sess = Session(uri, timeout="15s")
+
+    read_snapshots = []
+    read_errors = []
+
+    def reader(sess):
+        try:
+            for _ in range(15):
+                result = sess.execute(
+                    "MATCH (p:person) RETURN p.id, p.age ORDER BY p.id;",
+                    access_mode="read",
+                )
+                ages = [row[1] for row in result]
+                read_snapshots.append(ages)
+        except Exception as e:
+            read_errors.append(str(e))
+
+    reader_thread = threading.Thread(target=reader, args=(reader_sess,))
+    reader_thread.start()
+    time.sleep(0.05)
+
+    updater_sess.execute(
+        "MATCH (p:person) SET p.age = p.age + 1000;", access_mode="update"
+    )
+
+    reader_thread.join(timeout=30)
+
+    # Close sessions after all operations complete
+    reader_sess.close()
+    updater_sess.close()
+
+    assert len(read_errors) == 0, f"Read errors: {read_errors}"
+    assert len(read_snapshots) > 0, "No read snapshots collected"
+
+    # Each snapshot must be all-old or all-new, never mixed
+    for ages in read_snapshots:
+        all_old = all(0 <= a < 1000 for a in ages)
+        all_new = all(1000 <= a < 1100 for a in ages)
+        assert (
+            all_old or all_new
+        ), f"Inconsistent snapshot: ages span old and new values: {ages[:5]}..."
+
+    # Final state must be all updated
+    verify_sess = Session(uri, timeout="10s")
+    result = verify_sess.execute(
+        "MATCH (p:person) RETURN p.id, p.age ORDER BY p.id;", access_mode="read"
+    )
+    final_ages = [row[1] for row in result]
+    for i, age in enumerate(final_ages):
+        assert age == i + 1000, f"Person {i}: expected {i + 1000}, got {age}"
+    verify_sess.close()
+
     db.stop_serving()
     db.close()
