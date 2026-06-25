@@ -669,9 +669,10 @@ TEST(CheckpointGCTest, open_cleans_checkpoint_gc_trash) {
   EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-0"));
 }
 
-TEST(CheckpointGCTest, neugdb_default_retention_keeps_latest_two) {
+TEST(CheckpointGCTest, neugdb_default_retention_keeps_configured_default) {
   auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
-  for (int i = 0; i < 4; ++i) {
+  constexpr size_t kCheckpointRounds = 4;
+  for (size_t i = 0; i < kCheckpointRounds; ++i) {
     neug::NeugDB db;
     neug::NeugDBConfig config(db_path);
     config.checkpoint_on_close = true;
@@ -688,7 +689,14 @@ TEST(CheckpointGCTest, neugdb_default_retention_keeps_latest_two) {
     db.Close();
   }
 
-  ASSERT_EQ(count_valid_checkpoint_dirs(db_path), 2u);
+  constexpr int kDefaultMaxCheckpoints =
+      neug::NeugDBConfig::DEFAULT_MAX_CHECKPOINTS;
+  const size_t expected_valid_checkpoints =
+      kDefaultMaxCheckpoints == 0
+          ? kCheckpointRounds
+          : std::min(kCheckpointRounds,
+                     static_cast<size_t>(kDefaultMaxCheckpoints));
+  ASSERT_EQ(count_valid_checkpoint_dirs(db_path), expected_valid_checkpoints);
 
   {
     neug::NeugDB db;
