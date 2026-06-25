@@ -23,7 +23,9 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/types/types.h"
 
 namespace neug {
@@ -96,6 +98,24 @@ struct NEUG_API TableFuncBindData {
  protected:
   std::vector<std::string> projectColumns;
   std::shared_ptr<binder::Expression> rowSkips;
+};
+
+struct NEUG_API IndexScanBindData final : TableFuncBindData {
+  std::string uniqueIndexName;
+  std::shared_ptr<binder::Expression> targetValue;
+  common::case_insensitive_map_t<std::string> options;
+
+  IndexScanBindData(binder::expression_vector columns,
+                    std::string uniqueIndexName,
+                    std::shared_ptr<binder::Expression> targetValue)
+      : TableFuncBindData{std::move(columns), 0},
+        uniqueIndexName{std::move(uniqueIndexName)},
+        targetValue{std::move(targetValue)} {}
+
+  std::unique_ptr<TableFuncBindData> copy() const override {
+    return std::make_unique<IndexScanBindData>(columns, uniqueIndexName,
+                                               targetValue);
+  }
 };
 
 }  // namespace function

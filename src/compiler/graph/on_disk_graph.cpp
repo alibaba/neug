@@ -61,8 +61,8 @@ static expression_vector getProperties(std::shared_ptr<Expression> expr) {
   return ExpressionUtil::removeDuplication(collector.getPropertyExprs());
 }
 
-static Schema getSchema(const expression_vector& exprs) {
-  auto schema = Schema();
+static planner::Schema getSchema(const expression_vector& exprs) {
+  auto schema = planner::Schema();
   schema.createGroup();
   for (auto expr : exprs) {
     schema.insertToGroupAndScope(expr, 0);
@@ -70,7 +70,7 @@ static Schema getSchema(const expression_vector& exprs) {
   return schema;
 }
 
-static neug::processor::ResultSet getResultSet(Schema* schema,
+static neug::processor::ResultSet getResultSet(planner::Schema* schema,
                                                MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");

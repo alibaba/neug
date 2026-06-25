@@ -44,6 +44,7 @@ class BoundStatementVisitor {
  protected:
   virtual void visitCreateSequence(const BoundStatement&) {}
   virtual void visitCreateTable(const BoundStatement&) {}
+  virtual void visitCreateIndex(const BoundStatement&) {}
   virtual void visitDrop(const BoundStatement&) {}
   virtual void visitCreateType(const BoundStatement&) {}
   virtual void visitAlter(const BoundStatement&) {}

@@ -20,6 +20,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/index/index_manager.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -57,6 +58,8 @@ class IGraphPlanner {
    * @param graph_statistic_json The JSON string of the graph statistics.
    */
   virtual void update_statistics(const std::string& graph_statistic_json) = 0;
+
+  virtual void update_index_manager(const IndexManager* index_manager) = 0;
 
   // Attempts to infer the execution access mode from the given query.
   // The current implementation relies on static analysis of the query string

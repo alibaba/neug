@@ -32,6 +32,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/index_manager.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
@@ -1185,6 +1186,15 @@ void StorageTPUpdateInterface::CreateCheckpoint() {
   }
   cow_graph_->Dump();
   wal_.LogCheckpoint();
+}
+
+neug::result<Index*> StorageTPUpdateInterface::CreateIndex(
+    const std::string& name, std::unique_ptr<IndexMeta> meta) {
+  return cow_graph_->mutable_index_manager().CreateIndex(name, std::move(meta));
+}
+
+Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
+  return cow_graph_->mutable_index_manager().DropIndex(name);
 }
 
 Status StorageTPUpdateInterface::BatchAddVertices(

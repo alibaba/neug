@@ -31,6 +31,7 @@
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
+#include "neug/storages/index/index_manager.h"
 #include "neug/utils/api.h"
 #include "neug/utils/file_sys/file_system.h"
 
@@ -87,6 +88,8 @@ class MetadataManager {
 
   NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
+  const IndexManager* getIndexManager() const { return index_manager; }
+
   void updateSchema(const std::filesystem::path& schemaPath);
 
   void updateSchema(const std::string& schema);
@@ -96,6 +99,8 @@ class MetadataManager {
   void updateStats(const std::filesystem::path& statsPath);
 
   void updateStats(const std::string& stats);
+
+  void updateIndexManager(const IndexManager* indexManager);
 
   /** Thread-safe (spinlock + atomic): returns a copy of the current
    * StatsManager. */
@@ -113,6 +118,7 @@ class MetadataManager {
   std::unique_ptr<neug::fsys::FileSystemRegistry> vfs;
   std::unique_ptr<extension::ExtensionManager> extensionManager;
   std::unique_ptr<graph::GraphEntrySet> graphEntrySet;
+  const IndexManager* index_manager;
 };
 
 }  // namespace main
