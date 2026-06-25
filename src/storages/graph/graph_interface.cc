@@ -280,6 +280,8 @@ Status StorageAPUpdateInterface::AddVertexProperties(
     const AddVertexPropertiesParam& config) {
   auto status = graph_.AddVertexProperties(config);
   if (status.ok()) {
+    // Adding columns replaces the table header/column list cached by
+    // GraphView, so refresh the mutable view before subsequent reads.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -289,6 +291,10 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
     const AddEdgePropertiesParam& config) {
   auto status = graph_.AddEdgeProperties(config);
   if (status.ok()) {
+    // Adding edge properties may trigger a bundled→unbundled CSR rebuild
+    // (dropAndCreateNewUnbundledCSR), which replaces the underlying CsrBase
+    // objects.  The mutable view caches raw pointers to those objects, so we
+    // must rebuild to pick up the new pointers.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -320,6 +326,7 @@ Status StorageAPUpdateInterface::DeleteVertexProperties(
   }
   auto status = graph_.DeleteVertexProperties(config);
   if (status.ok()) {
+    // Deleting columns shifts the table column vector cached by GraphView.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -329,6 +336,9 @@ Status StorageAPUpdateInterface::DeleteEdgeProperties(
     const DeleteEdgePropertiesParam& config) {
   auto status = graph_.DeleteEdgeProperties(config);
   if (status.ok()) {
+    // Deleting edge properties may trigger a CSR rebuild (unbundled→bundled or
+    // unbundled→empty), which replaces the underlying CsrBase objects.  Rebuild
+    // the mutable view so cached pointers stay valid.
     mut_view_.Rebuild(graph_);
   }
   return status;
