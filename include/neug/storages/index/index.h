@@ -36,20 +36,8 @@ namespace neug {
 
 // --- Index metadata types ---
 
-enum class EntryType : uint8_t { VERTEX = 1, EDGE = 2 };
-
-struct LabelEntry {
-  EntryType type = EntryType::VERTEX;
-  label_t label_id = 0;
-  label_t src_label_id = 0;
-  label_t dst_label_id = 0;
-
-  rapidjson::Value ToJson(rapidjson::Document::AllocatorType& alloc) const;
-  static LabelEntry FromJson(const rapidjson::Value& obj);
-};
-
 struct IndexBindSchema {
-  LabelEntry label;
+  label_t label_id = 0;
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
 

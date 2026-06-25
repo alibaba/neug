@@ -48,7 +48,7 @@ class CreateIndexOpr : public IOperator {
     }
 
     const auto& index_name = meta_->name;
-    label_t label_id = meta_->schema.label.label_id;
+    label_t label_id = meta_->schema.label_id;
 
     auto* existing = update_interface->GetIndexByName(index_name);
     if (existing) {
@@ -91,7 +91,7 @@ neug::result<OpBuildResultT> CreateIndexOprBuilder::Build(
 
   // Construct IndexMeta from CreateIndex PB:
   //   name -> name
-  //   vertex_type -> schema.label
+  //   vertex_type -> schema.label_id
   //   create_index_type -> type
   //   properties -> schema.property_names
   //   property_types -> schema.property_types
@@ -100,12 +100,11 @@ neug::result<OpBuildResultT> CreateIndexOprBuilder::Build(
   auto index_meta = std::make_unique<IndexMeta>();
   index_meta->name = create_index.name();
 
-  index_meta->schema.label.type = EntryType::VERTEX;
   if (create_index.vertex_type().has_name()) {
     const auto& vtype_name = create_index.vertex_type().name();
-    index_meta->schema.label.label_id = schema.get_vertex_label_id(vtype_name);
+    index_meta->schema.label_id = schema.get_vertex_label_id(vtype_name);
   } else {
-    index_meta->schema.label.label_id =
+    index_meta->schema.label_id =
         static_cast<label_t>(create_index.vertex_type().id());
   }
 

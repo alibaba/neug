@@ -15,26 +15,24 @@
 
 #pragma once
 
-#include <memory>
+#include <string>
 
-#include "neug/compiler/optimizer/logical_rule.h"
+#include "neug/compiler/function/function.h"
+#include "neug/compiler/function/neug_call_function.h"
 
-namespace neug::extension::index_example {
+namespace neug::extension::example_index {
 
-class Int32IndexRule final : public optimizer::LogicalRule {
- public:
-  static constexpr const char* name = "INT32_INDEX_RULE";
-
-  void rewrite(main::ClientContext* ctx, planner::LogicalPlan* plan) override {
-    clientContext_ = ctx;
-    LogicalRule::rewrite(ctx, plan);
-  }
-
-  std::shared_ptr<planner::LogicalOperator> visitScanNodeTableReplace(
-      std::shared_ptr<planner::LogicalOperator> op) override;
-
- private:
-  main::ClientContext* clientContext_ = nullptr;
+struct ExampleIndexScanFuncInput final : function::CallFuncInputBase {
+  std::string uniqueIndexName;
+  int32_t targetValue;
+  int32_t alias;
 };
 
-}  // namespace neug::extension::index_example
+class ExampleIndexScanFunction {
+ public:
+  static constexpr const char* name = "EXAMPLE_INDEX_SCAN";
+
+  static function::function_set getFunctionSet();
+};
+
+}  // namespace neug::extension::example_index

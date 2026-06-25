@@ -201,9 +201,9 @@ class InsertTransaction {
   bool GetVertexIndex(label_t label, const execution::Value& oid,
                       vid_t& lid) const;
 
-  execution::Value GetVertexId(label_t label, vid_t lid) const;
-
  private:
+  execution::Value get_vertex_id(label_t label, vid_t lid) const;
+
   void create_id_indexer_if_not_exists(label_t label);
 
   void clear();

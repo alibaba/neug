@@ -15,9 +15,9 @@
 
 #include <string>
 
-#include "int32_index.h"
-#include "int32_index_rule.h"
-#include "int32_index_scan.h"
+#include "example_index.h"
+#include "example_index_rule.h"
+#include "example_index_scan.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/storages/module/module_factory.h"
@@ -28,27 +28,27 @@ extern "C" {
 void Init() {
   try {
     neug::ModuleFactory::instance()
-        .Register<neug::extension::index_example::Int32Index>();
+        .Register<neug::extension::example_index::ExampleIndex>();
     neug::extension::ExtensionAPI::registerFunction<
-        neug::extension::index_example::Int32IndexScanFunction>(
+        neug::extension::example_index::ExampleIndexScanFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerRule<
-        neug::extension::index_example::Int32IndexRule>(
+        neug::extension::example_index::ExampleIndexRule>(
         neug::catalog::CatalogEntryType::RULE_ENTRY);
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
-            "index_example",
+            "example_index",
             "Provides a simple INT32 index implementation for testing."});
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "[index_example extension] registration failed: " +
+        "[example_index extension] registration failed: " +
         std::string(e.what()));
   } catch (...) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "[index_example extension] registration failed: unknown exception");
+        "[example_index extension] registration failed: unknown exception");
   }
 }
 
-const char* Name() { return "INDEX_EXAMPLE"; }
+const char* Name() { return "EXAMPLE_INDEX"; }
 
 }  // extern "C"

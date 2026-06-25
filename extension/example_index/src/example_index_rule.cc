@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "int32_index_rule.h"
+#include "example_index_rule.h"
 
 #include <memory>
 #include <optional>
@@ -23,8 +23,8 @@
 
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 
-#include "int32_index.h"
-#include "int32_index_scan.h"
+#include "example_index.h"
+#include "example_index_scan.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression_evaluator_utils.h"
@@ -43,7 +43,7 @@
 #include "neug/storages/index/index.h"
 #include "neug/storages/index/index_manager.h"
 
-namespace neug::extension::index_example {
+namespace neug::extension::example_index {
 namespace {
 
 struct IndexPredicate {
@@ -118,12 +118,11 @@ Index* FindMatchingIndex(const IndexManager& indexManager, label_t labelId,
                          const std::string& propertyName) {
   Index* result = nullptr;
   for (auto& [name, indexPtr] : indexManager.GetAllIndexEntries()) {
-    if (!indexPtr || indexPtr->ModuleTypeName() != Int32Index::type_name()) {
+    if (!indexPtr || indexPtr->ModuleTypeName() != ExampleIndex::type_name()) {
       continue;
     }
     const auto& meta = indexPtr->GetMeta();
-    if (meta.schema.label.type != EntryType::VERTEX ||
-        meta.schema.label.label_id != labelId ||
+    if (meta.schema.label_id != labelId ||
         meta.schema.property_names.size() != 1 ||
         meta.schema.property_names[0] != propertyName ||
         meta.schema.property_types.size() != 1 ||
@@ -139,17 +138,17 @@ Index* FindMatchingIndex(const IndexManager& indexManager, label_t labelId,
 
 function::TableFunction* GetIndexScanFunction(catalog::Catalog& catalog) {
   auto* transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog.containsFunction(transaction, Int32IndexScanFunction::name)) {
+  if (!catalog.containsFunction(transaction, ExampleIndexScanFunction::name)) {
     return nullptr;
   }
   auto* entry =
-      catalog.getFunctionEntry(transaction, Int32IndexScanFunction::name);
+      catalog.getFunctionEntry(transaction, ExampleIndexScanFunction::name);
   if (!entry ||
       entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY) {
     return nullptr;
   }
   auto* function = function::BuiltInFunctionsUtils::matchFunction(
-      Int32IndexScanFunction::name, {},
+      ExampleIndexScanFunction::name, {},
       entry->ptrCast<catalog::FunctionCatalogEntry>());
   return dynamic_cast<function::TableFunction*>(function);
 }
@@ -157,7 +156,7 @@ function::TableFunction* GetIndexScanFunction(catalog::Catalog& catalog) {
 }  // namespace
 
 std::shared_ptr<planner::LogicalOperator>
-Int32IndexRule::visitScanNodeTableReplace(
+ExampleIndexRule::visitScanNodeTableReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
   auto* metadata = main::MetadataRegistry::getMetadata();
   auto* index_manager = metadata->getIndexManager();
@@ -209,4 +208,4 @@ Int32IndexRule::visitScanNodeTableReplace(
   return result;
 }
 
-}  // namespace neug::extension::index_example
+}  // namespace neug::extension::example_index

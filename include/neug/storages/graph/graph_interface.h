@@ -28,7 +28,6 @@ namespace neug {
 class Index;
 class IndexManager;
 struct IndexMeta;
-struct LabelEntry;
 
 namespace graph_interface_impl {
 
@@ -353,7 +352,7 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
-  virtual Status GetIndex(const LabelEntry& label_entry,
+  virtual Status GetIndex(label_t label_id,
                           const std::vector<std::string>& property_names,
                           std::vector<Index*>& target_indexes) const;
   virtual Index* GetIndexByName(const std::string& name) const;
@@ -627,8 +626,8 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual void CreateCheckpoint() = 0;
 
   virtual neug::result<Index*> CreateIndex(const std::string& name,
-                                           std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
+                                           std::unique_ptr<IndexMeta> meta);
+  virtual Status DropIndex(const std::string& name);
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {

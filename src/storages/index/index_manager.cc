@@ -71,20 +71,15 @@ Status IndexManager::DropIndex(const std::string& name) {
   return Status::OK();
 }
 
-Status IndexManager::GetIndex(const LabelEntry& label_entry,
+Status IndexManager::GetIndex(label_t label_id,
                               const std::vector<std::string>& property_names,
                               std::vector<Index*>& target_indexes) const {
   for (const auto& [name, index] : indexes_) {
     if (!index)
       continue;
     const auto& meta = index->GetMeta();
-    if (meta.schema.label.type != label_entry.type ||
-        meta.schema.label.label_id != label_entry.label_id) {
+    if (meta.schema.label_id != label_id) {
       continue;
-    }
-    if (label_entry.type == EntryType::EDGE) {
-      return Status(StatusCode::ERR_NOT_SUPPORTED,
-                    "Edge indexes are not supported");
     }
     bool match = true;
     for (const auto& prop : property_names) {

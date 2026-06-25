@@ -13,21 +13,21 @@
  * limitations under the License.
  */
 
-#include "int32_index_scan.h"
+#include "example_index_scan.h"
 
 #include <memory>
 #include <vector>
 
-#include "int32_index.h"
+#include "example_index.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
 
-namespace neug::extension::index_example {
+namespace neug::extension::example_index {
 namespace {
 
-std::unique_ptr<function::CallFuncInputBase> BindInt32IndexScan(
+std::unique_ptr<function::CallFuncInputBase> BindExampleIndexScan(
     const Schema&, const execution::ContextMeta&,
     const physical::PhysicalPlan& plan, int opIdx) {
   const auto& op = plan.plan(opIdx);
@@ -36,35 +36,35 @@ std::unique_ptr<function::CallFuncInputBase> BindInt32IndexScan(
       !indexScan.target_value().operators(0).has_const_() ||
       !indexScan.target_value().operators(0).const_().has_i32()) {
     THROW_RUNTIME_ERROR(
-        "INT32_INDEX_SCAN requires a literal INT32 target value");
+        "EXAMPLE_INDEX_SCAN requires a literal INT32 target value");
   }
-  auto input = std::make_unique<Int32IndexScanFuncInput>();
+  auto input = std::make_unique<ExampleIndexScanFuncInput>();
   input->uniqueIndexName = indexScan.unique_index_name();
   input->targetValue = indexScan.target_value().operators(0).const_().i32();
   input->alias = op.meta_data_size() == 0 ? -1 : op.meta_data(0).alias();
   return input;
 }
 
-execution::Context ExecuteInt32IndexScan(
+execution::Context ExecuteExampleIndexScan(
     const function::CallFuncInputBase& baseInput, IStorageInterface& graph) {
-  const auto& input = dynamic_cast<const Int32IndexScanFuncInput&>(baseInput);
+  const auto& input = dynamic_cast<const ExampleIndexScanFuncInput&>(baseInput);
   auto* reader = dynamic_cast<StorageReadInterface*>(&graph);
   if (reader == nullptr) {
-    THROW_RUNTIME_ERROR("INT32_INDEX_SCAN requires a readable graph");
+    THROW_RUNTIME_ERROR("EXAMPLE_INDEX_SCAN requires a readable graph");
   }
   auto* index = reader->GetIndexByName(input.uniqueIndexName);
   if (index == nullptr) {
     THROW_RUNTIME_ERROR("Index not found: " + input.uniqueIndexName);
   }
 
-  Int32IndexQueryParams query(input.targetValue);
+  ExampleIndexQueryParams query(input.targetValue);
   std::vector<vid_t> results;
   auto status = index->Search(query, IndexFilterParams(*reader), results);
   if (!status.ok()) {
     THROW_RUNTIME_ERROR(status.error_message());
   }
 
-  const auto label = index->GetMeta().schema.label.label_id;
+  const auto label = index->GetMeta().schema.label_id;
   execution::MSVertexColumnBuilder builder(label);
   builder.reserve(results.size());
   for (auto vid : results) {
@@ -79,14 +79,14 @@ execution::Context ExecuteInt32IndexScan(
 
 }  // namespace
 
-function::function_set Int32IndexScanFunction::getFunctionSet() {
+function::function_set ExampleIndexScanFunction::getFunctionSet() {
   auto function = std::make_unique<function::NeugCallFunction>(
       name, std::vector<common::DataTypeId>{}, function::call_output_columns{});
-  function->bindFunc = BindInt32IndexScan;
-  function->execFunc = ExecuteInt32IndexScan;
+  function->bindFunc = BindExampleIndexScan;
+  function->execFunc = ExecuteExampleIndexScan;
   function::function_set result;
   result.push_back(std::move(function));
   return result;
 }
 
-}  // namespace neug::extension::index_example
+}  // namespace neug::extension::example_index

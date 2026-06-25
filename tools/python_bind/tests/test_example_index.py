@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-"""E2E tests for Int32Index via the index_example extension.
+"""E2E tests for ExampleIndex via the example_index extension.
 
 Tests the index framework through:
 - CREATE INDEX DDL
@@ -41,7 +41,7 @@ from neug import Database
 @pytest.fixture
 def db_dir(tmp_path):
     """Provide a temporary directory for the database."""
-    d = str(tmp_path / "test_int32_index")
+    d = str(tmp_path / "test_example_index")
     shutil.rmtree(d, ignore_errors=True)
     yield d
     shutil.rmtree(d, ignore_errors=True)
@@ -50,7 +50,7 @@ def db_dir(tmp_path):
 def make_db(db_dir):
     db = Database(db_dir, "w")
     conn = db.connect()
-    conn.execute("LOAD index_example;")
+    conn.execute("LOAD example_index;")
     return db, conn
 
 
@@ -78,13 +78,13 @@ PERSONS = [
 
 
 class TestCreateIndex:
-    """Test CREATE INDEX DDL with the int32_index extension."""
+    """Test CREATE INDEX DDL with the example_index extension."""
 
     def test_create_index_empty_graph(self, db_dir):
         """CREATE INDEX on an empty table should succeed."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.close()
         db.close()
 
@@ -92,9 +92,9 @@ class TestCreateIndex:
         """CREATE INDEX IF NOT EXISTS should not error on duplicate."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_person_age ON Person USING INT32 (age);"
+            "CREATE INDEX IF NOT EXISTS idx_person_age ON Person USING EXAMPLE (age);"
         )
         conn.close()
         db.close()
@@ -103,9 +103,9 @@ class TestCreateIndex:
         """CREATE INDEX with same name without IF NOT EXISTS should raise."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         with pytest.raises(RuntimeError):
-            conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+            conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.close()
         db.close()
 
@@ -117,7 +117,7 @@ class TestCreateIndex:
             conn.execute(
                 f"CREATE (:Person {{id: {p['id']}, name: '{p['name']}', age: {p['age']}}});"
             )
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.close()
         db.close()
 
@@ -129,7 +129,7 @@ class TestAppendDeleteUpdate:
         """Inserting a vertex after index creation should be searchable."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.execute("CREATE (:Person {id: 1, name: 'Alice', age: 30});")
         conn.execute("CREATE (:Person {id: 2, name: 'Bob', age: 25});")
         conn.execute("CREATE (:Person {id: 3, name: 'Charlie', age: 30});")
@@ -146,7 +146,7 @@ class TestAppendDeleteUpdate:
         """Deleting a vertex should remove it from index results."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.execute("CREATE (:Person {id: 1, name: 'Alice', age: 30});")
         conn.execute("CREATE (:Person {id: 2, name: 'Bob', age: 30});")
 
@@ -162,7 +162,7 @@ class TestAppendDeleteUpdate:
         """Updating a property value should be reflected in index search."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         conn.execute("CREATE (:Person {id: 1, name: 'Alice', age: 30});")
         conn.execute("CREATE (:Person {id: 2, name: 'Bob', age: 25});")
 
@@ -194,7 +194,7 @@ class TestCopyFromThenCreateIndex:
         write_csv(csv_path, PERSONS)
         conn.execute(f"COPY Person FROM '{csv_path}' (HEADER TRUE, DELIMITER=',');")
 
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
 
         result = conn.execute(
             "MATCH (p:Person) WHERE p.age = 25 RETURN p.name ORDER BY p.name;"
@@ -213,7 +213,7 @@ class TestCreateIndexThenCopyFrom:
         db, conn = make_db(db_dir)
         create_person_table(conn)
 
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
 
         csv_path = os.path.join(db_dir, "persons.csv")
         write_csv(csv_path, PERSONS)
@@ -238,7 +238,7 @@ class TestIncrementalCopyFrom:
         """Multiple COPY FROM after index creation should accumulate data."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
 
         batch1 = [
             {"id": 1, "name": "Alice", "age": 30},
@@ -297,7 +297,7 @@ class TestIncrementalCopyFrom:
         appended to the index; existing PKs keep their original index entry."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
 
         batch1 = [
             {"id": 1, "name": "Alice", "age": 30},
@@ -356,7 +356,7 @@ class TestDbReopen:
         after reopening the database."""
         db, conn = make_db(db_dir)
         create_person_table(conn)
-        conn.execute("CREATE INDEX idx_person_age ON Person USING INT32 (age);")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
         for p in PERSONS:
             conn.execute(
                 f"CREATE (:Person {{id: {p['id']}, name: '{p['name']}', age: {p['age']}}});"
@@ -375,7 +375,7 @@ class TestDbReopen:
         # Reopen the database and reload the extension
         db2 = Database(db_dir, "w")
         conn2 = db2.connect()
-        conn2.execute("LOAD index_example;")
+        conn2.execute("LOAD example_index;")
 
         result = conn2.execute(
             "MATCH (p:Person) WHERE p.age = 30 RETURN p.name ORDER BY p.name;"

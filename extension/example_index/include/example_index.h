@@ -23,19 +23,19 @@
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/index/index.h"
 
-namespace neug::extension::index_example {
+namespace neug::extension::example_index {
 
-struct Int32IndexQueryParams : neug::IndexQueryParams {
-  explicit Int32IndexQueryParams(int32_t target_value)
+struct ExampleIndexQueryParams : neug::IndexQueryParams {
+  explicit ExampleIndexQueryParams(int32_t target_value)
       : target_value(target_value) {}
 
   int32_t target_value;
 };
 
-class Int32Index final : public neug::Index {
+class ExampleIndex final : public neug::Index {
  public:
   static constexpr size_t kDefaultCapacity = 1024;
-  static std::string type_name() { return "int32_index"; }
+  static std::string type_name() { return "example_index"; }
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
@@ -60,4 +60,4 @@ class Int32Index final : public neug::Index {
   std::shared_ptr<IDataContainer> index_buffer_;
 };
 
-}  // namespace neug::extension::index_example
+}  // namespace neug::extension::example_index

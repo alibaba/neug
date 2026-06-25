@@ -226,9 +226,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
                         const std::string& edge_type) override;
-  neug::result<Index*> CreateIndex(const std::string& name,
-                                   std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
 
  private:
   // --- COW detach helpers ---

@@ -24,41 +24,12 @@
 
 namespace neug {
 
-// --- LabelEntry serialization ---
-
-rapidjson::Value LabelEntry::ToJson(
-    rapidjson::Document::AllocatorType& alloc) const {
-  rapidjson::Value obj(rapidjson::kObjectType);
-  obj.AddMember("type", static_cast<uint8_t>(type), alloc);
-  obj.AddMember("label_id", label_id, alloc);
-  obj.AddMember("src_label_id", src_label_id, alloc);
-  obj.AddMember("dst_label_id", dst_label_id, alloc);
-  return obj;
-}
-
-LabelEntry LabelEntry::FromJson(const rapidjson::Value& obj) {
-  LabelEntry entry;
-  if (obj.HasMember("type") && obj["type"].IsUint()) {
-    entry.type = static_cast<EntryType>(obj["type"].GetUint());
-  }
-  if (obj.HasMember("label_id") && obj["label_id"].IsUint()) {
-    entry.label_id = obj["label_id"].GetUint();
-  }
-  if (obj.HasMember("src_label_id") && obj["src_label_id"].IsUint()) {
-    entry.src_label_id = obj["src_label_id"].GetUint();
-  }
-  if (obj.HasMember("dst_label_id") && obj["dst_label_id"].IsUint()) {
-    entry.dst_label_id = obj["dst_label_id"].GetUint();
-  }
-  return entry;
-}
-
 // --- IndexBindSchema serialization ---
 
 rapidjson::Value IndexBindSchema::ToJson(
     rapidjson::Document::AllocatorType& alloc) const {
   rapidjson::Value obj(rapidjson::kObjectType);
-  obj.AddMember("label", label.ToJson(alloc), alloc);
+  obj.AddMember("label_id", label_id, alloc);
 
   rapidjson::Value names_arr(rapidjson::kArrayType);
   for (const auto& name : property_names) {
@@ -80,8 +51,8 @@ rapidjson::Value IndexBindSchema::ToJson(
 
 IndexBindSchema IndexBindSchema::FromJson(const rapidjson::Value& obj) {
   IndexBindSchema schema;
-  if (obj.HasMember("label") && obj["label"].IsObject()) {
-    schema.label = LabelEntry::FromJson(obj["label"]);
+  if (obj.HasMember("label_id") && obj["label_id"].IsUint()) {
+    schema.label_id = obj["label_id"].GetUint();
   }
   if (obj.HasMember("property_names") && obj["property_names"].IsArray()) {
     for (auto& v : obj["property_names"].GetArray()) {

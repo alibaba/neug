@@ -57,7 +57,7 @@ class IndexManager {
   /**
    * @brief Find indexes matching a label and property names (vertex only).
    */
-  Status GetIndex(const LabelEntry& label_entry,
+  Status GetIndex(label_t label_id,
                   const std::vector<std::string>& property_names,
                   std::vector<Index*>& target_indexes) const;
 
