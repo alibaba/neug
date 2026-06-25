@@ -34,9 +34,9 @@
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
 class Schema;
+class WalWriterSlot;
 
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
@@ -82,14 +82,15 @@ class InsertTransaction {
    * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
    * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
    * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
+   * @param wal_writer_slot Reference to session-local WAL writer slot
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
    *
    * @since v0.1.0
    */
-  InsertTransaction(SnapshotGuard guard, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, timestamp_t timestamp);
+  InsertTransaction(SnapshotGuard guard, Allocator& alloc,
+                    WalWriterSlot& wal_writer_slot, IVersionManager& vm,
+                    timestamp_t timestamp) noexcept;
 
   /**
    * @brief Destructor that calls Abort().
@@ -100,6 +101,11 @@ class InsertTransaction {
    * @since v0.1.0
    */
   ~InsertTransaction();
+
+  InsertTransaction(const InsertTransaction&) = delete;
+  InsertTransaction& operator=(const InsertTransaction&) = delete;
+  InsertTransaction(InsertTransaction&& other) noexcept;
+  InsertTransaction& operator=(InsertTransaction&& other) = delete;
 
   /**
    * @brief Add a new vertex to the transaction.
@@ -160,8 +166,9 @@ class InsertTransaction {
    *
    * @return true if commit successful
    *
-   * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * calls vm_.release_insert_timestamp(), then calls clear().
+   * Implementation: Checks if any operations in arc_, writes WAL via the
+   * session-local writer slot, calls vm_.release_insert_timestamp(), then calls
+   * clear().
    *
    * @since v0.1.0
    */
@@ -206,6 +213,8 @@ class InsertTransaction {
 
   void create_id_indexer_if_not_exists(label_t label);
 
+  void ensure_wal_header();
+
   void clear();
 
   InArchive arc_;
@@ -218,7 +227,7 @@ class InsertTransaction {
   GraphView* view_;
 
   Allocator& alloc_;
-  IWalWriter& logger_;
+  WalWriterSlot& wal_writer_slot_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 };

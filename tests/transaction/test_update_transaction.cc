@@ -2726,7 +2726,7 @@ TEST_F(UpdateTransactionTest, TestCheckpoint) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
-    interface.CreateCheckpoint();
+    EXPECT_FALSE(interface.DumpToCheckpoint().ok());
   }
 }
 

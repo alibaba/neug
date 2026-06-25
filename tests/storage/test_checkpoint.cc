@@ -16,25 +16,32 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 #include "column_assertions.h"
 #include "neug/config.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/utils/property/column.h"
 #include "unittest/utils.h"
 
 namespace {
@@ -526,8 +533,9 @@ static std::vector<std::filesystem::path> list_checkpoint_dirs(
     const std::string& db_dir) {
   std::vector<std::filesystem::path> dirs;
   for (const auto& entry : std::filesystem::directory_iterator(db_dir)) {
-    if (entry.is_directory() &&
-        entry.path().filename().string().rfind("checkpoint-", 0) == 0) {
+    auto name = entry.path().filename().string();
+    if (entry.is_directory() && name.rfind("checkpoint-", 0) == 0 &&
+        name.find(".next") == std::string::npos) {
       dirs.push_back(entry.path());
     }
   }
@@ -544,45 +552,644 @@ static size_t count_regular_files(const std::string& dir) {
   return n;
 }
 
-// Probe whether @p dir's filesystem supports hardlinks.  Some sandboxes / CI
-// runners use overlayfs, tmpfs, or 9p mounts that fail or silently fall back
-// to copies on create_hard_link, which makes the optimization tests below
-// flaky.  Returns true iff a hardlink can actually be created in @p dir.
-static bool fs_supports_hardlink(const std::string& dir) {
-  std::filesystem::create_directories(dir);
-  auto src = std::filesystem::path(dir) / "_hardlink_probe_src";
-  auto dst = std::filesystem::path(dir) / "_hardlink_probe_dst";
-  std::error_code ec;
-  std::filesystem::remove(src, ec);
-  std::filesystem::remove(dst, ec);
-  { std::ofstream(src) << 'x'; }
-  std::filesystem::create_hard_link(src, dst, ec);
-  bool ok = !ec && std::filesystem::hard_link_count(src) >= 2;
-  std::filesystem::remove(src, ec);
-  std::filesystem::remove(dst, ec);
-  return ok;
+static size_t count_valid_checkpoint_dirs(const std::string& db_dir) {
+  size_t n = 0;
+  for (const auto& checkpoint_dir : list_checkpoint_dirs(db_dir)) {
+    neug::CheckpointManifest meta;
+    meta.Load((checkpoint_dir / "meta").string());
+    if (meta.has_schema()) {
+      ++n;
+    }
+  }
+  return n;
 }
 
-// Verify that dumping an unchanged graph to a new checkpoint produces zero new
-// data writes: every file in the new snapshot_dir must be a hardlink
-// (hard_link_count > 1), and the file count must match checkpoint-1.
+static std::string make_checkpoint_gc_test_dir(const std::string& prefix) {
+  const auto* test_info =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+  auto dir =
+      std::filesystem::temp_directory_path() /
+      (prefix + "_" + test_info->test_suite_name() + "_" + test_info->name());
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir);
+  return dir.string();
+}
+
+static void write_valid_empty_manifest(std::shared_ptr<neug::Checkpoint> ckp) {
+  neug::CheckpointManifest meta;
+  neug::Schema schema;
+  meta.SetSchema(schema);
+  ckp->UpdateMeta(std::move(meta));
+}
+
+static void create_valid_checkpoint(neug::CheckpointManager& mgr) {
+  auto id = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(mgr.GetCheckpoint(id));
+  mgr.PublishStagingCheckpoint(id);
+}
+
+static std::string read_checkpoint_pointer(const std::string& db_path) {
+  std::ifstream input(std::filesystem::path(db_path) / "CHECKPOINT");
+  std::string value;
+  std::getline(input, value);
+  return value;
+}
+
+static bool has_staging_checkpoint_dirs(const std::string& db_path) {
+  for (const auto& entry : std::filesystem::directory_iterator(db_path)) {
+    auto name = entry.path().filename().string();
+    if (entry.is_directory() && name.rfind("checkpoint-", 0) == 0 &&
+        name.ends_with(".next")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void AssertSingleCurrentCheckpoint(const std::string& db_path) {
+  auto dirs = list_checkpoint_dirs(db_path);
+  ASSERT_EQ(dirs.size(), 1u);
+  auto pointer = read_checkpoint_pointer(db_path);
+  ASSERT_FALSE(pointer.empty());
+  auto pointer_path = std::filesystem::path(db_path) / pointer;
+  EXPECT_TRUE(std::filesystem::exists(pointer_path));
+  EXPECT_EQ(pointer_path.filename(), dirs[0].filename());
+  EXPECT_FALSE(has_staging_checkpoint_dirs(db_path));
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_path) /
+                                       "CHECKPOINT.tmp"));
+}
+
+static std::string read_raw_file(const std::string& path) {
+  std::ifstream input(path, std::ios::binary);
+  EXPECT_TRUE(input.is_open()) << path;
+  return std::string(std::istreambuf_iterator<char>(input),
+                     std::istreambuf_iterator<char>());
+}
+
+static std::string read_container_payload_prefix(const std::string& path,
+                                                 size_t size) {
+  std::ifstream input(path, std::ios::binary);
+  EXPECT_TRUE(input.is_open()) << path;
+  input.seekg(sizeof(neug::FileHeader), std::ios::beg);
+  std::string payload(size, '\0');
+  input.read(payload.data(), static_cast<std::streamsize>(size));
+  EXPECT_EQ(input.gcount(), static_cast<std::streamsize>(size));
+  return payload;
+}
+
+static void write_raw_file(const std::string& path, std::string_view payload) {
+  std::ofstream output(path, std::ios::binary);
+  ASSERT_TRUE(output.is_open()) << path;
+  output.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+  ASSERT_TRUE(output.good()) << path;
+}
+
+static void write_container_payload(neug::IDataContainer& container,
+                                    std::string_view payload) {
+  ASSERT_GE(container.GetDataSize(), payload.size());
+  std::memcpy(container.GetData(), payload.data(), payload.size());
+}
+
+static std::vector<std::filesystem::path> list_regular_files_in_dir(
+    const std::filesystem::path& dir) {
+  std::vector<std::filesystem::path> files;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.is_regular_file()) {
+      files.push_back(entry.path());
+    }
+  }
+  std::sort(files.begin(), files.end());
+  return files;
+}
+
+static bool is_equivalent_to_any(
+    const std::filesystem::path& path,
+    const std::vector<std::filesystem::path>& candidates) {
+  for (const auto& candidate : candidates) {
+    std::error_code ec;
+    if (std::filesystem::equivalent(path, candidate, ec) && !ec) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static size_t count_mutable_csr_edges(const neug::MutableCsr<int32_t>& csr,
+                                      size_t vertex_count) {
+  size_t edge_count = 0;
+  auto view = csr.get_generic_view(0);
+  for (neug::vid_t src = 0; src < static_cast<neug::vid_t>(vertex_count);
+       ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      ++edge_count;
+    }
+  }
+  return edge_count;
+}
+
+static void open_db_for_checkpoint_test(neug::NeugDB& db,
+                                        const std::string& db_path) {
+  neug::NeugDBConfig config(db_path);
+  config.checkpoint_on_close = true;
+  config.enable_auto_compaction = false;
+  db.Open(config);
+}
+
+static void seed_checkpoint_opt_graph(std::shared_ptr<neug::Connection> conn) {
+  auto res = conn->Query("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+  ASSERT_TRUE(res) << res.error().ToString();
+  res = conn->Query("CREATE (:Item {id: 1});");
+  ASSERT_TRUE(res) << res.error().ToString();
+  res = conn->Query("CREATE (:Item {id: 2});");
+  ASSERT_TRUE(res) << res.error().ToString();
+}
+
+static void assert_checkpoint_opt_graph(neug::NeugDB& db,
+                                        const std::string& db_path) {
+  open_db_for_checkpoint_test(db, db_path);
+  auto conn = db.Connect();
+  auto res = conn->Query("MATCH (v:Item) RETURN COUNT(v);");
+  ASSERT_TRUE(res) << res.error().ToString();
+  AssertSingleInt64Result(res.value().response(), 2);
+  conn->Close();
+  db.Close();
+}
+
+TEST(CheckpointGCTest, publish_staging_checkpoint_updates_root_pointer) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  create_valid_checkpoint(mgr);
+  ASSERT_EQ(mgr.CurrentCheckpointId(), 0);
+  EXPECT_EQ(read_checkpoint_pointer(db_path), "checkpoint-0");
+
+  auto id = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(mgr.GetCheckpoint(id));
+  mgr.PublishStagingCheckpoint(id);
+
+  EXPECT_TRUE(mgr.HasCurrentCheckpoint());
+  EXPECT_EQ(mgr.CurrentCheckpointId(), 1);
+  EXPECT_EQ(read_checkpoint_pointer(db_path), "checkpoint-1");
+  EXPECT_FALSE(std::filesystem::exists(db_path + "/checkpoint-0"));
+  EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-1"));
+}
+
+TEST(CheckpointGCTest, create_staging_checkpoint_rejects_active_staging) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto id = mgr.CreateStagingCheckpoint();
+  EXPECT_THROW(mgr.CreateStagingCheckpoint(), std::exception);
+
+  mgr.DiscardStagingCheckpoint(id);
+}
+
+TEST(CheckpointGCTest, discard_staging_checkpoint_allows_new_staging) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto id = mgr.CreateStagingCheckpoint();
+  auto path = mgr.GetCheckpoint(id)->path();
+  mgr.DiscardStagingCheckpoint(id);
+
+  EXPECT_FALSE(std::filesystem::exists(path));
+  auto next_id = mgr.CreateStagingCheckpoint();
+  EXPECT_EQ(next_id, id);
+  mgr.DiscardStagingCheckpoint(next_id);
+}
+
+TEST(CheckpointGCTest, publish_staging_checkpoint_rejects_missing_schema) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto id = mgr.CreateStagingCheckpoint();
+  EXPECT_THROW(mgr.PublishStagingCheckpoint(id), std::exception);
+
+  mgr.DiscardStagingCheckpoint(id);
+}
+
+TEST(CheckpointGCTest, publish_staging_checkpoint_rejects_non_staging_id) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  create_valid_checkpoint(mgr);
+
+  EXPECT_THROW(mgr.PublishStagingCheckpoint(0), std::exception);
+  EXPECT_EQ(mgr.CurrentCheckpointId(), 0);
+  EXPECT_EQ(read_checkpoint_pointer(db_path), "checkpoint-0");
+}
+
+TEST(CheckpointGCTest, publish_staging_checkpoint_rejects_extra_staging_dir) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto id = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(mgr.GetCheckpoint(id));
+  auto extra_staging = std::filesystem::path(db_path) / "checkpoint-999.next";
+  std::filesystem::create_directories(extra_staging);
+
+  EXPECT_THROW(mgr.PublishStagingCheckpoint(id), std::exception);
+  EXPECT_TRUE(std::filesystem::exists(extra_staging));
+
+  mgr.DiscardStagingCheckpoint(id);
+  std::filesystem::remove_all(extra_staging);
+}
+
+TEST(CheckpointGCTest, open_migrates_legacy_checkpoints_to_root_pointer) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  for (int id = 0; id < 3; ++id) {
+    auto path =
+        std::filesystem::path(db_path) / ("checkpoint-" + std::to_string(id));
+    auto ckp = neug::Checkpoint::Open(path.string(), id);
+    write_valid_empty_manifest(ckp);
+  }
+
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  EXPECT_TRUE(mgr.HasCurrentCheckpoint());
+  EXPECT_EQ(mgr.CurrentCheckpointId(), 2);
+  EXPECT_EQ(read_checkpoint_pointer(db_path), "checkpoint-2");
+  EXPECT_FALSE(std::filesystem::exists(db_path + "/checkpoint-0"));
+  EXPECT_FALSE(std::filesystem::exists(db_path + "/checkpoint-1"));
+  EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-2"));
+}
+
+TEST(CheckpointGCTest, open_cleans_staging_and_checkpoint_gc_trash) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  {
+    neug::CheckpointManager mgr;
+    mgr.Open(db_path);
+    create_valid_checkpoint(mgr);
+    mgr.Close();
+  }
+
+  auto trash = std::filesystem::path(db_path) / ".checkpoint-gc" / "leftover";
+  std::filesystem::create_directories(trash);
+  { std::ofstream(trash / "leftover") << "stale"; }
+  auto staging = std::filesystem::path(db_path) / "checkpoint-999.next";
+  std::filesystem::create_directories(staging);
+  { std::ofstream(std::filesystem::path(db_path) / "CHECKPOINT.tmp") << "x"; }
+  ASSERT_TRUE(std::filesystem::exists(trash));
+  ASSERT_TRUE(std::filesystem::exists(staging));
+
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  EXPECT_EQ(mgr.CurrentCheckpointId(), 0);
+  EXPECT_FALSE(std::filesystem::exists(trash));
+  EXPECT_FALSE(std::filesystem::exists(staging));
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_path) /
+                                       "CHECKPOINT.tmp"));
+  EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-0"));
+}
+
+TEST(CheckpointGCTest, publish_removes_old_checkpoint_with_old_refs_alive) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+  create_valid_checkpoint(mgr);
+
+  auto old_ckp = mgr.GetCheckpoint(0);
+  auto old_path = old_ckp->path();
+  auto old_container =
+      old_ckp->CreateRuntimeContainer(32, neug::MemoryLevel::kSyncToFile);
+  auto old_runtime_path = old_container->GetPath();
+  ASSERT_TRUE(std::filesystem::exists(old_path));
+  ASSERT_TRUE(std::filesystem::exists(old_runtime_path));
+
+  auto id = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(mgr.GetCheckpoint(id));
+  auto new_ckp = mgr.PublishStagingCheckpoint(id);
+
+  EXPECT_EQ(mgr.CurrentCheckpointId(), id);
+  EXPECT_EQ(read_checkpoint_pointer(db_path),
+            "checkpoint-" + std::to_string(id));
+  EXPECT_FALSE(std::filesystem::exists(old_path));
+  EXPECT_FALSE(std::filesystem::exists(old_runtime_path));
+  EXPECT_TRUE(std::filesystem::exists(new_ckp->path()));
+
+  old_container.reset();
+  old_ckp.reset();
+  EXPECT_TRUE(std::filesystem::exists(new_ckp->path()));
+}
+
+TEST(CheckpointGCTest, neugdb_keeps_single_current_checkpoint) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  constexpr size_t kCheckpointRounds = 4;
+  for (size_t i = 0; i < kCheckpointRounds; ++i) {
+    neug::NeugDB db;
+    neug::NeugDBConfig config(db_path);
+    config.checkpoint_on_close = true;
+    db.Open(config);
+    auto conn = db.Connect();
+    auto res = conn->Query(
+        "CREATE NODE TABLE IF NOT EXISTS Item"
+        "(id INT64, PRIMARY KEY(id));");
+    ASSERT_TRUE(res) << res.error().ToString();
+    res = conn->Query("CREATE (:Item {id: " + std::to_string(i) + "});");
+    ASSERT_TRUE(res) << res.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  ASSERT_EQ(count_valid_checkpoint_dirs(db_path), 1u);
+  ASSERT_TRUE(std::filesystem::exists(std::filesystem::path(db_path) /
+                                      read_checkpoint_pointer(db_path)));
+
+  {
+    neug::NeugDB db;
+    neug::NeugDBConfig config(db_path);
+    config.checkpoint_on_close = false;
+
+    db.Open(config);
+    auto conn = db.Connect();
+    auto table = conn->Query("MATCH (v:Item) RETURN count(v);");
+    ASSERT_TRUE(table) << table.error().ToString();
+    AssertSingleInt64Result(table.value().response(), 4);
+    conn->Close();
+    db.Close();
+  }
+}
+
+TEST(CheckpointFileManagerTest,
+     SyncToFileRuntimeCommitMaterializesIndependentSnapshotAndGcRuntime) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto snapshot_dir = std::filesystem::path(db_path) / "snapshot";
+  auto runtime_dir = std::filesystem::path(db_path) / "runtime";
+  std::filesystem::create_directories(snapshot_dir);
+  std::filesystem::create_directories(runtime_dir);
+  neug::CheckpointFileManager mgr(snapshot_dir.string(), runtime_dir.string());
+
+  auto container =
+      mgr.CreateRuntimeContainer(64, neug::MemoryLevel::kSyncToFile);
+  auto runtime_path = container->GetPath();
+  ASSERT_TRUE(std::filesystem::exists(runtime_path));
+
+  constexpr std::string_view kSnapshotPayload = "snapshot-payload-v1";
+  constexpr std::string_view kRuntimePayload = "runtime-payload-v2!";
+  static_assert(kSnapshotPayload.size() == kRuntimePayload.size());
+  write_container_payload(*container, kSnapshotPayload);
+
+  auto snapshot_path = mgr.Commit(*container);
+  ASSERT_TRUE(std::filesystem::exists(snapshot_path));
+  EXPECT_NE(snapshot_path, runtime_path);
+  EXPECT_EQ(
+      read_container_payload_prefix(snapshot_path, kSnapshotPayload.size()),
+      std::string(kSnapshotPayload));
+
+  write_container_payload(*container, kRuntimePayload);
+  container->Sync();
+  EXPECT_EQ(
+      read_container_payload_prefix(snapshot_path, kSnapshotPayload.size()),
+      std::string(kSnapshotPayload));
+  EXPECT_TRUE(std::filesystem::exists(runtime_path));
+
+  auto alias = container;
+  container.reset();
+  EXPECT_TRUE(std::filesystem::exists(runtime_path));
+  alias.reset();
+  EXPECT_FALSE(std::filesystem::exists(runtime_path));
+  EXPECT_TRUE(std::filesystem::exists(snapshot_path));
+}
+
+TEST(CheckpointFileManagerTest,
+     CleanSyncToFileOpenFileCommitMaterializesIndependentSnapshot) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto snapshot_dir = std::filesystem::path(db_path) / "snapshot";
+  auto runtime_dir = std::filesystem::path(db_path) / "runtime";
+  std::filesystem::create_directories(snapshot_dir);
+  std::filesystem::create_directories(runtime_dir);
+  neug::CheckpointFileManager mgr(snapshot_dir.string(), runtime_dir.string());
+
+  constexpr std::string_view kSnapshotPayload = "clean-snapshot-v1";
+  constexpr std::string_view kRuntimePayload = "clean-runtime--v2";
+  static_assert(kSnapshotPayload.size() == kRuntimePayload.size());
+  auto source = mgr.CreateRuntimeContainer(64, neug::MemoryLevel::kSyncToFile);
+  write_container_payload(*source, kSnapshotPayload);
+  auto source_snapshot = mgr.Commit(*source);
+  source.reset();
+
+  auto container =
+      mgr.OpenFile(source_snapshot, neug::MemoryLevel::kSyncToFile);
+  auto runtime_path = container->GetPath();
+  ASSERT_TRUE(std::filesystem::exists(runtime_path));
+  EXPECT_FALSE(container->IsDirty());
+
+  auto committed_snapshot = mgr.Commit(*container);
+  ASSERT_TRUE(std::filesystem::exists(committed_snapshot));
+  EXPECT_NE(committed_snapshot, runtime_path);
+  EXPECT_EQ(read_container_payload_prefix(committed_snapshot,
+                                          kSnapshotPayload.size()),
+            std::string(kSnapshotPayload));
+
+  write_container_payload(*container, kRuntimePayload);
+  container->Sync();
+  EXPECT_EQ(read_container_payload_prefix(committed_snapshot,
+                                          kSnapshotPayload.size()),
+            std::string(kSnapshotPayload));
+  EXPECT_EQ(
+      read_container_payload_prefix(source_snapshot, kSnapshotPayload.size()),
+      std::string(kSnapshotPayload));
+
+  container.reset();
+  EXPECT_FALSE(std::filesystem::exists(runtime_path));
+  EXPECT_TRUE(std::filesystem::exists(committed_snapshot));
+}
+
+TEST(CheckpointFileManagerTest,
+     ManualRuntimeFileHandleCommitAndAbandonCleanup) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto snapshot_dir = std::filesystem::path(db_path) / "snapshot";
+  auto runtime_dir = std::filesystem::path(db_path) / "runtime";
+  std::filesystem::create_directories(snapshot_dir);
+  std::filesystem::create_directories(runtime_dir);
+  neug::CheckpointFileManager mgr(snapshot_dir.string(), runtime_dir.string());
+
+  std::string abandoned_path;
+  {
+    auto file = mgr.CreateRuntimeFile();
+    abandoned_path = file.path();
+    write_raw_file(abandoned_path, "abandoned");
+    ASSERT_TRUE(std::filesystem::exists(abandoned_path));
+  }
+  EXPECT_FALSE(std::filesystem::exists(abandoned_path));
+
+  std::string runtime_path;
+  std::string snapshot_path;
+  {
+    auto file = mgr.CreateRuntimeFile();
+    runtime_path = file.path();
+    write_raw_file(runtime_path, "committed-runtime-file");
+    snapshot_path = mgr.CommitRuntimeFile(std::move(file));
+  }
+
+  EXPECT_FALSE(std::filesystem::exists(runtime_path));
+  ASSERT_TRUE(std::filesystem::exists(snapshot_path));
+  EXPECT_EQ(read_raw_file(snapshot_path), "committed-runtime-file");
+}
+
+TEST(CheckpointFileManagerTest,
+     LinkToSnapshotHardlinksRetiredRuntimeFileByContract) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto old_checkpoint_dir = std::filesystem::path(db_path) / "checkpoint-0";
+  auto old_runtime_dir = old_checkpoint_dir / "runtime";
+  auto new_checkpoint_dir = std::filesystem::path(db_path) / "checkpoint-1";
+  auto new_snapshot_dir = new_checkpoint_dir / "snapshot";
+  auto new_runtime_dir = new_checkpoint_dir / "runtime";
+  std::filesystem::create_directories(old_runtime_dir);
+  std::filesystem::create_directories(new_snapshot_dir);
+  std::filesystem::create_directories(new_runtime_dir);
+  neug::CheckpointFileManager mgr(new_snapshot_dir.string(),
+                                  new_runtime_dir.string());
+
+  // The caller contract for LinkToSnapshot() is that this runtime file belongs
+  // to a retired checkpoint and will never be written again.
+  auto old_runtime_path = old_runtime_dir / "old-runtime-file";
+  write_raw_file(old_runtime_path.string(), "previous-runtime-payload");
+
+  auto linked_snapshot = mgr.LinkToSnapshot(old_runtime_path.string());
+  ASSERT_TRUE(std::filesystem::exists(linked_snapshot));
+  EXPECT_TRUE(std::filesystem::equivalent(old_runtime_path, linked_snapshot));
+  EXPECT_EQ(read_raw_file(linked_snapshot), "previous-runtime-payload");
+
+  std::filesystem::remove_all(old_checkpoint_dir);
+  ASSERT_TRUE(std::filesystem::exists(linked_snapshot));
+  EXPECT_EQ(read_raw_file(linked_snapshot), "previous-runtime-payload");
+}
+
+TEST(CheckpointFileManagerTest,
+     StringColumnFastPathHardlinksRetiredRuntimeFiles) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto old_ckp = neug::Checkpoint::Open(
+      (std::filesystem::path(db_path) / "checkpoint-0").string(), 0);
+  auto new_ckp = neug::Checkpoint::Open(
+      (std::filesystem::path(db_path) / "checkpoint-1").string(), 1);
+
+  neug::StringColumn original;
+  original.Open(*old_ckp, neug::ModuleDescriptor{},
+                neug::MemoryLevel::kSyncToFile);
+  original.resize(3);
+  original.set_value(0, "alpha");
+  original.set_value(1, "bravo");
+  original.set_value(2, "charlie");
+  neug::CheckpointManifest manifest;
+  original.Dump(*old_ckp, manifest, "test");
+  auto old_desc = *manifest.module("test");
+  original.Close();
+
+  neug::StringColumn clean;
+  clean.Open(*old_ckp, old_desc, neug::MemoryLevel::kSyncToFile);
+  ASSERT_TRUE(clean.is_data_unmodified());
+  auto retired_runtime_files =
+      list_regular_files_in_dir(old_ckp->runtime_dir());
+  ASSERT_GE(retired_runtime_files.size(), 2u);
+
+  neug::CheckpointManifest new_manifest;
+  clean.Dump(*new_ckp, new_manifest, "test");
+  auto new_desc = *new_manifest.module("test");
+  auto new_items = new_desc.get_path(neug::ModuleDescriptor::kItemsPath);
+  auto new_data = new_desc.get_path(neug::ModuleDescriptor::kDataPath);
+  ASSERT_TRUE(new_items.has_value());
+  ASSERT_TRUE(new_data.has_value());
+  EXPECT_TRUE(is_equivalent_to_any(*new_items, retired_runtime_files));
+  EXPECT_TRUE(is_equivalent_to_any(*new_data, retired_runtime_files));
+
+  std::filesystem::remove_all(old_ckp->path());
+  ASSERT_TRUE(std::filesystem::exists(*new_items));
+  ASSERT_TRUE(std::filesystem::exists(*new_data));
+
+  neug::StringColumn reopened;
+  reopened.Open(*new_ckp, new_desc, neug::MemoryLevel::kInMemory);
+  ASSERT_EQ(reopened.size(), 3u);
+  EXPECT_EQ(reopened.get_view(0), "alpha");
+  EXPECT_EQ(reopened.get_view(1), "bravo");
+  EXPECT_EQ(reopened.get_view(2), "charlie");
+}
+
+TEST(CheckpointFileManagerTest,
+     MutableCsrFastPathHardlinksRetiredNbrListRuntimeFile) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto old_ckp = neug::Checkpoint::Open(
+      (std::filesystem::path(db_path) / "checkpoint-0").string(), 0);
+  auto new_ckp = neug::Checkpoint::Open(
+      (std::filesystem::path(db_path) / "checkpoint-1").string(), 1);
+
+  neug::MutableCsr<int32_t> original;
+  original.Open(*old_ckp, neug::ModuleDescriptor{},
+                neug::MemoryLevel::kSyncToFile);
+  original.resize(4);
+  original.batch_put_edges({0, 1, 1}, {1, 2, 3}, {10, 20, 30}, 0);
+  neug::CheckpointManifest manifest;
+  original.Dump(*old_ckp, manifest, "test");
+  auto old_desc = *manifest.module("test");
+  original.Close();
+
+  neug::MutableCsr<int32_t> clean;
+  clean.Open(*old_ckp, old_desc, neug::MemoryLevel::kSyncToFile);
+  auto retired_runtime_files =
+      list_regular_files_in_dir(old_ckp->runtime_dir());
+  ASSERT_GE(retired_runtime_files.size(), 3u);
+
+  neug::CheckpointManifest new_manifest;
+  clean.Dump(*new_ckp, new_manifest, "test");
+  auto new_desc = *new_manifest.module("test");
+  auto new_nbr_list = new_desc.get_path(neug::ModuleDescriptor::kNbrListPath);
+  ASSERT_TRUE(new_nbr_list.has_value());
+  EXPECT_TRUE(is_equivalent_to_any(*new_nbr_list, retired_runtime_files));
+
+  std::filesystem::remove_all(old_ckp->path());
+  ASSERT_TRUE(std::filesystem::exists(*new_nbr_list));
+
+  neug::MutableCsr<int32_t> reopened;
+  reopened.Open(*new_ckp, new_desc, neug::MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.edge_num(), 3u);
+  EXPECT_EQ(count_mutable_csr_edges(reopened, 4), 3u);
+}
+
+TEST(CheckpointFileManagerTest,
+     RuntimeContainerOutlivesCheckpointUntilLastRef) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto checkpoint_path = std::filesystem::path(db_path) / "checkpoint-0";
+  std::shared_ptr<neug::IDataContainer> container;
+  std::string runtime_path;
+
+  {
+    auto checkpoint = neug::Checkpoint::Open(checkpoint_path.string(), 0);
+    container =
+        checkpoint->CreateRuntimeContainer(64, neug::MemoryLevel::kSyncToFile);
+    runtime_path = container->GetPath();
+    write_container_payload(*container, "runtime-survives-checkpoint");
+    ASSERT_TRUE(std::filesystem::exists(runtime_path));
+  }
+
+  EXPECT_TRUE(std::filesystem::exists(runtime_path));
+  container.reset();
+  EXPECT_FALSE(std::filesystem::exists(runtime_path));
+}
+
+// Verify that dumping an unchanged graph to a new checkpoint keeps the current
+// snapshot file inventory stable under the single-checkpoint layout.
 TEST(CheckpointOptTest, test_no_extra_files_on_unchanged_dump) {
   std::string db_path = "/tmp/test_unchanged_dump_db";
   if (std::filesystem::exists(db_path)) {
     std::filesystem::remove_all(db_path);
   }
-  if (!fs_supports_hardlink(db_path)) {
-    GTEST_SKIP() << "filesystem under " << db_path
-                 << " does not support hardlinks; skipping unchanged-dump "
-                    "optimization assertion";
-  }
 
-  // Step 1: load modern graph, explicit CHECKPOINT → checkpoint-1.
+  // Step 1: create a small graph and produce the current checkpoint.
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    open_db_for_checkpoint_test(db, db_path);
     auto conn = db.Connect();
-    load_modern_graph(conn);
+    seed_checkpoint_opt_graph(conn);
     auto res = conn->Query("CHECKPOINT;");
     ASSERT_TRUE(res) << res.error().ToString();
     conn->Close();
@@ -590,15 +1197,15 @@ TEST(CheckpointOptTest, test_no_extra_files_on_unchanged_dump) {
   }
 
   auto dirs1 = list_checkpoint_dirs(db_path);
-  ASSERT_EQ(dirs1.size(), 2u);
-  std::string ckp1_snapshot = dirs1[1].string() + "/snapshot";
+  ASSERT_EQ(dirs1.size(), 1u);
+  std::string ckp1_snapshot = dirs1[0].string() + "/snapshot";
   size_t ckp1_count = count_regular_files(ckp1_snapshot);
   ASSERT_GT(ckp1_count, 0u);
 
-  // Step 2: reopen, zero changes, another CHECKPOINT → checkpoint-2.
+  // Step 2: reopen, zero changes, another CHECKPOINT.
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    open_db_for_checkpoint_test(db, db_path);
     auto conn = db.Connect();
     auto res = conn->Query("CHECKPOINT;");
     ASSERT_TRUE(res) << res.error().ToString();
@@ -607,72 +1214,41 @@ TEST(CheckpointOptTest, test_no_extra_files_on_unchanged_dump) {
   }
 
   auto dirs2 = list_checkpoint_dirs(db_path);
-  ASSERT_EQ(dirs2.size(), 3u);
-  std::string ckp2_snapshot = dirs2[2].string() + "/snapshot";
+  ASSERT_EQ(dirs2.size(), 1u);
+  std::string ckp2_snapshot = dirs2[0].string() + "/snapshot";
 
-  // (c) file count must match – no phantom files.
   size_t ckp2_count = count_regular_files(ckp2_snapshot);
   EXPECT_EQ(ckp1_count, ckp2_count);
 
-  // (b) Every file in ckp-2's snapshot/ should be a hardlink: link_count >= 2
-  // (one ref from ckp-2's snapshot/, plus one or more refs from earlier
-  // checkpoint snapshots / runtime).  We don't assert an exact count because
-  // it depends on how many earlier checkpoints share each inode and whether
-  // any runtime fast-paths kept references — that's brittle across envs.
-  size_t multi_linked = 0;
-  for (const auto& entry : std::filesystem::directory_iterator(ckp2_snapshot)) {
-    if (!entry.is_regular_file())
-      continue;
-    auto lc = std::filesystem::hard_link_count(entry.path());
-    LOG(INFO) << "File: " << entry.path() << ", link count: " << lc;
-    if (lc >= 2) {
-      ++multi_linked;
-    }
-  }
-  EXPECT_GT(multi_linked, 0u)
-      << "Expected at least one snapshot file to be hardlinked from a prior "
-         "checkpoint (zero-rewrite optimization)";
-
-  // (a) data round-trip correctness.
+  // Data round-trip correctness.
   {
     neug::NeugDB db;
-    db.Open(db_path);
-    auto conn = db.Connect();
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertPersonVertexBasic(res.value().response());
-    conn->Close();
-    db.Close();
+    assert_checkpoint_opt_graph(db, db_path);
   }
 }
 
-TEST(CheckpointOptTest, test_hardlink_survives_source_cleanup) {
-  std::string db_path = "/tmp/test_hardlink_survives_db";
+TEST(CheckpointOptTest,
+     test_repeated_ap_checkpoint_keeps_single_current_checkpoint) {
+  std::string db_path = "/tmp/test_repeated_ap_checkpoint_db";
   if (std::filesystem::exists(db_path)) {
     std::filesystem::remove_all(db_path);
   }
-  if (!fs_supports_hardlink(db_path)) {
-    GTEST_SKIP() << "filesystem under " << db_path
-                 << " does not support hardlinks; skipping hardlink-survival "
-                    "test";
-  }
 
-  // checkpoint-1: load modern graph.
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    open_db_for_checkpoint_test(db, db_path);
     auto conn = db.Connect();
-    load_modern_graph(conn);
+    seed_checkpoint_opt_graph(conn);
     auto res = conn->Query("CHECKPOINT;");
     ASSERT_TRUE(res) << res.error().ToString();
     conn->Close();
     db.Close();
   }
+  AssertSingleCurrentCheckpoint(db_path);
 
-  // checkpoint-2: zero changes.
   {
     neug::NeugDB db;
-    db.Open(db_path);
+    open_db_for_checkpoint_test(db, db_path);
     auto conn = db.Connect();
     auto res = conn->Query("CHECKPOINT;");
     ASSERT_TRUE(res) << res.error().ToString();
@@ -680,51 +1256,15 @@ TEST(CheckpointOptTest, test_hardlink_survives_source_cleanup) {
     db.Close();
   }
 
+  AssertSingleCurrentCheckpoint(db_path);
   auto dirs = list_checkpoint_dirs(db_path);
-  ASSERT_EQ(dirs.size(), 3u);
-  std::string ckp1_snapshot = dirs[1].string() + "/snapshot";
-  std::string ckp2_snapshot = dirs[2].string() + "/snapshot";
+  ASSERT_EQ(dirs.size(), 1u);
+  EXPECT_TRUE(std::filesystem::exists(dirs[0] / "snapshot"));
 
-  // Collect checkpoint-2's files before any deletion.
-  std::vector<std::filesystem::path> ckp2_files;
-  for (const auto& e : std::filesystem::directory_iterator(ckp2_snapshot)) {
-    if (e.is_regular_file())
-      ckp2_files.push_back(e.path());
-  }
-  ASSERT_GT(ckp2_files.size(), 0u);
-
-  // Remove the entire checkpoint-1 directory to simulate source cleanup.
-  // (Removing only files inside snapshot/ would leave a broken checkpoint dir
-  // that Workspace::Open would try to load and sanity-check, causing a throw.)
-  std::filesystem::remove_all(dirs[1]);
-
-  // Post-condition: checkpoint-2 files still exist (hardlinks are independent
-  // inodes). After the source directory is gone, link_count drops to 1.
-  std::unordered_map<int, int> link_counts;
-  for (const auto& f : ckp2_files) {
-    EXPECT_TRUE(std::filesystem::exists(f))
-        << "File disappeared after source deletion: " << f;
-    if (std::filesystem::exists(f)) {
-      auto lc = std::filesystem::hard_link_count(f);
-      ++link_counts[lc];
-    }
-  }
-  for (const auto& [lc, count] : link_counts) {
-    LOG(INFO) << "Link count " << lc << ": " << count << " files";
-  }
-  EXPECT_TRUE(link_counts.count(1) > 0)
-      << "Expected files with link_count=1 after source dir removal";
-
-  // Data correctness: open checkpoint-2 (latest) and query.
+  // Data correctness: open the current checkpoint and query.
   {
     neug::NeugDB db;
-    db.Open(db_path);
-    auto conn = db.Connect();
-    auto res = conn->Query("MATCH (v:person) RETURN v.*;");
-    EXPECT_TRUE(res) << res.error().ToString();
-    AssertPersonVertexBasic(res.value().response());
-    conn->Close();
-    db.Close();
+    assert_checkpoint_opt_graph(db, db_path);
   }
 }
 
@@ -1076,7 +1616,7 @@ TYPED_TEST_SUITE(CheckpointSafetyTest, AllMemoryLevels);
 TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
   neug::CheckpointManager mgr;
   mgr.Open(this->db_dir_);
-  auto ckp_id = mgr.CreateCheckpoint();
+  auto ckp_id = mgr.CreateStagingCheckpoint();
   auto ckp = mgr.GetCheckpoint(ckp_id);
 
   ASSERT_TRUE(ckp->GetMeta().modules().empty());
@@ -1100,27 +1640,28 @@ TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
   std::filesystem::permissions(ckp->path(), std::filesystem::perms::owner_all);
 }
 
-// Fix #529: RemoveCheckpoint cleans up directory and map entry.
-TYPED_TEST(CheckpointSafetyTest, remove_checkpoint_cleans_up_directory) {
+// Fix #529: DiscardStagingCheckpoint cleans up directory and map entry.
+TYPED_TEST(CheckpointSafetyTest,
+           discard_staging_checkpoint_cleans_up_directory) {
   neug::CheckpointManager mgr;
   mgr.Open(this->db_dir_);
-  auto ckp_id = mgr.CreateCheckpoint();
+  auto ckp_id = mgr.CreateStagingCheckpoint();
   auto ckp = mgr.GetCheckpoint(ckp_id);
   auto ckp_path = ckp->path();
 
   ASSERT_TRUE(std::filesystem::exists(ckp_path));
-  ASSERT_EQ(mgr.NumCheckpoints(), 1u);
-  ASSERT_EQ(mgr.HeadId(), ckp_id);
+  ASSERT_FALSE(mgr.HasCurrentCheckpoint());
+  ASSERT_EQ(mgr.CurrentCheckpointId(), neug::kInvalidCheckpointId);
 
-  mgr.RemoveCheckpoint(ckp_id);
+  mgr.DiscardStagingCheckpoint(ckp_id);
 
   EXPECT_FALSE(std::filesystem::exists(ckp_path));
-  EXPECT_EQ(mgr.NumCheckpoints(), 0u);
-  EXPECT_EQ(mgr.HeadId(), neug::kInvalidCheckpointId);
+  EXPECT_FALSE(mgr.HasCurrentCheckpoint());
+  EXPECT_EQ(mgr.CurrentCheckpointId(), neug::kInvalidCheckpointId);
 }
 
-// Fix #528 integration: A failed in-place CHECKPOINT does not corrupt
-// on-disk data — recovery on restart succeeds.
+// Fix #528 integration: A failed CHECKPOINT does not corrupt on-disk data —
+// recovery on restart succeeds.
 TYPED_TEST(CheckpointSafetyTest,
            in_place_checkpoint_failure_preserves_data_on_reopen) {
   // Phase 1: Create table, insert data, and produce a valid checkpoint.
@@ -1139,41 +1680,28 @@ TYPED_TEST(CheckpointSafetyTest,
     db.Close();
   }
 
-  // Phase 2: Reopen and trigger a failing in-place CHECKPOINT.
-  // After a failed in-place CHECKPOINT, the in-memory graph is left in an
-  // inconsistent state (tables disassembled). We use checkpoint_on_close=false
-  // so Close() doesn't attempt to checkpoint the broken graph.
+  // Phase 2: Reopen and trigger a failing CHECKPOINT.
+  // We use checkpoint_on_close=false so Close() doesn't attempt another
+  // checkpoint while permissions are being restored.
   {
     neug::NeugDB db;
     db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
     auto conn = db.Connect();
 
-    // Find the highest-numbered checkpoint dir (the one ckp_ points to).
-    std::string ckp_dir;
-    int32_t max_id = -1;
-    for (const auto& entry :
-         std::filesystem::directory_iterator(this->db_dir_)) {
-      auto name = entry.path().filename().string();
-      if (entry.is_directory() && name.find("checkpoint-") == 0) {
-        int32_t id = std::stoi(name.substr(std::string("checkpoint-").size()));
-        if (id > max_id) {
-          max_id = id;
-          ckp_dir = entry.path().string();
-        }
-      }
-    }
-    ASSERT_FALSE(ckp_dir.empty());
-
-    std::filesystem::permissions(ckp_dir,
+    // Checkpoints are staged under the DB root before being published. Removing
+    // write permission from the root makes staging creation fail while keeping
+    // the already-published checkpoint readable.
+    std::filesystem::permissions(this->db_dir_,
                                  std::filesystem::perms::owner_read |
                                      std::filesystem::perms::owner_exec);
 
-    // CHECKPOINT should fail because UpdateMeta can't write meta.tmp.
+    // CHECKPOINT should fail before a new staging checkpoint can be published.
     auto res = conn->Query("CHECKPOINT;");
     EXPECT_FALSE(res) << "Expected CHECKPOINT to fail, but it succeeded";
 
     // Restore permissions so Close() and subsequent reopen work.
-    std::filesystem::permissions(ckp_dir, std::filesystem::perms::owner_all);
+    std::filesystem::permissions(this->db_dir_,
+                                 std::filesystem::perms::owner_all);
     conn->Close();
     db.Close();
   }

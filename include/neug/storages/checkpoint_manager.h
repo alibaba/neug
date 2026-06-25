@@ -15,7 +15,6 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -26,31 +25,31 @@ namespace neug {
 
 // ---------------------------------------------------------------------------
 
-/// Sentinel returned by CheckpointManager::HeadId() when no checkpoint exists.
+/// Sentinel returned by CheckpointManager::CurrentCheckpointId() when no
+/// checkpoint exists.
 constexpr int32_t kInvalidCheckpointId = -1;
 
 /**
- * @brief Manages a database directory that holds multiple numbered checkpoints.
+ * @brief Manages the single durable checkpoint pointer for a database.
  *
  * Directory layout:
  * ```
  * db_dir/
- * ├── checkpoint-00001/
- * │   ├── meta
- * │   ├── snapshot/
- * │   ├── runtime/
- * │   └── wal/
- * ├── checkpoint-00002/
- * └── ...
+ * |-- CHECKPOINT      # contains the current checkpoint directory name
+ * `-- checkpoint-N/
+ *     |-- meta
+ *     |-- snapshot/
+ *     |-- runtime/
+ *     `-- wal/
  * ```
  *
  * `CheckpointManager` does **not** inherit `Module`; it is a directory-level
  * manager, not a data module itself.
  *
  * Thread safety: All public methods are individually thread-safe (guarded by
- * an internal mutex).  Compound operations (e.g. HeadId() followed by
- * GetCheckpoint(id)) are not atomic — callers that race CreateCheckpoint() /
- * Close() must coordinate externally.
+ * an internal mutex).  Compound operations (e.g. CurrentCheckpointId()
+ * followed by GetCheckpoint(id)) are not atomic; callers that race
+ * CreateStagingCheckpoint() / Close() must coordinate externally.
  */
 class CheckpointManager {
  public:
@@ -68,41 +67,67 @@ class CheckpointManager {
    */
   void Close();
 
-  /**
-   * @brief Get the number of checkpoints in the workspace.
-   */
-  size_t NumCheckpoints() const;
+  /// Return true if CHECKPOINT currently points at a published checkpoint.
+  bool HasCurrentCheckpoint() const;
 
   /**
-   * @brief Get the ID of the most recent checkpoint.
+   * @brief Get the ID of the current published checkpoint.
    * @return kInvalidCheckpointId (-1) if no checkpoints exist.
    */
-  int32_t HeadId() const;
+  int32_t CurrentCheckpointId() const;
 
   /**
-   * @brief Create a new checkpoint.
-   * @return The ID of the new checkpoint
+   * @brief Create a new unpublished staging checkpoint.
+   * @return The ID of the staging checkpoint.
    */
-  int32_t CreateCheckpoint();
+  int32_t CreateStagingCheckpoint();
 
   /**
-   * @brief Remove a checkpoint by ID.
+   * @brief Atomically publish a staging checkpoint as the current checkpoint.
    *
-   * Removes the checkpoint from the in-memory map and deletes its directory
-   * from disk.  No-op if @p id is not found.
+   * Renames `checkpoint-N.next` to `checkpoint-N`, writes the root CHECKPOINT
+   * pointer, and removes the previous current checkpoint directory on a
+   * best-effort basis.
    */
-  void RemoveCheckpoint(int32_t id);
+  std::shared_ptr<Checkpoint> PublishStagingCheckpoint(int32_t id);
+
+  /**
+   * @brief Publish a staging checkpoint and return the previous checkpoint
+   * path.
+   *
+   * When @p obsolete_checkpoint_path is non-null, the old checkpoint directory
+   * is not removed by the manager. The caller can delete it after completing
+   * any required reopen/rebuild work.
+   */
+  std::shared_ptr<Checkpoint> PublishStagingCheckpoint(
+      int32_t id, std::string* obsolete_checkpoint_path);
+
+  /**
+   * @brief Restore CHECKPOINT to an already-published checkpoint.
+   *
+   * Used by DB-level checkpoint creation to roll back the root pointer if the
+   * new checkpoint has been published on disk but reopening the live graph
+   * fails.
+   */
+  void RestoreCurrentCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
+
+  /**
+   * @brief Discard an unpublished staging checkpoint by ID.
+   */
+  void DiscardStagingCheckpoint(int32_t id);
 
   /**
    * @brief Get a checkpoint by ID.
    */
   std::shared_ptr<Checkpoint> GetCheckpoint(int32_t id) const;
 
-  std::string db_dir() const { return db_dir_; }
+  std::string db_dir() const;
 
  private:
   std::string db_dir_;
-  std::map<int32_t, std::shared_ptr<Checkpoint>> checkpoints_;
+  std::shared_ptr<Checkpoint> current_checkpoint_;
+  std::shared_ptr<Checkpoint> staging_checkpoint_;
+  int32_t current_id_ = kInvalidCheckpointId;
   mutable std::mutex mutex_;
 };
 

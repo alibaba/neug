@@ -22,6 +22,7 @@
 #include <glog/logging.h>
 #include <string.h>
 #include <unistd.h>
+#include <exception>
 #include <filesystem>
 #include <ostream>
 
@@ -33,6 +34,17 @@ namespace neug {
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
                                                  int thread_id) {
   return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, thread_id));
+}
+
+LocalWalWriter::~LocalWalWriter() {
+  try {
+    close();
+  } catch (const std::exception& e) {
+    LOG(WARNING) << "Failed to close local WAL writer during destruction: "
+                 << e.what();
+  } catch (...) {
+    LOG(WARNING) << "Failed to close local WAL writer during destruction.";
+  }
 }
 
 void LocalWalWriter::open() {

@@ -33,15 +33,9 @@ namespace neug {
 /// buffer and increments the operation count. DDL Log methods additionally set
 /// schema_changed_ = true.
 ///
-/// LogCheckpoint() only increments op_num (no serialization) — used for the
-/// checkpoint-only commit path where the snapshot is published but no WAL
-/// content is written.
-///
 /// UpdateTransaction::Commit() uses:
 ///   - op_num() == 0  → nothing to do, early return
-///   - op_num() > 0   → must publish snapshot
-///   - content_size() > 0 → finalize() + append WAL
-///   - content_size() == 0 → skip WAL write (checkpoint-only)
+///   - op_num() > 0   → finalize() + append WAL + publish snapshot
 class WalBuilder {
  public:
   WalBuilder();
@@ -79,15 +73,14 @@ class WalBuilder {
                      label_t dst_label, const execution::Value& dst,
                      label_t edge_label, int32_t oe_offset, int32_t ie_offset);
 
-  /// Checkpoint: only increments op_num, no WAL content serialized.
-  void LogCheckpoint() { ++op_num_; }
-
   // --- Query state ---
   int op_num() const { return op_num_; }
   bool schema_changed() const { return schema_changed_; }
 
-  /// Size of the WAL content (excluding header). 0 means checkpoint-only.
-  size_t content_size() const { return arc_.GetSize() - sizeof(WalHeader); }
+  /// Size of the WAL content (excluding header).
+  size_t content_size() const {
+    return arc_.Empty() ? 0 : arc_.GetSize() - sizeof(WalHeader);
+  }
 
   /// Finalize the WAL header. Call only when content_size() > 0.
   void finalize(timestamp_t timestamp);
@@ -100,6 +93,8 @@ class WalBuilder {
   void clear();
 
  private:
+  void ensure_header();
+
   InArchive arc_;
   int op_num_{0};
   bool schema_changed_{false};

@@ -34,7 +34,10 @@ neug::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
                                           const ParamsMap& params,
                                           Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  graph.CreateCheckpoint();
+  auto status = graph.DumpToCheckpoint();
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
   return neug::result<Context>(std::move(ctx));
 }
 

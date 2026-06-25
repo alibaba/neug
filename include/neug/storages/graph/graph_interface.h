@@ -18,6 +18,7 @@
 
 #include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint_session.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -613,19 +614,24 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const std::string& dst_type,
                                 const std::string& edge_type) = 0;
 
-  virtual void CreateCheckpoint() = 0;
+  virtual Status DumpToCheckpoint() {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "DumpToCheckpoint is not supported by this storage "
+                  "interface.");
+  }
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
-  explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
-                                    timestamp_t timestamp,
-                                    neug::Allocator& alloc)
+  explicit StorageAPUpdateInterface(
+      PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+      neug::Allocator& alloc, CheckpointSession* checkpoint_session = nullptr)
       : StorageUpdateInterface(view, timestamp),
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
-        timestamp_(timestamp) {}
+        timestamp_(timestamp),
+        checkpoint_session_(checkpoint_session) {}
   ~StorageAPUpdateInterface() {}
 
   Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
@@ -647,7 +653,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                     int32_t ie_offset) override;
   Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                      label_t edge_label) override;
-  void CreateCheckpoint() override;
+  Status DumpToCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
@@ -683,6 +689,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
+  CheckpointSession* checkpoint_session_;
 };
 
 }  // namespace neug

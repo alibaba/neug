@@ -92,7 +92,7 @@ class IDataContainer {
   /**
    * @brief Create a fork (copy) of this container.
    */
-  virtual std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
+  virtual std::shared_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
                                                MemoryLevel level) = 0;
 
  protected:

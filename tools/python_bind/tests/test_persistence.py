@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import csv
 import logging
 import shutil
 
@@ -25,6 +26,78 @@ from neug.database import Database
 from neug.session import Session
 
 logger = logging.getLogger(__name__)
+
+_ISSUE_651_FILE_ID = "b31986a61becd3c2c030ccadeca6f1f4a2419ffb"
+_ISSUE_651_FUNCTION_ID = "78ff0eb259fb0b9e7d24c5342ef277196ce8e4ad"
+
+
+def _write_csv(path, columns, row):
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=columns, quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        writer.writerow(row)
+
+
+def _scalar(executor, query):
+    records = list(executor.execute(query))
+    assert records, f"Expected at least one row for query: {query}"
+    return records[0][0]
+
+
+def _create_issue_651_schema(executor):
+    for table in ["File", "Function", "Class", "Module"]:
+        executor.execute(f"CREATE NODE TABLE {table}(id STRING, PRIMARY KEY(id));")
+    executor.execute("CREATE REL TABLE DEFINES_FUNC(FROM File TO Function);")
+    executor.execute("CREATE REL TABLE DEFINES_CLASS(FROM File TO Class);")
+    executor.execute("CREATE REL TABLE BELONGS_TO(FROM File TO Module);")
+
+
+def _assert_issue_651_pk_lookups(executor):
+    assert _scalar(executor, "MATCH (n:File) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:File {{id: '{_ISSUE_651_FILE_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+    assert _scalar(executor, "MATCH (n:Function) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:Function {{id: '{_ISSUE_651_FUNCTION_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+
+
+def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path):
+    file_csv = tmp_path / "File.csv"
+    function_csv = tmp_path / "Function.csv"
+    _write_csv(file_csv, ["id"], {"id": _ISSUE_651_FILE_ID})
+    _write_csv(function_csv, ["id"], {"id": _ISSUE_651_FUNCTION_ID})
+
+    _create_issue_651_schema(executor)
+
+    executor.execute(
+        f'COPY File FROM "{file_csv}" ' '(header=true, delim=",", escaping=false);'
+    )
+    executor.execute("CHECKPOINT;")
+    assert _scalar(executor, "MATCH (n:File) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:File {{id: '{_ISSUE_651_FILE_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+
+    executor.execute(
+        f'COPY Function FROM "{function_csv}" '
+        '(header=true, delim=",", escaping=false);'
+    )
+    executor.execute("CHECKPOINT;")
+    _assert_issue_651_pk_lookups(executor)
 
 
 def test_checkpoint(tmp_path):
@@ -72,6 +145,61 @@ def test_checkpoint(tmp_path):
     assert records == [[1, 2]]
     conn.close()
     db.close()
+
+
+def test_ap_checkpoint_preserves_pk_lookup_after_copy_between_checkpoints(tmp_path):
+    db_dir = str(tmp_path / "test_issue_651_ap_checkpoint_pk_lookup")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        _run_issue_651_checkpoint_copy_scenario(conn, tmp_path)
+    finally:
+        conn.close()
+        db.close()
+
+    reopened_db = Database(db_path=db_dir, mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened_db.connect()
+    try:
+        _assert_issue_651_pk_lookups(reopened_conn)
+    finally:
+        reopened_conn.close()
+        reopened_db.close()
+
+
+def test_tp_checkpoint_preserves_pk_lookup_after_copy_between_checkpoints(
+    tmp_path, unused_tcp_port
+):
+    db_dir = str(tmp_path / "test_issue_651_tp_checkpoint_pk_lookup")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        _run_issue_651_checkpoint_copy_scenario(conn, tmp_path)
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=db_dir, mode="w", checkpoint_on_close=False)
+    session = None
+    try:
+        endpoint = db.serve(host="localhost", port=unused_tcp_port, blocking=False)
+        session = Session.open(endpoint, timeout="10s")
+        session.execute("CHECKPOINT;")
+        _assert_issue_651_pk_lookups(session)
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+    reopened_db = Database(db_path=db_dir, mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened_db.connect()
+    try:
+        _assert_issue_651_pk_lookups(reopened_conn)
+    finally:
+        reopened_conn.close()
+        reopened_db.close()
 
 
 def test_recreate_vertex(tmp_path):

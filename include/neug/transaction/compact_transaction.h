@@ -16,18 +16,18 @@
 
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/serialization/in_archive.h"
 
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
+class WalWriterSlot;
 
 class CompactTransaction {
  public:
-  CompactTransaction(GraphSnapshotStore& snapshot_store, IWalWriter& logger,
-                     IVersionManager& vm, timestamp_t timestamp);
+  CompactTransaction(GraphSnapshotStore& snapshot_store,
+                     WalWriterSlot& wal_writer_slot, IVersionManager& vm,
+                     timestamp_t timestamp) noexcept;
   ~CompactTransaction();
 
   timestamp_t timestamp() const;
@@ -38,11 +38,9 @@ class CompactTransaction {
 
  private:
   SnapshotGuard guard_;
-  IWalWriter& logger_;
+  WalWriterSlot& wal_writer_slot_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
-
-  InArchive arc_;
 };
 
 }  // namespace neug

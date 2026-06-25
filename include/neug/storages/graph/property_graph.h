@@ -130,11 +130,8 @@ class PropertyGraph {
 
   void Compact(timestamp_t ts);
 
-  /**
-   * @brief Dump the current graph state to persistent storage.
-   * @param reopen If true, reopens the graph after dumping (default: true)
-   */
-  void Dump(std::shared_ptr<Checkpoint> ckp, bool reopen = true);
+  void DumpToCheckpoint(std::shared_ptr<Checkpoint> ckp, bool reopen = true,
+                        bool cleanup_obsolete_wal = true);
 
   /**
    * @brief Dump using the graph's own internal Checkpoint.
@@ -142,7 +139,7 @@ class PropertyGraph {
    */
   void Dump(bool reopen = true) {
     assert(ckp_ && "ckp_ must be set before calling Dump()");
-    Dump(ckp_, reopen);
+    DumpToCheckpoint(ckp_, reopen);
   }
 
   Checkpoint& checkpoint() {

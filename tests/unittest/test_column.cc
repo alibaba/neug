@@ -95,8 +95,9 @@ TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
 
   EXPECT_THROW(
       {
-        std::vector<execution::Value> values = {execution::Value::INT32(1),
-                                                execution::Value::INT64(2)};
+        std::vector<execution::Value> values;
+        values.push_back(execution::Value::INT32(1));
+        values.push_back(execution::Value::INT64(2));
         auto value = execution::Value::ARRAY(array_type, std::move(values));
         (void) value;
       },

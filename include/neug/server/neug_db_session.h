@@ -24,6 +24,7 @@
 #include "neug/execution/execute/query_cache.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/allocators.h"
+#include "neug/transaction/checkpoint_transaction.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
@@ -33,13 +34,14 @@
 namespace neug {
 
 class NeugDB;
-class IWalWriter;
 class ColumnBase;
 class Encoder;
 class PropertyGraph;
 class RefColumnBase;
 class AppManager;
 class IVersionManager;
+class WalManager;
+class WalWriterSlot;
 
 /**
  * @brief Database session for executing queries in high-throughput scenarios.
@@ -94,13 +96,15 @@ class NeugDBSession {
   NeugDBSession(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 std::shared_ptr<IVersionManager> vm, Allocator& alloc,
-                IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
+                WalWriterSlot& wal_writer_slot, WalManager& wal_manager,
+                const NeugDBConfig& config_, int thread_id)
       : db_(db),
         planner_(planner),
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
-        logger_(logger),
+        wal_writer_slot_(wal_writer_slot),
+        wal_manager_(wal_manager),
         db_config_(config_),
         thread_id_(thread_id),
         eval_duration_(0),
@@ -114,6 +118,8 @@ class NeugDBSession {
   UpdateTransaction GetUpdateTransaction();
 
   CompactTransaction GetCompactTransaction();
+
+  CheckpointTransaction GetCheckpointTransaction();
 
   /**
    * @brief Execute a Cypher query within the session.
@@ -140,6 +146,7 @@ class NeugDBSession {
    * - `"insert"` or `"i"`: Insert-only operations (CREATE)
    * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
    * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
+   * - `"checkpoint"` or `"c"`: Checkpoint maintenance operation
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -177,7 +184,8 @@ class NeugDBSession {
   execution::LocalQueryCache pipeline_cache_;
   std::shared_ptr<IVersionManager> version_manager_;
   Allocator& alloc_;
-  IWalWriter& logger_;
+  WalWriterSlot& wal_writer_slot_;
+  WalManager& wal_manager_;
   const NeugDBConfig& db_config_;
   int thread_id_;
 

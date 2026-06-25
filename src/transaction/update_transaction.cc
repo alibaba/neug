@@ -35,6 +35,7 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_manager.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/io/file/file_utils.h"
@@ -185,8 +186,25 @@ fetch_edges_related_to_vertex(const StorageReadInterface& graph,
 // UpdateTransaction — lifecycle methods only
 // =============================================================================
 
+UpdateTransaction UpdateTransaction::Create(GraphSnapshotStore& snapshot_store,
+                                            Allocator& alloc,
+                                            WalWriterSlot& wal_writer_slot,
+                                            IVersionManager& vm,
+                                            execution::LocalQueryCache& cache) {
+  timestamp_t timestamp = vm.acquire_update_timestamp();
+  try {
+    auto cow_graph = snapshot_store.CurrentSnapshot().Clone();
+    return UpdateTransaction(std::move(cow_graph), alloc, wal_writer_slot, vm,
+                             snapshot_store, cache, timestamp);
+  } catch (...) {
+    vm.release_update_timestamp(timestamp);
+    throw;
+  }
+}
+
 UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
-                                     Allocator& alloc, IWalWriter& logger,
+                                     Allocator& alloc,
+                                     WalWriterSlot& wal_writer_slot,
                                      IVersionManager& vm,
                                      GraphSnapshotStore& snapshot_store,
                                      execution::LocalQueryCache& cache,
@@ -195,7 +213,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
       alloc_(alloc),
-      logger_(logger),
+      wal_writer_slot_(wal_writer_slot),
       vm_(vm),
       snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
@@ -204,15 +222,41 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
 
+UpdateTransaction::UpdateTransaction(UpdateTransaction&& other)
+    : cow_graph_(std::move(other.cow_graph_)),
+      cow_state_(std::move(other.cow_state_)),
+      view_(std::move(other.view_)),
+      alloc_(other.alloc_),
+      wal_writer_slot_(other.wal_writer_slot_),
+      vm_(other.vm_),
+      snapshot_store_(other.snapshot_store_),
+      pipeline_cache_(other.pipeline_cache_),
+      timestamp_(other.timestamp_),
+      ckp_(std::move(other.ckp_)),
+      wal_builder_(std::move(other.wal_builder_)) {
+  other.view_ = GraphView();
+  other.timestamp_ = INVALID_TIMESTAMP;
+}
+
 timestamp_t UpdateTransaction::timestamp() const { return timestamp_; }
 
 bool UpdateTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
-  if (wal_builder_.op_num() == 0 && wal_builder_.content_size() == 0) {
+  if (wal_builder_.op_num() == 0) {
+    if (wal_builder_.content_size() != 0) {
+      LOG(ERROR) << "Update transaction has WAL payload without operations";
+      Abort();
+      return false;
+    }
     release();
     return true;
+  }
+  if (wal_builder_.content_size() == 0) {
+    LOG(ERROR) << "Update transaction has operations but no WAL payload";
+    Abort();
+    return false;
   }
 
   if (!snapshot_store_.HasFreeSlot()) {
@@ -222,7 +266,8 @@ bool UpdateTransaction::Commit() {
   }
 
   wal_builder_.finalize(timestamp_);
-  if (!logger_.append(wal_builder_.data(), wal_builder_.size())) {
+  if (!wal_writer_slot_.Writer().append(wal_builder_.data(),
+                                        wal_builder_.size())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
@@ -1175,16 +1220,6 @@ Status StorageTPUpdateInterface::prepareVertexDelete(
     }
   }
   return Status::OK();
-}
-
-void StorageTPUpdateInterface::CreateCheckpoint() {
-  if (wal_.op_num() != 0) {
-    THROW_INTERNAL_EXCEPTION(
-        "Checkpoint should be created in a update "
-        "transaction without any updates");
-  }
-  cow_graph_->Dump();
-  wal_.LogCheckpoint();
 }
 
 Status StorageTPUpdateInterface::BatchAddVertices(

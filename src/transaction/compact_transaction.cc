@@ -23,15 +23,18 @@
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_manager.h"
 
 namespace neug {
 
 CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
-                                       IWalWriter& logger, IVersionManager& vm,
-                                       timestamp_t timestamp)
-    : guard_(snapshot_store), logger_(logger), vm_(vm), timestamp_(timestamp) {
-  arc_.Resize(sizeof(WalHeader));
-}
+                                       WalWriterSlot& wal_writer_slot,
+                                       IVersionManager& vm,
+                                       timestamp_t timestamp) noexcept
+    : guard_(snapshot_store),
+      wal_writer_slot_(wal_writer_slot),
+      vm_(vm),
+      timestamp_(timestamp) {}
 
 CompactTransaction::~CompactTransaction() { Abort(); }
 
@@ -39,17 +42,17 @@ timestamp_t CompactTransaction::timestamp() const { return timestamp_; }
 
 bool CompactTransaction::Commit() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
-    header->length = 0;
-    header->timestamp = timestamp_;
-    header->type = 1;
+    WalHeader header;
+    header.length = 0;
+    header.timestamp = timestamp_;
+    header.type = 1;
 
-    if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+    if (!wal_writer_slot_.Writer().append(
+            reinterpret_cast<const char*>(&header), sizeof(header))) {
       LOG(ERROR) << "Failed to append wal log";
       Abort();
       return false;
     }
-    arc_.Clear();
 
     LOG(INFO) << "before compact - " << timestamp_;
     // In-place compact
@@ -67,7 +70,6 @@ bool CompactTransaction::Commit() {
 
 void CompactTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    arc_.Clear();
     vm_.revert_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }

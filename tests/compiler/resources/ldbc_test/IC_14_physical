@@ -703,7 +703,8 @@
                             "batch": false,
                             "create_temp_table": false,
                             "checkpoint": false,
-                            "procedure_call": false
+                            "procedure_call": false,
+                            "transaction": false
                         }
                     },
                     "right_plan": {
@@ -895,7 +896,8 @@
                             "batch": false,
                             "create_temp_table": false,
                             "checkpoint": false,
-                            "procedure_call": false
+                            "procedure_call": false,
+                            "transaction": false
                         }
                     }
                 }

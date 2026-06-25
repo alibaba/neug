@@ -36,7 +36,7 @@ void VersionManager::init_ts(uint32_t ts, int thread_num) {
   read_ts_.store(ts, std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
   active_inserters_.store(0, std::memory_order_relaxed);
-  update_state_.store(0, std::memory_order_relaxed);
+  update_state_.store(0, std::memory_order_release);
 
   ts_window_.init();
   thread_num_ = thread_num;
@@ -245,6 +245,18 @@ void VersionManager::release_compact_timestamp(uint32_t ts) {
 
   // Restore to normal state (2 -> 0)
   update_state_.store(0, std::memory_order_release);
+}
+
+void VersionManager::release_checkpoint_timestamp(uint32_t ts) {
+  // Checkpoint uses the same exclusive state as compact while the snapshot is
+  // published and WAL is rotated. Once the new checkpoint is visible, its graph
+  // data is the timestamp-0 baseline for the new WAL segment.
+  if (update_state_.load(std::memory_order_acquire) != 2) {
+    THROW_INTERNAL_EXCEPTION(
+        "release_checkpoint_timestamp called while not in compact state");
+  }
+  (void) ts;
+  init_ts(0, thread_num_);
 }
 
 void VersionManager::revert_compact_timestamp(uint32_t ts) {

@@ -49,6 +49,7 @@ class GOptPlanner : public neug::IGraphPlanner {
 
  private:
   // return string pattern of update operators
+  const common::case_insensitve_set_t& getCheckpointOpTokens() const;
   const common::case_insensitve_set_t& getUpdateOpTokens() const;
   const common::case_insensitve_set_t& getSchemaOpTokens() const;
 };

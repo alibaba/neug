@@ -318,14 +318,41 @@ def test_parallel_query_executions(tmp_path):
 def test_access_mode(tmp_path):
     db_dir = tmp_path / "access_mode_db"
     shutil.rmtree(db_dir, ignore_errors=True)
-    db = Database(db_path=str(db_dir), mode="w")
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
     conn_rw = db.connect()
-    supported_access_modes = ["read", "r", "insert", "i", "update", "u"]
-    for mode in supported_access_modes:
+
+    for mode, table_name in [
+        ("schema", "access_mode_person"),
+        ("s", "access_mode_book"),
+    ]:
         conn_rw.execute(
-            f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
+            f"CREATE NODE TABLE {table_name}(id INT64, name STRING, PRIMARY KEY(id));",
             access_mode=mode,
         )
+
+    for idx, mode in enumerate(["insert", "i"], start=1):
+        conn_rw.execute(
+            f"CREATE (p:access_mode_person {{id: {idx}, name: '{mode}'}});",
+            access_mode=mode,
+        )
+
+    for mode in ["read", "r"]:
+        res = conn_rw.execute(
+            "MATCH (p:access_mode_person) RETURN p.id AS id ORDER BY id;",
+            access_mode=mode,
+        )
+        assert [row[0] for row in res] == [1, 2]
+
+    for idx, mode in enumerate(["update", "u"], start=1):
+        conn_rw.execute(
+            f"MATCH (p:access_mode_person) WHERE p.id = {idx} "
+            f"SET p.name = '{mode}';",
+            access_mode=mode,
+        )
+
+    for mode in ["checkpoint", "c"]:
+        conn_rw.execute("CHECKPOINT;", access_mode=mode)
+
     unsupported_access_modes = ["delete", "d", "drop", "dr"]
     for mode in unsupported_access_modes:
         with pytest.raises(Exception) as excinfo:

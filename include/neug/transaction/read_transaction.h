@@ -77,7 +77,7 @@ class ReadTransaction {
    * @since v0.1.0
    */
   ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
-                  timestamp_t timestamp);
+                  timestamp_t timestamp) noexcept;
 
   /**
    * @brief Destructor that calls release().
