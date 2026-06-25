@@ -457,15 +457,18 @@ def test_array_ddl_operations(tmp_path):
     with pytest.raises(Exception):
         list(conn.execute("MATCH (d:Device) RETURN d.readings;"))
 
-    # Explicit DEFAULT literal not supported
-    with pytest.raises(Exception):
-        conn.execute(
-            "CREATE NODE TABLE Sensor("
-            "  id INT64,"
-            "  readings INT32[3] DEFAULT [0, 0, 0],"
-            "  PRIMARY KEY(id)"
-            ");"
-        )
+    # Explicit DEFAULT literal can be supported
+    conn.execute(
+        "CREATE NODE TABLE Sensor("
+        "  id INT64,"
+        "  readings INT32[3] DEFAULT [0, 1, 0],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+
+    conn.execute("CREATE (s:Sensor {id: 1});")
+    rows = list(conn.execute(f"MATCH (s:Sensor {{id: 1}}) RETURN s.readings;"))
+    assert _nested_list(rows[0][0]) == [0, 1, 0]
 
     conn.close()
     db.close()
@@ -678,8 +681,8 @@ def test_list_index_supported_but_array_index_unsupported(tmp_path):
         "CREATE NODE TABLE Sensor(id INT64, readings INT32[3], PRIMARY KEY(id));"
     )
     conn.execute("CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});")
-    with pytest.raises(Exception):
-        list(conn.execute("MATCH (s:Sensor) RETURN s.readings[0];"))
+    res = list(conn.execute("MATCH (s:Sensor) RETURN s.readings[2];"))
+    assert res[0][0] == 30
 
     conn.close()
     db.close()

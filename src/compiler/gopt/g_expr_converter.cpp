@@ -28,6 +28,7 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
+#include "neug/compiler/binder/expression_evaluator_utils.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/date_t.h"
@@ -53,26 +54,6 @@
 
 namespace neug {
 namespace gopt {
-
-namespace {
-
-bool hasNestedArrayLikeChild(const common::DataType& type) {
-  if (type.id() == common::DataTypeId::kArray) {
-    const auto& child_type = common::ArrayType::GetChildType(type);
-    return child_type.id() == common::DataTypeId::kArray ||
-           child_type.id() == common::DataTypeId::kList ||
-           hasNestedArrayLikeChild(child_type);
-  }
-  if (type.id() == common::DataTypeId::kList) {
-    const auto& child_type = common::ListType::GetChildType(type);
-    return child_type.id() == common::DataTypeId::kArray ||
-           child_type.id() == common::DataTypeId::kList ||
-           hasNestedArrayLikeChild(child_type);
-  }
-  return false;
-}
-
-}  // namespace
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
     const binder::Expression& expr, const planner::LogicalOperator& child) {
@@ -246,7 +227,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   return indexPB;
 }
 
-std::unique_ptr<::common::Value> GExprConverter::castLiteral(
+std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
     const binder::Expression& castExpr) {
   GScalarType type(castExpr);
   if (type.getType() != ScalarType::CAST) {
@@ -265,13 +246,7 @@ std::unique_ptr<::common::Value> GExprConverter::castLiteral(
   }
   auto sourceExpr =
       castExpr.getChild(0)->constPtrCast<binder::LiteralExpression>();
-  const auto& targetType = scalarExpr.getBindData()
-                               ? scalarExpr.getBindData()->resultType
-                               : castExpr.getDataType();
-  if (targetType.id() == common::DataTypeId::kArray ||
-      targetType.id() == common::DataTypeId::kList) {
-    return nullptr;
-  }
+  auto& targetType = castExpr.getDataType();
   // construct parameters of the cast function
   // construct input parameters
   auto inputVec =
@@ -293,11 +268,8 @@ std::unique_ptr<::common::Value> GExprConverter::castLiteral(
 }
 
 // set default value for property definition
-std::unique_ptr<::common::Value> GExprConverter::convertDefaultValue(
+std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
     const binder::PropertyDefinition& propertyDef) {
-  if (hasNestedArrayLikeChild(propertyDef.getType())) {
-    return nullptr;
-  }
   std::shared_ptr<binder::Expression> defaultExpr = propertyDef.boundExpr;
   // the query default value of temporal type (date, datetime, interval) is
   // set by scalar function, here we extract the default value expression from
@@ -319,27 +291,57 @@ std::unique_ptr<::common::Value> GExprConverter::convertDefaultValue(
       defaultExpr = funcExpr->getChild(0);
     }
   }
-  auto valuePB = convert(*defaultExpr, {});
-  if (valuePB->operators_size() == 0) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Default value expression should not be empty");
-  }
-  auto oprPB = valuePB->operators(0);
-  if (!oprPB.has_const_()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Default value expression should be a constant");
-  }
-  return std::unique_ptr<::common::Value>(oprPB.release_const_());
+  return convert(*defaultExpr, {});
 }
 
-std::unique_ptr<::common::Value> GExprConverter::convertValue(
+std::unique_ptr<::common::Expression> GExprConverter::convertValue(
     const neug::common::Value& value) {
-  std::unique_ptr<::common::Value> valuePB =
-      std::make_unique<::common::Value>();
   if (value.isNull()) {
+    auto valuePB = std::make_unique<::common::Value>();
     valuePB->set_allocated_none(new ::common::None());
-    return valuePB;
+    auto exprPB = std::make_unique<::common::Expression>();
+    exprPB->add_operators()->set_allocated_const_(valuePB.release());
+    return exprPB;
   }
+  const auto typeId = value.getDataType().id();
+  if (typeId == common::DataTypeId::kArray ||
+      typeId == common::DataTypeId::kList ||
+      typeId == common::DataTypeId::kStruct) {
+    auto exprPB = std::make_unique<::common::Expression>();
+    auto oprPB = exprPB->add_operators();
+    switch (typeId) {
+    case common::DataTypeId::kArray: {
+      auto toArrayPB = std::make_unique<::common::ToArray>();
+      for (auto i = 0u; i < value.childrenSize; ++i) {
+        toArrayPB->mutable_fields()->AddAllocated(
+            convertValue(*value.children[i]).release());
+      }
+      oprPB->set_allocated_to_array(toArrayPB.release());
+    } break;
+    case common::DataTypeId::kList: {
+      auto toListPB = std::make_unique<::common::ToList>();
+      for (auto i = 0u; i < value.childrenSize; ++i) {
+        toListPB->mutable_fields()->AddAllocated(
+            convertValue(*value.children[i]).release());
+      }
+      oprPB->set_allocated_to_list(toListPB.release());
+    } break;
+    case common::DataTypeId::kStruct: {
+      auto toTuplePB = std::make_unique<::common::ToTuple>();
+      for (auto i = 0u; i < value.childrenSize; ++i) {
+        toTuplePB->mutable_fields()->AddAllocated(
+            convertValue(*value.children[i]).release());
+      }
+      oprPB->set_allocated_to_tuple(toTuplePB.release());
+    } break;
+    default:
+      NEUG_UNREACHABLE;
+    }
+    oprPB->set_allocated_node_type(
+        typeConverter.convertLogicalType(value.getDataType()).release());
+    return exprPB;
+  }
+  auto valuePB = std::make_unique<::common::Value>();
   switch (value.getDataType().id()) {
   case common::DataTypeId::kBoolean:
     valuePB->set_boolean(value.getValue<bool>());
@@ -377,19 +379,13 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     valuePB->set_str(neug::common::Interval::toString(
         value.getValue<neug::common::interval_t>()));
     break;
-  case common::DataTypeId::kArray: {
-    auto& childType = common::ArrayType::GetChildType(value.getDataType());
-    return convertToLiteralArray(value, childType);
-  }
-  case common::DataTypeId::kList: {
-    auto& childType = common::ListType::GetChildType(value.getDataType());
-    return convertToLiteralArray(value, childType);
-  }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
                                    value.getDataType().ToString());
   }
-  return valuePB;
+  auto exprPB = std::make_unique<::common::Expression>();
+  exprPB->add_operators()->set_allocated_const_(valuePB.release());
+  return exprPB;
 }
 
 std::string GExprConverter::convertRegexValue(const std::string& regex,
@@ -441,56 +437,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
   return convertChildren(expr, schemaAlias);
 }
 
-std::unique_ptr<::common::Value> GExprConverter::convertToLiteralArray(
-    const common::Value& value, const common::DataType& childType) {
-  if (value.children.empty()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Array function should have at least one child");
-  }
-  auto valuePB = std::make_unique<::common::Value>();
-  switch (childType.id()) {
-  case common::DataTypeId::kInt32: {
-    auto i32Array = valuePB->mutable_i32_array();
-    for (auto& child : value.children) {
-      i32Array->add_item(child->getValue<int32_t>());
-    }
-    break;
-  }
-  case common::DataTypeId::kInt64: {
-    auto i64Array = valuePB->mutable_i64_array();
-    for (auto& child : value.children) {
-      i64Array->add_item(child->getValue<int64_t>());
-    }
-    break;
-  }
-  case common::DataTypeId::kFloat: {
-    auto f32Array = valuePB->mutable_f64_array();
-    for (auto& child : value.children) {
-      f32Array->add_item(child->getValue<float>());
-    }
-    break;
-  }
-  case common::DataTypeId::kDouble: {
-    auto f64Array = valuePB->mutable_f64_array();
-    for (auto& child : value.children) {
-      f64Array->add_item(child->getValue<double>());
-    }
-    break;
-  }
-  case common::DataTypeId::kVarchar: {
-    auto strArray = valuePB->mutable_str_array();
-    for (auto& child : value.children) {
-      strArray->add_item(child->getValue<std::string>());
-    }
-    break;
-  }
-  default:
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
-                                   childType.ToString());
-  }
-  return valuePB;
-}
-
 std::unique_ptr<::common::NameOrId> GExprConverter::convertAlias(
     common::alias_id_t aliasId) {
   auto alias = std::make_unique<::common::NameOrId>();
@@ -514,10 +460,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertParam(
 
 std::unique_ptr<::common::Expression> GExprConverter::convertLiteral(
     const binder::LiteralExpression& expr) {
-  auto result = std::make_unique<::common::Expression>();
-  auto literal = result->add_operators();
-  literal->set_allocated_const_(convertValue(expr.getValue()).release());
-  return result;
+  return convertValue(expr.getValue());
 }
 
 std::unique_ptr<::common::Variable> GExprConverter::convertDefaultVar() {
@@ -764,6 +707,30 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToListFunc(
   return exprPB;
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertToArrayFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.getChildren().empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Array function should have at least one child");
+  }
+  auto arrayPB = std::make_unique<::common::ToArray>();
+  for (auto child : expr.getChildren()) {
+    auto childExprPB = convert(*child, schemaAlias);
+    if (childExprPB->operators_size() == 0) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "convert child of array function failed, empty expression");
+    }
+    arrayPB->mutable_fields()->AddAllocated(childExprPB.release());
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto opr = exprPB->add_operators();
+  opr->set_allocated_to_array(arrayPB.release());
+  opr->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertCaseExpression(
     const binder::CaseExpression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -809,6 +776,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPropertiesFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_LIST) {
     return convertToListFunc(expr, schemaAlias);
+  } else if (scalarType.getType() == TO_ARRAY) {
+    return convertToArrayFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_TUPLE) {
     return convertToTupleFunc(expr, schemaAlias);
   } else if (scalarType.getType() == STARTS_WITH ||
@@ -965,7 +934,7 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
   return result;
 }
 
-::std::unique_ptr<::common::Expression> GExprConverter::convertCast(
+std::unique_ptr<::common::Expression> GExprConverter::convertCast(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
   if (expr.expressionType != common::ExpressionType::FUNCTION) {
@@ -979,21 +948,9 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
         "CAST function should have at least one children");
   }
   auto sourceExpr = children[0];
-  const auto& targetType = scalarExpr.getBindData()
-                               ? scalarExpr.getBindData()->resultType
-                               : expr.getDataType();
   switch (sourceExpr->expressionType) {
   case common::ExpressionType::LITERAL: {
-    if (targetType.id() == common::DataTypeId::kArray ||
-        targetType.id() == common::DataTypeId::kList) {
-      return convertExtensionFunc(scalarExpr, schemaAlias);
-    }
-    auto valuePB = castLiteral(expr);
-    if (valuePB) {
-      auto exprPB = std::make_unique<::common::Expression>();
-      exprPB->add_operators()->set_allocated_const_(valuePB.release());
-      return exprPB;
-    }
+    return castLiteral(expr);
   }
   case common::ExpressionType::PARAMETER: {  // cast dynamic param by
                                              // setting its meta data with

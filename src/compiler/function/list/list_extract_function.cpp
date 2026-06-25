@@ -22,6 +22,7 @@
 
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 
+#include "neug/common/types.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
@@ -62,6 +63,7 @@ static execution::Value execFunc(const std::vector<execution::Value>& args) {
   case neug::DataTypeId::kStruct:
     return execution::StructValue::GetChildren(arg0).at(index);
   case neug::DataTypeId::kList:
+  case neug::DataTypeId::kArray:
     return execution::ListValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(

@@ -74,8 +74,12 @@ class GTypeUtils {
     if (arrayType && arrayType.IsMap()) {
       auto componentType = arrayType["component_type"];
       CHECK(componentType.IsDefined())
-          << "component type is undefined in array: " << componentType;
-      return neug::common::DataType::List(createLogicalType(componentType));
+          << "component type is undefined in array: " << arrayType;
+      auto fixedLength = arrayType["max_length"];
+      CHECK(fixedLength.IsDefined())
+          << "fixed length is undefined in array: " << arrayType;
+      return neug::common::DataType::Array(createLogicalType(componentType),
+                                           fixedLength.as<uint64_t>());
     }
     THROW_RUNTIME_ERROR("Unsupported type in YAML: " + node.as<std::string>());
   }

@@ -262,7 +262,7 @@ bool data_type_to_property_type(const common::DataType& data_type,
       LOG(ERROR) << "Failed to parse array component type";
       return false;
     }
-    uint32_t max_length = array.max_length();
+    uint32_t max_length = array.fixed_length();
     if (max_length > 0) {
       out_type = DataType::Array(child_type, max_length);
     } else {

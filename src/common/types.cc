@@ -264,10 +264,14 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     const auto& array_pb = ddt.array();
     const auto& element_type = array_pb.component_type();
     auto child_data_type = parse_from_data_type(element_type);
-    uint32_t max_length = array_pb.max_length();
-    if (max_length > 0) {
-      return DataType::Array(child_data_type, max_length);
-    }
+    uint32_t fixed_length = array_pb.fixed_length();
+    CHECK(fixed_length > 0);
+    return DataType::Array(child_data_type, fixed_length);
+  }
+  case ::common::DataType::kList: {
+    const auto& array_pb = ddt.list();
+    const auto& element_type = array_pb.component_type();
+    auto child_data_type = parse_from_data_type(element_type);
     return DataType::List(child_data_type);
   }
   case ::common::DataType::kTuple: {
@@ -376,9 +380,18 @@ std::string DataType::ToString() const {
     return "LIST<" + child_type.ToString() + ">";
   }
   case DataTypeId::kArray: {
-    auto& arr_info = type_info_->Cast<ArrayTypeInfo>();
-    return arr_info.child_type.ToString() + "[" +
-           std::to_string(arr_info.num_elements) + "]";
+    std::vector<uint64_t> dimensions;
+    const DataType* element_type = this;
+    while (element_type->id() == DataTypeId::kArray) {
+      const auto& arr_info = element_type->type_info_->Cast<ArrayTypeInfo>();
+      dimensions.push_back(arr_info.num_elements);
+      element_type = &arr_info.child_type;
+    }
+    auto result = element_type->ToString();
+    for (auto dimension : dimensions) {
+      result += "[" + std::to_string(dimension) + "]";
+    }
+    return result;
   }
   case DataTypeId::kMap: {
     auto& map_info = type_info_->Cast<MapTypeInfo>();
