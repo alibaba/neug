@@ -320,7 +320,7 @@ test('test_database_version', () => {
   const ver = db.version;
   assert.ok(typeof ver === 'string');
   assert.ok(ver.length > 0);
-  // version should look like semver (e.g. "0.1.2")
+  // version should look like semver (e.g. "0.1.3")
   assert.ok(/^\d+\.\d+/.test(ver), `Version "${ver}" doesn't match expected format`);
   db.close();
 });

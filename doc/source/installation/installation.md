@@ -44,7 +44,7 @@ npm install @graphscope-neug/neug
 
 ### Option 2: Install from Tarball
 ```bash
-npm install /path/to/neug-0.1.2.tgz
+npm install /path/to/neug-0.1.3.tgz
 ```
 
 ### Verify Installation
