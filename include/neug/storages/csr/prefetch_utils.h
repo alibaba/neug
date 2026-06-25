@@ -37,7 +37,7 @@ struct CsrDegreeDistributionStats {
 CsrPrefetchPolicy create_csr_prefetch_policy(
     const CsrDegreeDistributionStats& stats);
 
-CsrDegreeDistributionStats compute_csr_degree_distribution(
-    const int* degrees, size_t vertex_count);
+CsrDegreeDistributionStats compute_csr_degree_distribution(const int* degrees,
+                                                           size_t vertex_count);
 
 }  // namespace neug
