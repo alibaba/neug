@@ -68,6 +68,13 @@ void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
 }
 
 template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
+  auto degree_stats = compute_csr_degree_distribution(
+      reinterpret_cast<int*>(degree_list_buffer_->GetData()), size());
+  prefetch_policy_ = create_csr_prefetch_policy(degree_stats);
+}
+
+template <typename EDATA_T>
 ModuleDescriptor ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
@@ -380,6 +387,14 @@ void SingleImmutableCsr<EDATA_T>::Open(Checkpoint& ckp,
       memory_level));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
   refresh_prefetch_policy();
+}
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
+  prefetch_policy_.metadata_distance = 64;
+  prefetch_policy_.head_distance = 32;
+  prefetch_policy_.metadata_locality = 2;
+  prefetch_policy_.head_locality = 0;
 }
 
 template <typename EDATA_T>

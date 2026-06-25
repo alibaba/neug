@@ -245,11 +245,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 
-  void refresh_prefetch_policy() {
-    auto degree_stats = compute_csr_degree_distribution(
-        reinterpret_cast<int*>(degree_list_->GetData()), size());
-    prefetch_policy_ = create_csr_prefetch_policy(degree_stats);
-  }
+  void refresh_prefetch_policy();
 
   size_t vertex_capacity() const {
     if (!degree_list_) {
@@ -392,12 +388,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 
-  void refresh_prefetch_policy() {
-    prefetch_policy_.metadata_distance = 64;
-    prefetch_policy_.head_distance = 32;
-    prefetch_policy_.metadata_locality = 2;
-    prefetch_policy_.head_locality = 0;
-  }
+  void refresh_prefetch_policy();
 
   size_t vertex_capacity() const {
     if (!nbr_list_) {
