@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/json/json_reader.h"
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
@@ -31,7 +31,7 @@
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/types/value.h"
-#include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/row_expression_filter.h"
@@ -65,7 +65,7 @@ std::string read_file_to_string(const std::string& path) {
   return ss.str();
 }
 
-rapidjson::Document parse_json_array_file(const std::string& path) {
+std::vector<std::string> convert_json_array_to_lines(const std::string& path) {
   const auto content = read_file_to_string(path);
   rapidjson::Document document;
   document.Parse(content.c_str(), content.size());
@@ -77,19 +77,12 @@ rapidjson::Document parse_json_array_file(const std::string& path) {
   if (!document.IsArray() || document.Empty()) {
     THROW_IO_EXCEPTION("Expected non-empty JSON array in file: " + path);
   }
+  std::vector<std::string> lines;
+  lines.reserve(document.Size());
   for (const auto& obj : document.GetArray()) {
     if (!obj.IsObject()) {
       THROW_IO_EXCEPTION("Expected JSON object in array in file: " + path);
     }
-  }
-  return document;
-}
-
-std::vector<std::string> convert_json_array_to_lines(const std::string& path) {
-  auto document = parse_json_array_file(path);
-  std::vector<std::string> lines;
-  lines.reserve(document.Size());
-  for (const auto& obj : document.GetArray()) {
     lines.push_back(rapidjson_stringify(obj));
   }
   return lines;
@@ -126,29 +119,26 @@ execution::Value parse_json_value(const rapidjson::Value& value,
     return execution::Value::FLOAT(static_cast<float>(value.GetDouble()));
   case DataTypeId::kDouble:
     return execution::Value::DOUBLE(value.GetDouble());
-  case DataTypeId::kDate: {
-    std::string str =
-        value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::date_t>(
-        execution::ValueConverter<execution::date_t>::typed_from_string(str));
-  }
-  case DataTypeId::kTimestampMs: {
-    std::string str =
-        value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::timestamp_ms_t>(
-        execution::ValueConverter<execution::timestamp_ms_t>::typed_from_string(
-            str));
-  }
-  case DataTypeId::kInterval: {
-    std::string str =
-        value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::interval_t>(
-        execution::ValueConverter<execution::interval_t>::typed_from_string(
-            str));
-  }
   case DataTypeId::kVarchar:
     if (value.IsString()) {
       return execution::Value::STRING(value.GetString());
+    }
+    return execution::Value::STRING(rapidjson_stringify(value));
+  case DataTypeId::kDate:
+    if (value.IsString()) {
+      return execution::Value::DATE(Date(std::string(value.GetString())));
+    }
+    return execution::Value::STRING(rapidjson_stringify(value));
+  case DataTypeId::kTimestampMs:
+    if (value.IsString()) {
+      return execution::Value::TIMESTAMPMS(
+          DateTime(std::string(value.GetString())));
+    }
+    return execution::Value::STRING(rapidjson_stringify(value));
+  case DataTypeId::kInterval:
+    if (value.IsString()) {
+      return execution::Value::INTERVAL(
+          Interval(std::string(value.GetString())));
     }
     return execution::Value::STRING(rapidjson_stringify(value));
   default:
@@ -164,9 +154,9 @@ class JsonChunkSupplier : public IDataChunkSupplier {
   JsonChunkSupplier(const std::string& file_path, JsonReadConfig config)
       : file_path_(file_path), config_(std::move(config)) {
     if (config_.json_array_input) {
-      document_ = parse_json_array_file(file_path_);
-      doc_index_ = 0;
-      row_num_ = static_cast<int64_t>(document_.Size());
+      lines_ = convert_json_array_to_lines(file_path_);
+      line_index_ = 0;
+      row_num_ = static_cast<int64_t>(lines_.size());
     } else {
       input_ = std::make_unique<std::ifstream>(file_path_);
       if (!input_->is_open()) {
@@ -206,37 +196,40 @@ class JsonChunkSupplier : public IDataChunkSupplier {
 
     size_t rows_in_chunk = 0;
     while (rows_in_chunk < chunk_size_) {
-      const rapidjson::Value* obj_ptr = nullptr;
+      std::string line;
       if (config_.json_array_input) {
-        if (doc_index_ >= document_.Size()) {
+        if (line_index_ >= lines_.size()) {
           break;
         }
-        obj_ptr = &document_.GetArray()[doc_index_++];
+        line = lines_[line_index_++];
       } else {
-        std::string line;
         if (!input_ || !std::getline(*input_, line)) {
           break;
         }
         if (line.empty()) {
           continue;
         }
-        line_doc_.Parse(line.c_str(), line.size());
-        if (line_doc_.HasParseError() || !line_doc_.IsObject()) {
-          THROW_IO_EXCEPTION("Invalid JSON object in file: " + file_path_);
-        }
-        obj_ptr = &line_doc_;
       }
 
-      const auto& obj = *obj_ptr;
+      rapidjson::Document doc;
+      doc.Parse(line.c_str(), line.size());
+      if (doc.HasParseError() || !doc.IsObject()) {
+        THROW_IO_EXCEPTION("Invalid JSON object in file: " + file_path_);
+      }
+
       for (size_t col = 0; col < selected_names.size(); ++col) {
         const auto& name = selected_names[col];
-        if (!obj.HasMember(name.c_str())) {
+        if (!doc.HasMember(name.c_str())) {
           THROW_SCHEMA_MISMATCH(
               "Column '" + name +
               "' not found in JSON object in file: " + file_path_);
         }
-        builders[col]->push_back_elem(
-            parse_json_value(obj[name.c_str()], selected_types[col]));
+        auto val = parse_json_value(doc[name.c_str()], selected_types[col]);
+        if (val.IsNull()) {
+          builders[col]->push_back_null();
+        } else {
+          builders[col]->push_back_elem(val);
+        }
       }
       ++rows_in_chunk;
     }
@@ -259,9 +252,8 @@ class JsonChunkSupplier : public IDataChunkSupplier {
   JsonReadConfig config_;
   int64_t row_num_ = 0;
   size_t chunk_size_ = kDefaultJsonChunkRows;
-  rapidjson::Document document_;
-  rapidjson::SizeType doc_index_ = 0;
-  rapidjson::Document line_doc_;  // reusable parse buffer for JSONL mode
+  std::vector<std::string> lines_;
+  size_t line_index_ = 0;
   std::unique_ptr<std::ifstream> input_;
 };
 
@@ -280,8 +272,7 @@ JsonReader::JsonReader(std::shared_ptr<ReadSharedState> sharedState,
 
 JsonReader::~JsonReader() = default;
 
-void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                      execution::Context& ctx) {
+std::shared_ptr<IDataChunkSupplier> JsonReader::read() {
   if (!sharedState_ || !optionsBuilder_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("JsonReader state or builder is null");
   }
@@ -323,15 +314,14 @@ void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   }
 
   if (use_batch_read && !sharedState_->skipRows) {
-    batch_read(suppliers, ctx);
-  } else {
-    full_read(suppliers, ctx, config);
+    return batch_read(suppliers);
   }
+  return full_read(suppliers, config);
 }
 
-void JsonReader::full_read(
+std::shared_ptr<IDataChunkSupplier> JsonReader::full_read(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output, const JsonReadConfig& output_config) {
+    const JsonReadConfig& output_config) {
   auto merged = read_all_chunks(suppliers);
 
   int expected_cols = sharedState_->columnNum();
@@ -350,19 +340,17 @@ void JsonReader::full_read(
                                  sharedState_->projectColumns.empty()
                                      ? output_config.include_columns
                                      : sharedState_->projectColumns);
-  output.clear();
-  output.append_chunk(std::move(projected));
+  return std::make_shared<MultiDataChunkSupplier>(
+      std::vector<std::shared_ptr<execution::DataChunk>>{
+          std::make_shared<execution::DataChunk>(std::move(projected))});
 }
 
-void JsonReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
-  for (const auto& supplier : suppliers) {
-    while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
-    }
+std::shared_ptr<IDataChunkSupplier> JsonReader::batch_read(
+    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
+  if (suppliers.size() == 1) {
+    return suppliers.front();
   }
+  return std::make_shared<ChunkSupplierWrapper>(suppliers);
 }
 
 result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
@@ -408,26 +396,21 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     }
   }
 
-  sniff_config.include_columns = sniff_config.column_names;
-  for (const auto& name : sniff_config.column_names) {
-    sniff_config.column_types[name] = DataType(DataTypeId::kVarchar);
-  }
-
-  // Read sample rows directly via rapidjson to infer types without forcing
-  // them through VARCHAR-typed parsing.
+  // Directly inspect JSON native types for schema inference instead of
+  // reading through the supplier (which coerces all values to varchar).
   std::vector<std::string> sample_lines;
-  const size_t max_sample_rows = 64;
+  const size_t kMaxSampleRows = 100;
   if (config.json_array_input) {
-    auto all_lines = convert_json_array_to_lines(paths[0]);
-    for (size_t i = 0; i < std::min(all_lines.size(), max_sample_rows); ++i) {
-      sample_lines.push_back(std::move(all_lines[i]));
+    auto lines = convert_json_array_to_lines(paths[0]);
+    for (size_t i = 0; i < std::min(lines.size(), kMaxSampleRows); ++i) {
+      sample_lines.push_back(lines[i]);
     }
   } else {
     std::ifstream input(paths[0]);
     std::string line;
-    while (std::getline(input, line) && sample_lines.size() < max_sample_rows) {
+    while (std::getline(input, line) && sample_lines.size() < kMaxSampleRows) {
       if (!line.empty()) {
-        sample_lines.push_back(std::move(line));
+        sample_lines.push_back(line);
       }
     }
   }
@@ -444,6 +427,10 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     return entrySchema;
   }
 
+  auto entrySchema = std::make_shared<TableEntrySchema>();
+  entrySchema->columnNames = sniff_config.column_names;
+  entrySchema->columnTypes.reserve(sniff_config.column_names.size());
+
   const auto& col_names = sniff_config.column_names;
   // Track per-column type flags.
   std::vector<bool> all_int(col_names.size(), true);
@@ -453,7 +440,6 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
   std::vector<bool> all_date(col_names.size(), true);
   std::vector<bool> all_date_or_datetime(col_names.size(), true);
   std::vector<bool> any_datetime(col_names.size(), false);
-
   std::vector<bool> has_value(col_names.size(), false);
 
   // Helper lambdas for temporal detection on strings.
@@ -531,10 +517,6 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
       }
     }
   }
-
-  auto entrySchema = std::make_shared<TableEntrySchema>();
-  entrySchema->columnNames = col_names;
-  entrySchema->columnTypes.reserve(col_names.size());
 
   NeuGTypeConverter converter;
   for (size_t col = 0; col < col_names.size(); ++col) {

@@ -20,18 +20,10 @@
 namespace neug {
 namespace reader {
 
-result<std::shared_ptr<EntrySchema>> CsvSniffer::sniff() {
+result<std::shared_ptr<EntrySchema>> ReaderSniffer::sniff() {
   if (!reader_) {
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "CsvReader is null");
-  }
-  return reader_->inferSchema();
-}
-
-result<std::shared_ptr<EntrySchema>> JsonSniffer::sniff() {
-  if (!reader_) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "JsonReader is null");
+                        "FileReader is null");
   }
   return reader_->inferSchema();
 }

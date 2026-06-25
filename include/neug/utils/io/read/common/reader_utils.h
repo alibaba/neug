@@ -15,36 +15,27 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 
-#include "neug/utils/exception/exception.h"
+#include "neug/execution/common/context.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/common/file_reader.h"
-#include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/result.h"
+#include "neug/utils/io/read/common/read_state.h"
 
 namespace neug {
 namespace reader {
 
-class Sniffer {
- public:
-  virtual ~Sniffer() = default;
-  virtual result<std::shared_ptr<EntrySchema>> sniff() = 0;
-};
+execution::Context toContext(std::shared_ptr<IDataChunkSupplier> supplier,
+                             const ReadSharedState& state,
+                             size_t fallback_column_count = 0);
 
-class ReaderSniffer : public Sniffer {
- public:
-  explicit ReaderSniffer(std::shared_ptr<FileReader> reader)
-      : reader_(std::move(reader)) {
-    if (!reader_) {
-      THROW_RUNTIME_ERROR("FileReader cannot be null");
-    }
-  }
+inline execution::Context runFileReader(std::unique_ptr<FileReader> reader,
+                                        const ReadSharedState& state,
+                                        size_t fallback_column_count = 0) {
+  return toContext(reader->read(), state, fallback_column_count);
+}
 
-  result<std::shared_ptr<EntrySchema>> sniff() override;
-
- private:
-  std::shared_ptr<FileReader> reader_;
-};
 
 }  // namespace reader
 }  // namespace neug

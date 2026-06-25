@@ -17,33 +17,25 @@
 
 #include <memory>
 
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/file_reader.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
+#include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 namespace reader {
 
-class Sniffer {
+/// Reads external files and yields row batches via IDataChunkSupplier.
+class FileReader {
  public:
-  virtual ~Sniffer() = default;
-  virtual result<std::shared_ptr<EntrySchema>> sniff() = 0;
-};
+  virtual ~FileReader() = default;
 
-class ReaderSniffer : public Sniffer {
- public:
-  explicit ReaderSniffer(std::shared_ptr<FileReader> reader)
-      : reader_(std::move(reader)) {
-    if (!reader_) {
-      THROW_RUNTIME_ERROR("FileReader cannot be null");
-    }
-  }
+  /// Returns an iterator-like supplier that yields DataChunk batches.
+  /// A nullptr DataChunk from the supplier marks end of stream (EOF).
+  /// Calling read() again after EOF has been signalled is undefined behavior.
+  virtual std::shared_ptr<IDataChunkSupplier> read() = 0;
 
-  result<std::shared_ptr<EntrySchema>> sniff() override;
-
- private:
-  std::shared_ptr<FileReader> reader_;
+  virtual result<std::shared_ptr<EntrySchema>> inferSchema() = 0;
 };
 
 }  // namespace reader

@@ -30,9 +30,6 @@ class ArrowSniffer : public Sniffer {
   result<std::shared_ptr<EntrySchema>> sniff() override;
 
  private:
-  result<std::shared_ptr<EntrySchema>> convertArrowSchemaToEntrySchema(
-      const std::shared_ptr<arrow::Schema>& arrowSchema);
-
   std::shared_ptr<ArrowReader> reader_;
 };
 

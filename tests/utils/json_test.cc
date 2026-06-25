@@ -25,8 +25,9 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/json/json_reader.h"
 
 namespace neug {
 namespace test {
@@ -103,7 +104,7 @@ class JsonTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::JsonReader> createJsonReader(
+  std::shared_ptr<reader::FileReader> createJsonReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(sharedState, true);
@@ -121,10 +122,7 @@ TEST_F(JsonTest, TestJsonArray) {
       {createUInt32Type(), createStringType(), createDoubleType()},
       {{"batch_read", "false"}});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
-  execution::Context ctx;
-
-  reader->read(localState, ctx);
+  execution::Context ctx = reader::toContext(reader->read(), *sharedState);
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);

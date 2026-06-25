@@ -23,9 +23,10 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/sniffer.h"
-#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/csv/csv_reader.h"
 namespace neug {
 namespace function {
 struct CSVReadFunction {
@@ -124,12 +125,12 @@ struct CSVReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
-    auto reader =
+    const size_t fallback_column_count =
+        optionsBuilder->build().include_columns.size();
+    std::unique_ptr<reader::FileReader> reader =
         std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
-    execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
-    return ctx;
+    return reader::runFileReader(std::move(reader), *state,
+                                 fallback_column_count);
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(
@@ -153,9 +154,9 @@ struct CSVReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
-    auto reader =
+    std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::CsvReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::CsvSniffer>(reader);
+    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (sniffResult) {
       return sniffResult.value();
@@ -171,9 +172,10 @@ struct CSVReadFunction {
       options.insert({"SKIP_ROWS", "1"});
       options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
       auto optionsBuilder2 = std::make_unique<reader::CsvOptionsBuilder>(state);
-      auto reader2 = std::make_shared<reader::CsvReader>(
-          state, std::move(optionsBuilder2));
-      auto sniffer2 = std::make_shared<reader::CsvSniffer>(reader2);
+      std::shared_ptr<reader::FileReader> reader2 =
+          std::make_shared<reader::CsvReader>(state,
+                                              std::move(optionsBuilder2));
+      auto sniffer2 = std::make_shared<reader::ReaderSniffer>(reader2);
       sniffResult = sniffer2->sniff();
       if (sniffResult) {
         return sniffResult.value();

@@ -21,10 +21,13 @@
 #include <arrow/filesystem/filesystem.h>
 #include <arrow/type.h>
 
-#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/common/file_reader.h"
 #include "parquet/arrow_options.h"
 
 namespace neug {
+
+class IDataChunkSupplier;
+
 namespace reader {
 
 class DatasetBuilder {
@@ -38,55 +41,44 @@ class DatasetBuilder {
       std::shared_ptr<arrow::dataset::FileFormat> fileFormat);
 };
 
-template <class FileSystem>
-class Reader {
- public:
-  Reader(std::shared_ptr<ReadSharedState> sharedState,
-         std::shared_ptr<FileSystem> fileSystem)
-      : sharedState(std::move(sharedState)),
-        fileSystem(std::move(fileSystem)) {}
-  virtual ~Reader() = default;
-
-  virtual void read(std::shared_ptr<ReadLocalState> localState,
-                    execution::Context& ctx) = 0;
-
- protected:
-  std::shared_ptr<ReadSharedState> sharedState;
-  std::shared_ptr<FileSystem> fileSystem;
-};
-
-class ArrowReader : public Reader<arrow::fs::FileSystem> {
+class ArrowReader : public FileReader {
  public:
   ArrowReader(std::shared_ptr<ReadSharedState> sharedState,
               std::unique_ptr<ArrowOptionsBuilder> optionsBuilder,
               std::shared_ptr<arrow::fs::FileSystem> fileSystem)
-      : Reader(std::move(sharedState), std::move(fileSystem)),
-        optionsBuilder(std::move(optionsBuilder)),
-        datasetBuilder(std::make_shared<DatasetBuilder>()) {}
+      : sharedState_(std::move(sharedState)),
+        fileSystem_(std::move(fileSystem)),
+        optionsBuilder_(std::move(optionsBuilder)),
+        datasetBuilder_(std::make_shared<DatasetBuilder>()) {}
   ArrowReader(std::shared_ptr<ReadSharedState> sharedState,
               std::unique_ptr<ArrowOptionsBuilder> optionsBuilder,
               std::shared_ptr<arrow::fs::FileSystem> fileSystem,
               std::shared_ptr<DatasetBuilder> datasetBuilder)
-      : Reader(std::move(sharedState), std::move(fileSystem)),
-        optionsBuilder(std::move(optionsBuilder)),
-        datasetBuilder(std::move(datasetBuilder)) {}
+      : sharedState_(std::move(sharedState)),
+        fileSystem_(std::move(fileSystem)),
+        optionsBuilder_(std::move(optionsBuilder)),
+        datasetBuilder_(std::move(datasetBuilder)) {}
   ~ArrowReader() override = default;
 
-  void read(std::shared_ptr<ReadLocalState> localState,
-            execution::Context& ctx) override;
+  std::shared_ptr<IDataChunkSupplier> read() override;
 
-  arrow::Result<std::shared_ptr<arrow::Schema>> inferSchema();
+  result<std::shared_ptr<EntrySchema>> inferSchema() override;
 
  protected:
   std::shared_ptr<arrow::dataset::Scanner> createScanner(
       std::shared_ptr<arrow::fs::FileSystem> fs);
-  void full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                 execution::Context& output);
-  void batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                  execution::Context& output);
+  std::shared_ptr<IDataChunkSupplier> full_read(
+      std::shared_ptr<arrow::dataset::Scanner> scanner);
+  std::shared_ptr<IDataChunkSupplier> batch_read(
+      std::shared_ptr<arrow::dataset::Scanner> scanner);
 
-  std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
-  std::shared_ptr<DatasetBuilder> datasetBuilder;
+  result<std::shared_ptr<EntrySchema>> convertArrowSchemaToEntrySchema(
+      const std::shared_ptr<arrow::Schema>& arrowSchema);
+
+  std::shared_ptr<ReadSharedState> sharedState_;
+  std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
+  std::unique_ptr<ArrowOptionsBuilder> optionsBuilder_;
+  std::shared_ptr<DatasetBuilder> datasetBuilder_;
 };
 
 }  // namespace reader

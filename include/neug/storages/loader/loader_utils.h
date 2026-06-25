@@ -27,6 +27,7 @@
 #include "neug/execution/common/data_chunk.h"
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/utils/string_utils.h"
 
@@ -64,13 +65,6 @@ CsvReadConfig build_csv_read_config(
     const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
     const std::vector<DataType>& column_types);
-
-class IDataChunkSupplier {
- public:
-  virtual ~IDataChunkSupplier() = default;
-  virtual std::shared_ptr<execution::DataChunk> GetNextChunk() = 0;
-  virtual int64_t RowNum() const = 0;
-};
 
 /// csv-parser based supplier. Reads CSV in chunks and yields ValueColumns.
 class CSVChunkSupplier : public IDataChunkSupplier {

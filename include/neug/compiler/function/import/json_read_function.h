@@ -22,9 +22,10 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/sniffer.h"
-#include "neug/utils/io/reader.h"
+#include "neug/utils/io/read/json/json_reader.h"
 namespace neug {
 namespace function {
 
@@ -57,12 +58,12 @@ struct JsonReadFunction {
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(state, true);
-    auto reader =
+    const size_t fallback_column_count =
+        optionsBuilder->build().include_columns.size();
+    std::unique_ptr<reader::FileReader> reader =
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
-    execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
-    return ctx;
+    return reader::runFileReader(std::move(reader), *state,
+                                 fallback_column_count);
   }
 
   static std::shared_ptr<reader::EntrySchema> jsonSniffFunc(
@@ -84,9 +85,9 @@ struct JsonReadFunction {
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(state, true);
-    auto reader =
+    std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::JsonSniffer>(reader);
+    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +
@@ -123,12 +124,12 @@ struct JsonLReadFunction {
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(state, false);
-    auto reader =
+    const size_t fallback_column_count =
+        optionsBuilder->build().include_columns.size();
+    std::unique_ptr<reader::FileReader> reader =
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
-    execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
-    return ctx;
+    return reader::runFileReader(std::move(reader), *state,
+                                 fallback_column_count);
   }
 
   static std::shared_ptr<reader::EntrySchema> jsonLSniffFunc(
@@ -150,9 +151,9 @@ struct JsonLReadFunction {
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(state, false);
-    auto reader =
+    std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::JsonSniffer>(reader);
+    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +

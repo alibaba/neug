@@ -15,12 +15,7 @@
 
 #include "parquet/arrow_sniffer.h"
 
-#include <arrow/type.h>
-
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/result.h"
-#include "parquet/arrow_type_converter.h"
 
 namespace neug {
 namespace reader {
@@ -30,48 +25,7 @@ result<std::shared_ptr<EntrySchema>> ArrowSniffer::sniff() {
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
                         "ArrowReader is null");
   }
-
-  auto arrowSchema = reader_->inferSchema();
-  if (!arrowSchema.ok()) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                        "Failed to infer schema from ArrowReader: " +
-                            arrowSchema.status().ToString());
-  }
-
-  return convertArrowSchemaToEntrySchema(arrowSchema.ValueOrDie());
-}
-
-result<std::shared_ptr<EntrySchema>>
-ArrowSniffer::convertArrowSchemaToEntrySchema(
-    const std::shared_ptr<arrow::Schema>& arrowSchema) {
-  if (!arrowSchema) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "Arrow schema is null");
-  }
-
-  auto entrySchema = std::make_shared<TableEntrySchema>();
-  ArrowTypeConverter converter;
-  int numFields = arrowSchema->num_fields();
-
-  entrySchema->columnNames.reserve(numFields);
-  entrySchema->columnTypes.reserve(numFields);
-
-  for (int i = 0; i < numFields; ++i) {
-    const auto& field = arrowSchema->field(i);
-    const std::string& columnName = field->name();
-
-    entrySchema->columnNames.push_back(columnName);
-
-    auto commonType = converter.convert(*field->type());
-    if (!commonType) {
-      RETURN_STATUS_ERROR(
-          neug::StatusCode::ERR_TYPE_CONVERSION,
-          "Failed to convert Arrow type for column: " + columnName);
-    }
-    entrySchema->columnTypes.push_back(std::move(commonType));
-  }
-
-  return entrySchema;
+  return reader_->inferSchema();
 }
 
 }  // namespace reader
