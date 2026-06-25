@@ -96,8 +96,9 @@ class Database(object):
         mode : str
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
-            Maximum number of threads to use. Default is 0, which means
-            auto-select from hardware concurrency.
+            Maximum database thread count. Default is 0, which means
+            auto-select from hardware concurrency and fall back to 1 if the
+            runtime cannot detect it.
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
@@ -169,7 +170,6 @@ class Database(object):
                 f"Must be less than or equal to the number of CPU cores: {cpu_count}."
                 f" Error code: {ERR_INVALID_ARGUMENT}."
             )
-        self._max_thread_num = max_thread_num
 
         if db_path is None and mode in ["r", "read", "read-only", "read_only"]:
             raise ValueError(
@@ -186,6 +186,7 @@ class Database(object):
             checkpoint_on_close=checkpoint_on_close,
             buffer_strategy=buffer_strategy,
         )
+        self._max_thread_num = self._database.max_thread_num()
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":
             # In memory mode, the database will not be persisted to disk, and all data will be lost when the program exits.
@@ -247,7 +248,7 @@ class Database(object):
         port: int = 10000,
         host: str = "localhost",
         blocking: bool = True,
-        num_thread: int = 0,
+        thread_num: int = 0,
     ):
         """
         Start the database server for handling remote connections(TP mode).
@@ -266,9 +267,10 @@ class Database(object):
             The host to listen on. Default is 'localhost'.
         blocking : bool
             Whether to block the process after starting the database server.
-        num_thread : int
-            The number of brpc worker threads to use. Default is 0, which means
-            auto-select from the service session pool size.
+        thread_num : int
+            Service thread count. Default is 0, which means auto-select from
+            database max_thread_num. If set explicitly, it must be less than or
+            equal to max_thread_num.
 
         Returns
         -------
@@ -286,15 +288,21 @@ class Database(object):
         Make sure to close all connections before starting the server.
         After starting the server, no new connections to the local database will be allowed.
         """
-        if num_thread < 0:
+        if thread_num < 0:
             raise ValueError(
-                f"Invalid config: num_thread: {num_thread}. Must be a non-negative integer."
+                f"Invalid config: thread_num: {thread_num}. Must be a non-negative integer."
                 f"Error code: {ERR_CONFIG_INVALID}."
             )
-        cpu_count = os.cpu_count()
-        if cpu_count is not None and num_thread > cpu_count:
+        if thread_num > self._max_thread_num:
             raise ValueError(
-                f"Invalid argument: num_thread: {num_thread}. "
+                f"Invalid argument: thread_num: {thread_num}. "
+                f"Must be less than or equal to database max_thread_num: {self._max_thread_num}."
+                f" Error code: {ERR_INVALID_ARGUMENT}."
+            )
+        cpu_count = os.cpu_count()
+        if cpu_count is not None and thread_num > cpu_count:
+            raise ValueError(
+                f"Invalid argument: thread_num: {thread_num}. "
                 f"Must be less than or equal to the number of CPU cores: {cpu_count}."
                 f" Error code: {ERR_INVALID_ARGUMENT}."
             )
@@ -318,7 +326,7 @@ class Database(object):
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
         try:
-            endpoint = self._database.serve(port, host, num_thread, blocking)
+            endpoint = self._database.serve(port, host, thread_num, blocking)
         except KeyboardInterrupt:
             self.stop_serving()
         return endpoint

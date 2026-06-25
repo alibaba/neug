@@ -27,8 +27,8 @@ int main(int argc, char** argv) {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
-      "s,shard-num",
-      "DB/session pool and BRPC worker count. 0 means auto-select",
+      "t,thread-num",
+      "Database max_thread_num and service thread_num. 0 means auto-select",
       cxxopts::value<uint32_t>()->default_value("0"))(
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
 
   MemoryLevel memory_level =
       static_cast<MemoryLevel>(vm["memory-level"].as<int>());
-  uint32_t shard_num = vm["shard-num"].as<uint32_t>();
+  uint32_t thread_num = vm["thread-num"].as<uint32_t>();
   uint16_t http_port = vm["http-port"].as<uint16_t>();
 
   std::string data_path = "";
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
   auto start = std::chrono::high_resolution_clock::now();
   neug::NeugDB db;
-  neug::NeugDBConfig config(data_path, shard_num);
+  neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
   if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
     config.enable_auto_compaction = true;
@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
   LOG(INFO) << "GraphScope http server start to listen on port " << http_port;
 
   neug::ServiceConfig service_config;
-  service_config.shard_num = shard_num;
+  service_config.thread_num = thread_num;
   service_config.host_str =
       vm.count("host") ? vm["host"].as<std::string>() : "127.0.0.1";
   service_config.query_port = http_port;

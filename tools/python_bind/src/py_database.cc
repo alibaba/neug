@@ -57,16 +57,17 @@ void PyDatabase::initialize(pybind11::handle& m) {
       .def("close", &PyDatabase::close,
            "Close the database connection and "
            "release resources.\n")
+      .def("max_thread_num", &PyDatabase::max_thread_num,
+           "Return the effective database max_thread_num.\n")
       .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,
-           pybind11::arg("host") = "localhost", pybind11::arg("num_thread") = 0,
+           pybind11::arg("host") = "localhost", pybind11::arg("thread_num") = 0,
            pybind11::arg("blocking") = false,
            "Start the database server.\n\n"
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
            "    host (str): The host to bind to, default is 'localhost'.\n"
-           "    num_thread (int): The number of brpc worker threads to use, "
-           "default is 0, which means auto-select from the service session "
-           "pool size.\n"
+           "    thread_num (int): The service thread count, default is 0, "
+           "which means auto-select from database max_thread_num.\n"
            "    blocking (bool): Whether to block the function until the "
            "server shuts down.\n"
            "Returns:\n"
@@ -85,7 +86,7 @@ PyConnection PyDatabase::connect() {
 }
 
 std::string PyDatabase::serve(int port, const std::string& host,
-                              int32_t num_thread, bool blocking) {
+                              int32_t thread_num, bool blocking) {
 #ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
@@ -93,10 +94,16 @@ std::string PyDatabase::serve(int port, const std::string& host,
   if (service_) {
     THROW_RUNTIME_ERROR("Server is already running.");
   }
-  if (num_thread < 0) {
+  if (thread_num < 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Invalid num_thread: " + std::to_string(num_thread) +
+        "Invalid thread_num: " + std::to_string(thread_num) +
         ". Must be a non-negative integer.");
+  }
+  if (thread_num > database->config().max_thread_num) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid thread_num: " + std::to_string(thread_num) +
+        ". Must be less than or equal to database max_thread_num: " +
+        std::to_string(database->config().max_thread_num) + ".");
   }
   /**
    * Attention here: We utilize the NeugDBService to start the server, based on
@@ -115,7 +122,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   neug::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
-  config.shard_num = static_cast<uint32_t>(num_thread);
+  config.thread_num = static_cast<uint32_t>(thread_num);
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";

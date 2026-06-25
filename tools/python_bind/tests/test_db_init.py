@@ -230,6 +230,17 @@ def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
     db.close()
 
 
+def test_serve_thread_num_cannot_exceed_max_thread_num(tmp_path):
+    db_dir = tmp_path / "serve_thread_num_db"
+    db = Database(db_path=str(db_dir), mode="w", max_thread_num=1)
+
+    with pytest.raises(ValueError) as excinfo:
+        db.serve(port=10000, host="localhost", blocking=False, thread_num=2)
+
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    db.close()
+
+
 # DB-001-12
 def test_open_no_permission(tmp_path):
     db_dir = tmp_path / "no_permission_db"
