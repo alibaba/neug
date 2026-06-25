@@ -42,6 +42,8 @@
 
 namespace neug {
 
+class IndexManager;
+
 namespace execution {
 class EdgeRecord;
 }
@@ -177,6 +179,10 @@ class PropertyGraph {
    */
   Schema& mutable_schema();
 
+  const IndexManager& index_manager() const;
+
+  IndexManager& mutable_index_manager();
+
   /**
    * @brief Clear all graph data and reset to empty state.
    *
@@ -306,6 +312,9 @@ class PropertyGraph {
 
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
+  Status BatchAddVertices(label_t v_label_id,
+                          std::shared_ptr<IRecordBatchSupplier> supplier,
+                          std::vector<vid_t>& new_vids);
 
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
                        std::shared_ptr<IRecordBatchSupplier> supplier);
@@ -633,6 +642,8 @@ class PropertyGraph {
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;
+
+  std::unique_ptr<IndexManager> index_manager_;
 
   friend class GraphView;
 };

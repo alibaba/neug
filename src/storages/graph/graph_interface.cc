@@ -15,17 +15,75 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/storages/index/index_manager.h"
+
 namespace neug {
+
+namespace {
+
+static LabelEntry make_vertex_label(label_t label_id) {
+  return LabelEntry{EntryType::VERTEX, label_id, 0, 0};
+}
+
+static LabelEntry make_edge_label(label_t edge_label_id) {
+  return LabelEntry{EntryType::EDGE, edge_label_id, 0, 0};
+}
+
+static Status drop_indexes_for_property(IndexManager& index_manager,
+                                        label_t label_id,
+                                        const std::string& property_name) {
+  std::vector<Index*> indexes;
+  RETURN_IF_NOT_OK(index_manager.GetIndex(make_vertex_label(label_id),
+                                          {property_name}, indexes));
+  for (auto* idx : indexes) {
+    RETURN_IF_NOT_OK(index_manager.DropIndex(idx->GetMeta().name));
+  }
+  return Status::OK();
+}
+
+}  // namespace
 
 Status StorageAPUpdateInterface::UpdateVertexProperty(
     label_t label, vid_t lid, int col_id, const execution::Value& value) {
-  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  RETURN_IF_NOT_OK(
+      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
+
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  if (col_id < 0 ||
+      static_cast<size_t>(col_id) >= v_schema->property_names.size()) {
+    return Status::OK();
+  }
+  if (v_schema->vprop_soft_deleted[col_id]) {
+    return Status::OK();
+  }
+  const auto& prop_name = v_schema->property_names[col_id];
+  std::vector<Index*> indexes;
+  index_manager_.GetIndex(make_vertex_label(label), {prop_name}, indexes);
+  for (auto* idx : indexes) {
+    idx->Delete(lid);
+    idx->Append(lid, {value});
+  }
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::UpdateEdgeProperty(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const execution::Value& value) {
+  const auto& e_schema =
+      graph_.schema().get_edge_schema(src_label, dst_label, edge_label);
+  for (const auto& prop_name : e_schema->property_names) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " +
+                          graph_.schema().get_edge_label_name(edge_label));
+      }
+    }
+  }
   return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                                    oe_offset, ie_offset, col_id, value,
                                    neug::timestamp_t(0));
@@ -52,6 +110,23 @@ Status StorageAPUpdateInterface::AddVertex(
       graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
+    return status;
+  }
+
+  auto label_entry = make_vertex_label(label);
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    if (prop_idx >= props.size())
+      continue;
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    index_manager_.GetIndex(label_entry, {prop_name}, indexes);
+    for (auto* idx : indexes) {
+      idx->Append(vid, {props[prop_idx]});
+    }
   }
   return status;
 }
@@ -114,24 +189,102 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 
 Status StorageAPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
-  return graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  std::vector<vid_t> new_vids;
+  RETURN_IF_NOT_OK(
+      graph_.BatchAddVertices(v_label_id, std::move(supplier), new_vids));
+
+  if (new_vids.empty()) {
+    return Status::OK();
+  }
+
+  auto label_entry = make_vertex_label(v_label_id);
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label_id);
+  const auto& vtable = graph_.get_vertex_table(v_label_id);
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    index_manager_.GetIndex(label_entry, {prop_name}, indexes);
+    if (indexes.empty()) {
+      continue;
+    }
+    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
+    if (!col) {
+      continue;
+    }
+    for (auto* idx : indexes) {
+      for (vid_t vid : new_vids) {
+        auto prop_value = col->get_any(vid);
+        idx->Append(vid, {prop_value});
+      }
+    }
+  }
+
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IRecordBatchSupplier> supplier) {
+  const auto& e_schema =
+      graph_.schema().get_edge_schema(src_label, dst_label, edge_label);
+  for (const auto& prop_name : e_schema->property_names) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " +
+                          graph_.schema().get_edge_label_name(edge_label));
+      }
+    }
+  }
   return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                               std::move(supplier));
 }
 
 Status StorageAPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
+  auto label_entry = make_vertex_label(v_label_id);
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label_id);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    index_manager_.GetIndex(label_entry, {prop_name}, indexes);
+    for (auto* idx : indexes) {
+      for (vid_t vid : vids) {
+        idx->Delete(vid);
+      }
+    }
+  }
   return graph_.BatchDeleteVertices(v_label_id, vids);
 }
 
 Status StorageAPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+  const auto& e_schema = graph_.schema().get_edge_schema(
+      src_v_label_id, dst_v_label_id, edge_label_id);
+  for (const auto& prop_name : e_schema->property_names) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label_id), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " +
+                          graph_.schema().get_edge_label_name(edge_label_id));
+      }
+    }
+  }
   return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
                                  edges);
 }
@@ -140,6 +293,20 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  const auto& e_schema = graph_.schema().get_edge_schema(
+      src_v_label_id, dst_v_label_id, edge_label_id);
+  for (const auto& prop_name : e_schema->property_names) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label_id), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " +
+                          graph_.schema().get_edge_label_name(edge_label_id));
+      }
+    }
+  }
   return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
                                  oe_edges, ie_edges);
 }
@@ -166,8 +333,6 @@ Status StorageAPUpdateInterface::AddVertexProperties(
     const AddVertexPropertiesParam& config) {
   auto status = graph_.AddVertexProperties(config);
   if (status.ok()) {
-    // Adding columns replaces the table header/column list cached by
-    // GraphView, so refresh the mutable view before subsequent reads.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -177,10 +342,6 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
     const AddEdgePropertiesParam& config) {
   auto status = graph_.AddEdgeProperties(config);
   if (status.ok()) {
-    // Adding edge properties may trigger a bundled→unbundled CSR rebuild
-    // (dropAndCreateNewUnbundledCSR), which replaces the underlying CsrBase
-    // objects.  The mutable view caches raw pointers to those objects, so we
-    // must rebuild to pick up the new pointers.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -188,19 +349,43 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
 
 Status StorageAPUpdateInterface::RenameVertexProperties(
     const RenameVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    RETURN_IF_NOT_OK(
+        drop_indexes_for_property(index_manager_, v_label, old_name));
+  }
   return graph_.RenameVertexProperties(config);
 }
 
 Status StorageAPUpdateInterface::RenameEdgeProperties(
     const RenameEdgePropertiesParam& config) {
+  const auto& edge_label_name = config.GetEdgeLabel();
+  auto edge_label_id = graph_.schema().get_edge_label_id(edge_label_name);
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label_id), {old_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " + edge_label_name);
+      }
+    }
+  }
   return graph_.RenameEdgeProperties(config);
 }
 
 Status StorageAPUpdateInterface::DeleteVertexProperties(
     const DeleteVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    RETURN_IF_NOT_OK(
+        drop_indexes_for_property(index_manager_, v_label, prop_name));
+  }
   auto status = graph_.DeleteVertexProperties(config);
   if (status.ok()) {
-    // Deleting columns shifts the table column vector cached by GraphView.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -208,11 +393,21 @@ Status StorageAPUpdateInterface::DeleteVertexProperties(
 
 Status StorageAPUpdateInterface::DeleteEdgeProperties(
     const DeleteEdgePropertiesParam& config) {
+  const auto& edge_label_name = config.GetEdgeLabel();
+  auto edge_label_id = graph_.schema().get_edge_label_id(edge_label_name);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label_id), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " + edge_label_name);
+      }
+    }
+  }
   auto status = graph_.DeleteEdgeProperties(config);
   if (status.ok()) {
-    // Deleting edge properties may trigger a CSR rebuild (unbundled→bundled or
-    // unbundled→empty), which replaces the underlying CsrBase objects.  Rebuild
-    // the mutable view so cached pointers stay valid.
     mut_view_.Rebuild(graph_);
   }
   return status;
@@ -220,6 +415,15 @@ Status StorageAPUpdateInterface::DeleteEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexType(
     const std::string& vertex_type_name) {
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    RETURN_IF_NOT_OK(drop_indexes_for_property(
+        index_manager_, v_label, v_schema->property_names[prop_idx]));
+  }
   auto status = graph_.DeleteVertexType(vertex_type_name);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
@@ -230,11 +434,51 @@ Status StorageAPUpdateInterface::DeleteVertexType(
 Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
                                                 const std::string& dst_type,
                                                 const std::string& edge_type) {
+  const auto& prop_names =
+      graph_.schema().get_edge_property_names(src_type, dst_type, edge_type);
+  auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
+  for (const auto& prop_name : prop_names) {
+    std::vector<Index*> edge_indexes;
+    index_manager_.GetIndex(make_edge_label(edge_label_id), {prop_name},
+                            edge_indexes);
+    for (auto* idx : edge_indexes) {
+      if (idx->GetMeta().schema.label.type == EntryType::EDGE) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Edge indexes are not supported: " + edge_type);
+      }
+    }
+  }
   auto status = graph_.DeleteEdgeType(src_type, dst_type, edge_type);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
   }
   return status;
+}
+
+Status StorageReadInterface::GetIndex(
+    const LabelEntry& label_entry,
+    const std::vector<std::string>& property_names,
+    std::vector<Index*>& target_indexes) const {
+  return view_.index_manager().GetIndex(label_entry, property_names,
+                                        target_indexes);
+}
+
+Index* StorageReadInterface::GetIndexByName(const std::string& name) const {
+  return view_.index_manager().GetIndexByName(name);
+}
+
+Status StorageReadInterface::GetAllIndexes(
+    std::vector<Index*>& target_indexes) const {
+  return view_.index_manager().GetAllIndexes(target_indexes);
+}
+
+neug::result<Index*> StorageAPUpdateInterface::CreateIndex(
+    const std::string& name, std::unique_ptr<IndexMeta> meta) {
+  return index_manager_.CreateIndex(name, std::move(meta));
+}
+
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+  return index_manager_.DropIndex(name);
 }
 
 }  // namespace neug

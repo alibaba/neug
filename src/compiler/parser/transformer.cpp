@@ -65,6 +65,8 @@ std::unique_ptr<Statement> Transformer::transformStatement(
     return transformCreateSequence(*ctx.nEUG_CreateSequence());
   } else if (ctx.nEUG_CreateType()) {
     return transformCreateType(*ctx.nEUG_CreateType());
+  } else if (ctx.nEUG_CreateIndex()) {
+    return transformCreateIndex(*ctx.nEUG_CreateIndex());
   } else if (ctx.nEUG_Drop()) {
     return transformDrop(*ctx.nEUG_Drop());
   } else if (ctx.nEUG_AlterTable()) {

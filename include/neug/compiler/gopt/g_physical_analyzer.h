@@ -223,6 +223,7 @@ class GPhysicalAnalyzer {
       flag.batch = true;
       break;
     }
+    case planner::LogicalOperatorType::CREATE_INDEX:
     case planner::LogicalOperatorType::CREATE_TABLE:
     case planner::LogicalOperatorType::ALTER:
     case planner::LogicalOperatorType::DROP: {

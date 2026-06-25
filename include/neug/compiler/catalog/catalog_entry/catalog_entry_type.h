@@ -49,6 +49,8 @@ enum class CatalogEntryType : uint8_t {
   TYPE_ENTRY = 41,
   // Index entries
   INDEX_ENTRY = 42,
+  // Optimizer rule entries
+  RULE_ENTRY = 43,
   // Dummy entry
   DUMMY_ENTRY = 100,
 };

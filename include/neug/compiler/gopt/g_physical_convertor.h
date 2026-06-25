@@ -75,6 +75,8 @@ class GPhysicalConvertor {
 
   bool ddlClause(std::shared_ptr<planner::LogicalOperator> op) {
     return op->getOperatorType() ==
+               planner::LogicalOperatorType::CREATE_INDEX ||
+           op->getOperatorType() ==
                planner::LogicalOperatorType::CREATE_TABLE ||
            op->getOperatorType() == planner::LogicalOperatorType::ALTER ||
            op->getOperatorType() == planner::LogicalOperatorType::DROP;

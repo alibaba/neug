@@ -15,12 +15,17 @@
 
 #pragma once
 
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+
+#include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace extension {
@@ -68,6 +73,21 @@ class ExtensionAPI {
                                  neug::fsys::FileSystemFactory factory) {
     auto vfs = neug::main::MetadataRegistry::getVFS();
     vfs->Register(protocol, std::move(factory));
+  }
+
+  template <typename T>
+  static void registerRule(catalog::CatalogEntryType entryType) {
+    if (entryType != catalog::CatalogEntryType::RULE_ENTRY) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Rules must be registered with RULE_ENTRY");
+    }
+    auto gCatalog = neug::main::MetadataRegistry::getCatalog();
+    if (gCatalog->containsRule(&neug::transaction::DUMMY_TRANSACTION,
+                               T::name)) {
+      return;
+    }
+    gCatalog->addRule(&neug::transaction::DUMMY_TRANSACTION, T::name,
+                      std::make_unique<T>());
   }
 
   static void registerExtension(const ExtensionInfo& info);

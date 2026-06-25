@@ -73,11 +73,6 @@ struct NEUG_API IndexAuxInfo {
 
 class NEUG_API IndexCatalogEntry final : public CatalogEntry {
  public:
-  static std::string getInternalIndexName(common::table_id_t tableID,
-                                          std::string indexName) {
-    return common::stringFormat("{}_{}", tableID, std::move(indexName));
-  }
-
   IndexCatalogEntry(std::string type, common::table_id_t tableID,
                     std::string indexName,
                     std::vector<common::property_id_t> properties,

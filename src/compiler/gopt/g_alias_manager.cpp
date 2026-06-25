@@ -115,6 +115,7 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::COPY_TO:
   case planner::LogicalOperatorType::ALTER:
   case planner::LogicalOperatorType::DROP:
+  case planner::LogicalOperatorType::CREATE_INDEX:
   case planner::LogicalOperatorType::CREATE_TABLE:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::PARTITIONER:
@@ -175,6 +176,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::COPY_TO:
   case planner::LogicalOperatorType::ALTER:
   case planner::LogicalOperatorType::DROP:
+  case planner::LogicalOperatorType::CREATE_INDEX:
   case planner::LogicalOperatorType::CREATE_TABLE:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::PARTITIONER:
