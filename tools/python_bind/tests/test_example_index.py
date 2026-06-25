@@ -24,6 +24,7 @@ Tests the index framework through:
 - COPY FROM first, then CREATE INDEX
 - CREATE INDEX first, then COPY FROM
 - CREATE INDEX first, then COPY FROM multiple times (incremental)
+- Automatic index deletion after schema changes
 """
 
 import csv
@@ -118,6 +119,88 @@ class TestCreateIndex:
                 f"CREATE (:Person {{id: {p['id']}, name: '{p['name']}', age: {p['age']}}});"
             )
         conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
+        conn.close()
+        db.close()
+
+
+class TestAutomaticIndexDeletion:
+    """Test indexes are deleted when their bound schema is removed or renamed."""
+
+    def test_drop_vertex_type_deletes_index(self, db_dir):
+        """Dropping an indexed vertex type should release the index name."""
+        db, conn = make_db(db_dir)
+        create_person_table(conn)
+        conn.execute(
+            "CREATE NODE TABLE Replacement(id INT64 PRIMARY KEY, value INT32);"
+        )
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
+
+        # A duplicate index name should raise an error before Person is dropped.
+        with pytest.raises(RuntimeError):
+            conn.execute(
+                "CREATE INDEX idx_person_age ON Replacement USING EXAMPLE (value);"
+            )
+
+        conn.execute("DROP TABLE Person;")
+
+        # Reusing the same index name succeeds only if dropping Person
+        # automatically deleted the previous index.
+        conn.execute(
+            "CREATE INDEX idx_person_age ON Replacement USING EXAMPLE (value);"
+        )
+        conn.close()
+        db.close()
+
+    def test_drop_vertex_property_deletes_index(self, db_dir):
+        """Dropping an indexed property should release the index name."""
+        db, conn = make_db(db_dir)
+        create_person_table(conn)
+        conn.execute("ALTER TABLE Person ADD score INT32;")
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
+
+        conn.execute("ALTER TABLE Person DROP age;")
+
+        # Reusing the same index name succeeds only if dropping age
+        # automatically deleted the previous index.
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (score);")
+        conn.close()
+        db.close()
+
+    def test_rename_vertex_property_deletes_index(self, db_dir):
+        """Renaming an indexed property should release the index name."""
+        db, conn = make_db(db_dir)
+        create_person_table(conn)
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
+
+        conn.execute("ALTER TABLE Person RENAME age TO years;")
+
+        # Reusing the same index name succeeds only if renaming age
+        # automatically deleted the previous index.
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (years);")
+        conn.close()
+        db.close()
+
+    def test_deleted_index_stays_deleted_after_reopen(self, db_dir):
+        """An automatically deleted index should not reappear after reopen."""
+        db, conn = make_db(db_dir)
+        create_person_table(conn)
+        conn.execute(
+            "CREATE NODE TABLE Replacement(id INT64 PRIMARY KEY, value INT32);"
+        )
+        conn.execute("CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);")
+        conn.execute("DROP TABLE Person;")
+        conn.close()
+        db.close()
+
+        db = Database(db_dir, "w")
+        conn = db.connect()
+        conn.execute("LOAD example_index;")
+
+        # Reusing the same index name after reopening succeeds only if the
+        # automatic deletion was persisted with the database.
+        conn.execute(
+            "CREATE INDEX idx_person_age ON Replacement USING EXAMPLE (value);"
+        )
         conn.close()
         db.close()
 
