@@ -108,7 +108,8 @@ struct NeugDBConfig {
    * @brief Construct with data directory and thread count.
    *
    * @param data_dir_ Path to graph data directory
-   * @param thread_num_ Number of threads for concurrent operations
+   * @param thread_num_ Number of threads for concurrent operations. 0 means
+   * auto-select from hardware concurrency.
    */
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
@@ -136,7 +137,8 @@ struct NeugDBConfig {
   /// Query planner type: "gopt" (Graph Optimizer) or "greedy"
   std::string planner_kind;
 
-  /// Number of threads for concurrent operations
+  /// Number of threads for concurrent operations. 0 means auto-select from
+  /// hardware concurrency.
   int thread_num;
 
   /// Enable background auto-compaction thread

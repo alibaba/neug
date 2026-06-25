@@ -96,7 +96,8 @@ class Database(object):
         mode : str
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
-            Maximum number of threads to use. Default is 0, which means no limit.
+            Maximum number of threads to use. Default is 0, which means
+            auto-select from hardware concurrency.
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
@@ -161,10 +162,11 @@ class Database(object):
                 f"Error code: {ERR_CONFIG_INVALID}."
             )
 
-        if max_thread_num > os.cpu_count():
+        cpu_count = os.cpu_count()
+        if cpu_count is not None and max_thread_num > cpu_count:
             raise ValueError(
                 f"Invalid argument: max_thread_num: {max_thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
+                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
                 f" Error code: {ERR_INVALID_ARGUMENT}."
             )
         self._max_thread_num = max_thread_num

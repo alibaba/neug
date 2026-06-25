@@ -19,6 +19,7 @@ int main() {
   neug::ServiceConfig config;
   config.query_port = 10000;
   config.host_str = "0.0.0.0";
+  config.shard_num = 0;  // Auto-select brpc worker threads from the session pool.
   // 3. Start HTTP service
   neug::NeugDBService service(db, config);
   std::string url = service.Start();
@@ -37,6 +38,10 @@ int main() {
 - `GET /status` - Check service status
 
 **Thread Safety:** All public methods are thread-safe. The service uses a `SessionPool` internally to handle concurrent requests efficiently.
+
+**Worker Threads:** `ServiceConfig::shard_num` controls the brpc worker thread
+count for the HTTP service. The default `0` means NeuG auto-selects the worker
+count from the internal service session pool size.
 
 ### Constructors & Destructors
 
@@ -306,4 +311,3 @@ RAII guard for session lifecycle management.
 ```
 
 **Thread Safety:** `SessionGuard` is move-only (non-copyable) to ensure exclusive session ownership. Each guard should be used by a single thread.
-

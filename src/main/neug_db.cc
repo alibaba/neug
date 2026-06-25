@@ -188,8 +188,16 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
 void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
 
 void NeugDB::preprocessConfig() {
+  if (config_.thread_num < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid thread_num: " + std::to_string(config_.thread_num) +
+        ". Must be a non-negative integer.");
+  }
   if (config_.thread_num == 0) {
-    config_.thread_num = std::thread::hardware_concurrency();
+    config_.thread_num = static_cast<int>(std::thread::hardware_concurrency());
+    if (config_.thread_num == 0) {
+      config_.thread_num = 1;
+    }
   }
   auto db_dir = config_.data_dir;
   if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
