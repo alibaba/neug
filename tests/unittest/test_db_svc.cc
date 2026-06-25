@@ -103,6 +103,45 @@ TEST_F(NeugDBServiceTest, GetServiceConfig) {
   auto retrieved_config = service.GetServiceConfig();
   EXPECT_EQ(retrieved_config.query_port, config_.query_port);
   EXPECT_EQ(retrieved_config.host_str, config_.host_str);
+  EXPECT_EQ(retrieved_config.shard_num, config_.shard_num);
+}
+
+TEST_F(NeugDBServiceTest, DefaultWorkerThreadsFollowSessionPoolSize) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  ASSERT_EQ(cfg.shard_num, 0U);
+
+  neug::NeugDBService service(*db_, cfg);
+
+  EXPECT_EQ(service.GetServiceConfig().shard_num, 0U);
+  EXPECT_EQ(service.SessionNum(),
+            static_cast<size_t>(db_->config().thread_num));
+}
+
+TEST_F(NeugDBServiceTest, AutoDatabaseThreadCountFeedsSessionPoolSize) {
+  const auto db_path = (test_dir_ / "auto_thread_graph").string();
+  neug::NeugDB db;
+  neug::NeugDBConfig db_cfg(db_path, 0);
+  db.Open(db_cfg);
+
+  auto expected_thread_num = std::thread::hardware_concurrency();
+  if (expected_thread_num == 0) {
+    expected_thread_num = 1;
+  }
+  EXPECT_EQ(db.config().thread_num, static_cast<int>(expected_thread_num));
+
+  neug::ServiceConfig service_cfg;
+  service_cfg.query_port = 0;
+  service_cfg.host_str = "127.0.0.1";
+
+  {
+    neug::NeugDBService service(db, service_cfg);
+    EXPECT_EQ(service.GetServiceConfig().shard_num, 0U);
+    EXPECT_EQ(service.SessionNum(),
+              static_cast<size_t>(db.config().thread_num));
+  }
+  db.Close();
 }
 
 TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {

@@ -78,7 +78,8 @@ Open a database.
   - `options.mode` (string)
     Mode to open the database. Supported values: 'r', 'read', 'read-only', 'read_only', 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
   - `options.maxThreadNum` (number)
-    Maximum number of threads to use. Default is 0, which means no limit.
+    Maximum number of threads to use. The default `0` auto-selects from
+    hardware concurrency and falls back to `1` if the runtime cannot detect it.
   - `options.checkpointOnClose` (boolean)
     Whether to automatically create a checkpoint when the database is closed. Default is true.
     If false, no checkpoint is created automatically when close the database.
