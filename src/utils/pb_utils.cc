@@ -411,6 +411,51 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   return true;
 }
 
+bool default_expression_to_value(const DataType& type,
+                                 const common::Expression& expression,
+                                 execution::Value& out_value) {
+  if (expression.operators_size() != 1) {
+    LOG(ERROR) << "Default expression must contain exactly one operator: "
+               << expression.DebugString();
+    return false;
+  }
+
+  const auto& opr = expression.operators(0);
+  switch (opr.item_case()) {
+  case common::ExprOpr::kConst:
+    return common_value_to_value(type, opr.const_(), out_value);
+  case common::ExprOpr::kToArray: {
+    if (type.id() != DataTypeId::kArray) {
+      LOG(ERROR) << "TO_ARRAY default expression requires ARRAY property type: "
+                 << expression.DebugString();
+      return false;
+    }
+
+    const auto& fields = opr.to_array().fields();
+    if (!validate_array_element_count(type, fields.size())) {
+      return false;
+    }
+
+    const auto& child_type = ArrayType::GetChildType(type);
+    std::vector<execution::Value> elements;
+    elements.reserve(fields.size());
+    for (const auto& field : fields) {
+      execution::Value element(DataType::SQLNULL);
+      if (!default_expression_to_value(child_type, field, element)) {
+        return false;
+      }
+      elements.emplace_back(std::move(element));
+    }
+    out_value = execution::Value::ARRAY(type, std::move(elements));
+    return true;
+  }
+  default:
+    LOG(ERROR) << "Unsupported default expression: "
+               << expression.DebugString();
+    return false;
+  }
+}
+
 neug::result<std::vector<std::pair<std::string, execution::Value>>>
 property_defs_to_value(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
@@ -425,15 +470,15 @@ property_defs_to_value(
                           "Invalid property type: " + property.DebugString()));
     }
 
-    if (property.has_default_value()) {
-      if (!common_value_to_value(type, property.default_value(),
-                                 default_value)) {
+    if (property.has_default_expr()) {
+      if (!default_expression_to_value(type, property.default_expr(),
+                                       default_value)) {
         RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
         VLOG(10) << "Default value convert to any success:"
-                 << property.default_value().DebugString();
+                 << property.default_expr().DebugString();
       }
     } else {
       default_value = get_default_value(type);

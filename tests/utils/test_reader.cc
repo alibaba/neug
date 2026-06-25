@@ -433,7 +433,7 @@ class ArrowTypeConverterTest : public ::testing::Test {
   auto* array = dt.mutable_array();
   *array->mutable_component_type() = component;
   if (max_length > 0) {
-    array->set_max_length(max_length);
+    array->set_fixed_length(max_length);
   }
   return dt;
 }
@@ -611,7 +611,7 @@ TEST_F(ArrowTypeConverterTest, ReverseConvert_ListTypes) {
     auto result = converter_.convert(*input);
     ASSERT_NE(result, nullptr);
     EXPECT_TRUE(result->has_array());
-    EXPECT_EQ(result->array().max_length(), 0);
+    EXPECT_EQ(result->array().fixed_length(), 0);
     EXPECT_EQ(result->array().component_type().primitive_type(),
               ::common::PrimitiveType::DT_SIGNED_INT32);
   }
@@ -621,7 +621,7 @@ TEST_F(ArrowTypeConverterTest, ReverseConvert_ListTypes) {
     auto result = converter_.convert(*input);
     ASSERT_NE(result, nullptr);
     EXPECT_TRUE(result->has_array());
-    EXPECT_EQ(result->array().max_length(), 5);
+    EXPECT_EQ(result->array().fixed_length(), 5);
     EXPECT_EQ(result->array().component_type().primitive_type(),
               ::common::PrimitiveType::DT_DOUBLE);
   }
