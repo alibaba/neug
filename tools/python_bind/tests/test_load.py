@@ -22,6 +22,8 @@ import shutil
 import sys
 
 import pytest
+from conftest import COMPREHENSIVE_GRAPH_DIR
+from conftest import HAS_COMPREHENSIVE_GRAPH
 
 from neug import Database
 
@@ -62,8 +64,8 @@ def get_tinysnb_dataset_path():
     if os.path.exists(tinysnb_path):
         return tinysnb_path
 
-    # Default path (assumes dataset is loaded there)
-    return "/tmp/tinysnb"
+    # Default to workspace path; tests will skip if CSV files are not found
+    return tinysnb_path
 
 
 def get_comprehensive_graph_path():
@@ -80,7 +82,7 @@ def get_comprehensive_graph_path():
     if os.path.exists(comprehensive_path):
         return comprehensive_path
 
-    return "/tmp/comprehensive_graph"
+    return COMPREHENSIVE_GRAPH_DIR
 
 
 class TestLoadFrom:
@@ -1129,6 +1131,9 @@ class TestLoadFrom:
             assert height > 1.0, f"height {height} should be > 1.0"
             assert isinstance(fname, str), "fName should be string"
 
+    @pytest.mark.skipif(
+        not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
+    )
     def test_load_from_comprehensive_graph_csv(self):
         """Test LOAD FROM CSV auto-infers typed values without explicit CAST
         using example_dataset/comprehensive_graph/node_a.csv (pipe-delimited).
@@ -1188,6 +1193,9 @@ class TestLoadFrom:
         assert rows[0][4] == -1234567890123456789  # i64_weight: INT64
         assert str(rows[0][5]) == "2023-05-17"  # datetime_weight: DATE
 
+    @pytest.mark.skipif(
+        not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
+    )
     @extension_test
     def test_load_from_comprehensive_graph_parquet(self):
         """Test LOAD FROM Parquet covers all NeuG-supported data types
@@ -1874,6 +1882,9 @@ class TestCopyFrom:
         assert records[0][2] == 5, "Times should be 5"
         assert records[0][3] is not None, "Location should not be None"
 
+    @pytest.mark.skipif(
+        not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
+    )
     def test_copy_from_comprehensive_graph_csv(self):
         """Test COPY FROM CSV using comprehensive_graph node_a.csv (node) and rel_a.csv (edge).
         Covers all NeuG types: INT32, INT64, UINT32, UINT64, FLOAT, DOUBLE,
@@ -1981,6 +1992,9 @@ class TestCopyFrom:
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
 
+    @pytest.mark.skipif(
+        not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
+    )
     @extension_test
     def test_copy_from_comprehensive_graph_parquet(self):
         """Test COPY FROM Parquet using comprehensive_graph node_a.parquet (node)

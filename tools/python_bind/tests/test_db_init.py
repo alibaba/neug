@@ -22,6 +22,8 @@ import shutil
 import sys
 
 import pytest
+from conftest import HAS_LDBC
+from conftest import LDBC_DIR
 
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_CONFIG_INVALID
@@ -67,8 +69,9 @@ def test_local_db_open_exists_and_close(tmp_path):
     db2.close()
 
 
+@pytest.mark.skipif(not HAS_LDBC, reason="LDBC data not found")
 def test_local_ldbc_open_and_close():
-    db_dir = "/tmp/ldbc"
+    db_dir = LDBC_DIR
     db = Database(db_path=str(db_dir), mode="r")
     assert db is not None
     db.close()
