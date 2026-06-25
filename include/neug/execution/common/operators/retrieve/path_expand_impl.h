@@ -284,8 +284,8 @@ void sssp_both_dir_with_order_by_length_limit(
   vector_t<vid_t> next;
   cur.push_back(v);
   int depth = 0;
-  StorageReadInterface::vertex_array_t<bool> vis(vertices, false);
-  vis[v] = true;
+  StorageReadInterface::vertex_array_t<int8_t> vis(vertices, 0);
+  vis[v] = 1;
 
   while (depth < upper && !cur.empty()) {
     if (offsets.size() >= static_cast<size_t>(limit_upper)) {
@@ -302,7 +302,9 @@ void sssp_both_dir_with_order_by_length_limit(
           }
         }
       } else {
-        for (auto u : cur) {
+        for (size_t k = 0; k < cur.size(); ++k) {
+          auto u = cur[k];
+          prefetch_next_vertex(view0, cur, k);
           if (pred(v_label, u)) {
             dest_col_builder.push_back_opt(u);
 
@@ -313,35 +315,39 @@ void sssp_both_dir_with_order_by_length_limit(
           for (auto it = es0.begin(); it != es0.end(); ++it) {
             auto nbr = it.get_vertex();
             if (!vis[nbr]) {
-              vis[nbr] = true;
+              vis[nbr] = 1;
               next.push_back(nbr);
             }
           }
+          prefetch_next_vertex(view1, cur, k);
           auto es1 = view1.get_edges(u);
           for (auto it = es1.begin(); it != es1.end(); ++it) {
             auto nbr = it.get_vertex();
             if (!vis[nbr]) {
-              vis[nbr] = true;
+              vis[nbr] = 1;
               next.push_back(nbr);
             }
           }
         }
       }
     } else {
-      for (auto u : cur) {
+      for (size_t k = 0; k < cur.size(); ++k) {
+        auto u = cur[k];
+        prefetch_next_vertex(view0, cur, k);
         auto es0 = view0.get_edges(u);
         for (auto it = es0.begin(); it != es0.end(); ++it) {
           auto nbr = it.get_vertex();
           if (!vis[nbr]) {
-            vis[nbr] = true;
+            vis[nbr] = 1;
             next.push_back(nbr);
           }
         }
+        prefetch_next_vertex(view1, cur, k);
         auto es1 = view1.get_edges(u);
         for (auto it = es1.begin(); it != es1.end(); ++it) {
           auto nbr = it.get_vertex();
           if (!vis[nbr]) {
-            vis[nbr] = true;
+            vis[nbr] = 1;
             next.push_back(nbr);
           }
         }
