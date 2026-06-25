@@ -77,14 +77,15 @@ endpoint = db.serve(
     host="0.0.0.0",
     port=10000,
     blocking=False,
-    num_thread=8,
+    num_thread=0,
 )
 ```
 
-`num_thread=0` is the default and lets NeuG auto-select the worker count from
-the service session pool size. This is separate from client-side
-`Session(..., num_threads=...)`, which configures the client's HTTP connection
-pool.
+`num_thread=0` is the default and auto-selects from the service session pool
+size. With the default database thread setting, that pool size is resolved from
+hardware concurrency and falls back to `1` if the runtime cannot detect it. This
+is separate from client-side `Session(..., num_threads=...)`, which configures
+the client's HTTP connection pool.
 
 ### Multi-version wheels via cibuildwheel
 

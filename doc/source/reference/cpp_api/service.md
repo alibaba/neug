@@ -40,8 +40,10 @@ int main() {
 **Thread Safety:** All public methods are thread-safe. The service uses a `SessionPool` internally to handle concurrent requests efficiently.
 
 **Worker Threads:** `ServiceConfig::shard_num` controls the brpc worker thread
-count for the HTTP service. The default `0` means NeuG auto-selects the worker
-count from the internal service session pool size.
+count for the HTTP service. The default `0` auto-selects from the internal
+service session pool size. With the default database thread setting, that pool
+size is resolved from hardware concurrency and falls back to `1` if the runtime
+cannot detect it.
 
 ### Constructors & Destructors
 

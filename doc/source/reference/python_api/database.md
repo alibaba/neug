@@ -70,8 +70,8 @@ Open a database.
   - `mode` (str)
     Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
   - `max_thread_num` (int)
-    Maximum number of threads to use. Default is 0, which auto-selects from
-    hardware concurrency.
+    Maximum number of threads to use. The default `0` auto-selects from
+    hardware concurrency and falls back to `1` if the runtime cannot detect it.
   - `checkpoint_on_close` (bool)
     Whether to automatically create a checkpoint when the database is closed. Default is True.
     If False, no checkpoint is created automatically when close the database.
@@ -162,8 +162,10 @@ documentation of Session.
   - `blocking` (bool)
     Whether to block the process after starting the database server.
   - `num_thread` (int)
-    Number of brpc worker threads used by the service. Default is 0, which
-    auto-selects the worker count from the service session pool size.
+    Number of brpc worker threads used by the service. The default `0`
+    auto-selects from the service session pool size. With the default database
+    thread setting, that pool size is resolved from hardware concurrency and
+    falls back to `1` if the runtime cannot detect it.
 
 - **Returns:**
   - `uri` (str)

@@ -58,12 +58,13 @@ import neug
 
 # Start NeuG as a service
 db = neug.Database("/path/to/database")
-service = db.serve(host="localhost", port=10000, blocking=False, num_thread=4)
+service = db.serve(host="localhost", port=10000, blocking=False, num_thread=0)
 ```
 
 `num_thread` controls the number of brpc worker threads used by the service.
-Use `num_thread=0` to let NeuG auto-select the worker count from the service
-session pool size.
+The default `0` auto-selects from the service session pool size. With the
+default database thread setting, that pool size is resolved from hardware
+concurrency and falls back to `1` if the runtime cannot detect it.
 
 **Connect from client:**
 ```python
