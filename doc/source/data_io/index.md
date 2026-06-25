@@ -46,6 +46,6 @@ Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading o
 
 ## What's Next
 
-- **[LOAD FROM / LOAD AS](load_data)** — Read external files for relational operations or create temporary graph tables
-- **[COPY FROM](import_data)** — Persist external data into graph storage
+- **[LOAD FROM](load_data)** — Read external files into temporary tables with relational operations
+- **[COPY FROM / COPY TEMP](import_data)** — Persist or temporarily import external data into graph storage
 - **[COPY TO](export_data)** — Export query results to external files

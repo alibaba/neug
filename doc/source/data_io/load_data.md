@@ -8,9 +8,7 @@ You can apply standard relational operations — projection, filtering, type cas
 
 ---
 
-## LOAD FROM
-
-### Basic Syntax
+## Basic Syntax
 
 ```cypher
 LOAD FROM "<file_path>" (<options>)
@@ -179,5 +177,3 @@ LOAD FROM "large_person.csv" (
 )
 RETURN name, age;
 ```
-
----

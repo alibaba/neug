@@ -172,6 +172,10 @@ COPY TEMP TempKnows FROM (
 
 When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new** label skips manual `CREATE NODE TABLE` / `CREATE REL TABLE` for that label. The compiler builds a plan that applies DDL for the inferred type, then runs the same bulk insert path as a normal `COPY`.
 
+| Option          | Type | Default  | Description                                                                                                                                         |
+| --------------- | ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_detect` | bool | `true` | If the target table does not exist, infer schema from the scan/sniff result and create it before insert. If `false`, a missing table is an error. |
+
 You can set it explicitly when needed:
 
 ```cypher
