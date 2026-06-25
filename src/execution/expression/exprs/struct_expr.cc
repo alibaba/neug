@@ -121,5 +121,58 @@ std::unique_ptr<BindedExprBase> ListExpr::bind(const IStorageInterface* storage,
   }
   return std::make_unique<BindedListExpr>(std::move(bound_exprs), type_);
 }
+
+ArrayExpr::ArrayExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs,
+                     DataType array_type)
+    : exprs_(std::move(exprs)), type_(std::move(array_type)) {}
+
+class BindedArrayExpr : public VertexExprBase,
+                        public EdgeExprBase,
+                        public RecordExprBase {
+ public:
+  BindedArrayExpr(std::vector<std::unique_ptr<BindedExprBase>>&& exprs,
+                  const DataType& type)
+      : exprs_(std::move(exprs)), type_(type) {}
+  const DataType& type() const override { return type_; }
+
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(expr->Cast<RecordExprBase>().eval_record(chunk, idx));
+    }
+    return Value::ARRAY(type_, std::move(values));
+  }
+
+  Value eval_vertex(label_t v_label, vid_t v_id) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(expr->Cast<VertexExprBase>().eval_vertex(v_label, v_id));
+    }
+    return Value::ARRAY(type_, std::move(values));
+  }
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr) const override {
+    std::vector<Value> values;
+    for (const auto& expr : exprs_) {
+      values.push_back(
+          expr->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr));
+    }
+    return Value::ARRAY(type_, std::move(values));
+  }
+
+ private:
+  std::vector<std::unique_ptr<BindedExprBase>> exprs_;
+  DataType type_;
+};
+
+std::unique_ptr<BindedExprBase> ArrayExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  std::vector<std::unique_ptr<BindedExprBase>> bound_exprs;
+  for (const auto& expr : exprs_) {
+    bound_exprs.push_back(expr->bind(storage, params));
+  }
+  return std::make_unique<BindedArrayExpr>(std::move(bound_exprs), type_);
+}
 }  // namespace execution
 }  // namespace neug
