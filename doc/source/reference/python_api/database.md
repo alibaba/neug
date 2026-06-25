@@ -70,7 +70,8 @@ Open a database.
   - `mode` (str)
     Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
   - `max_thread_num` (int)
-    Maximum number of threads to use. Default is 0, which means no limit.
+    Maximum number of threads to use. The default `0` auto-selects from
+    hardware concurrency and falls back to `1` if the runtime cannot detect it.
   - `checkpoint_on_close` (bool)
     Whether to automatically create a checkpoint when the database is closed. Default is True.
     If False, no checkpoint is created automatically when close the database.
@@ -139,7 +140,10 @@ Connect to the database.
 ### serve
 
 ```python
-def serve(port: int = 10000, host: str = "localhost", blocking: bool = True)
+def serve(port: int = 10000,
+          host: str = "localhost",
+          blocking: bool = True,
+          num_thread: int = 0)
 ```
 
 Start the database server for handling remote connections(TP mode).
@@ -157,12 +161,19 @@ documentation of Session.
     The host to listen on. Default is 'localhost'.
   - `blocking` (bool)
     Whether to block the process after starting the database server.
+  - `num_thread` (int)
+    Number of brpc worker threads used by the service. The default `0`
+    auto-selects from the service session pool size. With the default database
+    thread setting, that pool size is resolved from hardware concurrency and
+    falls back to `1` if the runtime cannot detect it.
 
 - **Returns:**
   - `uri` (str)
     The URI of the server, in the format of 'http://host:port'.
 
 - **Raises:**
+  - **ValueError**
+    If `num_thread` is negative or greater than the available CPU core count.
   - **RuntimeError**
     If there are open connections to the local database.
     If the database is already serving.
@@ -170,6 +181,7 @@ documentation of Session.
 - **Notes:**
   - **Make sure to close all connections before starting the server.**
   - **After starting the server, no new connections to the local database will be allowed.**
+  - **`num_thread` controls server-side brpc worker threads; client-side `Session(..., num_threads=...)` controls the HTTP connection pool used by that client.**
 
 <a id="neug.database.Database.stop_serving"></a>
 
