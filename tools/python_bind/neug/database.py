@@ -96,8 +96,7 @@ class Database(object):
         mode : str
             Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
         max_thread_num : int
-            Maximum number of threads to use. Default is 0, which means
-            auto-select from hardware concurrency.
+            Maximum number of threads to use. Default is 0, which means no limit.
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
@@ -162,11 +161,10 @@ class Database(object):
                 f"Error code: {ERR_CONFIG_INVALID}."
             )
 
-        cpu_count = os.cpu_count()
-        if cpu_count is not None and max_thread_num > cpu_count:
+        if max_thread_num > os.cpu_count():
             raise ValueError(
                 f"Invalid argument: max_thread_num: {max_thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
+                f"Must be less than or equal to the number of CPU cores: {os.cpu_count()}."
                 f" Error code: {ERR_INVALID_ARGUMENT}."
             )
         self._max_thread_num = max_thread_num
@@ -242,13 +240,7 @@ class Database(object):
         self._connections.append(conn)
         return conn
 
-    def serve(
-        self,
-        port: int = 10000,
-        host: str = "localhost",
-        blocking: bool = True,
-        num_thread: int = 0,
-    ):
+    def serve(self, port: int = 10000, host: str = "localhost", blocking: bool = True):
         """
         Start the database server for handling remote connections(TP mode).
         This method is used to start the database server for handling remote connections.
@@ -266,9 +258,6 @@ class Database(object):
             The host to listen on. Default is 'localhost'.
         blocking : bool
             Whether to block the process after starting the database server.
-        num_thread : int
-            The number of brpc worker threads to use. Default is 0, which means
-            auto-select from the service session pool size.
 
         Returns
         -------
@@ -286,18 +275,6 @@ class Database(object):
         Make sure to close all connections before starting the server.
         After starting the server, no new connections to the local database will be allowed.
         """
-        if num_thread < 0:
-            raise ValueError(
-                f"Invalid config: num_thread: {num_thread}. Must be a non-negative integer."
-                f"Error code: {ERR_CONFIG_INVALID}."
-            )
-        cpu_count = os.cpu_count()
-        if cpu_count is not None and num_thread > cpu_count:
-            raise ValueError(
-                f"Invalid argument: num_thread: {num_thread}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
-            )
         # Before starting the server, we should check all current connections are closed.
         # And also after starting the server, no new connections should be allowed to the local database.
         for conn in self._connections:
@@ -318,7 +295,7 @@ class Database(object):
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
         try:
-            endpoint = self._database.serve(port, host, num_thread, blocking)
+            endpoint = self._database.serve(port, host, self._max_thread_num, blocking)
         except KeyboardInterrupt:
             self.stop_serving()
         return endpoint
