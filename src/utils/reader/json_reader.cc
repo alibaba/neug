@@ -313,7 +313,7 @@ void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
     suppliers.push_back(std::make_shared<JsonChunkSupplier>(path, read_config));
   }
 
-  if (use_batch_read) {
+  if (use_batch_read && !sharedState_->skipRows) {
     batch_read(suppliers, ctx);
   } else {
     full_read(suppliers, ctx, config);

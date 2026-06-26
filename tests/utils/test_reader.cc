@@ -32,7 +32,7 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   auto sharedState =
       createSharedState("test1.csv", columnNames, columnTypes,
                         {{"skip_rows", "1"}, {"batch_read", "false"}});
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -57,7 +57,7 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
       "test2.csv", columnNames, columnTypes,
       {{"skip_rows", "1"}, {"delim", "\t"}, {"batch_read", "false"}});
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -82,7 +82,7 @@ TEST_F(ReaderTest, TestCsvWithCustomQuoting) {
                                         {"delim", ","},
                                         {"skip_rows", "1"},
                                         {"batch_read", "false"}});
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -103,7 +103,7 @@ TEST_F(ReaderTest, TestCsvWithNoHeader) {
 
   auto sharedState = createSharedState("test4.csv", columnNames, columnTypes,
                                        {{"batch_read", "false"}});
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -131,7 +131,7 @@ TEST_F(ReaderTest, TestBatchRead) {
   auto sharedState = createSharedState(
       "test5.csv", columnNames, columnTypes,
       {{"batch_read", "true"}, {"batch_size", "1024"}, {"skip_rows", "1"}});
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -162,7 +162,7 @@ TEST_F(ReaderTest, TestColumnPruning) {
       "test6.csv", columnNames, columnTypes,
       {{"skip_rows", "1"}, {"batch_read", "false"}}, projectColumns);
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -192,7 +192,7 @@ TEST_F(ReaderTest, TestFilterPushdown) {
       "test7.csv", columnNames, columnTypes,
       {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, filterExpr);
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -225,7 +225,7 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
                         {{"skip_rows", "1"}, {"batch_read", "false"}},
                         projectColumns, filterExpr);
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -254,7 +254,7 @@ TEST_F(ReaderTest, TestMultipleFiles) {
   sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
                                            "/test9b.csv");
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -280,7 +280,7 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   auto sharedState =
       createSharedState("test10.csv", columnNames, columnTypes,
                         {{"skip_rows", "1"}, {"batch_read", "false"}});
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -324,7 +324,7 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
       "test11.csv", columnNames, columnTypes,
       {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, andExpr);
 
-  auto reader = createArrowReader(sharedState);
+  auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -336,6 +336,68 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   // Should filter to 2 rows: Charlie (id=3, score=92.5) and Eve (id=5,
   // score=96.0)
   EXPECT_EQ(ctx.row_num(), 2);
+}
+
+// Test 12: batch_read=true with filter (skipRows) should fallback to full_read
+TEST_F(ReaderTest, TestBatchReadWithFilter) {
+  createCsvFile("test12.csv",
+                "id|name|score\n1|Alice|95.5\n2|Bob|87.0\n3|Charlie|92.5\n4|"
+                "David|88.0\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  // Filter: score > 90.0 with batch_read=true
+  auto filterExpr =
+      createFilterExpression("score", ValueConverter::fromDouble(90.0));
+  auto sharedState = createSharedState(
+      "test12.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "true"}}, {}, filterExpr);
+
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  // Should filter out rows with score <= 90.0
+  // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 2);
+}
+
+// Test 13: batch_read=true with filter AND column projection
+TEST_F(ReaderTest, TestBatchReadWithFilterAndProjection) {
+  createCsvFile("test13.csv",
+                "id|name|score\n1|Alice|95.5\n2|Bob|87.0\n3|Charlie|92.5\n4|"
+                "David|88.0\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  // Project only "id" and "score" columns, filter: score > 90.0,
+  // batch_read=true
+  std::vector<std::string> projectColumns = {"id", "score"};
+  auto filterExpr =
+      createFilterExpression("score", ValueConverter::fromDouble(90.0));
+  auto sharedState = createSharedState(
+      "test13.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "true"}}, projectColumns, filterExpr);
+
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  // Should have 2 columns (id, score) and filtered rows (score > 90.0)
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(sharedState->columnNum(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);  // Alice and Charlie
 }
 
 // =============== JSON Reader ===============
@@ -381,6 +443,73 @@ TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
 
   EXPECT_THROW(reader->read(localState, ctx),
                exception::SchemaMismatchException);
+}
+
+// Test: JSON batch_read=true with filter should fallback to full_read
+TEST_F(ReaderTest, TestJsonBatchReadWithFilter) {
+  createJsonFile("test_json_filter.json",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
+                 "{\"id\":2,\"name\":\"Bob\",\"score\":87.0}\n"
+                 "{\"id\":3,\"name\":\"Charlie\",\"score\":92.5}\n"
+                 "{\"id\":4,\"name\":\"David\",\"score\":88.0}\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  // Filter: score > 90.0 with batch_read=true
+  auto filterExpr =
+      createFilterExpression("score", ValueConverter::fromDouble(90.0));
+  auto sharedState =
+      createJsonSharedState("test_json_filter.json", columnNames, columnTypes,
+                            {{"batch_read", "true"}});
+  sharedState->skipRows = filterExpr;
+
+  auto reader = createJsonReader(sharedState, false);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  // Should filter out rows with score <= 90.0
+  // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 2);
+}
+
+// Test: JSON batch_read=true with filter AND column projection
+TEST_F(ReaderTest, TestJsonBatchReadWithFilterAndProjection) {
+  createJsonFile("test_json_filter_proj.json",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
+                 "{\"id\":2,\"name\":\"Bob\",\"score\":87.0}\n"
+                 "{\"id\":3,\"name\":\"Charlie\",\"score\":92.5}\n"
+                 "{\"id\":4,\"name\":\"David\",\"score\":88.0}\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  // Project only "id" and "score", filter: score > 90.0, batch_read=true
+  auto filterExpr =
+      createFilterExpression("score", ValueConverter::fromDouble(90.0));
+  auto sharedState =
+      createJsonSharedState("test_json_filter_proj.json", columnNames,
+                            columnTypes, {{"batch_read", "true"}});
+  sharedState->skipRows = filterExpr;
+  sharedState->projectColumns = {"id", "score"};
+
+  auto reader = createJsonReader(sharedState, false);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  // Should have 2 columns (id, score) and filtered rows (score > 90.0)
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(sharedState->columnNum(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);  // Alice and Charlie
 }
 
 }  // namespace test

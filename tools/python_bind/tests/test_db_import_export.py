@@ -883,11 +883,6 @@ def test_copy_from_no_schema_node_second_copy_appends(tmp_path):
     db.close()
 
 
-@pytest.mark.xfail(
-    reason="TODO: COPY FROM subquery RETURN column projection not applied to data chunk.",
-    raises=SystemError,
-    run=False,
-)
 def test_copy_from_no_schema_node_subquery_where_filter(tmp_path):
     """LOAD FROM subquery with WHERE filters rows before DDL + load."""
     db_dir = tmp_path / "no_schema_where"
@@ -906,6 +901,39 @@ def test_copy_from_no_schema_node_subquery_where_filter(tmp_path):
     rows = list(conn.execute("MATCH (n:ns_filt) RETURN n.id ORDER BY n.id;"))
     assert len(rows) == 2
     assert [r[0] for r in rows] == [2, 3]
+
+    conn.close()
+    db.close()
+
+
+def test_copy_from_load_from_where_with_batch_read(tmp_path):
+    """COPY FROM LOAD FROM subquery applies WHERE when batch_read is explicitly enabled."""
+    db_dir = tmp_path / "batch_read_filter"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    csv_path = tmp_path / "persons.csv"
+    with open(csv_path, "w", encoding="utf-8") as f:
+        f.write("id,name,age\n1,Alice,18\n2,Bob,25\n3,Carol,30\n4,Dave,15\n")
+
+    conn.execute(
+        "CREATE NODE TABLE person_batch("
+        "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+
+    conn.execute(
+        f"COPY person_batch FROM ("
+        f'LOAD FROM "{csv_path}" (header=true, delimiter=",", batch_read=true) '
+        f"WHERE age > 20 "
+        f"RETURN id, name, age);"
+    )
+
+    rows = list(
+        conn.execute("MATCH (p:person_batch) RETURN p.id, p.name, p.age ORDER BY p.id;")
+    )
+    assert len(rows) == 2
+    assert rows == [[2, "Bob", 25], [3, "Carol", 30]]
 
     conn.close()
     db.close()

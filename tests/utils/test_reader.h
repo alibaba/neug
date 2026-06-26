@@ -253,11 +253,6 @@ class ReaderTest : public ::testing::Test {
                                                std::move(optionsBuilder));
   }
 
-  std::shared_ptr<reader::CsvReader> createArrowReader(
-      const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    return createCsvReader(sharedState);
-  }
-
   void createJsonFile(const std::string& filename, const std::string& content) {
     std::ofstream file(std::string(ARROW_READER_TEST_DIR) + "/" + filename);
     file << content;

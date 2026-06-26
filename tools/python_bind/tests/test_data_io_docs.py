@@ -367,9 +367,6 @@ class TestCopyFromDocs:
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
-    @pytest.mark.xfail(
-        reason="TODO: WHERE predicate in COPY FROM subquery not pushed down to CSV row filter."
-    )
     def test_copy_from_with_filtering(self):
         """import_data.md: COPY Person FROM (LOAD FROM ... WHERE age >= 18
         RETURN *)."""

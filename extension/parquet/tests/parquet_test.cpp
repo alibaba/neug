@@ -702,26 +702,94 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
       << "Extension should use Value column type when batch_read=false";
 }
 
-TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
+TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
+  // Create Parquet file with test data
+  auto schema = arrow::schema({arrow::field("id", arrow::int32()),
+                               arrow::field("score", arrow::float64())});
+
+  arrow::Int32Builder id_builder;
+  arrow::DoubleBuilder score_builder;
+
+  std::vector<std::pair<int32_t, double>> test_data = {
+      {1, 95.5}, {2, 87.0}, {3, 92.5}, {4, 78.0}, {5, 98.0}};
+
+  for (const auto& [id, score] : test_data) {
+    ASSERT_TRUE(id_builder.Append(id).ok());
+    ASSERT_TRUE(score_builder.Append(score).ok());
+  }
+
+  std::shared_ptr<arrow::Array> id_array, score_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(score_builder.Finish(&score_array).ok());
+
+  auto table = arrow::Table::Make(schema, {id_array, score_array});
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_batch_filter.parquet";
+  std::shared_ptr<arrow::io::FileOutputStream> outfile;
+  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 5));
+
+  // Create Neug filter expression: score > 90.0
+  auto filterExpr = std::make_shared<::common::Expression>();
+  auto var_opr = filterExpr->add_operators();
+  var_opr->mutable_var()->mutable_tag()->set_name("score");
+  auto gt_opr = filterExpr->add_operators();
+  gt_opr->set_logical(::common::Logical::GT);
+  auto const_opr = filterExpr->add_operators();
+  const_opr->mutable_const_()->set_f64(90.0);
+
+  // batch_read=true + filter
+  auto sharedState = std::make_shared<reader::ReadSharedState>();
+  auto entrySchema = std::make_shared<reader::TableEntrySchema>();
+  entrySchema->columnNames = {"id", "score"};
+  entrySchema->columnTypes = {createInt32Type(), createDoubleType()};
+
+  reader::FileSchema fileSchema;
+  fileSchema.paths = {filepath};
+  fileSchema.format = "parquet";
+  fileSchema.options = {{"batch_read", "true"}};
+
+  reader::ExternalSchema externalSchema;
+  externalSchema.entry = entrySchema;
+  externalSchema.file = fileSchema;
+  sharedState->schema = std::move(externalSchema);
+  sharedState->skipRows = filterExpr;
+
+  auto reader = createParquetReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  // Arrow scanner applies filter in both batch and full modes
+  EXPECT_EQ(ctx.col_num(), 2);
+
+  int64_t totalRows = 0;
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
+  }
+  EXPECT_EQ(totalRows, 3)
+      << "batch_read=true with filter should still apply Arrow filter pushdown";
+}
+
+TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
   // Create Parquet file
-  auto schema = arrow::schema({
-      arrow::field("id", arrow::int32()),
-      arrow::field("name", arrow::utf8()),
-      arrow::field("score", arrow::float64()),
-      arrow::field("grade", arrow::utf8())
-  });
+  auto schema = arrow::schema({arrow::field("id", arrow::int32()),
+                               arrow::field("name", arrow::utf8()),
+                               arrow::field("score", arrow::float64()),
+                               arrow::field("grade", arrow::utf8())});
 
   arrow::Int32Builder id_builder;
   arrow::StringBuilder name_builder, grade_builder;
   arrow::DoubleBuilder score_builder;
-  
-  std::vector<std::tuple<int32_t, std::string, double, std::string>> test_data = {
-      {1, "Alice", 95.5, "A"},
-      {2, "Bob", 87.0, "B"},
-      {3, "Charlie", 92.5, "A"},
-      {4, "David", 78.0, "C"}
-  };
-  
+
+  std::vector<std::tuple<int32_t, std::string, double, std::string>> test_data =
+      {{1, "Alice", 95.5, "A"},
+       {2, "Bob", 87.0, "B"},
+       {3, "Charlie", 92.5, "A"},
+       {4, "David", 78.0, "C"}};
+
   for (const auto& [id, name, score, grade] : test_data) {
     ASSERT_TRUE(id_builder.Append(id).ok());
     ASSERT_TRUE(name_builder.Append(name).ok());
@@ -735,13 +803,101 @@ TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
   ASSERT_TRUE(score_builder.Finish(&score_array).ok());
   ASSERT_TRUE(grade_builder.Finish(&grade_array).ok());
 
-  auto table = arrow::Table::Make(schema, {id_array, name_array, score_array, grade_array});
-  
-  std::string filepath = std::string(PARQUET_TEST_DIR) + "/test_combined.parquet";
+  auto table = arrow::Table::Make(
+      schema, {id_array, name_array, score_array, grade_array});
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_batch_combined.parquet";
   std::shared_ptr<arrow::io::FileOutputStream> outfile;
   PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
-  PARQUET_THROW_NOT_OK(
-      parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 4));
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 4));
+
+  // Create Neug filter: score > 90.0
+  auto filterExpr = std::make_shared<::common::Expression>();
+  auto var_opr = filterExpr->add_operators();
+  var_opr->mutable_var()->mutable_tag()->set_name("score");
+  auto gt_opr = filterExpr->add_operators();
+  gt_opr->set_logical(::common::Logical::GT);
+  auto const_opr = filterExpr->add_operators();
+  const_opr->mutable_const_()->set_f64(90.0);
+
+  // batch_read=true + filter + projection
+  auto sharedState = std::make_shared<reader::ReadSharedState>();
+  auto entrySchema = std::make_shared<reader::TableEntrySchema>();
+  entrySchema->columnNames = {"id", "name", "score", "grade"};
+  entrySchema->columnTypes = {createInt32Type(), createStringType(),
+                              createDoubleType(), createStringType()};
+
+  reader::FileSchema fileSchema;
+  fileSchema.paths = {filepath};
+  fileSchema.format = "parquet";
+  fileSchema.options = {{"batch_read", "true"}};
+
+  reader::ExternalSchema externalSchema;
+  externalSchema.entry = entrySchema;
+  externalSchema.file = fileSchema;
+  sharedState->schema = std::move(externalSchema);
+  sharedState->projectColumns = {"id", "score"};  // Exclude name, grade
+  sharedState->skipRows = filterExpr;
+
+  auto reader = createParquetReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  // Arrow scanner applies both filter and projection in batch mode
+  EXPECT_EQ(ctx.col_num(), 2)
+      << "batch_read=true with projection should still apply column pruning";
+
+  int64_t totalRows = 0;
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
+  }
+  EXPECT_EQ(totalRows, 2)
+      << "batch_read=true with filter+projection should filter to 2 rows";
+  EXPECT_EQ(sharedState->columnNum(), 2);
+}
+
+TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
+  // Create Parquet file
+  auto schema = arrow::schema({arrow::field("id", arrow::int32()),
+                               arrow::field("name", arrow::utf8()),
+                               arrow::field("score", arrow::float64()),
+                               arrow::field("grade", arrow::utf8())});
+
+  arrow::Int32Builder id_builder;
+  arrow::StringBuilder name_builder, grade_builder;
+  arrow::DoubleBuilder score_builder;
+
+  std::vector<std::tuple<int32_t, std::string, double, std::string>> test_data =
+      {{1, "Alice", 95.5, "A"},
+       {2, "Bob", 87.0, "B"},
+       {3, "Charlie", 92.5, "A"},
+       {4, "David", 78.0, "C"}};
+
+  for (const auto& [id, name, score, grade] : test_data) {
+    ASSERT_TRUE(id_builder.Append(id).ok());
+    ASSERT_TRUE(name_builder.Append(name).ok());
+    ASSERT_TRUE(score_builder.Append(score).ok());
+    ASSERT_TRUE(grade_builder.Append(grade).ok());
+  }
+
+  std::shared_ptr<arrow::Array> id_array, name_array, score_array, grade_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(name_builder.Finish(&name_array).ok());
+  ASSERT_TRUE(score_builder.Finish(&score_array).ok());
+  ASSERT_TRUE(grade_builder.Finish(&grade_array).ok());
+
+  auto table = arrow::Table::Make(
+      schema, {id_array, name_array, score_array, grade_array});
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_combined.parquet";
+  std::shared_ptr<arrow::io::FileOutputStream> outfile;
+  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 4));
 
   // Create Neug filter: score > 90.0
   auto filterExpr = std::make_shared<::common::Expression>();
