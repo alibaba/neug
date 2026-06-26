@@ -118,7 +118,7 @@ TEST_F(CopyTempTest, NodeBasic) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto res = conn->Query(
       "COPY TEMP TempPeople FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(res) << res.error().ToString();
   auto q = conn->Query("MATCH (n:TempPeople) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -143,7 +143,7 @@ TEST_F(CopyTempTest, NodeWithWhere) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto res = conn->Query(
       "COPY TEMP TempFiltered FROM (LOAD FROM \"" + csv +
-      "\" (primary_key = 'id', header = true) WHERE age > 25 RETURN *)");
+      "\" (header = true) WHERE age > 25 RETURN *)");
   EXPECT_TRUE(res) << res.error().ToString();
   auto q = conn->Query("MATCH (n:TempFiltered) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -156,7 +156,7 @@ TEST_F(CopyTempTest, NodeWithReturn) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto res = conn->Query(
       "COPY TEMP TempSlim FROM (LOAD FROM \"" + csv +
-      "\" (primary_key = 'id', header = true) RETURN id, name)");
+      "\" (header = true) RETURN id, name)");
   EXPECT_TRUE(res) << res.error().ToString();
   auto q = conn->Query("MATCH (n:TempSlim) RETURN n.id, n.name ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -169,7 +169,7 @@ TEST_F(CopyTempTest, NodeWhereAndReturn) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto res = conn->Query(
       "COPY TEMP TempWR FROM (LOAD FROM \"" + csv +
-      "\" (primary_key = 'id', header = true) WHERE age >= 25 RETURN id, name)");
+      "\" (header = true) WHERE age >= 25 RETURN id, name)");
   EXPECT_TRUE(res) << res.error().ToString();
   auto q = conn->Query("MATCH (n:TempWR) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -187,7 +187,7 @@ TEST_F(CopyTempTest, RelBasic) {
   std::string edges = std::string(CSV_DIR) + "/edges.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempPerson FROM \"" + people +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempKnows FROM \"" + edges +
@@ -240,7 +240,7 @@ TEST_F(CopyTempTest, RelWithWhereSubquery) {
   std::string edges = std::string(CSV_DIR) + "/edges.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempPW FROM \"" + people +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempFE FROM (LOAD FROM \"" + edges +
@@ -284,7 +284,7 @@ TEST_F(CopyTempTest, TempSrcPersistentDst) {
   std::string edges = std::string(CSV_DIR) + "/edges.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempSrc FROM \"" + people +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempMixed FROM \"" + edges +
@@ -308,7 +308,7 @@ TEST_F(CopyTempTest, CleanupOnClose) {
     std::string csv = std::string(CSV_DIR) + "/people.csv";
     auto r = conn->Query(
         "COPY TEMP TempEphemeral FROM \"" + csv +
-        "\" (primary_key = 'id', header = true)");
+        "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     auto q = conn->Query("MATCH (n:TempEphemeral) RETURN count(n);");
     EXPECT_TRUE(q) << q.error().ToString();
@@ -338,11 +338,11 @@ TEST_F(CopyTempTest, DuplicateLabelFails) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempDup FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempDup FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_FALSE(r2);
   conn->Close();
 }
@@ -353,7 +353,7 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
     std::string csv = std::string(CSV_DIR) + "/people.csv";
     auto r = conn->Query(
         "COPY TEMP TempReuse FROM \"" + csv +
-        "\" (primary_key = 'id', header = true)");
+        "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     conn->Close();
     db_->RemoveConnection(conn);
@@ -363,7 +363,7 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
     std::string csv = std::string(CSV_DIR) + "/people.csv";
     auto r = conn2->Query(
         "COPY TEMP TempReuse FROM \"" + csv +
-        "\" (primary_key = 'id', header = true)");
+        "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     auto q = conn2->Query("MATCH (n:TempReuse) RETURN count(n);");
     EXPECT_TRUE(q) << q.error().ToString();
@@ -383,7 +383,7 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     std::string csv = std::string(CSV_DIR) + "/people.csv";
     auto r = conn->Query(
         "COPY TEMP TempGone FROM \"" + csv +
-        "\" (primary_key = 'id', header = true)");
+        "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     conn->Close();
   }
@@ -421,7 +421,7 @@ TEST_F(CopyTempTest, LabelConflictWithPersistent) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r = conn->Query(
       "COPY TEMP Conflict FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_FALSE(r);
   conn->Close();
 }
@@ -442,7 +442,7 @@ TEST_F(CopyTempTest, DanglingReferenceSilentSkip) {
   std::string dangling = std::string(CSV_DIR) + "/dangling_edges.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempPD FROM \"" + people +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempDangling FROM \"" + dangling +
@@ -465,7 +465,7 @@ TEST_F(CopyTempTest, EmptyCsv) {
   std::string csv = std::string(CSV_DIR) + "/empty.csv";
   auto r = conn->Query(
       "COPY TEMP TempEmpty FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r) << r.error().ToString();
   auto q = conn->Query("MATCH (n:TempEmpty) RETURN count(n);");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -479,7 +479,7 @@ TEST_F(CopyTempTest, WhereFiltersAllRows) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r = conn->Query(
       "COPY TEMP TempNone FROM (LOAD FROM \"" + csv +
-      "\" (primary_key = 'id', header = true) WHERE age > 1000 RETURN *)");
+      "\" (header = true) WHERE age > 1000 RETURN *)");
   EXPECT_TRUE(r) << r.error().ToString();
   auto q = conn->Query("MATCH (n:TempNone) RETURN count(n);");
   EXPECT_TRUE(q) << q.error().ToString();
@@ -493,7 +493,7 @@ TEST_F(CopyTempTest, PropertyTypeInference) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r = conn->Query(
       "COPY TEMP TempTyped FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r) << r.error().ToString();
   auto q = conn->Query(
       "MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;");
@@ -508,7 +508,7 @@ TEST_F(CopyTempTest, MultipleQueriesOnSameTemp) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r = conn->Query(
       "COPY TEMP TempStable FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r) << r.error().ToString();
   auto q1 = conn->Query("MATCH (n:TempStable) RETURN count(n);");
   EXPECT_TRUE(q1) << q1.error().ToString();
@@ -529,7 +529,7 @@ TEST_F(CopyTempTest, DropTempNode) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r = conn->Query(
       "COPY TEMP TempDrop FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r) << r.error().ToString();
   auto q1 = conn->Query("MATCH (n:TempDrop) RETURN count(n);");
   EXPECT_TRUE(q1) << q1.error().ToString();
@@ -546,7 +546,7 @@ TEST_F(CopyTempTest, DropTempEdge) {
   std::string edges = std::string(CSV_DIR) + "/edges.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempNodeK FROM \"" + people +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempEdgeK FROM \"" + edges +
@@ -567,13 +567,13 @@ TEST_F(CopyTempTest, DropThenRecreate) {
   std::string csv = std::string(CSV_DIR) + "/people.csv";
   auto r1 = conn->Query(
       "COPY TEMP TempRecycle FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r1) << r1.error().ToString();
   auto drop = conn->Query("DROP TABLE TempRecycle;");
   EXPECT_TRUE(drop) << drop.error().ToString();
   auto r2 = conn->Query(
       "COPY TEMP TempRecycle FROM \"" + csv +
-      "\" (primary_key = 'id', header = true)");
+      "\" (header = true)");
   EXPECT_TRUE(r2) << r2.error().ToString();
   auto q = conn->Query("MATCH (n:TempRecycle) RETURN count(n);");
   EXPECT_TRUE(q) << q.error().ToString();
