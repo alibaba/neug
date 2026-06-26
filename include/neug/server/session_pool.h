@@ -130,7 +130,7 @@ class SessionGuard {
  * - Automatic WAL (Write-Ahead Log) management per session
  * - Memory-aligned session contexts for cache efficiency
  *
- * **Pool Size:** Determined by `NeugDBConfig::thread_num`, typically
+ * **Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically
  * matching the number of concurrent request handlers.
  *
  * @see NeugDBService for HTTP service wrapper
@@ -145,11 +145,11 @@ class SessionPool {
       std::shared_ptr<IVersionManager> version_manager,
       std::vector<std::shared_ptr<Allocator>>& allocators,
       const NeugDBConfig& config) {
-    session_num_ = config.thread_num;
+    session_num_ = config.max_thread_num;
     WalWriterFactory::Init();
-    contexts_ = static_cast<SessionLocalContext*>(
-        aligned_alloc(4096, sizeof(SessionLocalContext) * config.thread_num));
-    for (int i = 0; i < config.thread_num; ++i) {
+    contexts_ = static_cast<SessionLocalContext*>(aligned_alloc(
+        4096, sizeof(SessionLocalContext) * config.max_thread_num));
+    for (int i = 0; i < config.max_thread_num; ++i) {
       new (&contexts_[i]) SessionLocalContext(
           db, planner, global_query_cache, allocators[i], version_manager, i,
           WalWriterFactory::CreateWalWriter(db.graph().checkpoint().wal_dir(),

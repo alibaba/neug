@@ -139,8 +139,9 @@ class NeugDB {
    * @endcode
    *
    * @param data_dir Path to the graph data directory
-   * @param max_num_threads Maximum threads for concurrent operations.
-   *        If 0, uses hardware concurrency (number of CPU cores)
+   * @param max_thread_num Maximum threads for concurrent operations.
+   *        If 0, uses hardware concurrency (number of CPU cores), falling
+   *        back to 1 if the runtime cannot detect it.
    * @param mode Database access mode (READ_ONLY or READ_WRITE)
    * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or
    * "greedy"
@@ -159,7 +160,7 @@ class NeugDB {
    *
    * @since v0.1.0
    */
-  bool Open(const std::string& data_dir, int32_t max_num_threads = 0,
+  bool Open(const std::string& data_dir, int32_t max_thread_num = 0,
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt",
             bool enable_auto_compaction = false, bool compact_csr = true,
@@ -175,7 +176,7 @@ class NeugDB {
    * @code{.cpp}
    * neug::NeugDBConfig config;
    * config.data_dir = "/path/to/graph";
-   * config.thread_num = 8;
+   * config.max_thread_num = 8;
    * config.mode = neug::DBMode::READ_WRITE;
    * config.memory_level = 1;  // Use memory-mapped virtual memory
    * config.enable_auto_compaction = true;
@@ -330,7 +331,7 @@ class NeugDB {
   // Configuration and settings
   std::atomic<bool> closed_;
   bool is_pure_memory_;
-  int thread_num_;
+  int max_thread_num_;
   NeugDBConfig config_;
   CheckpointManager checkpoint_mgr_;
   std::unique_ptr<FileLock> file_lock_;

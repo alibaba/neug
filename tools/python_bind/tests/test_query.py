@@ -765,6 +765,63 @@ def test_intersect_predicate_ml(tinysnb):
     assert list(res) == [[2021, 2020], [2021, 2020], [2021, 2020], [2021, 2020]]
 
 
+def test_multi_intersect_preserves_all_edge_aliases(tmp_path):
+    db_dir = tmp_path / "multi_intersect_edge_aliases"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE FORUM(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE PERSON(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE POST(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE Forum_hasMember_Person("
+        "FROM FORUM TO PERSON, edge_id INT64);"
+    )
+    conn.execute(
+        "CREATE REL TABLE Forum_containerOf_Post(" "FROM FORUM TO POST, edge_id INT64);"
+    )
+    conn.execute(
+        "CREATE REL TABLE Person_knows_Person(" "FROM PERSON TO PERSON, edge_id INT64);"
+    )
+    conn.execute(
+        "CREATE REL TABLE Person_likes_Post(" "FROM PERSON TO POST, edge_id INT64);"
+    )
+
+    conn.execute("CREATE (:FORUM {id: 1});")
+    conn.execute("CREATE (:PERSON {id: 10});")
+    conn.execute("CREATE (:PERSON {id: 20});")
+    conn.execute("CREATE (:POST {id: 100});")
+    conn.execute(
+        """
+        MATCH (f:FORUM {id: 1}), (p1:PERSON {id: 10}),
+              (p2:PERSON {id: 20}), (post:POST {id: 100})
+        CREATE (f)-[:Forum_hasMember_Person {edge_id: 1}]->(p1),
+               (f)-[:Forum_hasMember_Person {edge_id: 2}]->(p2),
+               (f)-[:Forum_containerOf_Post {edge_id: 3}]->(post),
+               (p1)-[:Person_knows_Person {edge_id: 4}]->(p2),
+               (p1)-[:Person_likes_Post {edge_id: 5}]->(post),
+               (p2)-[:Person_likes_Post {edge_id: 6}]->(post);
+        """
+    )
+
+    result = conn.execute(
+        """
+        MATCH (f:FORUM)-[e1:Forum_hasMember_Person]->(p1:PERSON),
+              (f)-[e2:Forum_hasMember_Person]->(p2:PERSON),
+              (f)-[e3:Forum_containerOf_Post]->(post:POST),
+              (p1)-[e4:Person_knows_Person]->(p2),
+              (p1)-[e5:Person_likes_Post]->(post),
+              (p2)-[e6:Person_likes_Post]->(post)
+        RETURN e1.edge_id, e2.edge_id, e3.edge_id,
+               e4.edge_id, e5.edge_id, e6.edge_id;
+        """
+    )
+    assert list(result) == [[1, 2, 3, 4, 5, 6]]
+
+    conn.close()
+    db.close()
+
+
 def test_where_not_subquery(modern_graph):
     conn = modern_graph
     res = conn.execute(

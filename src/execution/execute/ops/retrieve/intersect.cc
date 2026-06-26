@@ -79,20 +79,14 @@ class IntersectOprMultip : public IOperator {
 
 class IntersectWithEdgeOpr : public IOperator {
  public:
-  IntersectWithEdgeOpr(const EdgeExpandParams& eep0,
-                       const EdgeExpandParams& eep1, int v_alias,
-                       std::unique_ptr<ExprBase>&& left_v_pred,
-                       std::unique_ptr<ExprBase>&& right_v_pred,
-                       std::unique_ptr<ExprBase>&& left_e_pred,
-                       std::unique_ptr<ExprBase>&& right_e_pred,
+  IntersectWithEdgeOpr(const std::vector<EdgeExpandParams>& eeps, int v_alias,
+                       std::vector<std::unique_ptr<ExprBase>>&& vertex_preds,
+                       std::vector<std::unique_ptr<ExprBase>>&& edge_preds,
                        const std::vector<int>& edge_alias)
-      : eep0_(eep0),
-        eep1_(eep1),
+      : eeps_(eeps),
         v_alias_(v_alias),
-        left_v_pred_(std::move(left_v_pred)),
-        right_v_pred_(std::move(right_v_pred)),
-        left_e_pred_(std::move(left_e_pred)),
-        right_e_pred_(std::move(right_e_pred)),
+        vertex_preds_(std::move(vertex_preds)),
+        edge_preds_(std::move(edge_preds)),
         edge_alias_(edge_alias) {}
 
   std::string get_operator_name() const override {
@@ -105,34 +99,32 @@ class IntersectWithEdgeOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::unique_ptr<BindedExprBase> left_v_pred =
-        left_v_pred_ ? left_v_pred_->bind(&graph, params) : nullptr;
-    std::unique_ptr<BindedExprBase> right_v_pred =
-        right_v_pred_ ? right_v_pred_->bind(&graph, params) : nullptr;
-    std::unique_ptr<BindedExprBase> left_e_pred =
-        left_e_pred_ ? left_e_pred_->bind(&graph, params) : nullptr;
-    std::unique_ptr<BindedExprBase> right_e_pred =
-        right_e_pred_ ? right_e_pred_->bind(&graph, params) : nullptr;
-    EdgeAndNbrPredicate left_pred(std::move(left_v_pred),
-                                  std::move(left_e_pred));
-    EdgeAndNbrPredicate right_pred(std::move(right_v_pred),
-                                   std::move(right_e_pred));
+    std::vector<EdgeAndNbrPredicate> preds;
+    for (size_t i = 0; i < edge_preds_.size(); ++i) {
+      std::unique_ptr<BindedExprBase> v_pred =
+          vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
+      std::unique_ptr<BindedExprBase> e_pred =
+          edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
+      preds.emplace_back(std::move(v_pred), std::move(e_pred));
+    }
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Intersect::Binary_Intersect_With_Edge(
-              graph, params, std::move(chunk), std::move(left_pred),
-              std::move(right_pred), eep0_, eep1_, v_alias_, edge_alias_);
+          if (eeps_.size() == 2) {
+            return Intersect::Binary_Intersect_With_Edge(
+                graph, params, std::move(chunk), std::move(preds[0]),
+                std::move(preds[1]), eeps_[0], eeps_[1], v_alias_, edge_alias_);
+          }
+          return Intersect::Multiple_Intersect_With_Edge(
+              graph, params, std::move(chunk), std::move(preds), eeps_,
+              v_alias_, edge_alias_);
         });
   }
 
  private:
-  EdgeExpandParams eep0_;
-  EdgeExpandParams eep1_;
+  std::vector<EdgeExpandParams> eeps_;
   int v_alias_;
-  std::unique_ptr<ExprBase> left_v_pred_;
-  std::unique_ptr<ExprBase> right_v_pred_;
-  std::unique_ptr<ExprBase> left_e_pred_;
-  std::unique_ptr<ExprBase> right_e_pred_;
+  std::vector<std::unique_ptr<ExprBase>> vertex_preds_;
+  std::vector<std::unique_ptr<ExprBase>> edge_preds_;
   std::vector<int> edge_alias_;
 };
 
@@ -233,19 +225,20 @@ neug::result<OpBuildResultT> IntersectOprBuilder::Build(
   bool keep_edge_alias = false;
   for (int i = 0; i < intersect_opr.sub_plans_size(); ++i) {
     const auto& sub_plan = intersect_opr.sub_plans(i);
+    int edge_alias = -1;
     if (sub_plan.plan_size() == 2) {
       if (!sub_plan.plan(1).opr().has_vertex()) {
         THROW_INTERNAL_EXCEPTION(
             "If there are two plans, the second plan must be a GetV.");
       }
-      int edge_alias = sub_plan.plan(0).opr().edge().has_alias()
-                           ? sub_plan.plan(0).opr().edge().alias().value()
-                           : -1;
-      edge_aliases.push_back(edge_alias);
+      edge_alias = sub_plan.plan(0).opr().edge().has_alias()
+                       ? sub_plan.plan(0).opr().edge().alias().value()
+                       : -1;
       if (edge_alias != -1) {
         keep_edge_alias = true;
       }
     }
+    edge_aliases.push_back(edge_alias);
   }
 
   ContextMeta meta = ctx_meta;
@@ -256,16 +249,10 @@ neug::result<OpBuildResultT> IntersectOprBuilder::Build(
         meta.set(ea, DataType::EDGE);
       }
     }
-    if (eeps_.size() != 2) {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "Keeping edge aliases is only supported for binary intersect.");
-    }
-    return std::make_pair(
-        std::make_unique<IntersectWithEdgeOpr>(
-            eeps_[0], eeps_[1], alias, std::move(vertex_preds_[0]),
-            std::move(vertex_preds_[1]), std::move(edge_preds_[0]),
-            std::move(edge_preds_[1]), edge_aliases),
-        meta);
+    return std::make_pair(std::make_unique<IntersectWithEdgeOpr>(
+                              eeps_, alias, std::move(vertex_preds_),
+                              std::move(edge_preds_), edge_aliases),
+                          meta);
   }
 
   return std::make_pair(

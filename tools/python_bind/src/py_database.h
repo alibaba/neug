@@ -64,18 +64,25 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
 
   PyConnection connect();
 
+  int32_t max_thread_num() const {
+    if (!database) {
+      THROW_RUNTIME_ERROR("Database is not initialized.");
+    }
+    return database->config().max_thread_num;
+  }
+
   /**
    * @brief Start the database server.
    * @param port The port to listen on, default is 10000.
    * @param host The host to bind to, default is "localhost".
-   * @param num_thread The number of threads to use, default is 0, which means
-   * use all hardware threads.
+   * @param thread_num The service thread count. 0 means auto-select from
+   * database max_thread_num.
    * @param blocking Whether to block the function until the server shuts down.
    * @return A string containing the URL of the server.
    * @note This method will block until the server is stopped.
    */
   std::string serve(int port = 10000, const std::string& host = "localhost",
-                    int32_t num_thread = 0, bool blocking = false);
+                    int32_t thread_num = 0, bool blocking = false);
 
   /**
    * @brief Stop the database server.

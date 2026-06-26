@@ -141,7 +141,6 @@ static rapidjson::Value build_vertex_json_value(
   append_property_to_json(std::get<1>(pk_types[0]), pk_prop, obj, allocator);
 
   {
-
     const auto& property_names =
         graph.schema().get_vertex_property_names(record.label_);
     for (size_t i = 0; i < property_names.size(); ++i) {

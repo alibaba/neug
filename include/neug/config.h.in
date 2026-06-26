@@ -63,7 +63,7 @@ enum class MemoryLevel : uint8_t {
  * @code{.cpp}
  * neug::NeugDBConfig config;
  * config.data_dir = "/path/to/graph";
- * config.thread_num = 8;
+ * config.max_thread_num = 8;
  * config.mode = neug::DBMode::READ_WRITE;
  * config.memory_level = 1;  // Use memory-mapped virtual memory
  * config.enable_auto_compaction = true;
@@ -95,7 +95,7 @@ struct NeugDBConfig {
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         mode(DBMode::READ_WRITE),
         planner_kind("gopt"),
-        thread_num(1),
+        max_thread_num(1),
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         compact_csr(true),
@@ -108,14 +108,15 @@ struct NeugDBConfig {
    * @brief Construct with data directory and thread count.
    *
    * @param data_dir_ Path to graph data directory
-   * @param thread_num_ Number of threads for concurrent operations
+   * @param max_thread_num_ Maximum database thread count. 0 means auto-select
+   * from hardware concurrency.
    */
-  NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
+  NeugDBConfig(const std::string& data_dir_, int max_thread_num_ = 1)
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         mode(DBMode::READ_WRITE),
         data_dir(data_dir_),
         planner_kind("gopt"),
-        thread_num(thread_num_),
+        max_thread_num(max_thread_num_),
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         compact_csr(true),
@@ -136,8 +137,9 @@ struct NeugDBConfig {
   /// Query planner type: "gopt" (Graph Optimizer) or "greedy"
   std::string planner_kind;
 
-  /// Number of threads for concurrent operations
-  int thread_num;
+  /// Maximum database thread count. 0 means auto-select from hardware
+  /// concurrency.
+  int max_thread_num;
 
   /// Enable background auto-compaction thread
   bool enable_auto_compaction;

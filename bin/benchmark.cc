@@ -253,10 +253,10 @@ int main(int argc, char** argv) {
   }
   data_path = vm["data-path"].as<std::string>();
   std::string graph_schema_path = data_path + "/graph.yaml";
-  int shard_num = 1;
+  int max_thread_num = 1;
 
   neug::NeugDB db;
-  neug::NeugDBConfig config(data_path, shard_num);
+  neug::NeugDBConfig config(data_path, max_thread_num);
   config.memory_level = memory_level;
 
   config.enable_auto_compaction = false;
