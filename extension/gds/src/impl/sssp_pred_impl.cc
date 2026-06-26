@@ -106,7 +106,8 @@ void SSSPPred::compute() {
       continue;
     }
 
-    auto relax = [&](auto& it, vid_t w, vid_t edge_src, vid_t edge_dst) {
+    auto relax = [&, dist = dist](auto& it, vid_t w, vid_t edge_src,
+                                  vid_t edge_dst) {
       if (!in_subgraph[w]) {
         return;
       }
