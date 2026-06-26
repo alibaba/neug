@@ -440,7 +440,7 @@ def test_checkpoint_reopen_array(tmp_path):
 
 
 def test_array_ddl_operations(tmp_path):
-    """ALTER ADD/DROP array column and explicit DEFAULT unsupported."""
+    """ALTER ADD/DROP array columns and explicit array DEFAULT literals."""
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
@@ -457,7 +457,7 @@ def test_array_ddl_operations(tmp_path):
     with pytest.raises(Exception):
         list(conn.execute("MATCH (d:Device) RETURN d.readings;"))
 
-    # Explicit DEFAULT literal can be supported
+    # Explicit DEFAULT literal is used when the property is omitted.
     conn.execute(
         "CREATE NODE TABLE Sensor("
         "  id INT64,"
@@ -504,7 +504,7 @@ def test_array_equality_filter(tmp_path):
 
 
 def test_array_collect_and_unwind(tmp_path):
-    """collect() aggregates array properties; UNWIND expands them."""
+    """collect() aggregates array properties; UNWIND expands array elements."""
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
@@ -674,8 +674,8 @@ def test_array_create_with_mixed_types(tmp_path):
     db.close()
 
 
-def test_list_index_supported_but_array_index_unsupported(tmp_path):
-    """List extraction works, but direct fixed-size array indexing does not."""
+def test_list_and_array_index_supported(tmp_path):
+    """List and fixed-size array extraction both use zero-based indexes."""
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 

@@ -5,7 +5,7 @@ NeuG supports the list-like operations shown in the table below. These operation
 Operator | Description | Example
 ---------|------------ | --------
 `IN` | return true if an element is contained in the given list | `1 IN [1, 2, 3] `
-`[]` | extract an element from a list by zero-based index | `[10, 20, 30][0]`
+`[]` | extract an element from a list or fixed-size array by zero-based index | `[10, 20, 30][0]`
 `UNWIND` | expand a list or fixed-size array into one row per element | `MATCH (s:Sensor) UNWIND s.readings AS x RETURN x`
 
 ## Array Values
@@ -22,6 +22,6 @@ RETURN reading
 ORDER BY reading;
 ```
 
-The result is one row per array element: `1`, `2`, `3`.
-
-Direct `array[index]` extraction for fixed-size `ARRAY` values is not supported yet.
+The result is one row per array element: `1`, `2`, `3`. Fixed-size `ARRAY`
+properties also support direct zero-based indexing, for example
+`s.readings[2]`.
