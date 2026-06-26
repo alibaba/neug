@@ -13,32 +13,17 @@
  * limitations under the License.
  */
 
+#include <arrow/dataset/discovery.h>
 #include <arrow/result.h>
 #include <arrow/status.h>
+#include <arrow/table.h>
 #include <glog/logging.h>
 
-#include "neug/utils/reader/reader.h"
-
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <arrow/array/array_base.h>
-#include <arrow/compute/api_scalar.h>
-#include <arrow/dataset/api.h>
-#include <arrow/dataset/dataset.h>
-#include <arrow/dataset/discovery.h>
-#include <arrow/dataset/file_csv.h>
-#include <arrow/dataset/scanner.h>
-#include <arrow/filesystem/api.h>
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/localfs.h>
-#include <arrow/filesystem/type_fwd.h>
-#include <arrow/table.h>
-#include <arrow/type.h>
+#include "parquet/arrow_context_column.h"
+#include "parquet/arrow_reader.h"
+#include "parquet/record_batch_supplier.h"
 
 #include "neug/compiler/common/assert.h"
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
@@ -180,12 +165,9 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   output.clear();
   execution::DataChunk chunk;
   for (int i = 0; i < num_cols; ++i) {
-    auto chunk_arrays = table->column(i)->chunks();
-    execution::ArrowArrayContextColumnBuilder builder;
-    for (const auto& array : chunk_arrays) {
-      builder.push_back(array);
-    }
-    chunk.set(i, builder.finish());
+    auto table_column = table->column(i);
+    chunk.set(i,
+              execution::arrow_arrays_to_value_column(table_column->chunks()));
   }
   output.append_chunk(std::move(chunk));
 }
@@ -219,20 +201,13 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
   auto batch_reader = batch_reader_result.ValueOrDie();
 
-  auto batch_supplier = std::make_shared<neug::ArrowRecordBatchStreamSupplier>(
-      batch_reader, row_num);
+  auto batch_supplier =
+      std::make_shared<RecordBatchChunkSupplier>(batch_reader, row_num);
 
-  int num_cols = sharedState->columnNum();
   output.clear();
-  execution::DataChunk chunk;
-  for (int i = 0; i < num_cols; ++i) {
-    // NOTE: Each column uses the same shared RecordBatch supplier, so columns
-    // share access to entire batches rather than being split by column. This
-    // design may need refactoring when storage no longer relies on Arrow.
-    execution::ArrowStreamContextColumnBuilder builder({batch_supplier});
-    chunk.set(i, builder.finish());
+  while (auto chunk = batch_supplier->GetNextChunk()) {
+    output.append_chunk(std::move(*chunk));
   }
-  output.append_chunk(std::move(chunk));
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

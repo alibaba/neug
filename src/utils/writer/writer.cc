@@ -17,10 +17,10 @@
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/output_stream.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
 
-#include <arrow/util/io_util.h>
 #include <climits>
 #include <cstdint>
 #include <cstdio>
@@ -322,13 +322,12 @@ void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   }
 }
 
-neug::Status CSVStringFormatBuffer::flush(
-    std::shared_ptr<arrow::io::OutputStream> stream) {
+neug::Status CSVStringFormatBuffer::flush(io::OutputStream& stream) {
   if (blob_.size > 0) {
-    auto status = stream->Write(data_, blob_.size);
+    auto status = stream.Write(data_, static_cast<int64_t>(blob_.size));
     blob_.size = 0;
     if (!status.ok()) {
-      return neug::Status(StatusCode::ERR_IO_ERROR, status.ToString());
+      return status;
     }
   }
   return neug::Status::OK();
@@ -351,15 +350,10 @@ neug::Status CsvQueryExportWriter::writeTable(
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "entry_schema is null");
   }
-  auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
-  if (!stream_result.ok()) {
-    int err = arrow::internal::ErrnoFromStatus(stream_result.status());
-    auto code = (err == EACCES || err == EPERM) ? StatusCode::ERR_PERMISSION
-                                                : StatusCode::ERR_IO_ERROR;
-    return neug::Status(code, "Failed to open file stream: " +
-                                  stream_result.status().ToString());
+  auto stream = io::openLocalOutputStream(schema_.paths[0]);
+  if (!stream) {
+    return neug::Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
-  auto stream = stream_result.ValueOrDie();
 
   WriteOptions writeOpts;
   auto batchSize = writeOpts.batch_rows.get(schema_.options);
@@ -374,7 +368,7 @@ neug::Status CsvQueryExportWriter::writeTable(
       csvBuffer.addValue(i, j);
     }
     if (i % batchSize == batchSize - 1) {
-      auto status = csvBuffer.flush(stream);
+      auto status = csvBuffer.flush(*stream);
       if (!status.ok()) {
         (void) stream->Close();
         return neug::Status(StatusCode::ERR_IO_ERROR,
@@ -383,19 +377,13 @@ neug::Status CsvQueryExportWriter::writeTable(
     }
   }
 
-  auto status = csvBuffer.flush(stream);
+  auto status = csvBuffer.flush(*stream);
   if (!status.ok()) {
     (void) stream->Close();
     return neug::Status(StatusCode::ERR_IO_ERROR,
                         "Failed to flush CSV buffer: " + status.ToString());
   }
-  auto close_status = stream->Close();
-  if (!close_status.ok()) {
-    return neug::Status(
-        StatusCode::ERR_IO_ERROR,
-        "Failed to close output stream: " + close_status.ToString());
-  }
-  return neug::Status::OK();
+  return stream->Close();
 }
 
 }  // namespace writer

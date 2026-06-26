@@ -18,9 +18,11 @@
 #include <string>
 #include <utility>
 
+#include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/io/output_stream.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/schema.h"
 
@@ -67,8 +69,7 @@ class StringFormatBuffer {
       : response_(response), schema_(schema) {}
   ~StringFormatBuffer() {}
   virtual void addValue(int rowIdx, int colIdx) = 0;
-  virtual neug::Status flush(
-      std::shared_ptr<arrow::io::OutputStream> stream) = 0;
+  virtual neug::Status flush(io::OutputStream& stream) = 0;
   static bool validateIndex(const neug::QueryResponse* response, int rowIdx,
                             int colIdx);
   static bool validateProtoValue(const std::string& validity, int rowIdx);
@@ -91,7 +92,7 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   ~CSVStringFormatBuffer() {}
   void addValue(int rowIdx, int colIdx) override;
   void addHeader();
-  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(io::OutputStream& stream) override;
 
  private:
   BinaryData blob_;
@@ -122,34 +123,27 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
 
 class QueryExportWriter : public ExportWriter {
  public:
-  QueryExportWriter(
+  explicit QueryExportWriter(
       const reader::FileSchema& schema,
-      std::shared_ptr<arrow::fs::FileSystem>
-          fileSystem,  // use arrow file system to open output stream
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : ExportWriter(schema, std::move(entry_schema)),
-        fileSystem_(fileSystem) {}
-  ~QueryExportWriter() {}
+      : ExportWriter(schema, std::move(entry_schema)) {}
+  ~QueryExportWriter() override = default;
 
-  virtual neug::Status write(const execution::Context& context,
-                             const StorageReadInterface& graph) override;
+  neug::Status write(const execution::Context& context,
+                     const StorageReadInterface& graph) override;
 
   virtual neug::Status writeTable(const QueryResponse* table) = 0;
-
- protected:
-  std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
 };
 
 class CsvQueryExportWriter : public QueryExportWriter {
  public:
-  CsvQueryExportWriter(
+  explicit CsvQueryExportWriter(
       const reader::FileSchema& schema,
-      std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
-  ~CsvQueryExportWriter() {}
+      : QueryExportWriter(schema, std::move(entry_schema)) {}
+  ~CsvQueryExportWriter() override = default;
 
-  virtual neug::Status writeTable(const QueryResponse* table) override;
+  neug::Status writeTable(const QueryResponse* table) override;
 };
 
 }  // namespace writer

@@ -134,6 +134,10 @@ class TypedColumn : public ColumnBase {
 
   void set_any(size_t index, const execution::Value& value,
                bool insert_safe) override {
+    if (value.IsNull()) {
+      set_value(index, T());
+      return;
+    }
     // allow resize is ignored for fixed-length types
     set_value(index, value.GetValue<T>());
   }
@@ -464,6 +468,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
                bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");
+    }
+    if (value.IsNull()) {
+      set_value(idx, std::string_view());
+      return;
     }
     auto dst_value = value.GetValue<std::string>();
     if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {

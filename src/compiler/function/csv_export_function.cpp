@@ -60,10 +60,8 @@ execution::Context writeExecFunc(
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
   convertFileSchemaOptions(schema);
-  const auto& vfs = neug::main::MetadataRegistry::getVFS();
-  const auto& fs = vfs->Provide(schema);
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
-      schema, fs->toArrowFileSystem(), entry_schema);
+      schema, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     if (status.error_code() == StatusCode::ERR_PERMISSION) {

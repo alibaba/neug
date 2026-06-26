@@ -16,15 +16,11 @@
 
 #pragma once
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/localfs.h>
 #include <memory>
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/utils/reader/json_dataset_builder.h"
-#include "neug/utils/reader/json_options.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
@@ -60,11 +56,9 @@ struct JsonReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
-    // register JsonDatasetBuilder to the reader to support json array format
-    auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem(),
-        std::make_shared<reader::JsonDatasetBuilder>());
+        std::make_unique<reader::JsonOptionsBuilder>(state, true);
+    auto reader =
+        std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -75,8 +69,6 @@ struct JsonReadFunction {
       const reader::FileSchema& schema) {
     auto state = std::make_shared<reader::ReadSharedState>();
     auto& externalSchema = state->schema;
-    // create table entry schema with empty column names and types, which need
-    // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     externalSchema.file.options["BATCH_SIZE"] =
@@ -91,12 +83,10 @@ struct JsonReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
-    // register JsonDatasetBuilder to the reader to support json array format
-    auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem(),
-        std::make_shared<reader::JsonDatasetBuilder>());
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
+        std::make_unique<reader::JsonOptionsBuilder>(state, true);
+    auto reader =
+        std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
+    auto sniffer = std::make_shared<reader::JsonSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +
@@ -122,7 +112,6 @@ struct JsonLReadFunction {
 
   static execution::Context jsonLExecFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
-    // todo: get file system from vfs manager
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -133,11 +122,9 @@ struct JsonLReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
-    // Arrow can support jsonl format by default, no need to register other
-    // DatasetBuilder
-    auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
+        std::make_unique<reader::JsonOptionsBuilder>(state, false);
+    auto reader =
+        std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -148,13 +135,10 @@ struct JsonLReadFunction {
       const reader::FileSchema& schema) {
     auto state = std::make_shared<reader::ReadSharedState>();
     auto& externalSchema = state->schema;
-    // create table entry schema with empty column names and types, which need
-    // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     externalSchema.file.options["BATCH_SIZE"] =
         std::to_string(reader::kSniffBlockSize);
-    // todo: get file system from vfs manager
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -165,12 +149,10 @@ struct JsonLReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
-    // Arrow can support jsonl format by default, no need to register other
-    // DatasetBuilder
-    auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
+        std::make_unique<reader::JsonOptionsBuilder>(state, false);
+    auto reader =
+        std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
+    auto sniffer = std::make_shared<reader::JsonSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +

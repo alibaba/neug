@@ -16,7 +16,6 @@
 
 #include "neug/utils/file_sys/file_system.h"
 
-#include <arrow/filesystem/localfs.h>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -48,9 +47,7 @@ class LocalFileSystem : public FileSystem {
     return neug::execution::ops::match_files_with_pattern(path);
   }
 
-  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override {
-    return std::make_unique<arrow::fs::LocalFileSystem>();
-  }
+  std::shared_ptr<void> getArrowFileSystem() const override { return nullptr; }
 };
 
 FileSystemRegistry::FileSystemRegistry() {

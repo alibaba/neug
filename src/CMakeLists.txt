@@ -35,11 +35,6 @@ if (ENABLE_GCOV)
 endif()
 target_link_libraries(neug PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(neug PRIVATE ${GFLAGS_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES})
-if(NOT APPLE AND TARGET arrow_bundled_dependencies)
-    target_link_libraries(neug PRIVATE arrow_bundled_dependencies)
-else()
-    target_link_libraries(neug PRIVATE ${ARROW_LIB})
-endif()
 target_link_libraries(neug PUBLIC ${GLOG_LIBRARIES})
 # Protobuf is PRIVATE to avoid double-initialization of global statics when
 # downstream shared libraries (e.g. neug_py_bind.so) also load libneug.dylib.
@@ -59,10 +54,7 @@ if (WITH_MIMALLOC)
 endif()
 target_include_directories(neug PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
-    $<INSTALL_INTERFACE:include/neug/compiler>
-    # Arrow and other third-party headers are included in neug's public API.
-    # Expose the top-level include/ tree so consumers can find them after installation.
-    $<INSTALL_INTERFACE:include>)
+    $<INSTALL_INTERFACE:include/neug/compiler>)
 
 neug_apply_symbol_visibility(neug)
 

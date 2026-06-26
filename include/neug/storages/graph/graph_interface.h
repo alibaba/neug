@@ -430,7 +430,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @return Status indicating success or failure
    */
   virtual Status BatchAddVertices(
-      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) = 0;
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) = 0;
 
   /**
    * @brief Batch insert edges from a record supplier.
@@ -443,7 +443,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
    */
   virtual Status BatchAddEdges(
       label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IRecordBatchSupplier> supplier) = 0;
+      std::shared_ptr<IDataChunkSupplier> supplier) = 0;
 };
 
 /**
@@ -650,9 +650,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
-      std::shared_ptr<IRecordBatchSupplier> supplier) override;
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IRecordBatchSupplier> supplier) override;
+                       std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdges(
