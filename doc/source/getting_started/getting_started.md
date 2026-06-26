@@ -1,6 +1,8 @@
 # Getting Started
 
-This guide will walk you through creating your first graph database, performing basic operations, and exploring both embedded and service modes.
+This guide walks you through creating your first graph database, performing basic operations, and exploring both embedded and service modes. Examples are in **Python**.
+
+> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api) or [C++ API reference](../../reference/cpp_api) for equivalent examples in those languages.
 
 ## Prerequisites
 
