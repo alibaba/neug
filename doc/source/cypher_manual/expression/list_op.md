@@ -6,7 +6,7 @@ Operator | Description | Example
 ---------|------------ | --------
 `IN` | return true if an element is contained in the given list | `1 IN [1, 2, 3] `
 `[]` | extract an element from a list by zero-based index | `[10, 20, 30][0]`
-`UNWIND` | expand a list or fixed-size array into one row per element | `UNWIND CAST([3, 1, 2], 'INT64[3]') AS x RETURN x`
+`UNWIND` | expand a list or fixed-size array into one row per element | `MATCH (s:Sensor) UNWIND s.readings AS x RETURN x`
 
 ## Array Values
 

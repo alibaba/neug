@@ -116,15 +116,7 @@ void apply_on_match_edge_impl(
         graph.schema().get_edge_properties(src_label, dst_label, label_id);
     if (col_id >= 0 && col_id < static_cast<int>(prop_types.size()) &&
         prop_types[col_id] != value.type()) {
-      auto src_id = value.type().id();
-      auto dst_id = prop_types[col_id].id();
-      if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
-          (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
-        value =
-            execution::convertListArrayValueIfNeeded(value, prop_types[col_id]);
-      } else {
-        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
-      }
+      THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
     }
     auto offset_pair =
         record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
@@ -183,16 +175,7 @@ EdgeRecord insert_and_return_edge_row(
       property_values[index] = default_values[index];
     } else {
       if (properties_type[index] != value.type()) {
-        auto src_id = value.type().id();
-        auto dst_id = properties_type[index].id();
-        if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
-            (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
-          value = execution::convertListArrayValueIfNeeded(
-              value, properties_type[index]);
-        } else {
-          THROW_RUNTIME_ERROR("Property type mismatch for property " +
-                              prop_name);
-        }
+        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
       }
       property_values[index] = value;
     }

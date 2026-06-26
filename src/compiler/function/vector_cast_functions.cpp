@@ -74,6 +74,11 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
          getPhysicalType(inputType->id()) == PhysicalTypeID::ARRAY) &&
         (getPhysicalType(resultType->id()) == PhysicalTypeID::LIST ||
          getPhysicalType(resultType->id()) == PhysicalTypeID::ARRAY)) {
+      if (inputType->id() != resultType->id()) {
+        THROW_CONVERSION_EXCEPTION(
+            stringFormat("Unsupported casting function from {} to {}.",
+                         inputType->ToString(), resultType->ToString()));
+      }
       // copy data and nullmask from input
       memcpy(resultVector->getData(), inputVector->getData(),
              numOfEntries * resultVector->getNumBytesPerValue());
@@ -153,13 +158,13 @@ static void nestedTypesCastExecFunction(
   const auto& inputVector = params[0];
   const auto* inputVectorSelVector = paramSelVectors[0];
 
-  // check if all selcted list entry have the requried fixed list size
-  if (CastArrayHelper::containsListToArray(inputVector->dataType,
-                                           result.dataType)) {
+  // Check whether any fixed-size array entries need runtime length validation.
+  if (CastArrayHelper::requiresArrayEntryValidation(inputVector->dataType,
+                                                    result.dataType)) {
     for (auto i = 0u; i < inputVectorSelVector->getSelSize(); i++) {
       auto pos = (*inputVectorSelVector)[i];
-      CastArrayHelper::validateListEntry(inputVector.get(), result.dataType,
-                                         pos);
+      CastArrayHelper::validateArrayEntries(inputVector.get(), result.dataType,
+                                            pos);
     }
   };
 
@@ -186,18 +191,6 @@ static bool hasImplicitCastArray(const DataType& srcType,
     return false;
   }
   return CastFunction::hasImplicitCast(ArrayType::GetChildType(srcType),
-                                       ArrayType::GetChildType(dstType));
-}
-
-static bool hasImplicitCastArrayToList(const DataType& srcType,
-                                       const DataType& dstType) {
-  return CastFunction::hasImplicitCast(ArrayType::GetChildType(srcType),
-                                       ::ListType::GetChildType(dstType));
-}
-
-static bool hasImplicitCastListToArray(const DataType& srcType,
-                                       const DataType& dstType) {
-  return CastFunction::hasImplicitCast(::ListType::GetChildType(srcType),
                                        ArrayType::GetChildType(dstType));
 }
 
@@ -235,14 +228,6 @@ bool CastFunction::hasImplicitCast(const DataType& srcType,
                                    const DataType& dstType) {
   if (LogicalTypeUtils::isNested(srcType) &&
       LogicalTypeUtils::isNested(dstType)) {
-    if (srcType.id() == DataTypeId::kArray &&
-        dstType.id() == DataTypeId::kList) {
-      return hasImplicitCastArrayToList(srcType, dstType);
-    }
-    if (srcType.id() == DataTypeId::kList &&
-        dstType.id() == DataTypeId::kArray) {
-      return hasImplicitCastListToArray(srcType, dstType);
-    }
     if (srcType.id() != dstType.id()) {
       return false;
     }
@@ -753,9 +738,6 @@ static execution::Value castFunc(const std::vector<execution::Value>& args) {
     return execution::performCast<uint32_t>(arg0);
   case DataTypeId::kUInt64:
     return execution::performCast<uint64_t>(arg0);
-  case DataTypeId::kList:
-  case DataTypeId::kArray:
-    return execution::convertListArrayValueIfNeeded(arg0, targetType);
   default:
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));

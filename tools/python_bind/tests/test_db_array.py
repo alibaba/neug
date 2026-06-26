@@ -631,6 +631,32 @@ def test_array_wrong_size_throws(tmp_path):
     db.close()
 
 
+def test_cast_does_not_convert_between_list_and_array(tmp_path):
+    """CAST should not normalize LIST and fixed-size ARRAY values."""
+    db = Database(db_path=str(tmp_path), mode="w")
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE Sensor(id INT64, readings INT32[3], PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (s:Sensor {id: 1, readings: [1, 2, 3]});")
+
+    with pytest.raises(Exception):
+        list(conn.execute("MATCH (s:Sensor) RETURN CAST(s.readings, 'INT32[]');"))
+
+    with pytest.raises(Exception):
+        list(
+            conn.execute(
+                "UNWIND [1, 2, 3] AS v "
+                "WITH collect(v) AS values "
+                "RETURN CAST(values, 'INT64[3]');"
+            )
+        )
+
+    conn.close()
+    db.close()
+
+
 def test_array_create_with_mixed_types(tmp_path):
     """CREATE with INT literals into a DOUBLE array (implicit numeric cast)."""
     db = Database(db_path=str(tmp_path), mode="w")
@@ -643,27 +669,6 @@ def test_array_create_with_mixed_types(tmp_path):
 
     rows = list(conn.execute("MATCH (v:Vector) RETURN v.embedding;"))
     _approx_eq(_nested_list(rows[0][0]), [1.0, 2.0])
-
-    conn.close()
-    db.close()
-
-
-def test_cast_list_array_conversions(tmp_path):
-    """CAST supports explicit LIST <-> ARRAY conversion with size checks."""
-    db = Database(db_path=str(tmp_path), mode="w")
-    conn = db.connect()
-
-    rows = list(conn.execute("RETURN CAST([1, 2, 3], 'INT64[3]');"))
-    assert _nested_list(rows[0][0]) == [1, 2, 3]
-
-    rows = list(conn.execute("RETURN CAST(CAST([1, 2, 3], 'INT64[3]'), 'INT64[]');"))
-    assert _nested_list(rows[0][0]) == [1, 2, 3]
-
-    rows = list(conn.execute("RETURN CAST([[1, 2, 3], [4, 5, 6]], 'INT64[2][3]');"))
-    assert _nested_list(rows[0][0]) == [[1, 2, 3], [4, 5, 6]]
-
-    with pytest.raises(Exception):
-        conn.execute("RETURN CAST([1, 2], 'INT64[3]');")
 
     conn.close()
     db.close()
