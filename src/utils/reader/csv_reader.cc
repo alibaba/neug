@@ -70,9 +70,74 @@ execution::Value proto_value_to_execution(const ::common::Value& value) {
   }
 }
 
+bool is_numeric_type(DataTypeId id) {
+  switch (id) {
+  case DataTypeId::kInt8:
+  case DataTypeId::kInt16:
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt8:
+  case DataTypeId::kUInt16:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
+    return true;
+  default:
+    return false;
+  }
+}
+
+double value_to_double(const execution::Value& v) {
+  switch (v.type().id()) {
+  case DataTypeId::kInt8:
+    return static_cast<double>(v.GetValue<int32_t>());
+  case DataTypeId::kInt16:
+    return static_cast<double>(v.GetValue<int32_t>());
+  case DataTypeId::kInt32:
+    return static_cast<double>(v.GetValue<int32_t>());
+  case DataTypeId::kInt64:
+    return static_cast<double>(v.GetValue<int64_t>());
+  case DataTypeId::kUInt8:
+  case DataTypeId::kUInt16:
+  case DataTypeId::kUInt32:
+    return static_cast<double>(v.GetValue<uint32_t>());
+  case DataTypeId::kUInt64:
+    return static_cast<double>(v.GetValue<uint64_t>());
+  case DataTypeId::kFloat:
+    return static_cast<double>(v.GetValue<float>());
+  case DataTypeId::kDouble:
+    return v.GetValue<double>();
+  default:
+    THROW_CONVERSION_EXCEPTION("Cannot convert non-numeric value to double");
+  }
+}
+
 bool compare_values(const ::common::Logical& logical,
                     const execution::Value& left,
                     const execution::Value& right) {
+  // Numeric type coercion: promote both operands to double when types differ.
+  if (left.type() != right.type() && is_numeric_type(left.type().id()) &&
+      is_numeric_type(right.type().id())) {
+    double l = value_to_double(left);
+    double r = value_to_double(right);
+    switch (logical) {
+    case ::common::Logical::GT:
+      return l > r;
+    case ::common::Logical::GE:
+      return l >= r;
+    case ::common::Logical::LT:
+      return l < r;
+    case ::common::Logical::LE:
+      return l <= r;
+    case ::common::Logical::EQ:
+      return l == r;
+    case ::common::Logical::NE:
+      return l != r;
+    default:
+      break;
+    }
+  }
   switch (logical) {
   case ::common::Logical::GT:
     return right < left;
@@ -220,6 +285,52 @@ class CsvRowFilter {
           op_stack.pop();
         }
         op_stack.push(opr);
+        break;
+      }
+      case ::common::ExprOpr::kScalarFunc: {
+        // Handle scalar functions (typically implicit type casts).
+        // Recursively compile the first parameter expression; type coercion
+        // is handled at comparison time in compare_values().
+        const auto& func = opr.scalar_func();
+        if (func.parameters_size() == 0) {
+          THROW_NOT_IMPLEMENTED_EXCEPTION(
+              "Scalar function with no parameters in CSV row filter");
+        }
+        // Process the first parameter's operators inline.
+        const auto& param_expr = func.parameters(0);
+        for (int j = 0; j < param_expr.operators_size(); ++j) {
+          const auto& child_opr = param_expr.operators(j);
+          switch (child_opr.item_case()) {
+          case ::common::ExprOpr::kConst: {
+            auto value = proto_value_to_execution(child_opr.const_());
+            value_stack.push(
+                [value](const execution::DataChunk&, size_t) { return value; });
+            break;
+          }
+          case ::common::ExprOpr::kVar: {
+            const std::string& col_name = child_opr.var().tag().name();
+            auto it = column_index_.find(col_name);
+            if (it == column_index_.end()) {
+              THROW_INVALID_ARGUMENT_EXCEPTION("Filter column not found: " +
+                                               col_name);
+            }
+            int idx = it->second;
+            value_stack.push(
+                [idx](const execution::DataChunk& chunk, size_t row) {
+                  auto col = chunk.get(idx);
+                  if (!col) {
+                    THROW_RUNTIME_ERROR("Missing filter column at index " +
+                                        std::to_string(idx));
+                  }
+                  return col->get_elem(row);
+                });
+            break;
+          }
+          default:
+            THROW_NOT_IMPLEMENTED_EXCEPTION(
+                "Unsupported token inside scalar function in CSV row filter");
+          }
+        }
         break;
       }
       default:
@@ -495,8 +606,16 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
   auto supplier = std::make_shared<CSVChunkSupplier>(paths[0], sniff_config);
   auto sample_chunk = supplier->GetNextChunk();
   if (!sample_chunk) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                        "Failed to read sample rows for schema inference");
+    // No data rows — default all columns to VARCHAR.
+    auto entrySchema = std::make_shared<TableEntrySchema>();
+    entrySchema->columnNames = config.column_names;
+    entrySchema->columnTypes.reserve(config.column_names.size());
+    NeuGTypeConverter converter;
+    for (size_t i = 0; i < config.column_names.size(); ++i) {
+      entrySchema->columnTypes.push_back(
+          converter.inferCommonType(DataType(DataTypeId::kVarchar)));
+    }
+    return entrySchema;
   }
 
   auto entrySchema = std::make_shared<TableEntrySchema>();

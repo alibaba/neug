@@ -768,9 +768,6 @@ class TestLoadFrom:
         assert first_record[2] == 35.0, "Age should be 35.0"
         assert first_record[3] == "5.0", "eyeSight should be converted to '5.0'"
 
-    @pytest.mark.xfail(
-        reason="TODO: CSV row filter does not support implicit type conversion (int vs double)."
-    )
     def test_load_from_with_cast_and_where(self):
         """Test LOAD FROM with CAST and WHERE clause."""
         csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")

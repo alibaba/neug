@@ -423,8 +423,16 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     }
   }
   if (sample_lines.empty()) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                        "Failed to read sample rows for schema inference");
+    // No data rows — default all columns to VARCHAR.
+    auto entrySchema = std::make_shared<TableEntrySchema>();
+    entrySchema->columnNames = sniff_config.column_names;
+    entrySchema->columnTypes.reserve(sniff_config.column_names.size());
+    NeuGTypeConverter converter;
+    for (size_t i = 0; i < sniff_config.column_names.size(); ++i) {
+      entrySchema->columnTypes.push_back(
+          converter.inferCommonType(DataType(DataTypeId::kVarchar)));
+    }
+    return entrySchema;
   }
 
   const auto& col_names = sniff_config.column_names;

@@ -939,10 +939,6 @@ def test_copy_from_load_from_where_with_batch_read(tmp_path):
     db.close()
 
 
-@pytest.mark.xfail(
-    reason="TODO: Schema sniffer requires at least one data row to infer types.",
-    raises=RuntimeError,
-)
 def test_copy_from_no_schema_node_header_only_csv(tmp_path):
     """CSV with header only: auto-create table, zero vertices."""
     db_dir = tmp_path / "no_schema_header_only"
