@@ -45,6 +45,16 @@ class Intersect {
       const StorageReadInterface& graph, const ParamsMap& params,
       ContextChunk&& chunk, std::vector<EdgeAndNbrPredicate>&& preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
+
+  // Materializes every matching edge tuple to preserve Cypher path
+  // multiplicity. For a shared neighbor with m_i matching edges in each
+  // expand, the output and intermediate storage are proportional to
+  // product(m_i).
+  static neug::result<ContextChunk> Multiple_Intersect_With_Edge(
+      const StorageReadInterface& graph, const ParamsMap& params,
+      ContextChunk&& chunk, std::vector<EdgeAndNbrPredicate>&& preds,
+      const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
+      const std::vector<int>& edge_aliases);
 };
 
 }  // namespace execution
