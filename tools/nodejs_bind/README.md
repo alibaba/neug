@@ -62,7 +62,7 @@ Create a self-contained, distributable npm package tarball (`.tgz`). This will:
 The resulting tarball can be installed without a C++ build environment:
 
 ```bash
-npm install ./neug-0.1.2.tgz
+npm install ./neug-0.1.3.tgz
 ```
 
  
