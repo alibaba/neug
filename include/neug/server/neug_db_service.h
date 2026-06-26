@@ -230,13 +230,13 @@ class NeugDBService {
   /**
    * @brief Initializes the service with configuration settings
    *
-   * Creates a BrpcServiceManager and configures it with the provided
-   * settings. Sets up HTTP endpoints for:
+   * Creates a service manager and configures it with the provided settings.
+   * Sets up HTTP endpoints for:
    * - /cypher (Cypher query execution)
    * - /schema (schema information)
    *
-   * @param config Service configuration containing host, port, sharding
-   * settings, etc.
+   * @param config Service configuration containing host, port, thread settings,
+   * etc.
    *
    * @note This method can be called only once. Subsequent calls are ignored.
    * @note Must be called before Start() or run_and_wait_for_exit()

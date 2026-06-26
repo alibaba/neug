@@ -21,6 +21,7 @@
 #include "impl/sssp_impl.h"
 #include "impl/sssp_pred_impl.h"
 #include "utils/option_utils.h"
+#include "utils/path_utils.h"
 #include "utils/subgraph_utils.h"
 
 namespace neug {
@@ -54,8 +55,10 @@ struct SSSPInput : public function::CallFuncInputBase {
   bool directed;
   std::string edge_weight;
   int32_t concurrency;
+  bool return_path;
   int32_t node_alias;
   int32_t distance_alias;
+  int32_t path_alias;
 };
 
 std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
@@ -79,6 +82,9 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
 
   input->node_alias = plan.plan(op_idx).meta_data(0).alias();
   input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
+  input->return_path = (plan.plan(op_idx).meta_data_size() >= 3);
+  input->path_alias =
+      input->return_path ? plan.plan(op_idx).meta_data(2).alias() : -1;
 
   return input;
 }
@@ -86,10 +92,9 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
 execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
                                       neug::IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
+
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  // An empty vertex set is handled uniformly below: the source lookup fails
-  // and we return an empty context.
   vid_t source_vid;
   if (!try_parse_source_vertex(graph, sssp_input.vertex_label,
                                sssp_input.source, source_vid)) {
@@ -99,15 +104,15 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
   }
 
   execution::Context ret;
-  // The plain SSSP has no predicate support; dispatch to the predicate-aware
-  // variant when a vertex or edge predicate is present.
-  if (sssp_input.vertex_pred != nullptr || sssp_input.edge_pred != nullptr) {
+  if (sssp_input.return_path || sssp_input.vertex_pred != nullptr ||
+      sssp_input.edge_pred != nullptr) {
     SSSPPred sssp(graph, sssp_input.vertex_label, sssp_input.edge_label,
                   source_vid, sssp_input.directed, sssp_input.edge_weight,
                   sssp_input.concurrency, sssp_input.vertex_pred.get(),
-                  sssp_input.edge_pred.get());
+                  sssp_input.edge_pred.get(), sssp_input.return_path);
     sssp.compute();
-    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias);
+    sssp.sink(ret, sssp_input.node_alias, sssp_input.distance_alias,
+              sssp_input.path_alias);
   } else {
     SSSP sssp(graph, sssp_input.vertex_label, sssp_input.edge_label, source_vid,
               sssp_input.directed, sssp_input.edge_weight,
@@ -120,11 +125,12 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set SSSPFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
+                                                 common::DataTypeId::kUnknown};
   function::call_output_columns output_columns = {
       {"node", common::DataTypeId::kVertex},
-      {"distance", common::DataTypeId::kDouble}};
+      {"distance", common::DataTypeId::kDouble},
+      {"path", common::DataTypeId::kPath}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);

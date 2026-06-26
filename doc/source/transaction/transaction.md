@@ -119,16 +119,19 @@ NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable i
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read | Concurrent with all reads and inserts |
-| Insert | Concurrent with reads and other inserts |
-| Update | Acquires global write lock, blocks all operations |
-| Schema (DDL) | Acquires global write lock, blocks all operations |
-| Checkpoint | Acquires global write lock, blocks all operations |
+| Read | Reads a consistent snapshot and continues during active inserts/updates. |
+| Insert | Concurrent with reads and other inserts. Waits if an update is in progress. |
+| Update | One at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
+| Schema (DDL) | Same concurrency behavior as update. |
+| Checkpoint | Same concurrency behavior as update. |
+
+> Note: A read that arrives while an update is finishing may wait briefly,
+> typically at millisecond scale.
 
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
 - **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
-- **Updates and schema changes** are relatively rare and can tolerate exclusive locking
+- **Updates, schema changes, and checkpoints** are relatively rare and are serialized, while reads continue on a consistent snapshot with only brief waits when they arrive as a write is finishing
 - Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
 
 ```python
@@ -142,7 +145,8 @@ session2 = Session("http://localhost:10000/")
 session1.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
 session2.execute("CREATE (p:Person {name: 'Bob'})", access_mode="insert")
 
-# This will block other operations (update takes global lock)
+# This is serialized with inserts and other updates. Reads continue on a
+# consistent snapshot while the update runs.
 session1.execute("MATCH (p:Person) SET p.updated = true", access_mode="update")
 ```
 
@@ -170,8 +174,10 @@ When executing queries, you can specify an `access_mode` to control transaction 
 **Access Mode Hierarchy:** Access modes follow a hierarchy where higher modes provide stronger guarantees but lower concurrency:
 
 ```
-read < insert < update ≈ schema
+read < insert < update
 ```
+
+`schema` uses the same serialized update path as `update`.
 
 - **Upward compatibility**: Using a higher access mode than required always works (e.g., `update` mode for a read-only query), but may reduce throughput due to stronger locking
 - **Downward restriction**: Using a lower access mode than required causes an error (e.g., `read` mode for an insert operation)
@@ -182,15 +188,15 @@ read < insert < update ≈ schema
 | `read` | insert/update | ❌ Error |
 | `insert` | read/insert | ✅ OK |
 | `insert` | update/schema | ❌ Error |
-| `update`/`schema` | any | ✅ OK (global lock) |
+| `update`/`schema` | any | ✅ OK (serialized update path) |
 
 ```python
 # Optimal: match access mode to operation for best concurrency
 conn.execute("MATCH (n) RETURN n", access_mode="read")        # read lock only
 conn.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")  # insert lock
 
-# Works but suboptimal: update mode for read query (takes global lock)
-conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but blocks other operations
+# Works but suboptimal: update mode for read query enters the update path
+conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduces write concurrency
 ```
 
 ## Data Persistence
@@ -245,7 +251,9 @@ session.close()
 ```
 
 **Service Mode Checkpoint:**
-- Temporarily blocks all operations
+- Does not block active reads
+- Briefly waits for in-flight inserts before starting
+- New reads and inserts wait briefly during checkpoint finalization
 - Consolidates WAL entries into a unified checkpoint
 - Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
@@ -331,7 +339,8 @@ try:
     # Reads don't block inserts
     result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
     
-    # Updates take global lock - use sparingly in high-concurrency scenarios
+    # Updates are serialized with inserts and other updates. Reads continue on
+    # consistent snapshots, but keep updates short in high-concurrency scenarios.
     session.execute("MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true", 
                    access_mode="update")
     
@@ -348,11 +357,11 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for read/insert, exclusive lock for update/DDL |
+| **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL/checkpoints |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes |
-| **Concurrent Inserts** | No | Yes |
-| **Concurrent Updates** | No | No (global lock) |
+| **Concurrent Inserts** | No | Yes, unless an update is active |
+| **Concurrent Updates** | No | No, updates are serialized while reads continue on consistent snapshots |
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
 
 ## Roadmap
@@ -367,4 +376,3 @@ finally:
 - Delta checkpointing for efficient incremental persistence
 - Reduced checkpoint blocking time for large datasets
 - Automatic checkpoint
-

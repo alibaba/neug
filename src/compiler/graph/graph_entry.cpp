@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "neug/compiler/binder/binder.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
@@ -195,7 +196,7 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
   }
 }
 
-std::shared_ptr<Expression> GDSFunction::bindNodeOutput(
+std::shared_ptr<NodeExpression> GDSFunction::bindNodeOutput(
     const function::TableFuncBindInput& bindInput,
     const std::vector<TableCatalogEntry*>& nodeEntries, const std::string& name,
     const std::optional<uint64_t>& yieldVariableIdx) {
@@ -204,6 +205,19 @@ std::shared_ptr<Expression> GDSFunction::bindNodeOutput(
   auto node = bindInput.binder->createQueryNode(nodeColumnName, nodeEntries);
   bindInput.binder->addToScope(nodeColumnName, node);
   return node;
+}
+
+std::shared_ptr<binder::Expression> GDSFunction::bindRelOutput(
+    const function::TableFuncBindInput& bindInput,
+    const std::vector<catalog::TableCatalogEntry*>& relEntries,
+    std::shared_ptr<NodeExpression> srcNode,
+    std::shared_ptr<NodeExpression> dstNode, const std::string& name,
+    const std::optional<uint64_t>& yieldVariableIdx) {
+  std::string relColumnName = name;
+  auto rel = bindInput.binder->createNonRecursiveQueryRel(
+      relColumnName, relEntries, srcNode, dstNode, RelDirectionType::SINGLE);
+  bindInput.binder->addToScope(relColumnName, rel);
+  return rel;
 }
 
 static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,

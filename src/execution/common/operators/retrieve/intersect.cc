@@ -423,6 +423,159 @@ neug::result<ContextChunk> Intersect::Multiple_Intersect(
   return chunk;
 }
 
+neug::result<ContextChunk> Intersect::Multiple_Intersect_With_Edge(
+    const StorageReadInterface& graph, const ParamsMap& params,
+    neug::execution::ContextChunk&& chunk,
+    std::vector<EdgeAndNbrPredicate>&& preds,
+    const std::vector<EdgeExpandParams>& eeps, int vertex_alias,
+    const std::vector<int>& edge_aliases) {
+  CHECK_EQ(preds.size(), eeps.size());
+  CHECK_EQ(edge_aliases.size(), eeps.size());
+
+  using EdgeValue =
+      std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
+  using EdgeValues = std::vector<EdgeValue>;
+
+  std::vector<IVertexColumn*> vertex_cols;
+  for (const auto& eep : eeps) {
+    auto col = chunk.get(eep.v_tag);
+    vertex_cols.push_back(dynamic_cast<IVertexColumn*>(col.get()));
+  }
+
+  std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
+      labels;
+  std::vector<BDMLEdgeColumnBuilder> edge_builders;
+  labels.reserve(eeps.size());
+  edge_builders.reserve(eeps.size());
+  for (const auto& eep : eeps) {
+    get_labels(eep, graph, labels);
+    std::vector<LabelTriplet> label_triplets;
+    for (const auto& p : labels.back()) {
+      label_triplets.push_back(p.first);
+    }
+    edge_builders.emplace_back(label_triplets);
+  }
+
+  size_t row_num = chunk.row_num();
+  MLVertexColumnBuilder builder;
+  sel_vec_t offsets;
+
+  auto add_edge_matches =
+      [&](flat_hash_map<VertexRecord, std::vector<EdgeValues>>& target,
+          const EdgeExpandParams& eep, EdgeAndNbrPredicate& pred,
+          const VertexRecord& v, size_t eep_idx,
+          const flat_hash_map<VertexRecord, std::vector<EdgeValues>>*
+              previous) {
+        auto append_match = [&](const VertexRecord& nbr,
+                                const EdgeValue& edge_value) {
+          if (previous == nullptr) {
+            EdgeValues values(eeps.size());
+            values[eep_idx] = edge_value;
+            target[nbr].emplace_back(std::move(values));
+            return;
+          }
+          auto iter = previous->find(nbr);
+          if (iter == previous->end()) {
+            return;
+          }
+          // Each edge combination is a distinct Cypher path and must be
+          // retained. This Cartesian product can be large on dense
+          // multi-edge graphs; callers should expect output-sized memory.
+          for (auto values : iter->second) {
+            values[eep_idx] = edge_value;
+            target[nbr].emplace_back(std::move(values));
+          }
+        };
+
+        if (eep.dir == Direction::kOut || eep.dir == Direction::kBoth) {
+          for (const auto& label_triplet : eep.labels) {
+            if (label_triplet.src_label != v.label_) {
+              continue;
+            }
+            auto oview = graph.GetGenericOutgoingGraphView(
+                v.label_, label_triplet.dst_label, label_triplet.edge_label);
+            auto oes = oview.get_edges(v.vid_);
+            for (auto iter = oes.begin(); iter != oes.end(); ++iter) {
+              vid_t vid = iter.get_vertex();
+              if (pred(v.label_, v.vid_, label_triplet.dst_label, vid,
+                       label_triplet.edge_label, Direction::kOut,
+                       iter.get_data_ptr())) {
+                append_match(VertexRecord{label_triplet.dst_label, vid},
+                             EdgeValue{label_triplet, v.vid_, vid,
+                                       iter.get_data_ptr(), Direction::kOut});
+              }
+            }
+          }
+        }
+
+        if (eep.dir == Direction::kIn || eep.dir == Direction::kBoth) {
+          for (const auto& label_triplet : eep.labels) {
+            if (label_triplet.dst_label != v.label_) {
+              continue;
+            }
+            auto iview = graph.GetGenericIncomingGraphView(
+                v.label_, label_triplet.src_label, label_triplet.edge_label);
+            auto ies = iview.get_edges(v.vid_);
+            for (auto iter = ies.begin(); iter != ies.end(); ++iter) {
+              vid_t vid = iter.get_vertex();
+              if (pred(v.label_, v.vid_, label_triplet.src_label, vid,
+                       label_triplet.edge_label, Direction::kIn,
+                       iter.get_data_ptr())) {
+                append_match(VertexRecord{label_triplet.src_label, vid},
+                             EdgeValue{label_triplet, vid, v.vid_,
+                                       iter.get_data_ptr(), Direction::kIn});
+              }
+            }
+          }
+        }
+      };
+
+  for (size_t i = 0; i < row_num; ++i) {
+    flat_hash_map<VertexRecord, std::vector<EdgeValues>> vertex_set;
+    auto v = vertex_cols[0]->get_vertex(i);
+    add_edge_matches(vertex_set, eeps[0], preds[0], v, 0, nullptr);
+
+    for (size_t j = 1; j < eeps.size(); ++j) {
+      flat_hash_map<VertexRecord, std::vector<EdgeValues>> tmp_set;
+      v = vertex_cols[j]->get_vertex(i);
+      add_edge_matches(tmp_set, eeps[j], preds[j], v, j, &vertex_set);
+      std::swap(vertex_set, tmp_set);
+      if (vertex_set.empty()) {
+        break;
+      }
+    }
+
+    for (const auto& [v_record, edge_values] : vertex_set) {
+      for (const auto& values : edge_values) {
+        builder.push_back_opt(v_record);
+        for (size_t j = 0; j < edge_aliases.size(); ++j) {
+          if (edge_aliases[j] == -1) {
+            continue;
+          }
+          std::apply(
+              [&](const auto&... args) {
+                edge_builders[j].push_back_opt(args...);
+              },
+              values[j]);
+        }
+        offsets.emplace_back(i);
+      }
+    }
+  }
+
+  chunk.reshuffle(offsets);
+  auto col = builder.finish();
+  chunk.set(vertex_alias, std::move(col));
+  for (size_t i = 0; i < edge_aliases.size(); ++i) {
+    if (edge_aliases[i] == -1) {
+      continue;
+    }
+    auto edge_col = edge_builders[i].finish();
+    chunk.set(edge_aliases[i], std::move(edge_col));
+  }
+  return chunk;
+}
+
 neug::result<ContextChunk> Intersect::Binary_Intersect_With_Edge(
     const StorageReadInterface& graph, const ParamsMap& params,
     neug::execution::ContextChunk&& chunk, EdgeAndNbrPredicate&& left_pred,

@@ -39,12 +39,14 @@ using namespace neug::common;
 namespace neug {
 namespace binder {
 
+static bool containsExpr(const expression_vector& vec, const Expression& expr) {
+  return std::any_of(vec.begin(), vec.end(), [&](const auto& e) {
+    return e->getUniqueName() == expr.getUniqueName();
+  });
+}
+
 expression_vector PropertyCollector::getProperties() const {
-  expression_vector result;
-  for (auto& property : properties) {
-    result.push_back(property);
-  }
-  return result;
+  return properties;
 }
 
 void PropertyCollector::visitSingleQuerySkipNodeRel(
@@ -112,7 +114,10 @@ void PropertyCollector::visitSet(const BoundUpdatingClause& updatingClause) {
     auto& rel = info.pattern->constCast<RelExpression>();
     NEUG_ASSERT(!rel.isEmpty() &&
                 rel.getRelType() == QueryRelType::NON_RECURSIVE);
-    properties.insert(rel.getInternalIDProperty());
+    auto prop = rel.getInternalIDProperty();
+    if (!containsExpr(properties, *prop)) {
+      properties.push_back(std::move(prop));
+    }
   }
 }
 
@@ -122,14 +127,20 @@ void PropertyCollector::visitDelete(const BoundUpdatingClause& updatingClause) {
   for (const auto& info : boundDeleteClause.getNodeInfos()) {
     auto& node = info.pattern->constCast<NodeExpression>();
     for (const auto entry : node.getEntries()) {
-      properties.insert(node.getPrimaryKey(entry->getTableID()));
+      auto pk = node.getPrimaryKey(entry->getTableID());
+      if (!containsExpr(properties, *pk)) {
+        properties.push_back(std::move(pk));
+      }
     }
   }
   // Read rel internal id if we are deleting relationships.
   for (const auto& info : boundDeleteClause.getRelInfos()) {
     auto& rel = info.pattern->constCast<RelExpression>();
     if (!rel.isEmpty() && rel.getRelType() == QueryRelType::NON_RECURSIVE) {
-      properties.insert(rel.getInternalIDProperty());
+      auto prop = rel.getInternalIDProperty();
+      if (!containsExpr(properties, *prop)) {
+        properties.push_back(std::move(prop));
+      }
     }
   }
 }
@@ -147,7 +158,10 @@ void PropertyCollector::visitMerge(const BoundUpdatingClause& updatingClause) {
   auto& boundMergeClause = updatingClause.constCast<BoundMergeClause>();
   for (auto& rel : boundMergeClause.getQueryGraphCollection()->getQueryRels()) {
     if (rel->getRelType() == QueryRelType::NON_RECURSIVE) {
-      properties.insert(rel->getInternalIDProperty());
+      auto prop = rel->getInternalIDProperty();
+      if (!containsExpr(properties, *prop)) {
+        properties.push_back(std::move(prop));
+      }
     }
   }
   if (boundMergeClause.hasPredicate()) {
@@ -196,7 +210,9 @@ void PropertyCollector::collectProperties(
   auto collector = PropertyExprCollector();
   collector.visit(expression);
   for (auto& expr : collector.getPropertyExprs()) {
-    properties.insert(expr);
+    if (!containsExpr(properties, *expr)) {
+      properties.push_back(expr);
+    }
   }
 }
 

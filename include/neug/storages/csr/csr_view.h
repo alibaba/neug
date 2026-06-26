@@ -18,6 +18,7 @@
 
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/csr/prefetch_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -560,12 +561,14 @@ struct CsrView {
    * @param unsorted_since Timestamp since edges may be unsorted
    */
   CsrView(const char* adjlists, const int* degrees, NbrIterConfig cfg,
-          timestamp_t timestamp, timestamp_t unsorted_since)
+          timestamp_t timestamp, timestamp_t unsorted_since,
+          CsrPrefetchPolicy prefetch_policy = {})
       : adjlists_(adjlists),
         degrees_(degrees),
         cfg_(cfg),
         timestamp_(timestamp),
-        unsorted_since_(unsorted_since) {}
+        unsorted_since_(unsorted_since),
+        prefetch_policy_(prefetch_policy) {}
 
   /**
    * @brief Construct a CsrView for single-edge CSR.
@@ -576,12 +579,13 @@ struct CsrView {
    * @param unsorted_since Timestamp since edges may be unsorted
    */
   CsrView(const char* adjlists, NbrIterConfig cfg, timestamp_t timestamp,
-          timestamp_t unsorted_since)
+          timestamp_t unsorted_since, CsrPrefetchPolicy prefetch_policy = {})
       : adjlists_(adjlists),
         degrees_(nullptr),
         cfg_(cfg),
         timestamp_(timestamp),
-        unsorted_since_(unsorted_since) {}
+        unsorted_since_(unsorted_since),
+        prefetch_policy_(prefetch_policy) {}
 
   CsrViewType type() const {
     if (degrees_ == nullptr) {
@@ -660,12 +664,88 @@ struct CsrView {
     }
   }
 
+  __attribute__((always_inline)) size_t prefetch_metadata_dist() const {
+    return prefetch_policy_.metadata_distance;
+  }
+
+  __attribute__((always_inline)) size_t prefetch_head_dist() const {
+    return prefetch_policy_.head_distance;
+  }
+
+  __attribute__((always_inline)) void prefetch_metadata(vid_t v) const {
+    if (degrees_ == nullptr) {
+      const char* start_ptr = adjlists_ + v * cfg_.stride;
+      prefetch_read(start_ptr, prefetch_policy_.metadata_locality);
+    } else {
+      auto* adjlist_ptrs = reinterpret_cast<const int64_t*>(adjlists_);
+      prefetch_read(degrees_ + v, prefetch_policy_.metadata_locality);
+      prefetch_read(adjlist_ptrs + v, prefetch_policy_.metadata_locality);
+    }
+  }
+
+  __attribute__((always_inline)) void prefetch_head(vid_t v) const {
+    if (degrees_ == nullptr) {
+      const char* start_ptr = adjlists_ + v * cfg_.stride;
+      prefetch_read(start_ptr, prefetch_policy_.head_locality);
+    } else {
+      auto* adjlist_ptrs = reinterpret_cast<const int64_t*>(adjlists_);
+      const char* start_ptr = reinterpret_cast<const char*>(adjlist_ptrs[v]);
+      if (start_ptr != nullptr) {
+        prefetch_read(start_ptr, prefetch_policy_.head_locality);
+      }
+    }
+  }
+
  private:
+  __attribute__((always_inline)) static void prefetch_read(const void* ptr,
+                                                           uint8_t locality) {
+    switch (locality) {
+    case 0:
+      __builtin_prefetch(ptr, 0, 0);
+      break;
+    case 1:
+      __builtin_prefetch(ptr, 0, 1);
+      break;
+    case 2:
+      __builtin_prefetch(ptr, 0, 2);
+      break;
+    default:
+      __builtin_prefetch(ptr, 0, 0);
+      break;
+    }
+  }
   const char* adjlists_;
   const int* degrees_;
   NbrIterConfig cfg_;
   timestamp_t timestamp_;
   timestamp_t unsorted_since_;
+  CsrPrefetchPolicy prefetch_policy_;
 };
+
+template <typename VECTOR_T>
+__attribute__((always_inline)) static inline void prefetch_next_vertex(
+    const CsrView& view, const VECTOR_T& vertices, size_t idx) {
+  size_t metadata_dist = view.prefetch_metadata_dist();
+  if (metadata_dist != 0 && idx + metadata_dist < vertices.size()) {
+    view.prefetch_metadata(vertices[idx + metadata_dist]);
+  }
+  size_t head_dist = view.prefetch_head_dist();
+  if (head_dist != 0 && idx + head_dist < vertices.size()) {
+    view.prefetch_head(vertices[idx + head_dist]);
+  }
+}
+
+template <typename VERTEX_COLUMN_T>
+__attribute__((always_inline)) static inline void prefetch_next_vertex_column(
+    const CsrView& view, const VERTEX_COLUMN_T& vertices, size_t idx) {
+  size_t metadata_dist = view.prefetch_metadata_dist();
+  if (metadata_dist != 0 && idx + metadata_dist < vertices.size()) {
+    view.prefetch_metadata(vertices.get_vertex(idx + metadata_dist).vid_);
+  }
+  size_t head_dist = view.prefetch_head_dist();
+  if (head_dist != 0 && idx + head_dist < vertices.size()) {
+    view.prefetch_head(vertices.get_vertex(idx + head_dist).vid_);
+  }
+}
 
 }  // namespace neug

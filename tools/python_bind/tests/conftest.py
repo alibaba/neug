@@ -96,3 +96,52 @@ def wait_for_server_ready(uri, timeout=10):
                 session = None
         time.sleep(1)
     pytest.fail(f"Timed out waiting for read-only server readiness: {last_error}")
+
+
+# ---------------------------------------------------------------------------
+# Common test fixtures
+# ---------------------------------------------------------------------------
+
+LDBC_DIR = os.environ.get("NEUG_LDBC_DATA_DIR", "/tmp/ldbc")
+HAS_LDBC = os.path.isdir(LDBC_DIR)
+
+COMPREHENSIVE_GRAPH_DIR = "/tmp/comprehensive_graph"
+HAS_COMPREHENSIVE_GRAPH = os.path.isdir(COMPREHENSIVE_GRAPH_DIR)
+
+
+@pytest.fixture
+def modern_graph(tmp_path):
+    """Fresh modern_graph dataset loaded into tmp_path, yields connection."""
+    from neug.database import Database
+
+    db = Database(db_path=str(tmp_path / "modern_graph"), mode="w")
+    db.load_builtin_dataset("modern_graph")
+    conn = db.connect()
+    yield conn
+    conn.close()
+    db.close()
+
+
+@pytest.fixture
+def tinysnb(tmp_path):
+    """Fresh tinysnb dataset loaded into tmp_path, yields connection."""
+    from neug.database import Database
+
+    db = Database(db_path=str(tmp_path / "tinysnb"), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    yield conn
+    conn.close()
+    db.close()
+
+
+@pytest.fixture
+def empty_db(tmp_path):
+    """Empty writable DB, yields (db, conn) for full lifecycle control."""
+    from neug.database import Database
+
+    db = Database(db_path=str(tmp_path / "test_db"), mode="w")
+    conn = db.connect()
+    yield db, conn
+    conn.close()
+    db.close()

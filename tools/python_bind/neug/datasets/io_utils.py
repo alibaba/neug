@@ -132,7 +132,7 @@ def _extract_archive(fpath, path=".", archive_format="auto"):
         if is_match_fn(fpath):
             with open_fn(fpath) as archive:
                 try:
-                    archive.extractall(path)
+                    archive.extractall(path, filter="data")
                 except (tarfile.TarError, RuntimeError, KeyboardInterrupt):
                     if os.path.exists(path):
                         if os.path.isfile(path):

@@ -85,6 +85,14 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
         " but degree list implies " + std::to_string(edge_count) +
         ", desc: " + descriptor.ToJsonString());
   }
+  refresh_prefetch_policy();
+}
+
+template <typename EDATA_T>
+void MutableCsr<EDATA_T>::refresh_prefetch_policy() {
+  auto degree_stats = compute_csr_degree_distribution(
+      reinterpret_cast<int*>(degree_list_->GetData()), size());
+  prefetch_policy_ = create_csr_prefetch_policy(degree_stats);
 }
 
 template <typename NBR_T>
@@ -248,6 +256,7 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
     degree_list_->Resize(vnum * sizeof(int));
     cap_list_->Resize(vnum * sizeof(int));
   }
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -337,6 +346,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
     sz_arr[src].store(cur_deg - removed, std::memory_order_relaxed);
   }
   unsorted_since_ = 0;
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -370,6 +380,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     }
   }
   unsorted_since_ = 0;
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -402,6 +413,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     }
   }
   unsorted_since_ = 0;
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -530,6 +542,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   if (ts < unsorted_since_) {
     unsorted_since_ = 0;
   }
+  refresh_prefetch_policy();
 }
 
 template <typename EDATA_T>
@@ -541,6 +554,15 @@ void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
   nbr_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""), level));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
+  refresh_prefetch_policy();
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::refresh_prefetch_policy() {
+  prefetch_policy_.metadata_distance = 64;
+  prefetch_policy_.head_distance = 32;
+  prefetch_policy_.metadata_locality = 2;
+  prefetch_policy_.head_locality = 0;
 }
 
 template <typename EDATA_T>
