@@ -1,6 +1,7 @@
 name: NPM Test
 
 on:
+  workflow_call: {}
   workflow_dispatch: {}
   schedule:
     # Trigger at 03:00 CST (19:00 UTC) every day
@@ -8,8 +9,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
     paths: &npm_paths
       - 'cmake/**'
       - 'src/**'
@@ -27,12 +26,12 @@ on:
     paths: *npm_paths
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.number || github.head_ref || github.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'workflow_call'
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
@@ -130,7 +129,7 @@ jobs:
 
   build_npm_linux_arm64:
     needs: format_check
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -222,7 +221,7 @@ jobs:
 
   build_npm_macos_aarch64:
     needs: format_check
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'workflow_call' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     steps:
       - name: checkout
@@ -272,6 +271,6 @@ jobs:
       - name: Upload npm tarball
         uses: actions/upload-artifact@v4
         with:
-          name: nodejs-macos-arm64-${{ github.run_id }}
+          name: nodejs-osx-arm64-${{ github.run_id }}
           path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
           if-no-files-found: error
