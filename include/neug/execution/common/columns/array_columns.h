@@ -108,15 +108,12 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   }
 
   void push_back_elem(const Value& val) override {
-    if (val.type().id() != DataTypeId::kArray &&
-        val.type().id() != DataTypeId::kList) {
+    if (val.type().id() != DataTypeId::kArray) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "ArrayColumnBuilder: expected ARRAY or LIST value, got " +
+          "ArrayColumnBuilder: expected ARRAY value, got " +
           val.type().ToString());
     }
-    const auto& children = val.type().id() == DataTypeId::kArray
-                               ? ArrayValue::GetChildren(val)
-                               : ListValue::GetChildren(val);
+    const auto& children = ArrayValue::GetChildren(val);
     if (children.size() != array_size_) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "ArrayColumnBuilder: expected " + std::to_string(array_size_) +

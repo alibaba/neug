@@ -749,13 +749,6 @@ inline Value performCast<neug::Date>(const Value& input) {
 
 Value performCastToString(const Value& input);
 
-/// Convert a LIST/ARRAY Value to the target LIST/ARRAY type when needed. If
-/// the value is NULL, a typed NULL of the target type is returned. Scalar
-/// values are only cast as nested elements while normalizing LIST/ARRAY
-/// children; top-level scalar mismatches are rejected by this API.
-Value convertListArrayValueIfNeeded(const Value& value,
-                                    const DataType& target_type);
-
 void encode_value(const Value& val, Encoder& encoder);
 
 }  // namespace execution

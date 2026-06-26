@@ -84,18 +84,8 @@ neug::result<ContextChunk> CreateVertex::insert_vertex(
             property_values[index] = v_default_values[index];
           } else {
             if (properties_type[index] != value.type()) {
-              auto src_id = value.type().id();
-              auto dst_id = properties_type[index].id();
-              if ((src_id == DataTypeId::kList ||
-                   src_id == DataTypeId::kArray) &&
-                  (dst_id == DataTypeId::kList ||
-                   dst_id == DataTypeId::kArray)) {
-                value = execution::convertListArrayValueIfNeeded(
-                    value, properties_type[index]);
-              } else {
-                THROW_RUNTIME_ERROR("Property type mismatch for property " +
-                                    prop_name);
-              }
+              THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                  prop_name);
             }
             property_values[index] = value;
           }

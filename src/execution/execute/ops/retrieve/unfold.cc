@@ -29,6 +29,21 @@ namespace execution {
 class OprTimer;
 
 namespace ops {
+
+namespace {
+
+const DataType& getListLikeChildType(const DataType& type) {
+  if (type.id() == DataTypeId::kList) {
+    return ListType::GetChildType(type);
+  }
+  if (type.id() == DataTypeId::kArray) {
+    return ArrayType::GetChildType(type);
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION("Unfold column type is not list or array");
+}
+
+}  // namespace
+
 class UnfoldOpr : public IOperator {
  public:
   explicit UnfoldOpr(std::optional<int32_t> key,
@@ -71,7 +86,7 @@ neug::result<OpBuildResultT> UnfoldOprBuilder::Build(
   const auto& expression = plan.plan(op_idx).opr().unfold().input_expr();
   auto expr = neug::execution::parse_expression(
       expression, ctx_meta, neug::execution::VarType::kRecord);
-  ret_meta.set(alias, ListType::GetChildType(expr->type()));
+  ret_meta.set(alias, getListLikeChildType(expr->type()));
   bool unfold_col = expression.operators_size() == 1 &&
                     expression.operators(0).has_var() &&
                     (!expression.operators(0).var().has_property());

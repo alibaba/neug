@@ -34,11 +34,11 @@ struct CastArrayHelper {
   static bool checkCompatibleNestedTypes(DataTypeId sourceTypeID,
                                          DataTypeId targetTypeID);
 
-  static bool containsListToArray(const DataType& srcType,
-                                  const DataType& dstType);
+  static bool requiresArrayEntryValidation(const DataType& srcType,
+                                           const DataType& dstType);
 
-  static void validateListEntry(ValueVector* inputVector,
-                                const DataType& resultType, uint64_t pos);
+  static void validateArrayEntries(ValueVector* inputVector,
+                                   const DataType& resultType, uint64_t pos);
 };
 
 }  // namespace function

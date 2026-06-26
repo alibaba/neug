@@ -103,17 +103,7 @@ void apply_on_match_vertex(
     int32_t col_id =
         static_cast<int32_t>(std::distance(property_names.begin(), pos));
     if (property_types[col_id] != prop.type()) {
-      // Only allow implicit LIST <-> ARRAY conversion; reject other type
-      // mismatches to avoid silent data loss (e.g. DOUBLE -> INT32).
-      auto src_id = prop.type().id();
-      auto dst_id = property_types[col_id].id();
-      if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
-          (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
-        prop = execution::convertListArrayValueIfNeeded(prop,
-                                                        property_types[col_id]);
-      } else {
-        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
-      }
+      THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
     }
     graph.UpdateVertexProperty(label, vid, col_id, prop);
   }
@@ -161,17 +151,8 @@ neug::result<vid_t> insert_vertex_row(
         property_values[index] = v_default_values[index];
       } else {
         if (properties_type[index] != value.type()) {
-          // Only allow implicit LIST <-> ARRAY conversion.
-          auto src_id = value.type().id();
-          auto dst_id = properties_type[index].id();
-          if ((src_id == DataTypeId::kList || src_id == DataTypeId::kArray) &&
-              (dst_id == DataTypeId::kList || dst_id == DataTypeId::kArray)) {
-            value = execution::convertListArrayValueIfNeeded(
-                value, properties_type[index]);
-          } else {
-            THROW_RUNTIME_ERROR("Property type mismatch for property " +
-                                properties_name[index]);
-          }
+          THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                              properties_name[index]);
         }
         property_values[index] = value;
       }
