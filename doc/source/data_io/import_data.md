@@ -166,10 +166,6 @@ COPY TEMP TEMP_KNOWS FROM (
 ) (from='Person', to='Person');
 ```
 
-> **Note:** `from`/`to` are graph-semantic options at the `COPY TEMP` level — they are not placed inside `LOAD FROM`.
-
-> **Tip:** If the CSV has no header row, property names default to the auto-generated column names from the file reader (e.g., `f0`, `f1`, `f2`, ...).
-
 ## Import without a predefined schema
 
 When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new** label skips manual `CREATE NODE TABLE` / `CREATE REL TABLE` for that label. The compiler builds a plan that applies DDL for the inferred type, then runs the same bulk insert path as a normal `COPY`.
@@ -185,7 +181,9 @@ COPY User FROM "users.csv" (header=true, auto_detect=true);
 COPY User FROM "users.csv" (header=true, auto_detect=false);  -- require table to exist
 ```
 
-> **COPY TEMP** always operates in this mode — it always infers schema and creates a temporary table. The `auto_detect` option is irrelevant for `COPY TEMP`.
+> **Note:**
+> 1. For CSV format, if the CSV has no header row, property names default to the auto-generated column names from the file reader (e.g., `f0`, `f1`, `f2`, ...).
+> 2. **COPY TEMP** always operates in auto-detect mode — it always infers schema and creates a temporary table, so the `auto_detect` option is irrelevant for `COPY TEMP`.
 
 ### Nodes (new label)
 
