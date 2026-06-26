@@ -120,6 +120,9 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
 bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
+  if (config_.max_checkpoints < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("max_checkpoints cannot be negative");
+  }
   checkpoint_mgr_.Open(config_.data_dir);
   VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
   file_lock_ = std::make_unique<FileLock>(checkpoint_mgr_.db_dir());
@@ -343,6 +346,12 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
     // invalidating raw pointers held by the GraphView. Rebuild the view so it
     // points to the freshly loaded internal structures.
     guard.get().mutable_view().Rebuild(*guard.get().mutable_graph());
+  }
+  if (config_.max_checkpoints > 0) {
+    auto protected_ids = snapshot_store_->ActiveCheckpointIds();
+    protected_ids.insert(ckp_id);
+    checkpoint_mgr_.PruneOldCheckpoints(
+        static_cast<size_t>(config_.max_checkpoints), protected_ids);
   }
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }

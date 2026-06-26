@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 
 #include "neug/storages/checkpoint.h"
 
@@ -97,6 +98,15 @@ class CheckpointManager {
    * @brief Get a checkpoint by ID.
    */
   std::shared_ptr<Checkpoint> GetCheckpoint(int32_t id) const;
+
+  /**
+   * @brief Prune old valid checkpoints after a successful durable checkpoint.
+   *
+   * Keeps the newest @p max_keep valid checkpoints. Checkpoints listed in
+   * @p protected_ids are never removed. A max_keep of 0 disables pruning.
+   */
+  void PruneOldCheckpoints(size_t max_keep,
+                           const std::unordered_set<int32_t>& protected_ids);
 
   std::string db_dir() const { return db_dir_; }
 

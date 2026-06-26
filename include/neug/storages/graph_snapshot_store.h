@@ -19,6 +19,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <unordered_set>
 #include <vector>
 
 #include "neug/storages/graph/graph_view.h"
@@ -117,6 +118,9 @@ class GraphSnapshotStore {
     std::lock_guard<std::mutex> lock(free_list_mutex_);
     return !free_list_.empty();
   }
+
+  /// Return checkpoint ids held by current or still-pinned snapshot slots.
+  std::unordered_set<int32_t> ActiveCheckpointIds();
 
  private:
   int slot_num_;

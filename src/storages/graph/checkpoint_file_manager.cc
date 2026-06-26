@@ -169,6 +169,11 @@ std::string CheckpointFileManager::LinkToSnapshot(const std::string& abs_path) {
   return dst;
 }
 
+bool CheckpointFileManager::SyncSnapshotDirectory() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return file_utils::fsync_directory(snapshot_dir_);
+}
+
 // True iff the first path component of @p p is exactly "..".  A path escapes
 // its root only when normalization leaves a leading parent-dir component;
 // filenames that merely *contain* ".." (e.g. "..hidden", "foo..bar") are safe.

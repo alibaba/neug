@@ -63,6 +63,9 @@ class CheckpointFileManager {
   /// Hardlink (or copy) an external file into snapshot_dir.
   std::string LinkToSnapshot(const std::string& abs_path);
 
+  /// fsync snapshot_dir after snapshot file entries are ready.
+  bool SyncSnapshotDirectory() const;
+
   /// Make an absolute path relative to the checkpoint root.
   std::string MakeRelativePath(const std::string& abs_path,
                                const std::string& checkpoint_root) const;

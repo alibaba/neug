@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <glog/logging.h>
 
@@ -28,6 +29,8 @@ namespace neug {
 
 namespace {
 constexpr std::string_view kCheckpointPrefix = "checkpoint-";
+constexpr std::string_view kCheckpointGcDir = ".checkpoint-gc";
+constexpr std::string_view kDeletingSuffix = ".deleting";
 }
 
 static bool parse_checkpoint_path(const std::string& path, int32_t& id) {
@@ -67,6 +70,16 @@ void CheckpointManager::Open(const std::string& db_dir) {
   db_dir_ = std::filesystem::absolute(db_dir).string();
   if (!std::filesystem::is_directory(db_dir_)) {
     std::filesystem::create_directories(db_dir_);
+  }
+  std::error_code gc_ec;
+  auto gc_dir = std::filesystem::path(db_dir_) / kCheckpointGcDir;
+  if (std::filesystem::exists(gc_dir, gc_ec)) {
+    std::filesystem::remove_all(gc_dir, gc_ec);
+    if (gc_ec) {
+      LOG(WARNING) << "CheckpointManager::Open: failed to clean GC trash "
+                   << gc_dir << ": " << gc_ec.message();
+      gc_ec.clear();
+    }
   }
   try {
     for (const auto& entry : std::filesystem::directory_iterator(db_dir_)) {
@@ -163,6 +176,85 @@ std::shared_ptr<Checkpoint> CheckpointManager::GetCheckpoint(int32_t id) const {
   auto& ptr = checkpoints_.at(id);
   assert(ptr != nullptr);
   return ptr;
+}
+
+void CheckpointManager::PruneOldCheckpoints(
+    size_t max_keep, const std::unordered_set<int32_t>& protected_ids) {
+  if (max_keep == 0) {
+    return;
+  }
+
+  std::vector<std::filesystem::path> trash_paths;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (checkpoints_.empty()) {
+      return;
+    }
+
+    struct Candidate {
+      int32_t id;
+      std::filesystem::path path;
+    };
+    std::vector<Candidate> candidates;
+    size_t kept_valid = 0;
+    const int32_t head_id = checkpoints_.rbegin()->first;
+
+    for (auto it = checkpoints_.rbegin(); it != checkpoints_.rend(); ++it) {
+      auto& checkpoint = it->second;
+      if (!checkpoint || !checkpoint->GetMeta().has_schema()) {
+        continue;
+      }
+      if (kept_valid < max_keep) {
+        ++kept_valid;
+        continue;
+      }
+      if (it->first == head_id || protected_ids.contains(it->first)) {
+        continue;
+      }
+      candidates.push_back({it->first, checkpoint->path()});
+    }
+
+    if (candidates.empty()) {
+      return;
+    }
+
+    auto gc_dir = std::filesystem::path(db_dir_) / kCheckpointGcDir;
+    std::error_code ec;
+    std::filesystem::create_directories(gc_dir, ec);
+    if (ec) {
+      LOG(WARNING) << "CheckpointManager::PruneOldCheckpoints: failed to "
+                      "create GC trash dir "
+                   << gc_dir << ": " << ec.message();
+      return;
+    }
+
+    for (const auto& candidate : candidates) {
+      auto trash_path =
+          gc_dir / (std::string(kCheckpointPrefix) +
+                    std::to_string(candidate.id) + std::string(kDeletingSuffix));
+      ec.clear();
+      std::filesystem::rename(candidate.path, trash_path, ec);
+      if (ec) {
+        LOG(WARNING) << "CheckpointManager::PruneOldCheckpoints: failed to "
+                        "rename "
+                     << candidate.path << " -> " << trash_path << ": "
+                     << ec.message();
+        continue;
+      }
+      checkpoints_.erase(candidate.id);
+      trash_paths.push_back(std::move(trash_path));
+    }
+  }
+
+  for (const auto& path : trash_paths) {
+    std::error_code ec;
+    std::filesystem::remove_all(path, ec);
+    if (ec) {
+      LOG(WARNING) << "CheckpointManager::PruneOldCheckpoints: failed to "
+                      "remove GC trash "
+                   << path << ": " << ec.message();
+    }
+  }
 }
 
 }  // namespace neug
