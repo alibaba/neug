@@ -44,15 +44,15 @@ class QueryProcessor {
       GraphSnapshotStore& snapshot_store,
       std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
-      Allocator& alloc, int32_t max_num_threads, bool is_read_only = false)
+      Allocator& alloc, int32_t max_thread_num, bool is_read_only = false)
       : snapshot_store_(snapshot_store),
         planner_(planner),
         global_query_cache_(global_query_cache),
         allocator_(alloc),
-        max_num_threads_(max_num_threads),
+        max_thread_num_(max_thread_num),
         is_read_only_(is_read_only) {
 #ifdef BUILD_HTTP_SERVER
-    bthread_setconcurrency(max_num_threads_);
+    bthread_setconcurrency(max_thread_num_);
 #endif
   }
 
@@ -91,7 +91,7 @@ class QueryProcessor {
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;
-  int32_t max_num_threads_;
+  int32_t max_thread_num_;
   bool is_read_only_ = false;
 
   std::shared_mutex mutex_;

@@ -80,7 +80,7 @@ NeugDB::NeugDB()
       last_ts_(0),
       closed_(true),
       is_pure_memory_(false),
-      thread_num_(1) {}
+      max_thread_num_(1) {}
 
 NeugDB::~NeugDB() {
   Close();
@@ -103,11 +103,11 @@ NeugDB::~NeugDB() {
   }
 }
 
-bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
+bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
                   const DBMode mode, const std::string& planner_kind,
                   bool enable_auto_compaction, bool compact_csr,
                   bool compact_on_close, bool checkpoint_on_close) {
-  NeugDBConfig config(data_dir, max_num_threads);
+  NeugDBConfig config(data_dir, max_thread_num);
   config.mode = mode;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
@@ -188,8 +188,17 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
 void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
 
 void NeugDB::preprocessConfig() {
-  if (config_.thread_num == 0) {
-    config_.thread_num = std::thread::hardware_concurrency();
+  if (config_.max_thread_num < 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid max_thread_num: " + std::to_string(config_.max_thread_num) +
+        ". Must be a non-negative integer.");
+  }
+  if (config_.max_thread_num == 0) {
+    config_.max_thread_num =
+        static_cast<int>(std::thread::hardware_concurrency());
+    if (config_.max_thread_num == 0) {
+      config_.max_thread_num = 1;
+    }
   }
   auto db_dir = config_.data_dir;
   if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
@@ -222,8 +231,8 @@ void NeugDB::initAllocators(const std::string& allocator_dir) {
   // Initialize the default allocator for ingesting wals
   remove_directory(allocator_dir);
   std::filesystem::create_directories(allocator_dir);
-  assert(config_.thread_num > 0);
-  for (int i = 0; i < config_.thread_num; ++i) {
+  assert(config_.max_thread_num > 0);
+  for (int i = 0; i < config_.max_thread_num; ++i) {
     allocators_.emplace_back(std::make_shared<Allocator>(
         config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
                                   ? ""
@@ -232,7 +241,7 @@ void NeugDB::initAllocators(const std::string& allocator_dir) {
 }
 
 void NeugDB::openGraphAndIngestWals() {
-  thread_num_ = config_.thread_num;
+  max_thread_num_ = config_.max_thread_num;
   try {
     int ckp_id;
     if (checkpoint_mgr_.HeadId() >= 0) {
@@ -306,7 +315,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
 
   query_processor_ = std::make_shared<QueryProcessor>(
       *snapshot_store_, planner_, global_query_cache_, *allocators_[0],
-      thread_num_, config_.mode == DBMode::READ_ONLY);
+      max_thread_num_, config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       *snapshot_store_, planner_, query_processor_, config_);

@@ -19,6 +19,7 @@ int main() {
   neug::ServiceConfig config;
   config.query_port = 10000;
   config.host_str = "0.0.0.0";
+  config.thread_num = 0;  // Auto-select service threads from database max_thread_num.
   // 3. Start HTTP service
   neug::NeugDBService service(db, config);
   std::string url = service.Start();
@@ -37,6 +38,12 @@ int main() {
 - `GET /status` - Check service status
 
 **Thread Safety:** All public methods are thread-safe. The service uses a `SessionPool` internally to handle concurrent requests efficiently.
+
+**Service Threads:** `ServiceConfig::thread_num` controls the service thread
+count. The default `0` auto-selects from the database `max_thread_num`. If set
+explicitly, it must be less than or equal to the database `max_thread_num`. With
+the default database thread setting, `max_thread_num` is resolved from hardware
+concurrency and falls back to `1` if the runtime cannot detect it.
 
 ### Constructors & Destructors
 
@@ -264,7 +271,7 @@ Pool of database sessions for concurrent query execution.
 - Automatic WAL (Write-Ahead Log) management per session
 - Memory-aligned session contexts for cache efficiency
 
-**Pool Size:** Determined by `NeugDBConfig::thread_num`, typically matching the number of concurrent request handlers.
+**Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically matching the number of concurrent request handlers.
 
 ### Public Methods
 
@@ -306,4 +313,3 @@ RAII guard for session lifecycle management.
 ```
 
 **Thread Safety:** `SessionGuard` is move-only (non-copyable) to ensure exclusive session ownership. Each guard should be used by a single thread.
-

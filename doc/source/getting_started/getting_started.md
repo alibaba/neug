@@ -58,8 +58,13 @@ import neug
 
 # Start NeuG as a service
 db = neug.Database("/path/to/database")
-service = db.serve(host="localhost", port=10000)
+service = db.serve(host="localhost", port=10000, blocking=False, thread_num=0)
 ```
+
+`thread_num` controls the number of service threads.
+The default `0` auto-selects from the database `max_thread_num`. With the
+default database thread setting, `max_thread_num` is resolved from hardware
+concurrency and falls back to `1` if the runtime cannot detect it.
 
 **Connect from client:**
 ```python
