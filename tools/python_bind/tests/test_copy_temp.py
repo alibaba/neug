@@ -850,7 +850,7 @@ def test_copy_temp_rejected_in_session(tmp_path):
 
     try:
         session = Session(uri, timeout="10s")
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="not supported for TP service"):
             session.execute(
                 f'COPY TEMP TempFail FROM "{people_csv}" '
                 f"(primary_key = 'id', header = true)"
