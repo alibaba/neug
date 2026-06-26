@@ -10,7 +10,7 @@ You can create a **predefined schema** — that is, define node/relationship tab
 
 Since v0.1.2, NeuG supports schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets. See [Import without a predefined schema](#import-without-a-predefined-schema) for more usages.
 
-> **COPY TEMP** always infers the schema automatically — no predefined table or `auto_detect` option is needed. The first column becomes the primary key for nodes; for relationships, the first two columns are source/destination keys.
+> **COPY TEMP** always infers the schema automatically. The first column becomes the primary key for nodes; for relationships, the first two columns are source/destination keys.
 
 ---
 
@@ -57,10 +57,10 @@ CREATE REL TABLE FRIENDS(
 ### Step 3: Import Data
 
 ```cypher
--- Import nodes first (order matters — nodes must exist before relationships)
+// Import nodes first (order matters — nodes must exist before relationships)
 COPY User FROM "users.csv" (header=true, delimiter=",");
 
--- Then import relationships
+// Then import relationships
 COPY FRIENDS FROM "friendships.csv" (
     from="User",
     to="User",
@@ -83,22 +83,27 @@ LIMIT 5;
 
 To import the same data as a **temporary** graph (no DDL, no persistence):
 
--- Temporary node table (auto-inferred schema, first column = primary key)
+```cypher
+// Temporary node table (auto-inferred schema, first column = primary key)
 COPY TEMP TempUser FROM "users.csv" (header=true, delimiter=",");
 
--- Temporary relationship table (from/to specify endpoint labels)
+// Temporary relationship table (from/to specify endpoint labels)
 COPY TEMP TEMP_FRIENDS FROM "friendships.csv" (
-header=true,
-delimiter=",",
-from='TempUser',
-to='TempUser'
+  header=true,
+  delimiter=",",
+  from='TempUser',
+  to='TempUser'
 );
 
--- Query works the same way
+// Query works the same way
 MATCH (u1:TempUser)-[f:TEMP_FRIENDS]->(u2:TempUser)
 RETURN u1.name, u2.name, f.since_year;
 
--- Temporary tables dropped when the connection closes.
+// Temporary tables are automatically dropped when the connection closes.
+// Or manually drop before that:
+DROP TABLE TEMP_FRIENDS;
+DROP TABLE TempUser;
+```
 
 ---
 
@@ -125,11 +130,11 @@ COPY Person FROM "person*.csv" (header=true);
 **Temporary node table** — no DDL needed, schema is auto-inferred:
 
 ```cypher
-COPY TEMP TempPerson FROM "person.csv" (primary_key='id', header=true);
+COPY TEMP TempPerson FROM "person.csv" (header=true);
 
--- With filter/projection via LOAD FROM subquery:
+// With filter/projection via LOAD FROM subquery:
 COPY TEMP TempAdults FROM (
-    LOAD FROM "person.csv" (primary_key='id', header=true)
+    LOAD FROM "person.csv" (header=true)
     WHERE age >= 18
     RETURN id, name
 );
@@ -152,19 +157,21 @@ COPY KNOWS FROM "person_knows_person.csv" (from="Person", to="Person", header=tr
 **Temporary relationship table:**
 
 ```cypher
--- Simple: first two columns are src/dst keys
+// Simple: first two columns are src/dst keys
 COPY TEMP TEMP_KNOWS FROM "edges.csv" (
     header=true,
     from='Person',
     to='Person'
 );
 
--- With column reordering (when keys are NOT at positions [0/1]):
+// With column reordering (when keys are NOT at positions [0/1]):
 COPY TEMP TEMP_KNOWS FROM (
     LOAD FROM "edges_shuffled.csv" (header=true)
     RETURN src_id, dst_id, weight
 ) (from='Person', to='Person');
 ```
+
+> **Note:** `from`/`to` must reference existing vertex labels — either persistent tables or previously created temporary labels.
 
 ## Import without a predefined schema
 
