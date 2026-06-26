@@ -85,7 +85,7 @@ class TestCopyTemp:
 
     def test_copy_temp_node_basic(self):
         self.conn.execute(
-            f"COPY TEMP TempPeople FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempPeople FROM "{self.people_csv}" (header = true)'
         )
         rows = list(
             self.conn.execute("MATCH (n:TempPeople) RETURN n.id, n.name ORDER BY n.id;")
@@ -132,7 +132,7 @@ class TestCopyTemp:
     def test_copy_temp_rel_basic(self):
         """edges.csv: src_id|dst_id|weight - first two cols are keys."""
         self.conn.execute(
-            f"COPY TEMP TempPerson FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempPerson FROM "{self.people_csv}" (header = true)'
         )
         self.conn.execute(
             f'COPY TEMP TempKnows FROM "{self.edges_csv}" '
@@ -204,9 +204,7 @@ class TestCopyTemp:
     # ------------------------------------------------------------------
 
     def test_copy_temp_cleanup(self):
-        self.conn.execute(
-            f"COPY TEMP TempE FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempE FROM "{self.people_csv}" (header = true)')
         assert list(self.conn.execute("MATCH (n:TempE) RETURN count(n);"))[0][0] == 4
         self.conn.close()
         conn2 = self.db.connect()
@@ -218,18 +216,16 @@ class TestCopyTemp:
 
     def test_duplicate_label_same_connection(self):
         """COPY TEMP same label twice must fail."""
-        self.conn.execute(
-            f"COPY TEMP TempDup FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempDup FROM "{self.people_csv}" (header = true)')
         with pytest.raises(Exception):
             self.conn.execute(
-                f"COPY TEMP TempDup FROM \"{self.people_csv}\" (header = true)"
+                f'COPY TEMP TempDup FROM "{self.people_csv}" (header = true)'
             )
 
     def test_reload_same_label_after_close(self):
         """After close() cleanup, reloading same label succeeds."""
         self.conn.execute(
-            f"COPY TEMP TempReuse FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempReuse FROM "{self.people_csv}" (header = true)'
         )
         assert (
             list(self.conn.execute("MATCH (n:TempReuse) RETURN count(n);"))[0][0] == 4
@@ -238,7 +234,7 @@ class TestCopyTemp:
         conn2 = self.db.connect()
         try:
             conn2.execute(
-                f"COPY TEMP TempReuse FROM \"{self.people_csv}\" (header = true)"
+                f'COPY TEMP TempReuse FROM "{self.people_csv}" (header = true)'
             )
             assert (
                 list(conn2.execute("MATCH (n:TempReuse) RETURN count(n);"))[0][0] == 4
@@ -249,7 +245,7 @@ class TestCopyTemp:
     def test_temp_not_persisted_after_db_reopen(self):
         """Temp labels not in checkpoint; absent after DB reopen."""
         self.conn.execute(
-            f"COPY TEMP TempGhost FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempGhost FROM "{self.people_csv}" (header = true)'
         )
         assert (
             list(self.conn.execute("MATCH (n:TempGhost) RETURN count(n);"))[0][0] == 4
@@ -272,7 +268,7 @@ class TestCopyTemp:
         self.conn.execute("CREATE NODE TABLE Persistent(id INT64, PRIMARY KEY(id));")
         self.conn.execute("CREATE (p:Persistent {id: 1});")
         self.conn.execute(
-            f"COPY TEMP TempGone FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempGone FROM "{self.people_csv}" (header = true)'
         )
         self.conn.close()
         conn2 = self.db.connect()
@@ -310,9 +306,7 @@ class TestCopyTemp:
         extra_csv = _write_csv(
             self.csv_dir, "extra.csv", "id|nickname\n1|Ally\n2|Bobby\n5|Eve\n"
         )
-        self.conn.execute(
-            f"COPY TEMP TempExtra FROM \"{extra_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempExtra FROM "{extra_csv}" (header = true)')
         rows = list(
             self.conn.execute(
                 "MATCH (p:Person), (t:TempExtra) WHERE p.id = t.id "
@@ -325,9 +319,7 @@ class TestCopyTemp:
     def test_temp_src_persistent_dst(self):
         """REL from temp vertex to persistent vertex."""
         self._load_persistent_person_table()
-        self.conn.execute(
-            f"COPY TEMP TempSrc FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempSrc FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
             f'COPY TEMP TempMixed FROM "{self.edges_csv}" '
             f"(header = true, from = 'TempSrc', to = 'Person')"
@@ -346,9 +338,7 @@ class TestCopyTemp:
     def test_empty_csv(self):
         """Header-only CSV creates an empty temp table."""
         empty_csv = _write_csv(self.csv_dir, "empty.csv", "id|name|age\n")
-        self.conn.execute(
-            f"COPY TEMP TempEmpty FROM \"{empty_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempEmpty FROM "{empty_csv}" (header = true)')
         assert (
             list(self.conn.execute("MATCH (n:TempEmpty) RETURN count(n);"))[0][0] == 0
         )
@@ -364,7 +354,7 @@ class TestCopyTemp:
     def test_property_type_inference(self):
         """CSV types inferred correctly (age is INT64)."""
         self.conn.execute(
-            f"COPY TEMP TempTyped FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempTyped FROM "{self.people_csv}" (header = true)'
         )
         rows = list(
             self.conn.execute("MATCH (n:TempTyped) RETURN n.age + 1 ORDER BY n.id;")
@@ -374,7 +364,7 @@ class TestCopyTemp:
     def test_multiple_queries_on_same_temp(self):
         """Multiple queries on same temp table all work."""
         self.conn.execute(
-            f"COPY TEMP TempStable FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempStable FROM "{self.people_csv}" (header = true)'
         )
         assert (
             list(self.conn.execute("MATCH (n:TempStable) RETURN count(n);"))[0][0] == 4
@@ -392,9 +382,7 @@ class TestCopyTemp:
 
     def test_aggregation_on_temp(self):
         """SUM, MIN, MAX on temp table."""
-        self.conn.execute(
-            f"COPY TEMP TempAgg FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempAgg FROM "{self.people_csv}" (header = true)')
         rows = list(
             self.conn.execute(
                 "MATCH (n:TempAgg) RETURN sum(n.age), min(n.age), max(n.age);"
@@ -442,7 +430,7 @@ class TestCopyTemp:
         self.conn.execute("CREATE NODE TABLE Conflict(id INT64, PRIMARY KEY(id));")
         with pytest.raises(Exception):
             self.conn.execute(
-                f"COPY TEMP Conflict FROM \"{self.people_csv}\" (header = true)"
+                f'COPY TEMP Conflict FROM "{self.people_csv}" (header = true)'
             )
 
     def test_dangling_reference_silent_skip(self):
@@ -450,9 +438,7 @@ class TestCopyTemp:
         dangling_csv = _write_csv(
             self.csv_dir, "dangling.csv", "src_id|dst_id|weight\n1|2|0.5\n99|3|1.0\n"
         )
-        self.conn.execute(
-            f"COPY TEMP TempPD FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempPD FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
             f'COPY TEMP TempDangling FROM "{dangling_csv}" '
             f"(header = true, from = 'TempPD', to = 'TempPD')"
@@ -466,9 +452,7 @@ class TestCopyTemp:
 
     def test_rel_with_where(self):
         """REL COPY TEMP with WHERE filter via subquery."""
-        self.conn.execute(
-            f"COPY TEMP TempPW FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempPW FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
             f'COPY TEMP TempFilteredEdge FROM (LOAD FROM "{self.edges_csv}" '
             f"(header = true) WHERE weight > 0.6 RETURN *) "
@@ -483,9 +467,7 @@ class TestCopyTemp:
 
     def test_rel_where_and_return(self):
         """REL with WHERE + RETURN via subquery."""
-        self.conn.execute(
-            f"COPY TEMP TempPWR FROM \"{self.people_csv}\" (header = true)"
-        )
+        self.conn.execute(f'COPY TEMP TempPWR FROM "{self.people_csv}" (header = true)')
         self.conn.execute(
             f'COPY TEMP TempWREdge FROM (LOAD FROM "{self.edges_csv}" '
             f"(header = true) WHERE weight >= 0.8 RETURN src_id, dst_id, weight) "
@@ -505,7 +487,7 @@ class TestCopyTemp:
     def test_drop_temp_node(self):
         """DROP TABLE removes temp node table."""
         self.conn.execute(
-            f"COPY TEMP TempDrop FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempDrop FROM "{self.people_csv}" (header = true)'
         )
         assert list(self.conn.execute("MATCH (n:TempDrop) RETURN count(n);"))[0][0] == 4
         self.conn.execute("DROP TABLE TempDrop;")
@@ -515,7 +497,7 @@ class TestCopyTemp:
     def test_drop_temp_edge(self):
         """DROP edge table; node table remains."""
         self.conn.execute(
-            f"COPY TEMP TempNodeK FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempNodeK FROM "{self.people_csv}" (header = true)'
         )
         self.conn.execute(
             f'COPY TEMP TempEdgeK FROM "{self.edges_csv}" '
@@ -531,11 +513,11 @@ class TestCopyTemp:
     def test_drop_then_recreate(self):
         """After DROP, same label can be reused."""
         self.conn.execute(
-            f"COPY TEMP TempRecycle FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempRecycle FROM "{self.people_csv}" (header = true)'
         )
         self.conn.execute("DROP TABLE TempRecycle;")
         self.conn.execute(
-            f"COPY TEMP TempRecycle FROM \"{self.people_csv}\" (header = true)"
+            f'COPY TEMP TempRecycle FROM "{self.people_csv}" (header = true)'
         )
         assert (
             list(self.conn.execute("MATCH (n:TempRecycle) RETURN count(n);"))[0][0] == 4
@@ -818,8 +800,7 @@ class TestCopyTempReadOnlyRejection:
     def test_copy_temp_node_rejected(self):
         with pytest.raises(Exception, match="read-only mode"):
             self.conn.execute(
-                f'COPY TEMP TempFail FROM "{self.people_csv}" '
-                f"(header = true)"
+                f'COPY TEMP TempFail FROM "{self.people_csv}" ' f"(header = true)"
             )
 
     def test_copy_temp_rel_rejected(self):
@@ -852,8 +833,7 @@ def test_copy_temp_rejected_in_session(tmp_path):
         session = Session(uri, timeout="10s")
         with pytest.raises(Exception, match="not supported for TP service"):
             session.execute(
-                f'COPY TEMP TempFail FROM "{people_csv}" '
-                f"(header = true)"
+                f'COPY TEMP TempFail FROM "{people_csv}" ' f"(header = true)"
             )
     finally:
         db.stop_serving()
