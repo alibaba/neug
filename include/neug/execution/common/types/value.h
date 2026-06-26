@@ -638,10 +638,8 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
   case DataTypeId::kArray: {
     const auto& lhs_children = ArrayValue::GetChildren(lhs);
     const auto& rhs_children = ArrayValue::GetChildren(rhs);
-    // TODO(zhanglei, lexiao): how to handle the case when lhs_children.size() <
-    // rhs_children.size()
     if (lhs_children.size() != rhs_children.size()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Array size not equal.");
+      THROW_RUNTIME_ERROR("Array size not equal.");
     }
     for (size_t i = 0; i < lhs_children.size(); ++i) {
       if (!ApplyComparisonOp<OP>(lhs_children[i], rhs_children[i])) {

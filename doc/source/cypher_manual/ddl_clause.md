@@ -16,7 +16,7 @@ The following table lists the recommended syntax for defining default values for
 | `DATE`            | `prop DATE DEFAULT DATE('1970-01-01')`    | `DATE('1970-01-01')`               |
 | `TIMESTAMP`       | `prop TIMESTAMP DEFAULT TIMESTAMP('1970-01-01')` | `TIMESTAMP('1970-01-01')`    |
 | `INTERVAL`        | `prop INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day')` | `INTERVAL('0 year 0 month 0 day')`         |
-| `ARRAY`           | `prop INT32[3]` (explicit `DEFAULT [...]` is not supported yet) | child defaults repeated to the fixed length, for example `[0, 0, 0]` for `INT32[3]` |
+| `ARRAY`           | `prop INT32[3] DEFAULT [1, 2, 3]` | child defaults repeated to the fixed length, for example `[0, 0, 0]` for `INT32[3]` |
 
 Please refer to the following examples for more usages.
 
@@ -122,7 +122,7 @@ CREATE NODE TABLE Matrix(
 );
 ```
 
-If an array property is omitted during `CREATE`, or explicitly set to `NULL` during `CREATE`, NeuG stores the system default for that array. For `INT32[3]`, the default is `[0, 0, 0]`. Explicit array default literals in DDL are not supported yet; omit `DEFAULT` to use the system default. Setting an existing array property to `NULL` with `SET` is not supported yet.
+If an array property is omitted during `CREATE`, or explicitly set to `NULL` during `CREATE`, NeuG stores the declared default for that array. If no explicit default is declared, the system default repeats the child type's default value; for `INT32[3]`, that default is `[0, 0, 0]`. Setting an existing array property to `NULL` with `SET` is not supported yet.
 
 ## Drop Node Type
 
