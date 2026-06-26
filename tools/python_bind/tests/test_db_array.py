@@ -467,7 +467,7 @@ def test_array_ddl_operations(tmp_path):
     )
 
     conn.execute("CREATE (s:Sensor {id: 1});")
-    rows = list(conn.execute(f"MATCH (s:Sensor {{id: 1}}) RETURN s.readings;"))
+    rows = list(conn.execute("MATCH (s:Sensor {id: 1}) RETURN s.readings;"))
     assert _nested_list(rows[0][0]) == [0, 1, 0]
 
     conn.close()
