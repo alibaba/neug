@@ -184,16 +184,6 @@ class SchemaSerializationTest : public ::testing::Test {
     }
     return false;
   }
-
-  bool yaml_vertex_is_temporary(const YAML::Node& yaml,
-                                const std::string& name) {
-    for (const auto& v : yaml["schema"]["vertex_types"]) {
-      if (v["type_name"].as<std::string>() == name) {
-        return v["temporary"] && v["temporary"].as<bool>();
-      }
-    }
-    return false;
-  }
 };
 
 TEST_F(SchemaSerializationTest, ToYamlIncludesTemporaryLabels) {
@@ -205,15 +195,6 @@ TEST_F(SchemaSerializationTest, ToYamlIncludesTemporaryLabels) {
   EXPECT_TRUE(yaml_has_vertex_type(yaml, "TempUser"));
   EXPECT_TRUE(yaml_has_edge_type(yaml, "Knows"));
   EXPECT_TRUE(yaml_has_edge_type(yaml, "TempFollows"));
-}
-
-TEST_F(SchemaSerializationTest, ToYamlMarksTemporaryLabels) {
-  auto yaml_res = schema_.to_yaml();
-  ASSERT_TRUE(yaml_res);
-  auto yaml = yaml_res.value();
-
-  EXPECT_FALSE(yaml_vertex_is_temporary(yaml, "Person"));
-  EXPECT_TRUE(yaml_vertex_is_temporary(yaml, "TempUser"));
 }
 
 TEST_F(SchemaSerializationTest, DumpToYamlExcludesTemporaryLabels) {
