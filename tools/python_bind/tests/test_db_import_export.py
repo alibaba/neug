@@ -754,7 +754,7 @@ def test_copy_from_no_schema_node_wide_row(tmp_path):
     assert abs(r1[2] - (-1.4142135)) < 1e-5
     assert abs(r1[3] - 1.4142135623730951) < 1e-12
     assert r1[4] == "test_string_1"
-    assert r1[5] == "3 years"
+    assert r1[5] == "3years"
 
     dt_row = list(
         conn.execute("MATCH (n:ns_comp) WHERE n.id = 1 RETURN n.datetime_property;")

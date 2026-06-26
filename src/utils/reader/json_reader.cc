@@ -436,7 +436,7 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
   std::vector<bool> all_date(col_names.size(), true);
   std::vector<bool> all_date_or_datetime(col_names.size(), true);
   std::vector<bool> any_datetime(col_names.size(), false);
-  std::vector<bool> all_interval(col_names.size(), true);
+
   std::vector<bool> has_value(col_names.size(), false);
 
   // Helper lambdas for temporal detection on strings.
@@ -465,16 +465,6 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
         return false;
     }
     return true;
-  };
-  auto is_interval_str = [](const std::string& s) -> bool {
-    std::string lower;
-    lower.reserve(s.size());
-    for (char c : s)
-      lower.push_back(static_cast<char>(std::tolower(c)));
-    return lower.find("year") != std::string::npos ||
-           lower.find("month") != std::string::npos ||
-           lower.find("day") != std::string::npos ||
-           lower.find("hour") != std::string::npos;
   };
 
   for (const auto& line : sample_lines) {
@@ -517,13 +507,10 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
           all_date_or_datetime[col] = false;
         if (is_dt)
           any_datetime[col] = true;
-        if (!is_interval_str(sv))
-          all_interval[col] = false;
       } else {
         all_datetime[col] = false;
         all_date[col] = false;
         all_date_or_datetime[col] = false;
-        all_interval[col] = false;
       }
     }
   }
@@ -548,8 +535,6 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
       inferred_type = DataType(DataTypeId::kTimestampMs);
     } else if (has_value[col] && all_date[col]) {
       inferred_type = DataType(DataTypeId::kDate);
-    } else if (has_value[col] && all_interval[col]) {
-      inferred_type = DataType(DataTypeId::kInterval);
     }
     entrySchema->columnTypes.push_back(
         converter.inferCommonType(inferred_type));

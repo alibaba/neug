@@ -541,17 +541,6 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
     }
     return true;
   };
-  auto is_interval_token = [](const std::string& s) -> bool {
-    // Simple heuristic: contains "year" or "month" or "day" or "hour"
-    std::string lower;
-    lower.reserve(s.size());
-    for (char c : s)
-      lower.push_back(static_cast<char>(std::tolower(c)));
-    return lower.find("year") != std::string::npos ||
-           lower.find("month") != std::string::npos ||
-           lower.find("day") != std::string::npos ||
-           lower.find("hour") != std::string::npos;
-  };
 
   NeuGTypeConverter converter;
   for (size_t col = 0; col < config.column_names.size(); ++col) {
@@ -562,7 +551,7 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
     bool all_datetime = true;
     bool all_date_or_datetime = true;
     bool any_datetime = false;
-    bool all_interval = true;
+
     bool has_value = false;
     for (size_t row = 0; row < sample_chunk->row_num(); ++row) {
       auto value = sample_chunk->get(static_cast<int>(col))->get_elem(row);
@@ -578,7 +567,6 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
         all_date = false;
         all_datetime = false;
         all_date_or_datetime = false;
-        all_interval = false;
         continue;
       }
       // Integer check (must fit in int64_t)
@@ -608,8 +596,6 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
         all_date_or_datetime = false;
       if (is_dt)
         any_datetime = true;
-      if (!is_interval_token(token))
-        all_interval = false;
     }
     DataType inferred_type(DataTypeId::kVarchar);
     if (has_value && all_int) {
@@ -625,8 +611,6 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
       inferred_type = DataType(DataTypeId::kTimestampMs);
     } else if (has_value && all_date) {
       inferred_type = DataType(DataTypeId::kDate);
-    } else if (has_value && all_interval) {
-      inferred_type = DataType(DataTypeId::kInterval);
     }
     entrySchema->columnTypes.push_back(
         converter.inferCommonType(inferred_type));
