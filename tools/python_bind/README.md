@@ -130,7 +130,7 @@ neug-cli --version
 This should display:
 
 ```
-neug-cli, version 0.1.2
+neug-cli, version 0.1.3
 ```
 
 ### Usage
