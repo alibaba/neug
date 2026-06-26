@@ -11,6 +11,8 @@ The NodeJS API offers a simple yet powerful way to:
 - **Manage transactions**: Handle ACID transactions for data consistency
 - **Process results**: Work with graph data using familiar JavaScript patterns
 
+> **Note:** The Node.js binding currently supports **embedded mode only**. Service mode (HTTP server) is not available — it requires the C++ HTTP server component which is not exposed through the N-API binding. If you need service mode, use the [Python binding](../python_api) or the [C++ API](../cpp_api).
+
 ## Core Classes
 
 - **[Database](database)** - The main entry point of the NeuG database
