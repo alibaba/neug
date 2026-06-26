@@ -89,12 +89,10 @@ class TestGDSOnTempGraph:
         )
 
         # Verify temp graph is loaded
-        node_count = list(
-            self.conn.execute("MATCH (n:TNode) RETURN count(n);")
-        )[0][0]
-        edge_count = list(
-            self.conn.execute("MATCH ()-[r:TEdge]->() RETURN count(r);")
-        )[0][0]
+        node_count = list(self.conn.execute("MATCH (n:TNode) RETURN count(n);"))[0][0]
+        edge_count = list(self.conn.execute("MATCH ()-[r:TEdge]->() RETURN count(r);"))[
+            0
+        ][0]
         assert node_count == 7, f"Expected 7 temp nodes, got {node_count}"
         assert edge_count == 7, f"Expected 7 temp edges, got {edge_count}"
 
