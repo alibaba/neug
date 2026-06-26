@@ -10,8 +10,8 @@ on:
         required: false
         default: ''
   schedule:
-    # Trigger the workflow at 03:00(CST) every day (19:00 UTC)
-    - cron: '00 19 * * *'
+    # Trigger the workflow at 22:00(CST) every day (14:00 UTC)
+    - cron: '0 14 * * *'
   pull_request:
     branches:
       - main

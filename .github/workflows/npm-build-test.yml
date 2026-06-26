@@ -3,8 +3,8 @@ name: NPM Test
 on:
   workflow_dispatch: {}
   schedule:
-    # Trigger at 03:00 CST (19:00 UTC) every day
-    - cron: '00 19 * * *'
+    # Trigger at 22:00 CST (14:00 UTC) every day
+    - cron: '0 14 * * *'
   push:
     branches:
       - main
