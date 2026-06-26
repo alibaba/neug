@@ -30,6 +30,7 @@
 namespace neug {
 
 class PropertyGraph;
+class IndexManager;
 
 class TableView {
  public:
@@ -113,6 +114,7 @@ class GraphView {
   GraphView& operator=(GraphView&&) = default;
 
   const Schema& schema() const { return *schema_; }
+  const IndexManager& index_manager() const { return *index_manager_; }
 
   inline bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
                       timestamp_t ts) const {
@@ -161,6 +163,7 @@ class GraphView {
  private:
   // needed by api schema().
   const Schema* schema_{nullptr};
+  const IndexManager* index_manager_{nullptr};
   std::vector<VertexTableView> vertex_views_;
   std::unordered_map<uint32_t, EdgeTableView> edge_views_;
 };

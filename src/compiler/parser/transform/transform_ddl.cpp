@@ -21,6 +21,7 @@
  */
 
 #include "neug/compiler/parser/ddl/alter.h"
+#include "neug/compiler/parser/ddl/create_index.h"
 #include "neug/compiler/parser/ddl/create_sequence.h"
 #include "neug/compiler/parser/ddl/create_table.h"
 #include "neug/compiler/parser/ddl/create_type.h"
@@ -353,6 +354,48 @@ std::string Transformer::transformPrimaryKey(
 std::string Transformer::transformPrimaryKey(
     CypherParser::NEUG_ColumnDefinitionContext& ctx) {
   return transformPropertyKeyName(*ctx.oC_PropertyKeyName());
+}
+
+std::unique_ptr<Statement> Transformer::transformCreateIndex(
+    CypherParser::NEUG_CreateIndexContext& ctx) {
+  ParsedCreateIndexInfo info;
+
+  // oC_SchemaName(0) = index name, (1) = table name, (2) = index type
+  auto schemaNames = ctx.oC_SchemaName();
+  info.indexName = transformSchemaName(*schemaNames[0]);
+  info.tableName = transformSchemaName(*schemaNames[1]);
+  info.indexType = transformSchemaName(*schemaNames[2]);
+  info.ifNotExists = ctx.nEUG_IfNotExists() != nullptr;
+
+  // Column list
+  auto* columnList = ctx.nEUG_CreateIndexColumnList();
+  if (columnList) {
+    for (auto* propKey : columnList->oC_PropertyKeyName()) {
+      info.propertyNames.push_back(transformPropertyKeyName(*propKey));
+    }
+  }
+
+  // WITH options
+  auto* optionsCtx = ctx.nEUG_CreateIndexOptions();
+  if (optionsCtx) {
+    auto* optionList = optionsCtx->nEUG_CreateIndexOptionList();
+    if (optionList) {
+      for (auto* opt : optionList->nEUG_CreateIndexOption()) {
+        auto key = transformPropertyKeyName(*opt->oC_PropertyKeyName());
+        // Extract string value from the literal (strip surrounding quotes)
+        auto valueText = opt->oC_Literal()->getText();
+        // Remove surrounding quotes if present
+        if (valueText.size() >= 2 &&
+            ((valueText.front() == '\'' && valueText.back() == '\'') ||
+             (valueText.front() == '"' && valueText.back() == '"'))) {
+          valueText = valueText.substr(1, valueText.size() - 2);
+        }
+        info.options[key] = valueText;
+      }
+    }
+  }
+
+  return std::make_unique<CreateIndex>(std::move(info));
 }
 
 }  // namespace parser

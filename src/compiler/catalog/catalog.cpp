@@ -29,6 +29,7 @@
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
+#include "neug/compiler/catalog/catalog_entry/rule_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
@@ -63,6 +64,7 @@ void Catalog::initCatalogSets() {
   functions = std::make_unique<CatalogSet>();
   types = std::make_unique<CatalogSet>();
   indexes = std::make_unique<CatalogSet>();
+  rules = std::make_unique<CatalogSet>();
   internalTables = std::make_unique<CatalogSet>(true /* isInternal */);
   internalSequences = std::make_unique<CatalogSet>(true /* isInternal */);
   internalFunctions = std::make_unique<CatalogSet>(true /* isInternal */);
@@ -174,13 +176,6 @@ std::vector<TableCatalogEntry*> Catalog::getTableEntries(
     }
   }
   return result;
-}
-
-void Catalog::dropTableEntryAndIndex(Transaction* transaction,
-                                     const std::string& name) {
-  auto tableID = getTableCatalogEntry(transaction, name)->getTableID();
-  dropAllIndexes(transaction, tableID);
-  dropTableEntry(transaction, tableID);
 }
 
 void Catalog::dropTableEntry(Transaction* transaction, table_id_t tableID) {
@@ -371,21 +366,6 @@ bool Catalog::containsType(const Transaction* transaction,
   return types->containsEntry(transaction, typeName);
 }
 
-void Catalog::createIndex(
-    Transaction* transaction,
-    std::unique_ptr<IndexCatalogEntry> indexCatalogEntry) {
-  indexes->createEntry(transaction, std::move(indexCatalogEntry));
-}
-
-IndexCatalogEntry* Catalog::getIndex(const Transaction* transaction,
-                                     table_id_t tableID,
-                                     const std::string& indexName) const {
-  auto internalName =
-      IndexCatalogEntry::getInternalIndexName(tableID, indexName);
-  return indexes->getEntry(transaction, internalName)
-      ->ptrCast<IndexCatalogEntry>();
-}
-
 std::vector<IndexCatalogEntry*> Catalog::getIndexEntries(
     const Transaction* transaction) const {
   std::vector<IndexCatalogEntry*> result;
@@ -395,28 +375,24 @@ std::vector<IndexCatalogEntry*> Catalog::getIndexEntries(
   return result;
 }
 
-bool Catalog::containsIndex(const Transaction* transaction, table_id_t tableID,
-                            const std::string& indexName) const {
-  return indexes->containsEntry(
-      transaction, IndexCatalogEntry::getInternalIndexName(tableID, indexName));
+bool Catalog::containsRule(const Transaction* transaction,
+                           const std::string& name) const {
+  return rules->containsEntry(transaction, name);
 }
 
-void Catalog::dropAllIndexes(Transaction* transaction, table_id_t tableID) {
-  for (auto catalogEntry : indexes->getEntries(transaction)) {
-    auto& indexCatalogEntry =
-        catalogEntry.second->constCast<IndexCatalogEntry>();
-    if (indexCatalogEntry.getTableID() == tableID) {
-      indexes->dropEntry(transaction, catalogEntry.first,
-                         catalogEntry.second->getOID());
-    }
+void Catalog::addRule(Transaction* transaction, std::string name,
+                      std::unique_ptr<optimizer::LogicalRule> rule) {
+  rules->createEntry(transaction, std::make_unique<RuleCatalogEntry>(
+                                      std::move(name), std::move(rule)));
+}
+
+std::vector<RuleCatalogEntry*> Catalog::getRuleEntries(
+    const Transaction* transaction) const {
+  std::vector<RuleCatalogEntry*> result;
+  for (auto& [_, entry] : rules->getEntries(transaction)) {
+    result.push_back(entry->ptrCast<RuleCatalogEntry>());
   }
-}
-
-void Catalog::dropIndex(Transaction* transaction, table_id_t tableID,
-                        const std::string& indexName) const {
-  auto uniqueName = IndexCatalogEntry::getInternalIndexName(tableID, indexName);
-  const auto entry = indexes->getEntry(transaction, uniqueName);
-  indexes->dropEntry(transaction, uniqueName, entry->getOID());
+  return result;
 }
 
 bool Catalog::containsFunction(const Transaction* transaction,

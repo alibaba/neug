@@ -258,6 +258,8 @@ class VertexTable {
   void Compact(timestamp_t ts = MAX_TIMESTAMP);
 
   void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
+  void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers,
+                       std::vector<vid_t>& new_vids);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
@@ -339,7 +341,8 @@ class VertexTable {
   }
 
   template <typename PK_T>
-  void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier) {
+  void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier,
+                            std::vector<vid_t>& new_vids) {
     auto row_nums = supplier->RowNum();
     if (row_nums <= 0) {
       LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
@@ -379,6 +382,12 @@ class VertexTable {
       }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
+
+      for (auto vid : vids) {
+        if (vid != std::numeric_limits<vid_t>::max()) {
+          new_vids.push_back(vid);
+        }
+      }
 
       for (size_t i = 0; i < columns.size(); ++i) {
         auto col = table_->get_column_by_id(i);

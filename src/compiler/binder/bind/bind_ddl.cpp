@@ -22,10 +22,12 @@
 
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/ddl/bound_alter.h"
+#include "neug/compiler/binder/ddl/bound_create_index.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
@@ -34,12 +36,14 @@
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/ddl/alter.h"
+#include "neug/compiler/parser/ddl/create_index.h"
 #include "neug/compiler/parser/ddl/create_sequence.h"
 #include "neug/compiler/parser/ddl/create_table.h"
 #include "neug/compiler/parser/ddl/create_table_info.h"
@@ -398,6 +402,53 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
       sequenceName, startWith, increment, minValue, maxValue, info.cycle,
       info.onConflict, false /* isInternal */);
   return std::make_unique<BoundCreateSequence>(std::move(boundInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
+    const Statement& statement) {
+  auto& createIndex = statement.constCast<CreateIndex>();
+  const auto& parsedInfo = createIndex.getInfo();
+
+  // 1. Validate table exists in catalog
+  validateTableExistence(*clientContext, parsedInfo.tableName);
+
+  // 2. Get table entry, validate it's NODE_TABLE_ENTRY
+  auto* tableEntry = clientContext->getCatalog()->getTableCatalogEntry(
+      clientContext->getTransaction(), parsedInfo.tableName);
+  if (tableEntry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
+    THROW_BINDER_EXCEPTION(
+        "Index can only be created on node tables, but " +
+        parsedInfo.tableName + " is of type " +
+        catalog::CatalogEntryTypeUtils::toString(tableEntry->getType()) + ".");
+  }
+
+  // 3. Create NodeExpression pattern
+  auto pattern = std::make_shared<NodeExpression>(
+      DataType(DataTypeId::kVertex), parsedInfo.tableName, parsedInfo.tableName,
+      std::vector<catalog::TableCatalogEntry*>{tableEntry});
+
+  // 4. Validate each property exists, get types
+  std::vector<DataType> propertyTypes;
+  for (const auto& propName : parsedInfo.propertyNames) {
+    validateColumnExistence(tableEntry, propName);
+    const auto& propDef = tableEntry->getProperty(propName);
+    propertyTypes.push_back(propDef.getType().copy());
+  }
+
+  // 5. Build BoundCreateIndexInfo with lowercase index type
+  std::string indexType = parsedInfo.indexType;
+  common::StringUtils::toLower(indexType);
+
+  BoundCreateIndexInfo boundInfo;
+  boundInfo.indexName = parsedInfo.indexName;
+  boundInfo.pattern = std::move(pattern);
+  boundInfo.propertyNames = parsedInfo.propertyNames;
+  boundInfo.propertyTypes = std::move(propertyTypes);
+  boundInfo.indexType = std::move(indexType);
+  boundInfo.options = parsedInfo.options;
+  boundInfo.ifNotExists = parsedInfo.ifNotExists;
+
+  return std::make_unique<BoundCreateIndex>(std::move(boundInfo));
 }
 
 std::unique_ptr<BoundStatement> Binder::bindDrop(const Statement& statement) {

@@ -107,6 +107,10 @@ void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
   database->updateSchema(schema_yaml_node);
 }
 
+void GOptPlanner::update_index_manager(const IndexManager* index_manager) {
+  database->updateIndexManager(index_manager);
+}
+
 void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {
   VLOG(1) << "[GOptPlanner] update_statistics called";
   if (graph_statistic_json.empty()) {
