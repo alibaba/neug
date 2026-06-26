@@ -28,13 +28,23 @@ For more information on using NeuG, please refer to the [NeuG documentation](htt
 
 ## Installation
 
+NeuG supports Python and Node.js bindings, as well as C++ for direct embedding.
+
+**Python** (requires Python 3.8+):
+
 ```bash
 pip install neug
 ```
 
-Please note that `neug` requires `Python` version 3.8 or above. The package works on Linux, macOS, and Windows (via WSL2).
+**Node.js** (requires Node.js 18+, available since v0.1.3):
 
-For more detailed installation instructions, please refer to the [installation guide](https://graphscope.io/neug/en/installation/installation).
+```bash
+npm install @graphscope-neug/neug
+```
+
+The packages work on Linux, macOS, and Windows (via WSL2).
+
+For more detailed installation instructions (including C++ from source), please refer to the [installation guide](https://graphscope.io/neug/en/installation/installation).
 
 ## Quick Example
 

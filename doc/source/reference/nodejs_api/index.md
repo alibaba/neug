@@ -23,13 +23,13 @@ The NodeJS API offers a simple yet powerful way to:
 ### Installation
 
 ```bash
-npm install neug
+npm install @graphscope-neug/neug
 ```
 
 ### Basic Usage
 
 ```javascript
-const { Database } = require('neug');
+const { Database } = require('@graphscope-neug/neug');
 
 // Connect to database
 const db = new Database({ databasePath: '/path/to/database', mode: 'w' });
@@ -52,7 +52,7 @@ db.close();
 ### In-Memory Database
 
 ```javascript
-const { Database } = require('neug');
+const { Database } = require('@graphscope-neug/neug');
 
 // Open an in-memory database
 const db = new Database({ databasePath: '', mode: 'w' });
