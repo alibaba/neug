@@ -339,7 +339,7 @@ def test_edge_array_multi_properties(tmp_path):
     "array_type,values,expected",
     [
         ("INT32[2][2]", "[[1, 2], [3, 4]]", [[1, 2], [3, 4]]),
-        ("INT32[2][3]", "[[1, 2, 3], [4, 5, 6]]", [[1, 2, 3], [4, 5, 6]]),
+        ("INT32[2][3]", "[[1, 2], [3, 4], [5, 6]]", [[1, 2], [3, 4], [5, 6]]),
         ("DOUBLE[2][2]", "[[1.5, 2.5], [3.5, 4.5]]", [[1.5, 2.5], [3.5, 4.5]]),
     ],
 )
@@ -369,12 +369,12 @@ def test_nested_array_set_property(tmp_path):
     conn.execute(
         "CREATE NODE TABLE Matrix(id INT64, grid INT32[2][3], PRIMARY KEY(id));"
     )
-    conn.execute("CREATE (m:Matrix {id: 1, grid: [[1, 2, 3], [4, 5, 6]]});")
+    conn.execute("CREATE (m:Matrix {id: 1, grid: [[1, 2], [3, 4], [5, 6]]});")
 
-    conn.execute("MATCH (m:Matrix {id: 1}) SET m.grid = [[9, 8, 7], [6, 5, 4]];")
+    conn.execute("MATCH (m:Matrix {id: 1}) SET m.grid = [[9, 8], [7, 6], [5, 4]];")
 
     rows = list(conn.execute("MATCH (m:Matrix) WHERE m.id = 1 RETURN m.grid;"))
-    assert _nested_list(rows[0][0]) == [[9, 8, 7], [6, 5, 4]]
+    assert _nested_list(rows[0][0]) == [[9, 8], [7, 6], [5, 4]]
 
     conn.close()
     db.close()
@@ -626,6 +626,18 @@ def test_array_wrong_size_throws(tmp_path):
 
     with pytest.raises(Exception):
         conn.execute("CREATE (s:Sensor {id: 2, readings: [1, 2, 3, 4]});")
+
+    conn.close()
+    db.close()
+
+
+def test_array_zero_size_rejected(tmp_path):
+    """Declaring an array with size 0 should be rejected at parse time."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    with pytest.raises(Exception, match="greater than 0"):
+        conn.execute("CREATE NODE TABLE Bad(id INT64, arr INT32[0], PRIMARY KEY(id));")
 
     conn.close()
     db.close()

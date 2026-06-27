@@ -380,18 +380,9 @@ std::string DataType::ToString() const {
     return "LIST<" + child_type.ToString() + ">";
   }
   case DataTypeId::kArray: {
-    std::vector<uint64_t> dimensions;
-    const DataType* element_type = this;
-    while (element_type->id() == DataTypeId::kArray) {
-      const auto& arr_info = element_type->type_info_->Cast<ArrayTypeInfo>();
-      dimensions.push_back(arr_info.num_elements);
-      element_type = &arr_info.child_type;
-    }
-    auto result = element_type->ToString();
-    for (auto dimension : dimensions) {
-      result += "[" + std::to_string(dimension) + "]";
-    }
-    return result;
+    auto& arr_info = type_info_->Cast<ArrayTypeInfo>();
+    return arr_info.child_type.ToString() + "[" +
+           std::to_string(arr_info.num_elements) + "]";
   }
   case DataTypeId::kMap: {
     auto& map_info = type_info_->Cast<MapTypeInfo>();

@@ -166,7 +166,7 @@ CREATE REL TABLE Knows(
 );
 ```
 
-Multi-dimensional arrays are written by chaining fixed lengths. `INT32[2][3]` means an outer array with 2 elements, where each element is an `INT32[3]` array:
+Multi-dimensional arrays are written by chaining fixed lengths. `INT32[2][3]` means an outer array with 3 elements, where each element is an `INT32[2]` array:
 
 ```cypher
 CREATE NODE TABLE Matrix(
@@ -175,7 +175,7 @@ CREATE NODE TABLE Matrix(
     PRIMARY KEY(id)
 );
 
-CREATE (m:Matrix {id: 1, grid: [[1, 2, 3], [4, 5, 6]]});
+CREATE (m:Matrix {id: 1, grid: [[1, 2], [3, 4], [5, 6]]});
 ```
 
 **Key Technical Details:**
