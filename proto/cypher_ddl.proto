@@ -18,6 +18,7 @@ syntax = "proto3";
 package physical;
 
 import "common.proto";
+import "expr.proto";
 import "basic_type.proto";
 
 // The create/drop/alter operations for edges are all based on the triplet type <src_type, edge_type, dst_type>.
@@ -30,7 +31,8 @@ message EdgeType {
 message PropertyDef {
     string name = 1;
     common.DataType type = 2;
-    common.Value default_value = 3;
+    reserved 3;
+    common.Expression default_expr = 4;
 }
 
 // When the operation does not meet the data requirements, an exception is thrown by default; 

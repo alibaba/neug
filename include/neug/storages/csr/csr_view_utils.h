@@ -41,12 +41,14 @@ int32_t search_other_offset_with_cur_offset(const CsrView& cur_view,
                                             const std::vector<DataType>& props);
 
 // Determine the property type to be used in searching edge offsets
-// For single property edges with non-string type, use that type directly
-// For multi-property edges or single string type property, use uint64_t as the
-// search type
+// For single property edges with inline scalar type, use that type directly.
+// For multi-property edges or non-inline single properties, use uint64_t as the
+// compact search word stored in the CSR payload.
 inline DataTypeId determine_search_prop_type(
     const std::vector<DataType>& props) {
-  return (props.size() == 1 && props[0].id() != DataTypeId::kVarchar)
+  return (props.size() == 1 && props[0].id() != DataTypeId::kVarchar &&
+          props[0].id() != DataTypeId::kArray &&
+          props[0].id() != DataTypeId::kList)
              ? props[0].id()
              : DataTypeId::kUInt64;
 }

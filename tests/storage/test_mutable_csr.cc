@@ -263,7 +263,7 @@ TYPED_TEST(MutableCsrCowTest, CowIsolationAndDumpOpenMatrix) {
   expect_signature_eq(cow_after_original_mutation, cow_after);
 
   auto dump_ckp = this->create_checkpoint();
-  auto cow_desc = cow->Dump(*dump_ckp);
+  auto cow_desc = dump_module_descriptor(*cow, *dump_ckp, "cow_csr");
   MutableCsr<int32_t> reopened;
   reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
   auto reopened_sig = build_cow_signature(reopened);
@@ -595,7 +595,7 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
 TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
   MutableCsr<TypeParam> mutable_csr;
   auto ckp = this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
-  auto desc = mutable_csr.Dump(*ckp);
+  auto desc = dump_module_descriptor(mutable_csr, *ckp, "mutable_csr");
   MutableCsr<TypeParam> fmap_mutable_csr, memory_mutable_csr,
       hugepage_mutable_csr;
   fmap_mutable_csr.Open(*ckp, desc, MemoryLevel::kSyncToFile);
@@ -608,7 +608,8 @@ TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
   SingleMutableCsr<TypeParam> single_mutable_csr;
   auto single_ckp =
       this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
-  auto single_desc = single_mutable_csr.Dump(*single_ckp);
+  auto single_desc = dump_module_descriptor(single_mutable_csr, *single_ckp,
+                                            "single_mutable_csr");
   SingleMutableCsr<TypeParam> fmap_single_mutable_csr,
       memory_single_mutable_csr, hugepage_single_mutable_csr;
   fmap_single_mutable_csr.Open(*single_ckp, single_desc,
@@ -622,7 +623,7 @@ TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
   EXPECT_EQ(hugepage_single_mutable_csr.edge_num(), edge_num);
 
   EmptyCsr<TypeParam> empty_csr;
-  auto empty_desc = empty_csr.Dump(*single_ckp);
+  auto empty_desc = dump_module_descriptor(empty_csr, *single_ckp, "empty_csr");
   EmptyCsr<TypeParam> opened_empty_csr;
   opened_empty_csr.Open(*single_ckp, empty_desc, MemoryLevel::kSyncToFile);
   opened_empty_csr.Open(*single_ckp, empty_desc, MemoryLevel::kInMemory);
@@ -923,7 +924,7 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
     orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     orig.resize(VNUM);
     orig.batch_put_edges(src_, dst_, data_);
-    desc = orig.Dump(*ckp);
+    desc = dump_module_descriptor(orig, *ckp, "orig_csr");
     csr.Open(*ckp, desc, MemoryLevel::kInMemory);
     return ckp;
   }
@@ -949,7 +950,8 @@ class MutableCsrDumpDirtyTest : public ::testing::Test {
     auto ckp = prepare(csr, orig_desc);
     auto orig_inode = inode_of(nbr_path(orig_desc));
     mutate(csr);
-    auto new_inode = inode_of(nbr_path(csr.Dump(*ckp)));
+    auto new_desc = dump_module_descriptor(csr, *ckp, "csr");
+    auto new_inode = inode_of(nbr_path(new_desc));
     EXPECT_NE(orig_inode, new_inode) << label << " should mark dirty";
   }
 
@@ -963,17 +965,19 @@ TEST_F(MutableCsrDumpDirtyTest, FastAndSlowPath) {
   ModuleDescriptor orig_desc;
   auto ckp = prepare(csr, orig_desc);
   auto orig = inode_of(nbr_path(orig_desc));
-  EXPECT_EQ(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+  auto fast_desc = dump_module_descriptor(csr, *ckp, "csr");
+  EXPECT_EQ(orig, inode_of(nbr_path(fast_desc)));
   int64_t val = 999;
   csr.put_edge(0, 2, val, 1, *alloc_);
-  EXPECT_NE(orig, inode_of(nbr_path(csr.Dump(*ckp))));
+  auto slow_desc = dump_module_descriptor(csr, *ckp, "csr");
+  EXPECT_NE(orig, inode_of(nbr_path(slow_desc)));
 }
 
 TEST_F(MutableCsrDumpDirtyTest, FastPath_DataIntegrity) {
   CsrT csr;
   ModuleDescriptor desc;
   auto ckp = prepare(csr, desc);
-  auto fast_desc = csr.Dump(*ckp);
+  auto fast_desc = dump_module_descriptor(csr, *ckp, "csr");
   CsrT restored;
   restored.Open(*ckp, fast_desc, MemoryLevel::kInMemory);
   EXPECT_EQ(restored.edge_num(), src_.size());
@@ -985,22 +989,24 @@ TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
   orig.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
   orig.resize(VNUM);
   orig.batch_put_edges(src_, dst_, data_);
-  auto d1 = orig.Dump(*ckp);
+  auto d1 = dump_module_descriptor(orig, *ckp, "orig_csr");
   auto p1 = nbr_path(d1);
 
   CsrT c2;
   c2.Open(*ckp, d1, MemoryLevel::kInMemory);
-  auto p2 = nbr_path(c2.Dump(*ckp));
+  auto d2 = dump_module_descriptor(c2, *ckp, "c2");
+  auto p2 = nbr_path(d2);
   EXPECT_EQ(inode_of(p1), inode_of(p2));
 
   c2.reset_timestamp();
-  auto d3 = c2.Dump(*ckp);
+  auto d3 = dump_module_descriptor(c2, *ckp, "c2");
   auto p3 = nbr_path(d3);
   EXPECT_EQ(inode_of(p2), inode_of(p3));
 
   CsrT c3;
   c3.Open(*ckp, d3, MemoryLevel::kInMemory);
-  auto p4 = nbr_path(c3.Dump(*ckp));
+  auto d4 = dump_module_descriptor(c3, *ckp, "c3");
+  auto p4 = nbr_path(d4);
   EXPECT_EQ(inode_of(p3), inode_of(p4));
 }
 

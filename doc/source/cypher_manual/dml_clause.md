@@ -62,6 +62,16 @@ Create nodes and edges in a single statement. This is useful when you need to cr
 CREATE (a:person {name: 'mars', age: 28})-[:knows {weight: 16.0}]->(b:person {name: 'jennie', age: 26})
 ```
 
+### Creating Array Properties
+
+Fixed-size array properties are written with bracket literals. The value length must match the schema declaration.
+
+```cypher
+CREATE NODE TABLE Sensor(id INT64, readings INT32[3], PRIMARY KEY(id));
+
+CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});
+```
+
 ### Creating Edges Between Existing Nodes
 
 First match existing nodes, then create an edge between them.
@@ -84,6 +94,15 @@ MATCH (a:Person)
 WHERE a.name = 'marko'
 SET a.age = 37, a.city = 'New York'
 RETURN a.*
+```
+
+Array-valued properties can be updated with another fixed-size array value:
+
+```cypher
+MATCH (s:Sensor)
+WHERE s.id = 1
+SET s.readings = [30, 40, 50]
+RETURN s.readings
 ```
 
 ### Updating Edge Properties

@@ -3,3 +3,4 @@ add_library(neug_storages_container OBJECT ${COLUMN_SOURCES})
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_storages_container>
         PARENT_SCOPE)
+add_dependencies(neug_storages_container neug_proto)

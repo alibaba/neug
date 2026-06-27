@@ -602,7 +602,7 @@ Status StorageTPUpdateInterface::AddVertex(
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
-    if (props[col_i].type().id() != types[col_i].id()) {
+    if (props[col_i].type() != types[col_i]) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Property type mismatch at column " +
                         std::to_string(col_i) + " for vertex of label " +
@@ -788,7 +788,7 @@ Status StorageTPUpdateInterface::UpdateVertexProperty(
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Column id " + std::to_string(col_id) + " is out of range.");
   }
-  if (types[col_id].id() != value.type().id()) {
+  if (types[col_id] != value.type()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Type mismatch for column " + std::to_string(col_id) + ".");
   }

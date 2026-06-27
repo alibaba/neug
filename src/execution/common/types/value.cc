@@ -234,6 +234,13 @@ Value Value::LIST(std::vector<Value>&& values) {
   return Value::LIST(type, std::move(values));
 }
 
+Value Value::ARRAY(const DataType& array_type, std::vector<Value>&& values) {
+  Value result(array_type);
+  result.value_info_ = std::make_shared<NestedValueInfo>(std::move(values));
+  result.is_null_ = false;
+  return result;
+}
+
 Value Value::STRUCT(const DataType& type, std::vector<Value>&& struct_values) {
   Value result(type);
   result.value_info_ =
@@ -300,6 +307,19 @@ const std::vector<Value>& ListValue::GetChildren(const Value& value) {
   }
   assert(value.type().id() == DataTypeId::kList);
   return value.value_info_->Get<NestedValueInfo>().GetValues();
+}
+
+const std::vector<Value>& ArrayValue::GetChildren(const Value& value) {
+  if (value.IsNull()) {
+    throw std::runtime_error("Cannot get children of null ArrayValue");
+  }
+  assert(value.type().id() == DataTypeId::kArray);
+  return value.value_info_->Get<NestedValueInfo>().GetValues();
+}
+
+uint32_t ArrayValue::GetSize(const Value& value) {
+  assert(value.type().id() == DataTypeId::kArray);
+  return ArrayType::GetNumElements(value.type());
 }
 
 const std::vector<Value>& StructValue::GetChildren(const Value& value) {
@@ -606,6 +626,16 @@ std::string Value::to_string() const {
       }
     }
     return result + "]";
+  } else if (type_.id() == DataTypeId::kArray) {
+    const auto& children = ArrayValue::GetChildren(*this);
+    std::string result = "[";
+    for (size_t i = 0; i < children.size(); ++i) {
+      result += children[i].to_string();
+      if (i != children.size() - 1) {
+        result += ", ";
+      }
+    }
+    return result + "]";
   } else if (type_.id() == DataTypeId::kStruct) {
     const auto& children = StructValue::GetChildren(*this);
     std::string result = "(";
@@ -697,6 +727,18 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     }
     return execution::Value::LIST(child_type, std::move(values));
   }
+  case DataTypeId::kArray: {
+    std::vector<execution::Value> values;
+    if (!json_value.IsArray()) {
+      return execution::Value::ARRAY(type, std::move(values));
+    }
+    const auto arr = json_value.GetArray();
+    auto child_type = ArrayType::GetChildType(type);
+    for (auto item = arr.begin(); item != arr.end(); ++item) {
+      values.emplace_back(FromJson(*item, child_type));
+    }
+    return execution::Value::ARRAY(type, std::move(values));
+  }
   default:
     THROW_NOT_IMPLEMENTED_EXCEPTION(
         "Deserialization for parameter type " +
@@ -738,6 +780,14 @@ rapidjson::Value Value::ToJson(const Value& value,
       list_doc.PushBack(ToJson(list[i], allocator), allocator);
     }
     return list_doc;
+  }
+  case neug::DataTypeId::kArray: {
+    rapidjson::Value array_doc(rapidjson::kArrayType);
+    const auto& elements = execution::ArrayValue::GetChildren(value);
+    for (size_t i = 0; i < elements.size(); ++i) {
+      array_doc.PushBack(ToJson(elements[i], allocator), allocator);
+    }
+    return array_doc;
   }
   case neug::DataTypeId::kDate: {
     return rapidjson::Value(value.GetValue<date_t>().to_string().c_str(),
@@ -793,6 +843,11 @@ void encode_value(const Value& val, Encoder& encoder) {
     const auto& vals = ListValue::GetChildren(val);
     encoder.put_int(vals.size());
 
+    for (const auto& v : vals) {
+      encode_value(v, encoder);
+    }
+  } else if (type.id() == DataTypeId::kArray) {
+    const auto& vals = ArrayValue::GetChildren(val);
     for (const auto& v : vals) {
       encode_value(v, encoder);
     }
@@ -890,6 +945,15 @@ InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
     auto interval = value.GetValue<execution::interval_t>();
     in_archive << type_id << interval.months << interval.days
                << interval.micros;
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+    in_archive << type_id << value.type();
+    const auto& children = (type_id == DataTypeId::kList)
+                               ? execution::ListValue::GetChildren(value)
+                               : execution::ArrayValue::GetChildren(value);
+    in_archive << static_cast<uint32_t>(children.size());
+    for (const auto& child : children) {
+      in_archive << child;
+    }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         std::string("Value serialization not supported for type: ") +
@@ -949,6 +1013,24 @@ OutArchive& operator>>(OutArchive& out_archive, execution::Value& value) {
     Interval interval;
     out_archive >> interval.months >> interval.days >> interval.micros;
     value = execution::Value::INTERVAL(interval);
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+    DataType dt;
+    out_archive >> dt;
+    uint32_t num_children;
+    out_archive >> num_children;
+    std::vector<execution::Value> children;
+    children.reserve(num_children);
+    for (uint32_t i = 0; i < num_children; ++i) {
+      execution::Value child;
+      out_archive >> child;
+      children.push_back(std::move(child));
+    }
+    if (type_id == DataTypeId::kList) {
+      value = execution::Value::LIST(ListType::GetChildType(dt),
+                                     std::move(children));
+    } else {
+      value = execution::Value::ARRAY(dt, std::move(children));
+    }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         std::string("Value deserialization not supported for type: ") +

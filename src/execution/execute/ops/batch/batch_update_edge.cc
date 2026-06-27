@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
 #include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/utils/pb_utils.h"
@@ -97,21 +98,17 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
               "Property " + prop_name +
               " does not exist for edge label: " + std::to_string(label_id));
         }
-        auto val_type = value.type();
-        if (val_type.id() != DataTypeId::kEmpty &&
-            val_type.id() != DataTypeId::kInt32 &&
-            val_type.id() != DataTypeId::kInt64 &&
-            val_type.id() != DataTypeId::kVarchar &&
-            val_type.id() != DataTypeId::kDouble) {
-          THROW_RUNTIME_ERROR("Unsupported property type: " +
-                              std::to_string(static_cast<int>(val_type.id())));
-        }
         auto oe_view =
             graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);
         auto ie_view =
             graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
         auto prop_types =
             graph.schema().get_edge_properties(src_label, dst_label, label_id);
+        if (col_id >= 0 && col_id < static_cast<int>(prop_types.size()) &&
+            prop_types[col_id] != value.type()) {
+          THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                              prop_name);
+        }
         auto offset_pair =
             record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
         graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,

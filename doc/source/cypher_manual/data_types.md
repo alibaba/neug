@@ -21,6 +21,7 @@ The following table showcases all data types supported by NeuG and their differe
 | Temporal | DATETIME | `1970-01-01 00:00:00` | `RETURN timestamp('2022-06-06 12:00:00')` | `RETURN datetime('2022-06-06T12:00:00')` |
 | Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `RETURN duration('P1Y2M3D')` |
 | Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]` | `RETURN [1, 2, 3]` |
+| Composite | ARRAY | fixed-size child defaults, for example `[0, 0, 0]` for `INT32[3]` | `readings INT32[3]` in a schema | unsupported as a separate fixed-size type |
 | Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: Person, id: 1, name: marko, age: 29}` | `(:Person {name: 'Alice', age: 30})` |
 | Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: KNOWS, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:KNOWS {weight: 1.0}]` |
 | Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: Person}, {_ID: 4294967298, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: Person}, {_ID: 4297064449, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: Software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
@@ -137,6 +138,53 @@ MATCH (n:Person) RETURN [["name", n.name], ["age", n.age]];
 - Type conversion is handled automatically when possible
 - Nested lists are fully supported for complex data structures
 - The system maintains type safety while allowing flexibility in list composition
+
+#### ARRAY
+- **Description**: Fixed-size ordered collection whose elements share the declared child type
+- **Syntax**: Use `T[N]`, where `T` is the child type and `N` is a positive fixed length
+- **Query Example**: `CREATE NODE TABLE Sensor(id INT64, readings INT64[3], PRIMARY KEY(id));`
+
+`ARRAY` is NeuG's fixed-size counterpart to `LIST`. `T[]` declares a variable-length list, while `T[N]` declares an array with exactly `N` elements. Array literals use the same bracket syntax as lists; the declared schema or another typed context determines whether the value is stored as a `LIST` or an `ARRAY`. `CAST` is not a general `LIST`/`ARRAY` compatibility mechanism.
+
+```cypher
+CREATE NODE TABLE Sensor(
+    id INT64,
+    readings INT32[3],
+    PRIMARY KEY(id)
+);
+
+CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});
+MATCH (s:Sensor) RETURN s.readings;
+```
+
+Arrays can also be used on relationship properties:
+
+```cypher
+CREATE REL TABLE Knows(
+    FROM Person TO Person,
+    weights DOUBLE[2]
+);
+```
+
+Multi-dimensional arrays are written by chaining fixed lengths. `INT32[2][3]` means an outer array with 3 elements, where each element is an `INT32[2]` array:
+
+```cypher
+CREATE NODE TABLE Matrix(
+    id INT64,
+    grid INT32[2][3],
+    PRIMARY KEY(id)
+);
+
+CREATE (m:Matrix {id: 1, grid: [[1, 2], [3, 4], [5, 6]]});
+```
+
+**Key Technical Details:**
+- Array values must match the declared length at every fixed-size dimension
+- Missing or `NULL` array properties during `CREATE` use the child type's default value for each element
+- Explicit array default literals in DDL, such as `prop INT32[3] DEFAULT [1, 2, 3]`, are supported
+- `RETURN`, equality filters, zero-based indexing, `SET`, `MERGE`, `collect()`, and `UNWIND` support array-valued properties
+- `CAST` does not convert between `LIST` and `ARRAY`; array property values are typed by schema-aware compiler contexts
+- Setting an existing array property to `NULL` is not supported yet
 
 ### Graph Types
 

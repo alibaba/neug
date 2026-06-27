@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/common/columns/list_columns.h"
+#include "neug/execution/common/columns/array_columns.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -46,6 +47,20 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
   }
   case DataTypeId::kList: {
     ListColumnBuilder builder(elem_type_);
+    sel_vec_t offsets;
+    size_t i = 0;
+    for (const auto& list : items_) {
+      for (size_t j = list.offset; j < list.offset + list.length; ++j) {
+        auto elem = datas_->get_elem(j);
+        builder.push_back_elem(elem);
+        offsets.push_back(i);
+      }
+      ++i;
+    }
+    return {builder.finish(), offsets};
+  }
+  case DataTypeId::kArray: {
+    ArrayColumnBuilder builder(elem_type_);
     sel_vec_t offsets;
     size_t i = 0;
     for (const auto& list : items_) {

@@ -16,6 +16,8 @@
 #include "neug/compiler/gopt/g_type_converter.h"
 
 #include <google/protobuf/wrappers.pb.h>
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 #include "neug/compiler/binder/expression/case_expression.h"
@@ -137,7 +139,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
 }
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
-    const neug::DataType& type) {
+    const neug::DataType& type, uint64_t fixedLength) {
   auto result = std::make_unique<::common::IrDataType>();
   VLOG(1) << "Converting ARRAY child type: " << type.ToString();
   auto childType = convertLogicalType(type);
@@ -152,6 +154,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
   } else if (childType->has_data_type()) {
     auto arrayType = std::make_unique<::common::Array>();
     arrayType->set_allocated_component_type(childType->release_data_type());
+    arrayType->set_fixed_length(fixedLength);
     result->mutable_data_type()->set_allocated_array(arrayType.release());
   } else {
     LOG(WARNING) << "Component type of Array should be basic or graph element, "
@@ -161,6 +164,33 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
         ::common::PrimitiveType::DT_ANY);
   }
   VLOG(1) << "Converted ARRAY type: " << result->DebugString();
+  return result;
+}
+
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertListType(
+    const neug::DataType& type) {
+  auto result = std::make_unique<::common::IrDataType>();
+  VLOG(1) << "Converting LIST child type: " << type.ToString();
+  auto childType = convertLogicalType(type);
+  if (!childType) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Failed to convert child type for LIST type: " + type.ToString());
+  }
+  if (childType->has_graph_type()) {
+    auto listType = std::make_unique<::common::GraphTypeList>();
+    listType->set_allocated_component_type(childType->release_graph_type());
+    result->set_allocated_list_type(listType.release());
+  } else if (childType->has_data_type()) {
+    auto listType = std::make_unique<::common::List>();
+    listType->set_allocated_component_type(childType->release_data_type());
+    result->mutable_data_type()->set_allocated_list(listType.release());
+  } else {
+    LOG(WARNING) << "Component type of List should be basic or graph element, "
+                    "others are unsupported, return ANY instead.";
+    result->mutable_data_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_ANY);
+  }
+  VLOG(1) << "Converted LIST type: " << result->DebugString();
   return result;
 }
 
@@ -268,12 +298,19 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
   }
   case common::DataTypeId::kArray: {
     auto& child_type = common::ArrayType::GetChildType(type);
-    return convertArrayType(child_type);
+    uint64_t fixedLength = common::ArrayType::GetNumElements(type);
+    if (fixedLength >
+        static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Fixed length of ARRAY type is too large: " +
+          std::to_string(fixedLength));
+    }
+    return convertArrayType(child_type, fixedLength);
   }
   case common::DataTypeId::kList: {
     VLOG(1) << "Converting LIST type: " << type.ToString();
     auto& child_type = common::ListType::GetChildType(type);
-    return convertArrayType(child_type);
+    return convertListType(child_type);
   }
   case common::DataTypeId::kStruct: {
     return convertStructType(type);
@@ -461,15 +498,14 @@ neug::DataType GLogicalTypeConverter::convertDataType(
     }
   }
   case ::common::DataType::kArray: {
-    // Handle array type
     const auto& array = type.array();
     auto childType = convertDataType(array.component_type());
-    // If max_length is set and > 0, use ARRAY, otherwise use LIST
-    if (array.max_length() > 0) {
-      return neug::DataType::Array(std::move(childType), array.max_length());
-    } else {
-      return neug::DataType::List(std::move(childType));
-    }
+    return neug::DataType::Array(std::move(childType), array.fixed_length());
+  }
+  case ::common::DataType::kList: {
+    const auto& list = type.list();
+    auto childType = convertDataType(list.component_type());
+    return neug::DataType::List(std::move(childType));
   }
   case ::common::DataType::kMap: {
     // Handle map type

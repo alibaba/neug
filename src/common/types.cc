@@ -27,6 +27,8 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
@@ -259,10 +261,18 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     }
   }
   case ::common::DataType::kArray: {
-    const auto& element_type = ddt.array().component_type();
-    auto data_type = parse_from_data_type(element_type);
-    return DataType(DataTypeId::kList,
-                    std::make_shared<ListTypeInfo>(data_type));
+    const auto& array_pb = ddt.array();
+    const auto& element_type = array_pb.component_type();
+    auto child_data_type = parse_from_data_type(element_type);
+    uint32_t fixed_length = array_pb.fixed_length();
+    CHECK(fixed_length > 0);
+    return DataType::Array(child_data_type, fixed_length);
+  }
+  case ::common::DataType::kList: {
+    const auto& array_pb = ddt.list();
+    const auto& element_type = array_pb.component_type();
+    auto child_data_type = parse_from_data_type(element_type);
+    return DataType::List(child_data_type);
   }
   case ::common::DataType::kTuple: {
     const auto& component_types = ddt.tuple().component_types();
@@ -403,6 +413,77 @@ std::string DataType::ToString() const {
   default:
     return "UNKNOWN" + std::to_string(static_cast<uint8_t>(id_));
   }
+}
+
+InArchive& operator<<(InArchive& in_archive, const DataType& type) {
+  auto id = type.id();
+  in_archive << id;
+  auto type_info = type.getExtraTypeInfo();
+  if (type_info) {
+    in_archive << (char) 1;
+    if (id == DataTypeId::kList) {
+      const auto& list_type_info = type_info->Cast<ListTypeInfo>();
+      in_archive << list_type_info.child_type;
+    } else if (id == DataTypeId::kStruct) {
+      const auto& struct_type_info = type_info->Cast<StructTypeInfo>();
+      const auto& child_types = struct_type_info.child_types;
+      in_archive << (size_t) child_types.size();
+      for (const auto& child_type : child_types) {
+        in_archive << child_type;
+      }
+    } else if (id == DataTypeId::kArray) {
+      const auto& array_type_info = type_info->Cast<ArrayTypeInfo>();
+      in_archive << array_type_info.child_type << array_type_info.num_elements;
+    } else if (id == DataTypeId::kVarchar) {
+      const auto& varchar_type_info = type_info->Cast<StringTypeInfo>();
+      in_archive << varchar_type_info.max_length;
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "unsupported data type with extra type info - " + type.ToString());
+    }
+  } else {
+    in_archive << (char) 0;  // indicate no extra type info
+  }
+  return in_archive;
+}
+
+OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
+  DataTypeId id;
+  out_archive >> id;
+
+  char has_extra_type_info;
+  out_archive >> has_extra_type_info;
+  if (has_extra_type_info) {
+    if (id == DataTypeId::kList) {
+      DataType child_type;
+      out_archive >> child_type;
+      type = DataType::List(child_type);
+    } else if (id == DataTypeId::kStruct) {
+      size_t child_types_size;
+      out_archive >> child_types_size;
+      std::vector<DataType> child_types(child_types_size);
+      for (size_t i = 0; i < child_types_size; ++i) {
+        out_archive >> child_types[i];
+      }
+      type = DataType::Struct(child_types);
+    } else if (id == DataTypeId::kArray) {
+      DataType child_type;
+      uint64_t array_size;
+      out_archive >> child_type >> array_size;
+      type = DataType::Array(child_type, array_size);
+    } else if (id == DataTypeId::kVarchar) {
+      size_t max_length;
+      out_archive >> max_length;
+      type = DataType::Varchar(max_length);
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "unsupported data type with extra type info - " + std::to_string(id));
+    }
+  } else {
+    type = DataType(id);
+  }
+
+  return out_archive;
 }
 
 }  // namespace neug

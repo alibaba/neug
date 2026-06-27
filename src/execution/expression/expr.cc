@@ -134,6 +134,21 @@ static std::unique_ptr<ExprBase> build_expr(
                                         std::move(list_type));
     }
 
+    case ::common::ExprOpr::kToArray: {
+      const auto& array_fields = opr.to_array().fields();
+      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      for (int i = 0; i < array_fields.size(); ++i) {
+        exprs_vec.emplace_back(
+            parse_expression(array_fields[i], ctx_meta, var_type));
+      }
+      if (!opr.has_node_type()) {
+        THROW_RUNTIME_ERROR("TO_ARRAY expression requires an ARRAY node type");
+      }
+      auto array_type = parse_from_ir_data_type(opr.node_type());
+      return std::make_unique<ArrayExpr>(std::move(exprs_vec),
+                                         std::move(array_type));
+    }
+
     case ::common::ExprOpr::kToDate: {
       Date date(opr.to_date().date_str());
       return std::make_unique<ConstExpr>(Value::DATE(date));
@@ -335,6 +350,7 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
     case ::common::ExprOpr::kToDatetime:
     case ::common::ExprOpr::kToTuple:
     case ::common::ExprOpr::kToList:
+    case ::common::ExprOpr::kToArray:
     case ::common::ExprOpr::kScalarFunc:
     case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);

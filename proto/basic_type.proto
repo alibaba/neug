@@ -106,7 +106,11 @@ message Temporal {
 
 message Array {
     DataType component_type = 1;
-    uint32 max_length = 2;
+    uint32 fixed_length = 2;
+}
+
+message List {
+    DataType component_type = 1;
 }
 
 message Tuple {
@@ -127,5 +131,6 @@ message DataType {
         Array array = 5;
         Map map = 6;
         Tuple tuple = 7;
+        List list = 8;
     }
 }

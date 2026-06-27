@@ -28,6 +28,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/common/extra_type_info.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
@@ -335,6 +336,10 @@ bool EdgeSchema::is_bundled() const {
     return true;
   } else if (properties.size() == 1 &&
              properties[0].id() == DataTypeId::kVarchar) {
+    return false;
+  } else if (properties.size() == 1 &&
+             (properties[0].id() == DataTypeId::kArray ||
+              properties[0].id() == DataTypeId::kList)) {
     return false;
   } else if (properties.size() > 1) {
     return false;

@@ -43,6 +43,21 @@ static bool skipDataTypeValidation(const Expression& expr) {
          expr.getDataType().id() == DataTypeId::kUnknown;
 }
 
+static bool isListLikeType(DataTypeId type_id) {
+  return type_id == DataTypeId::kList || type_id == DataTypeId::kArray;
+}
+
+static const DataType& getListLikeChildType(const DataType& type) {
+  if (type.id() == DataTypeId::kList) {
+    return ListType::GetChildType(type);
+  }
+  if (type.id() == DataTypeId::kArray) {
+    return ArrayType::GetChildType(type);
+  }
+  THROW_BINDER_EXCEPTION("UNWIND expects a LIST or ARRAY expression, got " +
+                         type.ToString() + ".");
+}
+
 std::shared_ptr<Expression> Binder::createAlias(
     const std::string& name, const DataType& dataType,
     std::shared_ptr<binder::Expression> boundExpr) {
@@ -69,18 +84,13 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
       expressionBinder.bindExpression(*unwindClause.getExpression());
   auto aliasName = unwindClause.getAlias();
   std::shared_ptr<Expression> alias;
-  if (boundExpression->getDataType().id() == DataTypeId::kArray) {
-    auto targetType = DataType::List(
-        ArrayType::GetChildType(boundExpression->dataType).copy());
-    boundExpression =
-        expressionBinder.implicitCast(boundExpression, targetType);
-  }
   if (!skipDataTypeValidation(*boundExpression)) {
-    ExpressionUtil::validateDataType(*boundExpression, DataTypeId::kList);
-    alias = createAlias(
-        aliasName,
-        neug::common::ListType::GetChildType(boundExpression->dataType),
-        boundExpression);
+    if (!isListLikeType(boundExpression->getDataType().id())) {
+      ExpressionUtil::validateDataType(*boundExpression, DataTypeId::kList);
+    }
+    alias =
+        createAlias(aliasName, getListLikeChildType(boundExpression->dataType),
+                    boundExpression);
   } else {
     alias =
         createAlias(aliasName, DataType(DataTypeId::kUnknown), boundExpression);

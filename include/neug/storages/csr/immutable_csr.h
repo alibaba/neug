@@ -65,7 +65,8 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel memory_level) override;
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
 
   void reset_timestamp() override;
 
@@ -177,7 +178,8 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
 
   void reset_timestamp() override;
 

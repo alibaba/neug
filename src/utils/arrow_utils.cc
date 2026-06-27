@@ -14,6 +14,8 @@
  */
 #include "neug/utils/arrow_utils.h"
 
+#include <cstdint>
+#include <limits>
 #include <vector>
 #include "neug/utils/exception/exception.h"
 
@@ -61,6 +63,19 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
     assert(casted != nullptr);
     auto value_type = PropertyTypeToArrowType(casted->child_type);
     return arrow::list(value_type);
+  }
+  case DataTypeId::kArray: {
+    auto casted = dynamic_cast<const ArrayTypeInfo*>(type.getExtraTypeInfo());
+    assert(casted != nullptr);
+    if (casted->num_elements >
+        static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "ARRAY length is too large for Arrow fixed_size_list: " +
+          std::to_string(casted->num_elements));
+    }
+    auto value_type = PropertyTypeToArrowType(casted->child_type);
+    return arrow::fixed_size_list(value_type,
+                                  static_cast<int32_t>(casted->num_elements));
   }
   default:
     return PropertyTypeToArrowType(id);

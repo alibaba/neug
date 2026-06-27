@@ -42,6 +42,31 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+namespace {
+
+execution::Value make_array_like_value(const DataType& type,
+                                       const DataType& child_type,
+                                       std::vector<execution::Value>&& elems) {
+  if (type.id() == DataTypeId::kArray) {
+    return execution::Value::ARRAY(type, std::move(elems));
+  }
+  return execution::Value::LIST(child_type, std::move(elems));
+}
+
+bool validate_array_element_count(const DataType& type, int actual_size) {
+  if (type.id() != DataTypeId::kArray) {
+    return true;
+  }
+  auto expected_size = ArrayType::GetNumElements(type);
+  if (static_cast<uint64_t>(actual_size) == expected_size) {
+    return true;
+  }
+  LOG(ERROR) << "ARRAY value element count mismatch, expected " << expected_size
+             << ", got " << actual_size;
+  return false;
+}
+
+}  // namespace
 
 std::string proto_to_string(const google::protobuf::Message& proto) {
   std::string json_str;
@@ -231,8 +256,19 @@ bool data_type_to_property_type(const common::DataType& data_type,
     return temporal_type_to_property_type(data_type.temporal(), out_type);
   }
   case common::DataType::kArray: {
-    LOG(ERROR) << "Array type is not supported";
-    return false;
+    const auto& array = data_type.array();
+    DataType child_type;
+    if (!data_type_to_property_type(array.component_type(), child_type)) {
+      LOG(ERROR) << "Failed to parse array component type";
+      return false;
+    }
+    uint32_t max_length = array.fixed_length();
+    if (max_length > 0) {
+      out_type = DataType::Array(child_type, max_length);
+    } else {
+      out_type = DataType::List(child_type);
+    }
+    return true;
   }
   case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
@@ -299,11 +335,125 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   case common::Value::kDate:
     out_value = execution::Value::DATE(Date(value.date().item()));
     break;
-  default:
+  case common::Value::kI32Array: {
+    const auto& arr = value.i32_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::INT32;
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::INT32(arr.item(i)));
+    }
+    out_value = make_array_like_value(type, child_type, std::move(elements));
+    break;
+  }
+  case common::Value::kI64Array: {
+    const auto& arr = value.i64_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::INT64;
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::INT64(arr.item(i)));
+    }
+    out_value = make_array_like_value(type, child_type, std::move(elements));
+    break;
+  }
+  case common::Value::kF64Array: {
+    const auto& arr = value.f64_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::DOUBLE;
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::DOUBLE(arr.item(i)));
+    }
+    out_value = make_array_like_value(type, child_type, std::move(elements));
+    break;
+  }
+  case common::Value::kStrArray: {
+    const auto& arr = value.str_array();
+    if (!validate_array_element_count(type, arr.item_size())) {
+      return false;
+    }
+    DataType child_type = type.id() == DataTypeId::kArray
+                              ? ArrayType::GetChildType(type)
+                              : DataType::VARCHAR;
+    std::vector<execution::Value> elements;
+    elements.reserve(arr.item_size());
+    for (int i = 0; i < arr.item_size(); ++i) {
+      elements.emplace_back(execution::Value::STRING(arr.item(i)));
+    }
+    out_value = make_array_like_value(type, child_type, std::move(elements));
+    break;
+  }
+  case common::Value::ITEM_NOT_SET: {
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
     return false;
   }
+  default: {
+    LOG(ERROR) << "Unsupported value type: " << value.DebugString();
+    return false;
+  }
+  }
   return true;
+}
+
+bool default_expression_to_value(const DataType& type,
+                                 const common::Expression& expression,
+                                 execution::Value& out_value) {
+  if (expression.operators_size() != 1) {
+    LOG(ERROR) << "Default expression must contain exactly one operator: "
+               << expression.DebugString();
+    return false;
+  }
+
+  const auto& opr = expression.operators(0);
+  switch (opr.item_case()) {
+  case common::ExprOpr::kConst:
+    return common_value_to_value(type, opr.const_(), out_value);
+  case common::ExprOpr::kToArray: {
+    if (type.id() != DataTypeId::kArray) {
+      LOG(ERROR) << "TO_ARRAY default expression requires ARRAY property type: "
+                 << expression.DebugString();
+      return false;
+    }
+
+    const auto& fields = opr.to_array().fields();
+    if (!validate_array_element_count(type, fields.size())) {
+      return false;
+    }
+
+    const auto& child_type = ArrayType::GetChildType(type);
+    std::vector<execution::Value> elements;
+    elements.reserve(fields.size());
+    for (const auto& field : fields) {
+      execution::Value element(DataType::SQLNULL);
+      if (!default_expression_to_value(child_type, field, element)) {
+        return false;
+      }
+      elements.emplace_back(std::move(element));
+    }
+    out_value = execution::Value::ARRAY(type, std::move(elements));
+    return true;
+  }
+  default:
+    LOG(ERROR) << "Unsupported default expression: "
+               << expression.DebugString();
+    return false;
+  }
 }
 
 neug::result<std::vector<std::pair<std::string, execution::Value>>>
@@ -320,15 +470,15 @@ property_defs_to_value(
                           "Invalid property type: " + property.DebugString()));
     }
 
-    if (property.has_default_value()) {
-      if (!common_value_to_value(type, property.default_value(),
-                                 default_value)) {
+    if (property.has_default_expr()) {
+      if (!default_expression_to_value(type, property.default_expr(),
+                                       default_value)) {
         RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
         VLOG(10) << "Default value convert to any success:"
-                 << property.default_value().DebugString();
+                 << property.default_expr().DebugString();
       }
     } else {
       default_value = get_default_value(type);

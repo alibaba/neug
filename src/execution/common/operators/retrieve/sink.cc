@@ -15,6 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
+#include "neug/execution/common/columns/array_columns.h"
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
@@ -443,6 +444,25 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       list_col->add_offsets(current_offset);
     }
 
+    break;
+  }
+  case DataTypeId::kArray: {
+    // ArrayColumn stores elements flat: row i element j at
+    // datas_[i * array_size_ + j].  We serialize it as a list_array
+    // with equal-length offsets, which is wire-compatible with the
+    // existing list_array decoding on the client side.
+    auto casted = std::dynamic_pointer_cast<ArrayColumn>(col);
+    auto list_col = column->mutable_list_array();
+    const auto& children = casted->data_column();
+    add_column(children, graph, list_col->mutable_elements());
+    uint32_t array_size = casted->array_size();
+    list_col->mutable_offsets()->Reserve(casted->size() + 1);
+    size_t current_offset = 0;
+    for (size_t i = 0; i < casted->size(); ++i) {
+      list_col->add_offsets(current_offset);
+      current_offset += array_size;
+    }
+    list_col->add_offsets(current_offset);
     break;
   }
   case DataTypeId::kStruct: {
