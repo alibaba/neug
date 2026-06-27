@@ -35,17 +35,17 @@ public:
     OR = 119, ORDER = 120, PRIMARY = 121, PROFILE = 122, PROJECT = 123, 
     READ = 124, REL = 125, RENAME = 126, RETURN = 127, ROLLBACK = 128, ROLLBACK_SKIP_CHECKPOINT = 129, 
     SEQUENCE = 130, SET = 131, SHORTEST = 132, START = 133, STARTS = 134, 
-    TABLE = 135, THEN = 136, TO = 137, TRAIL = 138, TRANSACTION = 139, TYPE = 140, 
-    UNINSTALL = 141, UNION = 142, UNWIND = 143, USE = 144, WHEN = 145, WHERE = 146, 
-    WITH = 147, WRITE = 148, WSHORTEST = 149, XOR = 150, SINGLE = 151, YIELD = 152, 
-    DECIMAL = 153, VARCHAR = 154, STAR = 155, L_SKIP = 156, INVALID_NOT_EQUAL = 157, 
-    MINUS = 158, FACTORIAL = 159, COLON = 160, BTRUE = 161, BFALSE = 162, 
-    StringLiteral = 163, EscapedChar = 164, DecimalInteger = 165, HexLetter = 166, 
-    HexDigit = 167, Digit = 168, NonZeroDigit = 169, NonZeroOctDigit = 170, 
-    ZeroDigit = 171, ExponentDecimalReal = 172, RegularDecimalReal = 173, 
-    UnescapedSymbolicName = 174, IdentifierStart = 175, IdentifierPart = 176, 
-    EscapedSymbolicName = 177, SP = 178, WHITESPACE = 179, CypherComment = 180, 
-    Unknown = 181
+    TABLE = 135, TEMP = 136, THEN = 137, TO = 138, TRAIL = 139, TRANSACTION = 140, 
+    TYPE = 141, UNINSTALL = 142, UNION = 143, UNWIND = 144, USE = 145, WHEN = 146, 
+    WHERE = 147, WITH = 148, WRITE = 149, WSHORTEST = 150, XOR = 151, SINGLE = 152, 
+    YIELD = 153, DECIMAL = 154, VARCHAR = 155, STAR = 156, L_SKIP = 157, 
+    INVALID_NOT_EQUAL = 158, MINUS = 159, FACTORIAL = 160, COLON = 161, 
+    BTRUE = 162, BFALSE = 163, StringLiteral = 164, EscapedChar = 165, DecimalInteger = 166, 
+    HexLetter = 167, HexDigit = 168, Digit = 169, NonZeroDigit = 170, NonZeroOctDigit = 171, 
+    ZeroDigit = 172, ExponentDecimalReal = 173, RegularDecimalReal = 174, 
+    UnescapedSymbolicName = 175, IdentifierStart = 176, IdentifierPart = 177, 
+    EscapedSymbolicName = 178, SP = 179, WHITESPACE = 180, CypherComment = 181, 
+    Unknown = 182
   };
 
   enum {
@@ -73,42 +73,42 @@ public:
     RuleOC_CallUnion = 63, RuleOC_CallUnionScope = 64, RuleOC_SingleQuery = 65, 
     RuleOC_SinglePartQuery = 66, RuleOC_MultiPartQuery = 67, RuleNEUG_QueryPart = 68, 
     RuleOC_UpdatingClause = 69, RuleOC_ReadingClause = 70, RuleNEUG_LoadFrom = 71, 
-    RuleOC_YieldItem = 72, RuleOC_YieldItems = 73, RuleNEUG_InQueryCall = 74, 
-    RuleOC_Match = 75, RuleNEUG_Hint = 76, RuleNEUG_JoinNode = 77, RuleOC_Unwind = 78, 
-    RuleOC_Create = 79, RuleOC_Merge = 80, RuleOC_MergeAction = 81, RuleOC_Set = 82, 
-    RuleOC_SetItem = 83, RuleOC_Delete = 84, RuleOC_With = 85, RuleOC_Return = 86, 
-    RuleOC_ProjectionBody = 87, RuleOC_ProjectionItems = 88, RuleOC_ProjectionItem = 89, 
-    RuleOC_Order = 90, RuleOC_Skip = 91, RuleOC_Limit = 92, RuleOC_SortItem = 93, 
-    RuleOC_Where = 94, RuleOC_Pattern = 95, RuleOC_PatternPart = 96, RuleOC_AnonymousPatternPart = 97, 
-    RuleOC_PatternElement = 98, RuleOC_NodePattern = 99, RuleOC_PatternElementChain = 100, 
-    RuleOC_RelationshipPattern = 101, RuleOC_RelationshipDetail = 102, RuleNEUG_Properties = 103, 
-    RuleOC_RelationshipTypes = 104, RuleOC_NodeLabels = 105, RuleOC_NodeLabel = 106, 
-    RuleNEUG_RecursiveDetail = 107, RuleNEUG_RecursiveType = 108, RuleOC_RangeLiteral = 109, 
-    RuleNEUG_RecursiveComprehension = 110, RuleNEUG_RecursiveProjectionItems = 111, 
-    RuleOC_LowerBound = 112, RuleOC_UpperBound = 113, RuleOC_LabelName = 114, 
-    RuleOC_RelTypeName = 115, RuleOC_Expression = 116, RuleOC_OrExpression = 117, 
-    RuleOC_XorExpression = 118, RuleOC_AndExpression = 119, RuleOC_NotExpression = 120, 
-    RuleOC_ComparisonExpression = 121, RuleNEUG_ComparisonOperator = 122, 
-    RuleNEUG_BitwiseOrOperatorExpression = 123, RuleNEUG_BitwiseAndOperatorExpression = 124, 
-    RuleNEUG_BitShiftOperatorExpression = 125, RuleNEUG_BitShiftOperator = 126, 
-    RuleOC_AddOrSubtractExpression = 127, RuleNEUG_AddOrSubtractOperator = 128, 
-    RuleOC_MultiplyDivideModuloExpression = 129, RuleNEUG_MultiplyDivideModuloOperator = 130, 
-    RuleOC_PowerOfExpression = 131, RuleOC_UnaryAddSubtractOrFactorialExpression = 132, 
-    RuleOC_StringListNullOperatorExpression = 133, RuleOC_ListOperatorExpression = 134, 
-    RuleOC_StringOperatorExpression = 135, RuleOC_RegularExpression = 136, 
-    RuleOC_NullOperatorExpression = 137, RuleOC_PropertyOrLabelsExpression = 138, 
-    RuleOC_Atom = 139, RuleOC_Quantifier = 140, RuleOC_FilterExpression = 141, 
-    RuleOC_IdInColl = 142, RuleOC_Literal = 143, RuleOC_BooleanLiteral = 144, 
-    RuleOC_ListLiteral = 145, RuleNEUG_ListEntry = 146, RuleNEUG_StructLiteral = 147, 
-    RuleNEUG_StructField = 148, RuleOC_ParenthesizedExpression = 149, RuleOC_FunctionInvocation = 150, 
-    RuleOC_FunctionName = 151, RuleNEUG_FunctionParameter = 152, RuleNEUG_LambdaParameter = 153, 
-    RuleNEUG_LambdaVars = 154, RuleOC_PathPatterns = 155, RuleOC_ExistCountSubquery = 156, 
-    RuleOC_PropertyLookup = 157, RuleOC_CaseExpression = 158, RuleOC_CaseAlternative = 159, 
-    RuleOC_Variable = 160, RuleOC_NumberLiteral = 161, RuleOC_Parameter = 162, 
-    RuleOC_PropertyExpression = 163, RuleOC_PropertyKeyName = 164, RuleOC_IntegerLiteral = 165, 
-    RuleOC_DoubleLiteral = 166, RuleOC_SchemaName = 167, RuleOC_SymbolicName = 168, 
-    RuleNEUG_NonReservedKeywords = 169, RuleOC_LeftArrowHead = 170, RuleOC_RightArrowHead = 171, 
-    RuleOC_Dash = 172
+    RuleNEUG_CopyTemp = 72, RuleOC_YieldItem = 73, RuleOC_YieldItems = 74, 
+    RuleNEUG_InQueryCall = 75, RuleOC_Match = 76, RuleNEUG_Hint = 77, RuleNEUG_JoinNode = 78, 
+    RuleOC_Unwind = 79, RuleOC_Create = 80, RuleOC_Merge = 81, RuleOC_MergeAction = 82, 
+    RuleOC_Set = 83, RuleOC_SetItem = 84, RuleOC_Delete = 85, RuleOC_With = 86, 
+    RuleOC_Return = 87, RuleOC_ProjectionBody = 88, RuleOC_ProjectionItems = 89, 
+    RuleOC_ProjectionItem = 90, RuleOC_Order = 91, RuleOC_Skip = 92, RuleOC_Limit = 93, 
+    RuleOC_SortItem = 94, RuleOC_Where = 95, RuleOC_Pattern = 96, RuleOC_PatternPart = 97, 
+    RuleOC_AnonymousPatternPart = 98, RuleOC_PatternElement = 99, RuleOC_NodePattern = 100, 
+    RuleOC_PatternElementChain = 101, RuleOC_RelationshipPattern = 102, 
+    RuleOC_RelationshipDetail = 103, RuleNEUG_Properties = 104, RuleOC_RelationshipTypes = 105, 
+    RuleOC_NodeLabels = 106, RuleOC_NodeLabel = 107, RuleNEUG_RecursiveDetail = 108, 
+    RuleNEUG_RecursiveType = 109, RuleOC_RangeLiteral = 110, RuleNEUG_RecursiveComprehension = 111, 
+    RuleNEUG_RecursiveProjectionItems = 112, RuleOC_LowerBound = 113, RuleOC_UpperBound = 114, 
+    RuleOC_LabelName = 115, RuleOC_RelTypeName = 116, RuleOC_Expression = 117, 
+    RuleOC_OrExpression = 118, RuleOC_XorExpression = 119, RuleOC_AndExpression = 120, 
+    RuleOC_NotExpression = 121, RuleOC_ComparisonExpression = 122, RuleNEUG_ComparisonOperator = 123, 
+    RuleNEUG_BitwiseOrOperatorExpression = 124, RuleNEUG_BitwiseAndOperatorExpression = 125, 
+    RuleNEUG_BitShiftOperatorExpression = 126, RuleNEUG_BitShiftOperator = 127, 
+    RuleOC_AddOrSubtractExpression = 128, RuleNEUG_AddOrSubtractOperator = 129, 
+    RuleOC_MultiplyDivideModuloExpression = 130, RuleNEUG_MultiplyDivideModuloOperator = 131, 
+    RuleOC_PowerOfExpression = 132, RuleOC_UnaryAddSubtractOrFactorialExpression = 133, 
+    RuleOC_StringListNullOperatorExpression = 134, RuleOC_ListOperatorExpression = 135, 
+    RuleOC_StringOperatorExpression = 136, RuleOC_RegularExpression = 137, 
+    RuleOC_NullOperatorExpression = 138, RuleOC_PropertyOrLabelsExpression = 139, 
+    RuleOC_Atom = 140, RuleOC_Quantifier = 141, RuleOC_FilterExpression = 142, 
+    RuleOC_IdInColl = 143, RuleOC_Literal = 144, RuleOC_BooleanLiteral = 145, 
+    RuleOC_ListLiteral = 146, RuleNEUG_ListEntry = 147, RuleNEUG_StructLiteral = 148, 
+    RuleNEUG_StructField = 149, RuleOC_ParenthesizedExpression = 150, RuleOC_FunctionInvocation = 151, 
+    RuleOC_FunctionName = 152, RuleNEUG_FunctionParameter = 153, RuleNEUG_LambdaParameter = 154, 
+    RuleNEUG_LambdaVars = 155, RuleOC_PathPatterns = 156, RuleOC_ExistCountSubquery = 157, 
+    RuleOC_PropertyLookup = 158, RuleOC_CaseExpression = 159, RuleOC_CaseAlternative = 160, 
+    RuleOC_Variable = 161, RuleOC_NumberLiteral = 162, RuleOC_Parameter = 163, 
+    RuleOC_PropertyExpression = 164, RuleOC_PropertyKeyName = 165, RuleOC_IntegerLiteral = 166, 
+    RuleOC_DoubleLiteral = 167, RuleOC_SchemaName = 168, RuleOC_SymbolicName = 169, 
+    RuleNEUG_NonReservedKeywords = 170, RuleOC_LeftArrowHead = 171, RuleOC_RightArrowHead = 172, 
+    RuleOC_Dash = 173
   };
 
   explicit CypherParser(antlr4::TokenStream *input);
@@ -200,6 +200,7 @@ public:
   class OC_UpdatingClauseContext;
   class OC_ReadingClauseContext;
   class NEUG_LoadFromContext;
+  class NEUG_CopyTempContext;
   class OC_YieldItemContext;
   class OC_YieldItemsContext;
   class NEUG_InQueryCallContext;
@@ -345,6 +346,7 @@ public:
     NEUG_CopyFromContext *nEUG_CopyFrom();
     NEUG_CopyFromByColumnContext *nEUG_CopyFromByColumn();
     NEUG_CopyTOContext *nEUG_CopyTO();
+    NEUG_CopyTempContext *nEUG_CopyTemp();
     NEUG_StandaloneCallContext *nEUG_StandaloneCall();
     NEUG_CreateMacroContext *nEUG_CreateMacro();
     NEUG_CommentOnContext *nEUG_CommentOn();
@@ -1428,6 +1430,24 @@ public:
   };
 
   NEUG_LoadFromContext* nEUG_LoadFrom();
+
+  class  NEUG_CopyTempContext : public antlr4::ParserRuleContext {
+  public:
+    NEUG_CopyTempContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *COPY();
+    std::vector<antlr4::tree::TerminalNode *> SP();
+    antlr4::tree::TerminalNode* SP(size_t i);
+    antlr4::tree::TerminalNode *TEMP();
+    OC_SchemaNameContext *oC_SchemaName();
+    antlr4::tree::TerminalNode *FROM();
+    NEUG_ScanSourceContext *nEUG_ScanSource();
+    NEUG_OptionsContext *nEUG_Options();
+
+   
+  };
+
+  NEUG_CopyTempContext* nEUG_CopyTemp();
 
   class  OC_YieldItemContext : public antlr4::ParserRuleContext {
   public:
@@ -2884,6 +2904,7 @@ public:
     antlr4::tree::TerminalNode *START();
     antlr4::tree::TerminalNode *L_SKIP();
     antlr4::tree::TerminalNode *LIMIT();
+    antlr4::tree::TerminalNode *TEMP();
     antlr4::tree::TerminalNode *TRANSACTION();
     antlr4::tree::TerminalNode *TYPE();
     antlr4::tree::TerminalNode *USE();

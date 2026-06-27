@@ -59,7 +59,8 @@ struct NEUG_API DDLVertexInfo : public DDLTableInfo {
   // create inner node table entry and table info from the given parameters
   DDLVertexInfo(const std::string& vertexLabelName,
                 const std::string& primaryKeyName,
-                const expression_vector& columns, ExpressionBinder& binder);
+                const expression_vector& columns, ExpressionBinder& binder,
+                bool temporary = false);
 
   // return vertex label name
   std::string getVertexLabelName();
@@ -76,7 +77,7 @@ struct NEUG_API DDLEdgeInfo : public DDLTableInfo {
   DDLEdgeInfo(const std::string& edgeLabelName, const std::string& srcLabelName,
               const std::string& dstLabelName, common::table_id_t srcLabelID,
               common::table_id_t dstLabelID, const expression_vector& columns,
-              ExpressionBinder& binder);
+              ExpressionBinder& binder, bool temporary = false);
   // return edge label name
   std::string getEdgeLabelName();
   std::string getSrcLabelName();

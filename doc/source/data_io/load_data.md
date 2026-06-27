@@ -4,6 +4,10 @@
 
 You can apply standard relational operations — projection, filtering, type casting, aggregation, sorting — directly on the loaded data. This makes `LOAD FROM` ideal for data exploration, validation, and ad-hoc analysis.
 
+> **Tip:** To materialize loaded data as a persistent or temporary graph, use [`COPY FROM` / `COPY TEMP`](import_data). `LOAD FROM` can be used as a subquery inside `COPY` to preprocess data before import.
+
+---
+
 ## Basic Syntax
 
 ```cypher

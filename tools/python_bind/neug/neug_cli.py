@@ -613,7 +613,7 @@ class NeugShell(cmd.Cmd):
     name="neug-cli",
     epilog="Run 'neug-cli COMMAND --help' for more information on a command.\n\n  e.g. neug-cli open --help",
 )
-@click.version_option(version="0.1.2")
+@click.version_option(version="0.1.3")
 def cli():
     """Neug CLI Tool."""
 

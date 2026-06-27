@@ -835,12 +835,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
     const binder::VariableExpression& expr) {
   auto result = std::make_unique<::common::Expression>();
   auto opr = result->add_operators();
-  auto aliasName = expr.getUniqueName();
-  auto aliasId = aliasManager->getAliasId(std::move(aliasName));
   std::unique_ptr<::common::Variable> variable =
       std::make_unique<::common::Variable>();
   bool useName = expr.getUseName();
   if (!useName) {
+    auto aliasName = expr.getUniqueName();
+    auto aliasId = aliasManager->getAliasId(std::move(aliasName));
     if (aliasId != DEFAULT_ALIAS_ID) {
       variable->set_allocated_tag(convertAlias(aliasId).release());
     }

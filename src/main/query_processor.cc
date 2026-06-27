@@ -169,4 +169,12 @@ void QueryProcessor::update_compiler_meta_if_needed(
   }
 }
 
+void QueryProcessor::clear_cache() {
+  SnapshotGuard guard(snapshot_store_);
+  auto& pg = *guard.get().mutable_graph();
+  physical::ExecutionFlag flags;
+  flags.set_create_temp_table(true);
+  update_compiler_meta_if_needed(pg, flags, AccessMode::kSchema);
+}
+
 }  // namespace neug

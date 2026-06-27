@@ -26,11 +26,13 @@ class CreateVertexTypeOpr : public IOperator {
   CreateVertexTypeOpr(
       const std::string& type_name,
       const std::vector<std::pair<std::string, Value>>& properties,
-      const std::vector<std::string>& pks, bool ignore_conflict)
+      const std::vector<std::string>& pks, bool ignore_conflict,
+      bool is_temporary)
       : type_name_(type_name),
         properties_(properties),
         pks_(pks),
-        ignore_conflict_(ignore_conflict) {}
+        ignore_conflict_(ignore_conflict),
+        is_temporary_(is_temporary) {}
 
   std::string get_operator_name() const override {
     return "CreateVertexTypeOpr";
@@ -41,7 +43,9 @@ class CreateVertexTypeOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     CreateVertexTypeParamBuilder builder;
-    builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
+    builder.VertexLabel(type_name_)
+        .PrimaryKeyNames(pks_)
+        .Temporary(is_temporary_);
     for (const auto& [prop_name, prop_value] : properties_) {
       builder.AddProperty(prop_name, prop_value);
     }
@@ -62,6 +66,7 @@ class CreateVertexTypeOpr : public IOperator {
   std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
   bool ignore_conflict_;
+  bool is_temporary_;
 };
 
 neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
@@ -88,9 +93,10 @@ neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
   }
   bool ignore_conflict =
       !conflict_action_to_bool(create_vertex.conflict_action());
+  bool is_temporary = create_vertex.temporary();
   return std::make_pair(
       std::make_unique<CreateVertexTypeOpr>(vertex_type_name, tuple_res.value(),
-                                            pks, ignore_conflict),
+                                            pks, ignore_conflict, is_temporary),
       meta);
 }
 
