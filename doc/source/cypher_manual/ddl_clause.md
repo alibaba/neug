@@ -86,7 +86,7 @@ Multiplicity and `WITH` options are defined at **edge type** scope (the edge nam
 
 ## Array Properties
 
-Use `T[N]` to declare a fixed-size array property, where `T` is the child type and `N` is a positive fixed length. `T[]` remains a variable-length list type.
+Use `T[N]` to declare a fixed-size array property, where `T` is the child type and `N` is a positive fixed length (`N` must be greater than 0; declaring `T[0]` is rejected). `T[]` remains a variable-length list type.
 
 ```cypher
 CREATE NODE TABLE Sensor(
@@ -112,7 +112,7 @@ SET s.readings = [30, 40, 50];
 
 The number of values must match the declared fixed length. For example, assigning `[1, 2]` or `[1, 2, 3, 4]` to an `INT32[3]` property is rejected.
 
-Nested fixed-size arrays are supported by chaining dimensions. `INT32[2][3]` means an outer array with 2 elements, each of which is an `INT32[3]` array:
+Nested fixed-size arrays are supported by chaining dimensions. `INT32[2][3]` means an outer array with 3 elements, each of which is an `INT32[2]` array:
 
 ```cypher
 CREATE NODE TABLE Matrix(
