@@ -21,6 +21,8 @@
 
 #include <assert.h>
 
+#include <glog/logging.h>
+
 #include "neug/common/types.h"
 
 #include "neug/common/extra_type_info.h"
@@ -162,6 +164,12 @@ DataType DataType::List(const DataType& child_type) {
 }
 
 DataType DataType::Array(const DataType& child_type, uint64_t num_elements) {
+  // Reject size-0 arrays except when the child type is kUnknown, which is
+  // used as an internal wildcard placeholder (e.g., in getAllLogicalTypes()).
+  if (num_elements == 0 && child_type.id() != DataTypeId::kUnknown) {
+    THROW_RUNTIME_ERROR(
+        "The number of elements in an array must be greater than 0.");
+  }
   std::shared_ptr<ExtraTypeInfo> type_info =
       std::make_shared<ArrayTypeInfo>(child_type, num_elements);
   return DataType(DataTypeId::kArray, type_info);
@@ -265,7 +273,11 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     const auto& element_type = array_pb.component_type();
     auto child_data_type = parse_from_data_type(element_type);
     uint32_t fixed_length = array_pb.fixed_length();
-    CHECK(fixed_length > 0);
+    if (fixed_length == 0) {
+      THROW_RUNTIME_ERROR(
+          "Array fixed_length must be greater than 0, but got 0 from "
+          "protobuf deserialization.");
+    }
     return DataType::Array(child_data_type, fixed_length);
   }
   case ::common::DataType::kList: {

@@ -72,7 +72,11 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
   case ::common::DataType::kArray: {
     const auto& array = ddt.array();
     auto data_type = parse_from_data_type(array.component_type());
-    CHECK(array.fixed_length() > 0);
+    if (array.fixed_length() == 0) {
+      THROW_RUNTIME_ERROR(
+          "Array fixed_length must be greater than 0, but got 0 from "
+          "protobuf deserialization.");
+    }
     return DataType::Array(data_type, array.fixed_length());
   }
   case ::common::DataType::kList: {

@@ -130,6 +130,10 @@ static std::unique_ptr<FunctionBindData> bindFunc(
       fieldTypes.push_back(arg->getDataType().copy());
     }
     resultType = DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
+  } else if (args.empty()) {
+    // An empty list literal (e.g. []) has no fixed size; use a variable-
+    // length List type instead of creating a size-0 Array.
+    resultType = DataType::List(combinedType.copy());
   } else {
     resultType = DataType::Array(combinedType.copy(), args.size());
   }

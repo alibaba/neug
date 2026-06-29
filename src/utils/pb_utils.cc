@@ -27,6 +27,7 @@
 #include "neug/utils/exception/exception.h"
 
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -34,6 +35,7 @@
 #include <unordered_set>
 #include <utility>
 #include "neug/execution/common/types/value.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/bolt_utils.h"
@@ -42,31 +44,6 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace {
-
-execution::Value make_array_like_value(const DataType& type,
-                                       const DataType& child_type,
-                                       std::vector<execution::Value>&& elems) {
-  if (type.id() == DataTypeId::kArray) {
-    return execution::Value::ARRAY(type, std::move(elems));
-  }
-  return execution::Value::LIST(child_type, std::move(elems));
-}
-
-bool validate_array_element_count(const DataType& type, int actual_size) {
-  if (type.id() != DataTypeId::kArray) {
-    return true;
-  }
-  auto expected_size = ArrayType::GetNumElements(type);
-  if (static_cast<uint64_t>(actual_size) == expected_size) {
-    return true;
-  }
-  LOG(ERROR) << "ARRAY value element count mismatch, expected " << expected_size
-             << ", got " << actual_size;
-  return false;
-}
-
-}  // namespace
 
 std::string proto_to_string(const google::protobuf::Message& proto) {
   std::string json_str;
@@ -284,176 +261,44 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_value(const DataType& type, const common::Value& value,
-                           execution::Value& out_value) {
-  switch (value.item_case()) {
-  case common::Value::kBoolean:
-    out_value = execution::Value::BOOLEAN(value.boolean());
-    break;
-  case common::Value::kI32:
-    out_value = execution::Value::INT32(value.i32());
-    break;
-  case common::Value::kI64:
-    out_value = execution::Value::INT64(value.i64());
-    break;
-  case common::Value::kU32:
-    out_value = execution::Value::UINT32(value.u32());
-    break;
-  case common::Value::kU64:
-    out_value = execution::Value::UINT64(value.u64());
-    break;
-  case common::Value::kF32:
-    out_value = execution::Value::FLOAT(value.f32());
-    break;
-  case common::Value::kF64:
-    out_value = execution::Value::DOUBLE(value.f64());
-    break;
-  case common::Value::kStr:
-    if (type.id() == DataTypeId::kDate) {
-      // Special handling for date stored as string
-      Date date(value.str());
-      out_value = execution::Value::DATE(date);
-      break;
-    } else if (type.id() == DataTypeId::kTimestampMs) {
-      // Special handling for datetime stored as string
-      DateTime datetime(value.str());
-      out_value = execution::Value::TIMESTAMPMS(datetime);
-      break;
-    } else if (type.id() == DataTypeId::kInterval) {
-      // Special handling for interval stored as string
-      Interval interval(value.str());
-      out_value = execution::Value::INTERVAL(interval);
-      break;
-    } else {
-      auto str_type_info = type.getExtraTypeInfo();
-      uint16_t max_length =
-          str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
-                        : STRING_DEFAULT_MAX_LENGTH;
-      out_value = execution::Value::VARCHAR(value.str(), max_length);
-    }
-    break;
-  case common::Value::kDate:
-    out_value = execution::Value::DATE(Date(value.date().item()));
-    break;
-  case common::Value::kI32Array: {
-    const auto& arr = value.i32_array();
-    if (!validate_array_element_count(type, arr.item_size())) {
-      return false;
-    }
-    DataType child_type = type.id() == DataTypeId::kArray
-                              ? ArrayType::GetChildType(type)
-                              : DataType::INT32;
-    std::vector<execution::Value> elements;
-    elements.reserve(arr.item_size());
-    for (int i = 0; i < arr.item_size(); ++i) {
-      elements.emplace_back(execution::Value::INT32(arr.item(i)));
-    }
-    out_value = make_array_like_value(type, child_type, std::move(elements));
-    break;
-  }
-  case common::Value::kI64Array: {
-    const auto& arr = value.i64_array();
-    if (!validate_array_element_count(type, arr.item_size())) {
-      return false;
-    }
-    DataType child_type = type.id() == DataTypeId::kArray
-                              ? ArrayType::GetChildType(type)
-                              : DataType::INT64;
-    std::vector<execution::Value> elements;
-    elements.reserve(arr.item_size());
-    for (int i = 0; i < arr.item_size(); ++i) {
-      elements.emplace_back(execution::Value::INT64(arr.item(i)));
-    }
-    out_value = make_array_like_value(type, child_type, std::move(elements));
-    break;
-  }
-  case common::Value::kF64Array: {
-    const auto& arr = value.f64_array();
-    if (!validate_array_element_count(type, arr.item_size())) {
-      return false;
-    }
-    DataType child_type = type.id() == DataTypeId::kArray
-                              ? ArrayType::GetChildType(type)
-                              : DataType::DOUBLE;
-    std::vector<execution::Value> elements;
-    elements.reserve(arr.item_size());
-    for (int i = 0; i < arr.item_size(); ++i) {
-      elements.emplace_back(execution::Value::DOUBLE(arr.item(i)));
-    }
-    out_value = make_array_like_value(type, child_type, std::move(elements));
-    break;
-  }
-  case common::Value::kStrArray: {
-    const auto& arr = value.str_array();
-    if (!validate_array_element_count(type, arr.item_size())) {
-      return false;
-    }
-    DataType child_type = type.id() == DataTypeId::kArray
-                              ? ArrayType::GetChildType(type)
-                              : DataType::VARCHAR;
-    std::vector<execution::Value> elements;
-    elements.reserve(arr.item_size());
-    for (int i = 0; i < arr.item_size(); ++i) {
-      elements.emplace_back(execution::Value::STRING(arr.item(i)));
-    }
-    out_value = make_array_like_value(type, child_type, std::move(elements));
-    break;
-  }
-  case common::Value::ITEM_NOT_SET: {
-    LOG(ERROR) << "Unknown value type: " << value.DebugString();
-    return false;
-  }
-  default: {
-    LOG(ERROR) << "Unsupported value type: " << value.DebugString();
-    return false;
-  }
-  }
-  return true;
-}
-
 bool default_expression_to_value(const DataType& type,
                                  const common::Expression& expression,
                                  execution::Value& out_value) {
-  if (expression.operators_size() != 1) {
-    LOG(ERROR) << "Default expression must contain exactly one operator: "
-               << expression.DebugString();
-    return false;
-  }
-
-  const auto& opr = expression.operators(0);
-  switch (opr.item_case()) {
-  case common::ExprOpr::kConst:
-    return common_value_to_value(type, opr.const_(), out_value);
-  case common::ExprOpr::kToArray: {
-    if (type.id() != DataTypeId::kArray) {
-      LOG(ERROR) << "TO_ARRAY default expression requires ARRAY property type: "
+  try {
+    auto expr = execution::parse_expression(
+        expression, execution::ContextMeta{}, execution::VarType::kRecord);
+    if (!expr) {
+      LOG(ERROR) << "Failed to parse default expression: "
+                 << expression.DebugString();
+      return false;
+    }
+    auto bound_expr = expr->bind(nullptr, execution::ParamsMap{});
+    if (!bound_expr) {
+      LOG(ERROR) << "Failed to bind default expression: "
                  << expression.DebugString();
       return false;
     }
 
-    const auto& fields = opr.to_array().fields();
-    if (!validate_array_element_count(type, fields.size())) {
-      return false;
-    }
-
-    const auto& child_type = ArrayType::GetChildType(type);
-    std::vector<execution::Value> elements;
-    elements.reserve(fields.size());
-    for (const auto& field : fields) {
-      execution::Value element(DataType::SQLNULL);
-      if (!default_expression_to_value(child_type, field, element)) {
-        return false;
-      }
-      elements.emplace_back(std::move(element));
-    }
-    out_value = execution::Value::ARRAY(type, std::move(elements));
-    return true;
-  }
-  default:
-    LOG(ERROR) << "Unsupported default expression: "
+    execution::DataChunk empty_chunk;
+    out_value = bound_expr->Cast<execution::RecordExprBase>().eval_record(
+        empty_chunk, 0);
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to evaluate default expression: "
+               << expression.DebugString() << ", reason: " << e.what();
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "Failed to evaluate default expression: "
                << expression.DebugString();
     return false;
   }
+
+  if (out_value.type() != type) {
+    LOG(ERROR) << "Default expression type mismatch, expected "
+               << type.ToString() << ", got " << out_value.type().ToString()
+               << ": " << expression.DebugString();
+    return false;
+  }
+  return true;
 }
 
 neug::result<std::vector<std::pair<std::string, execution::Value>>>

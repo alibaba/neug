@@ -270,28 +270,7 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
     const binder::PropertyDefinition& propertyDef) {
-  std::shared_ptr<binder::Expression> defaultExpr = propertyDef.boundExpr;
-  // the query default value of temporal type (date, datetime, interval) is
-  // set by scalar function, here we extract the default value expression from
-  // the scalar function
-  if (defaultExpr->expressionType == common::ExpressionType::FUNCTION) {
-    auto funcExpr =
-        defaultExpr->constPtrCast<binder::ScalarFunctionExpression>();
-    auto funcName = funcExpr->getFunction().name;
-    if (funcName == function::CastToDateFunction::name ||
-        funcName == function::CastToTimestampFunction::name ||
-        funcName == function::CastToIntervalFunction::name ||
-        funcName == function::DateFunction::name ||
-        funcName == function::IntervalFunctionAlias::name) {
-      if (!funcExpr->getNumChildren()) {
-        THROW_EXCEPTION_WITH_FILE_LINE(
-            "Temporal function expression should have at least one "
-            "child");
-      }
-      defaultExpr = funcExpr->getChild(0);
-    }
-  }
-  return convert(*defaultExpr, {});
+  return convert(*propertyDef.boundExpr, {});
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(
@@ -341,6 +320,40 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
         typeConverter.convertLogicalType(value.getDataType()).release());
     return exprPB;
   }
+  if (typeId == common::DataTypeId::kDate ||
+      typeId == common::DataTypeId::kTimestampMs ||
+      typeId == common::DataTypeId::kInterval) {
+    auto exprPB = std::make_unique<::common::Expression>();
+    auto oprPB = exprPB->add_operators();
+    switch (typeId) {
+    case common::DataTypeId::kDate: {
+      auto date = std::make_unique<::common::ToDate>();
+      date->set_date_str(
+          neug::common::Date::toString(value.getValue<neug::common::date_t>()));
+      oprPB->set_allocated_to_date(date.release());
+      break;
+    }
+    case common::DataTypeId::kTimestampMs: {
+      auto datetime = std::make_unique<::common::ToDatetime>();
+      datetime->set_datetime_str(neug::common::Timestamp::toString(
+          value.getValue<neug::common::timestamp_t>()));
+      oprPB->set_allocated_to_datetime(datetime.release());
+      break;
+    }
+    case common::DataTypeId::kInterval: {
+      auto interval = std::make_unique<::common::ToInterval>();
+      interval->set_interval_str(neug::common::Interval::toString(
+          value.getValue<neug::common::interval_t>()));
+      oprPB->set_allocated_to_interval(interval.release());
+      break;
+    }
+    default:
+      NEUG_UNREACHABLE;
+    }
+    oprPB->set_allocated_node_type(
+        typeConverter.convertLogicalType(value.getDataType()).release());
+    return exprPB;
+  }
   auto valuePB = std::make_unique<::common::Value>();
   switch (value.getDataType().id()) {
   case common::DataTypeId::kBoolean:
@@ -366,18 +379,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
     break;
   case common::DataTypeId::kUInt64:
     valuePB->set_u64(value.getValue<uint64_t>());
-    break;
-  case common::DataTypeId::kDate:
-    valuePB->set_str(
-        neug::common::Date::toString(value.getValue<neug::common::date_t>()));
-    break;
-  case common::DataTypeId::kTimestampMs:
-    valuePB->set_str(neug::common::Timestamp::toString(
-        value.getValue<neug::common::timestamp_t>()));
-    break;
-  case common::DataTypeId::kInterval:
-    valuePB->set_str(neug::common::Interval::toString(
-        value.getValue<neug::common::interval_t>()));
     break;
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type " +
