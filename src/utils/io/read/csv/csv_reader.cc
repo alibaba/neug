@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/reader.h"
+#include "neug/utils/io/reader.h"
 
 #include "neug/execution/common/columns/container_types.h"
 
@@ -39,10 +39,10 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/operator_precedence.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/type_converter.h"
+#include "neug/utils/io/read/common/operator_precedence.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/result.h"
 
 namespace neug {

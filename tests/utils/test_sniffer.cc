@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/utils/reader/sniffer.h"
+#include "neug/utils/io/read/common/sniffer.h"
 #include "test_reader.h"
 namespace neug {
 namespace test {

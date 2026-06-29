@@ -22,10 +22,10 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/sniffer.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/sniffer.h"
+#include "neug/utils/io/reader.h"
 namespace neug {
 namespace function {
 struct CSVReadFunction {

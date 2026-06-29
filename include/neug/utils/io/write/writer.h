@@ -22,9 +22,9 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/io/output_stream.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/stream/output_stream.h"
 
 namespace neug {
 

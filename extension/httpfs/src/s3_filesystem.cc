@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <arrow/io/api.h>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_sys/file_system.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 namespace {
 

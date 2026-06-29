@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include "neug/utils/reader/sniffer.h"
+#include "neug/utils/io/read/common/sniffer.h"
 #include "parquet/arrow_reader.h"
 
 namespace neug {

@@ -24,7 +24,7 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/utils/file_utils.h"
+#include "neug/utils/io/file/file_utils.h"
 
 // Non-static helper from file_utils.cc, exposed for direct testing of the
 // sparse-aware fallback path (otherwise shadowed by clonefile/FICLONE on

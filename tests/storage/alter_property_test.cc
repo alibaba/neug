@@ -27,7 +27,7 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/loader/csv_read_config.h"
+#include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/property/types.h"
 #include "unittest/utils.h"

@@ -20,8 +20,8 @@
 #include <arrow/filesystem/s3fs.h>
 #include <string>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace extension {

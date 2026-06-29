@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/io/output_stream.h"
+#include "neug/utils/io/stream/output_stream.h"
 
 #include <cerrno>
 #include <cstring>
