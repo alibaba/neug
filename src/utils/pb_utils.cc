@@ -239,12 +239,13 @@ bool data_type_to_property_type(const common::DataType& data_type,
       LOG(ERROR) << "Failed to parse array component type";
       return false;
     }
-    uint32_t max_length = array.fixed_length();
-    if (max_length > 0) {
-      out_type = DataType::Array(child_type, max_length);
-    } else {
-      out_type = DataType::List(child_type);
+    auto fixed_length = array.fixed_length();
+    if (fixed_length == 0) {
+      LOG(ERROR) << "Array fixed_length must be greater than 0: "
+                 << data_type.DebugString();
+      return false;
     }
+    out_type = DataType::Array(child_type, fixed_length);
     return true;
   }
   case common::DataType::kMap: {
