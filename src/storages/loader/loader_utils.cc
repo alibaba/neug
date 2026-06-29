@@ -32,6 +32,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/column.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
