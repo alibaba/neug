@@ -95,6 +95,6 @@ jobs:
           tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
           tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
 
-          npm publish dist/npm-packages/linux-x86_64/package --access public
-          npm publish dist/npm-packages/osx-arm64/package --access public
-          npm publish dist/npm-main --access public
+          npm publish ./dist/npm-packages/linux-x86_64/package --access public
+          npm publish ./dist/npm-packages/osx-arm64/package --access public
+          npm publish ./dist/npm-main --access public
