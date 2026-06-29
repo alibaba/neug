@@ -23,7 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/utils/reader/reader.h"
+#include "neug/utils/io/read/common/read_state.h"
 
 namespace neug {
 namespace fsys {

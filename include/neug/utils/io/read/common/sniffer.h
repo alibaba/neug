@@ -17,8 +17,9 @@
 
 #include <memory>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/csv/csv_reader.h"
+#include "neug/utils/io/read/json/json_reader.h"
 #include "neug/utils/result.h"
 
 namespace neug {

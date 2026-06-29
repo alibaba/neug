@@ -6,8 +6,8 @@
 #include <glog/logging.h>
 #include "s3_filesystem.h"
 #include "glob_utils.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/options.h"
 #include "neug/utils/exception/exception.h"
 #include <arrow/buffer.h>
 #include <arrow/filesystem/s3fs.h>
