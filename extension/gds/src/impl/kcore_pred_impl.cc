@@ -152,7 +152,7 @@ void KCorePred::sink(execution::Context& ctx, int node_alias, int core_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(core_alias, core_builder.finish());
   ctx.append_chunk(std::move(chunk));
