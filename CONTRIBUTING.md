@@ -14,8 +14,8 @@ We welcome contributions from the community! 🎉
 
 ```bash
 # Using Docker (recommended)
-docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
-docker run -it --name neug-dev neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2 bash
+docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+docker run -it --name neug-dev neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3 bash
 source ~/.neug_env && make python-dev
 ```
 

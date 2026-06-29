@@ -34,10 +34,18 @@ void NeugDBService::init(const ServiceConfig& config) {
     LOG(ERROR) << "NeugDB service is already running!";
     return;
   }
+  if (config.thread_num > 0 &&
+      config.thread_num > static_cast<uint32_t>(db_config_.max_thread_num)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid service thread_num: " + std::to_string(config.thread_num) +
+        ". Must be less than or equal to database max_thread_num: " +
+        std::to_string(db_config_.max_thread_num) + ".");
+  }
 
   version_manager_ = std::make_shared<neug::VersionManager>();
   version_manager_->init_ts(
-      db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
+      db_.last_ts_,
+      db_config_.max_thread_num);  // We assume versions start from 1.
 
   session_pool_ = std::make_unique<neug::SessionPool>(
       db_, db_.GetPlanner(), db_.GetQueryCache(), version_manager_,

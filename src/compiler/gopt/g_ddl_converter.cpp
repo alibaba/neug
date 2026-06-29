@@ -186,6 +186,9 @@ GDDLConverter::convertToCreateVertexSchema(
   create_vertex->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
+  // Set temporary flag for LOAD AS
+  create_vertex->set_temporary(info->temporary);
+
   return physical_opr;
 }
 
@@ -327,6 +330,9 @@ GDDLConverter::convertToCreateEdgeSchema(
   for (const auto& [k, v] : relInfo->options) {
     (*create_edge->mutable_options())[k] = v.toString();
   }
+
+  // Set temporary flag for LOAD AS
+  create_edge->set_temporary(info->temporary);
 
   return physical_opr;
 }

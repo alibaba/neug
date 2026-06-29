@@ -60,7 +60,7 @@ class PropertyCollector final : public BoundStatementVisitor {
       const std::shared_ptr<Expression>& expression);
 
  private:
-  expression_set properties;
+  expression_vector properties;
 };
 
 }  // namespace binder

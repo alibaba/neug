@@ -1,72 +1,48 @@
-name: NeuG Test
+name: NeuG Build and Test (Common)
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
-  workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/java_driver/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/neug-test.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
-  push:
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/java_driver/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/neug-test.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
-
-concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'JSON-encoded array of runner labels (e.g. ["self-hosted","daily","linux","x64"])'
+        type: string
+        required: true
+      container-json:
+        description: 'JSON-encoded container spec, use {} for no container'
+        type: string
+        required: false
+        default: '{}'
+      os-type:
+        description: 'Operating system type: linux or macos'
+        type: string
+        required: true
+      enable-java-test:
+        description: 'Whether to run Java driver tests'
+        type: boolean
+        required: false
+        default: false
+      enable-coverage:
+        description: 'Whether to generate and upload coverage report'
+        type: boolean
+        required: false
+        default: false
+      enable-gopt-test:
+        description: 'Whether to run gopt_test'
+        type: boolean
+        required: false
+        default: true
+      event-name:
+        description: 'The original github.event_name from the caller'
+        type: string
+        required: true
 
 jobs:
-  format_check:
-    if: (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main')
-    uses: ./.github/workflows/format-check.yml
-    with:
-      is_pull_request: ${{ github.event_name == 'pull_request' }}
-
-  # ============================================================
-  # Unified Job: Build NeuG + run C++, Python, and E2E tests
-  # ============================================================
   build_and_test:
-    needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
-          - arch: arm64
-            runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
-    runs-on: ${{ matrix.runner }}
-    container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    container: ${{ inputs.container-json != '{}' && fromJSON(inputs.container-json) || null }}
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: checkout
       id: checkout
@@ -94,7 +70,9 @@ jobs:
             - 'tests/**'
             - '!tests/extension/**'
             - '!tests/extensions/**'
-            - '.github/workflows/neug-test.yml'
+            - '.github/workflows/Linux.yml'
+            - '.github/workflows/OSX.yml'
+            - '.github/workflows/build-and-test-common.yml'
             - 'scripts/install_deps.sh'
             - 'include/**'
             - 'CMakeLists.txt'
@@ -111,22 +89,50 @@ jobs:
           echo "Detected non-extension changes. Run full test suite."
         fi
 
+    - name: Increase the maximum number of opened files (Linux)
+      if: inputs.os-type == 'linux'
+      run: |
+        ulimit -n 65535
+        sudo chmod -R 777 /etc/security/*
+        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+    - name: Clean the tool directory for self-hosted runner (Linux)
+      if: inputs.os-type == 'linux'
+      run: |
+        rm -rf /__w/_tool/Python
+
+    - name: Install dependencies (Linux)
+      if: inputs.os-type == 'linux'
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+
+    - name: Install dependencies (macOS)
+      if: inputs.os-type == 'macos'
+      run: |
+        brew install ccache
+        bash scripts/install_deps.sh
+
     - name: Cache CCache
       uses: actions/cache@v4
       with:
-        path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/neug-test.yml') }}
+        path: ${{ inputs.os-type == 'macos' && '~/Library/Caches/ccache' || '~/.cache/ccache' }}
+        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
         restore-keys: |
-          ${{ runner.os }}-ccache-${{ github.ref_name }}-
-          ${{ runner.os }}-ccache-main-
-          ${{ runner.os }}-ccache-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-main-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-
 
     - name: Setup CCache
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache
-        mkdir -p ~/.cache/ccache
+        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
+          mkdir -p ~/Library/Caches/ccache
+          CCACHE_DIR=~/Library/Caches/ccache
+        else
+          mkdir -p ~/.cache/ccache
+          CCACHE_DIR=~/.cache/ccache
+        fi
         {
-          echo "CCACHE_DIR=$HOME/.cache/ccache"
+          echo "CCACHE_DIR=$CCACHE_DIR"
           echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
           echo "CCACHE_COMPRESS=true"
           echo "CCACHE_COMPRESSLEVEL=6"
@@ -138,44 +144,51 @@ jobs:
         ccache --max-size=5G
         ccache --zero-stats
 
-    - name: Increase the maximum number of opened files
-      run: |
-        ulimit -n 65535
-        sudo chmod -R 777 /etc/security/*
-        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
-
-    - name: Clean the tool directory for self-hosted runner
-      run: |
-        rm -rf /__w/_tool/Python
-
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
 
     - name: Setup Java and Maven
+      if: inputs.enable-java-test
       uses: s4u/setup-maven-action@v1.19.0
       with:
         java-version: '17'
         maven-version: '3.9.6'
 
     - name: Set ENABLE_GCOV for main branch
-      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
+      if: inputs.enable-coverage && steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && inputs.event-name == 'push')
       run: |
-        python3 -m pip  install fastcov
+        python3 -m pip install fastcov
         sudo apt update
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
     - name: Build NeuG
       run: |
-        . /home/neug/.neug_env
+        NEUG_ENV_FOUND=false
+        for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
+          if [ -f "$env_file" ]; then
+            source "$env_file"
+            NEUG_ENV_FOUND=true
+            break
+          fi
+        done
+        if [ "$NEUG_ENV_FOUND" != "true" ]; then
+          echo "Warning: .neug_env not found in any known location"
+        fi
         cd ${GITHUB_WORKSPACE}/
         echo "CCache stats before build"
         ccache --show-stats
-        export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
+        if [[ "${{ inputs.os-type }}" == "linux" ]]; then
+          export CI=ON
+        fi
         export BUILD_TYPE=RELEASE
-        export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
+        else
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+        fi
         if [[ "${{ steps.scope.outputs.extension_only }}" == "true" ]]; then
           export BUILD_EXECUTABLES=OFF
           export BUILD_HTTP_SERVER=OFF
@@ -190,9 +203,15 @@ jobs:
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
-        sudo chown -R $USER:$USER /opt/neug-install/
-        export CC="ccache gcc"
-        export CXX="ccache g++"
+        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
+          sudo chown -R $(id -u):$(id -g) /opt/neug-install/
+          export CC="ccache clang"
+          export CXX="ccache clang++"
+        else
+          sudo chown -R $USER:$USER /opt/neug-install/
+          export CC="ccache gcc"
+          export CXX="ccache g++"
+        fi
         cd tools/python_bind
         make clean
         make requirements
@@ -242,6 +261,8 @@ jobs:
         ctest -R sink_test -V
         ctest -R test_indexer -V
         ctest -R test_db_svc -V
+        ctest -R temporary_graph_test -V
+        ctest -R copy_temp_test -V
 
     # ========================================
     # Phase 2: Bulk load test data
@@ -285,6 +306,7 @@ jobs:
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tp_service.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_export.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_copy_temp.py
 
     - name: Run lsqb test
       if: steps.scope.outputs.extension_only != 'true'
@@ -390,7 +412,7 @@ jobs:
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
 
     - name: Run Java Driver Test
-      if: steps.scope.outputs.extension_only != 'true'
+      if: inputs.enable-java-test && steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/java_driver/
         mvn test
@@ -444,26 +466,33 @@ jobs:
 
     - name: Test installation c++ sdk
       if: steps.scope.outputs.extension_only != 'true'
-      env:
-        CI: ON
       run: |
+        if [[ "${{ inputs.os-type }}" == "linux" ]]; then
+          export CI=ON
+        fi
         cd ${GITHUB_WORKSPACE}/build
-        # Use cmake --install instead of make install to avoid CMakeCache
-        # referencing ccache (which is only installed in the build job)
         sudo cmake --install .
-        ldd /opt/neug-install/lib/libneug.so
+        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
+          otool -L /opt/neug-install/lib/libneug.dylib
+        else
+          ldd /opt/neug-install/lib/libneug.so
+        fi
         printenv
-        cd  ${GITHUB_WORKSPACE}/tests/test_cpp_installation
+        cd ${GITHUB_WORKSPACE}/tests/test_cpp_installation
         mkdir build && cd build
-        export CMAKE_PREFIX_PATH=/opt/neug/:/opt/neug-install/
-        cmake .. && make -j1
+        if [[ "${{ inputs.os-type }}" == "macos" ]]; then
+          export CMAKE_PREFIX_PATH=/opt/neug/:/opt/neug-install/:${GITHUB_WORKSPACE}/build/_deps/arrow-build/
+        else
+          export CMAKE_PREFIX_PATH=/opt/neug/:/opt/neug-install/
+        fi
+        cmake .. && make -j$(if [[ "${{ inputs.os-type }}" == "macos" ]]; then sysctl -n hw.ncpu; else echo 1; fi)
         ./test
 
     # ========================================
     # Phase 5: Coverage Report (if main branch)
     # ========================================
     - name: Generate Coverage Report
-      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
+      if: inputs.enable-coverage && steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && inputs.event-name == 'push')
       run: |
         python3 -m pip install fastcov
         sudo apt update
@@ -472,7 +501,7 @@ jobs:
         make coverage
 
     - name: Upload coverage to Codecov
-      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
+      if: inputs.enable-coverage && steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && inputs.event-name == 'push')
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}

@@ -226,7 +226,7 @@ test('test_config_param', () => {
   const db6 = new Database({ databasePath: dbDir, mode: 'write', maxThreadNum: 0 });
   assert.ok(db6);
   db6.close();
-  // max_thread_num: 0 means no limit
+  // maxThreadNum: 0 means auto-select from hardware concurrency
   const db7 = new Database({ databasePath: dbDir, mode: 'r', maxThreadNum: 0 });
   assert.ok(db7);
   db7.close();
@@ -263,7 +263,7 @@ test('test_config_param_boundary', () => {
   // test with more than maximum cores
   assert.throws(() => {
     const maxCores = Database.cpuCount() || 1;
-    // max_thread_num should not exceed the number of cores
+    // maxThreadNum should not exceed the number of cores
     new Database({ databasePath: dbDir, mode: 'w', maxThreadNum: maxCores + 1 });
   }, (err) => {
     return err.message.includes(String(ERR_INVALID_ARGUMENT));

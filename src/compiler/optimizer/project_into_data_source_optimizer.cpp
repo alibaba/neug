@@ -172,10 +172,14 @@ ProjectIntoDataSourceOptimizer::visitProjectionReplace(
     return op;
   }
   auto parentProject = getParent(plan, op.get());
-  // if parent of the project operator is COPY_TO, then keep the project op,
+  // If parent is COPY_TO or COPY_FROM, keep the projection.
   // COPY_TO needs a PROJECTION or AGGREGATE child to sink results.
+  // COPY_FROM with QUERY source needs the projection to reduce columns
+  // when the underlying data source must scan extra columns for filters
+  // (e.g., WHERE references columns not in RETURN).
   if (parentProject &&
-      parentProject->getOperatorType() == LogicalOperatorType::COPY_TO) {
+      (parentProject->getOperatorType() == LogicalOperatorType::COPY_TO ||
+       parentProject->getOperatorType() == LogicalOperatorType::COPY_FROM)) {
     return op;
   }
   return funcCall;

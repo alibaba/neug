@@ -189,10 +189,12 @@ class Binder {
       catalog::RelTableCatalogEntry* relTableEntry);
   std::unique_ptr<BoundStatement> bindCopyNodeFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      bool temporary = false);
   std::unique_ptr<BoundStatement> bindCopyRelFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions);
+      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      bool temporary = false);
 
   std::unique_ptr<BoundStatement> bindCopyToClause(
       const parser::Statement& statement);

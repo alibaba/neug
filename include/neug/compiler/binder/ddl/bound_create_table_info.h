@@ -60,19 +60,21 @@ struct BoundCreateTableInfo {
   std::unique_ptr<BoundExtraCreateCatalogEntryInfo> extraInfo;
   bool isInternal = false;
   bool hasParent = false;
+  bool temporary = false;
 
   BoundCreateTableInfo() = default;
   BoundCreateTableInfo(
       catalog::CatalogEntryType type, std::string tableName,
       common::ConflictAction onConflict,
       std::unique_ptr<BoundExtraCreateCatalogEntryInfo> extraInfo,
-      bool isInternal, bool hasParent = false)
+      bool isInternal, bool hasParent = false, bool temporary = false)
       : type{type},
         tableName{std::move(tableName)},
         onConflict{onConflict},
         extraInfo{std::move(extraInfo)},
         isInternal{isInternal},
-        hasParent{hasParent} {}
+        hasParent{hasParent},
+        temporary{temporary} {}
   EXPLICIT_COPY_DEFAULT_MOVE(BoundCreateTableInfo);
 
   std::string toString() const;
@@ -84,7 +86,8 @@ struct BoundCreateTableInfo {
         onConflict{other.onConflict},
         extraInfo{other.extraInfo->copy()},
         isInternal{other.isInternal},
-        hasParent{other.hasParent} {}
+        hasParent{other.hasParent},
+        temporary{other.temporary} {}
 };
 
 struct NEUG_API BoundExtraCreateTableInfo

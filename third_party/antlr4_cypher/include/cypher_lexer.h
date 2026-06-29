@@ -35,17 +35,18 @@ public:
     OPTIONAL = 119, OR = 120, ORDER = 121, PRIMARY = 122, PROFILE = 123, 
     PROJECT = 124, READ = 125, REL = 126, RENAME = 127, RETURN = 128, ROLLBACK = 129, 
     ROLLBACK_SKIP_CHECKPOINT = 130, SEQUENCE = 131, SET = 132, SHORTEST = 133, 
-    START = 134, STARTS = 135, TABLE = 136, THEN = 137, TO = 138, TRAIL = 139, 
-    TRANSACTION = 140, TYPE = 141, UNINSTALL = 142, UNION = 143, USING = 144, 
-    UNWIND = 145, USE = 146, WHEN = 147, WHERE = 148, WITH = 149, WRITE = 150, 
-    WSHORTEST = 151, XOR = 152, SINGLE = 153, YIELD = 154, DECIMAL = 155, 
-    VARCHAR = 156, STAR = 157, L_SKIP = 158, INVALID_NOT_EQUAL = 159, MINUS = 160, 
-    FACTORIAL = 161, COLON = 162, BTRUE = 163, BFALSE = 164, StringLiteral = 165, 
-    EscapedChar = 166, DecimalInteger = 167, HexLetter = 168, HexDigit = 169, 
-    Digit = 170, NonZeroDigit = 171, NonZeroOctDigit = 172, ZeroDigit = 173, 
-    ExponentDecimalReal = 174, RegularDecimalReal = 175, UnescapedSymbolicName = 176, 
-    IdentifierStart = 177, IdentifierPart = 178, EscapedSymbolicName = 179, 
-    SP = 180, WHITESPACE = 181, CypherComment = 182, Unknown = 183
+    START = 134, STARTS = 135, TABLE = 136, TEMP = 137, THEN = 138, TO = 139, 
+    TRAIL = 140, TRANSACTION = 141, TYPE = 142, UNINSTALL = 143, UNION = 144, 
+    USING = 145, UNWIND = 146, USE = 147, WHEN = 148, WHERE = 149, WITH = 150, 
+    WRITE = 151, WSHORTEST = 152, XOR = 153, SINGLE = 154, YIELD = 155, 
+    DECIMAL = 156, VARCHAR = 157, STAR = 158, L_SKIP = 159, INVALID_NOT_EQUAL = 160, 
+    MINUS = 161, FACTORIAL = 162, COLON = 163, BTRUE = 164, BFALSE = 165, 
+    StringLiteral = 166, EscapedChar = 167, DecimalInteger = 168, HexLetter = 169, 
+    HexDigit = 170, Digit = 171, NonZeroDigit = 172, NonZeroOctDigit = 173, 
+    ZeroDigit = 174, ExponentDecimalReal = 175, RegularDecimalReal = 176, 
+    UnescapedSymbolicName = 177, IdentifierStart = 178, IdentifierPart = 179, 
+    EscapedSymbolicName = 180, SP = 181, WHITESPACE = 182, CypherComment = 183, 
+    Unknown = 184
   };
 
   explicit CypherLexer(antlr4::CharStream *input);
