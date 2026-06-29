@@ -27,8 +27,8 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/utils/property/types.h"
 #include "unittest/utils.h"
 
@@ -177,8 +177,7 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
                    << " does not exist in the vertex column mapping, please "
                       "check your configuration";
       }
-      config.column_types.insert(
-          {included_col_names[ind + 2], property_type});
+      config.column_types.insert({included_col_names[ind + 2], property_type});
     }
     {
       auto src_primary_keys =
@@ -195,8 +194,8 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
     }
   }
   auto supplier = std::make_shared<CSVChunkSupplier>(e_file, std::move(config));
-  CHECK(
-      graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, supplier).ok());
+  CHECK(graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, supplier)
+            .ok());
 }
 
 void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,

@@ -61,7 +61,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     fieldNames.push_back(fieldName);
     fieldTypes.push_back(argument->getDataType().copy());
   }
-  const auto resultType = DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
+  const auto resultType =
+      DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
   return FunctionBindData::getSimpleBindData(input.arguments, resultType);
 }
 
@@ -106,8 +107,8 @@ void StructPackFunctions::execFunc(
 function_set StructPackFunctions::getFunctionSet() {
   function_set functions;
   auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<DataTypeId>{DataTypeId::kUnknown},
-      DataTypeId::kStruct, execFunc);
+      name, std::vector<DataTypeId>{DataTypeId::kUnknown}, DataTypeId::kStruct,
+      execFunc);
   function->bindFunc = bindFunc;
   function->isVarLength = true;
   functions.push_back(std::move(function));

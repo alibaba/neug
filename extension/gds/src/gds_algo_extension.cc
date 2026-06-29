@@ -40,11 +40,9 @@ void Init() {
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
     neug::extension::ExtensionAPI::registerFunction<neug::gds::WCCFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::gds::LouvainFunction>(
+    neug::extension::ExtensionAPI::registerFunction<neug::gds::LouvainFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::gds::LeidenFunction>(
+    neug::extension::ExtensionAPI::registerFunction<neug::gds::LeidenFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     neug::extension::ExtensionAPI::registerExtension(

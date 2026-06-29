@@ -159,8 +159,8 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
 
     std::unique_ptr<execution::GeneralPred> epred;
     if (edge_pred_ != nullptr) {
-      epred =
-          std::make_unique<execution::GeneralPred>(edge_pred_->bind(&graph_, {}));
+      epred = std::make_unique<execution::GeneralPred>(
+          edge_pred_->bind(&graph_, {}));
     }
     execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
 
@@ -170,8 +170,10 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
         vid_t u = *it;
         double du = distances_[u];
-        if (du < 0) continue;
-        if (epred && !(*epred)(triplet, u, v, it.get_data_ptr())) continue;
+        if (du < 0)
+          continue;
+        if (epred && !(*epred)(triplet, u, v, it.get_data_ptr()))
+          continue;
         double weight =
             has_weight ? weight_accessor->get_typed_data<double>(it) : 1.0;
         if (std::abs(du + weight - dv) < 1e-9) {
@@ -183,8 +185,10 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
         for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
           vid_t u = *it;
           double du = distances_[u];
-          if (du < 0) continue;
-          if (epred && !(*epred)(triplet, v, u, it.get_data_ptr())) continue;
+          if (du < 0)
+            continue;
+          if (epred && !(*epred)(triplet, v, u, it.get_data_ptr()))
+            continue;
           double weight =
               has_weight ? weight_accessor->get_typed_data<double>(it) : 1.0;
           if (std::abs(du + weight - dv) < 1e-9) {
@@ -200,9 +204,8 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       if (distances_[v] < 0) {
         path_builder.push_back_null();
       } else {
-        auto path = reconstruct_path(
-            v, source_, find_pred, vertex_label_, edge_label_, directed_,
-            graph_);
+        auto path = reconstruct_path(v, source_, find_pred, vertex_label_,
+                                     edge_label_, directed_, graph_);
         path_builder.push_back_opt(std::move(path));
       }
     }

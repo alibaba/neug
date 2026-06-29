@@ -20,14 +20,14 @@
 #include <arrow/dataset/file_parquet.h>
 #include <arrow/table.h>
 #include <arrow/type.h>
-#include <parquet/properties.h>
-#include <parquet/arrow/reader.h>
 #include <glog/logging.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/properties.h>
 #include <memory>
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/reader.h"
 #include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace reader {
@@ -76,31 +76,32 @@ ArrowParquetOptionsBuilder::buildFragmentOptions() const {
 
   // Configure Parquet-specific reader properties
   auto reader_properties = std::make_shared<parquet::ReaderProperties>();
-  
+
   // Enable buffered stream if configured
   if (parquetOpts.buffered_stream.get(options)) {
     reader_properties->enable_buffered_stream();
   }
-  
+
   // Set I/O buffer size in bytes
   int64_t buffer_size = readOpts.batch_size.get(options);
   reader_properties->set_buffer_size(buffer_size);
-  
+
   fragment_scan_options->reader_properties = reader_properties;
-  
+
   // Configure Arrow-specific reader properties
-  auto arrow_reader_properties = std::make_shared<parquet::ArrowReaderProperties>();
-  
+  auto arrow_reader_properties =
+      std::make_shared<parquet::ArrowReaderProperties>();
+
   // Set Arrow row batch size (number of rows per batch)
   int64_t row_batch_size = parquetOpts.row_batch_size.get(options);
   arrow_reader_properties->set_batch_size(row_batch_size);
-  
+
   // Use threads setting from general read options
   arrow_reader_properties->set_use_threads(readOpts.use_threads.get(options));
-  
+
   // Configure pre-buffering for high-latency filesystems
   arrow_reader_properties->set_pre_buffer(parquetOpts.pre_buffer.get(options));
-  
+
   // Configure caching via Arrow I/O coalescing (hole-filling cache).
   // When enable_io_coalescing=true (default), use lazy coalescing which only
   // loads explicitly-requested byte ranges (CacheOptions::LazyDefaults).
@@ -113,7 +114,7 @@ ArrowParquetOptionsBuilder::buildFragmentOptions() const {
     arrow_reader_properties->set_cache_options(
         arrow::io::CacheOptions::Defaults());
   }
-  
+
   fragment_scan_options->arrow_reader_properties = arrow_reader_properties;
 
   return fragment_scan_options;

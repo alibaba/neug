@@ -7,4 +7,4 @@ add_neug_test(
 	test_exception.cc
 	test_sniffer.cc
 	test_file_utils.cc
-	json_test.cpp)
+	json_test.cc)

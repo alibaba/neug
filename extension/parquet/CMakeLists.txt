@@ -1,7 +1,6 @@
 # Collect source files
 file(GLOB PARQUET_EXTENSION_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
 
 set(PARQUET_EXTENSION_OBJECT_FILES ${PARQUET_EXTENSION_SOURCES})
 
@@ -100,7 +99,7 @@ if(BUILD_TEST)
         set(_parquet_test_dataset_lib "")
     endif()
     add_extension_test(NAME parquet
-        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/parquet_test.cpp
+        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/parquet_test.cc
         EXTRA_LINK_LIBS ${_parquet_test_dataset_lib} ${ARROW_PARQUET_LIB}
     )
 endif()

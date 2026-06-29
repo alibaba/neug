@@ -39,17 +39,21 @@ namespace s3 {
 namespace {
 
 bool fileExistsAndReadable(const std::string& path) {
-  if (path.empty()) return false;
+  if (path.empty())
+    return false;
   struct stat st;
-  if (::stat(path.c_str(), &st) != 0) return false;
-  if (!S_ISREG(st.st_mode)) return false;
+  if (::stat(path.c_str(), &st) != 0)
+    return false;
+  if (!S_ISREG(st.st_mode))
+    return false;
   // Best-effort readability check; Arrow/AWS SDK will fail loudly if not.
   return ::access(path.c_str(), R_OK) == 0;
 }
 
 std::string resolveTlsCaFilePath() {
   // 1) Honor explicit env overrides.
-  for (const char* env_key : {"SSL_CERT_FILE", "CURL_CA_BUNDLE", "AWS_CA_BUNDLE"}) {
+  for (const char* env_key :
+       {"SSL_CERT_FILE", "CURL_CA_BUNDLE", "AWS_CA_BUNDLE"}) {
     const char* v = std::getenv(env_key);
     if (v && std::strlen(v) > 0 && fileExistsAndReadable(v)) {
       LOG(INFO) << "TLS CA bundle resolved from env " << env_key << "=" << v;
@@ -58,10 +62,10 @@ std::string resolveTlsCaFilePath() {
   }
   // 2) Probe common distro locations.
   static const std::vector<std::string> kCommonPaths = {
-      "/etc/ssl/certs/ca-certificates.crt",   // Debian/Ubuntu
-      "/etc/pki/tls/certs/ca-bundle.crt",     // CentOS/RHEL/Fedora
-      "/etc/ssl/cert.pem",                    // Alpine/macOS
-      "/etc/ssl/ca-bundle.pem",               // OpenSUSE
+      "/etc/ssl/certs/ca-certificates.crt",  // Debian/Ubuntu
+      "/etc/pki/tls/certs/ca-bundle.crt",    // CentOS/RHEL/Fedora
+      "/etc/ssl/cert.pem",                   // Alpine/macOS
+      "/etc/ssl/ca-bundle.pem",              // OpenSUSE
   };
   for (const auto& p : kCommonPaths) {
     if (fileExistsAndReadable(p)) {
@@ -115,8 +119,8 @@ void InitializeArrowTlsOptions() {
       return;
     }
     LOG(INFO) << "Arrow FileSystemGlobalOptions initialized: caFile='"
-              << opts.tls_ca_file_path << "', caPath='"
-              << opts.tls_ca_dir_path << "'";
+              << opts.tls_ca_file_path << "', caPath='" << opts.tls_ca_dir_path
+              << "'";
   });
 }
 
@@ -130,13 +134,15 @@ namespace {
 // Mask a credential string for safe logging: show first 4 chars + "***".
 // Returns "(not set)" if the string is empty.
 std::string maskCredential(const std::string& value) {
-  if (value.empty()) return "(not set)";
-  if (value.size() <= 4) return "***";
+  if (value.empty())
+    return "(not set)";
+  if (value.size() <= 4)
+    return "***";
   return value.substr(0, 4) + "***";
 }
 
-// Generic helper: resolve an option with multiple key aliases and environment variable fallback.
-// Priority:
+// Generic helper: resolve an option with multiple key aliases and environment
+// variable fallback. Priority:
 //   1. schema.options[any key in option_keys]
 //   2. any env in env_keys
 //   3. Option default
@@ -145,11 +151,11 @@ T getOptionWithEnv(const reader::options_t& options,
                    const reader::Option<T>& opt,
                    std::initializer_list<const char*> option_keys,
                    std::initializer_list<const char*> env_keys) {
-  // Priority 1: schema.options - check if any key is present (even if value is empty)
-  // An explicitly set empty value should override environment variables
+  // Priority 1: schema.options - check if any key is present (even if value is
+  // empty) An explicitly set empty value should override environment variables
   bool option_key_present = false;
   std::string option_value;
-  
+
   for (const char* key : option_keys) {
     auto it = options.find(key);
     if (it != options.end()) {
@@ -158,7 +164,7 @@ T getOptionWithEnv(const reader::options_t& options,
       break;
     }
   }
-  
+
   // If any option key is present in schema.options, use it (even if empty)
   if (option_key_present) {
     reader::options_t temp;
@@ -189,20 +195,20 @@ T getOptionWithEnv(const reader::options_t& options,
 
 arrow::fs::S3Options S3OptionsBuilder::build() const {
   const auto& options = schema_.options;
-  
+
   // Start from Arrow's defaults
   arrow::fs::S3Options s3_options = arrow::fs::S3Options::Defaults();
-  
+
   // Step 1: Resolve endpoint (from options or env)
   std::string endpoint = resolveEndpoint();
-  
+
   // Step 2: Resolve region (from options or env, or auto-detect)
   s3_options.region = resolveRegion(endpoint);
-  
+
   // Step 3: Apply endpoint configuration
   if (!endpoint.empty()) {
     s3_options.endpoint_override = endpoint;
-    
+
     // Configure HTTP/HTTPS scheme based on endpoint
     if (endpoint.find("http://") == 0) {
       s3_options.scheme = "http";
@@ -213,35 +219,40 @@ arrow::fs::S3Options S3OptionsBuilder::build() const {
     } else {
       s3_options.scheme = "https";  // Default to HTTPS
     }
-    
+
     // Apply OSS-specific settings if needed
     applyOSSSettings(s3_options, endpoint);
-    
+
     LOG(INFO) << "Using endpoint override: " << s3_options.endpoint_override;
   }
-  
-  // Step 4: Configure credentials (pass is_oss flag for Default mode OSS compatibility)
+
+  // Step 4: Configure credentials (pass is_oss flag for Default mode OSS
+  // compatibility)
   bool is_oss = isOSSEndpoint(endpoint);
   configureCredentials(s3_options, is_oss);
-  
+
   // Step 5: Configure timeouts
   s3_options.connect_timeout = parse_options_.connect_timeout.get(options);
   s3_options.request_timeout = parse_options_.request_timeout.get(options);
-  
+
   // Step 6: Other settings
   s3_options.background_writes = false;  // We only read, not write for now
-  
+
   // Log final configuration
   LOG(INFO) << "=== S3Options Configuration ===";
   LOG(INFO) << "  Region: " << s3_options.region;
-  LOG(INFO) << "  Endpoint: " << (s3_options.endpoint_override.empty() ? "(default AWS S3)" : s3_options.endpoint_override);
+  LOG(INFO) << "  Endpoint: "
+            << (s3_options.endpoint_override.empty()
+                    ? "(default AWS S3)"
+                    : s3_options.endpoint_override);
   LOG(INFO) << "  Scheme: " << s3_options.scheme;
   LOG(INFO) << "  Connect timeout: " << s3_options.connect_timeout << "s";
   LOG(INFO) << "  Request timeout: " << s3_options.request_timeout << "s";
   LOG(INFO) << "  Access key: " << maskCredential(s3_options.GetAccessKey());
-  LOG(INFO) << "  Credentials kind: " << static_cast<int>(s3_options.credentials_kind);
+  LOG(INFO) << "  Credentials kind: "
+            << static_cast<int>(s3_options.credentials_kind);
   LOG(INFO) << "===============================";
-  
+
   return s3_options;
 }
 
@@ -251,23 +262,22 @@ arrow::fs::S3Options S3OptionsBuilder::build() const {
 
 std::string S3OptionsBuilder::resolveEndpoint() const {
   const auto& options = schema_.options;
-  // Priority: schema.options[OSS_ENDPOINT or AWS_ENDPOINT_URL or ENDPOINT_OVERRIDE] >
-  //           env(OSS_ENDPOINT or AWS_ENDPOINT_URL or ENDPOINT_OVERRIDE) > empty
+  // Priority: schema.options[OSS_ENDPOINT or AWS_ENDPOINT_URL or
+  // ENDPOINT_OVERRIDE] >
+  //           env(OSS_ENDPOINT or AWS_ENDPOINT_URL or ENDPOINT_OVERRIDE) >
+  //           empty
   std::string endpoint = getOptionWithEnv(
-      options,
-      parse_options_.endpoint,
-      {S3ConfigOptionKeys::kEndpointCanonical,
-       S3ConfigOptionKeys::kEndpointAws,
+      options, parse_options_.endpoint,
+      {S3ConfigOptionKeys::kEndpointCanonical, S3ConfigOptionKeys::kEndpointAws,
        S3ConfigOptionKeys::kEndpointOverride},  // schema.options keys
-      {S3ConfigOptionKeys::kEndpointCanonical,
-       S3ConfigOptionKeys::kEndpointAws,
-       S3ConfigOptionKeys::kEndpointOverride}   // env keys
+      {S3ConfigOptionKeys::kEndpointCanonical, S3ConfigOptionKeys::kEndpointAws,
+       S3ConfigOptionKeys::kEndpointOverride}  // env keys
   );
-  
+
   if (!endpoint.empty()) {
     LOG(INFO) << "Resolved endpoint: " << endpoint;
   }
-  
+
   return endpoint;
 }
 
@@ -278,21 +288,21 @@ std::string S3OptionsBuilder::resolveEndpoint() const {
 std::string S3OptionsBuilder::resolveRegion(const std::string& endpoint) const {
   const auto& options = schema_.options;
   // Priority: schema.options[OSS_REGION or AWS_DEFAULT_REGION] >
-  //           env(OSS_REGION or AWS_DEFAULT_REGION) > auto-detect from endpoint > us-east-1
+  //           env(OSS_REGION or AWS_DEFAULT_REGION) > auto-detect from endpoint
+  //           > us-east-1
   std::string region = getOptionWithEnv(
-      options,
-      parse_options_.region,
+      options, parse_options_.region,
       {S3ConfigOptionKeys::kRegionCanonical,
        S3ConfigOptionKeys::kRegionDefault},  // schema.options keys
-      {S3ConfigOptionKeys::kRegionCanonical,
-       S3ConfigOptionKeys::kRegionDefault}   // env keys
+      {S3ConfigOptionKeys::kRegionCanonical, S3ConfigOptionKeys::kRegionDefault}
+      // env keys
   );
-  
+
   if (!region.empty()) {
     LOG(INFO) << "Using explicit region: " << region;
     return region;
   }
-  
+
   // Auto-detect region from endpoint
   if (!endpoint.empty()) {
     if (isOSSEndpoint(endpoint)) {
@@ -301,7 +311,7 @@ std::string S3OptionsBuilder::resolveRegion(const std::string& endpoint) const {
       return oss_region;
     }
   }
-  
+
   // Default to us-east-1 (AWS default)
   LOG(INFO) << "Using default region: us-east-1";
   return "us-east-1";
@@ -313,13 +323,13 @@ std::string S3OptionsBuilder::resolveRegion(const std::string& endpoint) const {
 
 arrow::fs::S3CredentialsKind S3OptionsBuilder::resolveCredentialsKind() const {
   const auto& options = schema_.options;
-  
+
   // Get CREDENTIALS_KIND from schema.options ONLY (not from environment)
   std::string kind_str = parse_options_.credentials_kind.get(options);
-  
+
   // Normalize to lowercase for comparison
   std::transform(kind_str.begin(), kind_str.end(), kind_str.begin(), ::tolower);
-  
+
   if (kind_str == S3CredentialsKindValues::kExplicit) {
     return arrow::fs::S3CredentialsKind::Explicit;
   } else if (kind_str == S3CredentialsKindValues::kAnonymous) {
@@ -336,104 +346,115 @@ arrow::fs::S3CredentialsKind S3OptionsBuilder::resolveCredentialsKind() const {
         "Use 'Explicit', 'Anonymous', or 'Default' instead.");
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Invalid CREDENTIALS_KIND: " + kind_str + 
+        "Invalid CREDENTIALS_KIND: " + kind_str +
         ". Valid values: 'Explicit', 'Anonymous', 'Default'");
   }
 }
 
-void S3OptionsBuilder::configureCredentials(arrow::fs::S3Options& s3_options, bool is_oss) const {
+void S3OptionsBuilder::configureCredentials(arrow::fs::S3Options& s3_options,
+                                            bool is_oss) const {
   const auto& options = schema_.options;
-  
+
   // Step 1: Determine credentials kind
   arrow::fs::S3CredentialsKind kind = resolveCredentialsKind();
-  
+
   // Step 2: Configure based on the determined kind
   switch (kind) {
-    case arrow::fs::S3CredentialsKind::Explicit: {
-      // Explicit mode: read credentials from schema.options using OSS-style canonical
-      // names (OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET) or AWS-compatible aliases.
-      std::string access_key;
-      std::string secret_key;
+  case arrow::fs::S3CredentialsKind::Explicit: {
+    // Explicit mode: read credentials from schema.options using OSS-style
+    // canonical names (OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET) or
+    // AWS-compatible aliases.
+    std::string access_key;
+    std::string secret_key;
 
-      // Resolve access key: try NeuG canonical first, then AWS alias
-      for (const char* key : {
-               S3ConfigOptionKeys::kAccessKeyCanonical,
-               S3ConfigOptionKeys::kAccessKeyAws}) {
-        auto it = options.find(key);
-        if (it != options.end() && !it->second.empty()) {
-          access_key = it->second;
-          break;
-        }
+    // Resolve access key: try NeuG canonical first, then AWS alias
+    for (const char* key : {S3ConfigOptionKeys::kAccessKeyCanonical,
+                            S3ConfigOptionKeys::kAccessKeyAws}) {
+      auto it = options.find(key);
+      if (it != options.end() && !it->second.empty()) {
+        access_key = it->second;
+        break;
       }
-
-      // Resolve secret key: try NeuG canonical first, then AWS alias
-      for (const char* key : {
-               S3ConfigOptionKeys::kSecretAccessKeyCanonical,
-               S3ConfigOptionKeys::kSecretAccessKeyAws}) {
-        auto it = options.find(key);
-        if (it != options.end() && !it->second.empty()) {
-          secret_key = it->second;
-          break;
-        }
-      }
-
-      if (access_key.empty() || secret_key.empty()) {
-        THROW_INVALID_ARGUMENT_EXCEPTION(
-            "CREDENTIALS_KIND=Explicit requires credentials in options. "
-            "Supported option keys are: "
-            "OSS_ACCESS_KEY_ID or AWS_ACCESS_KEY_ID, and "
-            "OSS_ACCESS_KEY_SECRET or AWS_SECRET_ACCESS_KEY.");
-      }
-      
-      s3_options.ConfigureAccessKey(access_key, secret_key);
-      LOG(INFO) << "Configured explicit credentials (access_key: " 
-                << maskCredential(access_key) << ")";
-      break;
     }
-    
-    case arrow::fs::S3CredentialsKind::Anonymous:
-      // Anonymous mode: no credentials (for public buckets)
-      s3_options.ConfigureAnonymousCredentials();
-      LOG(INFO) << "Configured anonymous credentials (for public buckets)";
-      break;
-    
-    case arrow::fs::S3CredentialsKind::Default: {
-      // Default mode with OSS compatibility:
-      // - If endpoint is OSS AND OSS_ACCESS_KEY_ID + OSS_ACCESS_KEY_SECRET are set in env, use them explicitly
-      // - Otherwise, delegate to Arrow's default credential chain (AWS_ACCESS_KEY_ID, ~/.aws/credentials, IAM, etc.)
-      
-      if (is_oss) {
-        const char* oss_access_key_env = std::getenv(S3ConfigOptionKeys::kAccessKeyCanonical);
-        const char* oss_secret_key_env = std::getenv(S3ConfigOptionKeys::kSecretAccessKeyCanonical);
-        
-        if (oss_access_key_env && oss_secret_key_env && 
-            strlen(oss_access_key_env) > 0 && strlen(oss_secret_key_env) > 0) {
-          // OSS endpoint + OSS-style env vars found, use them explicitly
-          s3_options.ConfigureAccessKey(oss_access_key_env, oss_secret_key_env);
-          LOG(INFO) << "Configured credentials from OSS environment variables (OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)";
-          break;
-        }
+
+    // Resolve secret key: try NeuG canonical first, then AWS alias
+    for (const char* key : {S3ConfigOptionKeys::kSecretAccessKeyCanonical,
+                            S3ConfigOptionKeys::kSecretAccessKeyAws}) {
+      auto it = options.find(key);
+      if (it != options.end() && !it->second.empty()) {
+        secret_key = it->second;
+        break;
       }
-      
-      // Fall back to Arrow's default credential provider chain
-      // Arrow will check: AWS_ACCESS_KEY_ID env → ~/.aws/credentials → IAM role → ECS task role
-      s3_options.ConfigureDefaultCredentials();
-      LOG(INFO) << "Using Arrow default credential chain (AWS_ACCESS_KEY_ID env -> ~/.aws/credentials -> IAM role)";
-      break;
     }
-    
-    case arrow::fs::S3CredentialsKind::WebIdentity:
-      // Should never reach here: 'WebIdentity' is rejected early in resolveCredentialsKind()
-      THROW_INVALID_ARGUMENT_EXCEPTION("CREDENTIALS_KIND='WebIdentity' is not supported");
-      break;
-    
-    case arrow::fs::S3CredentialsKind::Role:
-      // Should never reach here: 'Role' is rejected early in resolveCredentialsKind()
-      THROW_INVALID_ARGUMENT_EXCEPTION("CREDENTIALS_KIND='Role' is not supported");
-      break;
-    
-    default:
-      THROW_INVALID_ARGUMENT_EXCEPTION("Unknown CREDENTIALS_KIND");
+
+    if (access_key.empty() || secret_key.empty()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "CREDENTIALS_KIND=Explicit requires credentials in options. "
+          "Supported option keys are: "
+          "OSS_ACCESS_KEY_ID or AWS_ACCESS_KEY_ID, and "
+          "OSS_ACCESS_KEY_SECRET or AWS_SECRET_ACCESS_KEY.");
+    }
+
+    s3_options.ConfigureAccessKey(access_key, secret_key);
+    LOG(INFO) << "Configured explicit credentials (access_key: "
+              << maskCredential(access_key) << ")";
+    break;
+  }
+
+  case arrow::fs::S3CredentialsKind::Anonymous:
+    // Anonymous mode: no credentials (for public buckets)
+    s3_options.ConfigureAnonymousCredentials();
+    LOG(INFO) << "Configured anonymous credentials (for public buckets)";
+    break;
+
+  case arrow::fs::S3CredentialsKind::Default: {
+    // Default mode with OSS compatibility:
+    // - If endpoint is OSS AND OSS_ACCESS_KEY_ID + OSS_ACCESS_KEY_SECRET are
+    // set in env, use them explicitly
+    // - Otherwise, delegate to Arrow's default credential chain
+    // (AWS_ACCESS_KEY_ID, ~/.aws/credentials, IAM, etc.)
+
+    if (is_oss) {
+      const char* oss_access_key_env =
+          std::getenv(S3ConfigOptionKeys::kAccessKeyCanonical);
+      const char* oss_secret_key_env =
+          std::getenv(S3ConfigOptionKeys::kSecretAccessKeyCanonical);
+
+      if (oss_access_key_env && oss_secret_key_env &&
+          strlen(oss_access_key_env) > 0 && strlen(oss_secret_key_env) > 0) {
+        // OSS endpoint + OSS-style env vars found, use them explicitly
+        s3_options.ConfigureAccessKey(oss_access_key_env, oss_secret_key_env);
+        LOG(INFO) << "Configured credentials from OSS environment variables "
+                     "(OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)";
+        break;
+      }
+    }
+
+    // Fall back to Arrow's default credential provider chain
+    // Arrow will check: AWS_ACCESS_KEY_ID env → ~/.aws/credentials → IAM role →
+    // ECS task role
+    s3_options.ConfigureDefaultCredentials();
+    LOG(INFO) << "Using Arrow default credential chain (AWS_ACCESS_KEY_ID env "
+                 "-> ~/.aws/credentials -> IAM role)";
+    break;
+  }
+
+  case arrow::fs::S3CredentialsKind::WebIdentity:
+    // Should never reach here: 'WebIdentity' is rejected early in
+    // resolveCredentialsKind()
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREDENTIALS_KIND='WebIdentity' is not supported");
+    break;
+
+  case arrow::fs::S3CredentialsKind::Role:
+    // Should never reach here: 'Role' is rejected early in
+    // resolveCredentialsKind()
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREDENTIALS_KIND='Role' is not supported");
+    break;
+
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION("Unknown CREDENTIALS_KIND");
   }
 }
 
@@ -441,11 +462,12 @@ void S3OptionsBuilder::configureCredentials(arrow::fs::S3Options& s3_options, bo
 // OSS-Specific Handling
 // ============================================================================
 
-void S3OptionsBuilder::applyOSSSettings(arrow::fs::S3Options& s3_options, 
-                                         const std::string& endpoint) const {
+void S3OptionsBuilder::applyOSSSettings(arrow::fs::S3Options& s3_options,
+                                        const std::string& endpoint) const {
   if (isOSSEndpoint(endpoint)) {
     // OSS requires virtual hosted-style addressing
-    // bucket.oss-cn-beijing.aliyuncs.com/key (NOT oss-cn-beijing.aliyuncs.com/bucket/key)
+    // bucket.oss-cn-beijing.aliyuncs.com/key (NOT
+    // oss-cn-beijing.aliyuncs.com/bucket/key)
     s3_options.force_virtual_addressing = true;
     LOG(INFO) << "OSS endpoint detected, enabled force_virtual_addressing";
   }
@@ -457,13 +479,13 @@ bool S3OptionsBuilder::isOSSEndpoint(const std::string& endpoint) {
 
 std::string S3OptionsBuilder::extractOSSRegion(const std::string& endpoint) {
   std::string ep = endpoint;
-  
+
   // Remove protocol prefix
   size_t protocol_pos = ep.find("://");
   if (protocol_pos != std::string::npos) {
     ep = ep.substr(protocol_pos + 3);
   }
-  
+
   // Extract region: oss-cn-beijing.aliyuncs.com -> oss-cn-beijing
   if (ep.find("oss-") == 0) {
     size_t dot_pos = ep.find('.');
@@ -471,7 +493,7 @@ std::string S3OptionsBuilder::extractOSSRegion(const std::string& endpoint) {
       return ep.substr(0, dot_pos);
     }
   }
-  
+
   // Fallback, assume oss-cn-hangzhou as default region
   return "oss-cn-hangzhou";
 }
