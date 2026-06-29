@@ -35,10 +35,10 @@
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
 
+#include "neug/generated/proto/response/response.pb.h"
 #include "parquet/arrow_reader.h"
 #include "parquet_export_function.h"
 #include "parquet_options.h"
-#include "neug/generated/proto/response/response.pb.h"
 
 namespace neug {
 namespace test {

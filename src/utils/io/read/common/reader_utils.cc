@@ -38,8 +38,8 @@ execution::Context toContext(std::shared_ptr<IDataChunkSupplier> supplier,
         static_cast<int>(chunk->col_num()) != expected_cols) {
       THROW_IO_EXCEPTION(
           "Column number mismatch between schema and file data, schema: " +
-          std::to_string(expected_cols) + ", data: " +
-          std::to_string(chunk->col_num()));
+          std::to_string(expected_cols) +
+          ", data: " + std::to_string(chunk->col_num()));
     }
     ctx.append_chunk(std::move(*chunk));
   }

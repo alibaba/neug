@@ -36,6 +36,5 @@ inline execution::Context runFileReader(std::unique_ptr<FileReader> reader,
   return toContext(reader->read(), state, fallback_column_count);
 }
 
-
 }  // namespace reader
 }  // namespace neug

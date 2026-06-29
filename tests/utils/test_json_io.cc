@@ -466,10 +466,10 @@ TEST_F(JsonIOTest, InferSchema_AutoDetectColumnNames) {
 
 TEST_F(JsonIOTest, InferSchema_NoDataRowsDefaultsToVarchar) {
   createFile("infer_empty.jsonl", "");
-  auto state = createSharedState("infer_empty.jsonl", {"a", "b", "c"},
-                                 {createStringType(), createStringType(),
-                                  createStringType()},
-                                 {{"batch_read", "false"}});
+  auto state = createSharedState(
+      "infer_empty.jsonl", {"a", "b", "c"},
+      {createStringType(), createStringType(), createStringType()},
+      {{"batch_read", "false"}});
   auto reader = createJsonReader(state);
   auto result = reader->inferSchema();
   ASSERT_TRUE(result.has_value());

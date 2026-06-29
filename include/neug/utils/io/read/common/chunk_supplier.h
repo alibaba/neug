@@ -24,7 +24,8 @@ namespace execution {
 class DataChunk;
 }
 
-/// Iterator-like source of execution::DataChunk batches for file readers and loaders.
+/// Iterator-like source of execution::DataChunk batches for file readers and
+/// loaders.
 class IDataChunkSupplier {
  public:
   virtual ~IDataChunkSupplier() = default;

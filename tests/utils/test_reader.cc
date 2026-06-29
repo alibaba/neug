@@ -484,9 +484,9 @@ TEST_F(ReaderTest, TestJsonBatchReadWithProjectionOnly) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createJsonSharedState(
-      "test_json_batch_proj.jsonl", columnNames, columnTypes,
-      {{"batch_read", "true"}});
+  auto sharedState =
+      createJsonSharedState("test_json_batch_proj.jsonl", columnNames,
+                            columnTypes, {{"batch_read", "true"}});
   sharedState->projectColumns = {"id", "score"};
 
   auto reader = createJsonReader(sharedState, false);
