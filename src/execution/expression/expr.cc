@@ -34,6 +34,34 @@
 
 namespace neug {
 namespace execution {
+namespace {
+
+DataType parse_path_property_element_type(const ::common::IrDataType& type) {
+  switch (type.type_case()) {
+  case ::common::IrDataType::TypeCase::kDataType: {
+    const auto& data_type = type.data_type();
+    switch (data_type.item_case()) {
+    case ::common::DataType::kList:
+      return parse_from_data_type(data_type.list().component_type());
+    case ::common::DataType::kArray:
+      return parse_from_data_type(data_type.array().component_type());
+    default:
+      break;
+    }
+    break;
+  }
+  case ::common::IrDataType::TypeCase::kListType: {
+    auto list_type = parse_from_ir_data_type(type);
+    return ListType::GetChildType(list_type);
+  }
+  default:
+    break;
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION(
+      "path function node_type is not list or array type");
+}
+
+}  // namespace
 
 static std::unique_ptr<ExprBase> build_expr(
     std::stack<::common::ExprOpr>& opr_stack, const ContextMeta& ctx_meta,
@@ -217,14 +245,7 @@ static std::unique_ptr<ExprBase> build_expr(
       auto opt = opr.path_func().opt();
       const auto& name = opr.path_func().property().key().name();
       int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
-      if (opr.node_type().data_type().item_case() !=
-          ::common::DataType::kArray) {
-        THROW_INVALID_ARGUMENT_EXCEPTION(
-            "path function node_type is not array type");
-        return nullptr;
-      }
-      auto type = parse_from_data_type(
-          opr.node_type().data_type().array().component_type());
+      auto type = parse_path_property_element_type(opr.node_type());
 
       if (opt == ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
         return std::make_unique<PathPropsExpr>(tag, name, type, true);
