@@ -15,7 +15,6 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
@@ -540,13 +539,7 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
     if (merged == nullptr) {
       continue;
     }
-    if (merged->column_type() != ContextColumnType::kArrowArray) {
-      add_column(merged, graph, response->add_arrays());
-    } else {
-      auto casted = dynamic_cast<ArrowArrayContextColumn*>(merged.get())
-                        ->cast_to_value_column();
-      add_column(casted, graph, response->add_arrays());
-    }
+    add_column(merged, graph, response->add_arrays());
   }
 }
 

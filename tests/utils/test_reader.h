@@ -21,19 +21,20 @@
 #include <memory>
 #include <vector>
 
-#include <arrow/filesystem/localfs.h>
-#include <arrow/type.h>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <vector>
+
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/data_chunk.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/utils/reader/expression_converter.h"
-#include "neug/utils/reader/json_options.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/type_converter.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace test {
@@ -244,13 +245,12 @@ class ReaderTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::ArrowReader> createArrowReader(
+  std::shared_ptr<reader::CsvReader> createCsvReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
     auto optionsBuilder =
-        std::make_unique<reader::ArrowCsvOptionsBuilder>(sharedState);
-    return std::make_shared<reader::ArrowReader>(
-        sharedState, std::move(optionsBuilder), std::move(fileSystem));
+        std::make_unique<reader::CsvOptionsBuilder>(sharedState);
+    return std::make_shared<reader::CsvReader>(sharedState,
+                                               std::move(optionsBuilder));
   }
 
   void createJsonFile(const std::string& filename, const std::string& content) {
@@ -282,58 +282,24 @@ class ReaderTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::ArrowReader> createArrowJsonReader(
-      const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
-    auto optionsBuilder =
-        std::make_unique<reader::ArrowJsonOptionsBuilder>(sharedState);
-    return std::make_shared<reader::ArrowReader>(
-        sharedState, std::move(optionsBuilder), std::move(fileSystem));
+  std::shared_ptr<reader::JsonReader> createJsonReader(
+      const std::shared_ptr<reader::ReadSharedState>& sharedState,
+      bool json_array_input = true) {
+    auto optionsBuilder = std::make_unique<reader::JsonOptionsBuilder>(
+        sharedState, json_array_input);
+    return std::make_shared<reader::JsonReader>(sharedState,
+                                                std::move(optionsBuilder));
   }
 
-  // Helper function to count rows in batch_read mode
-  // Extracts the first column from context, casts it to
-  // ArrowStreamContextColumn, and counts total rows by iterating through all
-  // batches from suppliers
+  // Helper function to count total rows across all chunks in Context.
   int64_t count_batch_row_num(const execution::Context& ctx) {
-    // Get the first column from context
-    if (ctx.chunk_num() == 0 || ctx.chunk(0).columns().empty()) {
-      return -1;  // Error: no columns
+    if (ctx.chunk_num() == 0) {
+      return -1;
     }
-    auto firstColumn = ctx.chunk(0).columns()[0];
-    if (!firstColumn) {
-      return -1;  // Error: first column is null
-    }
-
-    // Cast to ArrowStreamContextColumn
-    auto streamColumn =
-        std::dynamic_pointer_cast<execution::ArrowStreamContextColumn>(
-            firstColumn);
-    if (!streamColumn) {
-      return -1;  // Error: not ArrowStreamContextColumn
-    }
-
-    // Get suppliers from the stream column
-    auto suppliers = streamColumn->GetSuppliers();
-    if (suppliers.empty()) {
-      return -1;  // Error: no suppliers
-    }
-
-    // Count total rows by iterating through all batches
     int64_t totalRows = 0;
-    for (const auto& supplier : suppliers) {
-      if (!supplier) {
-        continue;  // Skip null suppliers
-      }
-      while (true) {
-        auto batch = supplier->GetNextBatch();
-        if (!batch) {
-          break;  // No more batches from this supplier
-        }
-        totalRows += batch->num_rows();
-      }
+    for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+      totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
     }
-
     return totalRows;
   }
 };

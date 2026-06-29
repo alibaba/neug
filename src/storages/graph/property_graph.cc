@@ -33,8 +33,8 @@
 #include "neug/storages/index/index_manager.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
@@ -146,13 +146,13 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 }
 
 Status PropertyGraph::BatchAddVertices(
-    label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   std::vector<vid_t> new_vids;
   return BatchAddVertices(v_label, std::move(supplier), new_vids);
 }
 
 Status PropertyGraph::BatchAddVertices(
-    label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier,
+    label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier,
     std::vector<vid_t>& new_vids) {
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
   vertex_tables_[v_label].insert_vertices(supplier, new_vids);
@@ -161,7 +161,7 @@ Status PropertyGraph::BatchAddVertices(
 
 Status PropertyGraph::BatchAddEdges(
     label_t src_v_label, label_t dst_v_label, label_t e_label,
-    std::shared_ptr<IRecordBatchSupplier> supplier) {
+    std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   assert(edge_tables_.count(index) > 0);

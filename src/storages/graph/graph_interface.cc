@@ -179,7 +179,7 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 }
 
 Status StorageAPUpdateInterface::BatchAddVertices(
-    label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   std::vector<vid_t> new_vids;
   RETURN_IF_NOT_OK(
       graph_.BatchAddVertices(v_label_id, std::move(supplier), new_vids));
@@ -198,7 +198,7 @@ Status StorageAPUpdateInterface::BatchAddVertices(
     }
     const auto& prop_name = v_schema->property_names[prop_idx];
     std::vector<Index*> indexes;
-    index_manager_.GetIndex(v_label_id, {prop_name}, indexes);
+    RETURN_IF_NOT_OK(index_manager_.GetIndex(v_label_id, {prop_name}, indexes));
     if (indexes.empty()) {
       continue;
     }
@@ -209,7 +209,7 @@ Status StorageAPUpdateInterface::BatchAddVertices(
     for (auto* idx : indexes) {
       for (vid_t vid : new_vids) {
         auto prop_value = col->get_any(vid);
-        idx->Append(vid, {prop_value});
+        RETURN_IF_NOT_OK(idx->Append(vid, {prop_value}));
       }
     }
   }
@@ -219,7 +219,7 @@ Status StorageAPUpdateInterface::BatchAddVertices(
 
 Status StorageAPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
-    std::shared_ptr<IRecordBatchSupplier> supplier) {
+    std::shared_ptr<IDataChunkSupplier> supplier) {
   return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                               std::move(supplier));
 }

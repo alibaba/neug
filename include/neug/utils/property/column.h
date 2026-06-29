@@ -40,7 +40,7 @@
 #include "neug/storages/module/module.h"
 #include "neug/storages/module/type_name.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -134,6 +134,10 @@ class TypedColumn : public ColumnBase {
 
   void set_any(size_t index, const execution::Value& value,
                bool insert_safe) override {
+    if (value.IsNull()) {
+      set_value(index, T());
+      return;
+    }
     // allow resize is ignored for fixed-length types
     set_value(index, value.GetValue<T>());
   }
@@ -464,6 +468,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
                bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");
+    }
+    if (value.IsNull()) {
+      set_value(idx, std::string_view());
+      return;
     }
     auto dst_value = value.GetValue<std::string>();
     if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {

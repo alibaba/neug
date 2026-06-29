@@ -16,8 +16,7 @@
 
 #include "neug/compiler/function/export/json_export_function.h"
 
-#include <arrow/result.h>
-#include <arrow/status.h>
+#include "neug/utils/io/stream/output_stream.h"
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/writer.h>
@@ -30,7 +29,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
-#include "neug/utils/writer/writer.h"
+#include "neug/utils/io/write/writer.h"
 
 namespace neug {
 namespace writer {
@@ -264,20 +263,14 @@ void JsonArrayStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   }
 }
 
-neug::Status JsonArrayStringFormatBuffer::flush(
-    std::shared_ptr<arrow::io::OutputStream> stream) {
+neug::Status JsonArrayStringFormatBuffer::flush(io::OutputStream& stream) {
   if (buffer_.IsArray() && buffer_.Empty()) {
     return neug::Status::OK();
   }
   const auto& jsonStr = rapidjson_stringify(buffer_);
   buffer_.Clear();
-  auto writer_res = stream->Write(jsonStr.c_str(), jsonStr.size());
-  if (writer_res.ok()) {
-    return neug::Status::OK();
-  }
-  return neug::Status(
-      neug::StatusCode::ERR_IO_ERROR,
-      "Failed to write JSON to stream: " + writer_res.ToString());
+  return stream.Write(reinterpret_cast<const uint8_t*>(jsonStr.data()),
+                      static_cast<int64_t>(jsonStr.size()));
 }
 
 JsonLStringFormatBuffer::JsonLStringFormatBuffer(
@@ -325,39 +318,35 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   }
 }
 
-neug::Status JsonLStringFormatBuffer::flush(
-    std::shared_ptr<arrow::io::OutputStream> stream) {
+neug::Status JsonLStringFormatBuffer::flush(io::OutputStream& stream) {
   for (const auto& val : buffer_) {
     const auto& jsonStr = rapidjson_stringify(val);
-    auto ar_status = stream->Write(jsonStr.c_str(), jsonStr.size());
-    if (!ar_status.ok()) {
-      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
-                          "Failed to write JSON line: " + ar_status.ToString());
+    auto status = stream.Write(reinterpret_cast<const uint8_t*>(jsonStr.data()),
+                               static_cast<int64_t>(jsonStr.size()));
+    if (!status.ok()) {
+      return status;
     }
-    ar_status = stream->Write(DEFAULT_JSON_NEWLINE, sizeof(char));
-    if (!ar_status.ok()) {
-      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
-                          "Failed to write newline: " + ar_status.ToString());
+    status = stream.Write(reinterpret_cast<const uint8_t*>(DEFAULT_JSON_NEWLINE),
+                          sizeof(char));
+    if (!status.ok()) {
+      return status;
     }
   }
   buffer_.clear();
   return neug::Status::OK();
 }
 
-static Status writeTableWithBuffer(
-    StringFormatBuffer& buffer, const reader::FileSchema& schema,
-    const std::shared_ptr<arrow::fs::FileSystem>& fileSystem,
-    const neug::QueryResponse* table, size_t batchSize) {
+static Status writeTableWithBuffer(StringFormatBuffer& buffer,
+                                   const reader::FileSchema& schema,
+                                   const neug::QueryResponse* table,
+                                   size_t batchSize) {
   if (schema.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
-  auto stream_result = fileSystem->OpenOutputStream(schema.paths[0]);
-  if (!stream_result.ok()) {
-    return Status(
-        StatusCode::ERR_IO_ERROR,
-        "Failed to open file stream: " + stream_result.status().ToString());
+  auto stream = io::openLocalOutputStream(schema.paths[0]);
+  if (!stream) {
+    return Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
-  auto stream = stream_result.ValueOrDie();
 
   if (batchSize == 0) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -369,7 +358,7 @@ static Status writeTableWithBuffer(
       buffer.addValue(static_cast<int>(i), static_cast<int>(j));
     }
     if ((i + 1) % static_cast<size_t>(batchSize) == 0) {
-      auto status = buffer.flush(stream);
+      auto status = buffer.flush(*stream);
       if (!status.ok()) {
         (void) stream->Close();
         return Status(StatusCode::ERR_IO_ERROR,
@@ -378,22 +367,16 @@ static Status writeTableWithBuffer(
     }
   }
 
-  auto status = buffer.flush(stream);
+  auto status = buffer.flush(*stream);
   if (!status.ok()) {
     (void) stream->Close();
     return Status(StatusCode::ERR_IO_ERROR,
                   "Failed to flush JSON buffer: " + status.ToString());
   }
-  auto close_status = stream->Close();
-  if (!close_status.ok()) {
-    return Status(StatusCode::ERR_IO_ERROR,
-                  "Failed to close output stream: " + close_status.ToString());
-  }
-  return Status::OK();
+  return stream->Close();
 }
 
-Status ArrowJsonArrayExportWriter::writeTable(
-    const neug::QueryResponse* table) {
+Status JsonArrayExportWriter::writeTable(const neug::QueryResponse* table) {
   if (!entry_schema_) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "entry_schema is null");
   }
@@ -402,19 +385,17 @@ Status ArrowJsonArrayExportWriter::writeTable(
   if (batchSize == 0) {
     batchSize = 1;
   }
-  // JSON Array is one single array; only flush once at the end.
-  return writeTableWithBuffer(buffer, schema_, fileSystem_, table, batchSize);
+  return writeTableWithBuffer(buffer, schema_, table, batchSize);
 }
 
-Status ArrowJsonLExportWriter::writeTable(const neug::QueryResponse* table) {
+Status JsonLExportWriter::writeTable(const neug::QueryResponse* table) {
   if (!entry_schema_) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "entry_schema is null");
   }
   JsonLStringFormatBuffer buffer(table, schema_, *entry_schema_);
   WriteOptions writeOpts;
   size_t batchSize = writeOpts.batch_rows.get(schema_.options);
-  // JSONL: each line is a separate JSON object; safe to flush per batch.
-  return writeTableWithBuffer(buffer, schema_, fileSystem_, table, batchSize);
+  return writeTableWithBuffer(buffer, schema_, table, batchSize);
 }
 }  // namespace writer
 
@@ -427,10 +408,8 @@ static execution::Context jsonExecFunc(
   if (schema.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
-  const auto& vfs = neug::main::MetadataRegistry::getVFS();
-  const auto& fs = vfs->Provide(schema);
-  auto writer = std::make_shared<neug::writer::ArrowJsonArrayExportWriter>(
-      schema, fs->toArrowFileSystem(), entry_schema);
+  auto writer = std::make_shared<neug::writer::JsonArrayExportWriter>(
+      schema, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());
@@ -464,10 +443,8 @@ static execution::Context jsonLExecFunc(
   if (schema.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
-  const auto& vfs = neug::main::MetadataRegistry::getVFS();
-  const auto& fs = vfs->Provide(schema);
-  auto writer = std::make_shared<neug::writer::ArrowJsonLExportWriter>(
-      schema, fs->toArrowFileSystem(), entry_schema);
+  auto writer = std::make_shared<neug::writer::JsonLExportWriter>(
+      schema, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());

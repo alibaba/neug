@@ -36,7 +36,7 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/column.h"
@@ -1188,7 +1188,7 @@ void StorageTPUpdateInterface::CreateCheckpoint() {
 }
 
 Status StorageTPUpdateInterface::BatchAddVertices(
-    label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddVertices is not supported in TP mode currently.");
@@ -1196,7 +1196,7 @@ Status StorageTPUpdateInterface::BatchAddVertices(
 
 Status StorageTPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
-    std::shared_ptr<IRecordBatchSupplier> supplier) {
+    std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddEdges is not supported in TP mode currently.");

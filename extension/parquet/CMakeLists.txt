@@ -2,6 +2,7 @@
 file(GLOB PARQUET_EXTENSION_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
 set(PARQUET_EXTENSION_OBJECT_FILES ${PARQUET_EXTENSION_SOURCES})
 
 # Resolve OpenSSL for the link step.
@@ -84,6 +85,7 @@ target_link_libraries(neug_parquet_extension PRIVATE
     OpenSSL::Crypto
     $<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-whole-archive>
     neug
+    ${Protobuf_LIBRARIES}
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

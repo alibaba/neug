@@ -16,18 +16,16 @@
 
 #pragma once
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/localfs.h>
 #include <memory>
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/sniffer.h"
+#include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/sniffer.h"
+#include "neug/utils/io/reader.h"
 namespace neug {
 namespace function {
 struct CSVReadFunction {
@@ -125,10 +123,9 @@ struct CSVReadFunction {
                            resolved.end());
     }
     state->schema.file.paths = std::move(resolvedPaths);
-    auto optionsBuilder =
-        std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
-    auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
+    auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
+    auto reader =
+        std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -155,11 +152,10 @@ struct CSVReadFunction {
                            resolved.end());
     }
     state->schema.file.paths = std::move(resolvedPaths);
-    auto optionsBuilder =
-        std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
-    auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
+    auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
+    auto reader =
+        std::make_shared<reader::CsvReader>(state, std::move(optionsBuilder));
+    auto sniffer = std::make_shared<reader::CsvSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (sniffResult) {
       return sniffResult.value();
@@ -174,11 +170,10 @@ struct CSVReadFunction {
     if (hasHeader) {
       options.insert({"SKIP_ROWS", "1"});
       options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
-      auto optionsBuilder2 =
-          std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
-      auto reader2 = std::make_shared<reader::ArrowReader>(
-          state, std::move(optionsBuilder2), fs->toArrowFileSystem());
-      auto sniffer2 = std::make_shared<reader::ArrowSniffer>(reader2);
+      auto optionsBuilder2 = std::make_unique<reader::CsvOptionsBuilder>(state);
+      auto reader2 = std::make_shared<reader::CsvReader>(
+          state, std::move(optionsBuilder2));
+      auto sniffer2 = std::make_shared<reader::CsvSniffer>(reader2);
       sniffResult = sniffer2->sniff();
       if (sniffResult) {
         return sniffResult.value();

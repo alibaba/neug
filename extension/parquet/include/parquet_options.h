@@ -20,8 +20,7 @@
 #include <arrow/dataset/file_base.h>
 #include <arrow/dataset/file_parquet.h>
 #include <memory>
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
+#include "parquet/arrow_options.h"
 
 namespace neug {
 namespace reader {

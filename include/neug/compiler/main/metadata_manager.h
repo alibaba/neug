@@ -33,7 +33,7 @@
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/storages/index/index_manager.h"
 #include "neug/utils/api.h"
-#include "neug/utils/file_sys/file_system.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 namespace neug {
 namespace common {
