@@ -131,3 +131,72 @@ Rules and limitations, consistent with the rest of NeuG's `YIELD`:
 - `YIELD` must be followed by a `RETURN`; it does not terminate the query on its own.
 
 Ordering by a whole `Vertex`/`Edge` object (for example `ORDER BY a`) is not supported by NeuG; order by a scalar property such as `ORDER BY a.age` instead.
+
+## End-to-end Example
+
+A complete, runnable sequence — create the schema, insert a small graph, load the extension, then match. Every statement can be run as-is in the CLI or via `conn.execute(...)`:
+
+```cypher
+-- 1. Schema
+CREATE NODE TABLE Person(id INT32 PRIMARY KEY, name STRING, age INT32);
+CREATE REL TABLE person_knows_person(FROM Person TO Person, weight DOUBLE);
+
+-- 2. Data (3 people, a directed triangle of "knows" edges)
+CREATE (n:Person {id: 0, name: 'Alice', age: 20});
+CREATE (n:Person {id: 1, name: 'Bob',   age: 30});
+CREATE (n:Person {id: 2, name: 'Carol', age: 40});
+MATCH (a:Person), (b:Person) WHERE a.id = 0 AND b.id = 1
+CREATE (a)-[:person_knows_person {weight: 0.5}]->(b);
+MATCH (a:Person), (b:Person) WHERE a.id = 1 AND b.id = 2
+CREATE (a)-[:person_knows_person {weight: 1.5}]->(b);
+MATCH (a:Person), (b:Person) WHERE a.id = 2 AND b.id = 0
+CREATE (a)-[:person_knows_person {weight: 0.5}]->(b);
+
+-- 3. Load the extension
+LOAD pattern_matching;
+
+-- 4. Exact match: all (a)-[r]->(b) embeddings
+CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)') RETURN *;
+
+-- 5. Project / order / limit on the matched output
+CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)')
+RETURN a.name AS src, b.name AS dst, r.weight AS weight
+ORDER BY weight DESC LIMIT 5;
+
+-- 6. Aggregate over the matches
+CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)')
+RETURN count(a) AS matches, count(DISTINCT a.name) AS distinct_sources;
+
+-- 7. Sampled matching (sample size 2)
+CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)', 2, true) RETURN *;
+```
+
+The same flow as a runnable Python script (using the in-repo bindings) is available at `tools/python_bind/example/pattern_match_demo.py`:
+
+```bash
+python3 tools/python_bind/example/pattern_match_demo.py
+```
+
+## Using the Locally Built Extension
+
+The build above produces `build/extension/pattern_matching/libpattern_matching.neug_extension`. `LOAD pattern_matching;` resolves to `<home>/extension/pattern_matching/libpattern_matching.neug_extension`, where `<home>` comes from the `NEUG_EXTENSION_HOME_PYENV` environment variable.
+
+When you use the in-repo Python bindings this is automatic: importing `neug` discovers `neug_py_bind` under the build tree and sets `NEUG_EXTENSION_HOME_PYENV` to `<repo>/build` for you, so `LOAD pattern_matching;` picks up the freshly built library with no extra setup:
+
+```python
+import neug
+from neug.database import Database
+
+db = Database("/tmp/demo_db", "w")
+conn = db.connect()
+conn.execute("LOAD pattern_matching;")  # loads build/extension/pattern_matching/...
+```
+
+If your build tree lives elsewhere, point the loader at it before importing `neug`:
+
+```bash
+# directory containing tools/python_bind/neug_py_bind* and extension/
+export NEUG_BUILD_DIR=/path/to/neug/build
+# or set the extension home directly (the dir that contains extension/):
+export NEUG_EXTENSION_HOME_PYENV=/path/to/neug/build
+```
