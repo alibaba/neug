@@ -16,7 +16,6 @@
 #include "neug/execution/common/operators/retrieve/sink.h"
 
 #include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
