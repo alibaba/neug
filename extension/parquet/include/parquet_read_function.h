@@ -23,10 +23,8 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/read/common/sniffer.h"
 #include "parquet/arrow_fs_resolver.h"
 #include "parquet/arrow_reader.h"
-#include "parquet/arrow_sniffer.h"
 #include "parquet_options.h"
 
 namespace neug {
@@ -97,8 +95,7 @@ struct ParquetReadFunction {
     auto reader = std::make_shared<reader::ArrowReader>(
         state, std::move(optionsBuilder), std::move(arrowFs));
 
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
+    auto sniffResult = reader->inferSchema();
 
     if (!sniffResult) {
       LOG(ERROR) << "Failed to sniff Parquet schema: "

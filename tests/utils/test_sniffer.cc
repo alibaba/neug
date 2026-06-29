@@ -15,7 +15,6 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/utils/io/read/common/sniffer.h"
 #include "test_reader.h"
 namespace neug {
 namespace test {
@@ -32,8 +31,7 @@ TEST_F(SnifferTest, TestSniffBasic) {
   auto sharedState = createSharedState("test_sniff.csv", {}, {});
 
   auto reader = createCsvReader(sharedState);
-  auto sniffer = reader::ReaderSniffer(reader);
-  auto schema = sniffer.sniff().value();
+  auto schema = reader->inferSchema().value();
 
   EXPECT_EQ(schema->type(), reader::EntrySchemaType::TABLE);
 
@@ -63,8 +61,7 @@ TEST_F(SnifferTest, TestSniffHeaderOnlyDefaultsToVarchar) {
                                        {{"skip_rows", "1"}});
 
   auto reader = createCsvReader(sharedState);
-  auto sniffer = reader::ReaderSniffer(reader);
-  auto result = sniffer.sniff();
+  auto result = reader->inferSchema();
   ASSERT_TRUE(result.has_value());
   auto schema = result.value();
 

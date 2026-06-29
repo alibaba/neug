@@ -24,7 +24,6 @@
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/read/common/sniffer.h"
 #include "neug/utils/io/read/json/json_reader.h"
 namespace neug {
 namespace function {
@@ -87,8 +86,7 @@ struct JsonReadFunction {
         std::make_unique<reader::JsonOptionsBuilder>(state, true);
     std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
+    auto sniffResult = reader->inferSchema();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +
                          sniffResult.error().ToString());
@@ -153,8 +151,7 @@ struct JsonLReadFunction {
         std::make_unique<reader::JsonOptionsBuilder>(state, false);
     std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::JsonReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
+    auto sniffResult = reader->inferSchema();
     if (!sniffResult) {
       THROW_IO_EXCEPTION("Failed to sniff schema: " +
                          sniffResult.error().ToString());

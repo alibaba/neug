@@ -25,7 +25,6 @@
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/read/common/sniffer.h"
 #include "neug/utils/io/read/csv/csv_reader.h"
 namespace neug {
 namespace function {
@@ -156,8 +155,7 @@ struct CSVReadFunction {
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
     std::shared_ptr<reader::FileReader> reader =
         std::make_shared<reader::CsvReader>(state, std::move(optionsBuilder));
-    auto sniffer = std::make_shared<reader::ReaderSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
+    auto sniffResult = reader->inferSchema();
     if (sniffResult) {
       return sniffResult.value();
     }
@@ -175,8 +173,7 @@ struct CSVReadFunction {
       std::shared_ptr<reader::FileReader> reader2 =
           std::make_shared<reader::CsvReader>(state,
                                               std::move(optionsBuilder2));
-      auto sniffer2 = std::make_shared<reader::ReaderSniffer>(reader2);
-      sniffResult = sniffer2->sniff();
+      sniffResult = reader2->inferSchema();
       if (sniffResult) {
         return sniffResult.value();
       }
