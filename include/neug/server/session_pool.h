@@ -24,10 +24,15 @@
 
 #include "bthread/bthread.h"
 
+#include <cstddef>
+#include <new>
+
 namespace neug {
 class NeugDBService;
 
-struct SessionLocalContext {
+inline constexpr std::size_t kSessionContextAlignment = 4096;
+
+struct alignas(kSessionContextAlignment) SessionLocalContext {
   SessionLocalContext(
       NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
@@ -145,16 +150,19 @@ class SessionPool {
       std::shared_ptr<IVersionManager> version_manager,
       std::vector<std::shared_ptr<Allocator>>& allocators,
       const NeugDBConfig& config) {
-    session_num_ = config.max_thread_num;
+    session_num_ = static_cast<size_t>(config.max_thread_num);
     WalWriterFactory::Init();
-    contexts_ = static_cast<SessionLocalContext*>(aligned_alloc(
-        4096, sizeof(SessionLocalContext) * config.max_thread_num));
-    for (int i = 0; i < config.max_thread_num; ++i) {
-      new (&contexts_[i]) SessionLocalContext(
-          db, planner, global_query_cache, allocators[i], version_manager, i,
-          WalWriterFactory::CreateWalWriter(db.graph().checkpoint().wal_dir(),
-                                            i),
-          config);
+    contexts_ = static_cast<SessionLocalContext*>(
+        ::operator new[](sizeof(SessionLocalContext) * session_num_,
+                         std::align_val_t{alignof(SessionLocalContext)}));
+    for (size_t i = 0; i < session_num_; ++i) {
+      const auto thread_id = static_cast<int>(i);
+      new (&contexts_[i])
+          SessionLocalContext(db, planner, global_query_cache, allocators[i],
+                              version_manager, thread_id,
+                              WalWriterFactory::CreateWalWriter(
+                                  db.graph().checkpoint().wal_dir(), thread_id),
+                              config);
     }
     bthread_cond_init(&cond_, nullptr);
     bthread_mutex_init(&mutex_, nullptr);
@@ -167,10 +175,11 @@ class SessionPool {
 
   ~SessionPool() {
     if (contexts_ != nullptr) {
-      for (int i = 0; i < session_num_; ++i) {
+      for (size_t i = 0; i < session_num_; ++i) {
         contexts_[i].~SessionLocalContext();
       }
-      free(contexts_);
+      ::operator delete[](contexts_,
+                          std::align_val_t{alignof(SessionLocalContext)});
       contexts_ = nullptr;
     }
     bthread_cond_destroy(&cond_);
@@ -211,5 +220,8 @@ class SessionPool {
   bthread_mutex_t mutex_;
   bthread_cond_t cond_;
 };
+
+static_assert(alignof(SessionLocalContext) == kSessionContextAlignment);
+static_assert(sizeof(SessionLocalContext) % kSessionContextAlignment == 0);
 
 }  // namespace neug

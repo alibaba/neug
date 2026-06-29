@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <thread>
 #include <vector>
@@ -65,6 +66,20 @@ class NeugDBServiceTest : public ::testing::Test {
   neug::ServiceConfig config_;
   std::filesystem::path test_dir_;
 };
+
+TEST_F(NeugDBServiceTest, SessionStorageUsesPageAlignedAllocation) {
+  static_assert(alignof(neug::SessionLocalContext) ==
+                neug::kSessionContextAlignment);
+  static_assert(
+      sizeof(neug::SessionLocalContext) % neug::kSessionContextAlignment == 0);
+
+  neug::NeugDBService service(*db_, config_);
+  auto guard = service.AcquireSession();
+  ASSERT_TRUE(guard);
+
+  const auto session_address = reinterpret_cast<std::uintptr_t>(guard.get());
+  EXPECT_EQ(session_address % neug::kSessionContextAlignment, 0U);
+}
 
 TEST_F(NeugDBServiceTest, ConcurrentSessions) {
   neug::NeugDBService service(*db_, config_);
