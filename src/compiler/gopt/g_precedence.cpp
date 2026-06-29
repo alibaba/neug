@@ -58,7 +58,8 @@ int GPrecedence::getPrecedence(const binder::Expression& expr) {
     case ScalarType::ENDS_WITH:
     case ScalarType::CONTAINS:
     case ScalarType::LIST_CONTAINS:
-      return 10;  // Power (exponentiation), STRING Operators, LIST Operators - higher precedence
+      return 10;  // Power (exponentiation), STRING Operators, LIST Operators -
+                  // higher precedence
     default:
       return 11;  // Other function calls - highest precedence
     }

@@ -16,10 +16,10 @@
 
 #include "neug/compiler/function/export/json_export_function.h"
 
-#include "neug/utils/io/stream/output_stream.h"
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/writer.h>
+#include "neug/utils/io/stream/output_stream.h"
 
 #include <string>
 
@@ -27,9 +27,9 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/write/writer.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
-#include "neug/utils/io/write/writer.h"
 
 namespace neug {
 namespace writer {
@@ -326,8 +326,8 @@ neug::Status JsonLStringFormatBuffer::flush(io::OutputStream& stream) {
     if (!status.ok()) {
       return status;
     }
-    status = stream.Write(reinterpret_cast<const uint8_t*>(DEFAULT_JSON_NEWLINE),
-                          sizeof(char));
+    status = stream.Write(
+        reinterpret_cast<const uint8_t*>(DEFAULT_JSON_NEWLINE), sizeof(char));
     if (!status.ok()) {
       return status;
     }
@@ -443,8 +443,8 @@ static execution::Context jsonLExecFunc(
   if (schema.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
-  auto writer = std::make_shared<neug::writer::JsonLExportWriter>(
-      schema, entry_schema);
+  auto writer =
+      std::make_shared<neug::writer::JsonLExportWriter>(schema, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());

@@ -127,8 +127,7 @@ class EdgeTableTest : public ::testing::Test {
 
   void BatchInsert(
       std::vector<std::shared_ptr<neug::execution::DataChunk>>&& chunks) {
-    auto supplier =
-        std::make_shared<GeneratedChunkSupplier>(std::move(chunks));
+    auto supplier = std::make_shared<GeneratedChunkSupplier>(std::move(chunks));
     edge_table->BatchAddEdges(src_indexer, dst_indexer, supplier);
   }
 
@@ -1122,8 +1121,7 @@ TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
   }
   auto src_arrs = split_column_to_chunks(src_list, src_list.size());
   auto dst_arrs = split_column_to_chunks(dst_list, dst_list.size());
-  auto batches =
-      convert_to_data_chunks({src_arrs, dst_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs});
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(endpoints.size());
 
@@ -1179,8 +1177,7 @@ TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
   std::vector<int64_t> dst_list = {1, 2, 3};
   auto src_arrs = split_column_to_chunks(src_list, src_list.size());
   auto dst_arrs = split_column_to_chunks(dst_list, dst_list.size());
-  auto batches =
-      convert_to_data_chunks({src_arrs, dst_arrs});
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs});
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(src_list.size());
 
@@ -1414,9 +1411,9 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
   EXPECT_EQ(output, input);
 }
 
-using Datatypes = ::testing::Types<int32_t, uint32_t, int64_t, uint64_t, float,
-                                   double, neug::Date, neug::DateTime,
-                                   neug::Interval>;
+using Datatypes =
+    ::testing::Types<int32_t, uint32_t, int64_t, uint64_t, float, double,
+                     neug::Date, neug::DateTime, neug::Interval>;
 
 template <typename T>
 class EdgeTableToolsTest : public ::testing::Test {};

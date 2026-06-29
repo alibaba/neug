@@ -27,7 +27,8 @@ void ExtensionAPI::registerExtension(const ExtensionInfo& info) {
   loaded_extensions_[info.name] = info;
 }
 
-const std::unordered_map<std::string, ExtensionInfo>& ExtensionAPI::getLoadedExtensions() {
+const std::unordered_map<std::string, ExtensionInfo>&
+ExtensionAPI::getLoadedExtensions() {
   std::lock_guard<std::mutex> lock(extensions_mutex_);
   return loaded_extensions_;
 }

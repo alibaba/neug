@@ -25,8 +25,8 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/reader.h"
 #include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace test {
@@ -108,7 +108,7 @@ class JsonTest : public ::testing::Test {
     auto optionsBuilder =
         std::make_unique<reader::JsonOptionsBuilder>(sharedState, true);
     return std::make_shared<reader::JsonReader>(sharedState,
-                                               std::move(optionsBuilder));
+                                                std::move(optionsBuilder));
   }
 };
 

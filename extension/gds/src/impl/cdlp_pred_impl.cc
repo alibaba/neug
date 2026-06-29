@@ -78,12 +78,12 @@ void CDLPPred::compute() {
     }
   }
 
-  auto ie_view = graph_.GetGenericIncomingGraphView(
-      edge_triplet_.dst_label, edge_triplet_.src_label,
-      edge_triplet_.edge_label);
-  auto oe_view = graph_.GetGenericOutgoingGraphView(
-      edge_triplet_.src_label, edge_triplet_.dst_label,
-      edge_triplet_.edge_label);
+  auto ie_view = graph_.GetGenericIncomingGraphView(edge_triplet_.dst_label,
+                                                    edge_triplet_.src_label,
+                                                    edge_triplet_.edge_label);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(edge_triplet_.src_label,
+                                                    edge_triplet_.dst_label,
+                                                    edge_triplet_.edge_label);
 
   std::vector<int64_t> next(n);
   for (vid_t v : vertices_) {

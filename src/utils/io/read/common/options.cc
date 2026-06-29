@@ -3,9 +3,9 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/reader.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/io/reader.h"
 
 #include <algorithm>
 #include <memory>
@@ -68,7 +68,7 @@ CsvReadConfig CsvOptionsBuilder::build() const {
     for (size_t i = 0; i < column_count; ++i) {
       config.column_names.push_back("f" + std::to_string(i));
     }
-  } else   if (entrySchema && !entrySchema->columnNames.empty()) {
+  } else if (entrySchema && !entrySchema->columnNames.empty()) {
     config.column_names = entrySchema->columnNames;
   } else if (!fileSchema.paths.empty()) {
     config.column_names = read_header(fileSchema.paths[0], config);

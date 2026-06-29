@@ -24,11 +24,11 @@
 #include <curl/curl.h>
 #include <glog/logging.h>
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 #include <sstream>
 #include <thread>
-#include <chrono>
 #include "neug/utils/io/vfs/file_system.h"
 
 namespace neug {
@@ -44,23 +44,23 @@ std::once_flag HTTPFileSystem::curl_init_flag_;
 
 HTTPURIComponents HTTPURIComponents::parse(const std::string& uri) {
   HTTPURIComponents components;
-  
+
   // Find scheme
   size_t scheme_end = uri.find("://");
   if (scheme_end == std::string::npos) {
     THROW_IO_EXCEPTION("Invalid HTTP URI (missing scheme): " + uri);
   }
-  
+
   components.scheme = uri.substr(0, scheme_end);
   if (components.scheme != "http" && components.scheme != "https") {
-    THROW_IO_EXCEPTION("Invalid HTTP URI scheme (expected http or https): " + 
+    THROW_IO_EXCEPTION("Invalid HTTP URI scheme (expected http or https): " +
                        components.scheme);
   }
-  
+
   // Parse authority and path
   size_t authority_start = scheme_end + 3;
   size_t path_start = uri.find('/', authority_start);
-  
+
   std::string authority;
   if (path_start == std::string::npos) {
     authority = uri.substr(authority_start);
@@ -69,7 +69,7 @@ HTTPURIComponents HTTPURIComponents::parse(const std::string& uri) {
     authority = uri.substr(authority_start, path_start - authority_start);
     components.path = uri.substr(path_start);
   }
-  
+
   // Parse host and port
   size_t port_sep = authority.find(':');
   if (port_sep == std::string::npos) {
@@ -81,24 +81,21 @@ HTTPURIComponents HTTPURIComponents::parse(const std::string& uri) {
     std::string port_str = authority.substr(port_sep + 1);
     try {
       components.port = std::stoi(port_str);
-    } catch (...) {
-      THROW_IO_EXCEPTION("Invalid port number: " + port_str);
-    }
+    } catch (...) { THROW_IO_EXCEPTION("Invalid port number: " + port_str); }
   }
-  
+
   return components;
 }
 
 std::string HTTPURIComponents::toURL() const {
   std::ostringstream oss;
   oss << scheme << "://" << host;
-  
+
   // Only include port if non-default
-  if ((scheme == "http" && port != 80) || 
-      (scheme == "https" && port != 443)) {
+  if ((scheme == "http" && port != 80) || (scheme == "https" && port != 443)) {
     oss << ":" << port;
   }
-  
+
   oss << path;
   return oss.str();
 }
@@ -110,17 +107,18 @@ std::string HTTPURIComponents::toURL() const {
 namespace {
 
 // Callback for reading response directly into buffer
-size_t WriteCallbackDirect(void* contents, size_t size, size_t nmemb, void* userp) {
+size_t WriteCallbackDirect(void* contents, size_t size, size_t nmemb,
+                           void* userp) {
   size_t real_size = size * nmemb;
   auto* info = static_cast<std::pair<void*, size_t>*>(userp);
-  
+
   size_t to_copy = std::min(real_size, info->second);
   if (to_copy > 0) {
     std::memcpy(info->first, contents, to_copy);
     info->first = static_cast<uint8_t*>(info->first) + to_copy;
     info->second -= to_copy;
   }
-  
+
   if (real_size > to_copy) {
     // Buffer is full — signal CURL to abort the transfer so that the
     // caller knows the data was truncated rather than silently dropped.
@@ -129,7 +127,7 @@ size_t WriteCallbackDirect(void* contents, size_t size, size_t nmemb, void* user
                  << ", discarding " << (real_size - to_copy) << " bytes";
     return 0;  // returning 0 tells CURL to stop the transfer
   }
-  
+
   return real_size;
 }
 
@@ -154,26 +152,26 @@ HTTPRandomAccessFile::HTTPRandomAccessFile(
       position_(0),
       closed_(false),
       header_list_(nullptr) {
-  
   // Initialize CURL handle
   curl_handle_ = curl_easy_init();
   if (!curl_handle_) {
     THROW_IO_EXCEPTION("Failed to initialize CURL handle");
   }
-  
+
   // Extract authentication options
   auto bearer_it = options_.find(HTTPConfigOptionKeys::kBearerToken);
   if (bearer_it != options_.end()) {
     bearer_token_ = bearer_it->second;
   }
-  
-  auto auth_header_it = options_.find(HTTPConfigOptionKeys::kAuthorizationHeader);
+
+  auto auth_header_it =
+      options_.find(HTTPConfigOptionKeys::kAuthorizationHeader);
   if (auth_header_it != options_.end() && bearer_token_.empty()) {
     custom_headers_.push_back("Authorization: " + auth_header_it->second);
   } else if (!bearer_token_.empty()) {
     custom_headers_.push_back("Authorization: Bearer " + bearer_token_);
   }
-  
+
   // Parse custom headers
   auto headers_it = options_.find(HTTPConfigOptionKeys::kCustomHeaders);
   if (headers_it != options_.end()) {
@@ -181,25 +179,24 @@ HTTPRandomAccessFile::HTTPRandomAccessFile(
     size_t pos = 0;
     while (pos < headers_str.size()) {
       size_t sep = headers_str.find(';', pos);
-      std::string header = (sep == std::string::npos) 
-          ? headers_str.substr(pos)
-          : headers_str.substr(pos, sep - pos);
-      
+      std::string header = (sep == std::string::npos)
+                               ? headers_str.substr(pos)
+                               : headers_str.substr(pos, sep - pos);
+
       if (!header.empty()) {
         custom_headers_.push_back(header);
       }
-      
+
       pos = (sep == std::string::npos) ? headers_str.size() : sep + 1;
     }
   }
-  
+
   // Initialize file size
   auto status = InitializeFileSize();
   if (!status.ok()) {
     curl_easy_cleanup(curl_handle_);
     THROW_IO_EXCEPTION("Failed to initialize HTTP file: " + status.ToString());
   }
-  
 }
 
 HTTPRandomAccessFile::~HTTPRandomAccessFile() {
@@ -245,7 +242,8 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
 
   // Get Content-Length
   double content_length = -1;
-  res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &content_length);
+  res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD,
+                          &content_length);
 
   if (res == CURLE_OK && content_length >= 0) {
     file_size_ = static_cast<int64_t>(content_length);
@@ -258,7 +256,8 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
 
   curl = curl_easy_init();
   if (!curl) {
-    return arrow::Status::IOError("Failed to initialize CURL for RANGE request");
+    return arrow::Status::IOError(
+        "Failed to initialize CURL for RANGE request");
   }
   SetupCURLHandle(curl);
   curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
@@ -291,11 +290,11 @@ void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
   // Basic options
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-  
+
   // IMPORTANT: Don't include headers in the body
   // This prevents HTTP headers from being sent to the write callback
   curl_easy_setopt(curl, CURLOPT_HEADER, 0L);
-  
+
   // SSL/TLS verification
   auto verify_it = options_.find(HTTPConfigOptionKeys::kVerifySSL);
   bool verify_ssl = HTTPConfigDefaults::kVerifySSLDefault;
@@ -314,53 +313,58 @@ void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
   }
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl ? 1L : 0L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl ? 2L : 0L);
-  
+
   // CA certificate file
   auto ca_cert_it = options_.find(HTTPConfigOptionKeys::kCACertFile);
   if (ca_cert_it != options_.end()) {
     curl_easy_setopt(curl, CURLOPT_CAINFO, ca_cert_it->second.c_str());
   }
-  
+
   // Timeouts
-  auto connect_timeout_it = options_.find(HTTPConfigOptionKeys::kConnectTimeout);
+  auto connect_timeout_it =
+      options_.find(HTTPConfigOptionKeys::kConnectTimeout);
   int connect_timeout = HTTPConfigDefaults::kConnectTimeoutDefault;
   if (connect_timeout_it != options_.end()) {
     try {
       connect_timeout = std::stoi(connect_timeout_it->second);
     } catch (const std::exception& e) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Invalid CONNECT_TIMEOUT value: '" + connect_timeout_it->second + 
+          "Invalid CONNECT_TIMEOUT value: '" + connect_timeout_it->second +
           "'. Must be an integer. Error: " + e.what());
     }
   }
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, connect_timeout);
-  
-  auto request_timeout_it = options_.find(HTTPConfigOptionKeys::kRequestTimeout);
+
+  auto request_timeout_it =
+      options_.find(HTTPConfigOptionKeys::kRequestTimeout);
   int request_timeout = HTTPConfigDefaults::kRequestTimeoutDefault;
   if (request_timeout_it != options_.end()) {
     try {
       request_timeout = std::stoi(request_timeout_it->second);
     } catch (const std::exception& e) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Invalid REQUEST_TIMEOUT value: '" + request_timeout_it->second + 
+          "Invalid REQUEST_TIMEOUT value: '" + request_timeout_it->second +
           "'. Must be an integer. Error: " + e.what());
     }
   }
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, request_timeout);
-  
+
   // Proxy
   auto proxy_it = options_.find(HTTPConfigOptionKeys::kHTTPProxy);
   if (proxy_it != options_.end()) {
     curl_easy_setopt(curl, CURLOPT_PROXY, proxy_it->second.c_str());
-    
-    auto proxy_user_it = options_.find(HTTPConfigOptionKeys::kHTTPProxyUsername);
-    auto proxy_pass_it = options_.find(HTTPConfigOptionKeys::kHTTPProxyPassword);
+
+    auto proxy_user_it =
+        options_.find(HTTPConfigOptionKeys::kHTTPProxyUsername);
+    auto proxy_pass_it =
+        options_.find(HTTPConfigOptionKeys::kHTTPProxyPassword);
     if (proxy_user_it != options_.end() && proxy_pass_it != options_.end()) {
-      std::string userpass = proxy_user_it->second + ":" + proxy_pass_it->second;
+      std::string userpass =
+          proxy_user_it->second + ":" + proxy_pass_it->second;
       curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, userpass.c_str());
     }
   }
-  
+
   // Custom headers
   if (!custom_headers_.empty()) {
     // Clear existing header list if it exists
@@ -378,51 +382,53 @@ void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
   }
 }
 
-arrow::Result<int64_t> HTTPRandomAccessFile::ReadRange(int64_t offset, int64_t length, void* buffer) {
+arrow::Result<int64_t> HTTPRandomAccessFile::ReadRange(int64_t offset,
+                                                       int64_t length,
+                                                       void* buffer) {
   if (closed_) {
     return arrow::Status::Invalid("File is closed");
   }
-  
+
   // Handle zero-length read
   if (length == 0) {
     return 0;
   }
-  
+
   // Setup GET request with HTTP Range header (RFC 7233)
   curl_easy_reset(curl_handle_);
   SetupCURLHandle(curl_handle_);
   curl_easy_setopt(curl_handle_, CURLOPT_URL, url_.c_str());
-  
+
   // Set Range header: "bytes=offset-end"
   // IMPORTANT: CURLOPT_RANGE expects "start-end" format without "bytes="
   // CURL will automatically add the "Range: bytes=" prefix
-  std::string range_value = std::to_string(offset) + "-" + 
-                           std::to_string(offset + length - 1);
+  std::string range_value =
+      std::to_string(offset) + "-" + std::to_string(offset + length - 1);
   curl_easy_setopt(curl_handle_, CURLOPT_RANGE, range_value.c_str());
-  
+
   // Setup direct write to buffer
   std::pair<void*, size_t> write_info{buffer, static_cast<size_t>(length)};
   curl_easy_setopt(curl_handle_, CURLOPT_WRITEFUNCTION, WriteCallbackDirect);
   curl_easy_setopt(curl_handle_, CURLOPT_WRITEDATA, &write_info);
-  
+
   // Perform request
   CURLcode res = curl_easy_perform(curl_handle_);
-  
+
   if (res != CURLE_OK) {
     return arrow::Status::IOError("HTTP Range request failed: " +
-                                   std::string(curl_easy_strerror(res)));
+                                  std::string(curl_easy_strerror(res)));
   }
-  
+
   // Verify response code
   // 200 = OK (server doesn't support Range, sent full file)
   // 206 = Partial Content (server supports Range, sent requested range)
   // 416 = Range Not Satisfiable (offset beyond end of file)
   long response_code = 0;
   curl_easy_getinfo(curl_handle_, CURLINFO_RESPONSE_CODE, &response_code);
-  
+
   // Calculate actual bytes received
   int64_t bytes_received = length - static_cast<int64_t>(write_info.second);
-  
+
   if (response_code == 416) {
     // Range Not Satisfiable - offset is beyond end of file
     return 0;
@@ -446,7 +452,7 @@ arrow::Result<int64_t> HTTPRandomAccessFile::ReadRange(int64_t offset, int64_t l
     return bytes_received;
   } else {
     return arrow::Status::IOError("HTTP Range request failed with status " +
-                                   std::to_string(response_code));
+                                  std::to_string(response_code));
   }
 }
 
@@ -475,16 +481,17 @@ arrow::Status HTTPRandomAccessFile::Seek(int64_t position) {
   return arrow::Status::OK();
 }
 
-arrow::Result<int64_t> HTTPRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out) {
+arrow::Result<int64_t> HTTPRandomAccessFile::ReadAt(int64_t position,
+                                                    int64_t nbytes, void* out) {
   if (closed_) {
     return arrow::Status::Invalid("File is closed");
   }
-  
+
   auto bytes_read_result = ReadRange(position, nbytes, out);
   if (!bytes_read_result.ok()) {
     return bytes_read_result.status();
   }
-  
+
   return *bytes_read_result;
 }
 
@@ -493,23 +500,23 @@ arrow::Result<std::shared_ptr<arrow::Buffer>> HTTPRandomAccessFile::ReadAt(
   if (closed_) {
     return arrow::Status::Invalid("File is closed");
   }
-  
+
   // Handle zero-length read
   if (nbytes == 0) {
     return std::make_shared<arrow::Buffer>(nullptr, 0);
   }
-  
+
   auto buffer_result = arrow::AllocateBuffer(nbytes);
   if (!buffer_result.ok()) {
     return buffer_result.status();
   }
-  
+
   auto buffer = std::move(buffer_result).ValueOrDie();
   auto bytes_read_result = ReadRange(position, nbytes, buffer->mutable_data());
   if (!bytes_read_result.ok()) {
     return bytes_read_result.status();
   }
-  
+
   int64_t bytes_read = *bytes_read_result;
   // Convert unique_ptr to shared_ptr and slice to actual bytes read
   std::shared_ptr<arrow::Buffer> shared_buffer = std::move(buffer);
@@ -524,7 +531,8 @@ arrow::Result<int64_t> HTTPRandomAccessFile::Read(int64_t nbytes, void* out) {
   return result;
 }
 
-arrow::Result<std::shared_ptr<arrow::Buffer>> HTTPRandomAccessFile::Read(int64_t nbytes) {
+arrow::Result<std::shared_ptr<arrow::Buffer>> HTTPRandomAccessFile::Read(
+    int64_t nbytes) {
   auto result = ReadAt(position_, nbytes);
   if (result.ok()) {
     position_ += (*result)->size();
@@ -537,15 +545,14 @@ arrow::Status HTTPRandomAccessFile::Close() {
   return arrow::Status::OK();
 }
 
-bool HTTPRandomAccessFile::closed() const {
-  return closed_;
-}
+bool HTTPRandomAccessFile::closed() const { return closed_; }
 
 // ============================================================================
 // HTTPFileSystem Implementation
 // ============================================================================
 
-HTTPFileSystem::HTTPFileSystem(const common::case_insensitive_map_t<std::string>& options)
+HTTPFileSystem::HTTPFileSystem(
+    const common::case_insensitive_map_t<std::string>& options)
     : options_(options) {
   // Initialize CURL globally exactly once (thread-safe via std::call_once)
   std::call_once(curl_init_flag_, []() {
@@ -600,7 +607,8 @@ arrow::Result<arrow::fs::FileInfo> HTTPFileSystem::GetFileInfo(
   // temporary CURL handle instead of creating a full HTTPRandomAccessFile.
   CURL* curl = curl_easy_init();
   if (!curl) {
-    return arrow::Status::IOError("Failed to create CURL handle for HEAD request");
+    return arrow::Status::IOError(
+        "Failed to create CURL handle for HEAD request");
   }
 
   // Minimal setup — follow redirects and disable SSL verification only if
@@ -638,7 +646,8 @@ arrow::Result<arrow::fs::FileInfo> HTTPFileSystem::GetFileInfo(
   arrow::fs::FileInfo info;
   info.set_path(path);
   info.set_type(arrow::fs::FileType::File);
-  info.set_size(content_length >= 0 ? static_cast<int64_t>(content_length) : -1);
+  info.set_size(content_length >= 0 ? static_cast<int64_t>(content_length)
+                                    : -1);
   return info;
 }
 
@@ -649,7 +658,8 @@ arrow::Result<std::vector<arrow::fs::FileInfo>> HTTPFileSystem::GetFileInfo(
       "Directory listing not supported for HTTP filesystem");
 }
 
-arrow::Status HTTPFileSystem::CreateDir(const std::string& path, bool recursive) {
+arrow::Status HTTPFileSystem::CreateDir(const std::string& path,
+                                        bool recursive) {
   return arrow::Status::NotImplemented(
       "CreateDir not supported for HTTP filesystem (read-only)");
 }
@@ -660,7 +670,7 @@ arrow::Status HTTPFileSystem::DeleteDir(const std::string& path) {
 }
 
 arrow::Status HTTPFileSystem::DeleteDirContents(const std::string& path,
-                                                 bool missing_dir_ok) {
+                                                bool missing_dir_ok) {
   return arrow::Status::NotImplemented(
       "DeleteDirContents not supported for HTTP filesystem (read-only)");
 }
@@ -675,35 +685,36 @@ arrow::Status HTTPFileSystem::DeleteFile(const std::string& path) {
       "DeleteFile not supported for HTTP filesystem (read-only)");
 }
 
-arrow::Status HTTPFileSystem::Move(const std::string& src, 
-                                    const std::string& dest) {
+arrow::Status HTTPFileSystem::Move(const std::string& src,
+                                   const std::string& dest) {
   return arrow::Status::NotImplemented(
       "Move not supported for HTTP filesystem (read-only)");
 }
 
 arrow::Status HTTPFileSystem::CopyFile(const std::string& src,
-                                        const std::string& dest) {
+                                       const std::string& dest) {
   return arrow::Status::NotImplemented(
       "CopyFile not supported for HTTP filesystem (read-only)");
 }
 
-arrow::Result<std::shared_ptr<arrow::io::InputStream>> 
+arrow::Result<std::shared_ptr<arrow::io::InputStream>>
 HTTPFileSystem::OpenInputStream(const std::string& path) {
   // For now, just return the RandomAccessFile (which is also an InputStream)
   return OpenInputFile(path);
 }
 
-arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> 
+arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>>
 HTTPFileSystem::OpenInputFile(const std::string& path) {
   try {
     auto file = std::make_shared<HTTPRandomAccessFile>(path, options_);
     return file;
   } catch (const exception::Exception& e) {
-    return arrow::Status::IOError("Failed to open HTTP file: " + 
-                                   std::string(e.what()));
+    return arrow::Status::IOError("Failed to open HTTP file: " +
+                                  std::string(e.what()));
   } catch (const std::exception& e) {
-    return arrow::Status::IOError("Failed to open HTTP file (unexpected error): " + 
-                                   std::string(e.what()));
+    return arrow::Status::IOError(
+        "Failed to open HTTP file (unexpected error): " +
+        std::string(e.what()));
   }
 }
 
@@ -731,9 +742,8 @@ std::vector<std::string> HTTPFileSystem::glob(const std::string& path) {
 }
 
 std::shared_ptr<void> HTTPFileSystem::getArrowFileSystem() const {
-  return std::static_pointer_cast<void>(
-      std::shared_ptr<arrow::fs::FileSystem>(
-          std::make_shared<HTTPFileSystem>(options_)));
+  return std::static_pointer_cast<void>(std::shared_ptr<arrow::fs::FileSystem>(
+      std::make_shared<HTTPFileSystem>(options_)));
 }
 
 std::unique_ptr<fsys::FileSystem> CreateHTTPFileSystem(

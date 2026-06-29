@@ -269,12 +269,11 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
     CreateVertexTypeParamBuilder builder;
     EXPECT_TRUE(
         graph_
-            ->CreateVertexType(
-                builder.VertexLabel("person")
-                    .AddProperty("id", Value::INT64(0))
-                    .AddProperty("name", Value::STRING(""))
-                    .AddPrimaryKeyName("id")
-                    .Build())
+            ->CreateVertexType(builder.VertexLabel("person")
+                                   .AddProperty("id", Value::INT64(0))
+                                   .AddProperty("name", Value::STRING(""))
+                                   .AddPrimaryKeyName("id")
+                                   .Build())
             .ok());
   }
 
@@ -282,13 +281,12 @@ class PropertyGraphTemporaryTest : public ::testing::Test {
     CreateVertexTypeParamBuilder builder;
     EXPECT_TRUE(
         graph_
-            ->CreateVertexType(
-                builder.VertexLabel("temp_user")
-                    .AddProperty("uid", Value::INT64(0))
-                    .AddProperty("username", Value::STRING(""))
-                    .AddPrimaryKeyName("uid")
-                    .Temporary(true)
-                    .Build())
+            ->CreateVertexType(builder.VertexLabel("temp_user")
+                                   .AddProperty("uid", Value::INT64(0))
+                                   .AddProperty("username", Value::STRING(""))
+                                   .AddPrimaryKeyName("uid")
+                                   .Temporary(true)
+                                   .Build())
             .ok());
   }
 };
@@ -315,13 +313,12 @@ TEST_F(PropertyGraphTemporaryTest, CreateTemporaryEdgeType) {
 
   CreateEdgeTypeParamBuilder builder;
   EXPECT_TRUE(graph_
-                  ->CreateEdgeType(
-                      builder.SrcLabel("temp_user")
-                          .DstLabel("person")
-                          .EdgeLabel("temp_follows")
-                          .AddProperty("since", Value::INT64(0))
-                          .Temporary(true)
-                          .Build())
+                  ->CreateEdgeType(builder.SrcLabel("temp_user")
+                                       .DstLabel("person")
+                                       .EdgeLabel("temp_follows")
+                                       .AddProperty("since", Value::INT64(0))
+                                       .Temporary(true)
+                                       .Build())
                   .ok());
 
   auto src = graph_->schema().get_vertex_label_id("temp_user");
@@ -336,13 +333,12 @@ TEST_F(PropertyGraphTemporaryTest, PersistentEdgeCannotReferenceTempVertex) {
   CreateTemporaryUser();
 
   CreateEdgeTypeParamBuilder builder;
-  auto status = graph_->CreateEdgeType(
-      builder.SrcLabel("temp_user")
-          .DstLabel("person")
-          .EdgeLabel("bad_edge")
-          .AddProperty("w", Value::DOUBLE(0.0))
-          .Temporary(false)
-          .Build());
+  auto status = graph_->CreateEdgeType(builder.SrcLabel("temp_user")
+                                           .DstLabel("person")
+                                           .EdgeLabel("bad_edge")
+                                           .AddProperty("w", Value::DOUBLE(0.0))
+                                           .Temporary(false)
+                                           .Build());
   EXPECT_FALSE(status.ok());
 }
 
@@ -350,13 +346,12 @@ TEST_F(PropertyGraphTemporaryTest, PersistentEdgeBetweenPersistentVerticesOk) {
   CreatePersistentPerson();
 
   CreateEdgeTypeParamBuilder builder;
-  auto status = graph_->CreateEdgeType(
-      builder.SrcLabel("person")
-          .DstLabel("person")
-          .EdgeLabel("knows")
-          .AddProperty("w", Value::DOUBLE(0.0))
-          .Temporary(false)
-          .Build());
+  auto status = graph_->CreateEdgeType(builder.SrcLabel("person")
+                                           .DstLabel("person")
+                                           .EdgeLabel("knows")
+                                           .AddProperty("w", Value::DOUBLE(0.0))
+                                           .Temporary(false)
+                                           .Build());
   EXPECT_TRUE(status.ok());
 }
 
@@ -511,16 +506,13 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryTypes) {
   {
     neug::SnapshotGuard guard(db_->graph_snapshot_store());
     auto* pg = guard.get().mutable_graph();
-    EXPECT_TRUE(
-        pg->CreateVertexType(
-              builder.VertexLabel("temp_node")
-                  .AddProperty("id", Value::INT64(0))
-                  .AddProperty(
-                      "val", Value::STRING(""))
-                  .AddPrimaryKeyName("id")
-                  .Temporary(true)
-                  .Build())
-          .ok());
+    EXPECT_TRUE(pg->CreateVertexType(builder.VertexLabel("temp_node")
+                                         .AddProperty("id", Value::INT64(0))
+                                         .AddProperty("val", Value::STRING(""))
+                                         .AddPrimaryKeyName("id")
+                                         .Temporary(true)
+                                         .Build())
+                    .ok());
   }
 
   // Verify temp type exists before close
@@ -560,21 +552,19 @@ TEST_F(ConnectionTemporaryCleanupTest, CloseRemovesTemporaryEdges) {
     neug::SnapshotGuard guard(db_->graph_snapshot_store());
     auto* pg = guard.get().mutable_graph();
     CreateVertexTypeParamBuilder vbuilder;
-    EXPECT_TRUE(pg->CreateVertexType(
-                        vbuilder.VertexLabel("temp_src")
-                            .AddProperty("id", Value::INT64(0))
-                            .AddPrimaryKeyName("id")
-                            .Temporary(true)
-                            .Build())
+    EXPECT_TRUE(pg->CreateVertexType(vbuilder.VertexLabel("temp_src")
+                                         .AddProperty("id", Value::INT64(0))
+                                         .AddPrimaryKeyName("id")
+                                         .Temporary(true)
+                                         .Build())
                     .ok());
     CreateEdgeTypeParamBuilder ebuilder;
-    EXPECT_TRUE(pg->CreateEdgeType(
-                        ebuilder.SrcLabel("temp_src")
-                            .DstLabel("person")
-                            .EdgeLabel("temp_link")
-                            .AddProperty("w", Value::DOUBLE(0.0))
-                            .Temporary(true)
-                            .Build())
+    EXPECT_TRUE(pg->CreateEdgeType(ebuilder.SrcLabel("temp_src")
+                                       .DstLabel("person")
+                                       .EdgeLabel("temp_link")
+                                       .AddProperty("w", Value::DOUBLE(0.0))
+                                       .Temporary(true)
+                                       .Build())
                     .ok());
   }
 
@@ -616,14 +606,12 @@ TEST_F(ConnectionTemporaryCleanupTest, DoubleCloseIsIdempotent) {
   {
     neug::SnapshotGuard guard(db_->graph_snapshot_store());
     auto* pg = guard.get().mutable_graph();
-    EXPECT_TRUE(
-        pg->CreateVertexType(
-              builder.VertexLabel("temp_x")
-                  .AddProperty("id", Value::INT64(0))
-                  .AddPrimaryKeyName("id")
-                  .Temporary(true)
-                  .Build())
-          .ok());
+    EXPECT_TRUE(pg->CreateVertexType(builder.VertexLabel("temp_x")
+                                         .AddProperty("id", Value::INT64(0))
+                                         .AddPrimaryKeyName("id")
+                                         .Temporary(true)
+                                         .Build())
+                    .ok());
   }
 
   conn->Close();

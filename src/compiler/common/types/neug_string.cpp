@@ -31,7 +31,7 @@ neug_string_t::neug_string_t(const char* value, uint64_t length)
     memcpy(prefix, value, length);
     return;
   }
-  overflowPtr = (uint64_t) (value);
+  overflowPtr = (uint64_t)(value);
   memcpy(prefix, value, PREFIX_LENGTH);
 }
 

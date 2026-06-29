@@ -45,8 +45,7 @@ unset(_curl_search_paths)
 
 # Collect source files for extension build
 file(GLOB HTTPFS_EXTENSION_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
 set(HTTPFS_EXTENSION_OBJECT_FILES ${HTTPFS_EXTENSION_SOURCES})
 
 # Use the extension build system
@@ -77,8 +76,8 @@ target_link_libraries(neug_httpfs_extension PRIVATE
 
 if(BUILD_TEST)
     add_extension_test(NAME httpfs
-        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/s3_test.cpp
-                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_test.cpp
+        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/s3_test.cc
+                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_test.cc
         EXTRA_LINK_LIBS ${ARROW_BASE_LIB} ${CURL_LIBRARIES}
         EXTRA_INCLUDE_DIRS ${CURL_INCLUDE_DIRS}
     )

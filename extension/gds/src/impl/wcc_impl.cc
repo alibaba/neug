@@ -61,8 +61,8 @@ void Link(vid_t u, vid_t v, std::atomic<vid_t>* parent) {
   }
 }
 
-void Compress(vid_t* vertices, size_t vertex_count,
-              std::atomic<vid_t>* parent, int concurrency) {
+void Compress(vid_t* vertices, size_t vertex_count, std::atomic<vid_t>* parent,
+              int concurrency) {
   ParallelUtils::parallel_for(
       vertices, vertex_count,
       [&](vid_t v, int tid) {
@@ -133,8 +133,7 @@ vid_t SampleFrequentRoot(vid_t* vertices, size_t vertex_count,
 
   const size_t samples = static_cast<size_t>(
       std::min<int64_t>(kSampleCount, static_cast<int64_t>(vertex_count)));
-  const size_t stride =
-      std::max<size_t>(1, vertex_count / samples);
+  const size_t stride = std::max<size_t>(1, vertex_count / samples);
 
   for (size_t i = 0; i < samples; ++i) {
     vid_t v = vertices[(i * stride) % vertex_count];
@@ -244,8 +243,8 @@ void WCC::compute() {
         int64_t* slot = &min_label[root];
         int64_t old = __atomic_load_n(slot, __ATOMIC_ACQUIRE);
         while (id < old) {
-          if (__atomic_compare_exchange_n(slot, &old, id, true, __ATOMIC_RELEASE,
-                                          __ATOMIC_ACQUIRE)) {
+          if (__atomic_compare_exchange_n(slot, &old, id, true,
+                                          __ATOMIC_RELEASE, __ATOMIC_ACQUIRE)) {
             return;
           }
         }

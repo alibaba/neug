@@ -61,7 +61,8 @@ DataType NeuGTypeConverter::convert(const ::common::DataType& type) const {
     case ::common::Temporal::kInterval:
       return DataType(DataTypeId::kInterval);
     default:
-      THROW_CONVERSION_EXCEPTION("Unsupported Temporal type for NeuG conversion");
+      THROW_CONVERSION_EXCEPTION(
+          "Unsupported Temporal type for NeuG conversion");
     }
   }
   default:
@@ -125,7 +126,8 @@ std::shared_ptr<::common::DataType> NeuGTypeConverter::inferCommonType(
     break;
   }
   default:
-    THROW_CONVERSION_EXCEPTION("Unsupported NeuG DataType for common conversion");
+    THROW_CONVERSION_EXCEPTION(
+        "Unsupported NeuG DataType for common conversion");
   }
   return commonType;
 }

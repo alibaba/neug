@@ -101,10 +101,9 @@ execution::Context PageRankFunction::exec(
 
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
   } else {
-    UndirectedPageRank pagerank(graph, func_input.vertex_label,
-                                func_input.edge_label,
-                                func_input.damping_factor,
-                                func_input.concurrency);
+    UndirectedPageRank pagerank(
+        graph, func_input.vertex_label, func_input.edge_label,
+        func_input.damping_factor, func_input.concurrency);
     pagerank.compute(func_input.max_iterations);
     pagerank.sink(ret, func_input.node_alias, func_input.pr_alias);
   }
