@@ -19,7 +19,7 @@
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/utils/file_utils.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -46,7 +46,7 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
 }
 
 void VertexTable::insert_vertices(
-    std::shared_ptr<IRecordBatchSupplier> supplier) {
+    std::shared_ptr<IDataChunkSupplier> supplier) {
   auto pk_type_id = pk_type_.id();
   if (pk_type_id == DataTypeId::kInt64) {
     insert_vertices_impl<int64_t>(supplier);

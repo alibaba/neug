@@ -96,6 +96,8 @@ class ReadTransaction {
 
   const GraphView& view() const { return guard_.get().view(); }
 
+  const Schema& schema() const;
+
  private:
   void release();
   SnapshotGuard guard_;

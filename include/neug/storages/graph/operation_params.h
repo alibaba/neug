@@ -30,6 +30,7 @@ class CreateVertexTypeParam {
   std::string vertex_label_name;
   std::vector<std::pair<std::string, execution::Value>> properties;
   std::vector<std::string> primary_key_names;
+  bool temporary = false;
   CreateVertexTypeParam() = default;
   friend class CreateVertexTypeParamBuilder;
 
@@ -42,6 +43,7 @@ class CreateVertexTypeParam {
   const std::vector<std::string>& GetPrimaryKeyNames() const {
     return primary_key_names;
   }
+  bool IsTemporary() const { return temporary; }
 
   void Serialize(InArchive& arc) const;
   static CreateVertexTypeParam Deserialize(OutArchive& arc);
@@ -81,6 +83,11 @@ class CreateVertexTypeParamBuilder {
     return *this;
   }
 
+  CreateVertexTypeParamBuilder& Temporary(bool temp) {
+    config.temporary = temp;
+    return *this;
+  }
+
   CreateVertexTypeParam Build() {
     if (config.vertex_label_name.empty()) {
       LOG(ERROR) << "Vertex label cannot be empty.";
@@ -103,6 +110,7 @@ class CreateEdgeTypeParam {
   EdgeStrategy oe_edge_strategy;
   EdgeStrategy ie_edge_strategy;
   std::optional<std::string> sort_key_for_nbr;
+  bool temporary = false;
   CreateEdgeTypeParam() = default;
   friend class CreateEdgeTypeParamBuilder;
 
@@ -119,6 +127,7 @@ class CreateEdgeTypeParam {
   const std::optional<std::string>& GetSortKeyForNbr() const {
     return sort_key_for_nbr;
   }
+  bool IsTemporary() const { return temporary; }
 
   void Serialize(InArchive& arc) const;
   static CreateEdgeTypeParam Deserialize(OutArchive& arc);
@@ -172,6 +181,11 @@ class CreateEdgeTypeParamBuilder {
   CreateEdgeTypeParamBuilder& SortKeyForNbr(
       const std::optional<std::string>& sort_key_for_nbr) {
     config.sort_key_for_nbr = sort_key_for_nbr;
+    return *this;
+  }
+
+  CreateEdgeTypeParamBuilder& Temporary(bool temp) {
+    config.temporary = temp;
     return *this;
   }
 

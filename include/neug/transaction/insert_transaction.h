@@ -201,16 +201,12 @@ class InsertTransaction {
   bool GetVertexIndex(label_t label, const execution::Value& oid,
                       vid_t& lid) const;
 
-  execution::Value GetVertexId(label_t label, vid_t lid) const;
-
  private:
+  execution::Value get_vertex_id(label_t label, vid_t lid) const;
+
   void create_id_indexer_if_not_exists(label_t label);
 
   void clear();
-
-  static bool get_vertex_with_retries(GraphView& graph, label_t label,
-                                      const execution::Value& oid, vid_t& lid,
-                                      timestamp_t timestamp);
 
   InArchive arc_;
 
@@ -255,10 +251,10 @@ class StorageTPInsertInterface : public StorageInsertInterface {
 
   Status BatchAddVertices(
       label_t v_label_id,
-      std::shared_ptr<IRecordBatchSupplier> supplier) override;
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
 
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IRecordBatchSupplier> supplier) override;
+                       std::shared_ptr<IDataChunkSupplier> supplier) override;
 
  private:
   InsertTransaction& txn_;

@@ -32,8 +32,8 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
@@ -136,7 +136,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 }
 
 Status PropertyGraph::BatchAddVertices(
-    label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
   vertex_tables_[v_label].insert_vertices(supplier);
   return neug::Status::OK();
@@ -144,7 +144,7 @@ Status PropertyGraph::BatchAddVertices(
 
 Status PropertyGraph::BatchAddEdges(
     label_t src_v_label, label_t dst_v_label, label_t e_label,
-    std::shared_ptr<IRecordBatchSupplier> supplier) {
+    std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   assert(edge_tables_.count(index) > 0);
@@ -218,7 +218,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
                          primary_keys, Schema::MAX_VNUM, description,
-                         default_property_values);
+                         default_property_values, config.IsTemporary());
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
   fresh_vt.Init(ckp_, memory_level_);
@@ -273,6 +273,17 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
                   "Edge [" + edge_type_name + "] from [" + src_vertex_type +
                       "] to [" + dst_vertex_type + "] already exists");
   }
+  // Temporary edge constraint: if src or dst is temporary, edge must also be
+  // temporary. Persistent edges cannot reference temporary vertices.
+  label_t src_lid = schema_.get_vertex_label_id(src_vertex_type);
+  label_t dst_lid = schema_.get_vertex_label_id(dst_vertex_type);
+  bool src_temp = schema_.is_vertex_label_temporary(src_lid);
+  bool dst_temp = schema_.is_vertex_label_temporary(dst_lid);
+  if ((src_temp || dst_temp) && !config.IsTemporary()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Persistent edge cannot reference temporary vertex. Edge [" +
+                      edge_type_name + "] must be temporary.");
+  }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
   std::vector<execution::Value> default_property_values;
@@ -291,7 +302,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
                        property_types, property_names, oe_strategy, ie_strategy,
                        oe_mutable, ie_mutable, sort_key_for_nbr, description,
-                       default_property_values);
+                       default_property_values, config.IsTemporary());
   edge_label_total_count_ = schema_.edge_label_frontier();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
@@ -852,14 +863,16 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   compact_schema();
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
-    if (schema_.is_vertex_label_valid(src_label_i)) {
+    if (schema_.is_vertex_label_valid(src_label_i) &&
+        !schema_.is_vertex_label_temporary(src_label_i)) {
       vertex_tables_[src_label_i].Compact(ts);
     } else {
       continue;
     }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
-      if (!schema_.is_vertex_label_valid(dst_label_i)) {
+      if (!schema_.is_vertex_label_valid(dst_label_i) ||
+          schema_.is_vertex_label_temporary(dst_label_i)) {
         continue;
       }
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
@@ -869,6 +882,9 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
                                           e_label_i)) {
           size_t index =
               schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
+          if (schema_.is_edge_label_temporary(index)) {
+            continue;
+          }
           const auto& sort_key_for_nbr =
               schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
           if (edge_tables_.count(index) > 0) {
@@ -895,27 +911,31 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (schema_.is_vertex_label_valid(i)) {
+    if (schema_.is_vertex_label_valid(i) &&
+        !schema_.is_vertex_label_temporary(i)) {
       auto v_size = vertex_tables_[i].LidNum();
       EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
       vertex_capacity[i] = vertex_tables_[i].Capacity();
     }
   }
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (schema_.is_vertex_label_valid(i)) {
+    if (schema_.is_vertex_label_valid(i) &&
+        !schema_.is_vertex_label_temporary(i)) {
       vertex_tables_[i].DisassembleTo(store, meta, *ckp);
     }
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
-    if (!schema_.is_vertex_label_valid(src_label_i)) {
+    if (!schema_.is_vertex_label_valid(src_label_i) ||
+        schema_.is_vertex_label_temporary(src_label_i)) {
       continue;
     }
     auto src_label = schema_.get_vertex_label_name(src_label_i);
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
-      if (!schema_.is_vertex_label_valid(dst_label_i)) {
+      if (!schema_.is_vertex_label_valid(dst_label_i) ||
+          schema_.is_vertex_label_temporary(dst_label_i)) {
         continue;
       }
       auto dst_label = schema_.get_vertex_label_name(dst_label_i);
@@ -929,6 +949,9 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
         auto edge_label = schema_.get_edge_label_name(e_label_i);
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
+        if (schema_.is_edge_label_temporary(index)) {
+          continue;
+        }
         if (edge_tables_.count(index) > 0) {
           auto& edge_table = edge_tables_.at(index);
           auto e_size = edge_table.PropTableSize();
@@ -943,7 +966,10 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
   }
 
   store.Dump(*ckp, meta);
-  meta.SetSchema(schema_);
+  // Persist a temporary-stripped schema. Temporary labels are session-scoped
+  // and must not appear in the checkpoint. StripTemporary() creates a clean
+  // copy without any temporary vertex/edge labels.
+  meta.SetSchema(schema_.StripTemporary());
   ckp->UpdateMeta(
       std::move(meta));  // Persist meta and set checkpoint to use this meta.
   LOG(INFO) << "Dump graph to checkpoint " << ckp->path();

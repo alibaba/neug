@@ -64,8 +64,7 @@ rapidjson::Document napi_value_to_rapidjson_document(
   } else if (val.IsDate()) {
     // Convert Date to ISO string
     Napi::Object date_obj = val.As<Napi::Object>();
-    Napi::Function to_iso =
-        date_obj.Get("toISOString").As<Napi::Function>();
+    Napi::Function to_iso = date_obj.Get("toISOString").As<Napi::Function>();
     std::string iso_str =
         to_iso.Call(date_obj, {}).As<Napi::String>().Utf8Value();
     doc.SetString(iso_str.c_str(), iso_str.length(), allocator);

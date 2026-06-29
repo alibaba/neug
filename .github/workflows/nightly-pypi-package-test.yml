@@ -2,7 +2,8 @@ name: Nightly PyPI Package Test
 
 on:
   schedule:
-    - cron: '0 18 * * *'
+    # Trigger at 22:00 CST (14:00 UTC) every day
+    - cron: '0 14 * * *'
   workflow_dispatch:
   pull_request:
     branches:
@@ -52,14 +53,13 @@ jobs:
         allow-prereleases: true
         cache: 'pip'
 
-    - name: Install NeuG
+    - name: Install NeuG and test dependencies
       run: |
-        pip install neug
+        pip install neug pytest
 
     - name: Run Python Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        python3 -m unittest tests/test_batch_loading.py
-        python3 -m unittest tests/test_alter_property.py
+        python3 -m pytest tests/test_batch_loading.py tests/test_alter_property.py -v
         python3 example/complex_test.py

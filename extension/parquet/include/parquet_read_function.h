@@ -16,17 +16,16 @@
 
 #pragma once
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/localfs.h>
 #include <memory>
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/utils/reader/options.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
-#include "neug/utils/reader/sniffer.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/read/common/sniffer.h"
+#include "parquet/arrow_fs_resolver.h"
+#include "parquet/arrow_reader.h"
+#include "parquet/arrow_sniffer.h"
 #include "parquet_options.h"
 
 namespace neug {
@@ -48,7 +47,6 @@ struct ParquetReadFunction {
 
   static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
-    // Get file system from provider
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -59,18 +57,13 @@ struct ParquetReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
 
-    // Create Parquet-specific options builder
     auto optionsBuilder =
         std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
 
-    // Create Arrow reader with Parquet options
+    auto arrowFs = parquet::resolveArrowFileSystem(*fs);
     auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
+        state, std::move(optionsBuilder), std::move(arrowFs));
 
-    // Execute read operation.
-    // ArrowReader::read() throws exceptions (via THROW_IO_EXCEPTION /
-    // THROW_INVALID_ARGUMENT_EXCEPTION) on all Arrow error paths, so
-    // errors are propagated to the caller rather than silently swallowed.
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -82,14 +75,11 @@ struct ParquetReadFunction {
     auto state = std::make_shared<reader::ReadSharedState>();
     auto& externalSchema = state->schema;
 
-    // Create table entry schema with empty column names and types,
-    // which need to be inferred from Parquet metadata
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     externalSchema.file.options["BATCH_SIZE"] =
         std::to_string(reader::kSniffBlockSize);
 
-    // Resolve file paths
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
     auto resolvedPaths = std::vector<std::string>();
@@ -100,15 +90,13 @@ struct ParquetReadFunction {
     }
     state->schema.file.paths = std::move(resolvedPaths);
 
-    // Create Parquet-specific options builder
     auto optionsBuilder =
         std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
 
-    // Create Arrow reader with Parquet options
+    auto arrowFs = parquet::resolveArrowFileSystem(*fs);
     auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fs->toArrowFileSystem());
+        state, std::move(optionsBuilder), std::move(arrowFs));
 
-    // Create sniffer to infer schema from Parquet metadata
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
     auto sniffResult = sniffer->sniff();
 

@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <arrow/filesystem/localfs.h>
 #include <glob.h>
 #include <memory>
 #include <string>
@@ -24,8 +23,8 @@
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/utils/reader/reader.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace function {

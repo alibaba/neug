@@ -14,7 +14,6 @@
  */
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -32,9 +31,9 @@ namespace neug {
 /**
  * @brief Configuration for NeuG HTTP service.
  *
- * ServiceConfig contains settings for the HTTP server that handles
- * remote Cypher query execution. Use this to configure the service
- * endpoint before starting NeugDBService.
+ * ServiceConfig contains settings for the HTTP server that handles remote
+ * Cypher query execution. Use this to configure the service endpoint before
+ * starting NeugDBService.
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -50,15 +49,17 @@ namespace neug {
  * @since v0.1.0
  */
 struct ServiceConfig {
-  /// Default number of shards for distributed processing
-  static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
+  /// Default thread count policy: 0 means auto-select from database
+  /// max_thread_num.
+  static constexpr const uint32_t DEFAULT_THREAD_NUM = 0;
   /// Default HTTP port for query endpoint
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
 
   /// HTTP port for the query endpoint (default: 10000)
   uint32_t query_port;
-  /// Number of shards for distributed processing (default: 1)
-  uint32_t shard_num;
+  /// Service thread count. 0 means auto-select from database max_thread_num. If
+  /// set, it must not exceed the database max_thread_num.
+  uint32_t thread_num;
   /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all
   /// interfaces)
   std::string host_str;
@@ -68,12 +69,12 @@ struct ServiceConfig {
    *
    * Default configuration:
    * - query_port: 10000
-   * - shard_num: 1
+   * - thread_num: 0 (auto-select from database max_thread_num)
    * - host_str: "127.0.0.1" (localhost only)
    */
   ServiceConfig()
       : query_port(DEFAULT_QUERY_PORT),
-        shard_num(DEFAULT_SHARD_NUM),
+        thread_num(DEFAULT_THREAD_NUM),
         host_str("127.0.0.1") {}
 };
 

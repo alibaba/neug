@@ -29,10 +29,10 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
                                             const std::string& user_access_mode,
                                             int32_t num_threads) {
   if (num_threads == 0) {
-    num_threads = max_num_threads_;
+    num_threads = max_thread_num_;
   }
-  if (num_threads > max_num_threads_) {
-    num_threads = max_num_threads_;
+  if (num_threads > max_thread_num_) {
+    num_threads = max_thread_num_;
   }
   if (num_threads < 1) {
     RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
@@ -167,6 +167,14 @@ void QueryProcessor::update_compiler_meta_if_needed(
   if (need_update) {
     global_query_cache_->clear(schema_yaml, statistics_json);
   }
+}
+
+void QueryProcessor::clear_cache() {
+  SnapshotGuard guard(snapshot_store_);
+  auto& pg = *guard.get().mutable_graph();
+  physical::ExecutionFlag flags;
+  flags.set_create_temp_table(true);
+  update_compiler_meta_if_needed(pg, flags, AccessMode::kSchema);
 }
 
 }  // namespace neug

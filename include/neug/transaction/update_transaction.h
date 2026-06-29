@@ -60,6 +60,14 @@ class Schema;
  * GraphSnapshotStore::PublishSnapshot()
  * - Abort discards the COW copy (no effect on original)
  *
+ * **Concurrency contract** (VersionManager state machine):
+ * - Acquisition enters the update-exec phase: waits for in-flight inserts,
+ *   blocks new inserts/updates, and lets reads continue on their pinned
+ *   snapshots.
+ * - Commit calls VersionManager::begin_update_commit to enter the update-commit
+ *   phase: briefly blocks new reads and inserts while the COW snapshot is
+ *   published. Existing reads continue unaffected.
+ *
  * @since v0.1.0
  */
 class UpdateTransaction {
@@ -198,9 +206,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
-      std::shared_ptr<IRecordBatchSupplier> supplier) override;
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IRecordBatchSupplier> supplier) override;
+                       std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdges(

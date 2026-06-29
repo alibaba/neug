@@ -24,8 +24,8 @@
 #include <vector>
 #include "glob_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_sys/file_system.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 namespace neug {
 namespace extension {
@@ -72,7 +72,7 @@ class S3FileSystem : public fsys::FileSystem {
 
   // fsys::FileSystem interface
   std::vector<std::string> glob(const std::string& path) override;
-  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
+  std::shared_ptr<void> getArrowFileSystem() const override;
 
   /**
    * Build Arrow S3Options from schema configuration.

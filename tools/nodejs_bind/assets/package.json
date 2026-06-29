@@ -1,0 +1,20 @@
+{
+  "name": "@graphscope-neug/neug",
+  "version": "0.1.3",
+  "description": "NeuG Graph Database Node.js bindings - high performance embedded graph database with Cypher query support",
+  "main": "index.js",
+  "keywords": ["graph", "database", "embedded", "cypher", "neug", "native", "addon", "napi"],
+  "author": "GraphScope Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alibaba/neug.git"
+  },
+  "engines": { "node": ">=16.0.0" },
+  "publishConfig": { "access": "public" },
+  "optionalDependencies": {
+    "@graphscope-neug/linux-x86_64": "0.1.3",
+    "@graphscope-neug/osx-arm64": "0.1.3"
+  },
+  "files": ["index.js"]
+}

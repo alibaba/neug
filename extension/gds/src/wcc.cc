@@ -98,8 +98,8 @@ function::function_set WCCFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::DataTypeId> inputTypes = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
+                                                common::DataTypeId::kUnknown};
   // two output columns:
   // 1. node type
   // 2. label id in int64

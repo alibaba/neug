@@ -15,8 +15,9 @@ External Files (CSV, JSON, Parquet, ...)
    └────┬──────┘
         │  Unified internal format
         ▼
-   ┌───────────┐    Persist into graph storage
-   │ COPY FROM │    (requires predefined schema)
+   ┌───────────┐    Persist or temporarily import into graph storage
+   │ COPY FROM │    (auto_detect=true by default since v0.1.2)
+   │ COPY TEMP │    (always auto-infers schema, session-scoped)
    └───────────┘
 ```
 
@@ -26,13 +27,19 @@ External Files (CSV, JSON, Parquet, ...)
 
 **`COPY TO`** works in the opposite direction — it exports query results to external file formats.
 
+## Embedded Mode Only
+
+> **Important:** `LOAD FROM`, `COPY FROM`, `COPY TEMP`, and `COPY TO` are supported **only in embedded mode**. They are not available when NeuG is running as a service (HTTP/TP mode). This is a current limitation; support for bulk loading in service mode is planned for a future release.
+
+Bulk file I/O operations (`LOAD FROM`, `COPY FROM`, `COPY TO`) involve reading or writing large files, which are long-running, I/O-intensive operations that would block the transaction processing pipeline. For this reason, they are restricted to embedded mode.  Once the service is running, you can still insert individual records via `CREATE` statements, modify data with `MERGE`/`SET`/`DELETE`, and manage schema with `CREATE/DROP/ALTER TABLE`.
+
 ## Supported Formats
 
-| Format | Supported | Availability |
-|--------|-----------|--------------|
-| CSV | ✅ | Built-in |
-| JSON / JSONL | ✅ | Built-in (since v0.1.2) |
-| Parquet | ✅  | Via [Parquet Extension](../extensions/load_parquet) |
+| Format       | Supported | Availability                                    |
+| ------------ | --------- | ----------------------------------------------- |
+| CSV          | ✅        | Built-in                                        |
+| JSON / JSONL | ✅        | Built-in (since v0.1.2)                         |
+| Parquet      | ✅        | Via[Parquet Extension](../extensions/load_parquet) |
 
 > **Version Note:** In NeuG < 0.1.2, JSON/JSONL support was provided via the [JSON Extension](../extensions/load_json) and required `INSTALL json; LOAD json;` before use. Since NeuG >= 0.1.2, JSON/JSONL is a built-in feature — no extension installation or loading is needed.
 
@@ -40,6 +47,8 @@ External Files (CSV, JSON, Parquet, ...)
 
 ## What's Next
 
-- **[LOAD FROM](load_data)** — Read external files into temporary tables with relational operations
-- **[COPY FROM](import_data)** — Persist external data into graph storage
-- **[COPY TO](export_data)** — Export query results to external files
+**[LOAD FROM](load_data)** — Read external files into temporary tables with relational operations
+
+* **[COPY FROM / COPY TEMP](import_data)** — Persist or temporarily import external data into graph storage
+
+**[COPY TO](export_data)** — Export query results to external files

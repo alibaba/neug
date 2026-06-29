@@ -66,8 +66,9 @@ neug::result<ContextChunk> EdgeExpand::expand_degree(
     chunk.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return chunk;
   }
+  int64_t degree = 0;
   foreach_vertex(*vertex_col, [&](size_t index, label_t label, vid_t v) {
-    int64_t degree = 0;
+    degree = 0;
     if (v == graph.kInvalidVid) {
       return;
     }
@@ -289,22 +290,57 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
       ed_accessor.is_bundled()) {
     auto typed_view =
         view.template get_typed_view<T, CsrViewType::kMultipleMutable>();
+    constexpr int32_t MICRO_BATCH_SIZE = 256;
+    std::vector<std::pair<vid_t, sel_t>> temp_vec;
+    temp_vec.reserve(MICRO_BATCH_SIZE);
+    size_t metadata_dist = view.prefetch_metadata_dist();
+    size_t head_dist = view.prefetch_head_dist();
     if (tp == SPPredicateType::kPropertyGT) {
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
-        vid_t v = vertices[idx];
-        typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
-          builder.push_back_opt(nbr);
-          offsets.push_back(idx);
-        });
+      for (size_t idx = 0; idx < vertex_num;) {
+        temp_vec.clear();
+        for (int32_t k = 0; k < MICRO_BATCH_SIZE && idx < vertex_num;
+             ++k, ++idx) {
+          temp_vec.emplace_back(vertices[idx], idx);
+        }
+        std::sort(temp_vec.begin(), temp_vec.end());
+        for (size_t k = 0; k < temp_vec.size(); ++k) {
+          if (metadata_dist > 0 && k + metadata_dist < temp_vec.size()) {
+            view.prefetch_metadata(temp_vec[k + metadata_dist].first);
+          }
+          if (head_dist > 0 && k + head_dist < temp_vec.size()) {
+            view.prefetch_head(temp_vec[k + head_dist].first);
+          }
+          vid_t v = temp_vec[k].first;
+          sel_t idx = temp_vec[k].second;
+          typed_view.foreach_nbr_gt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(idx);
+          });
+        }
       }
     } else {
       CHECK(tp == SPPredicateType::kPropertyLT);
-      for (size_t idx = 0; idx < vertex_num; ++idx) {
-        vid_t v = vertices[idx];
-        typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
-          builder.push_back_opt(nbr);
-          offsets.push_back(idx);
-        });
+      for (size_t idx = 0; idx < vertex_num;) {
+        temp_vec.clear();
+        for (int32_t k = 0; k < MICRO_BATCH_SIZE && idx < vertex_num;
+             ++k, ++idx) {
+          temp_vec.emplace_back(vertices[idx], idx);
+        }
+        std::sort(temp_vec.begin(), temp_vec.end());
+        for (size_t k = 0; k < temp_vec.size(); ++k) {
+          if (metadata_dist > 0 && k + metadata_dist < temp_vec.size()) {
+            view.prefetch_metadata(temp_vec[k + metadata_dist].first);
+          }
+          if (head_dist > 0 && k + head_dist < temp_vec.size()) {
+            view.prefetch_head(temp_vec[k + head_dist].first);
+          }
+          vid_t v = temp_vec[k].first;
+          sel_t idx = temp_vec[k].second;
+          typed_view.foreach_nbr_lt(v, cmp_val, [&](vid_t nbr, const T& ed) {
+            builder.push_back_opt(nbr);
+            offsets.push_back(idx);
+          });
+        }
       }
     }
   } else {

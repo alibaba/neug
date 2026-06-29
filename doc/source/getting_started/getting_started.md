@@ -1,6 +1,8 @@
 # Getting Started
 
-This guide will walk you through creating your first graph database, performing basic operations, and exploring both embedded and service modes.
+This guide walks you through creating your first graph database, performing basic operations, and exploring both embedded and service modes. Examples are in **Python**.
+
+> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api) or [C++ API reference](../../reference/cpp_api) for equivalent examples in those languages.
 
 ## Prerequisites
 
@@ -58,8 +60,13 @@ import neug
 
 # Start NeuG as a service
 db = neug.Database("/path/to/database")
-service = db.serve(host="localhost", port=10000)
+service = db.serve(host="localhost", port=10000, blocking=False, thread_num=0)
 ```
+
+`thread_num` controls the number of service threads.
+The default `0` auto-selects from the database `max_thread_num`. With the
+default database thread setting, `max_thread_num` is resolved from hardware
+concurrency and falls back to `1` if the runtime cannot detect it.
 
 **Connect from client:**
 ```python

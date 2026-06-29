@@ -15,9 +15,6 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
-#include <arrow/csv/options.h>
-#include <arrow/type.h>
-#include <arrow/util/value_parsing.h>
 #include <glob.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
@@ -31,43 +28,18 @@
 #include <tuple>
 #include "neug/utils/exception/exception.h"
 
-#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
-#include "neug/utils/arrow_utils.h"
 #include "neug/utils/string_utils.h"
-
-namespace arrow {
-class Array;
-}  // namespace arrow
 
 namespace neug {
 
 namespace execution {
 
 namespace ops {
-
-void put_column_types_option(const std::vector<DataType>& column_types,
-                             std::vector<std::string>& column_names,
-                             arrow::csv::ConvertOptions& convert_options) {
-  if (column_types.size() != column_names.size()) {
-    THROW_RUNTIME_ERROR("Column types size does not match column names size: " +
-                        std::to_string(column_types.size()) + " vs " +
-                        std::to_string(column_names.size()));
-  }
-  for (size_t i = 0; i < column_types.size(); ++i) {
-    const auto& col_name = column_names[i];
-    if (convert_options.column_types.find(col_name) !=
-        convert_options.column_types.end()) {
-      THROW_RUNTIME_ERROR("Duplicate column name found: " + col_name);
-    }
-    convert_options.column_types.insert(
-        {col_name, neug::PropertyTypeToArrowType(column_types[i])});
-  }
-}
 
 bool check_csv_import_options(
     const std::unordered_map<std::string, std::string>& options) {
@@ -326,227 +298,51 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   return buffer.GetString();
 }
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>>
-create_record_batch_supplier_from_arrow_array_column(
-    const DataChunk& chunk,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrays;
-  std::vector<std::shared_ptr<arrow::Field>> fields;
+/// A supplier that yields pre-projected DataChunks one by one.
+class MultiChunkSupplier : public IDataChunkSupplier {
+ public:
+  explicit MultiChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)
+      : chunks_(std::move(chunks)), index_(0) {}
 
-  arrays.resize(prop_mappings.size());
-  for (size_t i = 0; i < prop_mappings.size(); ++i) {
-    auto mapping = prop_mappings[i];
-    auto tag_id = mapping.first;
-    auto prop_name = mapping.second;
-    auto column = chunk.get(tag_id);
-    if (column == nullptr) {
-      THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
-                               std::to_string(tag_id));
-    }
-    auto arrow_column =
-        std::dynamic_pointer_cast<ArrowArrayContextColumn>(column);
-    if (!arrow_column) {
-      THROW_INTERNAL_EXCEPTION("Invalid column type for tag id: " +
-                               std::to_string(tag_id));
-    }
-
-    auto& column_arrays = arrow_column->GetColumns();
-    // arrays[i].emplace(column_arrays.begin(), column_arrays.end());
-    for (auto& array : column_arrays) {
-      arrays[i].emplace_back(array);
-    }
-    fields.emplace_back(std::make_shared<arrow::Field>(
-        prop_name, arrow_column->GetArrowType(), true));
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    if (index_ >= chunks_.size())
+      return nullptr;
+    return chunks_[index_++];
   }
-  if (!arrays.empty()) {
-    size_t batch_size = arrays[0].size();
-    for (size_t i = 1; i < arrays.size(); ++i) {
-      auto& array = arrays[i];
-      if (array.size() != batch_size) {
-        THROW_INTERNAL_EXCEPTION("Array size mismatch for tag id: " +
-                                 std::to_string(prop_mappings[i].first));
+
+  int64_t RowNum() const override {
+    int64_t total = 0;
+    for (const auto& chunk : chunks_) {
+      total += static_cast<int64_t>(chunk->row_num());
+    }
+    return total;
+  }
+
+ private:
+  std::vector<std::shared_ptr<DataChunk>> chunks_;
+  size_t index_;
+};
+
+std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
+    const Context& ctx,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  std::vector<std::shared_ptr<DataChunk>> projected_chunks;
+  projected_chunks.reserve(ctx.chunk_num());
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    const auto& chunk = ctx.chunk(i).chunk();
+    auto out_chunk = std::make_shared<DataChunk>();
+    for (size_t j = 0; j < prop_mappings.size(); ++j) {
+      auto tag_id = prop_mappings[j].first;
+      auto column = chunk.get(tag_id);
+      if (column == nullptr) {
+        THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                                 std::to_string(tag_id));
       }
+      out_chunk->set(static_cast<int>(j), column);
     }
+    projected_chunks.push_back(std::move(out_chunk));
   }
-  auto schema = std::make_shared<arrow::Schema>(fields);
-  suppliers.emplace_back(
-      std::make_shared<ArrowRecordBatchArraySupplier>(arrays, schema));
-  return suppliers;
-}
-
-std::vector<std::shared_ptr<IRecordBatchSupplier>>
-create_record_batch_supplier_from_arrow_stream_column(
-    const DataChunk& chunk,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  for (const auto& mapping : prop_mappings) {
-    auto tag_id = mapping.first;
-    auto column = chunk.get(tag_id);
-    if (column == nullptr) {
-      LOG(ERROR) << "Column not found for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Column not found for tag id: " +
-                          std::to_string(tag_id));
-    }
-    if (column->column_type() != ContextColumnType::kArrowStream) {
-      LOG(ERROR) << "Invalid column type for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Invalid column type for tag id: " +
-                          std::to_string(tag_id));
-    }
-    auto casted_column =
-        std::dynamic_pointer_cast<ArrowStreamContextColumn>(column);
-    if (!casted_column) {
-      LOG(ERROR) << "Failed to cast column for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Failed to cast column for tag id: " +
-                          std::to_string(tag_id));
-    }
-    return casted_column->GetSuppliers();
-  }
-  LOG(ERROR) << "No valid column mappings found.";
-  THROW_RUNTIME_ERROR("No valid column mappings found.");
-}
-
-std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
-    const DataChunk& chunk,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  // We expect all columns are of same type.
-  ContextColumnType column_type = ContextColumnType::kNone;
-  for (const auto& mapping : prop_mappings) {
-    auto tag_id = mapping.first;
-    auto column = chunk.get(tag_id);
-    if (column == nullptr) {
-      LOG(ERROR) << "Column not found for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Column not found for tag id: " +
-                          std::to_string(tag_id));
-    }
-    if (column_type == ContextColumnType::kNone) {
-      column_type = column->column_type();
-    } else if (column_type != column->column_type()) {
-      LOG(ERROR) << "Column type mismatch for tag id: " << tag_id;
-      THROW_RUNTIME_ERROR("Column type mismatch for tag id: " +
-                          std::to_string(tag_id));
-    }
-  }
-  if (column_type == ContextColumnType::kArrowArray) {
-    return create_record_batch_supplier_from_arrow_array_column(chunk,
-                                                                prop_mappings);
-  } else if (column_type == ContextColumnType::kArrowStream) {
-    return create_record_batch_supplier_from_arrow_stream_column(chunk,
-                                                                 prop_mappings);
-  } else {
-    LOG(ERROR) << "Unsupported column type: " << static_cast<int>(column_type);
-    THROW_RUNTIME_ERROR("Unsupported column type: " +
-                        std::to_string(static_cast<int>(column_type)));
-  }
-}
-
-void to_arrow_csv_options(
-    const std::string& file_path,
-    const std::unordered_map<std::string, std::string>& csv_options,
-    const std::vector<DataType>& column_types,
-    arrow::csv::ConvertOptions& convert_options,
-    arrow::csv::ReadOptions& read_options,
-    arrow::csv::ParseOptions& parse_options) {
-  convert_options.timestamp_parsers.emplace_back(
-      std::make_shared<LDBCTimeStampParser>());
-  convert_options.timestamp_parsers.emplace_back(
-      std::make_shared<LDBCLongDateParser>());
-  convert_options.timestamp_parsers.emplace_back(
-      arrow::TimestampParser::MakeISO8601());
-  // BOOLEAN parser
-  put_boolean_option(convert_options);
-  if (csv_options.find(CSV_DELIMITER_KEY) != csv_options.end()) {
-    put_delimiter_option(csv_options.at(CSV_DELIMITER_KEY), parse_options);
-  } else if (csv_options.find(CSV_DELIM_KEY) != csv_options.end()) {
-    put_delimiter_option(csv_options.at(CSV_DELIM_KEY), parse_options);
-  } else {
-    VLOG(10) << "Using default CSV delimiter: " << DEFAULT_CSV_DELIMITER;
-    put_delimiter_option(DEFAULT_CSV_DELIMITER, parse_options);
-  }
-  if (csv_options.find(CSV_ESCAPE_KEY) != csv_options.end()) {
-    if (csv_options.at(CSV_ESCAPE_KEY).size() == 1) {
-      parse_options.escaping = true;
-      parse_options.escape_char = csv_options.at(CSV_ESCAPE_KEY)[0];
-    } else {
-      LOG(ERROR) << "Invalid escape char: "
-                 << csv_options.at(CSV_ESCAPE_KEY)[0];
-      parse_options.escaping = false;
-    }
-  }
-  if (csv_options.find(CSV_QUOTE_KEY) != csv_options.end()) {
-    if (csv_options.at(CSV_QUOTE_KEY).size() == 1) {
-      parse_options.quoting = true;
-      parse_options.double_quote = false;
-      parse_options.quote_char = csv_options.at(CSV_QUOTE_KEY)[0];
-      VLOG(10) << "Using CSV quote char: " << csv_options.at(CSV_QUOTE_KEY)[0];
-    } else {
-      LOG(ERROR) << "Invalid quote char: " << csv_options.at(CSV_QUOTE_KEY);
-      parse_options.quoting = false;
-    }
-  }
-
-  if (csv_options.find(CSV_DOUBLE_QUOTE_KEY) != csv_options.end()) {
-    if (!parse_options.quoting) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "CSV quoting must be enabled for double quotes");
-    }
-    auto value = csv_options.at(CSV_DOUBLE_QUOTE_KEY);
-    if (value == "true" || value == "1" || value == "TRUE") {
-      parse_options.double_quote = true;
-      VLOG(10) << "using double quote";
-    } else {
-      LOG(ERROR) << "Invalid double quote config: " << value;
-      parse_options.double_quote = false;
-    }
-  }
-
-  bool header_row = true;
-  if (csv_options.find(CSV_HEADER_KEY) != csv_options.end()) {
-    // check lower-case
-    auto val = to_lower_copy(csv_options.at(CSV_HEADER_KEY));
-    if (val == "false" || val == "0") {
-      header_row = false;
-    } else if (val != "true" && val != "1") {
-      LOG(WARNING) << "Invalid value for CSV_HEADER_KEY: "
-                   << csv_options.at(CSV_HEADER_KEY)
-                   << ". Defaulting to true (header row enabled).";
-    }
-  } else {
-    VLOG(10) << "Using default CSV header row: true";
-  }
-  put_column_names_option(header_row, file_path, parse_options.delimiter,
-                          parse_options.quoting, parse_options.quote_char,
-                          parse_options.escaping, parse_options.escape_char,
-                          read_options, column_types.size());
-  if (read_options.column_names.size() != column_types.size()) {
-    THROW_SCHEMA_MISMATCH("Schema mismatch: column names size (" +
-                          std::to_string(read_options.column_names.size()) +
-                          ") does not match column types size (" +
-                          std::to_string(column_types.size()) + ")");
-  }
-  // Currently we assume the column_types are corresponding to column names
-  put_column_types_option(column_types, read_options.column_names,
-                          convert_options);
-
-  if (header_row) {
-    read_options.skip_rows = 1;
-  }
-
-  if (csv_options.find(CSV_SKIP_KEY) != csv_options.end()) {
-    LOG(WARNING) << "The parameter \"" << ops::CSV_SKIP_KEY
-                 << "\" is currently not supported.";
-  }
-
-  if (csv_options.find(CSV_PARALLEL_KEY) != csv_options.end()) {
-    LOG(WARNING) << "The parameter \"" << ops::CSV_PARALLEL_KEY
-                 << "\" is currently not supported.";
-  }
-
-  if (csv_options.find(CSV_NULL_STRINGS_KEY) != csv_options.end()) {
-    LOG(WARNING) << "The parameter \"" << ops::CSV_NULL_STRINGS_KEY
-                 << "\" is currently not supported.";
-  }
-
-  // TODO(zhanglei): support selecting included columns.
+  return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
 }
 
 std::vector<std::string> match_files_with_pattern(
@@ -573,41 +369,16 @@ std::vector<std::string> match_files_with_pattern(
   return result;
 }
 
-std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
+std::vector<std::shared_ptr<IDataChunkSupplier>> create_csv_chunk_suppliers(
     const std::string& file_path, const std::vector<DataType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options) {
-  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
   std::vector<std::string> file_paths = match_files_with_pattern(file_path);
 
   for (auto& path : file_paths) {
-    arrow::csv::ConvertOptions convert_options;
-    arrow::csv::ReadOptions read_options;
-    arrow::csv::ParseOptions parse_options;
-    to_arrow_csv_options(path, csv_options, column_types, convert_options,
-                         read_options, parse_options);
-
-    bool stream_reader = true;
-    if (csv_options.find(CSV_STREAM_READER) != csv_options.end()) {
-      // check lower-case
-      auto val = to_lower_copy(csv_options.at(CSV_STREAM_READER));
-      if (val == "false" || val == "0") {
-        stream_reader = false;
-      } else if (val != "true" && val != "1") {
-        LOG(WARNING) << "Invalid value for CSV_STREAM_READER: "
-                     << csv_options.at(CSV_STREAM_READER)
-                     << ". Defaulting to true (stream reader enabled).";
-      }
-    }
-
-    if (stream_reader) {
-      suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
-          std::make_shared<CSVStreamRecordBatchSupplier>(
-              path, convert_options, read_options, parse_options)));
-    } else {
-      suppliers.emplace_back(std::dynamic_pointer_cast<IRecordBatchSupplier>(
-          std::make_shared<CSVTableRecordBatchSupplier>(
-              path, convert_options, read_options, parse_options)));
-    }
+    auto config = build_csv_read_config(path, csv_options, column_types);
+    suppliers.emplace_back(
+        std::make_shared<CSVChunkSupplier>(path, std::move(config)));
   }
   return suppliers;
 }

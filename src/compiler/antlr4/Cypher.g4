@@ -16,6 +16,7 @@ oC_Statement
         | nEUG_CopyFrom
         | nEUG_CopyFromByColumn
         | nEUG_CopyTO
+        | nEUG_CopyTemp
         | nEUG_StandaloneCall
         | nEUG_CreateMacro
         | nEUG_CommentOn
@@ -279,6 +280,9 @@ oC_ReadingClause
 
 nEUG_LoadFrom
     :  LOAD ( SP WITH SP HEADERS SP? '(' SP? nEUG_ColumnDefinitions SP? ')' )? SP FROM SP nEUG_ScanSource (SP? '(' SP? nEUG_Options SP? ')')? (SP? oC_Where)? ;
+
+nEUG_CopyTemp
+    :  COPY SP TEMP SP oC_SchemaName SP FROM SP nEUG_ScanSource ( SP? '(' SP? nEUG_Options SP? ')' )? ;
 
 
 oC_YieldItem
@@ -754,6 +758,7 @@ nEUG_NonReservedKeywords
         | START
         | L_SKIP
         | LIMIT
+        | TEMP
         | TRANSACTION
         | TYPE
         | USE

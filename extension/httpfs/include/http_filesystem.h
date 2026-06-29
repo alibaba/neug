@@ -27,8 +27,8 @@
 #include <vector>
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_sys/file_system.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 namespace neug {
 namespace extension {
@@ -196,7 +196,7 @@ class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
 
   // Returns a new HTTPFileSystem instance built from the stored options.
   // Each call produces an independent instance; the caller owns it exclusively.
-  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
+  std::shared_ptr<void> getArrowFileSystem() const override;
 
  private:
   common::case_insensitive_map_t<std::string> options_;

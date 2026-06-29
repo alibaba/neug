@@ -39,8 +39,38 @@ void Connection::Close() {
     return;
   }
   LOG(INFO) << "Closing connection.";
+
+  // Clean up all temporary schemas created during this session.
+  // This is safe to do globally because LOAD AS is only supported in
+  // READ_WRITE mode, and ConnectionManager enforces that at most ONE
+  // read-write connection exists at a time. Therefore, all temporary
+  // labels in the schema must belong to this connection.
+  SnapshotGuard guard(snapshot_store_);
+  auto* graph = guard.get().mutable_graph();
+  auto temp_edges = graph->schema().get_temporary_edge_triplet_keys();
+  for (auto key : temp_edges) {
+    auto [src, dst, edge] = graph->schema().parse_edge_label(key);
+    try {
+      graph->DeleteEdgeType(src, dst, edge);
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
+    }
+  }
+
+  auto temp_vertices = graph->schema().get_temporary_vertex_labels();
+  for (auto label : temp_vertices) {
+    try {
+      graph->DeleteVertexType(label);
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
+    }
+  }
+
+  if (!temp_edges.empty() || !temp_vertices.empty()) {
+    query_processor_->clear_cache();
+  }
+
   is_closed_.store(true);
-  // Necessary cleanup could be done here.
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,

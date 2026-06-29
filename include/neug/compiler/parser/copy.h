@@ -60,11 +60,15 @@ class CopyFrom : public Copy {
   CopyFrom(std::unique_ptr<BaseScanSource> source, std::string tableName)
       : Copy{common::StatementType::COPY_FROM},
         byColumn_{false},
+        temporary_{false},
         source{std::move(source)},
         tableName{std::move(tableName)} {}
 
   void setByColumn() { byColumn_ = true; }
   bool byColumn() const { return byColumn_; }
+
+  void setTemporary(bool temp) { temporary_ = temp; }
+  bool isTemporary() const { return temporary_; }
 
   BaseScanSource* getSource() const { return source.get(); }
 
@@ -77,6 +81,7 @@ class CopyFrom : public Copy {
 
  private:
   bool byColumn_;
+  bool temporary_;
   std::unique_ptr<BaseScanSource> source;
   std::string tableName;
   CopyFromColumnInfo columnInfo;

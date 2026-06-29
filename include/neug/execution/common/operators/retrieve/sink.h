@@ -24,6 +24,7 @@ class StorageReadInterface;
 namespace execution {
 
 class Context;
+
 class Sink {
  public:
   static void sink_results(const Context& ctx,

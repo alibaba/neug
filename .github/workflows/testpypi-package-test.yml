@@ -49,15 +49,14 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
 
-    - name: Install NeuG from TestPyPI
+    - name: Install NeuG from TestPyPI and test dependencies
       run: |
         pip uninstall neug
-        pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ neug
+        pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ neug pytest
 
     - name: Run Python Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        python3 -m unittest tests/test_batch_loading.py
-        python3 -m unittest tests/test_alter_property.py
+        python3 -m pytest tests/test_batch_loading.py tests/test_alter_property.py -v
         python3 example/complex_test.py

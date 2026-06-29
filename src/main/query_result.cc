@@ -28,14 +28,6 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 
-#include <arrow/api.h>
-#include <arrow/array/concatenate.h>
-#include <arrow/io/api.h>
-#include <arrow/memory_pool.h>
-#include <arrow/pretty_print.h>
-#include <arrow/scalar.h>
-#include <arrow/type.h>
-
 namespace neug {
 
 static bool is_valid(const std::string& validity_map, size_t row_index) {
@@ -175,8 +167,8 @@ std::string QueryResult::ToString() const { return response_->DebugString(); }
 std::string QueryResult::GetCurrentRowAsString() const {
   if (current_row_index_ >= static_cast<size_t>(response_->row_count())) {
     THROW_RUNTIME_ERROR("Cursor past end of result set (row " +
-                        std::to_string(current_row_index_) + " >= " +
-                        std::to_string(response_->row_count()) + ")");
+                        std::to_string(current_row_index_) +
+                        " >= " + std::to_string(response_->row_count()) + ")");
   }
   std::stringstream ss;
   for (int i = 0; i < response_->arrays_size(); ++i) {
@@ -231,13 +223,13 @@ void QueryResult::next() {
 void QueryResult::ValidateCursorAccess(size_t column_index) const {
   if (current_row_index_ >= static_cast<size_t>(response_->row_count())) {
     THROW_RUNTIME_ERROR("Cursor past end of result set (row " +
-                        std::to_string(current_row_index_) + " >= " +
-                        std::to_string(response_->row_count()) + ")");
+                        std::to_string(current_row_index_) +
+                        " >= " + std::to_string(response_->row_count()) + ")");
   }
   if (column_index >= static_cast<size_t>(response_->arrays_size())) {
-    THROW_RUNTIME_ERROR("Column index out of range: " +
-                        std::to_string(column_index) + " >= " +
-                        std::to_string(response_->arrays_size()));
+    THROW_RUNTIME_ERROR(
+        "Column index out of range: " + std::to_string(column_index) +
+        " >= " + std::to_string(response_->arrays_size()));
   }
 }
 

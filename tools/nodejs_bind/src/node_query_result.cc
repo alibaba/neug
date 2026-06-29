@@ -216,8 +216,7 @@ Napi::Value FetchValueFromColumn(Napi::Env env, const neug::Array& column,
       size_t offset = col.offsets(index);
       Napi::Array arr = Napi::Array::New(env, list_size);
       for (uint32_t i = 0; i < list_size; ++i) {
-        arr.Set(i,
-                FetchValueFromColumn(env, col.elements(), offset + i));
+        arr.Set(i, FetchValueFromColumn(env, col.elements(), offset + i));
       }
       return arr;
     } else {
@@ -332,9 +331,8 @@ Napi::Value NodeQueryResult::StatusMessage(const Napi::CallbackInfo& info) {
 
 Napi::Value NodeQueryResult::GetBoltResponse(const Napi::CallbackInfo& info) {
   auto names = column_names();
-  return Napi::String::New(info.Env(),
-                           results_to_bolt_response(query_result_.response(),
-                                                    names));
+  return Napi::String::New(
+      info.Env(), results_to_bolt_response(query_result_.response(), names));
 }
 
 Napi::Value NodeQueryResult::Close(const Napi::CallbackInfo& info) {

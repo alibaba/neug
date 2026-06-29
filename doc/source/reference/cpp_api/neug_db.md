@@ -48,7 +48,7 @@ db.Close();
 ```cpp
 Open(
     const std::string &data_dir,
-    int32_t max_num_threads=0,
+    int32_t max_thread_num=0,
     const DBMode mode=DBMode::READ_WRITE,
     const std::string &planner_kind="gopt",
     bool enable_auto_compaction=false,
@@ -78,7 +78,9 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Parameters:**
   - `data_dir`: Path to the graph data directory
-  - `max_num_threads`: Maximum threads for concurrent operations. If 0, uses hardware concurrency (number of CPU cores)
+  - `max_thread_num`: Maximum database thread count. The default
+    `0` auto-selects from hardware concurrency (number of CPU cores), falling
+    back to `1` if the runtime cannot detect it.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `enable_auto_compaction`: Enable background auto-compaction thread
@@ -104,7 +106,7 @@ Opens the database using a NeugDBConfig structure that provides comprehensive co
 ```cpp
 neug::NeugDBConfig config;
 config.data_dir = "/path/to/graph";
-config.thread_num = 8;
+config.max_thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
 config.memory_level = 1;  // Use memory-mapped virtual memory
 config.enable_auto_compaction = true;
@@ -196,4 +198,3 @@ Remove all connection from the database.
 
 - **Notes:**
   - This method is used to remove all connection when tp svc created, to remove the handle from the database.
-

@@ -143,7 +143,7 @@ void KCore::compute() {
     frontier.swap(next_frontier);
     ++rounds;
   }
-  (void)rounds;
+  (void) rounds;
 }
 
 void KCore::sink(execution::Context& ctx, int node_alias, int core_alias) {

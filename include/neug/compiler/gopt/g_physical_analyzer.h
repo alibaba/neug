@@ -26,6 +26,7 @@
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
@@ -223,7 +224,14 @@ class GPhysicalAnalyzer {
       flag.batch = true;
       break;
     }
-    case planner::LogicalOperatorType::CREATE_TABLE:
+    case planner::LogicalOperatorType::CREATE_TABLE: {
+      flag.schema = true;
+      auto createTable = op.constPtrCast<planner::LogicalCreateTable>();
+      if (createTable->getInfo()->temporary) {
+        flag.create_temp_table = true;
+      }
+      break;
+    }
     case planner::LogicalOperatorType::ALTER:
     case planner::LogicalOperatorType::DROP: {
       flag.schema = true;

@@ -64,6 +64,29 @@ fallback if absent). The wheel bundles both `neug_py_bind*.so` and
 `libneug.{dylib,so}` into the `neug` package; they find each other at runtime
 via `@loader_path` (macOS) / `$ORIGIN` (Linux) RPATH.
 
+## Python service API
+
+`Database.serve()` starts the database in service mode and can configure the service thread count:
+
+```python
+from neug import Database
+
+db = Database("/path/to/database", mode="rw")
+endpoint = db.serve(
+    host="0.0.0.0",
+    port=10000,
+    blocking=False,
+    thread_num=0,
+)
+```
+
+`thread_num=0` is the default and auto-selects from the database
+`max_thread_num`. If set explicitly, it must be less than or equal to that
+value. With the default database thread setting, `max_thread_num` is resolved
+from hardware concurrency and falls back to `1` if the runtime cannot detect it.
+This is separate from client-side `Session(..., num_threads=...)`, which
+configures the client's HTTP connection pool.
+
 ### Multi-version wheels via cibuildwheel
 
 ```bash
@@ -107,7 +130,7 @@ neug-cli --version
 This should display:
 
 ```
-neug-cli, version 0.1.2
+neug-cli, version 0.1.3
 ```
 
 ### Usage

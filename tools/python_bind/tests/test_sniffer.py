@@ -169,9 +169,6 @@ class TestLoadSniffer:
         assert isinstance(row[0], int) and row[0] == 42
         assert isinstance(row[1], float) and abs(row[1] - 3.25) < 1e-6
 
-    @pytest.mark.xfail(
-        reason="TODO: support casting ISO datetime string to DATE in LOAD FROM."
-    )
     def test_csv_cast_temporal_conversions(self):
         csv_path = self.data_dir / "csv_cast_temporal.csv"
         csv_path.write_text("d_col,ts_col\n" "2012-01-02,2012-01-02 09:30:21\n")
@@ -218,9 +215,6 @@ class TestLoadSniffer:
         assert isinstance(row[2], bool)
         assert isinstance(row[3], str)
 
-    @pytest.mark.xfail(
-        reason="TODO: align JSON date inference behavior (DATE vs DATETIME)."
-    )
     def test_json_type_inference_date(self):
         json_path = self.data_dir / "json_date.json"
         json_path.write_text(
@@ -321,9 +315,6 @@ class TestLoadSniffer:
         assert isinstance(row[0], int) and row[0] == 42
         assert isinstance(row[1], float) and abs(row[1] - 3.25) < 1e-6
 
-    @pytest.mark.xfail(
-        reason="TODO: support casting ISO datetime string to DATE in LOAD FROM."
-    )
     def test_json_cast_temporal_conversions(self):
         json_path = self.data_dir / "json_cast_temporal.json"
         json_path.write_text(
