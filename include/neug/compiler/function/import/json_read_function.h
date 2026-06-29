@@ -22,9 +22,9 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/reader.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/sniffer.h"
+#include "neug/utils/io/reader.h"
 namespace neug {
 namespace function {
 

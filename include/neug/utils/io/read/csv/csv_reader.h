@@ -46,10 +46,12 @@ class CsvReader {
   result<std::shared_ptr<EntrySchema>> inferSchema();
 
  private:
-  void full_read(const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-                 execution::Context& output, const CsvReadConfig& output_config);
-  void batch_read(const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-                  execution::Context& output);
+  void full_read(
+      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
+      execution::Context& output, const CsvReadConfig& output_config);
+  void batch_read(
+      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
+      execution::Context& output);
 
   std::shared_ptr<ReadSharedState> sharedState_;
   std::unique_ptr<CsvOptionsBuilder> optionsBuilder_;

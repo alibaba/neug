@@ -32,9 +32,9 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/reader.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/io/reader.h"
 
 namespace neug {
 namespace test {
