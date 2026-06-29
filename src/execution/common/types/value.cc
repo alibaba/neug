@@ -116,6 +116,41 @@ struct PathValueInfo : public ExtraValueInfo {
   Path path;
 };
 
+#ifndef NDEBUG
+namespace {
+
+void validate_array_children(const DataType& array_type,
+                             const std::vector<Value>& values) {
+  if (array_type.id() != DataTypeId::kArray) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Value::ARRAY expects an ARRAY type, got " + array_type.ToString());
+  }
+
+  auto expected_size = ArrayType::GetNumElements(array_type);
+  if (values.size() != expected_size) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("ARRAY value length mismatch: expected " +
+                                     std::to_string(expected_size) + ", got " +
+                                     std::to_string(values.size()));
+  }
+
+  const auto& child_type = ArrayType::GetChildType(array_type);
+  for (size_t i = 0; i < values.size(); ++i) {
+    const auto& child = values[i];
+    if (child.type() != child_type) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("ARRAY child type mismatch at index " +
+                                       std::to_string(i) + ": expected " +
+                                       child_type.ToString() + ", got " +
+                                       child.type().ToString());
+    }
+    if (!child.IsNull() && child_type.id() == DataTypeId::kArray) {
+      validate_array_children(child_type, ArrayValue::GetChildren(child));
+    }
+  }
+}
+
+}  // namespace
+#endif
+
 Value::Value(DataType type) : type_(std::move(type)), is_null_(true) {}
 
 Value::Value(const Value& other)
@@ -235,6 +270,9 @@ Value Value::LIST(std::vector<Value>&& values) {
 }
 
 Value Value::ARRAY(const DataType& array_type, std::vector<Value>&& values) {
+#ifndef NDEBUG
+  validate_array_children(array_type, values);
+#endif
   Value result(array_type);
   result.value_info_ = std::make_shared<NestedValueInfo>(std::move(values));
   result.is_null_ = false;

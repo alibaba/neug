@@ -20,6 +20,7 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
 #include "unittest/utils.h"
@@ -79,6 +80,29 @@ void expect_signature_eq(const ColumnCowSignature& lhs,
   EXPECT_EQ(lhs.value_sum, rhs.value_sum);
   EXPECT_EQ(lhs.first_element_size, rhs.first_element_size);
 }
+
+#ifndef NDEBUG
+TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
+  auto array_type = DataType::Array(DataType::INT32, 2);
+
+  EXPECT_THROW(
+      {
+        std::vector<execution::Value> values = {execution::Value::INT32(1)};
+        auto value = execution::Value::ARRAY(array_type, std::move(values));
+        (void) value;
+      },
+      exception::InvalidArgumentException);
+
+  EXPECT_THROW(
+      {
+        std::vector<execution::Value> values = {execution::Value::INT32(1),
+                                                execution::Value::INT64(2)};
+        auto value = execution::Value::ARRAY(array_type, std::move(values));
+        (void) value;
+      },
+      exception::InvalidArgumentException);
+}
+#endif
 
 // Apply mutations to int32 column
 void apply_column_mutations(TypedColumn<int32_t>& col) {
