@@ -21,7 +21,7 @@
 #include <arrow/filesystem/s3fs.h>
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/file_sys/file_system.h"
+#include "neug/utils/io/vfs/file_system.h"
 #include "s3_filesystem.h"
 #include "http_filesystem.h"
 #include "s3_options.h"

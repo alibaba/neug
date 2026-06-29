@@ -30,9 +30,9 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/options.h"
+#include "neug/utils/io/read/common/options.h"
 #include "parquet/arrow_reader.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
 
 #include "../../extension/parquet/include/parquet_options.h"
 #include "../../extension/parquet/include/parquet_export_function.h"

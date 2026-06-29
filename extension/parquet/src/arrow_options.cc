@@ -21,7 +21,7 @@
 #include <glog/logging.h>
 
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/reader.h"
+#include "neug/utils/io/reader.h"
 #include "parquet/arrow_type_converter.h"
 #include "parquet/expression_converter.h"
 

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/row_expression_filter.h"
+#include "neug/utils/io/read/common/row_expression_filter.h"
 
 #include <cstdlib>
 #include <functional>
@@ -23,7 +23,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/reader/operator_precedence.h"
+#include "neug/utils/io/read/common/operator_precedence.h"
 
 namespace neug {
 namespace reader {

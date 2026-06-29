@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/reader/operator_precedence.h"
+#include "neug/utils/io/read/common/operator_precedence.h"
 
 namespace neug {
 namespace reader {

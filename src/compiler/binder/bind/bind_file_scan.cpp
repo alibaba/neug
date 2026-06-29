@@ -35,7 +35,7 @@
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
-#include "neug/utils/reader/schema.h"
+#include "neug/utils/io/read/common/schema.h"
 
 using namespace neug::parser;
 using namespace neug::binder;

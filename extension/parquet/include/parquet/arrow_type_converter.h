@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "neug/generated/proto/plan/basic_type.pb.h"
-#include "neug/utils/reader/type_converter.h"
+#include "neug/utils/io/read/common/type_converter.h"
 
 namespace arrow {
 class DataType;

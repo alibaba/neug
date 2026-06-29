@@ -25,9 +25,9 @@
 #include <vector>
 
 #include "neug/execution/common/data_chunk.h"
-#include "neug/storages/loader/csv_read_config.h"
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {

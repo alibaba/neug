@@ -18,7 +18,7 @@
 #include <arrow/filesystem/localfs.h>
 #include <memory>
 
-#include "neug/utils/file_sys/file_system.h"
+#include "neug/utils/io/vfs/file_system.h"
 
 namespace neug {
 namespace parquet {
