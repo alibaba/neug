@@ -149,6 +149,15 @@ std::string NormalizePatternCypherForParser(std::string_view cypher) {
     normalized.pop_back();
     normalized = TrimCopy(normalized);
   }
+  // Allow a bare pattern such as "(a)-[r:R]->(b)" without the leading MATCH
+  // keyword: prepend "MATCH " when the input does not already begin with a
+  // MATCH (or OPTIONAL MATCH) clause. This lets callers write
+  // PATTERN_MATCH('(a)-[r:R]->(b)') instead of repeating "MATCH". The full
+  // "MATCH ..." form is still accepted unchanged.
+  if (!IStartsWith(normalized, "MATCH") &&
+      !IStartsWith(normalized, "OPTIONAL")) {
+    normalized = "MATCH " + normalized;
+  }
   if ((IStartsWith(normalized, "MATCH") ||
        IStartsWith(normalized, "OPTIONAL")) &&
       !ContainsKeywordOutsideString(normalized, "RETURN")) {

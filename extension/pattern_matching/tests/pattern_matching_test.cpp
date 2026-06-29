@@ -257,20 +257,33 @@ class PatternMatchingTest : public ::testing::Test {
     return holder->value();
   }
 
+  // Exact subgraph matching: the unified PATTERN_MATCH with a single argument
+  // (no sample size) runs the exact DAF matcher.
   result<QueryResult> QueryPatternJson(const std::string& pattern_json,
-                                       int64_t limit = 1000) {
+                                       int64_t /*unused_limit*/ = 1000) {
     const auto path = WritePattern(pattern_json);
     EXPECT_FALSE(path.empty());
-    return conn_->Query("CALL PATTERN_MATCH('" + path + "', " +
-                        std::to_string(limit) + ") RETURN *;");
+    return conn_->Query("CALL PATTERN_MATCH('" + path + "') RETURN *;");
   }
 
+  // Sampled subgraph matching: the unified PATTERN_MATCH with a size and
+  // is_sampled=true runs the FaSTest sampler.
   result<QueryResult> QuerySampledPatternJson(const std::string& pattern_json,
                                               int64_t sample_size = 1000) {
     const auto path = WritePattern(pattern_json);
     EXPECT_FALSE(path.empty());
-    return conn_->Query("CALL SAMPLED_PATTERN_MATCH('" + path + "', " +
-                        std::to_string(sample_size) + ") RETURN *;");
+    return conn_->Query("CALL PATTERN_MATCH('" + path + "', " +
+                        std::to_string(sample_size) + ", true) RETURN *;");
+  }
+
+  // Exact subgraph matching with early termination after `size` matches:
+  // the unified PATTERN_MATCH with a size and is_sampled=false.
+  result<QueryResult> QueryExactEarlyTerminate(const std::string& pattern_json,
+                                               int64_t size) {
+    const auto path = WritePattern(pattern_json);
+    EXPECT_FALSE(path.empty());
+    return conn_->Query("CALL PATTERN_MATCH('" + path + "', " +
+                        std::to_string(size) + ", false) RETURN *;");
   }
 
   void ExpectPatternJsonCount(const std::string& pattern_json,
@@ -348,7 +361,7 @@ TEST_F(PatternMatchingTest, PatternMatchCypherReturnsNativeAliasColumns) {
   result<QueryResult> holder;
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
-      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 10) "
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)') "
       "RETURN *;",
       &holder);
 
@@ -361,11 +374,47 @@ TEST_F(PatternMatchingTest, PatternMatchCypherReturnsNativeAliasColumns) {
             std::string::npos);
 }
 
+TEST_F(PatternMatchingTest, BarePatternWithoutMatchKeyword) {
+  // The leading MATCH keyword is optional: a bare pattern is accepted and a
+  // MATCH is prepended automatically. The explicit-MATCH form still works.
+  result<QueryResult> bare_holder;
+  const auto& bare = QueryOk(
+      "CALL PATTERN_MATCH("
+      "'(a:Person)-[r:person_knows_person]->(b:Person)') RETURN *;",
+      &bare_holder);
+  ExpectAliasColumns(bare, {"a", "r", "b"});
+  EXPECT_EQ(bare.length(), 5u);
+
+  // A bare pattern may still carry inline WHERE / RETURN.
+  result<QueryResult> where_holder;
+  const auto& where = QueryOk(
+      "CALL PATTERN_MATCH("
+      "'(a:Person)-[r:person_knows_person]->(b:Person) "
+      "WHERE a.age >= 30 RETURN a, r, b') RETURN *;",
+      &where_holder);
+  EXPECT_EQ(where.length(), 2u);
+
+  // The explicit MATCH form (and lowercase) remain valid (backward compat).
+  EXPECT_TRUE(
+      conn_
+          ->Query("CALL PATTERN_MATCH('MATCH (a:Person)-"
+                  "[r:person_knows_person]->(b:Person)') RETURN count(a);")
+          .has_value());
+  EXPECT_TRUE(
+      conn_
+          ->Query("CALL PATTERN_MATCH('match (a:Person)-"
+                  "[r:person_knows_person]->(b:Person)') RETURN count(a);")
+          .has_value());
+}
+
 TEST_F(PatternMatchingTest, PatternMatchLimitIsRespected) {
+  // Exact matching no longer takes a positional limit argument; the in-Cypher
+  // LIMIT bounds the result instead.
   result<QueryResult> holder;
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
-      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 2) "
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
+      "RETURN a, r, b LIMIT 2') "
       "RETURN *;",
       &holder);
 
@@ -379,7 +428,7 @@ TEST_F(PatternMatchingTest, PatternMatchCypherPropertiesAndWhereAreTranslated) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person {age: 20})-[r:person_knows_person]->(b:Person) "
-      "WHERE r.weight >= 0.5 RETURN a, r, b', 10) RETURN *;",
+      "WHERE r.weight >= 0.5 RETURN a, r, b') RETURN *;",
       &holder);
 
   ExpectAliasColumns(result, {"a", "r", "b"});
@@ -428,7 +477,7 @@ TEST_F(PatternMatchingTest, PatternMatchRejectsUnsupportedParseableCypher) {
   for (const auto& [name, pattern] : cases) {
     SCOPED_TRACE(name + ": " + pattern);
     auto result =
-        conn_->Query("CALL PATTERN_MATCH('" + pattern + "', 10) RETURN *;");
+        conn_->Query("CALL PATTERN_MATCH('" + pattern + "') RETURN *;");
 
     ASSERT_FALSE(result.has_value());
     EXPECT_NE(result.error().ToString().find("Failed to parse pattern input"),
@@ -491,8 +540,7 @@ TEST_F(PatternMatchingTest, PatternMatchRejectsPatternMissingEdges) {
 TEST_F(PatternMatchingTest, PatternMatchRejectsNonexistentPatternFile) {
   const std::string path = "/tmp/pm_no_such_file.json";
   ASSERT_FALSE(std::filesystem::exists(path));
-  auto result =
-      conn_->Query("CALL PATTERN_MATCH('" + path + "', 10) RETURN *;");
+  auto result = conn_->Query("CALL PATTERN_MATCH('" + path + "') RETURN *;");
   EXPECT_FALSE(result.has_value());
 }
 
@@ -686,10 +734,9 @@ TEST_F(PatternMatchingTest, EdgeConstraintLessEqualRestrictsResults) {
 
 TEST_F(PatternMatchingTest, TrianglePatternFindsDirectedCycleEmbeddings) {
   result<QueryResult> holder;
-  const auto& result =
-      QueryOk("CALL PATTERN_MATCH('" + WritePattern(kTrianglePattern) +
-                  "', 1000) RETURN *;",
-              &holder);
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('" + WritePattern(kTrianglePattern) + "') RETURN *;",
+      &holder);
   ExpectAliasColumns(result, {"v0", "e0", "v1", "e1", "v2", "e2"});
   ASSERT_EQ(result.response().arrays_size(), 6);
   EXPECT_EQ(result.length(), 3u);
@@ -700,7 +747,7 @@ TEST_F(PatternMatchingTest, PathPatternThreeVerticesNoClosure) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r1:person_knows_person]->(b:Person)"
-      "-[r2:person_knows_person]->(c:Person)', 1000) RETURN *;",
+      "-[r2:person_knows_person]->(c:Person)') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r1", "b", "r2", "c"});
   EXPECT_EQ(result.length(), 6u);
@@ -710,7 +757,7 @@ TEST_F(PatternMatchingTest, CypherReverseEdgeDirection) {
   result<QueryResult> holder;
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
-      "'MATCH (b:Person)<-[r:person_knows_person]-(a:Person)', 1000) "
+      "'MATCH (b:Person)<-[r:person_knows_person]-(a:Person)') "
       "RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r", "b"});
@@ -723,7 +770,7 @@ TEST_F(PatternMatchingTest, PathPatternFourVerticesNoClosure) {
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r1:person_knows_person]->(b:Person)"
       "-[r2:person_knows_person]->(c:Person)"
-      "-[r3:person_knows_person]->(d:Person)', 1000) RETURN *;",
+      "-[r3:person_knows_person]->(d:Person)') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r1", "b", "r2", "c", "r3", "d"});
   EXPECT_GT(result.length(), 0u);
@@ -734,7 +781,7 @@ TEST_F(PatternMatchingTest, CypherWhereOnStringPropertyRestrictsResults) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
-      "WHERE a.name = \"Alice\"', 1000) RETURN *;",
+      "WHERE a.name = \"Alice\"') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r", "b"});
   EXPECT_EQ(result.length(), 2u);
@@ -745,7 +792,7 @@ TEST_F(PatternMatchingTest, CypherMultipleWhereClausesAreAnded) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
-      "WHERE a.age >= 18 AND a.name = \"Alice\"', 1000) RETURN *;",
+      "WHERE a.age >= 18 AND a.name = \"Alice\"') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r", "b"});
   EXPECT_EQ(result.length(), 2u);
@@ -756,8 +803,8 @@ TEST_F(PatternMatchingTest, CypherOrderBySkipLimitSortsExactResults) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
-      "RETURN a, r, b ORDER BY a.age DESC, b.name ASC SKIP 1 LIMIT 2', "
-      "1000) RETURN *;",
+      "RETURN a, r, b ORDER BY a.age DESC, b.name ASC SKIP 1 LIMIT 2') "
+      "RETURN *;",
       &holder);
 
   ExpectAliasColumns(result, {"a", "r", "b"});
@@ -779,7 +826,7 @@ TEST_F(PatternMatchingTest, CypherOrderByEdgePropertySortsExactResults) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
-      "RETURN a, r, b ORDER BY r.weight DESC LIMIT 2', 1000) RETURN *;",
+      "RETURN a, r, b ORDER BY r.weight DESC LIMIT 2') RETURN *;",
       &holder);
 
   ExpectAliasColumns(result, {"a", "r", "b"});
@@ -801,7 +848,7 @@ TEST_F(PatternMatchingTest, CypherEdgeInlinePropsMatchJsonEdgeConstraint) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person {weight: 1.5}]->"
-      "(b:Person)', 1000) RETURN *;",
+      "(b:Person)') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r", "b"});
   EXPECT_EQ(result.length(), 1u);
@@ -812,7 +859,7 @@ TEST_F(PatternMatchingTest, CypherReturnPropertyIsAccepted) {
   const auto& result = QueryOk(
       "CALL PATTERN_MATCH("
       "'MATCH (a:Person)-[r:person_knows_person]->(b:Person) "
-      "RETURN a.name, r.weight', 1000) RETURN *;",
+      "RETURN a.name, r.weight') RETURN *;",
       &holder);
   ExpectAliasColumns(result, {"a", "r", "b"});
   EXPECT_EQ(result.length(), 5u);
@@ -832,7 +879,7 @@ TEST_F(PatternMatchingTest, PatternMatchJsonFallsBackToDeterministicNames) {
 
   result<QueryResult> holder;
   const auto& result =
-      QueryOk("CALL PATTERN_MATCH('" + path + "', 10) RETURN *;", &holder);
+      QueryOk("CALL PATTERN_MATCH('" + path + "') RETURN *;", &holder);
 
   ExpectAliasColumns(result, {"v0", "e0", "v1"});
   ExpectVertexEdgeVertexArrays(result);
@@ -858,7 +905,7 @@ TEST_F(PatternMatchingTest, PatternMatchJsonAliasesOverrideFallbackNames) {
 
   result<QueryResult> holder;
   const auto& result =
-      QueryOk("CALL PATTERN_MATCH('" + path + "', 10) RETURN *;", &holder);
+      QueryOk("CALL PATTERN_MATCH('" + path + "') RETURN *;", &holder);
 
   ExpectAliasColumns(result, {"src", "rel", "dst"});
   ExpectVertexEdgeVertexArrays(result);
@@ -868,16 +915,70 @@ TEST_F(PatternMatchingTest, PatternMatchJsonAliasesOverrideFallbackNames) {
 }
 
 TEST_F(PatternMatchingTest, SampledPatternMatchUsesSameNativeOutputShape) {
+  // size + is_sampled=true selects the sampled FaSTest matcher.
   result<QueryResult> holder;
   const auto& result = QueryOk(
-      "CALL SAMPLED_PATTERN_MATCH("
-      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 8) "
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 8, true) "
       "RETURN *;",
       &holder);
 
   ExpectAliasColumns(result, {"a", "r", "b"});
   ExpectVertexEdgeVertexArrays(result);
   EXPECT_GT(result.length(), 0u);
+}
+
+TEST_F(PatternMatchingTest, ExactEarlyTerminationStopsAtSize) {
+  // is_sampled=false runs exact matching that stops after `size` matches.
+  // The full pattern has 5 directed knows edges; size=2 must yield exactly 2.
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 2, false) "
+      "RETURN *;",
+      &holder);
+  ExpectAliasColumns(result, {"a", "r", "b"});
+  ExpectVertexEdgeVertexArrays(result);
+  EXPECT_EQ(result.length(), 2u);
+}
+
+TEST_F(PatternMatchingTest, ExactEarlyTerminationLargerSizeReturnsAll) {
+  // A size larger than the match count returns all matches (5).
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 100, false) "
+      "RETURN *;",
+      &holder);
+  EXPECT_EQ(result.length(), 5u);
+}
+
+TEST_F(PatternMatchingTest, SizeBelowOneIsRejected) {
+  // size must be >= 1 in both modes; 0 (and negatives) error at bind time.
+  auto zero_sampled = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 0, true) "
+      "RETURN *;");
+  EXPECT_FALSE(zero_sampled.has_value());
+
+  auto zero_exact = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 0, false) "
+      "RETURN *;");
+  EXPECT_FALSE(zero_exact.has_value());
+
+  auto negative = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', -3, true) "
+      "RETURN *;");
+  EXPECT_FALSE(negative.has_value());
+
+  // size == 1 is the minimum valid value.
+  auto one = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'MATCH (a:Person)-[r:person_knows_person]->(b:Person)', 1, false) "
+      "RETURN *;");
+  EXPECT_TRUE(one.has_value()) << one.error().ToString();
 }
 
 TEST_F(PatternMatchingTest, LongInlineCypherRoundTripsThroughCall) {
@@ -889,7 +990,7 @@ TEST_F(PatternMatchingTest, LongInlineCypherRoundTripsThroughCall) {
 
   result<QueryResult> holder;
   const auto& result =
-      QueryOk("CALL PATTERN_MATCH('" + cypher + "', 100) RETURN *;", &holder);
+      QueryOk("CALL PATTERN_MATCH('" + cypher + "') RETURN *;", &holder);
 
   ExpectAliasColumns(result, {"a", "r1", "b", "r2", "c", "r3"});
   EXPECT_EQ(result.length(), 3u);
@@ -904,12 +1005,12 @@ TEST_F(PatternMatchingTest, PatternCypherFileFormAndInlineFormAgree) {
   ASSERT_FALSE(path.empty());
 
   result<QueryResult> file_holder;
-  const auto& file_result = QueryOk(
-      "CALL PATTERN_MATCH('" + path + "', 100) RETURN *;", &file_holder);
+  const auto& file_result =
+      QueryOk("CALL PATTERN_MATCH('" + path + "') RETURN *;", &file_holder);
 
   result<QueryResult> inline_holder;
-  const auto& inline_result = QueryOk(
-      "CALL PATTERN_MATCH('" + cypher + "', 100) RETURN *;", &inline_holder);
+  const auto& inline_result =
+      QueryOk("CALL PATTERN_MATCH('" + cypher + "') RETURN *;", &inline_holder);
 
   ExpectAliasColumns(file_result, {"a", "r1", "b", "r2", "c", "r3"});
   ExpectAliasColumns(inline_result, {"a", "r1", "b", "r2", "c", "r3"});
@@ -924,7 +1025,7 @@ TEST_F(PatternMatchingTest, PatternCypherSupportsWhereAndInlineProps) {
       "'MATCH (a:Person)-[r1:person_knows_person]->"
       "(b:Person {age: 30})-[r2:person_knows_person]->"
       "(c:Person)-[r3:person_knows_person]->(a:Person) "
-      "WHERE a.age >= 18', 1000) RETURN *;",
+      "WHERE a.age >= 18') RETURN *;",
       &holder);
 
   ExpectAliasColumns(result, {"a", "r1", "b", "r2", "c", "r3"});
@@ -935,10 +1036,9 @@ TEST_F(PatternMatchingTest, PatternCypherSupportsWhereAndInlineProps) {
 
 TEST_F(PatternMatchingTest, NativeOutputHasExpectedTriangleColumns) {
   result<QueryResult> holder;
-  const auto& result =
-      QueryOk("CALL PATTERN_MATCH('" + WritePattern(kTrianglePattern) +
-                  "', 1000) RETURN *;",
-              &holder);
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('" + WritePattern(kTrianglePattern) + "') RETURN *;",
+      &holder);
 
   ExpectAliasColumns(result, {"v0", "e0", "v1", "e1", "v2", "e2"});
   ASSERT_EQ(result.response().arrays_size(), 6);
@@ -968,12 +1068,11 @@ TEST_F(PatternMatchingTest, SampledPatternMatchSampleSizeFarExceedsEmbeddings) {
   EXPECT_GT(result->length(), 0u);
 }
 
-TEST_F(PatternMatchingTest, SampledPatternMatchSampleSizeZeroDoesNotCrash) {
+TEST_F(PatternMatchingTest, SampledPatternMatchSampleSizeZeroIsRejected) {
+  // A sample size of 0 is no longer a silently-empty sampled call; it is
+  // rejected cleanly at bind time (size must be >= 1).
   auto result = QuerySampledPatternJson(kSingleEdgePattern, 0);
-  ASSERT_TRUE(result.has_value()) << result.error().ToString();
-  ExpectAliasColumns(*result, {"v0", "e0", "v1"});
-  ExpectVertexEdgeVertexArrays(*result);
-  EXPECT_EQ(result->length(), 0u);
+  EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(PatternMatchingTest, GetVertexPropertyBasicReturnsRequestedProps) {
@@ -1125,6 +1224,163 @@ TEST_F(PatternMatchingTest, InitializeFromCheckpointRoundtrip) {
   auto match = QuerySampledPatternJson(kTrianglePattern, 1000);
   ASSERT_TRUE(match.has_value()) << match.error().ToString();
   EXPECT_GT(match->length(), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Outer (NeuG-pipeline) ORDER BY / LIMIT / property projection / aggregation
+// applied to PATTERN_MATCH output. These exercise that the table-function
+// output vertex/edge variables carry the same catalog/property metadata as a
+// MATCH-bound node, so `a.prop`, `ORDER BY a.prop`, and `count(a)` resolve.
+// ---------------------------------------------------------------------------
+
+TEST_F(PatternMatchingTest, OuterLimitOnlyReturnsRows) {
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN * LIMIT 2;",
+      &holder);
+  EXPECT_EQ(result.length(), 2u);
+}
+
+TEST_F(PatternMatchingTest, OuterVertexPropertyProjectsScalar) {
+  // a.age is a real Int32 property now; project it as a scalar column.
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN a.age AS age LIMIT 100;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  EXPECT_TRUE(result->response().arrays(0).has_int32_array() ||
+              result->response().arrays(0).has_int64_array());
+}
+
+TEST_F(PatternMatchingTest, OuterOrderByVertexPropertySortsResults) {
+  // Source vertices of the 5 directed edges have ages
+  // {Alice20, Bob30, Carol20, Alice20, Dave40}; ORDER BY a.age DESC LIMIT 2
+  // must surface Dave(40) then Bob(30).
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN a.name AS name, a.age AS age ORDER BY a.age DESC "
+      "LIMIT 2;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->length(), 2u);
+  const auto& names = result->response().arrays(0).string_array();
+  EXPECT_NE(names.values(0).find("Dave"), std::string::npos);
+  EXPECT_NE(names.values(1).find("Bob"), std::string::npos);
+}
+
+TEST_F(PatternMatchingTest, OuterCountAggregatesMatches) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN count(a) AS cnt;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->length(), 1u);
+  EXPECT_EQ(result->response().arrays(0).int64_array().values(0), 5);
+}
+
+TEST_F(PatternMatchingTest, OuterOrderByEdgePropertySorts) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN r.weight AS w ORDER BY r.weight DESC LIMIT 1;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->length(), 1u);
+  EXPECT_DOUBLE_EQ(result->response().arrays(0).double_array().values(0), 2.5);
+}
+
+TEST_F(PatternMatchingTest, OuterOrderByWholeVertexStillRejected) {
+  // Ordering by a whole VERTEX object remains unsupported by NeuG's binder
+  // (this is an explicit rule, not the previous crash) — must error cleanly.
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " RETURN * ORDER BY a LIMIT 2;");
+  EXPECT_FALSE(result.has_value());
+}
+
+// ---------------------------------------------------------------------------
+// YIELD support: CALL PATTERN_MATCH(...) YIELD <col> [AS <alias>] RETURN ...
+// The executor materializes every pattern column positionally, so YIELD only
+// controls which columns are visible (and under what name) to the trailing
+// RETURN; it must still read the correct underlying column.
+// ---------------------------------------------------------------------------
+
+TEST_F(PatternMatchingTest, YieldAllColumnsBehavesLikeNoYield) {
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD a, r, b RETURN *;",
+      &holder);
+  ExpectAliasColumns(result, {"a", "r", "b"});
+  EXPECT_EQ(result.length(), 5u);
+}
+
+TEST_F(PatternMatchingTest, YieldRenameWithAs) {
+  // YIELD a AS x renames the bound variable; x.age must resolve to a's age.
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD a AS x, b AS y "
+      "RETURN x.name AS src, y.name AS dst ORDER BY x.age DESC LIMIT 1;",
+      &holder);
+  ASSERT_EQ(result.length(), 1u);
+  // Highest-age source vertex is Dave(40), who knows Bob.
+  EXPECT_EQ(result.response().arrays(0).string_array().values(0), "Dave");
+  EXPECT_EQ(result.response().arrays(1).string_array().values(0), "Bob");
+}
+
+TEST_F(PatternMatchingTest, YieldSubsetSelectsCorrectColumn) {
+  // YIELD b must read the destination vertex, not the positionally-first one.
+  // Edge (3->1) Dave->Bob has the max source age; ordering by b.age puts the
+  // youngest destination first. Just assert the projected values are real
+  // destination names and the column count is 1.
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD b RETURN b.name AS dst ORDER BY b.name;",
+      &holder);
+  ASSERT_EQ(result.length(), 5u);
+  // Destinations across the 5 edges are {Bob, Carol, Alice, Dave, Bob}.
+  const auto& dst = result.response().arrays(0).string_array();
+  EXPECT_EQ(dst.values(0), "Alice");
+  EXPECT_EQ(dst.values(1), "Bob");
+  EXPECT_EQ(dst.values(2), "Bob");
+  EXPECT_EQ(dst.values(3), "Carol");
+  EXPECT_EQ(dst.values(4), "Dave");
+}
+
+TEST_F(PatternMatchingTest, YieldSubsetEdgeReadsEdgeColumn) {
+  // YIELD r (edge only) must read the edge column, not crash on a vertex.
+  result<QueryResult> holder;
+  const auto& result = QueryOk(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD r RETURN r.weight AS w ORDER BY r.weight DESC LIMIT 1;",
+      &holder);
+  ASSERT_EQ(result.length(), 1u);
+  EXPECT_DOUBLE_EQ(result.response().arrays(0).double_array().values(0), 2.5);
+}
+
+TEST_F(PatternMatchingTest, YieldHiddenVariableIsNotInScope) {
+  // A column not listed in YIELD is not visible to the trailing RETURN.
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD a RETURN b.name;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, YieldUnknownVariableIsRejected) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH('MATCH "
+      "(a:Person)-[r:person_knows_person]->(b:Person)')"
+      " YIELD nosuchvar RETURN nosuchvar;");
+  EXPECT_FALSE(result.has_value());
 }
 
 }  // namespace test

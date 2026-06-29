@@ -433,8 +433,15 @@ function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    # The bundled googletest (v1.13.0, fetched into _deps) must beat any
+    # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
+    # tests compile against newer gtest headers but link the bundled library,
+    # producing undefined MakeAndRegisterTestInfo symbols at link time.
+    target_include_directories(${TEST_NAME} BEFORE PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
         target_link_options(${TEST_NAME} PRIVATE --coverage)

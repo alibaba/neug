@@ -30,14 +30,12 @@ void Init() {
         neug::function::InitializeGraphFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
-    // Exact subgraph matching entry backed by DAF.
+    // Unified subgraph matching entry: PATTERN_MATCH(cypher) runs exact
+    // matching (DAF) over all matches; PATTERN_MATCH(cypher, size, is_sampled)
+    // runs sampled matching (FaSTest, is_sampled=true) or exact matching with
+    // early termination after `size` matches (is_sampled=false).
     neug::extension::ExtensionAPI::registerFunction<
         neug::function::PatternMatchFunction>(
-        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-
-    // Sampled subgraph matching entry backed by FaSTest.
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::function::SampledPatternMatchFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // Vertex property lookup for matched vertices.
@@ -63,13 +61,18 @@ void Init() {
             "data cache, "
             "CALL SAVE_SAMPLEDMATCH_CHECKPOINT(checkpoint_dir) - saves graph "
             "cache to files, "
-            "CALL PATTERN_MATCH(cypher_text_or_file, limit), "
-            "CALL SAMPLED_PATTERN_MATCH(cypher_text_or_file, sample_size), "
+            "CALL PATTERN_MATCH(cypher_text_or_file[, size, is_sampled]) - "
+            "exact "
+            "matching over all matches when size/is_sampled are omitted; with "
+            "size (>= 1) and is_sampled, runs sampled matching "
+            "(is_sampled=true) "
+            "or exact matching that early-terminates after size matches "
+            "(is_sampled=false), "
             "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, "
             "prop_names_json), "
             "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, "
             "prop_names_json). "
-            "Both match functions accept Cypher pattern text, Cypher pattern "
+            "PATTERN_MATCH accepts Cypher pattern text, Cypher pattern "
             "files, JSON text, or JSON pattern files."});
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE(

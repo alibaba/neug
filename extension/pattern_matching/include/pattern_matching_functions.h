@@ -44,6 +44,8 @@
 #include "rapidjson/filereadstream.h"
 
 #include "neug/compiler/binder/binder.h"
+#include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/neug_call_function.h"
@@ -703,6 +705,14 @@ struct PatternOutputColumn {
   PatternOutputKind kind = PatternOutputKind::kVertex;
   int index = -1;
   std::string alias;
+  // Label name of the pattern element (vertex label or edge type). Empty when
+  // the pattern is anonymous/unlabeled, in which case the output column falls
+  // back to a plain typed variable without property schema.
+  std::string label;
+  // For kEdge columns only: the pattern-vertex indices of the endpoints, so the
+  // binder can wire the RelExpression to the corresponding NodeExpressions.
+  int edge_src = -1;
+  int edge_dst = -1;
 
   common::DataTypeId type_id() const {
     return kind == PatternOutputKind::kVertex ? common::DataTypeId::kVertex
@@ -714,6 +724,7 @@ struct PatternOutputEdgeInfo {
   int src = -1;
   int dst = -1;
   std::string alias;
+  std::string label;
 };
 
 struct PatternOrderBySpec {
@@ -900,10 +911,19 @@ inline std::optional<PatternExecutionModifiers> ParsePatternExecutionModifiers(
 
 inline std::vector<PatternOutputColumn> BuildPatternOutputColumnsFromAliases(
     const std::vector<std::string>& vertex_aliases,
+    const std::vector<std::string>& vertex_labels,
     const std::vector<PatternOutputEdgeInfo>& edges) {
   std::vector<PatternOutputColumn> output;
   std::vector<bool> emitted_vertices(vertex_aliases.size(), false);
   std::unordered_map<std::string, int> seen_aliases;
+
+  auto vertex_label = [&](int vertex_idx) -> std::string {
+    if (vertex_idx < 0 ||
+        vertex_idx >= static_cast<int>(vertex_labels.size())) {
+      return "";
+    }
+    return vertex_labels[vertex_idx];
+  };
 
   auto emit_vertex = [&](int vertex_idx) {
     if (vertex_idx < 0 ||
@@ -914,24 +934,28 @@ inline std::vector<PatternOutputColumn> BuildPatternOutputColumnsFromAliases(
     std::string alias = vertex_aliases[vertex_idx].empty()
                             ? "v" + std::to_string(vertex_idx)
                             : vertex_aliases[vertex_idx];
-    output.push_back(
-        PatternOutputColumn{PatternOutputKind::kVertex, vertex_idx,
-                            MakeUniquePatternAlias(alias, &seen_aliases)});
+    PatternOutputColumn column{PatternOutputKind::kVertex, vertex_idx,
+                               MakeUniquePatternAlias(alias, &seen_aliases)};
+    column.label = vertex_label(vertex_idx);
+    output.push_back(std::move(column));
     emitted_vertices[vertex_idx] = true;
   };
 
-  auto emit_edge = [&](int edge_idx, const std::string& raw_alias) {
+  auto emit_edge = [&](int edge_idx, const PatternOutputEdgeInfo& edge) {
     std::string alias =
-        raw_alias.empty() ? "e" + std::to_string(edge_idx) : raw_alias;
-    output.push_back(
-        PatternOutputColumn{PatternOutputKind::kEdge, edge_idx,
-                            MakeUniquePatternAlias(alias, &seen_aliases)});
+        edge.alias.empty() ? "e" + std::to_string(edge_idx) : edge.alias;
+    PatternOutputColumn column{PatternOutputKind::kEdge, edge_idx,
+                               MakeUniquePatternAlias(alias, &seen_aliases)};
+    column.label = edge.label;
+    column.edge_src = edge.src;
+    column.edge_dst = edge.dst;
+    output.push_back(std::move(column));
   };
 
   for (int edge_idx = 0; edge_idx < static_cast<int>(edges.size());
        ++edge_idx) {
     emit_vertex(edges[edge_idx].src);
-    emit_edge(edge_idx, edges[edge_idx].alias);
+    emit_edge(edge_idx, edges[edge_idx]);
     emit_vertex(edges[edge_idx].dst);
   }
   for (int vertex_idx = 0; vertex_idx < static_cast<int>(vertex_aliases.size());
@@ -967,6 +991,7 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
   }
 
   std::vector<std::string> vertex_aliases(doc["vertices"].Size());
+  std::vector<std::string> vertex_labels(doc["vertices"].Size());
   for (const auto& vertex : doc["vertices"].GetArray()) {
     int id = -1;
     if (!ReadJsonId(vertex, "id", &id) || id < 0 ||
@@ -977,6 +1002,9 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
       return std::nullopt;
     }
     vertex_aliases[id] = ReadPatternAlias(vertex, "v", id);
+    if (vertex.HasMember("label") && vertex["label"].IsString()) {
+      vertex_labels[id] = vertex["label"].GetString();
+    }
   }
 
   std::vector<PatternOutputEdgeInfo> edges;
@@ -992,10 +1020,16 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
                  << "] Pattern edge has invalid source/target";
       return std::nullopt;
     }
-    edges.push_back(PatternOutputEdgeInfo{
-        src, dst, ReadPatternAlias(edge, "e", static_cast<int>(edges.size()))});
+    PatternOutputEdgeInfo edge_info{
+        src, dst, ReadPatternAlias(edge, "e", static_cast<int>(edges.size())),
+        ""};
+    if (edge.HasMember("label") && edge["label"].IsString()) {
+      edge_info.label = edge["label"].GetString();
+    }
+    edges.push_back(std::move(edge_info));
   }
-  return BuildPatternOutputColumnsFromAliases(vertex_aliases, edges);
+  return BuildPatternOutputColumnsFromAliases(vertex_aliases, vertex_labels,
+                                              edges);
 }
 
 // ============================================================================
@@ -1344,6 +1378,7 @@ class SampledSubgraphMatcher {
     vertex_required_props_.resize(v);
     edge_required_props_.resize(e);
     vertex_aliases_.assign(v, "");
+    vertex_labels_.assign(v, "");
     edge_aliases_.clear();
     edge_aliases_.reserve(e);
     output_columns_.clear();
@@ -1370,6 +1405,7 @@ class SampledSubgraphMatcher {
       }
       pattern->vertex_label[id] = schema.get_vertex_label_id(label);
       vertex_aliases_[id] = ReadPatternAlias(vertex, "v", id);
+      vertex_labels_[id] = label;
 
       // Parse vertex property constraints
       if (vertex.HasMember("constraints") && vertex["constraints"].IsArray()) {
@@ -1441,7 +1477,8 @@ class SampledSubgraphMatcher {
 
       pattern->edge_to[edge_idx] = dst;
       pattern->edge_list[edge_idx] = {src, dst};
-      edge_aliases_.push_back(PatternOutputEdgeInfo{src, dst, edge_alias});
+      edge_aliases_.push_back(
+          PatternOutputEdgeInfo{src, dst, edge_alias, edge_type});
 
       pattern->max_out_degree = std::max(
           pattern->max_out_degree, (int) pattern->out_adj_list[src].size());
@@ -1471,8 +1508,8 @@ class SampledSubgraphMatcher {
       edge_idx++;
     }
 
-    output_columns_ =
-        BuildPatternOutputColumnsFromAliases(vertex_aliases_, edge_aliases_);
+    output_columns_ = BuildPatternOutputColumnsFromAliases(
+        vertex_aliases_, vertex_labels_, edge_aliases_);
     auto modifiers = ParsePatternExecutionModifiers(
         doc, vertex_aliases_, edge_aliases_, "SAMPLED_PATTERN_MATCH");
     if (!modifiers.has_value()) {
@@ -1503,6 +1540,7 @@ class SampledSubgraphMatcher {
   // pattern_edge_idx -> list of property names
   std::vector<std::vector<std::string>> edge_required_props_;
   std::vector<std::string> vertex_aliases_;
+  std::vector<std::string> vertex_labels_;
   std::vector<PatternOutputEdgeInfo> edge_aliases_;
   std::vector<PatternOutputColumn> output_columns_;
   PatternExecutionModifiers modifiers_;
@@ -2391,17 +2429,19 @@ inline std::optional<ExactPatternSpec> ParseExactPatternJsonFile(
   }
 
   std::vector<std::string> vertex_aliases(spec.vertices.size());
+  std::vector<std::string> vertex_labels(spec.vertices.size());
   for (const auto& vertex : spec.vertices) {
     vertex_aliases[vertex.id] = vertex.alias;
+    vertex_labels[vertex.id] = vertex.label_name;
   }
   std::vector<PatternOutputEdgeInfo> edge_aliases;
   edge_aliases.reserve(spec.edges.size());
   for (const auto& edge : spec.edges) {
     edge_aliases.push_back(
-        PatternOutputEdgeInfo{edge.src, edge.dst, edge.alias});
+        PatternOutputEdgeInfo{edge.src, edge.dst, edge.alias, edge.label_name});
   }
-  spec.output_columns =
-      BuildPatternOutputColumnsFromAliases(vertex_aliases, edge_aliases);
+  spec.output_columns = BuildPatternOutputColumnsFromAliases(
+      vertex_aliases, vertex_labels, edge_aliases);
   auto modifiers = ParsePatternExecutionModifiers(
       doc, vertex_aliases, edge_aliases, "PATTERN_MATCH");
   if (!modifiers.has_value()) {
@@ -3275,11 +3315,116 @@ inline std::unique_ptr<TableFuncBindData> BindPatternNativeOutputColumns(
                            "] Pattern produced no output columns.");
   }
 
+  // Bind each output column as a proper NodeExpression / RelExpression (the
+  // same kind a `MATCH (a:Label)` would produce) so the kVertex/kEdge variables
+  // carry catalog entries and a property schema. Without this metadata the
+  // binder treats them as bare struct-typed variables, and resolving `a.prop`
+  // (e.g. for an outer ORDER BY / WHERE / projection) dereferences a null
+  // StructTypeInfo and crashes. With it, `a.age`, `ORDER BY a.age`, `count(a)`
+  // and friends resolve through the populated property maps. Pattern elements
+  // without a known label fall back to a plain typed variable.
+  auto* binder = input->binder;
+
+  // Resolve the YIELD clause (if any) against the pattern output columns,
+  // mirroring how the GDS table function handles YIELD: each yielded name must
+  // match a pattern output column (by its natural alias), `AS` renames the
+  // scope variable, and a strict subset is allowed.
+  //
+  // The executor always materializes every pattern column, positionally, in
+  // pattern order. So the bind data must keep ALL columns in that same order to
+  // stay aligned with the executor — YIELD therefore only controls (a) which
+  // columns are visible in the binder scope (and thus to the trailing RETURN)
+  // and (b) the name each visible column is bound under. Selecting a subset or
+  // renaming does not change the physical columns the executor produces; it
+  // only changes which ones the surrounding query can reference.
+  const auto& yieldVariables = input->yieldVariables;
+  const bool hasYield = !yieldVariables.empty();
+  // Map: pattern output-column alias -> scope name to bind it under. A column
+  // not present in the map is hidden from the surrounding query.
+  std::unordered_map<std::string, std::string> yield_scope_names;
+  if (hasYield) {
+    for (const auto& yield_var : yieldVariables) {
+      bool found = false;
+      for (const auto& output_column : *output_columns) {
+        if (output_column.alias == yield_var.name) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        THROW_BINDER_EXCEPTION(
+            std::string("[") + log_tag + "] YIELD variable '" + yield_var.name +
+            "' is not an output column of this pattern. Available columns are "
+            "the pattern's vertex/relationship aliases.");
+      }
+      yield_scope_names[yield_var.name] =
+          yield_var.hasAlias() ? yield_var.alias : yield_var.name;
+    }
+  }
+
+  // Returns the scope name a column should be bound under, or std::nullopt when
+  // the column is hidden by a YIELD that does not list it.
+  auto scope_name_for =
+      [&](const PatternOutputColumn& col) -> std::optional<std::string> {
+    if (!hasYield) {
+      return col.alias;
+    }
+    auto it = yield_scope_names.find(col.alias);
+    if (it == yield_scope_names.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  };
+
+  // Pre-create a NodeExpression for every labeled vertex (keyed by pattern
+  // vertex index), because an edge column needs its endpoint nodes even when
+  // those vertices are hidden by YIELD.
+  std::unordered_map<int, std::shared_ptr<binder::NodeExpression>>
+      nodes_by_vertex_index;
+  for (const auto& output_column : *output_columns) {
+    if (output_column.kind != PatternOutputKind::kVertex ||
+        output_column.label.empty()) {
+      continue;
+    }
+    auto entries = binder->bindNodeTableEntries({output_column.label});
+    nodes_by_vertex_index[output_column.index] =
+        binder->createQueryNode(output_column.alias, entries);
+  }
+
+  // Emit ALL columns (pattern order) into the bind data so the schema stays
+  // aligned with the executor; only add the YIELD-visible ones to scope.
   binder::expression_vector columns;
   columns.reserve(output_columns->size());
   for (const auto& output_column : *output_columns) {
-    columns.push_back(input->binder->createVariable(output_column.alias,
-                                                    output_column.type_id()));
+    auto scope_name = scope_name_for(output_column);
+    std::shared_ptr<binder::Expression> expr;
+    if (output_column.kind == PatternOutputKind::kVertex) {
+      auto it = nodes_by_vertex_index.find(output_column.index);
+      if (it != nodes_by_vertex_index.end()) {
+        expr = it->second;
+      }
+    } else if (!output_column.label.empty()) {
+      auto src_it = nodes_by_vertex_index.find(output_column.edge_src);
+      auto dst_it = nodes_by_vertex_index.find(output_column.edge_dst);
+      if (src_it != nodes_by_vertex_index.end() &&
+          dst_it != nodes_by_vertex_index.end()) {
+        auto entries = binder->bindRelTableEntries({output_column.label});
+        expr = binder->createNonRecursiveQueryRel(
+            output_column.alias, entries, src_it->second, dst_it->second,
+            binder::RelDirectionType::SINGLE);
+      }
+    }
+    if (!expr) {
+      // Fallback: anonymous/unlabeled element — keep a bare typed variable.
+      // Use the invisible variant so it is only scoped when YIELD makes it
+      // visible (createVariable would unconditionally add it to scope).
+      expr = binder->createInvisibleVariable(output_column.alias,
+                                             output_column.type_id());
+    }
+    columns.push_back(expr);
+    if (scope_name) {
+      binder->addToScope(*scope_name, expr);
+    }
   }
   return std::make_unique<TableFuncBindData>(std::move(columns), 0,
                                              input->params);
@@ -3389,62 +3534,15 @@ inline execution::Context ExecutePatternMatchPipeline(
                                         valid_matches);
 }
 
-struct PatternMatchFunction {
-  static constexpr const char* name = "PATTERN_MATCH";
-
-  static function_set getFunctionSet() {
-    function_set functionSet;
-    auto func = std::make_unique<NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                              common::DataTypeId::kInt64});
-
-    auto* table_func = static_cast<TableFunction*>(func.get());
-    table_func->bindFunc = [](main::ClientContext* /*clientContext*/,
-                              const TableFuncBindInput* input)
-        -> std::unique_ptr<TableFuncBindData> {
-      return BindPatternNativeOutputColumns(input, "PATTERN_MATCH");
-    };
-
-    func->bindFunc = [](const Schema& schema,
-                        const execution::ContextMeta& ctx_meta,
-                        const ::physical::PhysicalPlan& plan,
-                        int op_idx) -> std::unique_ptr<CallFuncInputBase> {
-      (void) schema;
-      (void) ctx_meta;
-      auto& procedure = plan.plan(op_idx).opr().procedure_call();
-      std::string patternArg;
-      long long limit = 1000000;
-      if (procedure.query().arguments_size() >= 1 &&
-          procedure.query().arguments(0).has_const_()) {
-        patternArg = procedure.query().arguments(0).const_().str();
-      }
-      if (procedure.query().arguments_size() >= 2 &&
-          procedure.query().arguments(1).has_const_()) {
-        try {
-          limit = procedure.query().arguments(1).const_().i64();
-        } catch (...) { limit = 1000000; }
-      }
-      std::string json_file =
-          NormalizePatternInputToJsonFile(patternArg, "PATTERN_MATCH");
-      return std::make_unique<PatternMatchInput>(std::move(json_file), limit);
-    };
-
-    func->execFunc = [](const CallFuncInputBase& input,
-                        IStorageInterface& graph) -> execution::Context {
-      return ExecutePatternMatchPipeline(
-          static_cast<const PatternMatchInput&>(input), graph);
-    };
-
-    functionSet.push_back(std::move(func));
-    return functionSet;
-  }
-};
+// PatternMatchFunction is the single unified CALL PATTERN_MATCH(...) entry; it
+// is defined after the sampled-match helpers below because its sampled overload
+// reuses ExecuteSampledMatchPipeline / SampledMatchInput.
 
 // ============================================================================
-// SampledPatternMatchFunction: CALL SAMPLED_PATTERN_MATCH(pattern, sample_size)
-// runs sampled subgraph matching against the cached graph. The first argument
-// accepts the same Cypher/JSON text-or-file forms as PATTERN_MATCH and is
-// normalized to a JSON file before FaSTest reads it.
+// Sampled subgraph matching helpers, reused by the sampled overload of the
+// unified PATTERN_MATCH. The first argument accepts the same Cypher/JSON
+// text-or-file forms as the exact path and is normalized to a JSON file before
+// FaSTest reads it.
 // ============================================================================
 
 struct SampledMatchInput : public CallFuncInputBase {
@@ -3520,76 +3618,151 @@ inline execution::Context ExecuteSampledMatchPipeline(
                                           sampleCount);
 }
 
-struct SampledPatternMatchFunction {
-  static constexpr const char* name = "SAMPLED_PATTERN_MATCH";
+// ============================================================================
+// PatternMatchFunction: the single unified subgraph-matching entry point.
+//
+//   CALL PATTERN_MATCH(cypher_or_file)
+//       -> exact matching (DAF), enumerates ALL matches.
+//
+//   CALL PATTERN_MATCH(cypher_or_file, size, is_sampled)
+//       size       : positive integer (>= 1).
+//       is_sampled : boolean flag selecting the algorithm.
+//         * is_sampled = false  -> EXACT matching (DAF) that early-terminates
+//                                  after the first `size` matches are found.
+//         * is_sampled = true   -> SAMPLED matching (FaSTest) with sample
+//                                  size = `size`.
+//
+// The first argument accepts inline Cypher pattern text, a Cypher pattern file,
+// inline JSON, or a JSON pattern file in either mode.
+// ============================================================================
+
+struct PatternMatchFunction {
+  static constexpr const char* name = "PATTERN_MATCH";
 
   static function_set getFunctionSet() {
     function_set functionSet;
 
-    auto func = std::make_unique<NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                              common::DataTypeId::kInt64});
+    // ---- Overload 1: PATTERN_MATCH(cypher) -> exact, enumerate all ----
+    {
+      auto func = std::make_unique<NeugCallFunction>(
+          name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar});
 
-    auto* table_func = static_cast<TableFunction*>(func.get());
-    table_func->bindFunc = [](main::ClientContext* /*clientContext*/,
-                              const TableFuncBindInput* input)
-        -> std::unique_ptr<TableFuncBindData> {
-      return BindPatternNativeOutputColumns(input, "SAMPLED_PATTERN_MATCH");
-    };
+      auto* table_func = static_cast<TableFunction*>(func.get());
+      table_func->bindFunc = [](main::ClientContext* /*clientContext*/,
+                                const TableFuncBindInput* input)
+          -> std::unique_ptr<TableFuncBindData> {
+        return BindPatternNativeOutputColumns(input, "PATTERN_MATCH");
+      };
 
-    func->bindFunc = [](const Schema& schema,
-                        const execution::ContextMeta& ctx_meta,
-                        const ::physical::PhysicalPlan& plan,
-                        int op_idx) -> std::unique_ptr<CallFuncInputBase> {
-      auto& procedure = plan.plan(op_idx).opr().procedure_call();
-      std::string patternArg;
-      long long sampleSize = 1000000;
-
-      if (procedure.query().arguments_size() >= 2) {
-        if (procedure.query().arguments(0).has_const_()) {
-          const auto& arg = procedure.query().arguments(0);
-          patternArg = arg.const_().str();
+      func->bindFunc = [](const Schema& schema,
+                          const execution::ContextMeta& ctx_meta,
+                          const ::physical::PhysicalPlan& plan,
+                          int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+        (void) schema;
+        (void) ctx_meta;
+        auto& procedure = plan.plan(op_idx).opr().procedure_call();
+        std::string patternArg;
+        if (procedure.query().arguments_size() >= 1 &&
+            procedure.query().arguments(0).has_const_()) {
+          patternArg = procedure.query().arguments(0).const_().str();
         }
-        if (procedure.query().arguments(1).has_const_()) {
-          const auto& arg = procedure.query().arguments(1);
-          try {
-            sampleSize = arg.const_().i64();
-            if (sampleSize < 0) {
-              LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Negative sample size "
-                           << sampleSize << ", using 0";
-              sampleSize = 0;
-            }
-            LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Sample size: "
-                         << sampleSize;
-          } catch (const std::invalid_argument&) {
-            sampleSize = 1000000;
-            LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Invalid sample size: "
-                         << arg.const_().str()
-                         << ", using default: " << sampleSize;
-          } catch (const std::out_of_range&) {
-            sampleSize = 1000000;
-            LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Sample size out of range: "
-                         << arg.const_().str()
-                         << ", using default: " << sampleSize;
+        std::string json_file =
+            NormalizePatternInputToJsonFile(patternArg, "PATTERN_MATCH");
+        // No positional limit -> enumerate all matches (limit 0 == unbounded);
+        // any in-Cypher LIMIT is still applied by the exact modifier pass.
+        return std::make_unique<PatternMatchInput>(std::move(json_file), 0);
+      };
+
+      func->execFunc = [](const CallFuncInputBase& input,
+                          IStorageInterface& graph) -> execution::Context {
+        return ExecutePatternMatchPipeline(
+            static_cast<const PatternMatchInput&>(input), graph);
+      };
+
+      functionSet.push_back(std::move(func));
+    }
+
+    // ---- Overload 2: PATTERN_MATCH(cypher, size>=1, is_sampled) ----
+    //   is_sampled = false -> exact with early termination after `size` matches
+    //   is_sampled = true  -> sampled (FaSTest) with sample size `size`
+    {
+      auto func = std::make_unique<NeugCallFunction>(
+          name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
+                                                common::DataTypeId::kInt64,
+                                                common::DataTypeId::kBoolean});
+
+      auto* table_func = static_cast<TableFunction*>(func.get());
+      table_func->bindFunc = [](main::ClientContext* /*clientContext*/,
+                                const TableFuncBindInput* input)
+          -> std::unique_ptr<TableFuncBindData> {
+        // `size` must be a positive integer (>= 1) in both modes: it is the
+        // sample size when sampled, and the early-termination bound when exact.
+        if (input != nullptr && input->params.size() >= 2) {
+          int64_t size = input->getLiteralVal<int64_t>(1);
+          if (size < 1) {
+            THROW_BINDER_EXCEPTION(
+                "[PATTERN_MATCH] size must be >= 1, got " +
+                std::to_string(size) +
+                ". Call PATTERN_MATCH(cypher) with no size argument to "
+                "enumerate all exact matches.");
           }
         }
-      }
+        return BindPatternNativeOutputColumns(input, "PATTERN_MATCH");
+      };
 
-      std::string patternPath =
-          NormalizePatternInputToJsonFile(patternArg, "SAMPLED_PATTERN_MATCH");
-      LOG(INFO) << "[SAMPLED_PATTERN_MATCH] Bind: pattern JSON file = "
-                << patternPath;
-      LOG(INFO) << "[SAMPLED_PATTERN_MATCH] Bind: sample size = " << sampleSize;
-      return std::make_unique<SampledMatchInput>(patternPath, sampleSize);
-    };
+      func->bindFunc = [](const Schema& schema,
+                          const execution::ContextMeta& ctx_meta,
+                          const ::physical::PhysicalPlan& plan,
+                          int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+        (void) schema;
+        (void) ctx_meta;
+        auto& procedure = plan.plan(op_idx).opr().procedure_call();
+        std::string patternArg;
+        long long size = 1;
+        bool isSampled = false;
+        if (procedure.query().arguments_size() >= 1 &&
+            procedure.query().arguments(0).has_const_()) {
+          patternArg = procedure.query().arguments(0).const_().str();
+        }
+        if (procedure.query().arguments_size() >= 2 &&
+            procedure.query().arguments(1).has_const_()) {
+          size = procedure.query().arguments(1).const_().i64();
+        }
+        if (procedure.query().arguments_size() >= 3 &&
+            procedure.query().arguments(2).has_const_()) {
+          isSampled = procedure.query().arguments(2).const_().boolean();
+        }
+        // Defensive clamp; the bind-time check above already rejects size < 1.
+        if (size < 1) {
+          size = 1;
+        }
+        std::string patternPath =
+            NormalizePatternInputToJsonFile(patternArg, "PATTERN_MATCH");
+        if (isSampled) {
+          // FaSTest sampler; `size` is the sample size.
+          return std::make_unique<SampledMatchInput>(patternPath, size);
+        }
+        // Exact (DAF) with early termination: `size` caps enumeration so the
+        // matcher stops once `size` matches have been found.
+        return std::make_unique<PatternMatchInput>(std::move(patternPath),
+                                                   size);
+      };
 
-    func->execFunc = [](const CallFuncInputBase& input,
-                        IStorageInterface& graph) -> execution::Context {
-      return ExecuteSampledMatchPipeline(
-          static_cast<const SampledMatchInput&>(input), graph);
-    };
+      func->execFunc = [](const CallFuncInputBase& input,
+                          IStorageInterface& graph) -> execution::Context {
+        // Dispatch on the bound input flavour: SampledMatchInput -> sampler,
+        // PatternMatchInput -> exact (early-terminating) matcher.
+        if (const auto* sampled =
+                dynamic_cast<const SampledMatchInput*>(&input)) {
+          return ExecuteSampledMatchPipeline(*sampled, graph);
+        }
+        return ExecutePatternMatchPipeline(
+            static_cast<const PatternMatchInput&>(input), graph);
+      };
 
-    functionSet.push_back(std::move(func));
+      functionSet.push_back(std::move(func));
+    }
+
     return functionSet;
   }
 };
