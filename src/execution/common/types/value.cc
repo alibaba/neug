@@ -730,9 +730,16 @@ Value Value::FromJson(const rapidjson::Value& json_value,
   case DataTypeId::kArray: {
     std::vector<execution::Value> values;
     if (!json_value.IsArray()) {
-      return execution::Value::ARRAY(type, std::move(values));
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected an array for ARRAY type");
     }
     const auto arr = json_value.GetArray();
+    const auto expected_size = ArrayType::GetNumElements(type);
+    if (arr.Size() != expected_size) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "ARRAY value length mismatch: expected " +
+          std::to_string(expected_size) + ", got " +
+          std::to_string(arr.Size()));
+    }
     auto child_type = ArrayType::GetChildType(type);
     for (auto item = arr.begin(); item != arr.end(); ++item) {
       values.emplace_back(FromJson(*item, child_type));

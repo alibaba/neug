@@ -48,7 +48,7 @@ const std::vector<execution::Value>& GetArrayChildren(
 
 ArrayColumn::ArrayColumn(const DataType& array_type)
     : array_type_(array_type),
-      array_size_(static_cast<uint32_t>(ArrayType::GetNumElements(array_type))),
+      array_size_(ArrayType::GetNumElements(array_type)),
       size_(0) {
   auto child_type = ArrayType::GetChildType(array_type);
   child_column_ = CreateColumn(child_type);
@@ -180,7 +180,7 @@ void ArrayColumn::set_any(size_t index, const execution::Value& value,
         " elements, got " + std::to_string(children.size()));
   }
   size_t base = index * array_size_;
-  for (uint32_t j = 0; j < array_size_; ++j) {
+  for (size_t j = 0; j < array_size_; ++j) {
     child_column_->set_any(base + j, children[j], insert_safe);
   }
 }
@@ -195,7 +195,7 @@ execution::Value ArrayColumn::get_any(size_t index) const {
   std::vector<execution::Value> values;
   values.reserve(array_size_);
   size_t base = index * array_size_;
-  for (uint32_t j = 0; j < array_size_; ++j) {
+  for (size_t j = 0; j < array_size_; ++j) {
     values.emplace_back(child_column_->get_any(base + j));
   }
   return execution::Value::ARRAY(array_type_, std::move(values));
@@ -207,7 +207,7 @@ void ArrayColumn::ingest(uint32_t index, OutArchive& arc) {
                         " out of range (size=" + std::to_string(size_) + ")");
   }
   size_t base = index * array_size_;
-  for (uint32_t j = 0; j < array_size_; ++j) {
+  for (size_t j = 0; j < array_size_; ++j) {
     child_column_->ingest(base + j, arc);
   }
 }

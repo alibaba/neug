@@ -74,7 +74,7 @@ class ArrayColumn : public ColumnBase {
   ModuleDescriptor dumpSelfDescriptor() const;
 
   DataType array_type_;
-  uint32_t array_size_;
+  uint64_t array_size_;
   size_t size_;
   std::unique_ptr<ColumnBase> child_column_;
 };

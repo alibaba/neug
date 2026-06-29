@@ -592,7 +592,7 @@ struct convert<neug::DataType> {
         LOG(ERROR) << "Failed to parse array component_type";
         return false;
       }
-      uint32_t max_length = array_node["max_length"].as<uint32_t>();
+      uint64_t max_length = array_node["max_length"].as<uint64_t>();
       property_type = neug::DataType::Array(child_type, max_length);
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
@@ -623,7 +623,7 @@ struct convert<neug::DataType> {
       node["temporal"]["date"] = "";
     } else if (id == neug::DataTypeId::kArray) {
       auto child_type = neug::ArrayType::GetChildType(type);
-      uint32_t array_size = neug::ArrayType::GetNumElements(type);
+      uint64_t array_size = neug::ArrayType::GetNumElements(type);
       node["array"]["component_type"] = encode(child_type);
       node["array"]["max_length"] = array_size;
     } else {

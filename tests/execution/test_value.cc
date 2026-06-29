@@ -357,6 +357,18 @@ TEST_F(ValueTest, JsonDeserialization) {
   // Test null
   Value null_from_json = Value::FromJson("null", DataType::INT32);
   EXPECT_TRUE(null_from_json.IsNull());
+
+  auto array_type = DataType::Array(DataType::INT32, 2);
+  Value array_from_json = Value::FromJson("[1, 2]", array_type);
+  EXPECT_EQ(array_from_json.type(), array_type);
+  const auto& array_children = ArrayValue::GetChildren(array_from_json);
+  ASSERT_EQ(array_children.size(), 2);
+  EXPECT_EQ(array_children[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(array_children[1].GetValue<int32_t>(), 2);
+
+  EXPECT_THROW(Value::FromJson("42", array_type), std::exception);
+  EXPECT_THROW(Value::FromJson("[1]", array_type), std::exception);
+  EXPECT_THROW(Value::FromJson("[1, 2, 3]", array_type), std::exception);
 }
 
 TEST_F(ValueTest, CopyAndMoveSemantics) {

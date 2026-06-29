@@ -212,7 +212,11 @@ class TypedColumn<EmptyType> : public ColumnBase {
             MemoryLevel level) override {}
 
   void Dump(Checkpoint&, CheckpointManifest& meta,
-            const std::string& key) override {}
+            const std::string& key) override {
+    ModuleDescriptor desc;
+    desc.module_type = ModuleTypeName();
+    meta.set_module(key, std::move(desc));
+  }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
   void resize(size_t size, const execution::Value& default_value) override {}
