@@ -70,14 +70,14 @@ std::unique_ptr<function::CallFuncInputBase> PageRankFunction::bind(
   input->node_alias = -1;
   input->pr_alias = -1;
   const auto& meta_data = plan.plan(op_idx);
-  for(int i = 0; i < meta_data.meta_data_size(); i++) {
+  for (int i = 0; i < meta_data.meta_data_size(); i++) {
     const auto& meta = meta_data.meta_data(i);
     auto type = parse_from_ir_data_type(meta.type());
-    if(type.id() == common::DataTypeId::kVertex) {
+    if (type.id() == common::DataTypeId::kVertex) {
       input->node_alias = meta.alias();
-    } else if(type.id() == common::DataTypeId::kDouble) {
+    } else if (type.id() == common::DataTypeId::kDouble) {
       input->pr_alias = meta.alias();
-    } 
+    }
   }
   input->damping_factor =
       get_option_value<double>(options, "damping_factor", 0.85);

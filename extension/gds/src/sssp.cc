@@ -83,10 +83,10 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
   input->node_alias = -1;
   input->distance_alias = -1;
   input->path_alias = -1;
-  for(int i = 0; i < meta_data.meta_data_size(); i++) {
+  for (int i = 0; i < meta_data.meta_data_size(); i++) {
     const auto& meta = meta_data.meta_data(i);
     auto type = parse_from_ir_data_type(meta.type());
-    if(type.id() == common::DataTypeId::kVertex) {
+    if (type.id() == common::DataTypeId::kVertex) {
       input->node_alias = meta.alias();
     } else if (type.id() == common::DataTypeId::kDouble) {
       input->distance_alias = meta.alias();
