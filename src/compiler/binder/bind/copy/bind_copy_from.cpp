@@ -57,7 +57,7 @@ namespace binder {
 DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
                              const std::string& primaryKeyName,
                              const expression_vector& columns,
-                             ExpressionBinder& binder) {
+                             ExpressionBinder& binder, bool temporary) {
   nodeTableEntry =
       std::make_unique<NodeTableCatalogEntry>(vertexLabelName, primaryKeyName);
   bool primaryKeyFound = false;
@@ -85,7 +85,8 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
   createTableInfo =
       BoundCreateTableInfo(CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
                            ConflictAction::ON_CONFLICT_THROW,
-                           std::move(boundExtra), false /* isInternal */);
+                           std::move(boundExtra), false /* isInternal */,
+                           false /* hasParent */, temporary);
 }
 
 std::string DDLVertexInfo::getVertexLabelName() {
@@ -105,7 +106,7 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
                          const std::string& dstLabelName, table_id_t srcLabelID,
                          table_id_t dstLabelID,
                          const expression_vector& columns,
-                         ExpressionBinder& binder)
+                         ExpressionBinder& binder, bool temporary)
     : srcLabelName_{srcLabelName}, dstLabelName_{dstLabelName} {
   if (columns.size() < 2u) {
     THROW_BINDER_EXCEPTION(stringFormat(
@@ -133,7 +134,8 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
   createTableInfo =
       BoundCreateTableInfo(CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
                            ConflictAction::ON_CONFLICT_THROW,
-                           std::move(boundExtra), false /* isInternal */);
+                           std::move(boundExtra), false /* isInternal */,
+                           false /* hasParent */, temporary);
 
   relTableEntry = std::make_unique<GRelTableCatalogEntry>(
       edgeLabelName, RelMultiplicity::MANY, RelMultiplicity::MANY,
@@ -193,6 +195,18 @@ static bool autoDetectEnabled(
 std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     const Statement& statement) {
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
+
+  // --- COPY TEMP: always infer schema, create temporary table ---
+  if (copyStatement.isTemporary()) {
+    auto boundOpts = bindParsingOptions(copyStatement.getParsingOptions());
+    auto fromIt = boundOpts.find(CopyConstants::FROM_OPTION_NAME);
+    auto toIt = boundOpts.find(CopyConstants::TO_OPTION_NAME);
+    if (fromIt != boundOpts.end() && toIt != boundOpts.end()) {
+      return bindCopyRelFromNoSchema(statement, boundOpts, /*temporary=*/true);
+    }
+    return bindCopyNodeFromNoSchema(statement, boundOpts, /*temporary=*/true);
+  }
+
   auto tableName = copyStatement.getTableName();
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
@@ -376,7 +390,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions) {
+    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
   (void) boundCopyOptions;
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   auto boundSource = bindScanSource(copyStatement.getSource(),
@@ -393,7 +407,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
   }
   const auto& primaryKey = columns[0]->rawName();
   auto ddlTableInfo = std::make_unique<DDLVertexInfo>(
-      labelName, primaryKey, columns, expressionBinder);
+      labelName, primaryKey, columns, expressionBinder, temporary);
   auto boundCopyFromInfo =
       BoundCopyFromInfo(std::move(boundSource), std::move(offset),
                         std::move(columns), std::move(evaluateTypes),
@@ -403,7 +417,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions) {
+    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
   auto& copyStatement = statement.constCast<CopyFrom>();
   if (copyStatement.byColumn()) {
     THROW_BINDER_EXCEPTION(stringFormat(
@@ -413,7 +427,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
   auto toIt = boundCopyOptions.find(CopyConstants::TO_OPTION_NAME);
   if (fromIt == boundCopyOptions.end() || toIt == boundCopyOptions.end()) {
     THROW_BINDER_EXCEPTION(
-        "COPY into a new edge type requires FROM and TO options naming "
+        "COPY into an edge type requires FROM and TO options naming "
         "existing vertex types.");
   }
   auto fromLabel = fromIt->second.getValue<std::string>();
@@ -459,13 +473,16 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
   const auto& edgeLabel = copyStatement.getTableName();
   auto extraTableInfo =
       std::make_unique<DDLEdgeInfo>(edgeLabel, fromLabel, toLabel, srcTableID,
-                                    dstTableID, columns, expressionBinder);
+                                    dstTableID, columns, expressionBinder,
+                                    temporary);
   auto boundCopyFromInfo =
       BoundCopyFromInfo(std::move(boundSource), std::move(offset),
                         std::move(columns), std::move(evaluateTypes),
                         std::move(extraCopyRelInfo), std::move(extraTableInfo));
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
+
+
 
 static bool skipPropertyInFile(const PropertyDefinition& property) {
   if (property.getName() == InternalKeyword::ID) {

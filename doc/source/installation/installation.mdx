@@ -1,29 +1,39 @@
- # Installation
+# Installation
 
-NeuG runs on modern Linux and macOS systems with support for both x86 and ARM architectures. For Windows users, we recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install). 
+NeuG runs on modern Linux and macOS systems with support for both x86 and ARM architectures. For Windows users, we recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
 
-## Python Setup Details
+NeuG supports multiple language bindings. Choose your preferred language below to get started.
+
+import { Tabs } from 'nextra/components'
+
+<Tabs items={['Python', 'Node.js', 'C++']}>
+
+<Tab>
 
 **Requirements**: Python 3.8 or later
 
-### Option 1: Direct Install
+### Install
+
 ```bash
 pip install neug
 ```
 
-### Option 2: Using Virtual Environment (Recommended)
+Using a virtual environment (recommended):
+
 ```bash
 python3 -m venv neug-env
 source neug-env/bin/activate
 pip install neug
 ```
 
-### Option 3: Alternative Sources
+Alternative sources (e.g. Alibaba mirror):
+
 ```bash
 pip install neug -i https://mirrors.aliyun.com/pypi/simple/
 ```
 
 ### Verify Installation
+
 ```python
 import neug
 
@@ -33,27 +43,53 @@ conn = db.connect()
 print("✅ NeuG is ready!")
 ```
 
-## NodeJS Setup Details
+### Command Line Interface
 
-**Requirements**: Node.js 18.0.0 or later
+The CLI tool is automatically included with the Python installation:
 
-### Option 1: Install from npm
+```bash
+neug-cli --version
+
+# Quick start with in-memory database
+neug-cli
+```
+
+See [CLI Documentation](../../user_clients/cli) for more details.
+
+### Troubleshooting
+
+**Permission errors?**
+```bash
+pip install --user neug
+```
+
+**Import errors?**
+```bash
+pip install --upgrade neug
+```
+
+</Tab>
+
+<Tab>
+
+**Requirements**: Node.js 18.0.0 or later (available since NeuG v0.1.3)
+
+### Install
+
 ```bash
 npm install @graphscope-neug/neug
 ```
 
-### Option 2: Install from Tarball
+Or install from a local tarball:
+
 ```bash
-npm install /path/to/neug-0.1.2.tgz
+npm install /path/to/neug-0.1.3.tgz
 ```
 
 ### Verify Installation
-```javascript
-// installed from npm package
-const { Database } = require('@graphscope-neug/neug');
-// installed from local package
-const { Database } = require('neug');
 
+```javascript
+const { Database } = require('@graphscope-neug/neug');
 
 // Test with in-memory database
 const db = new Database({ databasePath: '', mode: 'w' });
@@ -63,8 +99,9 @@ conn.close();
 db.close();
 ```
 
+</Tab>
 
-## C++ Installation
+<Tab>
 
 ### Build from Source
 
@@ -100,7 +137,7 @@ include_directories(${NEUG_INCLUDE_DIRS})
 target_link_libraries(test ${NEUG_LIBRARIES})
 ```
 
-A sample test.cc looks like: 
+A sample test.cc looks like:
 
 ```cpp
 #include <neug/main/neug_db.h>
@@ -123,33 +160,13 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/neug
 ./test
 ```
 
-## Command Line Interface
+</Tab>
 
-The CLI tool is automatically included with the Python installation:
-
-```bash
-# Try it out
-neug-cli --version
-
-# Quick start with in-memory database
-neug-cli
-```
-
-See [CLI Documentation](../../user_clients/cli) for more details.
+</Tabs>
 
 ## Troubleshooting
 
-**Permission errors?**
-```bash
-pip install --user neug
-```
-
-**Import errors?**
-```bash
-pip install --upgrade neug
-```
-
-**Need help?** Visit our [GitHub issues](https://github.com/graphscope/neug/issues)
+**Need help?** Visit our [GitHub issues](https://github.com/graphscope/neug/issues) or check the language-specific reference docs: [Python](../../reference/python_api), [Node.js](../../reference/nodejs_api), [C++](../../reference/cpp_api).
 
 ## Next Steps
 

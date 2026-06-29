@@ -72,6 +72,19 @@ std::unique_ptr<Statement> Transformer::transformCopyFromByColumn(
   return copyFrom;
 }
 
+std::unique_ptr<Statement> Transformer::transformCopyTemp(
+    CypherParser::NEUG_CopyTempContext& ctx) {
+  auto source = transformScanSource(*ctx.nEUG_ScanSource());
+  auto tableName = transformSchemaName(*ctx.oC_SchemaName());
+  auto copyFrom =
+      std::make_unique<CopyFrom>(std::move(source), std::move(tableName));
+  copyFrom->setTemporary(true);
+  if (ctx.nEUG_Options()) {
+    copyFrom->setParsingOption(transformOptions(*ctx.nEUG_Options()));
+  }
+  return copyFrom;
+}
+
 std::vector<std::string> Transformer::transformColumnNames(
     CypherParser::NEUG_ColumnNamesContext& ctx) {
   std::vector<std::string> columnNames;

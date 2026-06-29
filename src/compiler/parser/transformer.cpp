@@ -75,6 +75,8 @@ std::unique_ptr<Statement> Transformer::transformStatement(
     return transformCopyFrom(*ctx.nEUG_CopyFrom());
   } else if (ctx.nEUG_CopyTO()) {
     return transformCopyTo(*ctx.nEUG_CopyTO());
+  } else if (ctx.nEUG_CopyTemp()) {
+    return transformCopyTemp(*ctx.nEUG_CopyTemp());
   } else if (ctx.nEUG_StandaloneCall()) {
     return transformStandaloneCall(*ctx.nEUG_StandaloneCall());
   } else if (ctx.nEUG_CreateMacro()) {

@@ -60,7 +60,7 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-x86_64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64 \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
@@ -152,7 +152,7 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.2-arm64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64 \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '

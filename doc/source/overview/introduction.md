@@ -81,7 +81,7 @@ Star us on [GitHub](https://github.com/alibaba/neug) to stay updated on new rele
 
 ## Next Steps
 
-- **[Installation](../../installation/installation)** - Setup guide for Python and C++
+- **[Installation](../../installation/installation)** - Setup guide for Python, Node.js, and C++
 - **[Getting Started](../../getting_started/getting_started)** - Basic operations and examples  
 - **[Data Import](../../data_io/import_data)** - Loading data into your database
 - **[Cypher Manual](../../cypher_manual)** - Query language reference

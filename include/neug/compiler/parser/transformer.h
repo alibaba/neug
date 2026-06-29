@@ -83,6 +83,8 @@ class Transformer {
       CypherParser::NEUG_CopyFromContext& ctx);
   std::unique_ptr<Statement> transformCopyFromByColumn(
       CypherParser::NEUG_CopyFromByColumnContext& ctx);
+  std::unique_ptr<Statement> transformCopyTemp(
+      CypherParser::NEUG_CopyTempContext& ctx);
   std::vector<std::string> transformColumnNames(
       CypherParser::NEUG_ColumnNamesContext& ctx);
   std::vector<std::string> transformFilePaths(
