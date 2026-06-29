@@ -2320,6 +2320,107 @@ Schema Schema::Clone() const {
   return cloned;
 }
 
+Schema Schema::StripTemporary() const {
+  Schema stripped;
+  stripped.name_ = name_;
+  stripped.id_ = id_;
+  stripped.description_ = description_;
+
+  // Copy non-temporary vertex labels, preserving original label IDs.
+  for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
+    if (vlabel_tomb_.get(v_label)) {
+      continue;
+    }
+    if (is_vertex_label_temporary(v_label)) {
+      continue;
+    }
+    auto vlabel_name = vlabel_indexer_.get_key(v_label);
+    label_t new_label;
+    if (!stripped.vlabel_indexer_.add(vlabel_name, new_label)) {
+      THROW_RUNTIME_ERROR("StripTemporary: failed to add vertex label: " +
+                          vlabel_name);
+    }
+    if (stripped.v_schemas_.size() <= new_label) {
+      stripped.v_schemas_.resize(new_label + 1);
+    }
+    stripped.v_schemas_[new_label] =
+        std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+  }
+
+  // Copy non-temporary edge labels in original label ID order.
+  // An edge label should be copied only if it's used by at least one
+  // non-temporary edge triplet.
+  std::vector<bool> is_non_temp_edge_label(elabel_indexer_.num_slots(), false);
+  for (const auto& [key, es] : e_schemas_) {
+    if (!es || es->temporary) {
+      continue;
+    }
+    label_t src_v, dst_v, e_label;
+    std::tie(src_v, dst_v, e_label) = parse_edge_label(key);
+    // Skip edges whose src/dst vertices are temporary.
+    if (is_vertex_label_temporary(src_v) || is_vertex_label_temporary(dst_v)) {
+      continue;
+    }
+    is_non_temp_edge_label[e_label] = true;
+  }
+
+  // Iterate in sequential label ID order to preserve deterministic ordering.
+  for (label_t e_label = 0;
+       e_label < static_cast<label_t>(is_non_temp_edge_label.size());
+       ++e_label) {
+    if (!is_non_temp_edge_label[e_label]) {
+      continue;
+    }
+    if (elabel_tomb_.get(e_label)) {
+      continue;
+    }
+    auto elabel_name = elabel_indexer_.get_key(e_label);
+    label_t new_label;
+    if (!stripped.elabel_indexer_.add(elabel_name, new_label)) {
+      THROW_RUNTIME_ERROR("StripTemporary: failed to add edge label: " +
+                          elabel_name);
+    }
+  }
+
+  // Copy non-temporary edge triplets.
+  uint32_t max_e_triplet_index = 0;
+  for (const auto& [key, es] : e_schemas_) {
+    if (!es || es->temporary) {
+      continue;
+    }
+    label_t src_v, dst_v, e_label;
+    std::tie(src_v, dst_v, e_label) = parse_edge_label(key);
+    if (vlabel_tomb_.get(src_v) || vlabel_tomb_.get(dst_v) ||
+        elabel_tomb_.get(e_label) ||
+        !is_edge_triplet_valid(src_v, dst_v, e_label)) {
+      continue;
+    }
+    // Skip edges whose src/dst vertices are temporary.
+    if (is_vertex_label_temporary(src_v) || is_vertex_label_temporary(dst_v)) {
+      continue;
+    }
+    auto src_name = vlabel_indexer_.get_key(src_v);
+    auto dst_name = vlabel_indexer_.get_key(dst_v);
+    auto e_name = elabel_indexer_.get_key(e_label);
+    label_t new_src, new_dst, new_e;
+    if (!stripped.vlabel_indexer_.get_index(src_name, new_src) ||
+        !stripped.vlabel_indexer_.get_index(dst_name, new_dst) ||
+        !stripped.elabel_indexer_.get_index(e_name, new_e)) {
+      continue;  // label was stripped (temporary)
+    }
+    auto new_index = stripped.generate_edge_label(new_src, new_dst, new_e);
+    max_e_triplet_index = std::max(max_e_triplet_index, new_index);
+    stripped.e_schemas_[new_index] = std::make_shared<EdgeSchema>(*es);
+  }
+
+  stripped.vlabel_tomb_.resize(stripped.v_schemas_.size());
+  stripped.elabel_tomb_.resize(stripped.elabel_indexer_.size());
+  stripped.elabel_triplet_tomb_.resize(
+      stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
+
+  return stripped;
+}
+
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.label_name << v_schema.property_types
           << v_schema.property_names << v_schema.primary_keys
