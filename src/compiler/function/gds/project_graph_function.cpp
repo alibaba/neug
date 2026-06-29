@@ -83,10 +83,11 @@ extractGraphEntryTableInfos(const common::Value& value) {
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
         if (triplets.size() != 3) {
-          THROW_BINDER_EXCEPTION(common::stringFormat(
-              "Invalid edge triplet, must have exactly 3 elements [src, edge, dst], but got: "
-              "{}",
-              triplets.size()));
+          THROW_BINDER_EXCEPTION(
+              common::stringFormat("Invalid edge triplet, must have exactly 3 "
+                                   "elements [src, edge, dst], but got: "
+                                   "{}",
+                                   triplets.size()));
         }
         infos.emplace_back(triplets[0], triplets[1], triplets[2],
                            "" /* empty predicate */);
@@ -101,8 +102,8 @@ extractGraphEntryTableInfos(const common::Value& value) {
     }
   } break;
   case common::DataTypeId::kStruct: {
-    for (auto i = 0u;
-         i < common::StructType::GetNumFields(value.getDataType()); ++i) {
+    for (auto i = 0u; i < common::StructType::GetNumFields(value.getDataType());
+         ++i) {
       auto tableName = common::StructType::GetChildName(value.getDataType(), i);
       auto predicate = getStringVal(*common::NestedVal::getChildVal(&value, i));
       infos.emplace_back(tableName, predicate);
@@ -139,10 +140,11 @@ extractGraphEntryTableInfos(const common::Value& value) {
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
         if (triplets.size() != 3) {
-          THROW_BINDER_EXCEPTION(common::stringFormat(
-              "Invalid edge triplet, must have exactly 3 elements [src, edge, dst], but got: "
-              "{}",
-              triplets.size()));
+          THROW_BINDER_EXCEPTION(
+              common::stringFormat("Invalid edge triplet, must have exactly 3 "
+                                   "elements [src, edge, dst], but got: "
+                                   "{}",
+                                   triplets.size()));
         }
         infos.emplace_back(triplets[0], triplets[1], triplets[2], predicate);
       } break;
@@ -207,8 +209,8 @@ static std::unique_ptr<TableFuncBindData> bindDropProjectedGraph(
 function_set ProjectGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
       name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                               common::DataTypeId::kUnknown,
-                                               common::DataTypeId::kUnknown});
+                                            common::DataTypeId::kUnknown,
+                                            common::DataTypeId::kUnknown});
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindProjectGraph;

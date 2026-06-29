@@ -15,12 +15,12 @@
  */
 
 #include "s3_filesystem.h"
-#include "s3_options.h"
+#include <arrow/io/api.h>
 #include <glog/logging.h>
 #include <algorithm>
-#include <arrow/io/api.h>
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/vfs/file_system.h"
+#include "s3_options.h"
 
 namespace {
 
@@ -28,8 +28,10 @@ namespace {
 // "bucket/key" format that Arrow S3FileSystem expects.
 // If the path has no recognized scheme, it is returned unchanged.
 static std::string stripS3Scheme(const std::string& path) {
-  if (path.size() > 5 && path.substr(0, 5) == "s3://") return path.substr(5);
-  if (path.size() > 6 && path.substr(0, 6) == "oss://") return path.substr(6);
+  if (path.size() > 5 && path.substr(0, 5) == "s3://")
+    return path.substr(5);
+  if (path.size() > 6 && path.substr(0, 6) == "oss://")
+    return path.substr(6);
   return path;
 }
 
@@ -50,8 +52,7 @@ static std::string stripS3Scheme(const std::string& path) {
 // this wrapper can become pure delegation.
 class S3FileSystemWrapper : public arrow::fs::FileSystem {
  public:
-  explicit S3FileSystemWrapper(
-      std::shared_ptr<arrow::fs::S3FileSystem> inner)
+  explicit S3FileSystemWrapper(std::shared_ptr<arrow::fs::S3FileSystem> inner)
       : arrow::fs::FileSystem(), inner_(std::move(inner)) {}
 
   std::string type_name() const override { return inner_->type_name(); }
@@ -86,12 +87,12 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
       const std::vector<std::string>& paths) override {
     std::vector<std::string> stripped;
     stripped.reserve(paths.size());
-    for (const auto& p : paths) stripped.push_back(stripS3Scheme(p));
+    for (const auto& p : paths)
+      stripped.push_back(stripS3Scheme(p));
     return inner_->GetFileInfo(stripped);
   }
 
-  arrow::Status CreateDir(const std::string& path,
-                          bool recursive) override {
+  arrow::Status CreateDir(const std::string& path, bool recursive) override {
     return inner_->CreateDir(stripS3Scheme(path), recursive);
   }
   arrow::Status DeleteDir(const std::string& path) override {
@@ -107,15 +108,14 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
   arrow::Status DeleteFile(const std::string& path) override {
     return inner_->DeleteFile(stripS3Scheme(path));
   }
-  arrow::Status DeleteFiles(
-      const std::vector<std::string>& paths) override {
+  arrow::Status DeleteFiles(const std::vector<std::string>& paths) override {
     std::vector<std::string> stripped;
     stripped.reserve(paths.size());
-    for (const auto& p : paths) stripped.push_back(stripS3Scheme(p));
+    for (const auto& p : paths)
+      stripped.push_back(stripS3Scheme(p));
     return inner_->DeleteFiles(stripped);
   }
-  arrow::Status Move(const std::string& src,
-                     const std::string& dest) override {
+  arrow::Status Move(const std::string& src, const std::string& dest) override {
     return inner_->Move(stripS3Scheme(src), stripS3Scheme(dest));
   }
   arrow::Status CopyFile(const std::string& src,
@@ -166,10 +166,10 @@ namespace s3 {
 // S3/OSS URI Parser Implementation
 S3URIComponents S3URIComponents::parse(const std::string& uri) {
   S3URIComponents components;
-  
+
   // Strip URI scheme prefix (s3:// or oss://) if present
   std::string path = stripS3Scheme(uri);
-  
+
   // If the URI contains a scheme ("://") but it was NOT s3:// or oss://,
   // reject it.  Bare paths (no scheme) are accepted for callers that have
   // already stripped the scheme.
@@ -177,10 +177,10 @@ S3URIComponents S3URIComponents::parse(const std::string& uri) {
     THROW_IO_EXCEPTION(
         "Invalid S3 URI: expected s3:// or oss:// scheme, got: " + uri);
   }
-  
+
   // Find first '/' to separate bucket and key
   size_t slash_pos = path.find('/');
-  
+
   if (slash_pos == std::string::npos) {
     // No slash found - just bucket name
     components.bucket = path;
@@ -189,23 +189,25 @@ S3URIComponents S3URIComponents::parse(const std::string& uri) {
     components.bucket = path.substr(0, slash_pos);
     components.objectKey = path.substr(slash_pos + 1);
   }
-  
+
   // Validate bucket name is not empty
   if (components.bucket.empty()) {
     THROW_IO_EXCEPTION("Invalid S3 URI: missing bucket name in " + uri);
   }
-  
+
   // Basic bucket name validation (AWS S3 naming rules)
   // Bucket names must be 3-63 characters, lowercase letters, numbers, hyphens
   if (components.bucket.length() < 3 || components.bucket.length() > 63) {
-    THROW_IO_EXCEPTION("Invalid S3 bucket name: length must be 3-63 characters, got: " + components.bucket);
+    THROW_IO_EXCEPTION(
+        "Invalid S3 bucket name: length must be 3-63 characters, got: " +
+        components.bucket);
   }
-  
+
   // Check for glob patterns in object key
   components.hasGlob = (components.objectKey.find('*') != std::string::npos ||
                         components.objectKey.find('?') != std::string::npos ||
                         components.objectKey.find('[') != std::string::npos);
-  
+
   return components;
 }
 
@@ -248,7 +250,8 @@ S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
 std::vector<std::string> S3FileSystem::glob(const std::string& path) {
   auto components = S3URIComponents::parse(path);
 
-  // Arrow FileSystem expects paths in "bucket/key" format, not "s3://bucket/key"
+  // Arrow FileSystem expects paths in "bucket/key" format, not
+  // "s3://bucket/key"
   std::string arrow_path = components.bucket;
   if (!components.objectKey.empty()) {
     arrow_path += "/" + components.objectKey;
@@ -288,7 +291,8 @@ std::vector<std::string> S3FileSystem::resolveS3Paths(
   for (const auto& path : paths) {
     auto components = S3URIComponents::parse(path);
 
-    // Arrow FileSystem expects paths in "bucket/key" format, not "s3://bucket/key"
+    // Arrow FileSystem expects paths in "bucket/key" format, not
+    // "s3://bucket/key"
     std::string arrow_path = components.bucket;
     if (!components.objectKey.empty()) {
       arrow_path += "/" + components.objectKey;
@@ -304,9 +308,8 @@ std::vector<std::string> S3FileSystem::resolveS3Paths(
 
       // S3-specific: bucket is root, objectKey is pattern
       // Delegate to helper in s3_filesystem.h
-      ResolvePathsWithGlobOnFs(
-          fs, components.bucket, components.objectKey,
-          resolved_paths, path);
+      ResolvePathsWithGlobOnFs(fs, components.bucket, components.objectKey,
+                               resolved_paths, path);
     }
   }
 

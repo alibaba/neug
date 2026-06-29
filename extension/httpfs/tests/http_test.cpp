@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-#include <glog/logging.h>
 #include <arrow/buffer.h>
+#include <glog/logging.h>
+#include <gtest/gtest.h>
 #include <atomic>
 #include <iomanip>
 #include <thread>
@@ -44,8 +44,9 @@ class HTTPFileSystemTest : public ::testing::Test {
 // ============================================================================
 
 TEST_F(HTTPFileSystemTest, ParseHTTPURL) {
-  auto components = HTTPURIComponents::parse("http://example.com/path/file.txt");
-  
+  auto components =
+      HTTPURIComponents::parse("http://example.com/path/file.txt");
+
   EXPECT_EQ(components.scheme, "http");
   EXPECT_EQ(components.host, "example.com");
   EXPECT_EQ(components.port, 80);
@@ -53,8 +54,9 @@ TEST_F(HTTPFileSystemTest, ParseHTTPURL) {
 }
 
 TEST_F(HTTPFileSystemTest, ParseHTTPSURL) {
-  auto components = HTTPURIComponents::parse("https://example.com/path/file.txt");
-  
+  auto components =
+      HTTPURIComponents::parse("https://example.com/path/file.txt");
+
   EXPECT_EQ(components.scheme, "https");
   EXPECT_EQ(components.host, "example.com");
   EXPECT_EQ(components.port, 443);
@@ -63,7 +65,7 @@ TEST_F(HTTPFileSystemTest, ParseHTTPSURL) {
 
 TEST_F(HTTPFileSystemTest, ParseURLWithPort) {
   auto components = HTTPURIComponents::parse("http://example.com:8080/data");
-  
+
   EXPECT_EQ(components.scheme, "http");
   EXPECT_EQ(components.host, "example.com");
   EXPECT_EQ(components.port, 8080);
@@ -72,7 +74,7 @@ TEST_F(HTTPFileSystemTest, ParseURLWithPort) {
 
 TEST_F(HTTPFileSystemTest, ParseURLWithoutPath) {
   auto components = HTTPURIComponents::parse("https://example.com");
-  
+
   EXPECT_EQ(components.scheme, "https");
   EXPECT_EQ(components.host, "example.com");
   EXPECT_EQ(components.port, 443);
@@ -80,17 +82,13 @@ TEST_F(HTTPFileSystemTest, ParseURLWithoutPath) {
 }
 
 TEST_F(HTTPFileSystemTest, ParseInvalidURL_NoScheme) {
-  EXPECT_THROW(
-    HTTPURIComponents::parse("example.com/file.txt"),
-    neug::exception::Exception
-  );
+  EXPECT_THROW(HTTPURIComponents::parse("example.com/file.txt"),
+               neug::exception::Exception);
 }
 
 TEST_F(HTTPFileSystemTest, ParseInvalidURL_WrongScheme) {
-  EXPECT_THROW(
-    HTTPURIComponents::parse("ftp://example.com/file.txt"),
-    neug::exception::Exception
-  );
+  EXPECT_THROW(HTTPURIComponents::parse("ftp://example.com/file.txt"),
+               neug::exception::Exception);
 }
 
 TEST_F(HTTPFileSystemTest, ToURL) {
@@ -99,7 +97,7 @@ TEST_F(HTTPFileSystemTest, ToURL) {
   components.host = "example.com";
   components.port = 443;
   components.path = "/data/file.parquet";
-  
+
   EXPECT_EQ(components.toURL(), "https://example.com/data/file.parquet");
 }
 
@@ -109,7 +107,7 @@ TEST_F(HTTPFileSystemTest, ToURL_NonDefaultPort) {
   components.host = "localhost";
   components.port = 8080;
   components.path = "/test";
-  
+
   EXPECT_EQ(components.toURL(), "http://localhost:8080/test");
 }
 
@@ -119,15 +117,13 @@ TEST_F(HTTPFileSystemTest, ToURL_NonDefaultPort) {
 
 TEST_F(HTTPFileSystemTest, CreateFileSystem) {
   neug::common::case_insensitive_map_t<std::string> options;
-  EXPECT_NO_THROW({
-    HTTPFileSystem fs(options);
-  });
+  EXPECT_NO_THROW({ HTTPFileSystem fs(options); });
 }
 
 TEST_F(HTTPFileSystemTest, TypeName) {
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
-  
+
   EXPECT_EQ(fs.type_name(), "http");
 }
 
@@ -135,7 +131,7 @@ TEST_F(HTTPFileSystemTest, Equals) {
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs1(options);
   HTTPFileSystem fs2(options);
-  
+
   EXPECT_TRUE(fs1.Equals(fs1));  // Same instance
   EXPECT_TRUE(fs1.Equals(fs2));  // Different instances, same type
 }
@@ -158,7 +154,8 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_ExtractOptions) {
     EXPECT_EQ(resolved.size(), 1);
     EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
     // toArrowFileSystem() returns a non-null HTTPFileSystem
-    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
+    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(
+        fs.getArrowFileSystem());
     EXPECT_NE(arrowFs, nullptr);
   });
 }
@@ -167,18 +164,13 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_InvalidURL) {
   neug::reader::FileSchema schema;
   schema.paths = {"not-a-url"};
 
-  EXPECT_THROW(
-    HTTPFileSystem fs(schema),
-    neug::exception::Exception
-  );
+  EXPECT_THROW(HTTPFileSystem fs(schema), neug::exception::Exception);
 }
 
 TEST_F(HTTPFileSystemTest, HTTPFileSystem_MultiplePaths) {
   neug::reader::FileSchema schema;
-  schema.paths = {
-    "https://example.com/file1.parquet",
-    "https://example.com/file2.parquet"
-  };
+  schema.paths = {"https://example.com/file1.parquet",
+                  "https://example.com/file2.parquet"};
 
   EXPECT_NO_THROW({
     HTTPFileSystem fs(schema);
@@ -207,7 +199,8 @@ TEST_F(HTTPFileSystemTest, VerifySSL_InvalidValue_ThrowsException) {
   options["VERIFY_SSL"] = "maybe";  // Invalid: not true/false/1/0/yes/no/on/off
 
   HTTPFileSystem fs(options);
-  auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
+  auto arrowFs =
+      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
   ASSERT_NE(arrowFs, nullptr);
 
   // OpenInputFile triggers HTTPRandomAccessFile construction → SetupCURLHandle
@@ -235,7 +228,8 @@ TEST_F(HTTPFileSystemTest, E2E_GetFileInfo_NotFoundURL) {
   // GetFileInfo() must report FileType::NotFound (not FileType::File).
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
-  auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
+  auto arrowFs =
+      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
   ASSERT_NE(arrowFs, nullptr);
 
   // This URL returns 404 — the path simply doesn't exist on the public bucket.
@@ -258,16 +252,19 @@ TEST_F(HTTPFileSystemTest, E2E_GetFileInfo_NotFoundURL) {
 TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
   // This test accesses a real public Parquet file via HTTPS
   // URL: OSS public bucket via HTTPS (not S3 API)
-  
+
   neug::reader::FileSchema schema;
-  schema.paths = {"https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/GithubGraphTest/nodes_Actor.parquet"};
+  schema.paths = {
+      "https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/"
+      "GithubGraphTest/nodes_Actor.parquet"};
   schema.format = "parquet";
   schema.protocol = "http";
   schema.options["VERIFY_SSL"] = "true";
-  
+
   EXPECT_NO_THROW({
     HTTPFileSystem fs(schema);
-    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
+    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(
+        fs.getArrowFileSystem());
     ASSERT_NE(arrowFs, nullptr);
 
     // Verify file access
@@ -295,12 +292,10 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
           auto buffer = *buffer_result;
           const uint8_t* data = buffer->data();
 
-          LOG(INFO) << "Magic bytes: "
-                    << std::hex << std::setfill('0')
-                    << std::setw(2) << (int)data[0] << " "
-                    << std::setw(2) << (int)data[1] << " "
-                    << std::setw(2) << (int)data[2] << " "
-                    << std::setw(2) << (int)data[3];
+          LOG(INFO) << "Magic bytes: " << std::hex << std::setfill('0')
+                    << std::setw(2) << (int) data[0] << " " << std::setw(2)
+                    << (int) data[1] << " " << std::setw(2) << (int) data[2]
+                    << " " << std::setw(2) << (int) data[3];
 
           // Verify Parquet magic number "PAR1"
           EXPECT_EQ(data[0], 0x50);  // 'P'
@@ -310,7 +305,8 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
 
           LOG(INFO) << "✓ Successfully read Parquet file via HTTPS";
         } else {
-          LOG(WARNING) << "Could not read file content: " << buffer_result.status();
+          LOG(WARNING) << "Could not read file content: "
+                       << buffer_result.status();
         }
       } else {
         LOG(WARNING) << "Could not open file: " << file_result.status();

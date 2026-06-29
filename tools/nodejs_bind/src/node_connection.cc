@@ -32,13 +32,13 @@ namespace neug {
 Napi::FunctionReference NodeConnection::constructor;
 
 Napi::Object NodeConnection::Init(Napi::Env env, Napi::Object exports) {
-  Napi::Function func = DefineClass(
-      env, "NodeConnection",
-      {
-          InstanceMethod("execute", &NodeConnection::Execute),
-          InstanceMethod("getSchema", &NodeConnection::GetSchema),
-          InstanceMethod("close", &NodeConnection::Close),
-      });
+  Napi::Function func =
+      DefineClass(env, "NodeConnection",
+                  {
+                      InstanceMethod("execute", &NodeConnection::Execute),
+                      InstanceMethod("getSchema", &NodeConnection::GetSchema),
+                      InstanceMethod("close", &NodeConnection::Close),
+                  });
   constructor = Napi::Persistent(func);
   constructor.SuppressDestruct();
   exports.Set("NodeConnection", func);

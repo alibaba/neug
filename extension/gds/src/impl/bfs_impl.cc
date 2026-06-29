@@ -194,9 +194,8 @@ void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();
       } else {
-        auto path = reconstruct_path(
-            v, source_, find_pred, vertex_label_, edge_label_, directed_,
-            graph_);
+        auto path = reconstruct_path(v, source_, find_pred, vertex_label_,
+                                     edge_label_, directed_, graph_);
         path_builder.push_back_opt(std::move(path));
       }
     }

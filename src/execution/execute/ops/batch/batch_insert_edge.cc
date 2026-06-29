@@ -145,8 +145,8 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
   }
   auto supplier = create_data_chunk_supplier(ctx, total_mappings);
 
-  RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchAddEdges(
-      src_label_id, dst_label_id, edge_label_id, supplier));
+  RETURN_STATUS_ERROR_IF_NOT_OK(
+      graph.BatchAddEdges(src_label_id, dst_label_id, edge_label_id, supplier));
   return neug::result<Context>(std::move(ctx));
 }
 

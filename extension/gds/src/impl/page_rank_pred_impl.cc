@@ -133,8 +133,8 @@ void PageRankPred::compute() {
 
   std::unique_ptr<double[]> new_pr(new double[capacity]);
   for (int iter = 0; iter < max_iterations_; ++iter) {
-    double base = (1.0 - damping_factor_) / dn +
-                  damping_factor_ * dangling_sum / dn;
+    double base =
+        (1.0 - damping_factor_) / dn + damping_factor_ * dangling_sum / dn;
 
     if (directed_) {
       double next_dangling = 0.0;

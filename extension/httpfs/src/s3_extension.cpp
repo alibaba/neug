@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include <cstdio>
-#include <cstdlib>
-#include <glog/logging.h>
 #include <arrow/filesystem/filesystem.h>
 #include <arrow/filesystem/s3fs.h>
+#include <glog/logging.h>
+#include <cstdio>
+#include <cstdlib>
+#include "http_filesystem.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/vfs/file_system.h"
 #include "s3_filesystem.h"
-#include "http_filesystem.h"
 #include "s3_options.h"
 
 namespace neug {
@@ -38,7 +38,8 @@ static void RegisterS3Provider() {
   vfs->Register("s3", neug::extension::s3::CreateS3FileSystem);
   vfs->Register("oss", neug::extension::s3::CreateS3FileSystem);
 
-  LOG(INFO) << "[httpfs extension] S3FileSystem registered for schemes: s3, oss";
+  LOG(INFO)
+      << "[httpfs extension] S3FileSystem registered for schemes: s3, oss";
 }
 
 // Register HTTP/HTTPS filesystem factories in the global VFS registry
@@ -49,8 +50,8 @@ static void RegisterHTTPProvider() {
   vfs->Register("http", neug::extension::http::CreateHTTPFileSystem);
   vfs->Register("https", neug::extension::http::CreateHTTPFileSystem);
 
-  LOG(INFO)
-      << "[httpfs extension] HTTPFileSystem registered for schemes: http, https";
+  LOG(INFO) << "[httpfs extension] HTTPFileSystem registered for schemes: "
+               "http, https";
 }
 
 // Finalize Arrow S3 to prevent exit crash (called at process exit)
@@ -109,8 +110,6 @@ void Init() {
 /**
  * Name function - returns the extension name
  */
-const char* Name() {
-  return "HTTPFS";
-}
+const char* Name() { return "HTTPFS"; }
 
 }  // extern "C"

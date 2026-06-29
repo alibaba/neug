@@ -159,9 +159,9 @@ void LCCPred::compute() {
           pairs.insert({std::min(a, b), std::max(a, b)});
         }
       }
-      lcc_[v] =
-          2.0 * static_cast<double>(pairs.size()) /
-          (static_cast<double>(raw_degree) * static_cast<double>(raw_degree - 1));
+      lcc_[v] = 2.0 * static_cast<double>(pairs.size()) /
+                (static_cast<double>(raw_degree) *
+                 static_cast<double>(raw_degree - 1));
     }
   }
 }

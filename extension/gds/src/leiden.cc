@@ -101,8 +101,8 @@ execution::Context LeidenFunction::exec(
 
 function::function_set LeidenFunction::getFunctionSet() {
   function::function_set funcSet;
-  std::vector<common::DataTypeId> inputTypes = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
+                                                common::DataTypeId::kUnknown};
   function::call_output_columns outputColumns = {
       {"node", common::DataTypeId::kVertex},
       {"community", common::DataTypeId::kInt64}};

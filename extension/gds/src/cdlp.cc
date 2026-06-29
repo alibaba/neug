@@ -79,8 +79,8 @@ std::unique_ptr<function::CallFuncInputBase> CDLPFunction::bind(
   return input;
 }
 
-execution::Context CDLPFunction::exec(
-    const function::CallFuncInputBase& input, neug::IStorageInterface& g) {
+execution::Context CDLPFunction::exec(const function::CallFuncInputBase& input,
+                                      neug::IStorageInterface& g) {
   const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
@@ -107,8 +107,8 @@ function::function_set CDLPFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::DataTypeId> inputTypes = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
+                                                common::DataTypeId::kUnknown};
   // two output columns:
   // 1. node type
   // 2. label id in int64

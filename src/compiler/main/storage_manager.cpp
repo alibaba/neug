@@ -216,7 +216,8 @@ void StatsManager::loadStats(
       auto relName = relTableEntry->getName();
       auto count = countMap.count(relName) ? countMap.at(relName) : 1;
       tables[relTableEntry->getTableID()] =
-          std::make_unique<neug::storage::GRelTable>(count, relTableEntry, this);
+          std::make_unique<neug::storage::GRelTable>(count, relTableEntry,
+                                                     this);
     }
   }
 }

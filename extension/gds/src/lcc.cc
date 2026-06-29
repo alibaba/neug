@@ -114,8 +114,8 @@ execution::Context LCCFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set LCCFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
+                                                 common::DataTypeId::kUnknown};
   function::call_output_columns output_columns = {
       {"node", common::DataTypeId::kVertex},
       {"lcc", common::DataTypeId::kDouble}};
