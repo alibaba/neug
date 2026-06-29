@@ -70,8 +70,7 @@ def tinysnb_gds_conn():
         db.load_builtin_dataset("tinysnb")
         conn = db.connect()
         conn.execute(
-            "CALL project_graph('pk', ['person'], "
-            "{'[person, knows, person]': ''});"
+            "CALL project_graph('pk', ['person'], " "{'[person, knows, person]': ''});"
         )
         conn.execute("LOAD gds;")
         yield conn
@@ -121,8 +120,7 @@ class TestGdsYieldSubset:
         ref = _wcc_reference(tinysnb_gds_conn)
         cols, rows = _execute(
             tinysnb_gds_conn,
-            "CALL wcc('pk', {concurrency: 1}) YIELD comp "
-            "RETURN comp ORDER BY comp;",
+            "CALL wcc('pk', {concurrency: 1}) YIELD comp " "RETURN comp ORDER BY comp;",
         )
         assert cols == ["comp"]
         assert sorted(row[0] for row in rows) == sorted(ref.values())
@@ -209,7 +207,9 @@ class TestGdsYieldReorder:
         cols, rows = _execute(tinysnb_gds_conn, query)
         assert "id" in cols
         id_idx = cols.index("id")
-        value_col = "comp" if "comp" in cols else "rank" if "rank" in cols else "distance"
+        value_col = (
+            "comp" if "comp" in cols else "rank" if "rank" in cols else "distance"
+        )
         val_idx = cols.index(value_col)
         got = {row[id_idx]: row[val_idx] for row in rows}
         assert got == ref
