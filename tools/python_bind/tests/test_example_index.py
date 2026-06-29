@@ -30,13 +30,17 @@ Tests the index framework through:
 import csv
 import os
 import shutil
+import socket
 import sys
+import time
 
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug import Database
+from neug.proto.error_pb2 import OK
+from neug.session import Session
 
 
 @pytest.fixture
@@ -67,6 +71,16 @@ def write_csv(path, rows):
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
+
+
+def get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def assert_ok(result):
+    assert result._result.status_code() == OK, result._result.status_message()
 
 
 PERSONS = [
@@ -263,6 +277,46 @@ class TestAppendDeleteUpdate:
         assert names == [], f"No one should have age 30 now, got {names}"
         conn.close()
         db.close()
+
+
+class TestTPIndexDataAccessMode:
+    """Test indexed data mutations through the TP service access modes."""
+
+    def test_tp_index_data_mutations_report_expected_status(self, db_dir):
+        db = Database(db_dir, "w")
+        uri = db.serve(get_free_port(), "localhost", False)
+        time.sleep(1)
+        session = Session(uri, timeout="10s")
+        try:
+            assert_ok(session.execute("LOAD example_index;", access_mode="schema"))
+            assert_ok(
+                session.execute(
+                    "CREATE NODE TABLE Person("
+                    "id INT64 PRIMARY KEY, name STRING, age INT32);",
+                    access_mode="schema",
+                )
+            )
+            assert_ok(
+                session.execute(
+                    "CREATE (:Person {id: 1, name: 'Alice', age: 30});",
+                    access_mode="insert",
+                )
+            )
+            assert_ok(
+                session.execute(
+                    "CREATE (:Person {id: 2, name: 'Bob', age: 25});",
+                    access_mode="insert",
+                )
+            )
+            with pytest.raises(Exception, match="Index operations are not supported"):
+                session.execute(
+                    "CREATE INDEX idx_person_age ON Person USING EXAMPLE (age);",
+                    access_mode="schema",
+                )
+        finally:
+            session.close()
+            db.stop_serving()
+            db.close()
 
 
 class TestCopyFromThenCreateIndex:

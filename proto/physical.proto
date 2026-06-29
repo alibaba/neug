@@ -433,6 +433,8 @@ message ExecutionFlag {
   bool checkpoint = 7;
   bool procedure_call = 8;
   // todo: add a new flag for gds_algo ?
+  // contains index operation
+  bool index = 9;
 }
 
 // A single Cypher query ending with a semicolon (;)

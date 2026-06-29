@@ -78,10 +78,12 @@ namespace neug {
 namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                                 neug::catalog::Catalog* catalog)
+                                 neug::catalog::Catalog* catalog,
+                                 main::ClientContext* ctx)
     : ddlConverter(aliasManager, catalog),
       aliasManager(aliasManager),
       catalog(catalog),
+      ctx(ctx),
       exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
       typeConverter(std::make_unique<GPhysicalTypeConverter>()) {}
 
@@ -2059,7 +2061,7 @@ common::TableType GQueryConvertor::getTableType(
 void GQueryConvertor::convertCrossProduct(
     const planner::LogicalCrossProduct& cross, ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, ctx);
   // convert left plan
   planner::LogicalPlan leftPlan;
   leftPlan.setLastOperator(cross.getChild(0));
@@ -2114,7 +2116,7 @@ void GQueryConvertor::extractJoinKeys(
 void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
                                       ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, ctx);
   auto leftOp = join.getChild(0);
   // convert left plan to pre query before the join, and set empty plan as the
   // join left branch

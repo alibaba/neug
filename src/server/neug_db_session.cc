@@ -82,13 +82,14 @@ neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
 inline bool is_read_only(const physical::ExecutionFlag flags) {
   return !(flags.insert() || flags.update() || flags.schema() ||
            flags.batch() || flags.create_temp_table() || flags.checkpoint() ||
-           flags.procedure_call());
+           flags.procedure_call() || flags.index());
 }
 
 inline bool is_insert_only(const physical::ExecutionFlag flags) {
-  return flags.insert() && !(flags.read() || flags.update() || flags.schema() ||
-                             flags.batch() || flags.create_temp_table() ||
-                             flags.checkpoint() || flags.procedure_call());
+  return flags.insert() &&
+         !(flags.read() || flags.update() || flags.schema() || flags.batch() ||
+           flags.create_temp_table() || flags.checkpoint() ||
+           flags.procedure_call() || flags.index());
 }
 
 Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
@@ -116,6 +117,11 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
     return Status(StatusCode::ERR_NOT_SUPPORTED,
                   "Temporary table creation and batch operations are not "
                   "supported for TP service.");
+  }
+  // todo: support index operation in update transaction
+  if (flags.index()) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Index operations are not supported for TP service.");
   }
   return Status::OK();
 }

@@ -65,6 +65,9 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 
 namespace neug {
+namespace main {
+class ClientContext;
+}
 namespace gopt {
 const static common::alias_id_t INVALID_ALIAS_ID = -1;
 typedef ::google::protobuf::Map<std::string, std::string> Options;
@@ -79,7 +82,8 @@ struct EdgeLabelId {
 class GQueryConvertor {
  public:
   GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                  neug::catalog::Catalog* catalog);
+                  neug::catalog::Catalog* catalog,
+                  main::ClientContext* ctx = nullptr);
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink);
@@ -260,6 +264,7 @@ class GQueryConvertor {
   std::unique_ptr<GExprConverter> exprConvertor;
   std::unique_ptr<GPhysicalTypeConverter> typeConverter;
   neug::catalog::Catalog* catalog;
+  main::ClientContext* ctx;
   neug::gopt::GDDLConverter ddlConverter;
 };
 
