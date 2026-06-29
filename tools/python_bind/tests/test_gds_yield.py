@@ -18,7 +18,9 @@
 
 import os
 import sys
-from typing import Callable, Sequence, Tuple
+from typing import Callable
+from typing import Sequence
+from typing import Tuple
 
 import pytest
 
