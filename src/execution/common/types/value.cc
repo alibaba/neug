@@ -317,7 +317,7 @@ const std::vector<Value>& ArrayValue::GetChildren(const Value& value) {
   return value.value_info_->Get<NestedValueInfo>().GetValues();
 }
 
-uint32_t ArrayValue::GetSize(const Value& value) {
+uint64_t ArrayValue::GetSize(const Value& value) {
   assert(value.type().id() == DataTypeId::kArray);
   return ArrayType::GetNumElements(value.type());
 }

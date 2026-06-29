@@ -79,7 +79,7 @@ YAML::Node property_type_to_yaml(const DataType& type) {
     break;
   case DataTypeId::kArray: {
     auto child_type = ArrayType::GetChildType(type);
-    uint32_t array_size = ArrayType::GetNumElements(type);
+    auto array_size = ArrayType::GetNumElements(type);
     node["array"]["component_type"] = property_type_to_yaml(child_type);
     node["array"]["max_length"] = array_size;
     break;

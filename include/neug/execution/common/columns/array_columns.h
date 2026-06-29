@@ -36,8 +36,7 @@ class ArrayColumn : public IContextColumn {
   explicit ArrayColumn(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         type_(array_type),
-        array_size_(
-            static_cast<uint32_t>(ArrayType::GetNumElements(array_type))) {}
+        array_size_(ArrayType::GetNumElements(array_type)) {}
   ~ArrayColumn() = default;
 
   size_t size() const override {
@@ -65,7 +64,7 @@ class ArrayColumn : public IContextColumn {
     std::vector<Value> values;
     values.reserve(array_size_);
     size_t base = idx * array_size_;
-    for (uint32_t j = 0; j < array_size_; ++j) {
+    for (uint64_t j = 0; j < array_size_; ++j) {
       values.emplace_back(datas_->get_elem(base + j));
     }
     return Value::ARRAY(type_, std::move(values));
@@ -76,13 +75,13 @@ class ArrayColumn : public IContextColumn {
   std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold() const;
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
-  uint32_t array_size() const { return array_size_; }
+  uint64_t array_size() const { return array_size_; }
 
  private:
   friend class ArrayColumnBuilder;
   DataType elem_type_;
   DataType type_;
-  uint32_t array_size_;
+  uint64_t array_size_;
   std::shared_ptr<IContextColumn> datas_;
 };
 
@@ -94,8 +93,7 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   explicit ArrayColumnBuilder(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         array_type_(array_type),
-        array_size_(
-            static_cast<uint32_t>(ArrayType::GetNumElements(array_type))) {
+        array_size_(ArrayType::GetNumElements(array_type)) {
     child_builder_ = ColumnsUtils::create_builder(elem_type_);
   }
 
@@ -133,7 +131,7 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
  private:
   DataType elem_type_;
   DataType array_type_;
-  uint32_t array_size_;
+  uint64_t array_size_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 

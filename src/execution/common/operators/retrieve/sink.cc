@@ -454,7 +454,7 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     auto list_col = column->mutable_list_array();
     const auto& children = casted->data_column();
     add_column(children, graph, list_col->mutable_elements());
-    uint32_t array_size = casted->array_size();
+    auto array_size = casted->array_size();
     list_col->mutable_offsets()->Reserve(casted->size() + 1);
     size_t current_offset = 0;
     for (size_t i = 0; i < casted->size(); ++i) {

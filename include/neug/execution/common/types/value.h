@@ -178,7 +178,7 @@ struct ListValue {
 
 struct ArrayValue {
   static const std::vector<Value>& GetChildren(const Value& value);
-  static uint32_t GetSize(const Value& value);
+  static uint64_t GetSize(const Value& value);
 };
 
 struct StructValue {

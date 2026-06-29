@@ -25,7 +25,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ArrayColumn::unfold()
   sel_vec_t offsets;
   offsets.reserve(size() * array_size_);
   for (size_t i = 0; i < size(); ++i) {
-    for (uint32_t j = 0; j < array_size_; ++j) {
+    for (uint64_t j = 0; j < array_size_; ++j) {
       offsets.push_back(i);
     }
   }
@@ -43,7 +43,7 @@ std::shared_ptr<IContextColumn> ArrayColumn::shuffle(
 
   for (size_t row_idx : offsets) {
     size_t base = row_idx * array_size_;
-    for (uint32_t j = 0; j < array_size_; ++j) {
+    for (uint64_t j = 0; j < array_size_; ++j) {
       data_offsets.push_back(base + j);
     }
   }
