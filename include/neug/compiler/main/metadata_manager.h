@@ -118,7 +118,7 @@ class MetadataManager {
   std::unique_ptr<neug::fsys::FileSystemRegistry> vfs;
   std::unique_ptr<extension::ExtensionManager> extensionManager;
   std::unique_ptr<graph::GraphEntrySet> graphEntrySet;
-  const IndexManager* index_manager;
+  const IndexManager* index_manager = nullptr;
 };
 
 }  // namespace main

@@ -234,6 +234,8 @@ bool UpdateTransaction::Commit() {
     pipeline_cache_.clearGlobalCache(cow_graph_->schema().to_yaml().value());
   }
 
+  pipeline_cache_.clearIndexManager(&cow_graph_->index_manager());
+
   // PublishSnapshot MUST happen BEFORE release() which calls
   // release_update_timestamp (advancing read_ts_). This ordering guarantees
   // that any new reader observing the advanced read_ts will also see the new

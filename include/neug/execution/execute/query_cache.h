@@ -19,6 +19,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/storages/index/index_manager.h"
 #include "neug/utils/access_mode.h"
 
 namespace neug {
@@ -107,6 +108,11 @@ class GlobalQueryCache {
     }
   }
 
+  void clearIndexManager(const IndexManager* index_manager) {
+    CHECK(index_manager != nullptr) << "index mananger should not be null";
+    planner_->update_index_manager(index_manager);
+  }
+
  private:
   GlobalQueryCache() : version_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
@@ -143,6 +149,11 @@ class LocalQueryCache {
     global_cache_->clear(schema, statistics);
     version_ = global_cache_->version();
     cache_.clear();
+  }
+
+  void clearIndexManager(const IndexManager* index_manager) {
+    CHECK(index_manager != nullptr) << "Index manager should not be null";
+    global_cache_->clearIndexManager(index_manager);
   }
 
  private:
