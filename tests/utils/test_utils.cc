@@ -1155,10 +1155,17 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
     auto& tuples = result.value();
     ASSERT_EQ(tuples.size(), 1U);
     EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(tuples[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(tuples[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              STRING_DEFAULT_MAX_LENGTH);
     EXPECT_EQ(tuples[0].second.GetValue<std::string>(), "hello");
   }
 
-  // VarChar with explicit max_length
+  // VarChar with explicit max_length and no default expression.
   {
     google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
     auto* p = props.Add();
@@ -1168,6 +1175,35 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
     auto result = property_defs_to_value(props);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(result.value()[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(result.value()[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              64U);
+  }
+
+  // VarChar with explicit max_length and default expression.
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("short_tag");
+    p->mutable_type()->mutable_string()->mutable_var_char()->set_max_length(64);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_str(
+        "hello");
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(result.value()[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(result.value()[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              64U);
+    EXPECT_EQ(result.value()[0].second.GetValue<std::string>(), "hello");
   }
 
   // LongText

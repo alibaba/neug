@@ -298,6 +298,17 @@ bool default_expression_to_value(const DataType& type,
                << ": " << expression.DebugString();
     return false;
   }
+  if (type.id() == DataTypeId::kVarchar) {
+    size_t max_length = STRING_DEFAULT_MAX_LENGTH;
+    if (type.getExtraTypeInfo()) {
+      max_length = type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length;
+    }
+    if (max_length <= std::numeric_limits<uint16_t>::max()) {
+      out_value =
+          execution::Value::VARCHAR(execution::StringValue::Get(out_value),
+                                    static_cast<uint16_t>(max_length));
+    }
+  }
   return true;
 }
 
