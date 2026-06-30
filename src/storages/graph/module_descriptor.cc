@@ -51,6 +51,20 @@ rapidjson::Value ModuleDescriptor::ToJson(
     }
     obj.AddMember("paths", paths_obj, alloc);
   }
+  if (!refs_.empty()) {
+    rapidjson::Value refs_obj(rapidjson::kObjectType);
+    for (const auto& [k, v] : refs_) {
+      rapidjson::Value key_val(
+          k.c_str(), static_cast<rapidjson::SizeType>(k.size()), alloc);
+      rapidjson::Value val_val(
+          v.c_str(), static_cast<rapidjson::SizeType>(v.size()), alloc);
+      refs_obj.AddMember(key_val, val_val, alloc);
+    }
+    obj.AddMember("refs", refs_obj, alloc);
+  }
+  if (referenced_module_) {
+    obj.AddMember("referenced_module", rapidjson::Value(true), alloc);
+  }
   return obj;
 }
 
@@ -72,6 +86,16 @@ ModuleDescriptor ModuleDescriptor::FromJson(const rapidjson::Value& obj) {
         desc.paths_[m.name.GetString()] = m.value.GetString();
       }
     }
+  }
+  if (obj.HasMember("refs") && obj["refs"].IsObject()) {
+    for (auto& m : obj["refs"].GetObject()) {
+      if (m.value.IsString()) {
+        desc.refs_[m.name.GetString()] = m.value.GetString();
+      }
+    }
+  }
+  if (obj.HasMember("referenced_module") && obj["referenced_module"].IsBool()) {
+    desc.referenced_module_ = obj["referenced_module"].GetBool();
   }
   return desc;
 }

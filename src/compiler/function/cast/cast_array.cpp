@@ -34,23 +34,11 @@ bool CastArrayHelper::checkCompatibleNestedTypes(DataTypeId sourceTypeID,
   case DataTypeId::kUnknown: {
     return true;
   }
-  case DataTypeId::kList: {
-    if (targetTypeID == DataTypeId::kArray ||
-        targetTypeID == DataTypeId::kList) {
-      return true;
-    }
-  } break;
+  case DataTypeId::kList:
+  case DataTypeId::kArray:
   case DataTypeId::kMap:
   case DataTypeId::kStruct: {
-    if (sourceTypeID == targetTypeID) {
-      return true;
-    }
-  } break;
-  case DataTypeId::kArray: {
-    if (targetTypeID == DataTypeId::kList ||
-        targetTypeID == DataTypeId::kArray) {
-      return true;
-    }
+    return sourceTypeID == targetTypeID;
   } break;
   default:
     return false;
@@ -58,10 +46,23 @@ bool CastArrayHelper::checkCompatibleNestedTypes(DataTypeId sourceTypeID,
   return false;
 }
 
-bool CastArrayHelper::containsListToArray(const DataType& srcType,
-                                          const DataType& dstType) {
-  if ((srcType.id() == DataTypeId::kList ||
-       srcType.id() == DataTypeId::kArray) &&
+namespace {
+
+const DataType& getListLikeChildType(const DataType& type) {
+  if (type.id() == DataTypeId::kList) {
+    return ListType::GetChildType(type);
+  }
+  if (type.id() == DataTypeId::kArray) {
+    return ArrayType::GetChildType(type);
+  }
+  NEUG_UNREACHABLE;
+}
+
+}  // namespace
+
+bool CastArrayHelper::requiresArrayEntryValidation(const DataType& srcType,
+                                                   const DataType& dstType) {
+  if (srcType.id() == DataTypeId::kArray &&
       dstType.id() == DataTypeId::kArray) {
     return true;
   }
@@ -69,12 +70,12 @@ bool CastArrayHelper::containsListToArray(const DataType& srcType,
   if (checkCompatibleNestedTypes(srcType.id(), dstType.id())) {
     switch (getPhysicalType(srcType.id())) {
     case PhysicalTypeID::LIST: {
-      return containsListToArray(ListType::GetChildType(srcType),
-                                 ListType::GetChildType(dstType));
+      return requiresArrayEntryValidation(getListLikeChildType(srcType),
+                                          getListLikeChildType(dstType));
     }
     case PhysicalTypeID::ARRAY: {
-      return containsListToArray(ArrayType::GetChildType(srcType),
-                                 ListType::GetChildType(dstType));
+      return requiresArrayEntryValidation(getListLikeChildType(srcType),
+                                          getListLikeChildType(dstType));
     }
     case PhysicalTypeID::STRUCT: {
       const auto& srcFieldTypes = StructType::GetChildTypes(srcType);
@@ -86,7 +87,7 @@ bool CastArrayHelper::containsListToArray(const DataType& srcType,
       }
 
       for (auto i = 0u; i < srcFieldTypes.size(); i++) {
-        if (containsListToArray(srcFieldTypes[i], dstFieldTypes[i])) {
+        if (requiresArrayEntryValidation(srcFieldTypes[i], dstFieldTypes[i])) {
           return true;
         }
       }
@@ -98,9 +99,9 @@ bool CastArrayHelper::containsListToArray(const DataType& srcType,
   return false;
 }
 
-void CastArrayHelper::validateListEntry(ValueVector* inputVector,
-                                        const DataType& resultType,
-                                        uint64_t pos) {
+void CastArrayHelper::validateArrayEntries(ValueVector* inputVector,
+                                           const DataType& resultType,
+                                           uint64_t pos) {
   if (inputVector->isNull(pos)) {
     return;
   }
@@ -108,46 +109,29 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
 
   switch (getPhysicalType(resultType.id())) {
   case PhysicalTypeID::ARRAY: {
-    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST) {
-      auto listEntry = inputVector->getValue<list_entry_t>(pos);
-      if (listEntry.size != ArrayType::GetNumElements(resultType)) {
-        THROW_CONVERSION_EXCEPTION(stringFormat(
-            "Unsupported casting LIST with incorrect list entry to ARRAY. "
-            "Expected: {}, Actual: {}.",
-            ArrayType::GetNumElements(resultType),
-            inputVector->getValue<list_entry_t>(pos).size));
-      }
-      auto inputChildVector = ListVector::getDataVector(inputVector);
-      for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
-           i++) {
-        validateListEntry(inputChildVector, ArrayType::GetChildType(resultType),
-                          i);
-      }
-    } else if (getPhysicalType(inputType.id()) == PhysicalTypeID::ARRAY) {
-      if (ArrayType::GetNumElements(inputType) !=
-          ArrayType::GetNumElements(resultType)) {
-        THROW_CONVERSION_EXCEPTION(
-            stringFormat("Unsupported casting function from {} to {}.",
-                         inputType.ToString(), resultType.ToString()));
-      }
-      auto listEntry = inputVector->getValue<list_entry_t>(pos);
-      auto inputChildVector = ListVector::getDataVector(inputVector);
-      for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
-           i++) {
-        validateListEntry(inputChildVector, ArrayType::GetChildType(resultType),
-                          i);
-      }
+    if (getPhysicalType(inputType.id()) != PhysicalTypeID::ARRAY ||
+        ArrayType::GetNumElements(inputType) !=
+            ArrayType::GetNumElements(resultType)) {
+      THROW_CONVERSION_EXCEPTION(
+          stringFormat("Unsupported casting function from {} to {}.",
+                       inputType.ToString(), resultType.ToString()));
+    }
+    auto listEntry = inputVector->getValue<list_entry_t>(pos);
+    auto inputChildVector = ListVector::getDataVector(inputVector);
+    for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
+         i++) {
+      validateArrayEntries(inputChildVector,
+                           ArrayType::GetChildType(resultType), i);
     }
   } break;
   case PhysicalTypeID::LIST: {
-    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST ||
-        getPhysicalType(inputType.id()) == PhysicalTypeID::ARRAY) {
+    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST) {
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
            i++) {
-        validateListEntry(inputChildVector, ListType::GetChildType(resultType),
-                          i);
+        validateArrayEntries(inputChildVector,
+                             ListType::GetChildType(resultType), i);
       }
     }
   } break;
@@ -158,8 +142,8 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
 
       auto structEntry = inputVector->getValue<struct_entry_t>(pos);
       for (auto i = 0u; i < fieldVectors.size(); i++) {
-        validateListEntry(fieldVectors[i].get(), fieldTypes[i],
-                          structEntry.pos);
+        validateArrayEntries(fieldVectors[i].get(), fieldTypes[i],
+                             structEntry.pos);
       }
     }
   } break;

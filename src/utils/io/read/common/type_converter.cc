@@ -65,6 +65,17 @@ DataType NeuGTypeConverter::convert(const ::common::DataType& type) const {
           "Unsupported Temporal type for NeuG conversion");
     }
   }
+  case ::common::DataType::kArray: {
+    const auto& array = type.array();
+    auto childType = convert(array.component_type());
+    auto fixed_length = array.fixed_length();
+    if (fixed_length == 0) {
+      THROW_CONVERSION_EXCEPTION(
+          "Array fixed_length must be greater than 0, but got 0 from "
+          "protobuf conversion.");
+    }
+    return DataType::Array(childType, fixed_length);
+  }
   default:
     THROW_CONVERSION_EXCEPTION("Unsupported DataType for NeuG conversion");
   }
@@ -123,6 +134,16 @@ std::shared_ptr<::common::DataType> NeuGTypeConverter::inferCommonType(
     auto temporal = std::make_unique<::common::Temporal>();
     temporal->mutable_interval();
     commonType->set_allocated_temporal(temporal.release());
+    break;
+  }
+  case DataTypeId::kArray: {
+    auto array_msg = std::make_unique<::common::Array>();
+    auto child_type = ArrayType::GetChildType(type);
+    auto num_elements = ArrayType::GetNumElements(type);
+    auto child_common = inferCommonType(child_type);
+    *array_msg->mutable_component_type() = *child_common;
+    array_msg->set_fixed_length(static_cast<uint32_t>(num_elements));
+    commonType->set_allocated_array(array_msg.release());
     break;
   }
   default:

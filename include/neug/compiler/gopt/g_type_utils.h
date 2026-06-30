@@ -74,7 +74,18 @@ class GTypeUtils {
     if (arrayType && arrayType.IsMap()) {
       auto componentType = arrayType["component_type"];
       CHECK(componentType.IsDefined())
-          << "component type is undefined in array: " << componentType;
+          << "component type is undefined in array: " << arrayType;
+      auto fixedLength = arrayType["max_length"];
+      CHECK(fixedLength.IsDefined())
+          << "fixed length is undefined in array: " << arrayType;
+      return neug::common::DataType::Array(createLogicalType(componentType),
+                                           fixedLength.as<uint64_t>());
+    }
+    auto listType = node["list"];
+    if (listType && listType.IsMap()) {
+      auto componentType = listType["component_type"];
+      CHECK(componentType.IsDefined())
+          << "component type is undefined in list: " << listType;
       return neug::common::DataType::List(createLogicalType(componentType));
     }
     THROW_RUNTIME_ERROR("Unsupported type in YAML: " + node.as<std::string>());
@@ -113,6 +124,19 @@ class GTypeUtils {
       return YAML_NODE_TEMPORAL_TIMESTAMP64();
     case neug::common::DataTypeId::kInterval:
       return YAML_NODE_TEMPORAL_INTERVAL();
+    case neug::common::DataTypeId::kList: {
+      YAML::Node n;
+      n["list"]["component_type"] =
+          toYAML(common::ListType::GetChildType(type));
+      return n;
+    }
+    case neug::common::DataTypeId::kArray: {
+      YAML::Node n;
+      n["array"]["component_type"] =
+          toYAML(common::ArrayType::GetChildType(type));
+      n["array"]["max_length"] = common::ArrayType::GetNumElements(type);
+      return n;
+    }
     default:
       LOG(WARNING) << "Unsupported type in YAML: "
                    << static_cast<uint8_t>(type.id());

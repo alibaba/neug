@@ -14,6 +14,7 @@
 
 #include "neug/execution/execute/ops/retrieve/gds_algo.h"
 
+#include "neug/common/types.h"
 #include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -73,12 +74,9 @@ neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(
   }
 
   ContextMeta ret_meta = ctx_meta;
-  const auto& outputColumns = algo_func->outputColumns;
   for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
-    auto alias = plan.plan(op_idx).meta_data(i).alias();
-    if (static_cast<size_t>(i) < outputColumns.size()) {
-      ret_meta.set(alias, common::DataType(outputColumns[i].second));
-    }
+    const auto& meta = plan.plan(op_idx).meta_data(i);
+    ret_meta.set(meta.alias(), parse_from_ir_data_type(meta.type()));
   }
   return std::make_pair(
       std::make_unique<GDSAlgoOpr>(std::move(algo_input), algo_func), ret_meta);

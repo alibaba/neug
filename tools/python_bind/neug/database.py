@@ -199,7 +199,12 @@ class Database(object):
         return self
 
     def __del__(self):
-        self.close()
+        try:
+            self.close(log=False)
+        except Exception:
+            # Destructors can run during interpreter shutdown, after logging
+            # streams or extension state have already been torn down.
+            pass
 
     @property
     def version(self):
@@ -372,26 +377,31 @@ class Database(object):
         self._async_connections.append(async_conn)
         return async_conn
 
-    def close(self):
+    def close(self, log=True):
         """
         Close the database connection.
         """
-        if self._db_path and self._db_path.strip() != "":
+        db_path = getattr(self, "_db_path", None)
+        if log and db_path and db_path.strip() != "":
             logger.info(f"Closing database {self._db_path}.")
         # Close all connections
-        if self._connections:
-            for conn in self._connections:
+        connections = getattr(self, "_connections", None)
+        if connections:
+            for conn in connections:
                 try:
                     conn.close()
                 except Exception as e:
-                    logger.warning(f"Failed to close connection: {e}")
-        if self._async_connections:
-            for async_conn in self._async_connections:
+                    if log:
+                        logger.warning(f"Failed to close connection: {e}")
+        async_connections = getattr(self, "_async_connections", None)
+        if async_connections:
+            for async_conn in async_connections:
                 try:
                     async_conn.close()
                 except Exception as e:
-                    logger.warning(f"Failed to close async connection: {e}")
-        if self._database:
+                    if log:
+                        logger.warning(f"Failed to close async connection: {e}")
+        if getattr(self, "_database", None):
             self._database.close()
             self._database = None
         # Don't clear the connections list, because the connections may be held by the user.

@@ -16,6 +16,7 @@ The following table lists the recommended syntax for defining default values for
 | `DATE`            | `prop DATE DEFAULT DATE('1970-01-01')`    | `DATE('1970-01-01')`               |
 | `TIMESTAMP`       | `prop TIMESTAMP DEFAULT TIMESTAMP('1970-01-01')` | `TIMESTAMP('1970-01-01')`    |
 | `INTERVAL`        | `prop INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day')` | `INTERVAL('0 year 0 month 0 day')`         |
+| `ARRAY`           | `prop INT32[3] DEFAULT [1, 2, 3]` | child defaults repeated to the fixed length, for example `[0, 0, 0]` for `INT32[3]` |
 
 Please refer to the following examples for more usages.
 
@@ -82,6 +83,46 @@ CREATE REL TABLE IF NOT EXISTS KNOWS (
 **Where multiplicity and options apply**
 
 Multiplicity and `WITH` options are defined at **edge type** scope (the edge name and its shared column definitions), not at the level of an individual source–edge–target triplet. When a rel table declares multiple `FROM … TO …` entries for the same edge type, a single multiplicity value and a single option set apply uniformly to every such pair; per-pair multiplicity or option bindings are not supported.
+
+## Array Properties
+
+Use `T[N]` to declare a fixed-size array property, where `T` is the child type and `N` is a positive fixed length (`N` must be greater than 0; declaring `T[0]` is rejected). `T[]` remains a variable-length list type.
+
+```cypher
+CREATE NODE TABLE Sensor(
+    id INT64,
+    readings INT32[3],
+    PRIMARY KEY(id)
+);
+
+CREATE REL TABLE MEASURED_BY(
+    FROM Sensor TO Sensor,
+    weights DOUBLE[2]
+);
+```
+
+Array values can be provided with normal bracket literals in `CREATE`, `SET`, and `MERGE` clauses:
+
+```cypher
+CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});
+
+MATCH (s:Sensor {id: 1})
+SET s.readings = [30, 40, 50];
+```
+
+The number of values must match the declared fixed length. For example, assigning `[1, 2]` or `[1, 2, 3, 4]` to an `INT32[3]` property is rejected.
+
+Nested fixed-size arrays are supported by chaining dimensions. `INT32[2][3]` means an outer array with 3 elements, each of which is an `INT32[2]` array:
+
+```cypher
+CREATE NODE TABLE Matrix(
+    id INT64,
+    grid INT32[2][3],
+    PRIMARY KEY(id)
+);
+```
+
+If an array property is omitted during `CREATE`, or explicitly set to `NULL` during `CREATE`, NeuG stores the declared default for that array. If no explicit default is declared, the system default repeats the child type's default value; for `INT32[3]`, that default is `[0, 0, 0]`. Setting an existing array property to `NULL` with `SET` is not supported yet.
 
 ## Drop Node Type
 

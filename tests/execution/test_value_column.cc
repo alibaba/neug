@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/execution/common/columns/array_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
@@ -24,6 +25,14 @@ namespace execution {
 namespace test {
 
 class ValueColumnTest : public ::testing::Test {};
+
+TEST_F(ValueColumnTest, ArrayColumnBuilderRejectsNonArrayLikeValue) {
+  auto array_type = DataType::Array(DataType::INT32, 2);
+  ArrayColumnBuilder builder(array_type);
+
+  EXPECT_THROW({ builder.push_back_elem(Value::INT32(42)); },
+               exception::InvalidArgumentException);
+}
 
 TEST_F(ValueColumnTest, BoolValueColumnBasic) {
   ValueColumnBuilder<bool> builder;

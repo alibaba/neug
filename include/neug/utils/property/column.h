@@ -28,6 +28,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "neug/config.h"
@@ -91,11 +92,12 @@ class TypedColumn : public ColumnBase {
 
   void Close() { buffer_.reset(); }
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override {
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override {
     ModuleDescriptor desc;
     desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
     desc.module_type = ModuleTypeName();
-    return desc;
+    meta.set_module(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }
@@ -209,7 +211,12 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {}
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override { return ModuleDescriptor(); }
+  void Dump(Checkpoint&, CheckpointManifest& meta,
+            const std::string& key) override {
+    ModuleDescriptor desc;
+    desc.module_type = ModuleTypeName();
+    meta.set_module(key, std::move(desc));
+  }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
   void resize(size_t size, const execution::Value& default_value) override {}
@@ -295,7 +302,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override {
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
     if (!items_buffer_ || !data_buffer_) {
@@ -309,7 +317,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
                     ckp.LinkToSnapshot(items_buffer_->GetPath()));
       desc.set_path(ModuleDescriptor::kDataPath,
                     ckp.LinkToSnapshot(data_buffer_->GetPath()));
-      return desc;
+      meta.set_module(key, std::move(desc));
+      return;
     }
     auto data_uuid = ckp.CreateRuntimeObject();
     auto data_file = ckp.runtime_dir() + "/" + data_uuid;
@@ -393,7 +402,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
                   ckp.CommitRuntimeObject(item_uuid));
     desc.set_path(ModuleDescriptor::kDataPath,
                   ckp.CommitRuntimeObject(data_uuid));
-    return desc;
+    meta.set_module(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }

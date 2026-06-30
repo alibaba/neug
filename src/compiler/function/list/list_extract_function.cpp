@@ -22,6 +22,7 @@
 
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 
+#include "neug/common/types.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
@@ -63,19 +64,34 @@ static execution::Value execFunc(const std::vector<execution::Value>& args) {
     return execution::StructValue::GetChildren(arg0).at(index);
   case neug::DataTypeId::kList:
     return execution::ListValue::GetChildren(arg0).at(index);
+  case neug::DataTypeId::kArray:
+    return execution::ArrayValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the first element should be a tuple or a "
-        "list, "
+        "list/array, "
         "but is " +
         std::to_string(static_cast<int>(arg0.type().id())));
   }
 }
 
+static const DataType& getChildType(const DataType& type) {
+  switch (type.id()) {
+  case DataTypeId::kList:
+    return ::ListType::GetChildType(type);
+  case DataTypeId::kArray:
+    return ::ArrayType::GetChildType(type);
+  default:
+    THROW_RUNTIME_ERROR(
+        "LIST_EXTRACT([], index): the first element should be a list/array, "
+        "but is " +
+        std::to_string(static_cast<int>(type.id())));
+  }
+}
+
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  const auto& resultType =
-      ::ListType::GetChildType(input.arguments[0]->dataType);
+  const auto& resultType = getChildType(input.arguments[0]->dataType);
   std::vector<DataType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(DataType(input.definition->parameterTypeIDs[1]));
@@ -85,11 +101,17 @@ static std::unique_ptr<FunctionBindData> bindFunc(
 
 function_set ListExtractFunction::getFunctionSet() {
   function_set result;
-  std::unique_ptr<ScalarFunction> func = std::make_unique<NeugScalarFunction>(
+  auto list_func = std::make_unique<NeugScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kList, DataTypeId::kInt64},
       DataTypeId::kUnknown, std::move(execFunc));
-  func->bindFunc = bindFunc;
-  result.push_back(std::move(func));
+  list_func->bindFunc = bindFunc;
+  result.push_back(std::move(list_func));
+
+  auto array_func = std::make_unique<NeugScalarFunction>(
+      name, std::vector<DataTypeId>{DataTypeId::kArray, DataTypeId::kInt64},
+      DataTypeId::kUnknown, execFunc);
+  array_func->bindFunc = bindFunc;
+  result.push_back(std::move(array_func));
   return result;
 }
 

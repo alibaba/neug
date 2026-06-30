@@ -27,6 +27,7 @@
 #include "neug/utils/exception/exception.h"
 
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -34,6 +35,7 @@
 #include <unordered_set>
 #include <utility>
 #include "neug/execution/common/types/value.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/bolt_utils.h"
@@ -231,8 +233,20 @@ bool data_type_to_property_type(const common::DataType& data_type,
     return temporal_type_to_property_type(data_type.temporal(), out_type);
   }
   case common::DataType::kArray: {
-    LOG(ERROR) << "Array type is not supported";
-    return false;
+    const auto& array = data_type.array();
+    DataType child_type;
+    if (!data_type_to_property_type(array.component_type(), child_type)) {
+      LOG(ERROR) << "Failed to parse array component type";
+      return false;
+    }
+    auto fixed_length = array.fixed_length();
+    if (fixed_length == 0) {
+      LOG(ERROR) << "Array fixed_length must be greater than 0: "
+                 << data_type.DebugString();
+      return false;
+    }
+    out_type = DataType::Array(child_type, fixed_length);
+    return true;
   }
   case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
@@ -248,60 +262,53 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_value(const DataType& type, const common::Value& value,
-                           execution::Value& out_value) {
-  switch (value.item_case()) {
-  case common::Value::kBoolean:
-    out_value = execution::Value::BOOLEAN(value.boolean());
-    break;
-  case common::Value::kI32:
-    out_value = execution::Value::INT32(value.i32());
-    break;
-  case common::Value::kI64:
-    out_value = execution::Value::INT64(value.i64());
-    break;
-  case common::Value::kU32:
-    out_value = execution::Value::UINT32(value.u32());
-    break;
-  case common::Value::kU64:
-    out_value = execution::Value::UINT64(value.u64());
-    break;
-  case common::Value::kF32:
-    out_value = execution::Value::FLOAT(value.f32());
-    break;
-  case common::Value::kF64:
-    out_value = execution::Value::DOUBLE(value.f64());
-    break;
-  case common::Value::kStr:
-    if (type.id() == DataTypeId::kDate) {
-      // Special handling for date stored as string
-      Date date(value.str());
-      out_value = execution::Value::DATE(date);
-      break;
-    } else if (type.id() == DataTypeId::kTimestampMs) {
-      // Special handling for datetime stored as string
-      DateTime datetime(value.str());
-      out_value = execution::Value::TIMESTAMPMS(datetime);
-      break;
-    } else if (type.id() == DataTypeId::kInterval) {
-      // Special handling for interval stored as string
-      Interval interval(value.str());
-      out_value = execution::Value::INTERVAL(interval);
-      break;
-    } else {
-      auto str_type_info = type.getExtraTypeInfo();
-      uint16_t max_length =
-          str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
-                        : STRING_DEFAULT_MAX_LENGTH;
-      out_value = execution::Value::VARCHAR(value.str(), max_length);
+bool default_expression_to_value(const DataType& type,
+                                 const common::Expression& expression,
+                                 execution::Value& out_value) {
+  try {
+    auto expr = execution::parse_expression(
+        expression, execution::ContextMeta{}, execution::VarType::kRecord);
+    if (!expr) {
+      LOG(ERROR) << "Failed to parse default expression: "
+                 << expression.DebugString();
+      return false;
     }
-    break;
-  case common::Value::kDate:
-    out_value = execution::Value::DATE(Date(value.date().item()));
-    break;
-  default:
-    LOG(ERROR) << "Unknown value type: " << value.DebugString();
+    auto bound_expr = expr->bind(nullptr, execution::ParamsMap{});
+    if (!bound_expr) {
+      LOG(ERROR) << "Failed to bind default expression: "
+                 << expression.DebugString();
+      return false;
+    }
+
+    execution::DataChunk empty_chunk;
+    out_value = bound_expr->Cast<execution::RecordExprBase>().eval_record(
+        empty_chunk, 0);
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to evaluate default expression: "
+               << expression.DebugString() << ", reason: " << e.what();
     return false;
+  } catch (...) {
+    LOG(ERROR) << "Failed to evaluate default expression: "
+               << expression.DebugString();
+    return false;
+  }
+
+  if (out_value.type() != type) {
+    LOG(ERROR) << "Default expression type mismatch, expected "
+               << type.ToString() << ", got " << out_value.type().ToString()
+               << ": " << expression.DebugString();
+    return false;
+  }
+  if (type.id() == DataTypeId::kVarchar) {
+    size_t max_length = STRING_DEFAULT_MAX_LENGTH;
+    if (type.getExtraTypeInfo()) {
+      max_length = type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length;
+    }
+    if (max_length <= std::numeric_limits<uint16_t>::max()) {
+      out_value =
+          execution::Value::VARCHAR(execution::StringValue::Get(out_value),
+                                    static_cast<uint16_t>(max_length));
+    }
   }
   return true;
 }
@@ -320,15 +327,15 @@ property_defs_to_value(
                           "Invalid property type: " + property.DebugString()));
     }
 
-    if (property.has_default_value()) {
-      if (!common_value_to_value(type, property.default_value(),
-                                 default_value)) {
+    if (property.has_default_expr()) {
+      if (!default_expression_to_value(type, property.default_expr(),
+                                       default_value)) {
         RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
         VLOG(10) << "Default value convert to any success:"
-                 << property.default_value().DebugString();
+                 << property.default_expr().DebugString();
       }
     } else {
       default_value = get_default_value(type);

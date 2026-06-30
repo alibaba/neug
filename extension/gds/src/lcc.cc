@@ -79,8 +79,18 @@ std::unique_ptr<function::CallFuncInputBase> LCCFunction::bind(
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
 
-  input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->lcc_alias = plan.plan(op_idx).meta_data(1).alias();
+  input->node_alias = -1;
+  input->lcc_alias = -1;
+  const auto& meta_data = plan.plan(op_idx);
+  for (int i = 0; i < meta_data.meta_data_size(); i++) {
+    const auto& meta = meta_data.meta_data(i);
+    auto type = parse_from_ir_data_type(meta.type());
+    if (type.id() == common::DataTypeId::kVertex) {
+      input->node_alias = meta.alias();
+    } else if (type.id() == common::DataTypeId::kDouble) {
+      input->lcc_alias = meta.alias();
+    }
+  }
 
   return input;
 }

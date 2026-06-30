@@ -44,7 +44,8 @@ class VertexTimestamp : public Module {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel memory_level) override;
 
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
 
   void Init(vid_t init_vertex_num, vid_t max_vertex_num);
 

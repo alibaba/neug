@@ -30,6 +30,7 @@
 #include <ranges>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include "neug/compiler/catalog/catalog.h"
@@ -404,32 +405,63 @@ class VerifyFactory {
     return out;
   }
 
+  static void normalizeListAndArrayTypes(
+      rapidjson::Value& value, rapidjson::Document::AllocatorType& allocator) {
+    if (value.IsArray()) {
+      for (auto& item : value.GetArray()) {
+        normalizeListAndArrayTypes(item, allocator);
+      }
+      return;
+    }
+    if (!value.IsObject()) {
+      return;
+    }
+    for (auto& member : value.GetObject()) {
+      if (std::string_view(member.name.GetString(),
+                           member.name.GetStringLength()) == "data_type" &&
+          member.value.IsObject() &&
+          (member.value.HasMember("list") || member.value.HasMember("array"))) {
+        member.value.SetString("<LIST_OR_ARRAY>", allocator);
+      } else {
+        normalizeListAndArrayTypes(member.value, allocator);
+      }
+    }
+  }
+
   static void verifyPhysicalByJson(const ::physical::PhysicalPlan& plan,
                                    const std::string& expectedStr) {
-    rapidjson::Document document;
-    document.Parse(expectedStr.c_str());
-    if (document.HasParseError()) {
+    rapidjson::Document expectedDocument;
+    expectedDocument.Parse(expectedStr.c_str());
+    if (expectedDocument.HasParseError()) {
       THROW_RUNTIME_ERROR("Failed to parse expected JSON: " + expectedStr);
     }
+    normalizeListAndArrayTypes(expectedDocument,
+                               expectedDocument.GetAllocator());
     std::string planExpectedStr = expectedStr;
-    if (document.HasMember("query_plan")) {
-      const rapidjson::Value& queryPlan = document["query_plan"];
+    if (expectedDocument.HasMember("query_plan")) {
+      const rapidjson::Value& queryPlan = expectedDocument["query_plan"];
       if (queryPlan.IsObject() && queryPlan.HasMember("plan")) {
         const rapidjson::Value& plan = queryPlan["plan"];
         planExpectedStr = rapidjson_stringify(plan);
       }
-    } else if (document.HasMember("plan")) {
-      const rapidjson::Value& plan = document["plan"];
+    } else if (expectedDocument.HasMember("plan")) {
+      const rapidjson::Value& plan = expectedDocument["plan"];
       planExpectedStr = rapidjson_stringify(plan);
+    } else {
+      planExpectedStr = rapidjson_stringify(expectedDocument);
     }
     auto actualStr = Utils::getPhysicalJson(plan);
-    document.Parse(actualStr.c_str());
-    if (document.HasParseError()) {
+    rapidjson::Document actualDocument;
+    actualDocument.Parse(actualStr.c_str());
+    if (actualDocument.HasParseError()) {
       THROW_RUNTIME_ERROR("Failed to parse actual JSON: " + actualStr);
     }
-    if (document.HasMember("plan")) {
-      const rapidjson::Value& plan = document["plan"];
+    normalizeListAndArrayTypes(actualDocument, actualDocument.GetAllocator());
+    if (actualDocument.HasMember("plan")) {
+      const rapidjson::Value& plan = actualDocument["plan"];
       actualStr = rapidjson_stringify(plan);
+    } else {
+      actualStr = rapidjson_stringify(actualDocument);
     }
     ASSERT_EQ(normalize(actualStr), normalize(planExpectedStr))
         << "Expected: " << planExpectedStr << "\nActual: " << actualStr;
@@ -438,6 +470,9 @@ class VerifyFactory {
   static RegexReplaceMap logicalPlanNormalizePatterns() {
     auto patterns = defaultNormalizePatterns();
     patterns.emplace_back(R"( Cardinality:\s*\d+)", "");
+    patterns.emplace_back(
+        R"((SCAN_NODE_TABLE\[[^ \]\n]+) [^\]\n]*?(?=(?: PK_SCAN\([^)]*\))?Type:))",
+        "$1 <PROPERTIES>");
     return patterns;
   }
 

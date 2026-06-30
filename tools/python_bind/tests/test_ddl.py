@@ -420,6 +420,76 @@ def test_get_varchar_default_value_2():
     db.close()
 
 
+def test_temporal_default_values_end_to_end(tmp_path):
+    import datetime
+
+    db_dir = str(tmp_path / "test_temporal_default_values")
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            """
+            CREATE NODE TABLE Event(
+                id INT64 PRIMARY KEY,
+                event_date DATE DEFAULT DATE('2023-06-15'),
+                created_at TIMESTAMP DEFAULT TIMESTAMP('2023-12-25 10:30:45'),
+                duration INTERVAL DEFAULT INTERVAL('3 days')
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE REL TABLE Follows(
+                FROM Event TO Event,
+                followed_on DATE DEFAULT DATE('2024-01-02'),
+                updated_at TIMESTAMP DEFAULT TIMESTAMP('2024-01-02 03:04:05'),
+                lag INTERVAL DEFAULT INTERVAL('5 days')
+            );
+            """
+        )
+
+        conn.execute("CREATE (:Event {id: 1});")
+        conn.execute("CREATE (:Event {id: 2, event_date: DATE('2020-01-01')});")
+        conn.execute(
+            "MATCH (a:Event {id: 1}), (b:Event {id: 2}) CREATE (a)-[:Follows]->(b);"
+        )
+
+        rows = list(
+            conn.execute(
+                """
+                MATCH (e:Event {id: 1})
+                RETURN e.event_date, e.created_at, e.duration;
+                """
+            )
+        )
+        assert rows == [
+            [
+                datetime.date(2023, 6, 15),
+                datetime.datetime(2023, 12, 25, 10, 30, 45),
+                "3 days",
+            ]
+        ]
+
+        rows = list(
+            conn.execute(
+                """
+                MATCH (:Event)-[e:Follows]->(:Event)
+                RETURN e.followed_on, e.updated_at, e.lag;
+                """
+            )
+        )
+        assert rows == [
+            [
+                datetime.date(2024, 1, 2),
+                datetime.datetime(2024, 1, 2, 3, 4, 5),
+                "5 days",
+            ]
+        ]
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_drop_add_edge_table_column():
     db_dir = "/tmp/test_drop_add_edge_table_column"
     shutil.rmtree(db_dir, ignore_errors=True)

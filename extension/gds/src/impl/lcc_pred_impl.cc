@@ -176,7 +176,7 @@ void LCCPred::sink(execution::Context& ctx, int node_alias, int lcc_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(lcc_alias, lcc_builder.finish());
   ctx.append_chunk(std::move(chunk));

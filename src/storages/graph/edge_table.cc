@@ -1064,8 +1064,8 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   if (!meta_->is_bundled()) {
     auto table = TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
-      meta.set_module(KeyProperty(src, edge, dst, i),
-                      table->get_column_by_id(i)->Dump(ckp));
+      table->get_column_by_id(i)->Dump(ckp, meta,
+                                       KeyProperty(src, edge, dst, i));
     }
     meta.SetScalar(ScalarKey(src, edge, dst, "table_idx"),
                    std::to_string(GetTableIdx()));

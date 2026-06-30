@@ -1411,7 +1411,113 @@ def test_complex_example(tmp_path):
         print(f"User: {record[0]}, Created: {record[1]}")
 
     session.close()
+    db.stop_serving()
+    db.close()
 
+
+def test_tp_array_node_create_query():
+    """Array property node CREATE/QUERY via session (Bolt/SQL protocol)."""
+    db_dir = "/tmp/test_tp_array_node"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Sensor("
+        "  id INT64,"
+        "  readings INT32[3],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.close()
+
+    uri = db.serve(10015, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});")
+    session.execute("CREATE (s:Sensor {id: 2, readings: [40, 50, 60]});")
+
+    result = session.execute("MATCH (s:Sensor) WHERE s.id = 1 RETURN s.readings;")
+    assert len(result) == 1
+    assert list(result[0][0]) == [10, 20, 30]
+
+    result = session.execute(
+        "MATCH (s:Sensor) WHERE s.readings = [10, 20, 30] RETURN s.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_tp_array_edge_create_query():
+    """Array property edge CREATE/QUERY via session."""
+    db_dir = "/tmp/test_tp_array_edge"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weights INT64[2]);")
+    conn.execute("CREATE (p:Person {id: 1});")
+    conn.execute("CREATE (p:Person {id: 2});")
+    conn.close()
+
+    uri = db.serve(10016, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
+        "CREATE (a)-[:Knows {weights: [7, 9]}]->(b);"
+    )
+
+    result = session.execute(
+        "MATCH (a:Person)-[e:Knows]->(b:Person) " "RETURN a.id, b.id, e.weights;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+    assert result[0][1] == 2
+    assert list(result[0][2]) == [7, 9]
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_tp_array_update_set():
+    """SET array property on node via session."""
+    db_dir = "/tmp/test_tp_array_update_set"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Device("
+        "  id INT64,"
+        "  values DOUBLE[2],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.execute("CREATE (d:Device {id: 1, values: [1.0, 2.0]});")
+    conn.close()
+
+    uri = db.serve(10017, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("MATCH (d:Device {id: 1}) SET d.values = [9.9, 8.8];")
+
+    result = session.execute("MATCH (d:Device {id: 1}) RETURN d.values;")
+    assert len(result) == 1
+    values = list(result[0][0])
+    assert abs(values[0] - 9.9) < 0.01
+    assert abs(values[1] - 8.8) < 0.01
+
+    session.close()
     db.stop_serving()
     db.close()
 
