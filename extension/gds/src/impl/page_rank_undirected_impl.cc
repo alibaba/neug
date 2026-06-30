@@ -130,7 +130,7 @@ void UndirectedPageRank::sink(execution::Context& ctx, int node_alias,
   }
 
   builder.append(vertex_label_, std::move(valid_vertices_));
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, builder.finish());
   chunk.set(pr_alias, pr_builder.finish());
   ctx.append_chunk(std::move(chunk));

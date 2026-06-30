@@ -12,6 +12,7 @@ on:
       - 'tools/python_bind/tests/test_gds.py'
       - 'tools/python_bind/tests/test_gds_path.py'
       - 'tools/python_bind/tests/test_gds_concurrency.py'
+      - 'tools/python_bind/tests/test_gds_yield.py'
       - 'tools/python_bind/tests/test_graphalytics.py'
       - 'tools/python_bind/tests/resources/graphalytics/**'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
@@ -138,6 +139,7 @@ jobs:
         python3 -m pytest -sv tests/test_gds.py
         python3 -m pytest -sv tests/test_gds_path.py
         python3 -m pytest -sv tests/test_gds_concurrency.py
+        python3 -m pytest -sv tests/test_gds_yield.py
 
     - name: Run LDBC Graphalytics Conformance Tests
       run: |

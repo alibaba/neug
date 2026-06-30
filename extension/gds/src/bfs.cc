@@ -76,12 +76,22 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
   input->directed = get_option_value<bool>(options, "directed", false);
-
-  input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->distance_alias = plan.plan(op_idx).meta_data(1).alias();
-  input->return_path = (plan.plan(op_idx).meta_data_size() >= 3);
-  input->path_alias =
-      input->return_path ? plan.plan(op_idx).meta_data(2).alias() : -1;
+  input->node_alias = -1;
+  input->distance_alias = -1;
+  input->path_alias = -1;
+  const auto& meta_data = plan.plan(op_idx);
+  for (int i = 0; i < meta_data.meta_data_size(); i++) {
+    const auto& meta = meta_data.meta_data(i);
+    auto type = parse_from_ir_data_type(meta.type());
+    if (type.id() == common::DataTypeId::kVertex) {
+      input->node_alias = meta.alias();
+    } else if (type.id() == common::DataTypeId::kInt64) {
+      input->distance_alias = meta.alias();
+    } else if (type.id() == common::DataTypeId::kPath) {
+      input->path_alias = meta.alias();
+      input->return_path = true;
+    }
+  }
 
   return input;
 }

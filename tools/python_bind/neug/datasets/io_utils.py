@@ -92,6 +92,35 @@ def _hash_file(fpath, algorithm="sha256", chunk_size=65535):
     return hasher.hexdigest()
 
 
+def _is_within_directory(directory, target):
+    abs_directory = os.path.abspath(directory)
+    abs_target = os.path.abspath(target)
+    return os.path.commonprefix([abs_directory, abs_target]) == abs_directory
+
+
+def _safe_extractall(archive, path):
+    """Extract archive contents, using filter='data' on Python 3.12+."""
+    if sys.version_info >= (3, 12):
+        archive.extractall(path, filter="data")
+        return
+
+    if isinstance(archive, zipfile.ZipFile):
+        for member in archive.namelist():
+            member_path = os.path.join(path, member)
+            if not _is_within_directory(path, member_path):
+                raise ValueError(
+                    f"Refusing to extract zip entry outside target dir: {member!r}"
+                )
+    elif isinstance(archive, tarfile.TarFile):
+        for member in archive.getmembers():
+            member_path = os.path.join(path, member.name)
+            if not _is_within_directory(path, member_path):
+                raise ValueError(
+                    f"Refusing to extract tar entry outside target dir: {member.name!r}"
+                )
+    archive.extractall(path)
+
+
 def _extract_archive(fpath, path=".", archive_format="auto"):
     """Extracts an archive if it matches tar.gz, tar.bz, tar, or zip formats.
 
@@ -132,7 +161,7 @@ def _extract_archive(fpath, path=".", archive_format="auto"):
         if is_match_fn(fpath):
             with open_fn(fpath) as archive:
                 try:
-                    archive.extractall(path, filter="data")
+                    _safe_extractall(archive, path)
                 except (tarfile.TarError, RuntimeError, KeyboardInterrupt):
                     if os.path.exists(path):
                         if os.path.isfile(path):
