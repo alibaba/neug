@@ -196,7 +196,7 @@ class WalReplayTest : public ::testing::Test {
   std::string db_dir_;
 };
 
-void expect_compact_completes_timestamp_and_preserves_next_insert(bool commit) {
+static void expect_compact_completes_timestamp_and_preserves_next_insert(bool commit) {
   neug::VersionManager version_manager;
   version_manager.init_ts(0, 1);
 
