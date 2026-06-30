@@ -228,9 +228,7 @@ class TestLoadFromDocs:
                 f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
                 "RETURN id, CAST(readings, 'INT64[3]');"
             )
-        assert "fixed_size_list" in str(exc_info.value) or "not supported" in str(
-            exc_info.value
-        )
+        assert "not supported" in str(exc_info.value).lower()
 
 
 # ============================================================
@@ -443,9 +441,7 @@ class TestCopyFromDocs:
             self.conn.execute(
                 f'COPY Sensor FROM "{csv_path}" (header=true, delimiter=",");'
             )
-        assert "fixed_size_list" in str(exc_info.value) or "not supported" in str(
-            exc_info.value
-        )
+        assert "Unsupported data type in CSV parser" in str(exc_info.value)
 
     def test_copy_from_batch_read(self):
         """import_data.md: COPY FROM with batch_read and batch_size options.
