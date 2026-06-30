@@ -63,6 +63,9 @@ make wheel        # produces dist/neug-*.whl
 fallback if absent). The wheel bundles both `neug_py_bind*.so` and
 `libneug.{dylib,so}` into the `neug` package; they find each other at runtime
 via `@loader_path` (macOS) / `$ORIGIN` (Linux) RPATH.
+Wheel builds always force `NEUG_PACKAGE_BUILD=ON` and `NEUG_NATIVE_ARCH=OFF`.
+For local source builds via `setup.py build_ext`, override with
+`NEUG_PACKAGE_BUILD=OFF NEUG_NATIVE_ARCH=ON make build`.
 
 ## Python service API
 
