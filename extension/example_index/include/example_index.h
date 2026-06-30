@@ -39,7 +39,8 @@ class ExampleIndex final : public neug::Index {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::string ModuleTypeName() const override { return type_name(); }

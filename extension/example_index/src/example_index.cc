@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/index/doc_id_map.h"
 #include "neug/utils/result.h"
 
@@ -37,13 +38,15 @@ void ExampleIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
       ckp.OpenFile(descriptor.get_path(kIndexBufferPath).value_or(""), level);
 }
 
-ModuleDescriptor ExampleIndex::Dump(Checkpoint& ckp) {
-  auto descriptor = Index::Dump(ckp);
+void ExampleIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                        const std::string& key) {
+  Index::Dump(ckp, meta, key);
+  auto descriptor = meta.module(key).value_or(ModuleDescriptor{});
   descriptor.module_type = ModuleTypeName();
   if (index_buffer_) {
     descriptor.set_path(kIndexBufferPath, ckp.Commit(*index_buffer_));
   }
-  return descriptor;
+  meta.set_module(key, std::move(descriptor));
 }
 
 void ExampleIndex::Detach(Checkpoint& ckp, MemoryLevel level) {
