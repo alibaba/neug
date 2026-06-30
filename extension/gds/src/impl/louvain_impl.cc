@@ -44,7 +44,8 @@ Louvain::Louvain(const StorageReadInterface& graph, label_t vertex_label,
   vid_t max_vid = 0;
   for (const auto& v : vertex_set) {
     valid_vertices_.push_back(v);
-    if (v > max_vid) max_vid = v;
+    if (v > max_vid)
+      max_vid = v;
   }
   vertex_count_ = valid_vertices_.size();
 
@@ -56,9 +57,11 @@ Louvain::Louvain(const StorageReadInterface& graph, label_t vertex_label,
   stot_ = std::make_unique<double[]>(array_size_);
 
   // Per-thread scratch for parallel moving phase
-  num_threads_ = concurrency_ > 0 ? concurrency_
-                                  : static_cast<int>(std::thread::hardware_concurrency());
-  if (num_threads_ < 1) num_threads_ = 1;
+  num_threads_ = concurrency_ > 0
+                     ? concurrency_
+                     : static_cast<int>(std::thread::hardware_concurrency());
+  if (num_threads_ < 1)
+    num_threads_ = 1;
   size_t total_scratch = static_cast<size_t>(num_threads_) * array_size_;
   thread_comm_weight_ = std::make_unique<double[]>(total_scratch);
   thread_gen_ = std::make_unique<uint32_t[]>(total_scratch);
@@ -74,10 +77,10 @@ Louvain::Louvain(const StorageReadInterface& graph, label_t vertex_label,
 }
 
 void Louvain::compute() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(
-      vertex_label_, vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(
-      vertex_label_, vertex_label_, edge_label_);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
+                                                    vertex_label_, edge_label_);
+  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
+                                                    vertex_label_, edge_label_);
 
   // Compute degrees: for undirected graph, degree = out_degree + in_degree
   ParallelUtils::parallel_for(
@@ -85,9 +88,11 @@ void Louvain::compute() {
       [&](vid_t v, int /*tid*/) {
         double deg = 0;
         auto oes = oe_view.get_edges(v);
-        for (auto it = oes.begin(); it != oes.end(); ++it) deg += 1.0;
+        for (auto it = oes.begin(); it != oes.end(); ++it)
+          deg += 1.0;
         auto ies = ie_view.get_edges(v);
-        for (auto it = ies.begin(); it != ies.end(); ++it) deg += 1.0;
+        for (auto it = ies.begin(); it != ies.end(); ++it)
+          deg += 1.0;
         degree_[v] = deg;
       },
       concurrency_);
@@ -101,12 +106,14 @@ void Louvain::compute() {
         [&](vid_t v, int tid) {
           auto oes = oe_view.get_edges(v);
           double cnt = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
+          for (auto it = oes.begin(); it != oes.end(); ++it)
+            cnt += 1.0;
           local_m[tid] += cnt;
         },
         num_threads_);
     m_ = 0;
-    for (int i = 0; i < num_threads_; ++i) m_ += local_m[i];
+    for (int i = 0; i < num_threads_; ++i)
+      m_ += local_m[i];
   }
 
   if (m_ == 0) {
@@ -123,7 +130,8 @@ void Louvain::compute() {
   double prev_mod = -1.0;
   for (int level = 0; level < 100; ++level) {
     bool improved = one_level();
-    if (!improved) break;
+    if (!improved)
+      break;
 
     // Compute modularity to check convergence
     std::vector<double> local_mod(num_threads_, 0.0);
@@ -135,15 +143,16 @@ void Louvain::compute() {
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             vid_t u = *it;
             if (community_[v] == community_[u]) {
-              lm += 1.0 / (2.0 * m_) -
-                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
+              lm +=
+                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
             }
           }
           local_mod[tid] += lm;
         },
         num_threads_);
     modularity_ = 0;
-    for (int i = 0; i < num_threads_; ++i) modularity_ += local_mod[i];
+    for (int i = 0; i < num_threads_; ++i)
+      modularity_ += local_mod[i];
 
     if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_) {
       break;
@@ -162,23 +171,24 @@ void Louvain::compute() {
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             vid_t u = *it;
             if (community_[v] == community_[u]) {
-              lm += 1.0 / (2.0 * m_) -
-                    degree_[v] * degree_[u] / (4.0 * m_ * m_);
+              lm +=
+                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
             }
           }
           local_mod[tid] += lm;
         },
         concurrency_);
     modularity_ = 0;
-    for (int i = 0; i < concurrency_; ++i) modularity_ += local_mod[i];
+    for (int i = 0; i < concurrency_; ++i)
+      modularity_ += local_mod[i];
   }
 }
 
 bool Louvain::one_level() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(
-      vertex_label_, vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(
-      vertex_label_, vertex_label_, edge_label_);
+  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
+                                                    vertex_label_, edge_label_);
+  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
+                                                    vertex_label_, edge_label_);
 
   std::vector<vid_t> order = valid_vertices_;
   std::mt19937 rng(42);
@@ -195,7 +205,8 @@ bool Louvain::one_level() {
 
   // Per-thread touched community lists (reused across batches)
   std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t) touched[t].reserve(256);
+  for (int t = 0; t < nt; ++t)
+    touched[t].reserve(256);
 
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
@@ -211,14 +222,17 @@ bool Louvain::one_level() {
         threads.reserve(nt - 1);
 
         auto worker = [&](int tid) {
-          uint32_t* my_gen = thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-          double* my_cw = thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
+          uint32_t* my_gen =
+              thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
+          double* my_cw = thread_comm_weight_.get() +
+                          static_cast<size_t>(tid) * array_size_;
           uint32_t gen_val = 0;
           auto& my_touched = touched[tid];
 
           while (true) {
             size_t start = cursor.fetch_add(64);
-            if (start >= batch_end) break;
+            if (start >= batch_end)
+              break;
             size_t end = std::min(start + size_t(64), batch_end);
 
             for (size_t i = start; i < end; ++i) {
@@ -230,7 +244,8 @@ bool Louvain::one_level() {
               my_touched.clear();
 
               auto process_nbr = [&](vid_t v) {
-                if (v == u) return;
+                if (v == u)
+                  return;
                 uint32_t com = community_[v];
                 if (my_gen[com] != gen_val) {
                   my_gen[com] = gen_val;
@@ -257,12 +272,14 @@ bool Louvain::one_level() {
               double best_gain = 0.0;
 
               for (uint32_t com : my_touched) {
-                if (com == cur_com) continue;
+                if (com == cur_com)
+                  continue;
                 double w_com = my_cw[com];
                 // Gain = benefit of joining com - cost of leaving cur_com
-                double gain = (w_com - w_self) / m_ -
-                              resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                              resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
+                double gain =
+                    (w_com - w_self) / m_ -
+                    resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+                    resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
                 if (gain > best_gain) {
                   best_gain = gain;
                   best = com;
@@ -277,7 +294,8 @@ bool Louvain::one_level() {
         for (int t = 1; t < nt; ++t)
           threads.emplace_back(worker, t);
         worker(0);
-        for (auto& th : threads) th.join();
+        for (auto& th : threads)
+          th.join();
       }
 
       // Phase 2: Apply moves (sequential — safe stot_ updates)
@@ -295,7 +313,8 @@ bool Louvain::one_level() {
       }
     }
 
-    if (!moved) break;
+    if (!moved)
+      break;
   }
 
   return improved;
@@ -314,7 +333,8 @@ void Louvain::sink(execution::Context& ctx, int node_alias,
 
   for (vid_t v : valid_vertices_) {
     uint32_t c = community_[v];
-    if (com_remap.find(c) == com_remap.end()) com_remap[c] = next_id++;
+    if (com_remap.find(c) == com_remap.end())
+      com_remap[c] = next_id++;
     builder.push_back_opt(v);
     community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
   }
@@ -329,7 +349,7 @@ LouvainResult RunLouvain(const StorageReadInterface& graph,
                          label_t vertex_label, label_t edge_label,
                          bool directed, double resolution, double threshold,
                          int concurrency) {
-  (void)directed;  // TODO: directed support
+  (void) directed;  // TODO: directed support
 
   Louvain louvain(graph, vertex_label, edge_label, resolution, threshold,
                   concurrency);

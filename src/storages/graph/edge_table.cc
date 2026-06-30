@@ -263,7 +263,8 @@ void batch_add_unbundled_edges_impl(
     std::vector<std::shared_ptr<execution::IContextColumn>> prop_cols;
     prop_cols.reserve(chunk->col_num());
     for (auto& c : chunk->columns) {
-      if (c) prop_cols.push_back(c);
+      if (c)
+        prop_cols.push_back(c);
     }
     for (size_t i = 0; i < num_rows; ++i) {
       assert(cur_index < valid_flags.size());

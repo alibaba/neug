@@ -8,7 +8,8 @@
 namespace neug {
 namespace planner {
 
-static uint64_t getLiteralNumber(std::shared_ptr<neug::binder::Expression> expr) {
+static uint64_t getLiteralNumber(
+    std::shared_ptr<neug::binder::Expression> expr) {
   uint64_t number = common::INVALID_LIMIT;
   if (expr == nullptr) {
     return number;

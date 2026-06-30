@@ -19,8 +19,8 @@
 
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "parquet/arrow_type_converter.h"
 #include "neug/utils/result.h"
+#include "parquet/arrow_type_converter.h"
 
 namespace neug {
 namespace reader {

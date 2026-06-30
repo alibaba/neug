@@ -19,8 +19,8 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
-#include "neug/utils/datetime_parsers.h"
 #include "neug/utils/bitset.h"
+#include "neug/utils/datetime_parsers.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
@@ -264,9 +264,9 @@ TEST_F(DatetimeParserTest, Timestamp_WithTZ) {
 
 TEST_F(DatetimeParserTest, Timestamp_WithFractionalSeconds) {
   int64_t result = 0;
-  EXPECT_TRUE(neug::utils::parse_timestamp(
-      "2023-06-15 14:30:45.123", 23, neug::utils::TimestampUnit::kMilli,
-      &result));
+  EXPECT_TRUE(neug::utils::parse_timestamp("2023-06-15 14:30:45.123", 23,
+                                           neug::utils::TimestampUnit::kMilli,
+                                           &result));
   EXPECT_EQ(result, 1686839445LL * 1000 + 123);
 }
 

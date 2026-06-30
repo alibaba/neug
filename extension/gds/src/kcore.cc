@@ -92,7 +92,8 @@ execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
   if (kcore_input.vertex_pred != nullptr || kcore_input.edge_pred != nullptr) {
     KCorePred runner(graph, kcore_input.vertex_label, kcore_input.edge_label,
                      kcore_input.k, kcore_input.concurrency,
-                     kcore_input.vertex_pred.get(), kcore_input.edge_pred.get());
+                     kcore_input.vertex_pred.get(),
+                     kcore_input.edge_pred.get());
     runner.compute();
     runner.sink(ret, kcore_input.node_alias, kcore_input.core_alias);
   } else {
@@ -106,8 +107,8 @@ execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set KCoreFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {
-      common::DataTypeId::kVarchar, common::DataTypeId::kUnknown};
+  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
+                                                 common::DataTypeId::kUnknown};
   function::call_output_columns output_columns = {
       {"node", common::DataTypeId::kVertex},
       {"core", common::DataTypeId::kInt64}};

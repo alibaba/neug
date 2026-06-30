@@ -82,11 +82,10 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
   auto propCopies = nodeTableEntry->getProperties();
   auto boundExtra = std::make_unique<BoundExtraCreateNodeTableInfo>(
       primaryKeyName, std::move(propCopies));
-  createTableInfo =
-      BoundCreateTableInfo(CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
-                           ConflictAction::ON_CONFLICT_THROW,
-                           std::move(boundExtra), false /* isInternal */,
-                           false /* hasParent */, temporary);
+  createTableInfo = BoundCreateTableInfo(
+      CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
+      ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
+      false /* isInternal */, false /* hasParent */, temporary);
 }
 
 std::string DDLVertexInfo::getVertexLabelName() {
@@ -131,11 +130,10 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
   auto boundExtra = std::make_unique<BoundExtraCreateRelTableInfo>(
       RelMultiplicity::MANY, RelMultiplicity::MANY, ExtendDirection::BOTH,
       srcLabelID, dstLabelID, std::move(relProps));
-  createTableInfo =
-      BoundCreateTableInfo(CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
-                           ConflictAction::ON_CONFLICT_THROW,
-                           std::move(boundExtra), false /* isInternal */,
-                           false /* hasParent */, temporary);
+  createTableInfo = BoundCreateTableInfo(
+      CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
+      ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
+      false /* isInternal */, false /* hasParent */, temporary);
 
   relTableEntry = std::make_unique<GRelTableCatalogEntry>(
       edgeLabelName, RelMultiplicity::MANY, RelMultiplicity::MANY,
@@ -471,18 +469,15 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
       internalIDColumnIndices, lookupInfos);
 
   const auto& edgeLabel = copyStatement.getTableName();
-  auto extraTableInfo =
-      std::make_unique<DDLEdgeInfo>(edgeLabel, fromLabel, toLabel, srcTableID,
-                                    dstTableID, columns, expressionBinder,
-                                    temporary);
+  auto extraTableInfo = std::make_unique<DDLEdgeInfo>(
+      edgeLabel, fromLabel, toLabel, srcTableID, dstTableID, columns,
+      expressionBinder, temporary);
   auto boundCopyFromInfo =
       BoundCopyFromInfo(std::move(boundSource), std::move(offset),
                         std::move(columns), std::move(evaluateTypes),
                         std::move(extraCopyRelInfo), std::move(extraTableInfo));
   return std::make_unique<BoundCopyFrom>(std::move(boundCopyFromInfo));
 }
-
-
 
 static bool skipPropertyInFile(const PropertyDefinition& property) {
   if (property.getName() == InternalKeyword::ID) {

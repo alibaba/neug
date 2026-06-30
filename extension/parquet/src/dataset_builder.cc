@@ -25,8 +25,8 @@
 #include <string>
 #include <vector>
 #include "neug/utils/exception/exception.h"
-#include "parquet/arrow_reader.h"
 #include "neug/utils/service_utils.h"
+#include "parquet/arrow_reader.h"
 
 namespace neug {
 namespace reader {
