@@ -613,22 +613,36 @@ TEST_F(PatternMatchingTest, UnknownOperatorFallsBackToEqual) {
                          2);
 }
 
-TEST_F(PatternMatchingTest, InOperatorCurrentlyMatchesNothing) {
-  ExpectPatternJsonCount(SingleEdgePatternWith(
-                             R"(, "constraints": [
+TEST_F(PatternMatchingTest, InOperatorIsRejected) {
+  // 'in' is not implemented; it must fail loudly rather than silently match
+  // nothing (which would look like a legitimately empty result).
+  auto result = QueryPatternJson(SingleEdgePatternWith(
+      R"(, "constraints": [
              {"property": "name", "operator": "in", "value": "Alice"}
            ])",
-                             ""),
-                         0);
+      ""));
+  EXPECT_FALSE(result.has_value());
 }
 
-TEST_F(PatternMatchingTest, NotInOperatorCurrentlyMatchesNothing) {
-  ExpectPatternJsonCount(SingleEdgePatternWith(
-                             R"(, "constraints": [
+TEST_F(PatternMatchingTest, NotInOperatorIsRejected) {
+  auto result = QueryPatternJson(SingleEdgePatternWith(
+      R"(, "constraints": [
              {"property": "name", "operator": "not_in", "value": "Alice"}
            ])",
-                             ""),
-                         0);
+      ""));
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, UppercaseInOperatorIsAlsoRejected) {
+  // Operator matching is case-insensitive: "IN" must hit the same rejection as
+  // "in" rather than silently degrading to '=' (Cypher keywords are
+  // case-insensitive).
+  auto result = QueryPatternJson(SingleEdgePatternWith(
+      R"(, "constraints": [
+             {"property": "name", "operator": "IN", "value": "Alice"}
+           ])",
+      ""));
+  EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(PatternMatchingTest, TwoLabelPatternPersonWorksAtCompany) {
@@ -1381,6 +1395,73 @@ TEST_F(PatternMatchingTest, YieldUnknownVariableIsRejected) {
       "(a:Person)-[r:person_knows_person]->(b:Person)')"
       " YIELD nosuchvar RETURN nosuchvar;");
   EXPECT_FALSE(result.has_value());
+}
+
+// ---------------------------------------------------------------------------
+// Malformed raw-JSON pattern inputs must be rejected with a clean error, not
+// crash the process (heap OOB / null-deref / unguarded stoi / wrong-type JSON
+// access). A passing test here means the query returned without aborting.
+// ---------------------------------------------------------------------------
+
+TEST_F(PatternMatchingTest, SampledOutOfRangeVertexIdIsRejected) {
+  // id 5 with only one vertex would index past vertex_label/adj_list buffers.
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":5,\"label\":\"Person\"}],\"edges\":[]}', "
+      "100, true) RETURN *;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, SampledOutOfRangeEdgeEndpointIsRejected) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":0,\"label\":\"Person\"}],"
+      "\"edges\":[{\"source\":0,\"target\":9,"
+      "\"label\":\"person_knows_person\"}]}', 100, true) RETURN *;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, SampledMissingVertexLabelIsRejected) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":0}],\"edges\":[]}', 10, true) RETURN *;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, SampledNonIntegerVertexIdStringIsRejected) {
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":\"abc\",\"label\":\"Person\"}],\"edges\":[]}', "
+      "10, true) RETURN *;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, UnlabeledJsonVertexPropertyAccessIsRejected) {
+  // Unlabeled vertex bound as a bare kVertex would null-deref on a.name; the
+  // bind must reject it instead.
+  auto result = conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":0,\"alias\":\"a\"},"
+      "{\"id\":1,\"alias\":\"b\",\"label\":\"Person\"}],"
+      "\"edges\":[{\"source\":0,\"target\":1,"
+      "\"label\":\"person_knows_person\"}]}') RETURN *;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PatternMatchingTest, MalformedConstraintJsonDoesNotCrash) {
+  // A non-object constraint element (42) and a non-string property must not
+  // crash ParseConstraints (it skips the malformed entry). The query returning
+  // at all — with or without rows — proves the process did not abort.
+  (void) conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":0,\"label\":\"Person\","
+      "\"constraints\":[42]}],\"edges\":[]}') RETURN *;");
+  (void) conn_->Query(
+      "CALL PATTERN_MATCH("
+      "'{\"vertices\":[{\"id\":0,\"label\":\"Person\","
+      "\"constraints\":[{\"property\":5,\"operator\":\"=\",\"value\":1}]}],"
+      "\"edges\":[]}') RETURN *;");
+  SUCCEED();  // reached here without aborting
 }
 
 }  // namespace test

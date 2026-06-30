@@ -970,14 +970,27 @@ install(EXPORT neug-targets
 	    NAMESPACE neug::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
+# Cover the same dirs and .h/.cc/.cpp extensions as the CI format gate
+# (.github/workflows/format-check.yml), which neug_clformat is advertised to
+# fix. NOTE: the excludes applied below (generated/.pb/third_party/etc.) are
+# broader than CI's find (which only skips *pb.h/*pb.cc), so a non-generated
+# source under an excluded path is checked by CI but not formatted here.
 file(GLOB_RECURSE FILES_NEED_FORMAT
         "include/**/*.h"
+        "include/**/*.cc"
+        "include/**/*.cpp"
         "src/**/*.h"
         "src/**/*.cc"
+        "src/**/*.cpp"
         "tests/**/*.h"
         "tests/**/*.cc"
+        "tests/**/*.cpp"
         "tools/**/*.h"
-        "tools/**/*.cc")
+        "tools/**/*.cc"
+        "tools/**/*.cpp"
+        "extension/**/*.h"
+        "extension/**/*.cc"
+        "extension/**/*.cpp")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/third_party/.*")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")

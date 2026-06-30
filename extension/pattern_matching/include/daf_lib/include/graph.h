@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "../global/global.h"
-#include "fastest_lib/src/DataStructure/json.hpp"
 #include "storage/graph_element.hpp"
 
 namespace daf {
@@ -72,13 +71,6 @@ class Graph {
       Label edge_label) const;
   inline Size GetNumEdgeLabels() const;
 
-  // Public method to load properties (for DataGraph and QueryGraph to use)
-  void LoadGraphProperties(
-      const std::string& vertex_property_filename,
-      const std::string& edge_property_filename,
-      std::unordered_map<std::string, int>& label2id_mapping,
-      std::shared_ptr<gbi::SchemaGraph> schema_graph);
-
   // Property matching methods (for DATA GRAPH)
   bool CheckVertexPropertyConstraints(
       const std::vector<gbi::PropCons>& constraints, Vertex v) const;
@@ -97,10 +89,6 @@ class Graph {
   void LoadRoughGraph(std::vector<std::vector<Vertex>>* graph);
   void LoadRoughGraph(std::vector<std::vector<Vertex>>* graph,
                       std::unordered_map<std::string, int>& label2id_mapping);
-  void LoadProperty(const std::string& vertex_property_filename,
-                    const std::string& edge_property_filename,
-                    std::unordered_map<std::string, int>& label2id_mapping,
-                    std::shared_ptr<gbi::SchemaGraph> schema_graph);
   void computeCoreNum();
 
   Size num_vertex_;

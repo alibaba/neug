@@ -1,6 +1,9 @@
-# Find required packages for FaSTest
-find_package(GSL REQUIRED)
-find_package(Boost 1.71.0 REQUIRED)
+# This extension has no third-party dependencies beyond what NeuG already
+# vendors: the formerly-required GSL (FaSTest sampling) and Boost (DAF / FaSTest
+# bitsets) were replaced by header-only, dependency-free implementations
+# (include/fastest_lib/.../candidate_tree_sampling.h incomplete_beta and
+# include/util/dynamic_bitset.h). The extension therefore always builds, so its
+# tests can never be silently skipped for a missing optional dependency.
 
 # Collect FaSTest source files (header-only library with some cpp files)
 file(GLOB_RECURSE FASTEST_LIB_SOURCES
@@ -29,9 +32,7 @@ target_include_directories(neug_pattern_matching_extension PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include/daf_lib
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${GSL_INCLUDE_DIRS}
-    ${Boost_INCLUDE_DIRS})
+    ${CMAKE_CURRENT_BINARY_DIR})
 
 # Include rapidjson for JSON parsing
 target_include_directories(neug_pattern_matching_extension PRIVATE SYSTEM
@@ -46,8 +47,6 @@ target_include_directories(neug_pattern_matching_extension PRIVATE SYSTEM
 # resolve protobuf symbols at link/load time independently of how libneug
 # happens to expose (or not expose) them.
 target_link_libraries(neug_pattern_matching_extension PRIVATE
-    ${GSL_LIBRARIES}
-    Boost::boost
     neug
     protobuf::libprotobuf
 )
@@ -75,8 +74,6 @@ if(BUILD_TEST)
     target_link_libraries(${_sm_test_name} PUBLIC
         neug::GTest
         neug
-        GSL::gsl
-        GSL::gslcblas
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}
         ${OPENSSL_LIBRARIES}

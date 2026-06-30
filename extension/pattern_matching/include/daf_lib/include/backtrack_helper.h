@@ -24,9 +24,8 @@
 #ifndef BACKTRACK_HELPER_H_
 #define BACKTRACK_HELPER_H_
 
-#include <boost/dynamic_bitset.hpp>
-
 #include "../global/global.h"
+#include "util/dynamic_bitset.h"
 
 namespace daf {
 enum MappingState { UNMAPPED, MAPPED, RESERVED };
@@ -36,7 +35,7 @@ struct SearchTreeNode {
   Vertex u;
   Vertex v;
   Size v_idx;
-  boost::dynamic_bitset<> failing_set;
+  neug::pm::DynamicBitset failing_set;
   bool embedding_founded;
 };
 
@@ -60,7 +59,7 @@ class BacktrackHelper {
   }
   void RemoveMapping() { num_mapped_neighbors_ -= 1; }
 
-  inline boost::dynamic_bitset<>& GetAncestor() {
+  inline neug::pm::DynamicBitset& GetAncestor() {
     return ancestors_[num_mapped_neighbors_];
   }
   inline Size& GetNumExtendable() {
@@ -92,7 +91,7 @@ class BacktrackHelper {
 
  private:
   Size num_mapped_neighbors_;
-  boost::dynamic_bitset<>* ancestors_;
+  neug::pm::DynamicBitset* ancestors_;
   Size** extendable_indices_;
   Size* num_extendable_indices_;
   Size* num_unmapped_extendable_indices_;
@@ -121,7 +120,7 @@ inline BacktrackHelper::~BacktrackHelper() {
 inline void BacktrackHelper::Initialize(Size num_query_vtx, Size degree,
                                         Size cs_size, Vertex u) {
   num_mapped_neighbors_ = 0;
-  ancestors_ = new boost::dynamic_bitset<>[degree + 1];
+  ancestors_ = new neug::pm::DynamicBitset[degree + 1];
   extendable_indices_ = new Size*[degree];
   num_extendable_indices_ = new Size[degree + 1];
   num_unmapped_extendable_indices_ = new Size[degree + 1];

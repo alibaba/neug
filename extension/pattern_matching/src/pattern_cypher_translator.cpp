@@ -101,21 +101,31 @@ bool ContainsKeywordOutsideString(std::string_view text,
                                   std::string_view keyword) {
   bool in_single = false;
   bool in_double = false;
+  bool in_backtick = false;
   for (size_t i = 0; i < text.size(); ++i) {
     const char ch = text[i];
+    // Backslash escapes apply only inside '...'/"..." string literals; Cypher
+    // backtick-quoted identifiers escape a literal backtick by doubling it, so
+    // a stray backslash there must not consume the next character.
     if (ch == '\\' && (in_single || in_double)) {
       ++i;
       continue;
     }
-    if (!in_double && ch == '\'') {
+    if (!in_double && !in_backtick && ch == '\'') {
       in_single = !in_single;
       continue;
     }
-    if (!in_single && ch == '"') {
+    if (!in_single && !in_backtick && ch == '"') {
       in_double = !in_double;
       continue;
     }
-    if (in_single || in_double) {
+    // Backtick-quoted identifiers (e.g. `RETURN` as a property name) are not
+    // keywords; skip their contents so they don't trip the keyword scan.
+    if (!in_single && !in_double && ch == '`') {
+      in_backtick = !in_backtick;
+      continue;
+    }
+    if (in_single || in_double || in_backtick) {
       continue;
     }
     if (i > 0 && IsIdentChar(text[i - 1])) {

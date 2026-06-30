@@ -101,8 +101,9 @@ class CandidateGraphSampler {
   void Intersection(int index);
 };
 
-int printcnt = 0;
-double CandidateGraphSampler::Estimate(int ub_initial, int sample_total_size) {
+inline int printcnt = 0;
+inline double CandidateGraphSampler::Estimate(int ub_initial,
+                                              int sample_total_size) {
   printcnt = 0;
   Timer timer;
   timer.Start();
@@ -143,7 +144,7 @@ double CandidateGraphSampler::Estimate(int ub_initial, int sample_total_size) {
   return est;
 }
 
-std::pair<double, int> CandidateGraphSampler::StratifiedSampling(
+inline std::pair<double, int> CandidateGraphSampler::StratifiedSampling(
     int vertex_id, int ub, double w, int sample_total_size) {
   int u = ChooseExtendableVertex();
   BuildExtendableCandidates(u);
@@ -309,7 +310,7 @@ std::pair<double, int> CandidateGraphSampler::StratifiedSampling(
   }
 }
 
-int CandidateGraphSampler::ChooseExtendableVertex() {
+inline int CandidateGraphSampler::ChooseExtendableVertex() {
   int u = -1;
   int max_open_neighbors = 0;
   int min_nbr_cnt = 1e9;
@@ -356,7 +357,7 @@ int CandidateGraphSampler::ChooseExtendableVertex() {
   return u;
 }
 
-void CandidateGraphSampler::BuildExtendableCandidates(int u) {
+inline void CandidateGraphSampler::BuildExtendableCandidates(int u) {
   local_candidate_size[u] = 0;
   iterators.clear();
   // For directed graph: check out-neighbors (u -> q_nbr)
@@ -385,7 +386,7 @@ void CandidateGraphSampler::BuildExtendableCandidates(int u) {
   Intersection(u);
 }
 
-void CandidateGraphSampler::Intersection(int index) {
+inline void CandidateGraphSampler::Intersection(int index) {
   if (local_candidate_size[index] > 0)
     return;
   int num_vectors = iterators.size();

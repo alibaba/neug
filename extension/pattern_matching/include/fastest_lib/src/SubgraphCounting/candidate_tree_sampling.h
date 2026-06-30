@@ -22,32 +22,89 @@
  */
 
 #pragma once
-#include <gsl/gsl_cdf.h>
-
 #include <glog/logging.h>
+
+#include <cmath>
 
 #include "../SubgraphMatching/candidate_space.h"
 #include "pattern_matching_data_graph_meta.h"
 
 namespace neug_sampled_match_stats {
+// Regularized incomplete beta function I_x(a,b) — the beta CDF. Header-only
+// replacement for gsl_cdf_beta_P so the extension no longer depends on GSL.
+// Uses the Lentz continued-fraction evaluation (Numerical Recipes betacf/betai)
+// with the standard reflection I_x(a,b) = 1 - I_{1-x}(b,a) for fast
+// convergence; accurate to ~1e-15 across the (a,b,x) ranges the Clopper-Pearson
+// bounds below use.
+inline double beta_continued_fraction(double a, double b, double x) {
+  const int kMaxIter = 200;
+  const double kEps = 3.0e-16;
+  const double kTiny = 1.0e-300;
+  const double qab = a + b;
+  const double qap = a + 1.0;
+  const double qam = a - 1.0;
+  double c = 1.0;
+  double d = 1.0 - qab * x / qap;
+  if (std::fabs(d) < kTiny)
+    d = kTiny;
+  d = 1.0 / d;
+  double h = d;
+  for (int m = 1; m <= kMaxIter; ++m) {
+    const double m2 = 2.0 * m;
+    double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1.0 + aa * d;
+    if (std::fabs(d) < kTiny)
+      d = kTiny;
+    c = 1.0 + aa / c;
+    if (std::fabs(c) < kTiny)
+      c = kTiny;
+    d = 1.0 / d;
+    h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1.0 + aa * d;
+    if (std::fabs(d) < kTiny)
+      d = kTiny;
+    c = 1.0 + aa / c;
+    if (std::fabs(c) < kTiny)
+      c = kTiny;
+    d = 1.0 / d;
+    const double del = d * c;
+    h *= del;
+    if (std::fabs(del - 1.0) < kEps)
+      break;
+  }
+  return h;
+}
+
+inline double incomplete_beta(double x, double a, double b) {
+  if (x <= 0.0)
+    return 0.0;
+  if (x >= 1.0)
+    return 1.0;
+  const double log_beta = std::lgamma(a + b) - std::lgamma(a) - std::lgamma(b);
+  const double front =
+      std::exp(log_beta + a * std::log(x) + b * std::log(1.0 - x));
+  if (x < (a + 1.0) / (a + b + 2.0))
+    return front * beta_continued_fraction(a, b, x) / a;
+  return 1.0 - front * beta_continued_fraction(b, a, 1.0 - x) / b;
+}
+
 // Clopper-Pearson exact confidence-interval bounds, drop-in replacement for
 // boost::math::binomial_distribution::find_{lower,upper}_bound_on_p.
 // alpha is the one-sided tail mass (e.g. 0.05/2 for a 95% two-sided CI).
 //
-// Implemented as bisection on gsl_cdf_beta_P (the regularized incomplete
-// beta CDF). gsl_cdf_beta_Pinv exists, but its Newton iteration fails to
-// converge near a≈b (verified pathology at n=10000,s=5000) and aborts via
-// GSL's default error handler. The CDF itself is monotone and well-tested,
-// so bisection trades a handful of evaluations (≈60 iters → ~1e-18) for
-// unconditional robustness; the surrounding sampling loop calls this at
-// most once per 100 trials so the overhead is negligible.
+// Implemented as bisection on incomplete_beta (the regularized incomplete
+// beta CDF), which is monotone in x; bisection trades a handful of evaluations
+// (≈60 iters → ~1e-18) for unconditional robustness, avoiding the inverse-CDF
+// Newton iteration that fails to converge near a≈b. The surrounding sampling
+// loop calls this at most once per 100 trials so the overhead is negligible.
 inline double beta_quantile(double p, double a, double b) {
   double lo = 0.0, hi = 1.0;
   for (int i = 0; i < 60; ++i) {
     double mid = 0.5 * (lo + hi);
     if (mid == lo || mid == hi)
       break;
-    if (gsl_cdf_beta_P(mid, a, b) < p)
+    if (incomplete_beta(mid, a, b) < p)
       lo = mid;
     else
       hi = mid;

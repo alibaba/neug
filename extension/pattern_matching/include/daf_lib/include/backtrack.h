@@ -24,7 +24,6 @@
 #ifndef BACKTRACK_H_
 #define BACKTRACK_H_
 
-#include <boost/dynamic_bitset.hpp>
 #include <iostream>
 #include <vector>
 

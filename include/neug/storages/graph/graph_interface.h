@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <optional>
 
 #include "neug/execution/common/columns/container_types.h"
@@ -356,7 +357,11 @@ class StorageReadInterface : virtual public IStorageInterface {
    * key. Callers that need a stable identity should key off `&property_graph()`
    * instead.
    */
-  const PropertyGraph& property_graph() const { return *graph_; }
+  const PropertyGraph& property_graph() const {
+    assert(graph_ != nullptr &&
+           "property_graph() called before graph_ was set");
+    return *graph_;
+  }
   timestamp_t read_timestamp() const { return read_ts_; }
 
  private:
