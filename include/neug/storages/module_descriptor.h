@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -29,9 +30,8 @@ namespace neug {
  * @brief Metadata descriptor for a single Module instance.
  *
  * Holds the path / size / module_type / extras a Module needs to open or dump
- * itself.  Descriptors are leaves: composite structures (VertexTable,
- * EdgeTable, …) hold their children as separate top-level entries in
- * CheckpointManifest::modules_, keyed by the orchestration layer.
+ * itself.  Composite modules reference their sub-modules through named refs;
+ * the referenced descriptors live as flat entries in CheckpointManifest.
  */
 struct ModuleDescriptor {
   // High-frequency path key constants
@@ -118,6 +118,41 @@ struct ModuleDescriptor {
   }
 
   /**
+   * @brief Record a named module reference, e.g. "element" -> "<key>/element".
+   */
+  ModuleDescriptor& set_ref(const std::string& role, std::string module_key) {
+    refs_[role] = std::move(module_key);
+    return *this;
+  }
+
+  /// Look up a named module reference. Returns std::nullopt when absent.
+  std::optional<std::string> get_ref(const std::string& role) const {
+    auto it = refs_.find(role);
+    if (it == refs_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  bool has_ref(const std::string& role) const { return refs_.count(role) > 0; }
+
+  /// Read-only access to all named module references.
+  const std::map<std::string, std::string>& refs() const { return refs_; }
+
+  /// Mutable access to all named module references.
+  std::map<std::string, std::string>& mutable_refs() { return refs_; }
+
+  /**
+   * @brief Mark this descriptor as owned by another descriptor through refs().
+   *
+   * ModuleBroker::Open skips these entries as top-level modules; the owning
+   * composite module resolves and opens them explicitly through its refs.
+   */
+  void mark_as_referenced_module() { referenced_module_ = true; }
+
+  bool is_referenced_module() const { return referenced_module_; }
+
+  /**
    * @brief Serialize this descriptor to a rapidjson Value (object).
    *
    * The returned Value borrows from @p alloc – keep the allocator alive for as
@@ -145,6 +180,12 @@ struct ModuleDescriptor {
   /// "nbr_list", "items").  Carved out of `extra_` so checkpoint code can
   /// rewrite paths without scanning every extras key by suffix.
   std::unordered_map<std::string, std::string> paths_;
+
+  /// Named references to other flat module entries. For example, ArrayColumn
+  /// stores its element column under refs_["element"].
+  std::map<std::string, std::string> refs_;
+
+  bool referenced_module_ = false;
 };
 
 }  // namespace neug

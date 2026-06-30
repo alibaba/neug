@@ -62,5 +62,5 @@ add_dependencies(neug_extension neug_proto)
 
 set(ALL_OBJECT_FILES
         ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_extension>
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_generated_extension_loader>
+        $<TARGET_OBJECTS:neug_generated_extension_loader>
         PARENT_SCOPE)

@@ -17,6 +17,7 @@
 #include <filesystem>
 
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -45,7 +46,8 @@ void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
   }
 }
 
-ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
+void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                           const std::string& key) {
   auto uuid = ckp.CreateRuntimeObject();
   std::string ts_filename = ckp.runtime_dir() + "/" + uuid;
   // Before dump, reset the timestamp of modified vertices
@@ -61,7 +63,7 @@ ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
   descriptor.set_path(ModuleDescriptor::kDataPath,
                       ckp.CommitRuntimeObject(uuid));
   descriptor.module_type = ModuleTypeName();
-  return descriptor;
+  meta.set_module(key, descriptor);
 }
 
 void VertexTimestamp::Init(vid_t init_vertex_num, vid_t max_vertex_num) {

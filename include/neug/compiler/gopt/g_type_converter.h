@@ -42,6 +42,8 @@ class GPhysicalTypeConverter {
       const GRelType& relType);
 
   std::unique_ptr<::common::IrDataType> convertArrayType(
+      const common::DataType& type, uint64_t fixedLength);
+  std::unique_ptr<::common::IrDataType> convertListType(
       const common::DataType& type);
   std::unique_ptr<::common::IrDataType> convertStructType(
       const common::DataType& type);

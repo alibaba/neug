@@ -240,6 +240,8 @@ The following options control how CSV files are parsed during `COPY FROM`. These
 | `quoting`  | bool | `true` | Whether to enable quote processing            |
 | `escaping` | bool | `true` | Whether to enable escape character processing |
 
+> **Array limitation:** `COPY FROM` CSV currently does not auto-detect or directly materialize fixed-size `ARRAY` columns from bracketed CSV fields such as `"[1,2,3]"`. Use Cypher literals/parameters for array properties, or a typed non-CSV ingestion path when available.
+
 ### JSON/JSONL
 
 Since NeuG v0.1.2, JSON/JSONL is a built-in feature. You can use `COPY FROM` to import JSON or JSONL files directly into the graph — without creating the table first. NeuG infers the schema automatically from the file content.

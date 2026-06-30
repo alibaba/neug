@@ -258,6 +258,19 @@ inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
   return ws.GetCheckpoint(ws.CreateCheckpoint());
 }
 
+template <typename ModuleT>
+neug::ModuleDescriptor dump_module_descriptor(ModuleT& module,
+                                              neug::Checkpoint& ckp,
+                                              const std::string& key) {
+  neug::CheckpointManifest meta;
+  module.Dump(ckp, meta, key);
+  auto desc = meta.module(key);
+  if (!desc.has_value()) {
+    throw std::runtime_error("Module did not write descriptor for key: " + key);
+  }
+  return std::move(desc.value());
+}
+
 // Test fixtures used to round-trip storage objects through encoded paths in a
 // single ModuleDescriptor.  The current production path uses ModuleBroker +
 // CheckpointManifest: each leaf Module lives as its own entry in
@@ -393,7 +406,7 @@ inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
   // leaves transfer ownership into a transient store that Dumps + cleans up.
   auto table = vt.TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    meta.set_module(VertexPropKey(i), table->get_column_by_id(i)->Dump(ckp));
+    table->get_column_by_id(i)->Dump(ckp, meta, VertexPropKey(i));
   }
   neug::ModuleBroker store;
   store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
@@ -448,7 +461,7 @@ inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
     meta.SetScalar(kEdgeTableIdx, std::to_string(et.GetTableIdx()));
     auto table = et.TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
-      meta.set_module(EdgePropKey(i), table->get_column_by_id(i)->Dump(ckp));
+      table->get_column_by_id(i)->Dump(ckp, meta, EdgePropKey(i));
     }
   }
   neug::ModuleBroker store;

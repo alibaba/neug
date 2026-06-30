@@ -17,6 +17,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/data_chunk.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
@@ -82,6 +83,10 @@ neug::result<ContextChunk> CreateVertex::insert_vertex(
           if (value.IsNull()) {
             property_values[index] = v_default_values[index];
           } else {
+            if (properties_type[index] != value.type()) {
+              THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                  prop_name);
+            }
             property_values[index] = value;
           }
         }

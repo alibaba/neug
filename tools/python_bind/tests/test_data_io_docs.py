@@ -68,6 +68,7 @@ class TestLoadFromDocs:
     def setup(self, tmp_path):
         """Setup test database."""
         self.db_dir = str(tmp_path / "test_load_docs")
+        self.tmp_path = tmp_path
         shutil.rmtree(self.db_dir, ignore_errors=True)
         self.db = Database(db_path=self.db_dir, mode="w")
         self.conn = self.db.connect()
@@ -208,6 +209,26 @@ class TestLoadFromDocs:
         )
         records = list(result)
         assert len(records) == 4
+
+    def test_load_from_csv_array_limitation(self):
+        """load_data.md: CSV fields are not parsed as fixed-size ARRAY values."""
+        csv_path = self.tmp_path / "sensor_arrays.csv"
+        csv_path.write_text('id,readings\n1,"[1,2,3]"\n')
+
+        rows = list(
+            self.conn.execute(
+                f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
+                "RETURN id, readings;"
+            )
+        )
+        assert rows == [[1, "[1,2,3]"]]
+
+        with pytest.raises(RuntimeError) as exc_info:
+            self.conn.execute(
+                f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
+                "RETURN id, CAST(readings, 'INT64[3]');"
+            )
+        assert "not supported" in str(exc_info.value).lower()
 
 
 # ============================================================
@@ -407,6 +428,20 @@ class TestCopyFromDocs:
         )
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
+
+    def test_copy_from_csv_array_limitation(self):
+        """import_data.md: COPY FROM CSV cannot materialize fixed-size ARRAY columns."""
+        csv_path = self.tmp_path / "sensor_arrays.csv"
+        csv_path.write_text('id,readings\n1,"[1,2,3]"\n')
+
+        self.conn.execute(
+            "CREATE NODE TABLE Sensor(" "id INT64, readings INT64[3], PRIMARY KEY(id));"
+        )
+        with pytest.raises(RuntimeError) as exc_info:
+            self.conn.execute(
+                f'COPY Sensor FROM "{csv_path}" (header=true, delimiter=",");'
+            )
+        assert "Unsupported data type in CSV parser" in str(exc_info.value)
 
     def test_copy_from_batch_read(self):
         """import_data.md: COPY FROM with batch_read and batch_size options.

@@ -185,7 +185,7 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(*ckp);
+    auto desc = dump_module_descriptor(*this->csr, *ckp, "csr");
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
@@ -224,7 +224,7 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(*ckp);
+    auto desc = dump_module_descriptor(*this->csr, *ckp, "csr");
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
@@ -262,7 +262,7 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(*ckp);
+    auto desc = dump_module_descriptor(*this->csr, *ckp, "csr");
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
@@ -301,7 +301,7 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
       }
     }
     this->csr->batch_put_edges(src_list[0], dst_list[0], edata_list[0], 0);
-    auto desc = this->csr->Dump(*ckp);
+    auto desc = dump_module_descriptor(*this->csr, *ckp, "csr");
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();

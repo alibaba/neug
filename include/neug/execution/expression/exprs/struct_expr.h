@@ -50,5 +50,19 @@ class ListExpr : public ExprBase {
   std::vector<std::unique_ptr<ExprBase>> exprs_;
   DataType type_;
 };
+
+class ArrayExpr : public ExprBase {
+ public:
+  ArrayExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs,
+            DataType array_type);
+  ~ArrayExpr() override = default;
+  const DataType& type() const override { return type_; }
+  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
+                                       const ParamsMap& params) const override;
+
+ private:
+  std::vector<std::unique_ptr<ExprBase>> exprs_;
+  DataType type_;
+};
 }  // namespace execution
 }  // namespace neug

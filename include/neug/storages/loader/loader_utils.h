@@ -32,6 +32,8 @@
 
 namespace neug {
 
+class ColumnBase;
+
 struct CsvSupplierRuntime;
 
 void printDiskRemaining(const std::string& path);
@@ -110,8 +112,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         CsvReadConfig& config);
 
 void set_properties_from_context_column(
-    neug::ColumnBase* col,
-    const std::shared_ptr<execution::IContextColumn>& ctx_col,
+    ColumnBase* col, const std::shared_ptr<execution::IContextColumn>& ctx_col,
     const std::vector<vid_t>& vids, std::shared_mutex& mutex);
 
 }  // namespace neug

@@ -114,6 +114,10 @@ void apply_on_match_edge_impl(
         graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
     auto prop_types =
         graph.schema().get_edge_properties(src_label, dst_label, label_id);
+    if (col_id >= 0 && col_id < static_cast<int>(prop_types.size()) &&
+        prop_types[col_id] != value.type()) {
+      THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
+    }
     auto offset_pair =
         record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
     graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
@@ -132,6 +136,8 @@ EdgeRecord insert_and_return_edge_row(
   const auto& schema = graph.schema();
   auto properties_name =
       schema.get_edge_property_names(src_label, dst_label, edge_label);
+  auto properties_type =
+      schema.get_edge_properties(src_label, dst_label, edge_label);
   const auto& default_values =
       schema.get_edge_default_property_values(src_label, dst_label, edge_label);
   if (properties.size() != properties_name.size()) {
@@ -168,6 +174,9 @@ EdgeRecord insert_and_return_edge_row(
     if (value.IsNull()) {
       property_values[index] = default_values[index];
     } else {
+      if (properties_type[index] != value.type()) {
+        THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
+      }
       property_values[index] = value;
     }
   }

@@ -342,7 +342,7 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
 
   auto table = TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    meta.set_module(KeyProperty(lbl, i), table->get_column_by_id(i)->Dump(ckp));
+    table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }

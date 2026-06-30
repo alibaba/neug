@@ -22,8 +22,10 @@
 
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
 
@@ -34,22 +36,64 @@ void ListCreationFunction::execFunc(
     const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
     const std::vector<common::SelectionVector*>& parameterSelVectors,
     common::ValueVector& result, common::SelectionVector* resultSelVector,
-    void* /*dataPtr*/) {
-  result.resetAuxiliaryBuffer();
-  for (auto selectedPos = 0u; selectedPos < resultSelVector->getSelSize();
-       ++selectedPos) {
-    auto pos = (*resultSelVector)[selectedPos];
-    auto resultEntry = ListVector::addList(&result, parameters.size());
-    result.setValue(pos, resultEntry);
-    auto resultDataVector = ListVector::getDataVector(&result);
-    auto resultPos = resultEntry.offset;
-    for (auto i = 0u; i < parameters.size(); i++) {
-      const auto& parameter = parameters[i];
-      const auto& parameterSelVector = *parameterSelVectors[i];
-      auto paramPos = parameter->state->isFlat() ? parameterSelVector[0] : pos;
-      resultDataVector->copyFromVectorData(resultPos++, parameter.get(),
-                                           paramPos);
+    void* dataPtr) {
+  if (dataPtr == nullptr) {
+    THROW_RUNTIME_ERROR("LIST_CREATION requires function bind data");
+  }
+  const auto* bindData = reinterpret_cast<FunctionBindData*>(dataPtr);
+  if (bindData->resultType != result.dataType) {
+    THROW_RUNTIME_ERROR(
+        "LIST_CREATION bind result type does not match result vector type");
+  }
+
+  switch (result.dataType.id()) {
+  case DataTypeId::kList:
+  case DataTypeId::kArray: {
+    result.resetAuxiliaryBuffer();
+    for (auto selectedPos = 0u; selectedPos < resultSelVector->getSelSize();
+         ++selectedPos) {
+      auto pos = (*resultSelVector)[selectedPos];
+      auto resultEntry = ListVector::addList(&result, parameters.size());
+      result.setValue(pos, resultEntry);
+      auto resultDataVector = ListVector::getDataVector(&result);
+      auto resultPos = resultEntry.offset;
+      for (auto i = 0u; i < parameters.size(); i++) {
+        const auto& parameter = parameters[i];
+        const auto& parameterSelVector = *parameterSelVectors[i];
+        auto paramPos = parameter->state->isFlat()
+                            ? parameterSelVector[0]
+                            : parameterSelVector[selectedPos];
+        resultDataVector->copyFromVectorData(resultPos++, parameter.get(),
+                                             paramPos);
+      }
     }
+  } break;
+  case DataTypeId::kStruct: {
+    const auto& fieldVectors = StructVector::getFieldVectors(&result);
+    if (fieldVectors.size() != parameters.size()) {
+      THROW_RUNTIME_ERROR(
+          "LIST_CREATION STRUCT field count does not match parameter count");
+    }
+    for (const auto& fieldVector : fieldVectors) {
+      fieldVector->resetAuxiliaryBuffer();
+    }
+    for (auto selectedPos = 0u; selectedPos < resultSelVector->getSelSize();
+         ++selectedPos) {
+      auto pos = (*resultSelVector)[selectedPos];
+      result.setNull(pos, false);
+      for (auto i = 0u; i < parameters.size(); i++) {
+        const auto& parameter = parameters[i];
+        const auto& parameterSelVector = *parameterSelVectors[i];
+        auto paramPos = parameter->state->isFlat()
+                            ? parameterSelVector[0]
+                            : parameterSelVector[selectedPos];
+        fieldVectors[i]->copyFromVectorData(pos, parameter.get(), paramPos);
+      }
+    }
+  } break;
+  default:
+    THROW_RUNTIME_ERROR("LIST_CREATION does not support result type " +
+                        result.dataType.ToString());
   }
 }
 
@@ -86,8 +130,12 @@ static std::unique_ptr<FunctionBindData> bindFunc(
       fieldTypes.push_back(arg->getDataType().copy());
     }
     resultType = DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
-  } else {
+  } else if (args.empty()) {
+    // An empty list literal (e.g. []) has no fixed size; use a variable-
+    // length List type instead of creating a size-0 Array.
     resultType = DataType::List(combinedType.copy());
+  } else {
+    resultType = DataType::Array(combinedType.copy(), args.size());
   }
   auto bindData = std::make_unique<FunctionBindData>(std::move(resultType));
   for (auto& arg : input.arguments) {
