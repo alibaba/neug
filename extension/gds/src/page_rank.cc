@@ -67,8 +67,18 @@ std::unique_ptr<function::CallFuncInputBase> PageRankFunction::bind(
     LOG(ERROR) << "Failed to parse subgraph for PageRank.";
     THROW_NOT_SUPPORTED_EXCEPTION("Invalid subgraph for PageRank");
   }
-  input->node_alias = plan.plan(op_idx).meta_data(0).alias();
-  input->pr_alias = plan.plan(op_idx).meta_data(1).alias();
+  input->node_alias = -1;
+  input->pr_alias = -1;
+  const auto& meta_data = plan.plan(op_idx);
+  for (int i = 0; i < meta_data.meta_data_size(); i++) {
+    const auto& meta = meta_data.meta_data(i);
+    auto type = parse_from_ir_data_type(meta.type());
+    if (type.id() == common::DataTypeId::kVertex) {
+      input->node_alias = meta.alias();
+    } else if (type.id() == common::DataTypeId::kDouble) {
+      input->pr_alias = meta.alias();
+    }
+  }
   input->damping_factor =
       get_option_value<double>(options, "damping_factor", 0.85);
   input->max_iterations =

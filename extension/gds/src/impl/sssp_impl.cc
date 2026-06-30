@@ -190,7 +190,7 @@ void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(distance_alias, distance_builder.finish());
 
