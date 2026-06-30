@@ -4,5 +4,6 @@ if (BUILD_HTTP_SERVER)
 		test_insert_transaction.cc
 		test_update_transaction.cc
 		test_compact_transaction.cc
+		test_wal_replay.cc
 		test_acid.cc)
 endif()
