@@ -19,6 +19,7 @@
 #include <string>
 
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manifest.h"
 
 namespace neug {
 
@@ -37,13 +38,14 @@ void DocIDMap::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   buffer_ = ckp.OpenFile(path, level);
 }
 
-ModuleDescriptor DocIDMap::Dump(Checkpoint& ckp) {
+void DocIDMap::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                    const std::string& key) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("next_doc_id",
            std::to_string(next_doc_id_.load(std::memory_order_relaxed)));
   desc.set_path("doc_id_buffer", ckp.Commit(*buffer_));
-  return desc;
+  meta.set_module(key, std::move(desc));
 }
 
 doc_id_t DocIDMap::Insert(vid_t vid) {

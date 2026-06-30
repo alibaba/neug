@@ -53,7 +53,8 @@ class DocIDMap : public Module {
   // --- Module interface ---
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
-  ModuleDescriptor Dump(Checkpoint& ckp) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
+            const std::string& key) override;
   std::string ModuleTypeName() const override { return "doc_id_map"; }
 
   /**

@@ -21,6 +21,7 @@
 #include <algorithm>
 
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manifest.h"
 
 namespace neug {
 
@@ -148,24 +149,27 @@ void Index::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   doc_id_map_->Open(ckp, descriptor, level);
 }
 
-ModuleDescriptor Index::Dump(Checkpoint& ckp) {
+void Index::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                 const std::string& key) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("index_meta", meta_->ToJsonString());
 
   if (doc_id_map_) {
-    auto doc_desc = doc_id_map_->Dump(ckp);
-    auto next_doc_id = doc_desc.get("next_doc_id");
+    CheckpointManifest doc_meta;
+    doc_id_map_->Dump(ckp, doc_meta, "doc_id_map");
+    auto doc_desc = doc_meta.module("doc_id_map");
+    auto next_doc_id = doc_desc->get("next_doc_id");
     if (next_doc_id.has_value()) {
       desc.set("next_doc_id", next_doc_id.value());
     }
-    auto doc_buffer = doc_desc.get_path("doc_id_buffer");
+    auto doc_buffer = doc_desc->get_path("doc_id_buffer");
     if (doc_buffer.has_value()) {
       desc.set_path("doc_id_buffer", doc_buffer.value());
     }
   }
 
-  return desc;
+  meta.set_module(key, std::move(desc));
 }
 
 std::string Index::ModuleTypeName() const {
