@@ -26,6 +26,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_format.h"
@@ -126,7 +127,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
       }
       if (edgeSchema->getLabelId() == tableID) {
         if (labelMatch != nullptr) {
-          THROW_RUNTIME_ERROR(
+          THROW_SCHEMA_MISMATCH(
               stringFormat("Edge label id {} maps to multiple edge schemas.",
                            std::to_string(tableID)));
         }
@@ -137,7 +138,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
       return labelMatch;
     }
   }
-  THROW_RUNTIME_ERROR(stringFormat(
+  THROW_SCHEMA_MISMATCH(stringFormat(
       "Cannot find table catalog entry with id {}.", std::to_string(tableID)));
 }
 
@@ -151,7 +152,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
         continue;
       }
       if (vertexResult != nullptr) {
-        THROW_CATALOG_EXCEPTION(stringFormat(
+        THROW_SCHEMA_MISMATCH(stringFormat(
             "{} maps to multiple vertex labels in catalog.", tableName));
       }
       vertexResult = entry.get();
@@ -168,14 +169,14 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
         continue;
       }
       if (result != nullptr) {
-        THROW_CATALOG_EXCEPTION(stringFormat(
+        THROW_SCHEMA_MISMATCH(stringFormat(
             "{} has multiple source/destination pairs in catalog.", tableName));
       }
       result = edgeSchema.get();
     }
   }
   if (result == nullptr) {
-    THROW_CATALOG_EXCEPTION(
+    THROW_SCHEMA_MISMATCH(
         stringFormat("{} does not exist in catalog.", tableName));
   }
   return result;
@@ -256,7 +257,8 @@ std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
                                               rhs->dst_label_id, rhs->table_id);
   });
   if (result.empty()) {
-    THROW_RUNTIME_ERROR(stringFormat("Cannot find rel group entry {}.", name));
+    THROW_SCHEMA_MISMATCH(
+        stringFormat("Cannot find rel group entry {}.", name));
   }
   return result;
 }
