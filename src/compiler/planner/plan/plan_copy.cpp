@@ -9,6 +9,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/scan/logical_index_look_up.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::binder;
 using namespace neug::storage;
@@ -29,12 +30,19 @@ static void appendIndexScan(const ExtraBoundCopyRelInfo& extraInfo,
 
 static void appendPartitioner(const BoundCopyFromInfo& copyFromInfo,
                               LogicalPlan& plan) {
-  const auto* tableCatalogEntry =
-      copyFromInfo.tableEntry->constPtrCast<catalog::RelTableCatalogEntry>();
+  const auto* edgeSchema =
+      dynamic_cast<const EdgeSchema*>(copyFromInfo.tableEntry);
+  if (!edgeSchema) {
+    THROW_EXCEPTION_WITH_FILE_LINE("COPY REL requires an edge schema entry.");
+  }
   LogicalPartitionerInfo info(copyFromInfo.tableEntry, copyFromInfo.offset);
-  for (auto direction : tableCatalogEntry->getRelDataDirections()) {
+  if (edgeSchema->oe_strategy != EdgeStrategy::kNone) {
     info.partitioningInfos.push_back(LogicalPartitioningInfo(
-        RelDirectionUtils::relDirectionToKeyIdx(direction)));
+        RelDirectionUtils::relDirectionToKeyIdx(RelDataDirection::FWD)));
+  }
+  if (edgeSchema->ie_strategy != EdgeStrategy::kNone) {
+    info.partitioningInfos.push_back(LogicalPartitioningInfo(
+        RelDirectionUtils::relDirectionToKeyIdx(RelDataDirection::BWD)));
   }
   auto partitioner = std::make_shared<LogicalPartitioner>(
       std::move(info), copyFromInfo.copy(), plan.getLastOperator());

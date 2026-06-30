@@ -136,7 +136,7 @@ neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
       LOG(ERROR) << "Vertex binding must have a tag.";
       THROW_RUNTIME_ERROR("Vertex binding must have a tag.");
     }
-    CHECK(vertex_binding.tag().item_case() == common::NameOrId::ItemCase::kId)
+    CHECK(vertex_binding.tag().item_case() == ::common::NameOrId::ItemCase::kId)
         << "Vertex binding tag must be an ID.";
     auto tag_id = vertex_binding.tag().id();
     const auto& prop_mapping = entry.property_mapping();

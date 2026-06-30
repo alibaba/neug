@@ -19,6 +19,7 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/compiler/transaction/transaction.h"
 #include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/execution/expression/exprs/arith_expr.h"
 #include "neug/execution/expression/exprs/case_when.h"

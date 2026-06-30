@@ -145,23 +145,23 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
 
 static Value from_const(const ::common::Value& const_val) {
   switch (const_val.item_case()) {
-  case common::Value::kI32:
+  case ::common::Value::kI32:
     return Value::INT32(const_val.i32());
-  case common::Value::kI64:
+  case ::common::Value::kI64:
     return Value::INT64(const_val.i64());
-  case common::Value::kF64:
+  case ::common::Value::kF64:
     return Value::DOUBLE(const_val.f64());
-  case common::Value::kF32:
+  case ::common::Value::kF32:
     return Value::FLOAT(const_val.f32());
-  case common::Value::kBoolean:
+  case ::common::Value::kBoolean:
     return Value::BOOLEAN(const_val.boolean());
-  case common::Value::kStr:
+  case ::common::Value::kStr:
     return Value::STRING(const_val.str());
-  case common::Value::kU32:
+  case ::common::Value::kU32:
     return Value::UINT32(const_val.u32());
-  case common::Value::kU64:
+  case ::common::Value::kU64:
     return Value::UINT64(const_val.u64());
-  case common::Value::kI32Array: {
+  case ::common::Value::kI32Array: {
     std::vector<Value> values;
     size_t size = const_val.i32_array().item_size();
     for (size_t i = 0; i < size; ++i) {
@@ -169,7 +169,7 @@ static Value from_const(const ::common::Value& const_val) {
     }
     return Value::LIST(DataType::INT32, std::move(values));
   }
-  case common::Value::kI64Array: {
+  case ::common::Value::kI64Array: {
     std::vector<Value> values;
     size_t size = const_val.i64_array().item_size();
     for (size_t i = 0; i < size; ++i) {
@@ -177,7 +177,7 @@ static Value from_const(const ::common::Value& const_val) {
     }
     return Value::LIST(DataType::INT64, std::move(values));
   }
-  case common::Value::kF64Array: {
+  case ::common::Value::kF64Array: {
     std::vector<Value> values;
     size_t size = const_val.f64_array().item_size();
     for (size_t i = 0; i < size; ++i) {
@@ -185,7 +185,7 @@ static Value from_const(const ::common::Value& const_val) {
     }
     return Value::LIST(DataType::DOUBLE, std::move(values));
   }
-  case common::Value::kStrArray: {
+  case ::common::Value::kStrArray: {
     std::vector<Value> values;
     size_t size = const_val.str_array().item_size();
     for (size_t i = 0; i < size; ++i) {
@@ -193,7 +193,7 @@ static Value from_const(const ::common::Value& const_val) {
     }
     return Value::LIST(DataType::VARCHAR, std::move(values));
   }
-  case common::Value::kNone:
+  case ::common::Value::kNone:
     return Value(DataType::SQLNULL);
   default:
     throw std::runtime_error(
@@ -272,7 +272,7 @@ static std::unique_ptr<ExprBase> parse_record_var(const ::common::Variable& var,
   return nullptr;
 }
 
-static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
+static std::unique_ptr<ExprBase> parse_vertex_var(const ::common::Variable& var,
 
                                                   DataType type) {
   if (!var.has_property()) {
@@ -294,7 +294,7 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
   return nullptr;
 }
 
-static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
+static std::unique_ptr<ExprBase> parse_edge_var(const ::common::Variable& var,
                                                 DataType type) {
   if (!var.has_property()) {
     return std::make_unique<EdgeAccessor>(type, GraphAccessType::kIdentity, "");
@@ -314,7 +314,7 @@ static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
   return nullptr;
 }
 
-std::unique_ptr<ExprBase> parse_variable(const common::Variable& var,
+std::unique_ptr<ExprBase> parse_variable(const ::common::Variable& var,
                                          const ContextMeta& ctx_meta,
                                          VarType var_type) {
   if (!var.has_node_type()) {

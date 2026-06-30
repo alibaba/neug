@@ -31,32 +31,33 @@ class MetaDataTest : public GOptTest {
     auto catalog = ctx->getCatalog();
     auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
-    auto table = ctx->getStatsManager()->getTable(tableEntry->getTableID());
+    auto table = ctx->getStatsManager()->getTable(tableEntry);
     return table->getNumTotalRows(&transaction);
   }
 };
 
 TEST_F(MetaDataTest, GCataLog) {
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  neug::catalog::GCatalog catalog(schemaData);
+  auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
+  ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
+  auto schema = std::move(schemaResult).value();
+  neug::catalog::GCatalog catalog;
+  catalog.updateSchema(&schema);
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
-  auto knowsEntry = entry->constPtrCast<catalog::GRelTableCatalogEntry>();
-  ASSERT_EQ("KNOWS", knowsEntry->getName());
+  auto knowsEntry = static_cast<EdgeSchema*>(entry);
+  ASSERT_EQ("KNOWS", knowsEntry->edge_label_name);
   ASSERT_EQ(8, knowsEntry->getLabelId());
   ASSERT_EQ(1, knowsEntry->getSrcTableID());
   ASSERT_EQ(1, knowsEntry->getDstTableID());
   auto groupEntry = catalog.getRelGroupEntry(&transaction, "HASCREATOR");
-  ASSERT_EQ(2, groupEntry->getRelTableIDs().size());
+  ASSERT_EQ(2, groupEntry.size());
   std::vector<
       std::tuple<common::table_id_t, common::table_id_t, common::table_id_t>>
       expected = {
           {2, 0, 1},  // COMMENT -> PERSON
           {3, 0, 1}   // POST -> PERSON
       };
-  for (auto relTableID : groupEntry->getRelTableIDs()) {
-    auto entry = catalog.getTableCatalogEntry(&transaction, relTableID);
-    auto hasCreatorEntry =
-        entry->constPtrCast<catalog::GRelTableCatalogEntry>();
+  for (auto hasCreatorEntry : groupEntry) {
     auto triplet = std::make_tuple(hasCreatorEntry->getSrcTableID(),
                                    hasCreatorEntry->getLabelId(),
                                    hasCreatorEntry->getDstTableID());
@@ -70,21 +71,24 @@ TEST_F(MetaDataTest, GCataLog) {
 TEST_F(MetaDataTest, GStorageManager) {
   auto database = std::make_unique<main::MetadataManager>();
   auto ctx = std::make_unique<main::ClientContext>(database.get());
-  database->updateSchema(schemaData);
+  auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
+  ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
+  auto schema = std::move(schemaResult).value();
+  database->updateSchema(&schema);
   database->updateStats(statsData);
   auto& catalog = *ctx->getCatalog();
   auto storageManager = ctx->getStatsManager();
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
-  auto knowsTable = storageManager->getTable(entry->getTableID());
+  auto knowsTable = storageManager->getTable(entry);
   ASSERT_EQ(knowsTable->getNumTotalRows(&transaction), 14073);
   auto entry2 = catalog.getTableCatalogEntry(&transaction, "COMMENT");
-  auto commentTable = storageManager->getTable(entry2->getTableID())
-                          ->ptrCast<storage::GNodeTable>();
+  auto commentTable =
+      storageManager->getTable(entry2)->ptrCast<storage::GNodeTable>();
   ASSERT_EQ(commentTable->getStats(&transaction).getTableCard(), 151043);
   auto entry3 =
       catalog.getTableCatalogEntry(&transaction, "HASCREATOR_COMMENT_PERSON");
-  auto hasCreatorTable = storageManager->getTable(entry3->getTableID());
+  auto hasCreatorTable = storageManager->getTable(entry3);
   ASSERT_EQ(hasCreatorTable->getNumTotalRows(&transaction), 151043);
 }
 
@@ -101,7 +105,10 @@ TEST_F(MetaDataTest, CheckStats) {
   std::string afterStats = getGOptResource("stats/modern_stats_v2.json");
   auto database = std::make_unique<main::MetadataManager>();
   auto ctx = std::make_unique<main::ClientContext>(database.get());
-  database->updateSchema(beforeSchema);
+  auto beforeSchemaResult = Schema::LoadFromYamlNode(YAML::Load(beforeSchema));
+  ASSERT_TRUE(beforeSchemaResult) << beforeSchemaResult.error().ToString();
+  auto beforeSchemaObj = std::move(beforeSchemaResult).value();
+  database->updateSchema(&beforeSchemaObj);
   database->updateStats(beforeStats);
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
   ASSERT_EQ(getTableCard(ctx.get(), "software"), 3);
@@ -109,7 +116,10 @@ TEST_F(MetaDataTest, CheckStats) {
   ASSERT_EQ(getTableCard(ctx.get(), "knows"), 2);
 
   // check the statistics after schema update
-  database->updateSchema(afterSchema);
+  auto afterSchemaResult = Schema::LoadFromYamlNode(YAML::Load(afterSchema));
+  ASSERT_TRUE(afterSchemaResult) << afterSchemaResult.error().ToString();
+  auto afterSchemaObj = std::move(afterSchemaResult).value();
+  database->updateSchema(&afterSchemaObj);
   // person is not updated
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
   // add a new label 'person_v2'

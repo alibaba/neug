@@ -27,7 +27,7 @@
 
 namespace neug {
 namespace catalog {
-class TableCatalogEntry;
+class SchemaEntry;
 }
 namespace binder {
 
@@ -38,7 +38,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
  public:
   NodeOrRelExpression(common::DataType dataType, std::string uniqueName,
                       std::string variableName,
-                      std::vector<catalog::TableCatalogEntry*> entries)
+                      std::vector<catalog::SchemaEntry*> entries)
       : Expression{expressionType_, std::move(dataType), std::move(uniqueName)},
         variableName(std::move(variableName)),
         entries{std::move(entries)} {}
@@ -56,14 +56,14 @@ class NEUG_API NodeOrRelExpression : public Expression {
   common::idx_t getNumEntries() const { return entries.size(); }
   common::table_id_vector_t getTableIDs() const;
   common::table_id_set_t getTableIDsSet() const;
-  const std::vector<catalog::TableCatalogEntry*>& getEntries() const {
+  const std::vector<catalog::SchemaEntry*>& getEntries() const {
     return entries;
   }
-  virtual void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) {
+  virtual void setEntries(std::vector<catalog::SchemaEntry*> entries_) {
     entries = std::move(entries_);
   }
-  void addEntries(const std::vector<catalog::TableCatalogEntry*>& entries_);
-  catalog::TableCatalogEntry* getSingleEntry() const;
+  void addEntries(const std::vector<catalog::SchemaEntry*>& entries_);
+  catalog::SchemaEntry* getSingleEntry() const;
 
   void addPropertyExpression(const std::string& propertyName,
                              std::unique_ptr<Expression> property);
@@ -108,7 +108,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
  protected:
   std::string variableName;
   // A pattern may bind to multiple tables.
-  std::vector<catalog::TableCatalogEntry*> entries;
+  std::vector<catalog::SchemaEntry*> entries;
   // Index over propertyExprs on property name.
   common::case_insensitive_map_t<common::idx_t> propertyNameToIdx;
   // Property expressions with order (aligned with catalog).

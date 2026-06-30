@@ -314,7 +314,7 @@ neug::result<OpBuildResultT> MergeEdgeOprBuilder::Build(
   const auto& opr = plan.plan(op_idx).opr().merge_edge();
   std::vector<EdgeEntryPlan> entries;
   for (const auto& edge : opr.entries()) {
-    if (edge.alias().item_case() != common::NameOrId::ItemCase::kId) {
+    if (edge.alias().item_case() != ::common::NameOrId::ItemCase::kId) {
       THROW_RUNTIME_ERROR(
           "MERGE edge physical plan entry must include edge pattern alias id");
     }

@@ -202,7 +202,7 @@
             "data_type": {
              "string": {
               "var_char": {
-               "max_length": 65536
+               "max_length": 256
               }
              }
             }
@@ -212,7 +212,7 @@
            "data_type": {
             "string": {
              "var_char": {
-              "max_length": 65536
+              "max_length": 256
              }
             }
            }
@@ -240,7 +240,7 @@
       "data_type": {
        "string": {
         "var_char": {
-         "max_length": 65536
+         "max_length": 256
         }
        }
       }

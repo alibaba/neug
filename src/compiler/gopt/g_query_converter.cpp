@@ -70,6 +70,7 @@
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/schema.h"
 
@@ -1246,7 +1247,7 @@ void GQueryConvertor::convertGDSFunction(
     }
   }
   for (auto& info : gdsData.graphEntry.relInfos) {
-    auto& relEntry = info.entry->constCast<catalog::GRelTableCatalogEntry>();
+    auto& relEntry = static_cast<EdgeSchema&>(*info.entry);
     auto* e = sub->add_edge_entries();
     e->set_src_label_id(static_cast<int32_t>(relEntry.getSrcTableID()));
     e->set_edge_label_id(static_cast<int32_t>(relEntry.getLabelId()));
@@ -1352,11 +1353,10 @@ std::unique_ptr<::physical::EdgeType> convertEdgeType(
     auto typeName = std::make_unique<::common::NameOrId>();
     typeName->set_name(ddlEdgeInfo->getEdgeLabelName());
     edgeTypePB->set_allocated_type_name(typeName.release());
-    auto* relBase =
-        ddlEdgeInfo->getTableEntry()->ptrCast<catalog::RelTableCatalogEntry>();
+    auto* relBase = dynamic_cast<EdgeSchema*>(ddlEdgeInfo->getTableEntry());
     if (!relBase) {
       THROW_EXCEPTION_WITH_FILE_LINE(
-          "DDLEdgeInfo table entry is not a RelTableCatalogEntry");
+          "DDLEdgeInfo table entry is not an EdgeSchema");
     }
     auto srcTypeName = std::make_unique<::common::NameOrId>();
     srcTypeName->set_id(relBase->getSrcTableID());
@@ -1371,13 +1371,13 @@ std::unique_ptr<::physical::EdgeType> convertEdgeType(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "cannot convert batch insert edge without rel table entry");
   }
-  auto* grel = tableEntry->ptrCast<catalog::GRelTableCatalogEntry>();
-  if (!grel) {
+  auto* edgeSchema = dynamic_cast<EdgeSchema*>(tableEntry);
+  if (!edgeSchema) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "catalog REL copy requires GRelTableCatalogEntry for edge label id");
+        "catalog REL copy requires EdgeSchema for edge label id");
   }
-  EdgeLabelId edgeLabelId(grel->getLabelId(), grel->getSrcTableID(),
-                          grel->getDstTableID());
+  EdgeLabelId edgeLabelId(edgeSchema->getLabelId(), edgeSchema->getSrcTableID(),
+                          edgeSchema->getDstTableID());
   auto typeName = std::make_unique<::common::NameOrId>();
   typeName->set_id(edgeLabelId.edgeId);
   edgeTypePB->set_allocated_type_name(typeName.release());
@@ -1459,7 +1459,7 @@ void GQueryConvertor::convertBatchInsertEdge(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "cannot convert batch insert edge without rel table entry");
   }
-  auto* relEntry = tableEntry->ptrCast<catalog::RelTableCatalogEntry>();
+  auto* relEntry = dynamic_cast<EdgeSchema*>(tableEntry);
   if (!relEntry) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "batch insert edge: table entry is not a relationship table");
@@ -2146,16 +2146,17 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table not found: " +
                                    std::to_string(labelId));
   }
-  auto nodeTable = table->constPtrCast<neug::catalog::NodeTableCatalogEntry>();
+  auto nodeTable = dynamic_cast<VertexSchema*>(table);
   if (!nodeTable) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
-                                   table->getName());
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Source vertex table is not a node table: " +
+        table->getLabel(catalog, &neug::Constants::DEFAULT_TRANSACTION));
   }
   std::string pk = nodeTable->getPrimaryKeyName();
   if (pk.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Source vertex table does not have a primary key: " +
-        nodeTable->getName());
+        nodeTable->getLabel(catalog, &neug::Constants::DEFAULT_TRANSACTION));
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(

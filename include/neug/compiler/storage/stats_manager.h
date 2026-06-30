@@ -45,6 +45,22 @@ namespace storage {
 class Table;
 class DiskArrayCollection;
 
+struct StatsTableKey {
+  common::TableType tableType;
+  common::table_id_t tableID;
+
+  bool operator==(const StatsTableKey& other) const {
+    return tableType == other.tableType && tableID == other.tableID;
+  }
+};
+
+struct StatsTableKeyHash {
+  std::size_t operator()(const StatsTableKey& key) const {
+    return std::hash<uint64_t>{}((static_cast<uint64_t>(key.tableType) << 32u) |
+                                 static_cast<uint64_t>(key.tableID));
+  }
+};
+
 class NEUG_API StatsManager {
  public:
   StatsManager(MemoryManager& memoryManager) : memoryManager(memoryManager) {}
@@ -58,6 +74,8 @@ class NEUG_API StatsManager {
   ~StatsManager() = default;
 
   Table* getTable(common::table_id_t tableID);
+  Table* getTable(common::table_id_t tableID, common::TableType tableType);
+  Table* getTable(catalog::SchemaEntry* tableEntry);
 
   void loadTables(const catalog::Catalog& catalog,
                   common::VirtualFileSystem* vfs,
@@ -65,7 +83,8 @@ class NEUG_API StatsManager {
 
  private:
   main::MetadataManager* database;
-  std::unordered_map<common::table_id_t, std::unique_ptr<Table>> tables;
+  std::unordered_map<StatsTableKey, std::unique_ptr<Table>, StatsTableKeyHash>
+      tables;
   MemoryManager& memoryManager;
   std::mutex mtx;
 
@@ -75,10 +94,8 @@ class NEUG_API StatsManager {
       const std::unordered_map<std::string, common::row_idx_t>& countMap);
   void getCardMap(const std::string& jsonData,
                   std::unordered_map<std::string, common::row_idx_t>& countMap);
-  Table* getTableByName(common::table_id_t tableID,
-                        catalog::TableCatalogEntry* curEntry);
-  bool checkTableConsistency(Table* oldTable,
-                             catalog::TableCatalogEntry* curEntry);
+  Table* getTableByEntry(catalog::SchemaEntry* curEntry);
+  bool checkTableConsistency(Table* oldTable, catalog::SchemaEntry* curEntry);
 };
 
 }  // namespace storage

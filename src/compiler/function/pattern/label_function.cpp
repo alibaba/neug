@@ -25,7 +25,6 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/function/binary_function_executor.h"
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 #include "neug/compiler/function/rewrite_function.h"
@@ -33,6 +32,7 @@
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::common;
 using namespace neug::binder;
@@ -66,14 +66,17 @@ static void execFunction(
 }
 
 static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
-    main::ClientContext* context, std::vector<TableCatalogEntry*> entries,
+    main::ClientContext* context, std::vector<catalog::SchemaEntry*> entries,
     binder::ExpressionBinder* expressionBinder) {
   std::unordered_map<table_id_t, std::string> map;
   table_id_t maxTableID = 0;
   for (auto& entry : entries) {
-    map.insert(
-        {entry->getTableID(),
-         entry->getLabel(context->getCatalog(), context->getTransaction())});
+    auto label =
+        entry->getLabel(context->getCatalog(), context->getTransaction());
+    if (auto relEntry = dynamic_cast<EdgeSchema*>(entry)) {
+      label = relEntry->getEdgeLabelName();
+    }
+    map.insert({entry->getTableID(), label});
     if (entry->getTableID() > maxTableID) {
       maxTableID = entry->getTableID();
     }
@@ -130,8 +133,9 @@ std::shared_ptr<Expression> LabelFunction::rewriteFunc(
         return expressionBinder->createLiteralExpression("");
       }
       if (!rel.isMultiLabeled()) {
-        auto label = rel.getSingleEntry()->getLabel(context->getCatalog(),
-                                                    context->getTransaction());
+        auto* relEntry = dynamic_cast<EdgeSchema*>(rel.getSingleEntry());
+        NEUG_ASSERT(relEntry != nullptr);
+        auto label = relEntry->getEdgeLabelName();
         return expressionBinder->createLiteralExpression(label);
       }
     }

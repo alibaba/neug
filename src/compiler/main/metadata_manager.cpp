@@ -74,21 +74,7 @@ std::shared_ptr<storage::StatsManager> MetadataManager::getStatsManager()
   return copy;
 }
 
-void MetadataManager::updateSchema(const std::filesystem::path& schemaPath) {
-  if (!this->catalog) {
-    THROW_CATALOG_EXCEPTION("Catalog is not set");
-  }
-  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schemaPath);
-}
-
-void MetadataManager::updateSchema(const std::string& schema) {
-  if (!this->catalog) {
-    THROW_CATALOG_EXCEPTION("Catalog is not set");
-  }
-  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schema);
-}
-
-void MetadataManager::updateSchema(const YAML::Node& schema) {
+void MetadataManager::updateSchema(const Schema* schema) {
   if (!this->catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
