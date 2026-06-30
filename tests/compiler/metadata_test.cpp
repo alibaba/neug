@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 #include "neug/compiler/main/option_config.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 
 namespace neug {
 namespace gopt {

@@ -36,7 +36,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/schema.h"
 #include "neug/compiler/processor/result/result_set.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 
 using namespace neug::catalog;
 using namespace neug::storage;

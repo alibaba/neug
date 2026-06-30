@@ -18,9 +18,9 @@
 #include <string>
 #include <vector>
 
-#include "neug/compiler/storage/stats_manager.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/stats_manager.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 

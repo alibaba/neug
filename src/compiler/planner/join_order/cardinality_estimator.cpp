@@ -9,9 +9,9 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
+#include "neug/storages/graph/stats_manager.h"
 
 using namespace neug::binder;
 using namespace neug::common;

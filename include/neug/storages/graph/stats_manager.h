@@ -22,12 +22,9 @@
 
 #pragma once
 
-#include <filesystem>
 #include <string>
 #include <unordered_map>
-#include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/common/types/types.h"
+
 #include "neug/storages/graph/property_graph.h"
 
 namespace neug {
@@ -41,8 +38,6 @@ class CatalogEntry;
 
 namespace storage {
 
-// 基于 PropertyGraph 重新实现 StatManager，避免序列化过程
-// 直接返回 cardinality接口，而不是table，修改调用这些接口的地方
 class StatsManager {
  public:
   StatsManager() = default;

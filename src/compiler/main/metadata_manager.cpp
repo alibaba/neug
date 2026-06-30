@@ -32,7 +32,7 @@
 #include <unistd.h>
 #endif
 
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 
 using namespace neug::catalog;
 using namespace neug::common;

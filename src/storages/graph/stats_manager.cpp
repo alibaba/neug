@@ -1,4 +1,4 @@
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 
 #include <rapidjson/document.h>
 

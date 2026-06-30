@@ -30,7 +30,7 @@
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 #include "neug/utils/api.h"
 #include "neug/utils/io/vfs/file_system.h"
 
