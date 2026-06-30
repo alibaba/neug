@@ -34,6 +34,34 @@
 
 namespace neug {
 namespace execution {
+namespace {
+
+DataType parse_path_property_element_type(const ::common::IrDataType& type) {
+  switch (type.type_case()) {
+  case ::common::IrDataType::TypeCase::kDataType: {
+    const auto& data_type = type.data_type();
+    switch (data_type.item_case()) {
+    case ::common::DataType::kList:
+      return parse_from_data_type(data_type.list().component_type());
+    case ::common::DataType::kArray:
+      return parse_from_data_type(data_type.array().component_type());
+    default:
+      break;
+    }
+    break;
+  }
+  case ::common::IrDataType::TypeCase::kListType: {
+    auto list_type = parse_from_ir_data_type(type);
+    return ListType::GetChildType(list_type);
+  }
+  default:
+    break;
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION(
+      "path function node_type is not list or array type");
+}
+
+}  // namespace
 
 static std::unique_ptr<ExprBase> build_expr(
     std::stack<::common::ExprOpr>& opr_stack, const ContextMeta& ctx_meta,
@@ -134,6 +162,21 @@ static std::unique_ptr<ExprBase> build_expr(
                                         std::move(list_type));
     }
 
+    case ::common::ExprOpr::kToArray: {
+      const auto& array_fields = opr.to_array().fields();
+      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      for (int i = 0; i < array_fields.size(); ++i) {
+        exprs_vec.emplace_back(
+            parse_expression(array_fields[i], ctx_meta, var_type));
+      }
+      if (!opr.has_node_type()) {
+        THROW_RUNTIME_ERROR("TO_ARRAY expression requires an ARRAY node type");
+      }
+      auto array_type = parse_from_ir_data_type(opr.node_type());
+      return std::make_unique<ArrayExpr>(std::move(exprs_vec),
+                                         std::move(array_type));
+    }
+
     case ::common::ExprOpr::kToDate: {
       Date date(opr.to_date().date_str());
       return std::make_unique<ConstExpr>(Value::DATE(date));
@@ -202,14 +245,7 @@ static std::unique_ptr<ExprBase> build_expr(
       auto opt = opr.path_func().opt();
       const auto& name = opr.path_func().property().key().name();
       int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
-      if (opr.node_type().data_type().item_case() !=
-          ::common::DataType::kArray) {
-        THROW_INVALID_ARGUMENT_EXCEPTION(
-            "path function node_type is not array type");
-        return nullptr;
-      }
-      auto type = parse_from_data_type(
-          opr.node_type().data_type().array().component_type());
+      auto type = parse_path_property_element_type(opr.node_type());
 
       if (opt == ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
         return std::make_unique<PathPropsExpr>(tag, name, type, true);
@@ -335,6 +371,7 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
     case ::common::ExprOpr::kToDatetime:
     case ::common::ExprOpr::kToTuple:
     case ::common::ExprOpr::kToList:
+    case ::common::ExprOpr::kToArray:
     case ::common::ExprOpr::kScalarFunc:
     case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);

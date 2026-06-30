@@ -873,6 +873,21 @@ class PBUtilsTest : public ::testing::Test {
   void TearDown() override {}
 };
 
+namespace {
+
+void SetInt32ArrayType(::common::DataType* type, uint32_t fixed_length) {
+  auto* array_type = type->mutable_array();
+  array_type->set_fixed_length(fixed_length);
+  array_type->mutable_component_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT32);
+}
+
+void SetNodeType(::common::ExprOpr* op, const ::common::DataType& type) {
+  *op->mutable_node_type()->mutable_data_type() = type;
+}
+
+}  // namespace
+
 TEST_F(PBUtilsTest, MultiplicityToStorageStrategy) {
   EdgeStrategy oe, ie;
 
@@ -914,7 +929,7 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
   prop1->set_name("age");
   prop1->mutable_type()->set_primitive_type(
       ::common::PrimitiveType::DT_SIGNED_INT32);
-  prop1->mutable_default_value()->set_i32(18);
+  prop1->mutable_default_expr()->add_operators()->mutable_const_()->set_i32(18);
 
   auto* prop2 = props.Add();
   prop2->set_name("name");
@@ -959,7 +974,8 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     auto* p = props.Add();
     p->set_name("flag");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_BOOL);
-    p->mutable_default_value()->set_boolean(true);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_boolean(
+        true);
   }
   // INT64
   {
@@ -967,7 +983,8 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("big_id");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_SIGNED_INT64);
-    p->mutable_default_value()->set_i64(9876543210LL);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_i64(
+        9876543210LL);
   }
   // UINT32
   {
@@ -975,7 +992,7 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("count");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_UNSIGNED_INT32);
-    p->mutable_default_value()->set_u32(100U);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_u32(100U);
   }
   // UINT64
   {
@@ -983,21 +1000,22 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
     p->set_name("big_count");
     p->mutable_type()->set_primitive_type(
         ::common::PrimitiveType::DT_UNSIGNED_INT64);
-    p->mutable_default_value()->set_u64(123456789012345ULL);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_u64(
+        123456789012345ULL);
   }
   // FLOAT
   {
     auto* p = props.Add();
     p->set_name("weight");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_FLOAT);
-    p->mutable_default_value()->set_f32(1.5f);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_f32(1.5f);
   }
   // DOUBLE
   {
     auto* p = props.Add();
     p->set_name("ratio");
     p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_DOUBLE);
-    p->mutable_default_value()->set_f64(3.14);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_f64(3.14);
   }
 
   auto result = property_defs_to_value(props);
@@ -1024,6 +1042,104 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
   EXPECT_DOUBLE_EQ(tuples[5].second.GetValue<double>(), 3.14);
 }
 
+TEST_F(PBUtilsTest, PropertyDefsToTuple_ArrayDefaultExpression) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("values");
+  SetInt32ArrayType(prop->mutable_type(), 2);
+
+  auto* array_op = prop->mutable_default_expr()->add_operators();
+  auto* to_array = array_op->mutable_to_array();
+  SetNodeType(array_op, prop->type());
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(1);
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(2);
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result.value().size(), 1U);
+  const auto& value = result.value()[0].second;
+  EXPECT_EQ(value.type().id(), DataTypeId::kArray);
+  const auto& children = execution::ArrayValue::GetChildren(value);
+  ASSERT_EQ(children.size(), 2U);
+  EXPECT_EQ(children[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(children[1].GetValue<int32_t>(), 2);
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_NestedArrayDefaultExpression) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("matrix");
+  auto* outer_type = prop->mutable_type()->mutable_array();
+  outer_type->set_fixed_length(2);
+  auto* inner_type = outer_type->mutable_component_type()->mutable_array();
+  inner_type->set_fixed_length(2);
+  inner_type->mutable_component_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT32);
+
+  auto* outer_array =
+      prop->mutable_default_expr()->add_operators()->mutable_to_array();
+  auto* outer_op = prop->mutable_default_expr()->mutable_operators(0);
+  SetNodeType(outer_op, prop->type());
+  const auto& inner_array_type = prop->type().array().component_type();
+  for (int row = 0; row < 2; ++row) {
+    auto* inner_op = outer_array->add_fields()->add_operators();
+    auto* inner_array = inner_op->mutable_to_array();
+    SetNodeType(inner_op, inner_array_type);
+    inner_array->add_fields()->add_operators()->mutable_const_()->set_i32(
+        row * 2 + 1);
+    inner_array->add_fields()->add_operators()->mutable_const_()->set_i32(
+        row * 2 + 2);
+  }
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  const auto& rows =
+      execution::ArrayValue::GetChildren(result.value()[0].second);
+  ASSERT_EQ(rows.size(), 2U);
+  const auto& first_row = execution::ArrayValue::GetChildren(rows[0]);
+  const auto& second_row = execution::ArrayValue::GetChildren(rows[1]);
+  ASSERT_EQ(first_row.size(), 2U);
+  ASSERT_EQ(second_row.size(), 2U);
+  EXPECT_EQ(first_row[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(first_row[1].GetValue<int32_t>(), 2);
+  EXPECT_EQ(second_row[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(second_row[1].GetValue<int32_t>(), 4);
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_ArrayDefaultMissingNodeType) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("values");
+  SetInt32ArrayType(prop->mutable_type(), 2);
+
+  auto* to_array =
+      prop->mutable_default_expr()->add_operators()->mutable_to_array();
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(1);
+  to_array->add_fields()->add_operators()->mutable_const_()->set_i32(2);
+
+  auto result = property_defs_to_value(props);
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_ArrayDefaultRejectsList) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  auto* prop = props.Add();
+  prop->set_name("values");
+  SetInt32ArrayType(prop->mutable_type(), 2);
+
+  auto* to_list =
+      prop->mutable_default_expr()->add_operators()->mutable_to_list();
+  to_list->add_fields()->add_operators()->mutable_const_()->set_i32(1);
+  to_list->add_fields()->add_operators()->mutable_const_()->set_i32(2);
+
+  auto result = property_defs_to_value(props);
+  EXPECT_FALSE(result.has_value());
+}
+
 TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
   // VarChar with default max_length
   {
@@ -1031,17 +1147,25 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
     auto* p = props.Add();
     p->set_name("tag");
     p->mutable_type()->mutable_string()->mutable_var_char();
-    p->mutable_default_value()->set_str("hello");
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_str(
+        "hello");
 
     auto result = property_defs_to_value(props);
     ASSERT_TRUE(result.has_value());
     auto& tuples = result.value();
     ASSERT_EQ(tuples.size(), 1U);
     EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(tuples[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(tuples[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              STRING_DEFAULT_MAX_LENGTH);
     EXPECT_EQ(tuples[0].second.GetValue<std::string>(), "hello");
   }
 
-  // VarChar with explicit max_length
+  // VarChar with explicit max_length and no default expression.
   {
     google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
     auto* p = props.Add();
@@ -1051,6 +1175,35 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
     auto result = property_defs_to_value(props);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(result.value()[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(result.value()[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              64U);
+  }
+
+  // VarChar with explicit max_length and default expression.
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("short_tag");
+    p->mutable_type()->mutable_string()->mutable_var_char()->set_max_length(64);
+    p->mutable_default_expr()->add_operators()->mutable_const_()->set_str(
+        "hello");
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+    ASSERT_NE(result.value()[0].second.type().getExtraTypeInfo(), nullptr);
+    EXPECT_EQ(result.value()[0]
+                  .second.type()
+                  .getExtraTypeInfo()
+                  ->Cast<StringTypeInfo>()
+                  .max_length,
+              64U);
+    EXPECT_EQ(result.value()[0].second.GetValue<std::string>(), "hello");
   }
 
   // LongText
@@ -1102,6 +1255,44 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_TemporalTypes) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kInterval);
   }
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_TemporalDefaultExpressions) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  {
+    auto* p = props.Add();
+    p->set_name("birthday");
+    p->mutable_type()->mutable_temporal()->mutable_date32();
+    p->mutable_default_expr()->add_operators()->mutable_to_date()->set_date_str(
+        "2023-06-15");
+  }
+  {
+    auto* p = props.Add();
+    p->set_name("created_at");
+    p->mutable_type()->mutable_temporal()->mutable_date_time();
+    p->mutable_default_expr()
+        ->add_operators()
+        ->mutable_to_datetime()
+        ->set_datetime_str("2023-12-25 10:30:45");
+  }
+  {
+    auto* p = props.Add();
+    p->set_name("duration");
+    p->mutable_type()->mutable_temporal()->mutable_interval();
+    p->mutable_default_expr()
+        ->add_operators()
+        ->mutable_to_interval()
+        ->set_interval_str("3days");
+  }
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  const auto& tuples = result.value();
+  ASSERT_EQ(tuples.size(), 3U);
+  EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kDate);
+  EXPECT_EQ(tuples[1].second.type().id(), DataTypeId::kTimestampMs);
+  EXPECT_EQ(tuples[2].second.type().id(), DataTypeId::kInterval);
 }
 
 TEST_F(PBUtilsTest, PropertyDefsToTuple_InvalidType_DT_ANY) {

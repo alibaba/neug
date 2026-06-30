@@ -33,6 +33,7 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "neug/common/extra_type_info.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -76,6 +77,13 @@ YAML::Node property_type_to_yaml(const DataType& type) {
   case DataTypeId::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type.id());
     break;
+  case DataTypeId::kArray: {
+    auto child_type = ArrayType::GetChildType(type);
+    auto array_size = ArrayType::GetNumElements(type);
+    node["array"]["component_type"] = property_type_to_yaml(child_type);
+    node["array"]["max_length"] = array_size;
+    break;
+  }
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unrecognized property type for YAML encoding: " + type.ToString());

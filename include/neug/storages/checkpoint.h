@@ -21,11 +21,10 @@
 #include <string>
 
 #include "neug/storages/checkpoint_file_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module_descriptor.h"
 
 namespace neug {
-
-class CheckpointManifest;  // forward declaration to break circular dependency
 
 /**
  * @brief Represents a single numbered checkpoint directory.

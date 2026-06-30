@@ -28,6 +28,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/common/extra_type_info.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
@@ -335,6 +336,10 @@ bool EdgeSchema::is_bundled() const {
     return true;
   } else if (properties.size() == 1 &&
              properties[0].id() == DataTypeId::kVarchar) {
+    return false;
+  } else if (properties.size() == 1 &&
+             (properties[0].id() == DataTypeId::kArray ||
+              properties[0].id() == DataTypeId::kList)) {
     return false;
   } else if (properties.size() > 1) {
     return false;
@@ -2414,69 +2419,6 @@ Schema Schema::StripTemporary() const {
       stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
 
   return stripped;
-}
-
-InArchive& operator<<(InArchive& in_archive, const DataType& type) {
-  auto id = type.id();
-  in_archive << id;
-  auto type_info = type.getExtraTypeInfo();
-  if (type_info) {
-    in_archive << (char) 1;
-    if (id == DataTypeId::kList) {
-      const auto& list_type_info = type_info->Cast<ListTypeInfo>();
-      in_archive << list_type_info.child_type;
-    } else if (id == DataTypeId::kStruct) {
-      const auto& struct_type_info = type_info->Cast<StructTypeInfo>();
-      const auto& child_types = struct_type_info.child_types;
-      in_archive << (size_t) child_types.size();
-      for (const auto& child_type : child_types) {
-        in_archive << child_type;
-      }
-    } else if (id == DataTypeId::kVarchar) {
-      const auto& varchar_type_info = type_info->Cast<StringTypeInfo>();
-      in_archive << varchar_type_info.max_length;
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "unsupported data type with extra type info - " + type.ToString());
-    }
-  } else {
-    in_archive << (char) 0;  // indicate no extra type info
-  }
-  return in_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive, DataType& type) {
-  DataTypeId id;
-  out_archive >> id;
-
-  char has_extra_type_info;
-  out_archive >> has_extra_type_info;
-  if (has_extra_type_info) {
-    if (id == DataTypeId::kList) {
-      DataType child_type;
-      out_archive >> child_type;
-      type = DataType::List(child_type);
-    } else if (id == DataTypeId::kStruct) {
-      size_t child_types_size;
-      out_archive >> child_types_size;
-      std::vector<DataType> child_types(child_types_size);
-      for (size_t i = 0; i < child_types_size; ++i) {
-        out_archive >> child_types[i];
-      }
-      type = DataType::Struct(child_types);
-    } else if (id == DataTypeId::kVarchar) {
-      size_t max_length;
-      out_archive >> max_length;
-      type = DataType::Varchar(max_length);
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "unsupported data type with extra type info - " + std::to_string(id));
-    }
-  } else {
-    type = DataType(id);
-  }
-
-  return out_archive;
 }
 
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {

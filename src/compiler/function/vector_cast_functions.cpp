@@ -74,6 +74,11 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
          getPhysicalType(inputType->id()) == PhysicalTypeID::ARRAY) &&
         (getPhysicalType(resultType->id()) == PhysicalTypeID::LIST ||
          getPhysicalType(resultType->id()) == PhysicalTypeID::ARRAY)) {
+      if (inputType->id() != resultType->id()) {
+        THROW_CONVERSION_EXCEPTION(
+            stringFormat("Unsupported casting function from {} to {}.",
+                         inputType->ToString(), resultType->ToString()));
+      }
       // copy data and nullmask from input
       memcpy(resultVector->getData(), inputVector->getData(),
              numOfEntries * resultVector->getNumBytesPerValue());
@@ -153,13 +158,13 @@ static void nestedTypesCastExecFunction(
   const auto& inputVector = params[0];
   const auto* inputVectorSelVector = paramSelVectors[0];
 
-  // check if all selcted list entry have the requried fixed list size
-  if (CastArrayHelper::containsListToArray(inputVector->dataType,
-                                           result.dataType)) {
+  // Check whether any fixed-size array entries need runtime length validation.
+  if (CastArrayHelper::requiresArrayEntryValidation(inputVector->dataType,
+                                                    result.dataType)) {
     for (auto i = 0u; i < inputVectorSelVector->getSelSize(); i++) {
       auto pos = (*inputVectorSelVector)[i];
-      CastArrayHelper::validateListEntry(inputVector.get(), result.dataType,
-                                         pos);
+      CastArrayHelper::validateArrayEntries(inputVector.get(), result.dataType,
+                                            pos);
     }
   };
 
@@ -186,18 +191,6 @@ static bool hasImplicitCastArray(const DataType& srcType,
     return false;
   }
   return CastFunction::hasImplicitCast(ArrayType::GetChildType(srcType),
-                                       ArrayType::GetChildType(dstType));
-}
-
-static bool hasImplicitCastArrayToList(const DataType& srcType,
-                                       const DataType& dstType) {
-  return CastFunction::hasImplicitCast(ArrayType::GetChildType(srcType),
-                                       ::ListType::GetChildType(dstType));
-}
-
-static bool hasImplicitCastListToArray(const DataType& srcType,
-                                       const DataType& dstType) {
-  return CastFunction::hasImplicitCast(::ListType::GetChildType(srcType),
                                        ArrayType::GetChildType(dstType));
 }
 
@@ -235,14 +228,6 @@ bool CastFunction::hasImplicitCast(const DataType& srcType,
                                    const DataType& dstType) {
   if (LogicalTypeUtils::isNested(srcType) &&
       LogicalTypeUtils::isNested(dstType)) {
-    if (srcType.id() == DataTypeId::kArray &&
-        dstType.id() == DataTypeId::kList) {
-      return hasImplicitCastArrayToList(srcType, dstType);
-    }
-    if (srcType.id() == DataTypeId::kList &&
-        dstType.id() == DataTypeId::kArray) {
-      return hasImplicitCastListToArray(srcType, dstType);
-    }
     if (srcType.id() != dstType.id()) {
       return false;
     }
@@ -733,26 +718,27 @@ static execution::Value castFunc(const std::vector<execution::Value>& args) {
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
   auto type = execution::StringValue::Get(arg1);
-
-  if (type == "INT64") {
-    return performCast<int64_t>(arg0);
-  } else if (type == "INT32") {
-    return performCast<int32_t>(arg0);
-  } else if (type == "FLOAT") {
-    return performCast<float>(arg0);
-  } else if (type == "DOUBLE") {
-    return performCast<double>(arg0);
-  } else if (type == "STRING") {
-    return performCastToString(arg0);
-  } else if (type == "DATE") {
-    return performCast<neug::Date>(arg0);
-  } else if (type == "TIMESTAMP") {
-    return performCast<neug::DateTime>(arg0);
-  } else if (type == "UINT32") {
-    return performCast<uint32_t>(arg0);
-  } else if (type == "UINT64") {
-    return performCast<uint64_t>(arg0);
-  } else {
+  auto targetType = common::convertFromString(std::string(type), nullptr);
+  switch (targetType.id()) {
+  case DataTypeId::kInt64:
+    return execution::performCast<int64_t>(arg0);
+  case DataTypeId::kInt32:
+    return execution::performCast<int32_t>(arg0);
+  case DataTypeId::kFloat:
+    return execution::performCast<float>(arg0);
+  case DataTypeId::kDouble:
+    return execution::performCast<double>(arg0);
+  case DataTypeId::kVarchar:
+    return execution::performCastToString(arg0);
+  case DataTypeId::kDate:
+    return execution::performCast<neug::Date>(arg0);
+  case DataTypeId::kTimestampMs:
+    return execution::performCast<neug::DateTime>(arg0);
+  case DataTypeId::kUInt32:
+    return execution::performCast<uint32_t>(arg0);
+  case DataTypeId::kUInt64:
+    return execution::performCast<uint64_t>(arg0);
+  default:
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));
   }

@@ -20,6 +20,8 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
 #include "unittest/utils.h"
 
@@ -78,6 +80,29 @@ void expect_signature_eq(const ColumnCowSignature& lhs,
   EXPECT_EQ(lhs.value_sum, rhs.value_sum);
   EXPECT_EQ(lhs.first_element_size, rhs.first_element_size);
 }
+
+#ifndef NDEBUG
+TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
+  auto array_type = DataType::Array(DataType::INT32, 2);
+
+  EXPECT_THROW(
+      {
+        std::vector<execution::Value> values = {execution::Value::INT32(1)};
+        auto value = execution::Value::ARRAY(array_type, std::move(values));
+        (void) value;
+      },
+      exception::InvalidArgumentException);
+
+  EXPECT_THROW(
+      {
+        std::vector<execution::Value> values = {execution::Value::INT32(1),
+                                                execution::Value::INT64(2)};
+        auto value = execution::Value::ARRAY(array_type, std::move(values));
+        (void) value;
+      },
+      exception::InvalidArgumentException);
+}
+#endif
 
 // Apply mutations to int32 column
 void apply_column_mutations(TypedColumn<int32_t>& col) {
@@ -223,7 +248,7 @@ TYPED_TEST(TypedColumnInt32CowTest, CowIsolationAndDumpOpenMatrix) {
   expect_signature_eq(cow_after_original_mutation, cow_after);
 
   auto dump_ckp = this->create_checkpoint();
-  auto cow_desc = cow->Dump(*dump_ckp);
+  auto cow_desc = dump_module_descriptor(*cow, *dump_ckp, "int32_column");
   TypedColumn<int32_t> reopened;
   reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
   auto reopened_sig = build_column_signature(reopened);
@@ -303,11 +328,54 @@ TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
   expect_signature_eq(cow_after_original_mutation, cow_after);
 
   auto dump_ckp = this->create_checkpoint();
-  auto cow_desc = cow->Dump(*dump_ckp);
+  auto cow_desc = dump_module_descriptor(*cow, *dump_ckp, "string_column");
   TypedColumn<std::string_view> reopened;
   reopened.Open(*dump_ckp, cow_desc, MemoryLevel::kInMemory);
   auto reopened_sig = build_column_signature(reopened);
   expect_signature_eq(reopened_sig, cow_after);
+}
+
+TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("array_column_set_any_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  if (std::filesystem::exists(temp_dir)) {
+    std::filesystem::remove_all(temp_dir);
+  }
+  std::filesystem::create_directories(temp_dir);
+
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto array_type = DataType::Array(DataType::INT32, 2);
+  ArrayColumn column(array_type);
+  column.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  column.resize(1);
+
+  std::vector<execution::Value> list_values = {execution::Value::INT32(1),
+                                               execution::Value::INT32(2)};
+  auto list_value =
+      execution::Value::LIST(DataType::INT32, std::move(list_values));
+  EXPECT_THROW({ column.set_any(0, list_value, true); },
+               exception::InvalidArgumentException);
+
+  std::vector<execution::Value> array_values = {execution::Value::INT32(3),
+                                                execution::Value::INT32(4)};
+  auto array_value =
+      execution::Value::ARRAY(array_type, std::move(array_values));
+  EXPECT_NO_THROW({ column.set_any(0, array_value, true); });
+
+  auto stored = column.get_any(0);
+  ASSERT_EQ(stored.type(), array_type);
+  const auto& stored_values = execution::ArrayValue::GetChildren(stored);
+  ASSERT_EQ(stored_values.size(), 2);
+  EXPECT_EQ(stored_values[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(stored_values[1].GetValue<int32_t>(), 4);
+
+  std::filesystem::remove_all(temp_dir);
 }
 
 }  // namespace

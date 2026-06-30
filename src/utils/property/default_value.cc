@@ -14,6 +14,7 @@
  */
 
 #include "neug/utils/property/default_value.h"
+#include "neug/common/extra_type_info.h"
 #include "neug/execution/common/types/value.h"
 
 namespace neug {
@@ -49,6 +50,13 @@ execution::Value get_default_value(const DataType& type) {
     return execution::Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
     return execution::Value::INTERVAL(Interval());
+  case DataTypeId::kArray: {
+    auto child_type = ArrayType::GetChildType(type);
+    auto child_default = get_default_value(child_type);
+    uint64_t size = ArrayType::GetNumElements(type);
+    std::vector<execution::Value> values(size, child_default);
+    return execution::Value::ARRAY(type, std::move(values));
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported property type for default value: " + type.ToString());

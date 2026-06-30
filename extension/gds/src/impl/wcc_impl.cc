@@ -271,7 +271,7 @@ void WCC::sink(execution::Context& ctx, int node_alias, int component_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(component_alias, component_builder.finish());
   ctx.append_chunk(std::move(chunk));

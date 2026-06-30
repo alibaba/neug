@@ -14,11 +14,13 @@
  */
 
 #include "neug/execution/expression/exprs/variable.h"
+#include "glog/logging.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/execution/expression/accessors/edge_accessor.h"
 #include "neug/execution/expression/accessors/record_accessor.h"
 #include "neug/execution/expression/accessors/vertex_accessor.h"
+#include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/utils/exception/exception.h"
 namespace neug {
@@ -68,10 +70,19 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     }
   }
   case ::common::DataType::kArray: {
-    const auto& element_type = ddt.array().component_type();
-    auto data_type = parse_from_data_type(element_type);
-    return DataType(DataTypeId::kList,
-                    std::make_shared<ListTypeInfo>(data_type));
+    const auto& array = ddt.array();
+    auto data_type = parse_from_data_type(array.component_type());
+    if (array.fixed_length() == 0) {
+      THROW_RUNTIME_ERROR(
+          "Array fixed_length must be greater than 0, but got 0 from "
+          "protobuf deserialization.");
+    }
+    return DataType::Array(data_type, array.fixed_length());
+  }
+  case ::common::DataType::kList: {
+    const auto& list = ddt.list();
+    auto data_type = parse_from_data_type(list.component_type());
+    return DataType::List(data_type);
   }
   case ::common::DataType::kTuple: {
     const auto& component_types = ddt.tuple().component_types();

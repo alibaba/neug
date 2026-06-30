@@ -479,7 +479,7 @@ void Leiden::sink(execution::Context& ctx, int node_alias,
     community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
   }
 
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, builder.finish());
   chunk.set(community_alias, community_builder.finish());
   ctx.append_chunk(std::move(chunk));

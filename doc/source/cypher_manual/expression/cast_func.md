@@ -37,6 +37,14 @@ RETURN CAST(123, 'STRING');
 RETURN CAST('2012-01-02', 'DATE');
 ```
 
+### List and Array Values
+
+`LIST` (`T[]`) and fixed-size `ARRAY` (`T[N]`) are distinct composite types.
+`CAST` is not a general `LIST`/`ARRAY` compatibility layer. Values written to
+node and relationship properties must already match the schema type selected by
+the compiler. Use schema declarations or other typed contexts to produce
+fixed-size array values.
+
 ### Converting Property Values
 
 The `CAST` function can also be applied to node and relationship properties:
@@ -75,7 +83,7 @@ NeuG's type system includes four major categories:
 | **Numeric**  | `INT32`, `INT64`, `UINT32`, `UINT64`, `FLOAT`, `DOUBLE` | ✅ (with overflow rules) |
 | **String**   | `STRING`                         | ✅ |
 | **Temporal** | `DATE`, `DATETIME`               | ✅ (limited, see conversion table below) |
-| **Composite**| `ARRAY`, `LIST`, `TUPLE`, `MAP`  | ❌ (not supported currently) |
+| **Composite**| `LIST`, `ARRAY`                  | ✅ within the same composite kind; `LIST` ↔ `ARRAY` conversion is not supported |
 
 ## Type Conversion Rules
 
@@ -164,10 +172,17 @@ RETURN CAST(DATE('2012-01-02'), 'STRING');  # Returns '2012-01-02'
 RETURN CAST(DATETIME('2012-01-02 10:30:00'), 'STRING'); # Returns '2012-01-02 10:30:00'
 ```
 
+### LIST and ARRAY Types
+
+`T[]` declares a variable-length `LIST`, while `T[N]` declares a fixed-size
+`ARRAY` with exactly `N` elements. The compiler validates property values
+against the schema before execution, so runtime execution does not normalize
+`LIST` values into `ARRAY` values or the reverse.
+
 ## Error Handling
 
 The `CAST` function may fail in the following scenarios:
 
-1. **Invalid type conversion**: Attempting to convert between incompatible types (e.g., `ARRAY` to `INT32`)
+1. **Invalid type conversion**: Attempting to convert between incompatible types (e.g., `LIST` to `ARRAY` or `ARRAY` to `INT32`)
 2. **Parse errors**: Converting a string that cannot be parsed as the target type (e.g., `CAST('abc', 'INT32')`)
 3. **Overflow errors** (Debug mode only): Converting a value that exceeds the target type's range

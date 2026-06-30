@@ -342,6 +342,9 @@ static bool compatible(const DataType& type, const DataType& target) {
                       ListType::GetChildType(target));
   }
   case DataTypeId::kArray: {
+    if (ArrayType::GetNumElements(type) != ArrayType::GetNumElements(target)) {
+      return false;
+    }
     return compatible(ArrayType::GetChildType(type),
                       ArrayType::GetChildType(target));
   }
@@ -391,6 +394,10 @@ static bool compatible(const Value& value, const DataType& targetType) {
     return true;
   }
   case DataTypeId::kArray: {
+    if (NestedVal::getChildrenSize(&value) !=
+        ArrayType::GetNumElements(targetType)) {
+      return false;
+    }
     if (!value.hasNoneNullChildren()) {  // Empty array free to change.
       return true;
     }

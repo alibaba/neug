@@ -377,11 +377,12 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_cases.py
 
-    - name: Run List Test
+    - name: Run List/Array Test
       if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_list.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_array.py
 
     - name: Run Concurrency Test
       if: steps.scope.outputs.extension_only != 'true'

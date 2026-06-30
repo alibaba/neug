@@ -122,7 +122,7 @@ void DirectedPageRank::sink(execution::Context& ctx, int node_alias,
     builder.push_back_opt(v);
     pr_builder.push_back_opt(pr_[v]);
   }
-  execution::DataChunk chunk;
+  execution::ContextChunk chunk;
   chunk.set(node_alias, builder.finish());
   chunk.set(pr_alias, pr_builder.finish());
   ctx.append_chunk(std::move(chunk));

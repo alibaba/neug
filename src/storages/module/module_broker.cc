@@ -27,6 +27,9 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
                         MemoryLevel level) {
   auto& factory = ModuleFactory::instance();
   for (const auto& [name, desc] : meta.modules()) {
+    if (desc.is_referenced_module()) {
+      continue;
+    }
     if (desc.module_type.empty()) {
       // Non-factory entry (e.g. LFIndexer descriptor): the higher-level
       // orchestrator (VertexTable::OpenFrom) processes this directly.
@@ -40,7 +43,7 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
           "'.  Make sure the type is registered via NEUG_REGISTER_MODULE or "
           "NEUG_REGISTER_TEMPLATE_MODULE.");
     }
-    module->Open(checkpoint, desc, level);
+    module->Open(checkpoint, meta, desc, level);
     modules_[name] = std::move(module);
   }
 }
@@ -55,7 +58,7 @@ void ModuleBroker::Dump(Checkpoint& checkpoint, CheckpointManifest& meta) {
     if (!module) {
       continue;
     }
-    meta.set_module(name, module->Dump(checkpoint));
+    module->Dump(checkpoint, meta, name);
   }
 }
 

@@ -23,6 +23,7 @@
 
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -101,7 +102,7 @@ void apply_on_match_vertex(
     }
     int32_t col_id =
         static_cast<int32_t>(std::distance(property_names.begin(), pos));
-    if (property_types[col_id].id() != prop.type().id()) {
+    if (property_types[col_id] != prop.type()) {
       THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
     }
     graph.UpdateVertexProperty(label, vid, col_id, prop);
@@ -149,6 +150,10 @@ neug::result<vid_t> insert_vertex_row(
       if (value.IsNull()) {
         property_values[index] = v_default_values[index];
       } else {
+        if (properties_type[index] != value.type()) {
+          THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                              properties_name[index]);
+        }
         property_values[index] = value;
       }
     }

@@ -55,7 +55,8 @@ enum ScalarType {
   STARTS_WITH,
   ENDS_WITH,
   CONTAINS,
-  LIST_CONTAINS
+  LIST_CONTAINS,
+  TO_ARRAY
 };
 
 class GScalarType {
@@ -122,6 +123,8 @@ class GScalarType {
       } else if (type.id() == common::DataTypeId::kStruct) {
         LOG(INFO) << "type is struct";
         return ScalarType::TO_TUPLE;
+      } else if (type.id() == common::DataTypeId::kArray) {
+        return ScalarType::TO_ARRAY;
       }
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid data type: " + type.ToString() +
                                      " for function: " + func.name);

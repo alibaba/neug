@@ -45,6 +45,7 @@ class Value {
   friend struct StringValue;
   friend struct StructValue;
   friend struct ListValue;
+  friend struct ArrayValue;
   friend struct PathValue;
 
  public:
@@ -85,6 +86,8 @@ class Value {
 
   static Value LIST(const DataType& child_type, std::vector<Value>&& values);
   static Value LIST(std::vector<Value>&& values);
+
+  static Value ARRAY(const DataType& array_type, std::vector<Value>&& values);
 
   static Value STRING(const std::string& str);
 
@@ -171,6 +174,11 @@ struct StringValue {
 
 struct ListValue {
   static const std::vector<Value>& GetChildren(const Value& value);
+};
+
+struct ArrayValue {
+  static const std::vector<Value>& GetChildren(const Value& value);
+  static uint64_t GetSize(const Value& value);
 };
 
 struct StructValue {
@@ -624,6 +632,19 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
     }
     if (lhs_children.size() != rhs_children.size()) {
       return lhs_children.size() < rhs_children.size();
+    }
+    return true;
+  }
+  case DataTypeId::kArray: {
+    const auto& lhs_children = ArrayValue::GetChildren(lhs);
+    const auto& rhs_children = ArrayValue::GetChildren(rhs);
+    if (lhs_children.size() != rhs_children.size()) {
+      THROW_RUNTIME_ERROR("Array size not equal.");
+    }
+    for (size_t i = 0; i < lhs_children.size(); ++i) {
+      if (!ApplyComparisonOp<OP>(lhs_children[i], rhs_children[i])) {
+        return false;
+      }
     }
     return true;
   }
