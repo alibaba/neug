@@ -342,8 +342,7 @@ static bool compatible(const DataType& type, const DataType& target) {
                       ListType::GetChildType(target));
   }
   case DataTypeId::kArray: {
-    if (ArrayType::GetNumElements(type) !=
-        ArrayType::GetNumElements(target)) {
+    if (ArrayType::GetNumElements(type) != ArrayType::GetNumElements(target)) {
       return false;
     }
     return compatible(ArrayType::GetChildType(type),
