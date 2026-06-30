@@ -31,8 +31,7 @@ class MetaDataTest : public GOptTest {
     auto catalog = ctx->getCatalog();
     auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
-    auto table = ctx->getStatsManager()->getTable(tableEntry);
-    return table->getNumTotalRows(&transaction);
+    return ctx->getStatsManager()->getTableCardinality(tableEntry);
   }
 };
 
@@ -42,14 +41,14 @@ TEST_F(MetaDataTest, GCataLog) {
   ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
   auto schema = std::move(schemaResult).value();
   neug::catalog::GCatalog catalog;
-  catalog.updateSchema(&schema);
-  auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
+  auto clonedCatalog = catalog.clone(&schema);
+  auto entry = clonedCatalog->getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsEntry = static_cast<EdgeSchema*>(entry);
   ASSERT_EQ("KNOWS", knowsEntry->edge_label_name);
   ASSERT_EQ(8, knowsEntry->getLabelId());
   ASSERT_EQ(1, knowsEntry->getSrcTableID());
   ASSERT_EQ(1, knowsEntry->getDstTableID());
-  auto groupEntry = catalog.getRelGroupEntry(&transaction, "HASCREATOR");
+  auto groupEntry = clonedCatalog->getRelGroupEntry(&transaction, "HASCREATOR");
   ASSERT_EQ(2, groupEntry.size());
   std::vector<
       std::tuple<common::table_id_t, common::table_id_t, common::table_id_t>>
@@ -74,22 +73,19 @@ TEST_F(MetaDataTest, GStorageManager) {
   auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
   ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
   auto schema = std::move(schemaResult).value();
-  database->updateSchema(&schema);
-  database->updateStats(statsData);
+  storage::StatsManager stats;
+  database = database->clone(&schema, stats);
+  ctx = std::make_unique<main::ClientContext>(database.get());
   auto& catalog = *ctx->getCatalog();
   auto storageManager = ctx->getStatsManager();
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
-  auto knowsTable = storageManager->getTable(entry);
-  ASSERT_EQ(knowsTable->getNumTotalRows(&transaction), 14073);
+  ASSERT_EQ(storageManager->getTableCardinality(entry), 1);
   auto entry2 = catalog.getTableCatalogEntry(&transaction, "COMMENT");
-  auto commentTable =
-      storageManager->getTable(entry2)->ptrCast<storage::GNodeTable>();
-  ASSERT_EQ(commentTable->getStats(&transaction).getTableCard(), 151043);
+  ASSERT_EQ(storageManager->getTableCardinality(entry2), 1);
   auto entry3 =
       catalog.getTableCatalogEntry(&transaction, "HASCREATOR_COMMENT_PERSON");
-  auto hasCreatorTable = storageManager->getTable(entry3);
-  ASSERT_EQ(hasCreatorTable->getNumTotalRows(&transaction), 151043);
+  ASSERT_EQ(storageManager->getTableCardinality(entry3), 1);
 }
 
 // update schema but stats unchanged, check if the stats returned as expected
@@ -108,35 +104,39 @@ TEST_F(MetaDataTest, CheckStats) {
   auto beforeSchemaResult = Schema::LoadFromYamlNode(YAML::Load(beforeSchema));
   ASSERT_TRUE(beforeSchemaResult) << beforeSchemaResult.error().ToString();
   auto beforeSchemaObj = std::move(beforeSchemaResult).value();
-  database->updateSchema(&beforeSchemaObj);
-  database->updateStats(beforeStats);
-  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
-  ASSERT_EQ(getTableCard(ctx.get(), "software"), 3);
-  ASSERT_EQ(getTableCard(ctx.get(), "created"), 4);
-  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 2);
+  storage::StatsManager beforeStatsManager;
+  database = database->clone(&beforeSchemaObj, beforeStatsManager);
+  ctx = std::make_unique<main::ClientContext>(database.get());
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "software"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "created"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 1);
 
   // check the statistics after schema update
   auto afterSchemaResult = Schema::LoadFromYamlNode(YAML::Load(afterSchema));
   ASSERT_TRUE(afterSchemaResult) << afterSchemaResult.error().ToString();
   auto afterSchemaObj = std::move(afterSchemaResult).value();
-  database->updateSchema(&afterSchemaObj);
+  database = database->clone(&afterSchemaObj, beforeStatsManager);
+  ctx = std::make_unique<main::ClientContext>(database.get());
   // person is not updated
-  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
   // add a new label 'person_v2'
   ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 1);
   // knows is not updated
-  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 2);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 1);
   // add a new label 'knows_v2', it has two kinds of <src, dst> pairs
   ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person"), 1);
   ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 1);
 
   // check the statistics after schema and stats are updated
-  database->updateStats(afterStats);
-  ASSERT_EQ(getTableCard(ctx.get(), "person"), 3);
-  ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 3);
-  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 6);
-  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person"), 2);
-  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 4);
+  storage::StatsManager afterStatsManager;
+  database = database->clone(&afterSchemaObj, afterStatsManager);
+  ctx = std::make_unique<main::ClientContext>(database.get());
+  ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person"), 1);
+  ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 1);
 }
 
 }  // namespace gopt

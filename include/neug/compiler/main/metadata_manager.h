@@ -23,7 +23,6 @@
 #pragma once
 
 #include <yaml-cpp/node/node.h>
-#include <atomic>
 #include <filesystem>
 #include <memory>
 
@@ -31,6 +30,7 @@
 #include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/utils/api.h"
 #include "neug/utils/io/vfs/file_system.h"
 
@@ -89,14 +89,9 @@ class MetadataManager {
 
   NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
-  void updateSchema(const Schema* schema);
+  std::unique_ptr<MetadataManager> clone(
+      const Schema* schema, const storage::StatsManager& stats) const;
 
-  void updateStats(const std::filesystem::path& statsPath);
-
-  void updateStats(const std::string& stats);
-
-  /** Thread-safe (spinlock + atomic): returns a copy of the current
-   * StatsManager. */
   std::shared_ptr<storage::StatsManager> getStatsManager() const;
 
   graph::GraphEntrySet& getGraphEntrySetUnsafe();
@@ -104,13 +99,19 @@ class MetadataManager {
   const graph::GraphEntrySet& getGraphEntrySet() const;
 
  private:
+  MetadataManager(std::unique_ptr<catalog::Catalog> catalog,
+                  storage::StatsManager statsManager,
+                  std::shared_ptr<storage::MemoryManager> memoryManager,
+                  std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
+                  std::shared_ptr<extension::ExtensionManager> extensionManager,
+                  std::shared_ptr<graph::GraphEntrySet> graphEntrySet);
+
   std::unique_ptr<catalog::Catalog> catalog;
-  mutable std::atomic_flag statsManagerLock = ATOMIC_FLAG_INIT;
-  std::shared_ptr<storage::StatsManager> statsManager;
-  std::unique_ptr<storage::MemoryManager> memoryManager;
-  std::unique_ptr<neug::fsys::FileSystemRegistry> vfs;
-  std::unique_ptr<extension::ExtensionManager> extensionManager;
-  std::unique_ptr<graph::GraphEntrySet> graphEntrySet;
+  storage::StatsManager statsManager;
+  std::shared_ptr<storage::MemoryManager> memoryManager;
+  std::shared_ptr<neug::fsys::FileSystemRegistry> vfs;
+  std::shared_ptr<extension::ExtensionManager> extensionManager;
+  std::shared_ptr<graph::GraphEntrySet> graphEntrySet;
 };
 
 }  // namespace main

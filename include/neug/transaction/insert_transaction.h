@@ -198,6 +198,8 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
+  const PropertyGraph& graph() const { return *guard_.get().mutable_graph(); }
+
   bool GetVertexIndex(label_t label, const execution::Value& oid,
                       vid_t& lid) const;
 

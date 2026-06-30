@@ -35,7 +35,7 @@ class GCatalog : public Catalog {
   function::Function* getFunctionWithSignature(
       const std::string& signatureName);
 
-  void updateSchema(const Schema* schema);
+  std::unique_ptr<Catalog> clone(const Schema* schema) const override;
 
  private:
   void registerBuiltInFunctions();

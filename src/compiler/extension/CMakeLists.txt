@@ -43,6 +43,7 @@ include_directories(
 )
 
 add_library(neug_generated_extension_loader OBJECT ${GENERATED_CPP_FILE})
+add_dependencies(neug_generated_extension_loader neug_proto)
 
 # Both the gs source and httpfs extension includes the httplib which is a header
 # only library. Httpfs requires the openssl function to be enabled in httplib, so

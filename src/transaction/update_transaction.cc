@@ -231,7 +231,7 @@ bool UpdateTransaction::Commit() {
   vm_.begin_update_commit(timestamp_);
 
   if (wal_builder_.schema_changed()) {
-    pipeline_cache_.clearGlobalCache(cow_graph_->schema().to_yaml().value());
+    pipeline_cache_.clearGlobalCache();
   }
 
   // PublishSnapshot MUST happen BEFORE release() which calls

@@ -22,15 +22,13 @@
 
 #pragma once
 
-#include <rapidjson/document.h>
 #include <filesystem>
+#include <string>
 #include <unordered_map>
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/types/types.h"
-#include "neug/compiler/main/metadata_manager.h"
-#include "neug/compiler/storage/buffer_manager/memory_manager.h"
-#include "neug/compiler/storage/store/table.h"
+#include "neug/storages/graph/property_graph.h"
 
 namespace neug {
 namespace main {
@@ -42,60 +40,41 @@ class CatalogEntry;
 }
 
 namespace storage {
-class Table;
-class DiskArrayCollection;
 
-struct StatsTableKey {
-  common::TableType tableType;
-  common::table_id_t tableID;
-
-  bool operator==(const StatsTableKey& other) const {
-    return tableType == other.tableType && tableID == other.tableID;
-  }
-};
-
-struct StatsTableKeyHash {
-  std::size_t operator()(const StatsTableKey& key) const {
-    return std::hash<uint64_t>{}((static_cast<uint64_t>(key.tableType) << 32u) |
-                                 static_cast<uint64_t>(key.tableID));
-  }
-};
-
-class NEUG_API StatsManager {
+// 基于 PropertyGraph 重新实现 StatManager，避免序列化过程
+// 直接返回 cardinality接口，而不是table，修改调用这些接口的地方
+class StatsManager {
  public:
-  StatsManager(MemoryManager& memoryManager) : memoryManager(memoryManager) {}
+  StatsManager() = default;
+  explicit StatsManager(const PropertyGraph& graph) : graph_(&graph) {}
 
-  StatsManager(const std::filesystem::path& statsPath,
-               main::MetadataManager* database, MemoryManager& memoryManager);
+  void UpdateGraph(const PropertyGraph& graph) { graph_ = &graph; }
+#ifdef NEUG_BUILD_TEST
+  void LoadFromJson(const Schema& schema, const std::string& stats_json);
+#endif
 
-  StatsManager(const std::string& statsData, main::MetadataManager* catalog,
-               MemoryManager& memoryManager);
-
-  ~StatsManager() = default;
-
-  Table* getTable(common::table_id_t tableID);
-  Table* getTable(common::table_id_t tableID, common::TableType tableType);
-  Table* getTable(catalog::SchemaEntry* tableEntry);
-
-  void loadTables(const catalog::Catalog& catalog,
-                  common::VirtualFileSystem* vfs,
-                  main::ClientContext* context) {}
+  common::cardinality_t getTable(common::table_id_t tableID) const;
+  common::cardinality_t getTable(common::table_id_t tableID,
+                                 common::TableType tableType) const;
+  common::cardinality_t getTable(catalog::SchemaEntry* tableEntry) const;
+  common::cardinality_t getTableCardinality(common::table_id_t tableID) const {
+    return getTable(tableID);
+  }
+  common::cardinality_t getTableCardinality(common::table_id_t tableID,
+                                            common::TableType tableType) const {
+    return getTable(tableID, tableType);
+  }
+  common::cardinality_t getTableCardinality(
+      catalog::SchemaEntry* tableEntry) const {
+    return getTable(tableEntry);
+  }
 
  private:
-  main::MetadataManager* database;
-  std::unordered_map<StatsTableKey, std::unique_ptr<Table>, StatsTableKeyHash>
-      tables;
-  MemoryManager& memoryManager;
-  std::mutex mtx;
-
- private:
-  void loadStats(
-      const catalog::Catalog& catalog,
-      const std::unordered_map<std::string, common::row_idx_t>& countMap);
-  void getCardMap(const std::string& jsonData,
-                  std::unordered_map<std::string, common::row_idx_t>& countMap);
-  Table* getTableByEntry(catalog::SchemaEntry* curEntry);
-  bool checkTableConsistency(Table* oldTable, catalog::SchemaEntry* curEntry);
+  const PropertyGraph* graph_ = nullptr;
+#ifdef NEUG_BUILD_TEST
+  std::unordered_map<common::table_id_t, common::cardinality_t>
+      table_cardinalities_;
+#endif
 };
 
 }  // namespace storage

@@ -1,13 +1,7 @@
-#include <fstream>
-#include <sstream>
 #include "neug/compiler/storage/stats_manager.h"
 
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/common/types/types.h"
-#include "neug/compiler/gopt/g_constants.h"
-#include "neug/compiler/gopt/g_node_table.h"
-#include "neug/compiler/gopt/g_rel_table.h"
-#include "neug/compiler/main/metadata_manager.h"
+#include <rapidjson/document.h>
+
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
@@ -15,257 +9,169 @@ namespace neug {
 namespace storage {
 
 namespace {
-StatsTableKey getStatsTableKey(catalog::SchemaEntry* entry) {
-  return {entry->getTableType(), entry->getTableID()};
-}
-
-catalog::SchemaEntry* getTableCatalogEntry(
-    const catalog::Catalog& catalog,
-    const transaction::Transaction* transaction, common::table_id_t tableID,
-    common::TableType tableType) {
-  if (tableType == common::TableType::NODE) {
-    for (auto* entry : catalog.getNodeTableEntries(transaction)) {
-      if (entry->getTableID() == tableID) {
-        return entry;
-      }
-    }
-  } else {
-    for (auto* entry : catalog.getRelTableEntries(transaction)) {
-      if (entry->getTableID() == tableID) {
-        return entry;
-      }
-    }
-  }
-  THROW_EXCEPTION_WITH_FILE_LINE("Cannot find table catalog entry with id " +
-                                 std::to_string(tableID));
+common::cardinality_t atLeastOne(common::cardinality_t cardinality) {
+  return cardinality == 0 ? 1 : cardinality;
 }
 }  // namespace
 
-StatsManager::StatsManager(const std::string& statsData,
-                           main::MetadataManager* database,
-                           MemoryManager& memoryManager)
-    : memoryManager(memoryManager), database(database) {
-  std::unordered_map<std::string, common::row_idx_t> countMap;
-  getCardMap(statsData, countMap);
-  if (!database || !database->getCatalog()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Database or catalog is not initialized");
-  }
-  loadStats(*database->getCatalog(), countMap);
-}
-
-bool StatsManager::checkTableConsistency(Table* oldTable,
-                                         catalog::SchemaEntry* curEntry) {
-  if (oldTable->getTableType() != curEntry->getTableType() ||
-      oldTable->getTableName() !=
-          curEntry->getLabel(database->getCatalog(),
-                             &neug::Constants::DEFAULT_TRANSACTION)) {
-    return false;
-  }
-  if (oldTable->getTableType() == common::TableType::REL) {
-    auto catalog = database->getCatalog();
-    auto& transaction = neug::Constants ::DEFAULT_TRANSACTION;
-    // check if the src and dst table ids are consistent
-    auto oldRelTable = oldTable->ptrCast<GRelTable>();
-    if (!catalog->containsTable(&transaction, oldRelTable->getSrcTableId()) ||
-        !catalog->containsTable(&transaction, oldRelTable->getDstTableId())) {
-      return false;
-    }
-    auto oldSrcEntry = catalog->getTableCatalogEntry(
-        &transaction, oldRelTable->getSrcTableId());
-    auto oldDstEntry = catalog->getTableCatalogEntry(
-        &transaction, oldRelTable->getDstTableId());
-    auto* curRelEntry = dynamic_cast<EdgeSchema*>(curEntry);
-    NEUG_ASSERT(curRelEntry != nullptr);
-    auto curSrcEntry = catalog->getTableCatalogEntry(
-        &transaction, curRelEntry->getSrcTableID());
-    auto curDstEntry = catalog->getTableCatalogEntry(
-        &transaction, curRelEntry->getDstTableID());
-    if (curSrcEntry->getTableType() != oldSrcEntry->getTableType() ||
-        curDstEntry->getTableType() != oldDstEntry->getTableType() ||
-        curSrcEntry->getLabel(catalog, &transaction) !=
-            oldSrcEntry->getLabel(catalog, &transaction) ||
-        curDstEntry->getLabel(catalog, &transaction) !=
-            oldDstEntry->getLabel(catalog, &transaction)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// check if cached table data is consistent with the schema, return false if
-// not, otherwise return true
-Table* StatsManager::getTableByEntry(catalog::SchemaEntry* curEntry) {
-  auto tableKey = getStatsTableKey(curEntry);
-  if (tables.contains(tableKey)) {
-    auto oldTable = tables.at(tableKey).get();
-    if (checkTableConsistency(oldTable, curEntry)) {
-      return oldTable;
-    }
-  }
-  for (auto& [_, table] : tables) {
-    if (checkTableConsistency(table.get(), curEntry)) {
-      return table.get();
-    }
-  }
-  return nullptr;
-}
-
-Table* StatsManager::getTable(common::table_id_t tableID) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  auto catalog = database->getCatalog();
-  if (!catalog) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
-  }
-  NEUG_ASSERT(catalog->containsTable(&transaction, tableID));
-  auto curEntry = catalog->getTableCatalogEntry(&transaction, tableID);
-  return getTable(curEntry);
-}
-
-Table* StatsManager::getTable(common::table_id_t tableID,
-                              common::TableType tableType) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  auto catalog = database->getCatalog();
-  if (!catalog) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
-  }
-  auto curEntry =
-      getTableCatalogEntry(*catalog, &transaction, tableID, tableType);
-  return getTable(curEntry);
-}
-
-Table* StatsManager::getTable(catalog::SchemaEntry* curEntry) {
-  Table* oldTable = getTableByEntry(curEntry);
-  if (oldTable) {
-    return oldTable;
-  }
-  switch (curEntry->getTableType()) {
-  case common::TableType::NODE: {
-    auto* vertexSchema = dynamic_cast<VertexSchema*>(curEntry);
-    NEUG_ASSERT(vertexSchema != nullptr);
-    auto defaultNode =
-        std::make_unique<GNodeTable>(vertexSchema, this, &memoryManager, 1);
-    return defaultNode.release();
-  }
-  case common::TableType::REL:
-  default: {
-    auto* edgeSchema = dynamic_cast<EdgeSchema*>(curEntry);
-    NEUG_ASSERT(edgeSchema != nullptr);
-    auto defaultRel = std::make_unique<GRelTable>(1, edgeSchema, this);
-    return defaultRel.release();
-  }
-  }
-}
-
-StatsManager::StatsManager(const std::filesystem::path& statsPath,
-                           main::MetadataManager* database,
-                           MemoryManager& memoryManager)
-    : memoryManager(memoryManager), database(database) {
-  std::ifstream file(statsPath);
-  if (!file.is_open()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Statistics file " + statsPath.string() +
-                                   " not found");
+#ifdef NEUG_BUILD_TEST
+void StatsManager::LoadFromJson(const Schema& schema,
+                                const std::string& stats_json) {
+  table_cardinalities_.clear();
+  if (stats_json.empty()) {
+    return;
   }
 
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  std::string statsJson = buffer.str();
-
-  std::unordered_map<std::string, common::row_idx_t> countMap;
-  getCardMap(statsJson, countMap);
-  if (!database || !database->getCatalog()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Database or catalog is not initialized");
+  rapidjson::Document document;
+  document.Parse(stats_json.c_str());
+  if (document.HasParseError() || !document.IsObject()) {
+    THROW_RUNTIME_ERROR("Failed to parse statistics JSON");
   }
-  loadStats(*database->getCatalog(), countMap);
-}
 
-void StatsManager::getCardMap(
-    const std::string& json,
-    std::unordered_map<std::string, common::row_idx_t>& countMap) {
-  try {
-    if (json.empty()) {
-      // If JSON is empty, just return an empty countMap
-      return;
-    }
-
-    rapidjson::Document jsonData;
-
-    if (jsonData.Parse(json.c_str()).HasParseError()) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Invalid JSON format: " +
-                                     std::to_string(jsonData.GetParseError()));
-    }
-    // Process node statistics if valid
-    if (jsonData.HasMember("vertex_type_statistics") &&
-        jsonData["vertex_type_statistics"].IsArray()) {
-      for (const auto& nodeStat :
-           jsonData["vertex_type_statistics"].GetArray()) {
-        if (nodeStat.HasMember("type_name") && nodeStat.HasMember("count") &&
-            nodeStat["type_name"].IsString() && nodeStat["count"].IsInt64()) {
-          auto nodeName = nodeStat["type_name"].GetString();
-          countMap[nodeName] = nodeStat["count"].GetInt64();
-        }
+  if (document.HasMember("vertex_type_statistics") &&
+      document["vertex_type_statistics"].IsArray()) {
+    for (const auto& vertex_stat :
+         document["vertex_type_statistics"].GetArray()) {
+      if (!vertex_stat.IsObject() || !vertex_stat.HasMember("type_name") ||
+          !vertex_stat["type_name"].IsString() ||
+          !vertex_stat.HasMember("count") || !vertex_stat["count"].IsUint64()) {
+        continue;
       }
+      try {
+        auto label_id =
+            schema.get_vertex_label_id(vertex_stat["type_name"].GetString());
+        auto vertex_schema = schema.get_vertex_schema(label_id);
+        if (vertex_schema) {
+          table_cardinalities_[vertex_schema->getTableID()] =
+              vertex_stat["count"].GetUint64();
+        }
+      } catch (const std::exception&) { continue; }
     }
+  }
 
-    if (jsonData.HasMember("edge_type_statistics") &&
-        jsonData["edge_type_statistics"].IsArray()) {
-      for (const auto& relStat : jsonData["edge_type_statistics"].GetArray()) {
-        if (relStat.HasMember("type_name") &&
-            relStat.HasMember("vertex_type_pair_statistics") &&
-            relStat["type_name"].IsString() &&
-            relStat["vertex_type_pair_statistics"].IsArray()) {
-          auto relName = relStat["type_name"].GetString();
-
-          for (const auto& srcDst :
-               relStat["vertex_type_pair_statistics"].GetArray()) {
-            if (srcDst.HasMember("source_vertex") &&
-                srcDst.HasMember("destination_vertex") &&
-                srcDst.HasMember("count") &&
-                srcDst["source_vertex"].IsString() &&
-                srcDst["destination_vertex"].IsString() &&
-                srcDst["count"].IsInt64()) {
-              auto srcName = srcDst["source_vertex"].GetString();
-              auto dstName = srcDst["destination_vertex"].GetString();
-              auto childName = catalog::RelGroupCatalogEntry::getChildTableName(
-                  relName, srcName, dstName);
-              auto count = srcDst["count"].GetInt64();
-              countMap[childName] = count;
-            }
+  if (document.HasMember("edge_type_statistics") &&
+      document["edge_type_statistics"].IsArray()) {
+    for (const auto& edge_stat : document["edge_type_statistics"].GetArray()) {
+      if (!edge_stat.IsObject() || !edge_stat.HasMember("type_name") ||
+          !edge_stat["type_name"].IsString() ||
+          !edge_stat.HasMember("vertex_type_pair_statistics") ||
+          !edge_stat["vertex_type_pair_statistics"].IsArray()) {
+        continue;
+      }
+      for (const auto& pair_stat :
+           edge_stat["vertex_type_pair_statistics"].GetArray()) {
+        if (!pair_stat.IsObject() || !pair_stat.HasMember("source_vertex") ||
+            !pair_stat["source_vertex"].IsString() ||
+            !pair_stat.HasMember("destination_vertex") ||
+            !pair_stat["destination_vertex"].IsString() ||
+            !pair_stat.HasMember("count") || !pair_stat["count"].IsUint64()) {
+          continue;
+        }
+        try {
+          auto src_label = schema.get_vertex_label_id(
+              pair_stat["source_vertex"].GetString());
+          auto dst_label = schema.get_vertex_label_id(
+              pair_stat["destination_vertex"].GetString());
+          auto edge_label =
+              schema.get_edge_label_id(edge_stat["type_name"].GetString());
+          if (!schema.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
+            continue;
           }
+          auto edge_schema =
+              schema.get_edge_schema(src_label, dst_label, edge_label);
+          if (edge_schema) {
+            table_cardinalities_[edge_schema->getTableID()] =
+                pair_stat["count"].GetUint64();
+          }
+        } catch (const std::exception&) { continue; }
+      }
+    }
+  }
+}
+#endif
+
+common::cardinality_t StatsManager::getTable(common::table_id_t tableID) const {
+#ifdef NEUG_BUILD_TEST
+  if (auto it = table_cardinalities_.find(tableID);
+      it != table_cardinalities_.end()) {
+    return atLeastOne(it->second);
+  }
+#endif
+  if (graph_ == nullptr) {
+    return 1;
+  }
+  if (graph_->schema().is_vertex_label_valid(tableID)) {
+    return getTable(tableID, common::TableType::NODE);
+  }
+  return getTable(tableID, common::TableType::REL);
+}
+
+common::cardinality_t StatsManager::getTable(
+    common::table_id_t tableID, common::TableType tableType) const {
+#ifdef NEUG_BUILD_TEST
+  if (auto it = table_cardinalities_.find(tableID);
+      it != table_cardinalities_.end()) {
+    return atLeastOne(it->second);
+  }
+#endif
+  if (graph_ == nullptr) {
+    return 1;
+  }
+  if (tableType == common::TableType::NODE) {
+    if (!graph_->schema().is_vertex_label_valid(tableID)) {
+      return 1;
+    }
+    return atLeastOne(graph_->VertexNum(tableID, MAX_TIMESTAMP));
+  }
+
+  for (auto edge_label : graph_->schema().get_edge_label_ids()) {
+    for (auto src_label : graph_->schema().get_vertex_label_ids()) {
+      for (auto dst_label : graph_->schema().get_vertex_label_ids()) {
+        if (!graph_->schema().is_edge_triplet_valid(src_label, dst_label,
+                                                    edge_label)) {
+          continue;
+        }
+        auto edgeSchema =
+            graph_->schema().get_edge_schema(src_label, dst_label, edge_label);
+        if (edgeSchema && edgeSchema->getTableID() == tableID) {
+          return atLeastOne(graph_->EdgeNum(src_label, edge_label, dst_label));
         }
       }
     }
-  } catch (const std::exception& e) {
-    // If any error occurs during JSON processing, just continue with empty
-    // countMap All counts will default to 0
   }
+  return 1;
 }
 
-void StatsManager::loadStats(
-    const catalog::Catalog& catalog,
-    const std::unordered_map<std::string, common::row_idx_t>& countMap) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-
-  // Process all node tables from catalog
-  for (auto& tableEntry : catalog.getTableEntries(&transaction)) {
-    if (tableEntry->getTableType() == common::TableType::NODE) {
-      auto* nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
-      NEUG_ASSERT(nodeTableEntry != nullptr);
-      auto nodeName = nodeTableEntry->getLabel(&catalog, &transaction);
-      auto count = countMap.count(nodeName) ? countMap.at(nodeName) : 1;
-      tables[getStatsTableKey(nodeTableEntry)] = std::make_unique<GNodeTable>(
-          nodeTableEntry, this, &memoryManager, count);
-    } else if (tableEntry->getTableType() == common::TableType::REL) {
-      auto* relTableEntry = dynamic_cast<EdgeSchema*>(tableEntry);
-      NEUG_ASSERT(relTableEntry != nullptr);
-      auto relName = catalog::RelGroupCatalogEntry::getChildTableName(
-          relTableEntry->getEdgeLabelName(), relTableEntry->src_label_name,
-          relTableEntry->dst_label_name);
-      auto count = countMap.count(relName) ? countMap.at(relName) : 1;
-      tables[getStatsTableKey(relTableEntry)] =
-          std::make_unique<neug::storage::GRelTable>(count, relTableEntry,
-                                                     this);
-    }
+common::cardinality_t StatsManager::getTable(
+    catalog::SchemaEntry* tableEntry) const {
+  if (tableEntry == nullptr) {
+    return 1;
   }
+#ifdef NEUG_BUILD_TEST
+  if (auto it = table_cardinalities_.find(tableEntry->getTableID());
+      it != table_cardinalities_.end()) {
+    return atLeastOne(it->second);
+  }
+#endif
+  if (graph_ == nullptr) {
+    return 1;
+  }
+  if (tableEntry->getTableType() == common::TableType::NODE) {
+    return getTable(tableEntry->getTableID(), common::TableType::NODE);
+  }
+
+  auto* edgeSchema = dynamic_cast<EdgeSchema*>(tableEntry);
+  if (edgeSchema == nullptr) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Expected EdgeSchema for REL statistics");
+  }
+  if (!graph_->schema().is_edge_triplet_valid(edgeSchema->getSrcTableID(),
+                                              edgeSchema->getDstTableID(),
+                                              edgeSchema->getLabelId())) {
+    return 1;
+  }
+  return atLeastOne(graph_->EdgeNum(edgeSchema->getSrcTableID(),
+                                    edgeSchema->getLabelId(),
+                                    edgeSchema->getDstTableID()));
 }
 
 }  // namespace storage

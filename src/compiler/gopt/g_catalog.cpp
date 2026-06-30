@@ -28,9 +28,10 @@ namespace catalog {
 
 GCatalog::GCatalog() : Catalog() { registerBuiltInFunctions(); }
 
-void GCatalog::updateSchema(const Schema* schema) {
-  this->schema = schema;
-  incrementVersion();
+std::unique_ptr<Catalog> GCatalog::clone(const Schema* schema) const {
+  auto cloned = std::make_unique<GCatalog>(*this);
+  cloned->setSchema(schema);
+  return cloned;
 }
 
 void GCatalog::registerBuiltInFunctions() {

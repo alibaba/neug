@@ -33,6 +33,7 @@
 #include "neug/compiler/main/client_config.h"
 #include "neug/compiler/parser/statement.h"
 #include "neug/compiler/processor/warning_context.h"
+#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "prepared_statement.h"
 
@@ -95,6 +96,7 @@ class NEUG_API ClientContext {
 
  public:
   explicit ClientContext(MetadataManager* database);
+
   ~ClientContext();
 
   // Client config

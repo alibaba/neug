@@ -190,9 +190,8 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     ClientContext& context, const TableCatalogEntry* tableEntry,
     const std::vector<std::string>& propertyNames)
     : context{context},
-      nodeTable{neug_dynamic_cast<const NodeTable&>(
-          *context.getStatsManager()->getTable(tableEntry->getTableID(),
-                                               common::TableType::NODE))},
+      numRows{context.getStatsManager()->getTableCardinality(
+          tableEntry->getTableID(), common::TableType::NODE)},
       numNodesScanned{0},
       currentOffset{0},
       endOffsetExclusive{0} {}

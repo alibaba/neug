@@ -164,8 +164,8 @@ class Utils {
       THROW_RUNTIME_ERROR(schemaResult.error().ToString());
     }
     schemas[database] = std::move(schemaResult).value();
-    database->updateSchema(&schemas[database]);
-    database->updateStats(getTestResourcePath(segments.second));
+    (void) database;
+    (void) segments;
   }
 };
 
@@ -194,7 +194,10 @@ class GOptTest : public ::testing::Test {
     return Utils::readString(path);
   }
 
-  catalog::Catalog* getCatalog() { return database->getCatalog(); }
+  catalog::Catalog* getCatalog() {
+    return currentQueryDatabase ? currentQueryDatabase->getCatalog()
+                                : database->getCatalog();
+  }
 
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("resources/" + resourceName);
@@ -221,11 +224,16 @@ class GOptTest : public ::testing::Test {
       THROW_RUNTIME_ERROR(schemaResult.error().ToString());
     }
     currentSchema = std::move(schemaResult).value();
-    database->updateSchema(&currentSchema);
-    database->updateStats(statsData);
+    storage::StatsManager stats;
+#ifdef NEUG_BUILD_TEST
+    stats.LoadFromJson(currentSchema, statsData);
+#endif
+    currentQueryDatabase = database->clone(&currentSchema, stats);
+    auto queryContext =
+        std::make_unique<main::ClientContext>(currentQueryDatabase.get());
 
     // Prepare the query
-    auto statement = ctx->prepare(query);
+    auto statement = queryContext->prepare(query);
     return std::move(statement->logicalPlan);
   }
 
@@ -238,7 +246,7 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -247,7 +255,7 @@ class GOptTest : public ::testing::Test {
       const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -258,7 +266,7 @@ class GOptTest : public ::testing::Test {
         optimizer::FilterPushDownPattern filterPushDown;
         filterPushDown.rewrite(plan);
       } else if (rule == "ExpandGetVFusion") {
-        optimizer::ExpandGetVFusion evFusion(database->getCatalog());
+        optimizer::ExpandGetVFusion evFusion(getCatalog());
         evFusion.rewrite(plan);
       } else {
         FAIL() << "Unknown optimization rule: " << rule;
@@ -393,6 +401,7 @@ class GOptTest : public ::testing::Test {
 
  protected:
   std::unique_ptr<main::MetadataManager> database;
+  std::unique_ptr<main::MetadataManager> currentQueryDatabase;
   std::unique_ptr<main::ClientContext> ctx;
   Schema currentSchema;
 };

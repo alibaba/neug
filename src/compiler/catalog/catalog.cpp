@@ -63,14 +63,25 @@ Catalog::Catalog() : schema{nullptr}, version{0} { initCatalogSets(); }
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
     : schema{nullptr}, version{0} {}
 
+std::unique_ptr<Catalog> Catalog::clone(const Schema* schema) const {
+  auto cloned = std::make_unique<Catalog>(*this);
+  cloned->setSchema(schema);
+  return cloned;
+}
+
+void Catalog::setSchema(const Schema* schema) {
+  this->schema = schema;
+  incrementVersion();
+}
+
 void Catalog::initCatalogSets() {
-  sequences = std::make_unique<CatalogSet>();
-  functions = std::make_unique<CatalogSet>();
-  types = std::make_unique<CatalogSet>();
-  indexes = std::make_unique<CatalogSet>();
-  internalTables = std::make_unique<CatalogSet>(true /* isInternal */);
-  internalSequences = std::make_unique<CatalogSet>(true /* isInternal */);
-  internalFunctions = std::make_unique<CatalogSet>(true /* isInternal */);
+  sequences = std::make_shared<CatalogSet>();
+  functions = std::make_shared<CatalogSet>();
+  types = std::make_shared<CatalogSet>();
+  indexes = std::make_shared<CatalogSet>();
+  internalTables = std::make_shared<CatalogSet>(true /* isInternal */);
+  internalSequences = std::make_shared<CatalogSet>(true /* isInternal */);
+  internalFunctions = std::make_shared<CatalogSet>(true /* isInternal */);
 }
 
 bool Catalog::containsTable(const Transaction* transaction,
@@ -80,12 +91,18 @@ bool Catalog::containsTable(const Transaction* transaction,
     return false;
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
-    if (entry != nullptr && nameEquals(entry->label_name, tableName)) {
+    if (entry != nullptr &&
+        schema->is_vertex_label_valid(entry->getTableID()) &&
+        nameEquals(entry->label_name, tableName)) {
       return true;
     }
   }
   common::idx_t count = 0;
   for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+      continue;
+    }
     if (nameEquals(edgeSchema->edge_label_name, tableName) ||
         nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
       ++count;
@@ -148,7 +165,9 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
   if (schema != nullptr) {
     VertexSchema* vertexResult = nullptr;
     for (auto& entry : schema->get_all_vertex_schemas()) {
-      if (entry == nullptr || !nameEquals(entry->label_name, tableName)) {
+      if (entry == nullptr ||
+          !schema->is_vertex_label_valid(entry->getTableID()) ||
+          !nameEquals(entry->label_name, tableName)) {
         continue;
       }
       if (vertexResult != nullptr) {
@@ -164,6 +183,10 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
   EdgeSchema* result = nullptr;
   if (schema != nullptr) {
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+        continue;
+      }
       if (!nameEquals(edgeSchema->edge_label_name, tableName) &&
           !nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
         continue;
@@ -189,7 +212,8 @@ std::vector<VertexSchema*> Catalog::getNodeTableEntries(
     return result;
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
-    if (entry != nullptr) {
+    if (entry != nullptr &&
+        schema->is_vertex_label_valid(entry->getTableID())) {
       result.push_back(entry.get());
     }
   }
@@ -203,6 +227,10 @@ std::vector<EdgeSchema*> Catalog::getRelTableEntries(
     return result;
   }
   for (auto& [_, entry] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(entry->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(entry->getDstTableID())) {
+      continue;
+    }
     result.push_back(entry.get());
   }
   std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
@@ -233,6 +261,10 @@ bool Catalog::containsRelGroup(const Transaction* transaction,
   }
   common::idx_t count = 0;
   for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+      continue;
+    }
     if (nameEquals(edgeSchema->edge_label_name, name)) {
       ++count;
     }
@@ -245,6 +277,10 @@ std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
   std::vector<EdgeSchema*> result;
   if (schema != nullptr) {
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+        continue;
+      }
       if (nameEquals(edgeSchema->edge_label_name, name)) {
         result.push_back(edgeSchema.get());
       }

@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_set.h"
 #include "neug/compiler/common/cast.h"
@@ -76,6 +78,7 @@ class NEUG_API Catalog {
   // This is extended by DuckCatalog and PostgresCatalog.
   Catalog();
   Catalog(const std::string& directory, common::VirtualFileSystem* vfs);
+  Catalog(const Catalog& other) = default;
   virtual ~Catalog() = default;
 
   // ----------------------------- Tables ----------------------------
@@ -162,20 +165,24 @@ class NEUG_API Catalog {
     return common::neug_dynamic_cast<TARGET*>(this);
   }
 
+  virtual std::unique_ptr<Catalog> clone(const Schema* schema) const;
+
  private:
   void initCatalogSets();
 
  protected:
+  void setSchema(const Schema* schema);
+
   const Schema* schema;
 
  private:
-  std::unique_ptr<CatalogSet> sequences;
-  std::unique_ptr<CatalogSet> functions;
-  std::unique_ptr<CatalogSet> types;
-  std::unique_ptr<CatalogSet> indexes;
-  std::unique_ptr<CatalogSet> internalTables;
-  std::unique_ptr<CatalogSet> internalSequences;
-  std::unique_ptr<CatalogSet> internalFunctions;
+  std::shared_ptr<CatalogSet> sequences;
+  std::shared_ptr<CatalogSet> functions;
+  std::shared_ptr<CatalogSet> types;
+  std::shared_ptr<CatalogSet> indexes;
+  std::shared_ptr<CatalogSet> internalTables;
+  std::shared_ptr<CatalogSet> internalSequences;
+  std::shared_ptr<CatalogSet> internalFunctions;
 
   uint64_t version;
 };
