@@ -99,9 +99,8 @@ struct NeugDBConfig {
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         compact_csr(true),
-        compact_on_close(true),
         checkpoint_on_close(false),
-        checkpoint_after_recovery(false),
+        checkpoint_on_recovery(false),
         storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
 
   /**
@@ -120,9 +119,8 @@ struct NeugDBConfig {
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         compact_csr(true),
-        compact_on_close(true),
         checkpoint_on_close(false),
-        checkpoint_after_recovery(false),
+        checkpoint_on_recovery(false),
         storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
 
   /// CSR storage reserve ratio for edge insertions (default: 1.2)
@@ -156,14 +154,11 @@ struct NeugDBConfig {
   /// Compact CSR structures during compaction
   bool compact_csr;
 
-  /// Perform compaction when closing database
-  bool compact_on_close;
-
   /// Create checkpoint (persist all data) when closing database
   bool checkpoint_on_close;
 
-  /// Create checkpoint after recovering from WAL
-  bool checkpoint_after_recovery;
+  /// Create a checkpoint after recovering from WAL
+  bool checkpoint_on_recovery;
 
   /// Storage slot number
   int storage_slot_num;

@@ -39,7 +39,7 @@ db.Close();
 **Resource Management:**
 - File locking prevents concurrent database access from multiple processes
 - Automatic WAL (Write-Ahead Log) for crash recovery
-- Configurable checkpoint and compaction on close
+- Configurable checkpoint on close
 
 ### Public Methods
 
@@ -53,7 +53,6 @@ Open(
     const std::string &planner_kind="gopt",
     bool enable_auto_compaction=false,
     bool compact_csr=true,
-    bool compact_on_close=true,
     bool checkpoint_on_close=true
 )
 ```
@@ -85,8 +84,7 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `enable_auto_compaction`: Enable background auto-compaction thread
   - `compact_csr`: Compact CSR structures during auto-compaction
-  - `compact_on_close`: Perform compaction when closing database
-  - `checkpoint_on_close`: Create checkpoint (persist data) when closing
+  - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
 
 - **Notes:**
   - This overload is primarily designed for Python bindings.
@@ -126,8 +124,7 @@ db.Open(config);
 Close the database and release all resources.
 
 Performs a graceful shutdown of the database. Depending on configuration:
-- Creates checkpoint if checkpoint_on_close is enabled
-- Performs compaction if compact_on_close is enabled
+- Creates a checkpoint if checkpoint_on_close is enabled
 - Closes all open connections
 - Releases file locks
 
