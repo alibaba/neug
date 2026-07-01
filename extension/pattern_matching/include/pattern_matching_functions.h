@@ -332,22 +332,20 @@ class GraphDataCache {
 
   // Returns the cache slot for `graph`, creating it lazily on first use.
   //
-  // Keyed by the *underlying* PropertyGraph (&graph.property_graph()), which is
-  // stable for the lifetime of a graph, rather than by the per-query
+  // Keyed by the graph's opaque stable identity (graph.graph_identity()), which
+  // is stable for the lifetime of a graph, rather than by the per-query
   // StorageReadInterface wrapper. That wrapper is a stack-local rebuilt every
   // query, so keying on it both missed across queries (preprocessing rebuilt
   // every call) and risked a stale hit when a new wrapper happened to land on a
-  // freed one's address — the storage layer documents &property_graph() as the
+  // freed one's address — the storage layer exposes graph_identity() as the
   // stable identity to key on (see graph_interface.h).
   //
   // Residual: if a graph is destroyed and a different graph is later allocated
-  // at the same PropertyGraph address, a stale entry could be served. There is
-  // no per-graph epoch to detect that today, and the obvious data fingerprint
-  // (PropertyGraph::VertexNum) is unsafe to call in this execution context.
-  // The cache is process-global and not cleared on graph teardown, so callers
-  // recycling graph objects should ClearAll() between distinct graphs.
+  // at the same address, a stale entry could be served. The cache is
+  // process-global and not cleared on graph teardown, so callers recycling
+  // graph objects should ClearAll() between distinct graphs.
   CachedData& GetOrCreate(const StorageReadInterface& graph) {
-    const PropertyGraph* key = &graph.property_graph();
+    const void* key = graph.graph_identity();
     std::lock_guard<std::mutex> lock(mutex_);
 
     auto it = cache_.find(key);
@@ -363,13 +361,13 @@ class GraphDataCache {
 
   bool HasCache(const StorageReadInterface& graph) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = cache_.find(&graph.property_graph());
+    auto it = cache_.find(graph.graph_identity());
     return it != cache_.end() && it->second.preprocessed;
   }
 
   void ClearCache(const StorageReadInterface& graph) {
     std::lock_guard<std::mutex> lock(mutex_);
-    cache_.erase(&graph.property_graph());
+    cache_.erase(graph.graph_identity());
   }
 
   void ClearAll() {
@@ -384,7 +382,7 @@ class GraphDataCache {
   GraphDataCache& operator=(const GraphDataCache&) = delete;
 
   mutable std::mutex mutex_;
-  std::unordered_map<const PropertyGraph*, CachedData> cache_;
+  std::unordered_map<const void*, CachedData> cache_;
 };
 
 // ============================================================================

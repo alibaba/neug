@@ -200,3 +200,29 @@ export NEUG_BUILD_DIR=/path/to/neug/build
 # or set the extension home directly (the dir that contains extension/):
 export NEUG_EXTENSION_HOME_PYENV=/path/to/neug/build
 ```
+
+## Experiments
+
+We benchmarked three ways of running the **same** subgraph-matching patterns on
+the **LDBC SNB scale-factor 1 (SF1)** dataset:
+
+- **NeuG-Native** — NeuG's built-in Cypher engine (`MATCH ... RETURN ...`);
+- **Exact-Match** — `CALL PATTERN_MATCH(pattern)` (exact enumeration of all embeddings);
+- **Sample-Match** — `CALL PATTERN_MATCH(pattern, 1000000, true)` (sampled matching, sample size **1,000,000**).
+
+The six test patterns (Q1–Q6) are adapted from the LDBC
+[LSQB](https://github.com/ldbc/lsqb/tree/main/cypher) query set. Each query runs
+with a **10-minute timeout**; a run that exceeds it is marked **OOT** (out of
+time).
+
+![Benchmark latency, log scale](../images/benchmark_latency_log.png)
+
+The figure reports end-to-end latency in seconds (log scale). Key observations:
+
+- **NeuG-Native** handles the small patterns (Q1, Q2) but **times out (OOT)** on
+  the larger ones (Q3–Q6), whose full result sets are enormous (tens of
+  millions to billions of embeddings).
+- **Exact-Match** completes every query within the timeout and is one to several
+  orders of magnitude faster than the native engine on the large patterns.
+- **Sample-Match** keeps latency low and stable across all six patterns and is
+  the fastest option on the larger, high-cardinality patterns (Q2–Q6).

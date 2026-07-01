@@ -26,10 +26,6 @@ namespace neug {
 namespace execution {
 class ContextMeta;
 
-// Convert an IR (proto) data type into an execution DataType. Handles graph
-// element types (vertex/edge/path) as well as scalar/temporal/container types.
-DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
-
 std::unique_ptr<ExprBase> parse_const(const ::common::Value& const_val);
 
 std::unique_ptr<ExprBase> parse_param(const ::common::DynamicParam& param);

@@ -3,77 +3,167 @@
 namespace neug {
 namespace function {
 
+// Exact subgraph-isomorphism enumeration via candidate-filtered,
+// adjacency-intersection backtracking (the shared core of RI/GraphQL/CFL).
+// Unlike a naive all-pairs enumerator, it places each query vertex by walking
+// the *adjacency* of an already-mapped neighbour (in the correct direction and
+// edge label) instead of scanning every candidate of its label -- turning an
+// O(product of candidate-set sizes) search into one that is output-sensitive
+// (~O(matches x degree)). Directed, label-aware, injective (isomorphism), and
+// deterministic. Used as the reliable exact matcher.
 std::vector<std::vector<daf::Vertex>> EnumerateExactMatchesWithNeug(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec, uint64_t limit) {
-  const size_t num_query_vertices = spec.vertices.size();
-  std::vector<std::vector<daf::Vertex>> candidates(num_query_vertices);
-  for (const auto& vertex : spec.vertices) {
-    auto& out = candidates[vertex.id];
-    for (int data_v = 0; data_v < data_meta.GetNumVertices(); ++data_v) {
-      if (data_meta.GetVertexLabel(data_v) != vertex.label)
+  const int nq = static_cast<int>(spec.vertices.size());
+  const int nv = data_meta.GetNumVertices();
+
+  // Query adjacency: each incident pattern edge from a query vertex's view.
+  struct QEdge {
+    int other;         // the other query vertex
+    label_t elabel;    // pattern edge label
+    bool this_is_src;  // is *this* vertex the src of the pattern edge?
+    int edge_idx;      // index into spec.edges (for constraints)
+  };
+  std::vector<std::vector<QEdge>> qadj(nq);
+  for (int i = 0; i < static_cast<int>(spec.edges.size()); ++i) {
+    const auto& e = spec.edges[i];
+    qadj[e.src].push_back({e.dst, e.label, true, i});
+    qadj[e.dst].push_back({e.src, e.label, false, i});
+  }
+
+  // Candidate sets (label + vertex constraints) and O(1) membership markers.
+  std::vector<std::vector<int>> cand(nq);
+  std::vector<std::vector<char>> is_cand(nq, std::vector<char>(nv, 0));
+  for (const auto& vtx : spec.vertices) {
+    auto& c = cand[vtx.id];
+    auto& mark = is_cand[vtx.id];
+    for (int v = 0; v < nv; ++v) {
+      if (data_meta.GetVertexLabel(v) != vtx.label)
         continue;
-      if (!CheckVertexConstraints(graph, data_meta, data_v, vertex))
+      if (!CheckVertexConstraints(graph, data_meta, v, vtx))
         continue;
-      out.push_back(static_cast<daf::Vertex>(data_v));
+      c.push_back(v);
+      mark[v] = 1;
     }
   }
 
-  std::vector<int> order(num_query_vertices);
-  std::iota(order.begin(), order.end(), 0);
-  std::sort(order.begin(), order.end(), [&](int lhs, int rhs) {
-    if (candidates[lhs].size() != candidates[rhs].size()) {
-      return candidates[lhs].size() < candidates[rhs].size();
+  // Connectivity-first matching order: start at the most selective vertex,
+  // then always extend to a query vertex adjacent to the already-ordered set
+  // (so every non-first vertex has a mapped neighbour to walk from).
+  std::vector<int> order;
+  std::vector<char> ordered(nq, 0);
+  {
+    int start = 0;
+    size_t best = std::numeric_limits<size_t>::max();
+    for (int u = 0; u < nq; ++u) {
+      if (cand[u].size() < best) {
+        best = cand[u].size();
+        start = u;
+      }
     }
-    return lhs < rhs;
-  });
+    order.push_back(start);
+    ordered[start] = 1;
+    while (static_cast<int>(order.size()) < nq) {
+      int pick = -1;
+      size_t pbest = std::numeric_limits<size_t>::max();
+      bool pconn = false;
+      for (int u = 0; u < nq; ++u) {
+        if (ordered[u])
+          continue;
+        bool conn = false;
+        for (const auto& qe : qadj[u]) {
+          if (ordered[qe.other]) {
+            conn = true;
+            break;
+          }
+        }
+        if ((conn && !pconn) || (conn == pconn && cand[u].size() < pbest)) {
+          pick = u;
+          pbest = cand[u].size();
+          pconn = conn;
+        }
+      }
+      order.push_back(pick);
+      ordered[pick] = 1;
+    }
+  }
 
   std::vector<std::vector<daf::Vertex>> results;
-  std::vector<daf::Vertex> mapping(num_query_vertices, daf::INVALID_VTX);
-  std::vector<bool> used(data_meta.GetNumVertices(), false);
+  std::vector<daf::Vertex> mapping(nq, daf::INVALID_VTX);
+  std::vector<char> used(nv, 0);
 
-  auto edge_ok = [&](const ExactPatternSpec::EdgeSpec& edge) {
-    if (mapping[edge.src] == daf::INVALID_VTX ||
-        mapping[edge.dst] == daf::INVALID_VTX) {
-      return true;
+  // All pattern edges from query vertex u (tentatively mapped to data vertex v)
+  // to already-mapped vertices hold in the data graph, directed + constrained.
+  auto edges_ok = [&](int u, int v) -> bool {
+    for (const auto& qe : qadj[u]) {
+      if (mapping[qe.other] == daf::INVALID_VTX)
+        continue;
+      int s = qe.this_is_src ? v : static_cast<int>(mapping[qe.other]);
+      int d = qe.this_is_src ? static_cast<int>(mapping[qe.other]) : v;
+      if (data_meta.GetEdgeIndex(s, d, qe.elabel) == -1)
+        return false;
+      if (!CheckEdgeConstraints(graph, data_meta, s, d,
+                                spec.edges[qe.edge_idx]))
+        return false;
     }
-    int src = static_cast<int>(mapping[edge.src]);
-    int dst = static_cast<int>(mapping[edge.dst]);
-    if (data_meta.GetEdgeIndex(src, dst, edge.label) == -1)
-      return false;
-    return CheckEdgeConstraints(graph, data_meta, src, dst, edge);
+    return true;
   };
 
-  auto dfs = [&](auto&& self, size_t depth) -> void {
+  auto dfs = [&](auto&& self, int depth) -> void {
     if (results.size() >= limit)
       return;
-    if (depth == order.size()) {
+    if (depth == nq) {
       results.push_back(mapping);
       return;
     }
+    const int u = order[depth];
 
-    int query_v = order[depth];
-    for (daf::Vertex cand : candidates[query_v]) {
-      if (cand >= used.size() || used[cand])
-        continue;
-      mapping[query_v] = cand;
-      used[cand] = true;
-
-      bool ok = true;
-      for (const auto& edge : spec.edges) {
-        if ((edge.src == query_v || edge.dst == query_v) && !edge_ok(edge)) {
-          ok = false;
-          break;
-        }
+    // Find an already-mapped neighbour to drive the enumeration.
+    const QEdge* pivot = nullptr;
+    for (const auto& qe : qadj[u]) {
+      if (mapping[qe.other] != daf::INVALID_VTX) {
+        pivot = &qe;
+        break;
       }
-      if (ok) {
-        self(self, depth + 1);
-      }
+    }
 
-      used[cand] = false;
-      mapping[query_v] = daf::INVALID_VTX;
-      if (results.size() >= limit)
+    auto try_candidate = [&](int candv) {
+      if (used[candv] || !is_cand[u][candv])
         return;
+      mapping[u] = candv;
+      if (edges_ok(u, candv)) {
+        used[candv] = 1;
+        self(self, depth + 1);
+        used[candv] = 0;
+      }
+      mapping[u] = daf::INVALID_VTX;
+    };
+
+    if (pivot != nullptr) {
+      const int pv = static_cast<int>(mapping[pivot->other]);
+      const int u_label = static_cast<int>(spec.vertices[u].label);
+      // pivot edge is u->other (this_is_src): data v->pv, so pv has an in-edge
+      // from v -> enumerate pv's in-neighbours of u's label.
+      // Otherwise edge is other->u: data pv->v, pv has an out-edge to v ->
+      // enumerate pv's out-neighbours of u's label.
+      const auto inc = pivot->this_is_src
+                           ? data_meta.GetInIncidentEdges(pv, u_label)
+                           : data_meta.GetOutIncidentEdges(pv, u_label);
+      for (const auto& e : inc) {
+        if (std::get<2>(e) != pivot->elabel)
+          continue;
+        int candv = pivot->this_is_src ? std::get<0>(e) : std::get<1>(e);
+        try_candidate(candv);
+        if (results.size() >= limit)
+          return;
+      }
+    } else {
+      // Root / disconnected-component start: scan the candidate list once.
+      for (int candv : cand[u]) {
+        try_candidate(candv);
+        if (results.size() >= limit)
+          return;
+      }
     }
   };
 
@@ -400,13 +490,6 @@ execution::Context ExecutePatternMatchPipeline(const PatternMatchInput& input,
     return execution::Context();
   const ExactPatternSpec& spec = *spec_opt;
 
-  std::unordered_map<std::string, int> label_mapping;
-  std::string data_file = WriteDafDataGraphFile(data_meta, &label_mapping);
-  std::string query_file = WriteDafQueryGraphFile(spec);
-  if (data_file.empty() || query_file.empty())
-    return execution::Context();
-
-  std::vector<std::vector<daf::Vertex>> valid_matches;
   const uint64_t caller_limit = input.limit <= 0
                                     ? std::numeric_limits<uint64_t>::max()
                                     : static_cast<uint64_t>(input.limit);
@@ -424,51 +507,17 @@ execution::Context ExecutePatternMatchPipeline(const PatternMatchInput& input,
     }
     match_limit = std::min(match_limit, needed);
   }
-  try {
-    daf::DataGraph daf_data(data_file);
-    daf_data.LoadAndProcessGraph(label_mapping);
-    DafGraphStorageAdapter adapter(data_meta);
-    daf_data.graph_storage_ptr = &adapter;
 
-    daf::QueryGraph daf_query(query_file);
-    if (!daf_query.LoadAndProcessGraph(daf_data)) {
-      LOG(INFO)
-          << "[PATTERN_MATCH] DAF query graph has labels not present in data";
-    } else {
-      PopulateDafDirectedEdgeChecks(&daf_query, spec);
-      daf::DAG dag(daf_data, daf_query);
-      dag.BuildDAG();
-      daf::CandidateSpace cs(daf_data, daf_query, dag);
-      if (cs.BuildCS()) {
-        daf::Backtrack backtrack(daf_data, daf_query, cs);
-        if (backtrack.match_leaves_) {
-          backtrack.match_leaves_->ori_data_graph = &adapter;
-        }
-        backtrack.FindMatches(match_limit);
-        valid_matches.reserve(backtrack.match_results_.size());
-        for (const auto& match : backtrack.match_results_) {
-          if (ValidateExactEmbedding(*readInterface, data_meta, spec, match)) {
-            valid_matches.push_back(match);
-          }
-        }
-      }
-    }
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "[PATTERN_MATCH] DAF execution failed: " << e.what();
-  } catch (...) {
-    LOG(ERROR) << "[PATTERN_MATCH] DAF execution failed with unknown error";
-  }
-
-  if (valid_matches.size() < match_limit) {
-    auto fallback_matches = EnumerateExactMatchesWithNeug(
-        *readInterface, data_meta, spec, match_limit);
-    if (fallback_matches.size() != valid_matches.size()) {
-      LOG(INFO) << "[PATTERN_MATCH] DAF produced " << valid_matches.size()
-                << " validated matches; NeuG exact enumeration produced "
-                << fallback_matches.size();
-    }
-    valid_matches = std::move(fallback_matches);
-  }
+  // Exact matching uses the deterministic adjacency-intersection matcher
+  // directly on data_meta. The vendored DAF path is intentionally NOT invoked:
+  // its candidate space has a nondeterministic uninitialized-memory bug that
+  // makes it fail intermittently (returning 0 matches on Linux every time), and
+  // serializing/loading its data graph costs seconds per query. The
+  // intersection matcher is directed-correct, isomorphism-preserving, and on
+  // these workloads as fast as or faster than DAF.
+  std::vector<std::vector<daf::Vertex>> valid_matches =
+      EnumerateExactMatchesWithNeug(*readInterface, data_meta, spec,
+                                    match_limit);
 
   ApplyExactPatternModifiers(*readInterface, data_meta, spec, &valid_matches);
   return BuildExactNativePatternContext(*readInterface, data_meta, spec,
