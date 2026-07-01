@@ -135,7 +135,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 
   LOG(INFO) << "NeugDB opened successfully";
   closed_.store(false);
-  if (last_ts_ > 0 && config.checkpoint_on_recovery) {
+  if (last_ts_ > 0 && config.checkpoint_on_recovery &&
+      config_.mode == DBMode::READ_WRITE) {
     LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
     createCheckpoint();
   }
