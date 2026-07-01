@@ -15,7 +15,7 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
-#include "neug/storages/index/index_manager.h"
+#include "neug/storages/index/storage_index_manager.h"
 
 namespace neug {
 
@@ -311,15 +311,16 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 
 Status StorageAPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  std::vector<vid_t> new_vids;
-  RETURN_IF_NOT_OK(
-      graph_.BatchAddVertices(v_label_id, std::move(supplier), new_vids));
+  auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  if (!new_vids) {
+    return new_vids.error();
+  }
 
-  if (new_vids.empty()) {
+  if (new_vids->empty()) {
     return Status::OK();
   }
 
-  return batchAddVertexIndexData(graph_, *this, v_label_id, new_vids);
+  return batchAddVertexIndexData(graph_, *this, v_label_id, new_vids.value());
 }
 
 Status StorageAPUpdateInterface::BatchAddEdges(

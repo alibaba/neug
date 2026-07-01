@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/storages/index/index.h"
+#include "neug/storages/index/storage_index.h"
 #include "neug/compiler/common/string_utils.h"
 
 #include <rapidjson/stringbuffer.h>
