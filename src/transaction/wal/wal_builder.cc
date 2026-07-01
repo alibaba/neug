@@ -105,6 +105,11 @@ void WalBuilder::LogDeleteEdgeType(const std::string& src_type,
   schema_changed_ = true;
 }
 
+void WalBuilder::LogDropIndex(const std::string& index_name) {
+  DropIndexRedo::Serialize(arc_, index_name);
+  ++op_num_;
+}
+
 // =============================================================================
 // DML logging
 // =============================================================================

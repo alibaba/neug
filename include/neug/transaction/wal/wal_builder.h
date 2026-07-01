@@ -59,6 +59,7 @@ class WalBuilder {
   void LogDeleteEdgeType(const std::string& src_type,
                          const std::string& dst_type,
                          const std::string& edge_type);
+  void LogDropIndex(const std::string& index_name);
 
   // --- DML logging ---
   void LogInsertVertex(label_t label, const execution::Value& oid,

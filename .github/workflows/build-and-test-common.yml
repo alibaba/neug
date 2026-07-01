@@ -263,6 +263,7 @@ jobs:
         ctest -R test_db_svc -V
         ctest -R temporary_graph_test -V
         ctest -R copy_temp_test -V
+        ctest -R 'ap_index_test|tp_index_test' -V
 
     # ========================================
     # Phase 2: Bulk load test data

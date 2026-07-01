@@ -15,11 +15,204 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/storages/index/storage_index_manager.h"
+
 namespace neug {
+
+namespace {
+
+// Drops every index whose metadata references the given vertex label/property.
+//
+// This is a schema-level cleanup helper, not a row-data maintenance helper. It
+// is called before schema operations that invalidate an indexed property, such
+// as deleting a vertex property, renaming a vertex property, or deleting a
+// vertex type. The index lookup is based on IndexManager's own index metadata,
+// but running the cleanup before the schema mutation keeps the graph from
+// entering a state where the schema has already removed the property while
+// IndexManager still owns indexes that refer to it.
+//
+// Index names are copied out before calling DropIndex because DropIndex mutates
+// IndexManager's internal container. Keeping only the names avoids using Index*
+// values after the manager has been modified.
+static Status deleteVertexIndexSchema(PropertyGraph& graph, label_t label,
+                                      const std::string& prop_name) {
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes = index_manager.GetIndex(label, prop_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+
+  std::vector<std::string> index_names;
+  index_names.reserve(indexes->size());
+  for (auto* index : indexes.value()) {
+    index_names.push_back(index->GetMeta().name);
+  }
+  for (const auto& index_name : index_names) {
+    RETURN_IF_NOT_OK(index_manager.DropIndex(index_name));
+  }
+  return Status::OK();
+}
+
+// Appends index entries for one newly inserted vertex row.
+//
+// The caller has already inserted the vertex data into the vertex table and
+// passes the inserted local id plus the property values that were written. This
+// helper walks all active properties on the vertex label and appends the row to
+// every index registered for each property. Properties that are soft-deleted or
+// not present in the input payload are skipped because they do not have valid
+// row values to add.
+//
+// The reader is passed through to Index::Append so index implementations can
+// read any additional graph state they need while building the index entry. If
+// a property has no index, IndexManager returns an empty list and no work is
+// done for that property.
+static Status addVertexIndexData(PropertyGraph& graph,
+                                 const StorageReadInterface& reader,
+                                 label_t label, vid_t lid,
+                                 const std::vector<execution::Value>& props) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  auto& index_manager = graph.mutable_index_manager();
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    for (auto* index : indexes.value()) {
+      RETURN_IF_NOT_OK(index->Append(lid, props[prop_idx], reader));
+    }
+  }
+  return Status::OK();
+}
+
+// Appends index entries for a batch of newly inserted vertex rows.
+//
+// Batch insertion only returns the local ids that were created. Unlike
+// addVertexIndexData, the original input property vector for each row is no
+// longer available here, so this helper reads property values back from the
+// vertex table columns. It scans each active property once, skips properties
+// without indexes, and then appends every newly inserted vid to each matching
+// index.
+//
+// Missing property columns are ignored. That keeps this helper tolerant of
+// schema/table states where a property is known to the schema but the
+// corresponding column has not been materialized for the AP table.
+static Status batchAddVertexIndexData(PropertyGraph& graph,
+                                      const StorageReadInterface& reader,
+                                      label_t label,
+                                      const std::vector<vid_t>& vids) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  const auto& vtable = graph.get_vertex_table(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    if (indexes->empty()) {
+      continue;
+    }
+    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
+    if (!col) {
+      continue;
+    }
+    for (auto* index : indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Append(vid, col->get_any(vid), reader));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+// Updates index entries for one changed vertex property.
+//
+// The graph property value has already been updated by the caller. The new
+// value is passed explicitly so this helper can replace the corresponding index
+// entry without relying on another table read for the changed column. For every
+// index registered on the updated property, the old row entry is deleted first
+// and the new value is appended afterwards.
+//
+// Invalid column ids and soft-deleted properties are treated as no-ops because
+// no valid index should be maintained for them. The helper only touches indexes
+// attached to the updated property; indexes on other properties of the same
+// vertex label are unaffected.
+static Status updateVertexIndexData(PropertyGraph& graph,
+                                    const StorageReadInterface& reader,
+                                    label_t label, vid_t lid, int32_t col_id,
+                                    const execution::Value& value) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  if (col_id < 0 ||
+      static_cast<size_t>(col_id) >= v_schema->property_names.size() ||
+      v_schema->vprop_soft_deleted[col_id]) {
+    return Status::OK();
+  }
+
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes =
+      index_manager.GetIndex(label, v_schema->property_names[col_id]);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    RETURN_IF_NOT_OK(index->Delete(lid));
+    RETURN_IF_NOT_OK(index->Append(lid, value, reader));
+  }
+  return Status::OK();
+}
+
+// Deletes index entries for one or more removed vertex rows.
+//
+// This helper is used by both single-row and batch vertex deletion paths. It
+// scans all active properties on the vertex label, finds every index registered
+// for each property, and removes each deleted local id from those indexes. It
+// must run in the same logical update path as the vertex table deletion so
+// index contents stay aligned with the visible vertex set.
+//
+// The helper does not read property values from the table because Index::Delete
+// is keyed by local vertex id. This is important for delete paths where the row
+// data may already have been marked deleted or may be unavailable after the
+// table mutation.
+static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
+                                    const std::vector<vid_t>& vids) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  auto& index_manager = graph.mutable_index_manager();
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    for (auto* index : indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Delete(vid));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+}  // namespace
 
 Status StorageAPUpdateInterface::UpdateVertexProperty(
     label_t label, vid_t lid, int col_id, const execution::Value& value) {
-  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  RETURN_IF_NOT_OK(
+      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
+  return updateVertexIndexData(graph_, *this, label, lid, col_id, value);
 }
 
 Status StorageAPUpdateInterface::UpdateEdgeProperty(
@@ -52,8 +245,11 @@ Status StorageAPUpdateInterface::AddVertex(
       graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
+    return status;
   }
-  return status;
+
+  RETURN_IF_NOT_OK(addVertexIndexData(graph_, *this, label, vid, props));
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::AddEdge(
@@ -92,7 +288,8 @@ void StorageAPUpdateInterface::CreateCheckpoint() {
 }
 
 Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
-  return graph_.DeleteVertex(label, lid, timestamp_);
+  RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
+  return deleteVertexIndexData(graph_, label, {lid});
 }
 
 Status StorageAPUpdateInterface::DeleteEdge(label_t src_label, vid_t src,
@@ -114,7 +311,16 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 
 Status StorageAPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  return graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  if (!new_vids) {
+    return new_vids.error();
+  }
+
+  if (new_vids->empty()) {
+    return Status::OK();
+  }
+
+  return batchAddVertexIndexData(graph_, *this, v_label_id, new_vids.value());
 }
 
 Status StorageAPUpdateInterface::BatchAddEdges(
@@ -126,6 +332,7 @@ Status StorageAPUpdateInterface::BatchAddEdges(
 
 Status StorageAPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
+  RETURN_IF_NOT_OK(deleteVertexIndexData(graph_, v_label_id, vids));
   return graph_.BatchDeleteVertices(v_label_id, vids);
 }
 
@@ -188,6 +395,11 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
 
 Status StorageAPUpdateInterface::RenameVertexProperties(
     const RenameVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    RETURN_IF_NOT_OK(deleteVertexIndexSchema(graph_, v_label, old_name));
+  }
   return graph_.RenameVertexProperties(config);
 }
 
@@ -198,6 +410,11 @@ Status StorageAPUpdateInterface::RenameEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexProperties(
     const DeleteVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    RETURN_IF_NOT_OK(deleteVertexIndexSchema(graph_, v_label, prop_name));
+  }
   auto status = graph_.DeleteVertexProperties(config);
   if (status.ok()) {
     // Deleting columns shifts the table column vector cached by GraphView.
@@ -220,6 +437,15 @@ Status StorageAPUpdateInterface::DeleteEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexType(
     const std::string& vertex_type_name) {
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    RETURN_IF_NOT_OK(deleteVertexIndexSchema(
+        graph_, v_label, v_schema->property_names[prop_idx]));
+  }
   auto status = graph_.DeleteVertexType(vertex_type_name);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
@@ -235,6 +461,15 @@ Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
     mut_view_.Rebuild(graph_);
   }
   return status;
+}
+
+neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
+    const std::string& name, std::unique_ptr<IndexMeta> meta) {
+  return index_manager_.CreateIndex(name, std::move(meta));
+}
+
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+  return index_manager_.DropIndex(name);
 }
 
 }  // namespace neug
