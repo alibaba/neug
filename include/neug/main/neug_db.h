@@ -146,7 +146,6 @@ class NeugDB {
    * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or
    * "greedy"
    * @param enable_auto_compaction Enable background auto-compaction thread
-   * @param compact_csr Compact CSR structures during auto-compaction
    * @param checkpoint_on_close Create checkpoint (persist data) when closing
    *
    * @return true if database opened successfully, false otherwise
@@ -162,7 +161,7 @@ class NeugDB {
   bool Open(const std::string& data_dir, int32_t max_thread_num = 0,
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt",
-            bool enable_auto_compaction = false, bool compact_csr = true,
+            bool enable_auto_compaction = false,
             bool checkpoint_on_close = true);
 
   /**

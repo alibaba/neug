@@ -803,17 +803,10 @@ void EdgeTable::BatchAddEdges(
   }
 }
 
-void EdgeTable::Compact(bool compact_csr,
-                        const std::optional<std::string>& sort_key_for_nbr,
+void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr,
                         timestamp_t ts) {
-  if (compact_csr) {
-    out_csr_->compact();
-    in_csr_->compact();
-  }
-  // must reset timestamp before sorting, otherwise the unsorted_since_ may not
-  // be properly setted
-  out_csr_->reset_timestamp();
-  in_csr_->reset_timestamp();
+  out_csr_->compact();
+  in_csr_->compact();
   if (sort_key_for_nbr.has_value()) {
     if (!meta_->is_bundled()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(

@@ -98,7 +98,6 @@ struct NeugDBConfig {
         max_thread_num(1),
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
-        compact_csr(true),
         checkpoint_on_close(false),
         checkpoint_on_recovery(false),
         storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
@@ -118,7 +117,6 @@ struct NeugDBConfig {
         max_thread_num(max_thread_num_),
         enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
-        compact_csr(true),
         checkpoint_on_close(false),
         checkpoint_on_recovery(false),
         storage_slot_num(DEFAULT_STORAGE_SLOT_NUM) {}
@@ -150,9 +148,6 @@ struct NeugDBConfig {
    * - 2: Prefer hugepages
    */
   MemoryLevel memory_level;
-
-  /// Compact CSR structures during compaction
-  bool compact_csr;
 
   /// Create checkpoint (persist all data) when closing database
   bool checkpoint_on_close;

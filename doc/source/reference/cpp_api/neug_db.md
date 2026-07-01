@@ -52,7 +52,6 @@ Open(
     const DBMode mode=DBMode::READ_WRITE,
     const std::string &planner_kind="gopt",
     bool enable_auto_compaction=false,
-    bool compact_csr=true,
     bool checkpoint_on_close=true
 )
 ```
@@ -83,7 +82,6 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `enable_auto_compaction`: Enable background auto-compaction thread
-  - `compact_csr`: Compact CSR structures during auto-compaction
   - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
 
 - **Notes:**

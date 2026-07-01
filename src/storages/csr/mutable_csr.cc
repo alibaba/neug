@@ -170,28 +170,8 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::reset_timestamp() {
-  size_t vnum = vertex_capacity();
-  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
-  for (size_t i = 0; i != vnum; ++i) {
-    nbr_t* nbrs = buf_arr[i];
-    if (nbrs == nullptr) {
-      continue;
-    }
-    size_t deg = sz_arr[i].load(std::memory_order_relaxed);
-    for (size_t j = 0; j != deg; ++j) {
-      if (nbrs[j].timestamp != INVALID_TIMESTAMP) {
-        nbrs[j].timestamp.store(0, std::memory_order_relaxed);
-      }
-    }
-  }
-}
-
-template <typename EDATA_T>
 void MutableCsr<EDATA_T>::compact() {
-  // We don't shrink the capacity of each adjacency list, but just remove the
-  // deleted edges.
+  // Remove deleted edges and reset timestamps on surviving edges.
   size_t vnum = vertex_capacity();
   auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
@@ -210,6 +190,7 @@ void MutableCsr<EDATA_T>::compact() {
         if (removed) {
           *write_ptr = *read_ptr;
         }
+        write_ptr->timestamp.store(0, std::memory_order_relaxed);
         ++write_ptr;
       } else {
         ++removed;
@@ -576,7 +557,7 @@ void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::reset_timestamp() {
+void SingleMutableCsr<EDATA_T>::compact() {
   if (!nbr_list_) {
     return;
   }
@@ -588,9 +569,6 @@ void SingleMutableCsr<EDATA_T>::reset_timestamp() {
     }
   }
 }
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::compact() {}
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {

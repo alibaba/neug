@@ -105,13 +105,11 @@ NeugDB::~NeugDB() {
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
                   const DBMode mode, const std::string& planner_kind,
-                  bool enable_auto_compaction, bool compact_csr,
-                  bool checkpoint_on_close) {
+                  bool enable_auto_compaction, bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_thread_num);
   config.mode = mode;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
-  config.compact_csr = compact_csr;
   config.checkpoint_on_close = checkpoint_on_close;
   return Open(config);
 }
@@ -283,8 +281,7 @@ void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
-      graph.Compact(config_.compact_csr, config_.csr_reserve_ratio,
-                    update_wal.timestamp);
+      graph.Compact(update_wal.timestamp);
       last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
@@ -325,7 +322,7 @@ void NeugDB::createCheckpoint(bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
   SnapshotGuard guard(*snapshot_store_);
   auto& graph = *guard.get().mutable_graph();
-  graph.Compact(config_.compact_csr, config_.csr_reserve_ratio, MAX_TIMESTAMP);
+  graph.Compact(MAX_TIMESTAMP);
   auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
   auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
   try {
