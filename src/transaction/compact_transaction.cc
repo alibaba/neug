@@ -29,10 +29,7 @@ namespace neug {
 CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
                                        IWalWriter& logger, IVersionManager& vm,
                                        timestamp_t timestamp)
-    : guard_(snapshot_store),
-      logger_(logger),
-      vm_(vm),
-      timestamp_(timestamp) {
+    : guard_(snapshot_store), logger_(logger), vm_(vm), timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
 }
 
