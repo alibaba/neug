@@ -33,6 +33,7 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
@@ -298,31 +299,6 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   return buffer.GetString();
 }
 
-/// A supplier that yields pre-projected DataChunks one by one.
-class MultiChunkSupplier : public IDataChunkSupplier {
- public:
-  explicit MultiChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)
-      : chunks_(std::move(chunks)), index_(0) {}
-
-  std::shared_ptr<DataChunk> GetNextChunk() override {
-    if (index_ >= chunks_.size())
-      return nullptr;
-    return chunks_[index_++];
-  }
-
-  int64_t RowNum() const override {
-    int64_t total = 0;
-    for (const auto& chunk : chunks_) {
-      total += static_cast<int64_t>(chunk->row_num());
-    }
-    return total;
-  }
-
- private:
-  std::vector<std::shared_ptr<DataChunk>> chunks_;
-  size_t index_;
-};
-
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
@@ -342,7 +318,7 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     }
     projected_chunks.push_back(std::move(out_chunk));
   }
-  return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+  return std::make_shared<MultiDataChunkSupplier>(std::move(projected_chunks));
 }
 
 std::vector<std::string> match_files_with_pattern(

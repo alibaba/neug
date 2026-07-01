@@ -15,7 +15,6 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/utils/io/read/common/sniffer.h"
 #include "test_reader.h"
 namespace neug {
 namespace test {
@@ -32,8 +31,7 @@ TEST_F(SnifferTest, TestSniffBasic) {
   auto sharedState = createSharedState("test_sniff.csv", {}, {});
 
   auto reader = createCsvReader(sharedState);
-  auto sniffer = reader::CsvSniffer(reader);
-  auto schema = sniffer.sniff().value();
+  auto schema = reader->inferSchema().value();
 
   EXPECT_EQ(schema->type(), reader::EntrySchemaType::TABLE);
 
@@ -54,6 +52,27 @@ TEST_F(SnifferTest, TestSniffBasic) {
             ::common::PrimitiveType::DT_SIGNED_INT64);
   EXPECT_EQ(columnTypes[3]->primitive_type(),
             ::common::PrimitiveType::DT_DOUBLE);
+}
+
+TEST_F(SnifferTest, TestSniffHeaderOnlyDefaultsToVarchar) {
+  createCsvFile("test_sniff_header_only.csv", "id|name|score\n");
+
+  auto sharedState = createSharedState("test_sniff_header_only.csv", {}, {},
+                                       {{"skip_rows", "1"}});
+
+  auto reader = createCsvReader(sharedState);
+  auto result = reader->inferSchema();
+  ASSERT_TRUE(result.has_value());
+  auto schema = result.value();
+
+  EXPECT_EQ(schema->columnNames.size(), 3u);
+  EXPECT_EQ(schema->columnNames[0], "id");
+  EXPECT_EQ(schema->columnNames[1], "name");
+  EXPECT_EQ(schema->columnNames[2], "score");
+  ASSERT_EQ(schema->columnTypes.size(), 3u);
+  for (const auto& type : schema->columnTypes) {
+    EXPECT_TRUE(type->has_string());
+  }
 }
 
 }  // namespace test

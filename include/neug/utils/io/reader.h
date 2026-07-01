@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "neug/utils/io/read/common/file_reader.h"
 #include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/io/read/csv/csv_reader.h"
 #include "neug/utils/io/read/json/json_reader.h"

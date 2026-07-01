@@ -21,11 +21,10 @@
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/read/common/sniffer.h"
 #include "parquet/arrow_fs_resolver.h"
 #include "parquet/arrow_reader.h"
-#include "parquet/arrow_sniffer.h"
 #include "parquet_options.h"
 
 namespace neug {
@@ -59,15 +58,14 @@ struct ParquetReadFunction {
 
     auto optionsBuilder =
         std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
+    const size_t fallback_column_count = state->columnNum();
 
     auto arrowFs = parquet::resolveArrowFileSystem(*fs);
-    auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), std::move(arrowFs));
-
-    execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
-    return ctx;
+    std::unique_ptr<reader::FileReader> reader =
+        std::make_unique<reader::ArrowReader>(state, std::move(optionsBuilder),
+                                              std::move(arrowFs));
+    return reader::runFileReader(std::move(reader), *state,
+                                 fallback_column_count);
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(
@@ -97,8 +95,7 @@ struct ParquetReadFunction {
     auto reader = std::make_shared<reader::ArrowReader>(
         state, std::move(optionsBuilder), std::move(arrowFs));
 
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
+    auto sniffResult = reader->inferSchema();
 
     if (!sniffResult) {
       LOG(ERROR) << "Failed to sniff Parquet schema: "

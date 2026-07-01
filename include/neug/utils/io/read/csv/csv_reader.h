@@ -18,40 +18,32 @@
 #include <memory>
 #include <vector>
 
-#include "neug/execution/common/context.h"
+#include "neug/utils/io/read/common/file_reader.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/io/read/csv/csv_read_config.h"
-#include "neug/utils/result.h"
 
 namespace neug {
 
 class IDataChunkSupplier;
 
-namespace execution {
-class Context;
-}
-
 namespace reader {
 
-class CsvReader {
+class CsvReader : public FileReader {
  public:
   explicit CsvReader(std::shared_ptr<ReadSharedState> sharedState,
                      std::unique_ptr<CsvOptionsBuilder> optionsBuilder);
-  ~CsvReader();
+  ~CsvReader() override;
 
-  void read(std::shared_ptr<ReadLocalState> localState,
-            execution::Context& ctx);
+  std::shared_ptr<IDataChunkSupplier> read() override;
 
-  result<std::shared_ptr<EntrySchema>> inferSchema();
+  result<std::shared_ptr<EntrySchema>> inferSchema() override;
 
  private:
-  void full_read(
+  std::shared_ptr<IDataChunkSupplier> full_read(
       const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-      execution::Context& output, const CsvReadConfig& output_config);
-  void batch_read(
-      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-      execution::Context& output);
+      const CsvReadConfig& output_config);
+  std::shared_ptr<IDataChunkSupplier> batch_read(
+      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
 
   std::shared_ptr<ReadSharedState> sharedState_;
   std::unique_ptr<CsvOptionsBuilder> optionsBuilder_;

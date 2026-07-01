@@ -32,6 +32,7 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/io/reader.h"
@@ -214,6 +215,25 @@ class ReaderTest : public ::testing::Test {
     return expr;
   }
 
+  // Helper: leftColumn - rightColumn > threshold (postfix RPN)
+  std::shared_ptr<::common::Expression> createSubtractGtFilterExpression(
+      const std::string& leftColumn, const std::string& rightColumn,
+      const ::common::Value& threshold) {
+    auto expr = std::make_shared<::common::Expression>();
+
+    auto left_var = expr->add_operators()->mutable_var();
+    left_var->mutable_tag()->set_name(leftColumn);
+
+    auto right_var = expr->add_operators()->mutable_var();
+    right_var->mutable_tag()->set_name(rightColumn);
+
+    expr->add_operators()->set_arith(::common::Arithmetic::SUB);
+    expr->add_operators()->set_logical(::common::Logical::GT);
+    *expr->add_operators()->mutable_const_() = threshold;
+
+    return expr;
+  }
+
   // Helper function to create ReadSharedState
   std::shared_ptr<reader::ReadSharedState> createSharedState(
       const std::string& csvFile, const std::vector<std::string>& columnNames,
@@ -245,12 +265,25 @@ class ReaderTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::CsvReader> createCsvReader(
+  execution::Context readToContext(
+      const std::shared_ptr<reader::FileReader>& reader,
+      const std::shared_ptr<reader::ReadSharedState>& sharedState,
+      size_t fallback_column_count = 0) {
+    return reader::toContext(reader->read(), *sharedState,
+                             fallback_column_count);
+  }
+
+  std::shared_ptr<reader::FileReader> createCsvReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
     auto optionsBuilder =
         std::make_unique<reader::CsvOptionsBuilder>(sharedState);
     return std::make_shared<reader::CsvReader>(sharedState,
                                                std::move(optionsBuilder));
+  }
+
+  std::shared_ptr<reader::FileReader> createArrowReader(
+      const std::shared_ptr<reader::ReadSharedState>& sharedState) {
+    return createCsvReader(sharedState);
   }
 
   void createJsonFile(const std::string& filename, const std::string& content) {
@@ -282,7 +315,7 @@ class ReaderTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::JsonReader> createJsonReader(
+  std::shared_ptr<reader::FileReader> createJsonReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState,
       bool json_array_input = true) {
     auto optionsBuilder = std::make_unique<reader::JsonOptionsBuilder>(
