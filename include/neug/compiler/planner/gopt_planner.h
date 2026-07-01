@@ -12,6 +12,7 @@
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/storages/index/index_manager.h"
 
 namespace neug {
 
@@ -38,6 +39,8 @@ class GOptPlanner : public neug::IGraphPlanner {
       const std::string& query) override;
 
   void update_meta(const YAML::Node& schema_yaml_node) override;
+
+  void update_index_manager(const IndexManager* index_manager) override;
 
   void update_statistics(const std::string& graph_statistic_json) override;
 

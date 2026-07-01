@@ -62,6 +62,10 @@ namespace extension {
 class ExtensionAPI;
 }
 
+namespace optimizer {
+class LogicalRule;
+}
+
 namespace catalog {
 class TableCatalogEntry;
 class NodeTableCatalogEntry;
@@ -70,6 +74,7 @@ class RelGroupCatalogEntry;
 class FunctionCatalogEntry;
 class SequenceCatalogEntry;
 class IndexCatalogEntry;
+class RuleCatalogEntry;
 
 class NEUG_API Catalog {
   friend class main::AttachedKuzuDatabase;
@@ -113,9 +118,6 @@ class NEUG_API Catalog {
   // Create table catalog entry.
   CatalogEntry* createTableEntry(transaction::Transaction* transaction,
                                  const binder::BoundCreateTableInfo& info);
-  // Drop table entry and all indices within the table.
-  void dropTableEntryAndIndex(transaction::Transaction* transaction,
-                              const std::string& name);
   // Drop table entry with id.
   void dropTableEntry(transaction::Transaction* transaction,
                       common::table_id_t tableID);
@@ -201,28 +203,18 @@ class NEUG_API Catalog {
 
   // ----------------------------- Indexes ----------------------------
 
-  // Check if index entry exists.
-  bool containsIndex(const transaction::Transaction* transaction,
-                     common::table_id_t tableID,
-                     const std::string& indexName) const;
-  // Get index entry with name.
-  IndexCatalogEntry* getIndex(const transaction::Transaction* transaction,
-                              common::table_id_t tableID,
-                              const std::string& indexName) const;
   // Get all index entries.
   std::vector<IndexCatalogEntry*> getIndexEntries(
       const transaction::Transaction* transaction) const;
 
-  // Create index entry.
-  void createIndex(transaction::Transaction* transaction,
-                   std::unique_ptr<IndexCatalogEntry> indexCatalogEntry);
-  // Drop all index entries within a table.
-  void dropAllIndexes(transaction::Transaction* transaction,
-                      common::table_id_t tableID);
-  // Drop index entry with name.
-  void dropIndex(transaction::Transaction* transaction,
-                 common::table_id_t tableID,
-                 const std::string& indexName) const;
+  // ----------------------------- Rules ----------------------------
+
+  bool containsRule(const transaction::Transaction* transaction,
+                    const std::string& name) const;
+  void addRule(transaction::Transaction* transaction, std::string name,
+               std::unique_ptr<optimizer::LogicalRule> rule);
+  std::vector<RuleCatalogEntry*> getRuleEntries(
+      const transaction::Transaction* transaction) const;
 
   // ----------------------------- Functions ----------------------------
 
@@ -304,6 +296,7 @@ class NEUG_API Catalog {
   std::unique_ptr<CatalogSet> functions;
   std::unique_ptr<CatalogSet> types;
   std::unique_ptr<CatalogSet> indexes;
+  std::unique_ptr<CatalogSet> rules;
   std::unique_ptr<CatalogSet> internalTables;
   std::unique_ptr<CatalogSet> internalSequences;
   std::unique_ptr<CatalogSet> internalFunctions;

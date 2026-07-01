@@ -15,11 +15,46 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/storages/index/index_manager.h"
+
 namespace neug {
+
+namespace {
+
+static Status drop_indexes_for_property(IndexManager& index_manager,
+                                        label_t label_id,
+                                        const std::string& property_name) {
+  std::vector<Index*> indexes;
+  RETURN_IF_NOT_OK(index_manager.GetIndex(label_id, {property_name}, indexes));
+  for (auto* idx : indexes) {
+    RETURN_IF_NOT_OK(index_manager.DropIndex(idx->GetMeta().name));
+  }
+  return Status::OK();
+}
+
+}  // namespace
 
 Status StorageAPUpdateInterface::UpdateVertexProperty(
     label_t label, vid_t lid, int col_id, const execution::Value& value) {
-  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  RETURN_IF_NOT_OK(
+      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
+
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  if (col_id < 0 ||
+      static_cast<size_t>(col_id) >= v_schema->property_names.size()) {
+    return Status::OK();
+  }
+  if (v_schema->vprop_soft_deleted[col_id]) {
+    return Status::OK();
+  }
+  const auto& prop_name = v_schema->property_names[col_id];
+  std::vector<Index*> indexes;
+  index_manager_.GetIndex(label, {prop_name}, indexes);
+  for (auto* idx : indexes) {
+    idx->Delete(lid);
+    idx->Append(lid, {value});
+  }
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::UpdateEdgeProperty(
@@ -52,6 +87,22 @@ Status StorageAPUpdateInterface::AddVertex(
       graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
+    return status;
+  }
+
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    if (prop_idx >= props.size())
+      continue;
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    index_manager_.GetIndex(label, {prop_name}, indexes);
+    for (auto* idx : indexes) {
+      idx->Append(vid, {props[prop_idx]});
+    }
   }
   return status;
 }
@@ -92,7 +143,22 @@ void StorageAPUpdateInterface::CreateCheckpoint() {
 }
 
 Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
-  return graph_.DeleteVertex(label, lid, timestamp_);
+  RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
+
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    RETURN_IF_NOT_OK(index_manager_.GetIndex(label, {prop_name}, indexes));
+    for (auto* idx : indexes) {
+      RETURN_IF_NOT_OK(idx->Delete(lid));
+    }
+  }
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::DeleteEdge(label_t src_label, vid_t src,
@@ -114,7 +180,41 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 
 Status StorageAPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  return graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  std::vector<vid_t> new_vids;
+  RETURN_IF_NOT_OK(
+      graph_.BatchAddVertices(v_label_id, std::move(supplier), new_vids));
+
+  if (new_vids.empty()) {
+    return Status::OK();
+  }
+
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label_id);
+  const auto& vtable = graph_.get_vertex_table(v_label_id);
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    RETURN_IF_NOT_OK(index_manager_.GetIndex(v_label_id, {prop_name}, indexes));
+    if (indexes.empty()) {
+      continue;
+    }
+    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
+    if (!col) {
+      continue;
+    }
+    for (auto* idx : indexes) {
+      for (vid_t vid : new_vids) {
+        auto prop_value = col->get_any(vid);
+        RETURN_IF_NOT_OK(idx->Append(vid, {prop_value}));
+      }
+    }
+  }
+
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::BatchAddEdges(
@@ -126,6 +226,20 @@ Status StorageAPUpdateInterface::BatchAddEdges(
 
 Status StorageAPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label_id);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    const auto& prop_name = v_schema->property_names[prop_idx];
+    std::vector<Index*> indexes;
+    index_manager_.GetIndex(v_label_id, {prop_name}, indexes);
+    for (auto* idx : indexes) {
+      for (vid_t vid : vids) {
+        idx->Delete(vid);
+      }
+    }
+  }
   return graph_.BatchDeleteVertices(v_label_id, vids);
 }
 
@@ -188,6 +302,12 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
 
 Status StorageAPUpdateInterface::RenameVertexProperties(
     const RenameVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    RETURN_IF_NOT_OK(
+        drop_indexes_for_property(index_manager_, v_label, old_name));
+  }
   return graph_.RenameVertexProperties(config);
 }
 
@@ -198,6 +318,12 @@ Status StorageAPUpdateInterface::RenameEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexProperties(
     const DeleteVertexPropertiesParam& config) {
+  const auto& vertex_type_name = config.GetVertexLabel();
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    RETURN_IF_NOT_OK(
+        drop_indexes_for_property(index_manager_, v_label, prop_name));
+  }
   auto status = graph_.DeleteVertexProperties(config);
   if (status.ok()) {
     // Deleting columns shifts the table column vector cached by GraphView.
@@ -220,6 +346,15 @@ Status StorageAPUpdateInterface::DeleteEdgeProperties(
 
 Status StorageAPUpdateInterface::DeleteVertexType(
     const std::string& vertex_type_name) {
+  auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  const auto& v_schema = graph_.schema().get_vertex_schema(v_label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    RETURN_IF_NOT_OK(drop_indexes_for_property(
+        index_manager_, v_label, v_schema->property_names[prop_idx]));
+  }
   auto status = graph_.DeleteVertexType(vertex_type_name);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
@@ -235,6 +370,41 @@ Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
     mut_view_.Rebuild(graph_);
   }
   return status;
+}
+
+Status StorageReadInterface::GetIndex(
+    label_t label_id, const std::vector<std::string>& property_names,
+    std::vector<Index*>& target_indexes) const {
+  return view_.index_manager().GetIndex(label_id, property_names,
+                                        target_indexes);
+}
+
+Index* StorageReadInterface::GetIndexByName(const std::string& name) const {
+  return view_.index_manager().GetIndexByName(name);
+}
+
+Status StorageReadInterface::GetAllIndexes(
+    std::vector<Index*>& target_indexes) const {
+  return view_.index_manager().GetAllIndexes(target_indexes);
+}
+
+neug::result<Index*> StorageUpdateInterface::CreateIndex(
+    const std::string&, std::unique_ptr<IndexMeta>) {
+  RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
+                      "CreateIndex is not supported");
+}
+
+Status StorageUpdateInterface::DropIndex(const std::string&) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED, "DropIndex is not supported");
+}
+
+neug::result<Index*> StorageAPUpdateInterface::CreateIndex(
+    const std::string& name, std::unique_ptr<IndexMeta> meta) {
+  return index_manager_.CreateIndex(name, std::move(meta));
+}
+
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+  return index_manager_.DropIndex(name);
 }
 
 }  // namespace neug

@@ -38,7 +38,7 @@ TEST_F(FlagTest, MatchCreateRelationship1) {
       "MATCH (p1:person {id:1}), (p2:person {id:2}) CREATE "
       "(p1)-[:knows]->(p2);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_FALSE(flag.read);
   EXPECT_TRUE(flag.insert);
@@ -55,7 +55,7 @@ TEST_F(FlagTest, MatchCreateRelationship2) {
   std::string query =
       "MATCH (p1:person), (p2:person) CREATE (p1)-[:knows]->(p2);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.read);
   EXPECT_TRUE(flag.update);
@@ -72,7 +72,7 @@ TEST_F(FlagTest, MatchCreateRelationship5) {
       "MATCH (p1:person {id:1}), (p2:person {id:2}), (p3:person {id:3}) CREATE "
       "(p1)-[:knows]->(p2);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.read);
   EXPECT_TRUE(flag.insert);
@@ -90,7 +90,7 @@ TEST_F(FlagTest, CreateNodesAndRelationship) {
       "CREATE (p1:person {id:1})-[:knows]->(p2:person "
       "{id:2});";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -107,7 +107,7 @@ TEST_F(FlagTest, MatchCreateRelationship3) {
   std::string query =
       "Match (p2:person {id:2}) CREATE (p1:person {id:1})-[:knows]->(p2);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -125,7 +125,7 @@ TEST_F(FlagTest, MatchCreateRelationship4) {
       "Match (p2:person {name:'abc'}) CREATE (p1:person "
       "{id:1})-[:knows]->(p2);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_TRUE(flag.read);
@@ -141,7 +141,7 @@ TEST_F(FlagTest, MatchCreateRelationship4) {
 TEST_F(FlagTest, CreateSingleNode) {
   std::string query = "CREATE (p1:person {id:1});";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -158,7 +158,7 @@ TEST_F(FlagTest, CopyFrom) {
   std::string query =
       replaceResource("COPY person FROM 'DML_RESOURCE/person.csv';");
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_FALSE(flag.read);
@@ -174,7 +174,7 @@ TEST_F(FlagTest, CopyTo) {
   std::string query =
       "COPY (MATCH (u:person) RETURN u.*) TO 'person.csv' (header=true);";
   auto logical = planLogical(query, schemaData, "", rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_TRUE(flag.read);
@@ -191,7 +191,7 @@ TEST_F(FlagTest, LoadFrom) {
   std::string query =
       replaceResource("LOAD FROM 'DML_RESOURCE/person.csv' Return *;");
   auto logical = planLogical(query);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_FALSE(flag.read);
@@ -207,7 +207,7 @@ TEST_F(FlagTest, LoadFrom) {
 TEST_F(FlagTest, Checkpoint) {
   std::string query = "CHECKPOINT;";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.transaction);
   EXPECT_FALSE(flag.read);
@@ -223,7 +223,7 @@ TEST_F(FlagTest, Checkpoint) {
 TEST_F(FlagTest, MatchReturn) {
   std::string query = "Match (a:person {id:1})-[:knows]->(p1) Return count(*);";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.read);
   EXPECT_FALSE(flag.insert);
@@ -239,7 +239,7 @@ TEST_F(FlagTest, MatchReturn) {
 TEST_F(FlagTest, LoadJson) {
   std::string query = "LOAD JSON;";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.procedure_call);
   EXPECT_FALSE(flag.batch);
@@ -255,7 +255,7 @@ TEST_F(FlagTest, LoadJson) {
 TEST_F(FlagTest, InstallJson) {
   std::string query = "INSTALL JSON;";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.procedure_call);
   EXPECT_FALSE(flag.read);
@@ -271,7 +271,7 @@ TEST_F(FlagTest, InstallJson) {
 TEST_F(FlagTest, CallProcedure) {
   std::string query = "CALL SHOW_LOADED_EXTENSIONS();";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.procedure_call);
   EXPECT_FALSE(flag.read);
@@ -288,7 +288,7 @@ TEST_F(FlagTest, CreateTable) {
       "CREATE NODE TABLE User (name STRING, age INT64 DEFAULT 0, reg_date "
       "INT64, PRIMARY KEY (name));";
   auto logical = planLogical(query);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.schema);
   EXPECT_FALSE(flag.procedure_call);
@@ -305,7 +305,7 @@ TEST_F(FlagTest, SetProperty) {
       "MATCH (u:person) WHERE u.name = 'Adam' SET u.age = 50, u.name = 'mark' "
       "RETURN u";
   auto logical = planLogical(query, schemaData, statsData, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.read);
   EXPECT_TRUE(flag.update);
@@ -348,7 +348,7 @@ TEST_F(FlagTest, IU_1) {
     CREATE (p)-[:WORKAT {workFrom: workAt_1}]->(comp)
       )";
   auto logical = planLogical(query, schemaData2, statsData2, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -370,7 +370,7 @@ TEST_F(FlagTest, IU_4) {
     CREATE (f)-[:HASTAG]->(t)
       )";
   auto logical = planLogical(query, schemaData2, statsData2, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -401,7 +401,7 @@ TEST_F(FlagTest, IU_6) {
     CREATE (p)-[:HASTAG]->(t)
       )";
   auto logical = planLogical(query, schemaData2, statsData2, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);
@@ -448,7 +448,7 @@ TEST_F(FlagTest, IU_7) {
       CREATE (c)-[:HASTAG]->(t)
       )";
   auto logical = planLogical(query, schemaData2, statsData2, rules);
-  GPhysicalAnalyzer analyzer(getCatalog());
+  GPhysicalAnalyzer analyzer(getCatalog(), ctx.get());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.read);

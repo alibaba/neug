@@ -190,12 +190,14 @@ std::pair<int32_t, const void*> EdgeTableView::AddEdge(
 
 // ── GraphView ──
 
-GraphView::GraphView(PropertyGraph& storage) : schema_(&storage.schema()) {
+GraphView::GraphView(PropertyGraph& storage)
+    : schema_(&storage.schema()), index_manager_(&storage.index_manager()) {
   Rebuild(storage);
 }
 
 void GraphView::Rebuild(PropertyGraph& pg) {
   schema_ = &pg.schema();
+  index_manager_ = &pg.index_manager();
   vertex_views_.clear();
   edge_views_.clear();
   // Use vertex_label_frontier() (total label-id space) instead of

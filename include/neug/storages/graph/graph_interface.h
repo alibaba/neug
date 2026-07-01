@@ -25,6 +25,10 @@
 
 namespace neug {
 
+class Index;
+class IndexManager;
+struct IndexMeta;
+
 namespace graph_interface_impl {
 
 using neug::label_t;
@@ -348,6 +352,12 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
+  virtual Status GetIndex(label_t label_id,
+                          const std::vector<std::string>& property_names,
+                          std::vector<Index*>& target_indexes) const;
+  virtual Index* GetIndexByName(const std::string& name) const;
+  virtual Status GetAllIndexes(std::vector<Index*>& target_indexes) const;
+
  protected:
   const GraphView& view_;
   timestamp_t read_ts_;
@@ -614,6 +624,10 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const std::string& edge_type) = 0;
 
   virtual void CreateCheckpoint() = 0;
+
+  virtual neug::result<Index*> CreateIndex(const std::string& name,
+                                           std::unique_ptr<IndexMeta> meta);
+  virtual Status DropIndex(const std::string& name);
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
@@ -625,7 +639,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
-        timestamp_(timestamp) {}
+        timestamp_(timestamp),
+        index_manager_(graph_.mutable_index_manager()) {}
   ~StorageAPUpdateInterface() {}
 
   Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
@@ -678,11 +693,16 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                         const std::string& dst_type,
                         const std::string& edge_type) override;
 
+  neug::result<Index*> CreateIndex(const std::string& name,
+                                   std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
+
  private:
   PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
+  IndexManager& index_manager_;
 };
 
 }  // namespace neug

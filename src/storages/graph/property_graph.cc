@@ -30,6 +30,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/index_manager.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/indexers.h"
@@ -44,7 +45,9 @@ PropertyGraph::PropertyGraph()
     : ckp_(nullptr),
       vertex_label_total_count_(0),
       edge_label_total_count_(0),
-      memory_level_(MemoryLevel::kInMemory) {}
+      memory_level_(MemoryLevel::kInMemory) {
+  index_manager_ = std::make_unique<IndexManager>();
+}
 
 PropertyGraph::~PropertyGraph() { Clear(); }
 
@@ -60,7 +63,14 @@ void PropertyGraph::Clear() {
   edge_label_total_count_ = 0;
   schema_.Clear();
   ckp_.reset();
+  index_manager_->Clear();
 }
+
+const IndexManager& PropertyGraph::index_manager() const {
+  return *index_manager_;
+}
+
+IndexManager& PropertyGraph::mutable_index_manager() { return *index_manager_; }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
   if (schema_.is_vertex_label_valid(v_label)) {
@@ -137,8 +147,15 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 
 Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
+  std::vector<vid_t> new_vids;
+  return BatchAddVertices(v_label, std::move(supplier), new_vids);
+}
+
+Status PropertyGraph::BatchAddVertices(
+    label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier,
+    std::vector<vid_t>& new_vids) {
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
-  vertex_tables_[v_label].insert_vertices(supplier);
+  vertex_tables_[v_label].insert_vertices(supplier, new_vids);
   return neug::Status::OK();
 }
 
@@ -779,6 +796,8 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   }
 
   ckp_ = std::move(ckp);
+
+  index_manager_->Open(ckp_, store, memory_level_);
 }
 
 void PropertyGraph::compact_schema() {
@@ -964,6 +983,8 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
       }
     }
   }
+
+  index_manager_->Dump(ckp_, store, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped

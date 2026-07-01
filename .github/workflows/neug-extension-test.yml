@@ -93,7 +93,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;example_index"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -140,6 +140,11 @@ jobs:
         python3 -m pytest -sv tests/test_gds_path.py
         python3 -m pytest -sv tests/test_gds_concurrency.py
         python3 -m pytest -sv tests/test_gds_yield.py
+    
+    - name: Run Example Index Tests
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pytest tests/test_example_index.py
 
     - name: Run LDBC Graphalytics Conformance Tests
       run: |

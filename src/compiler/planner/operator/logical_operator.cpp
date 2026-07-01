@@ -23,6 +23,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "COPY_FROM";
   case LogicalOperatorType::COPY_TO:
     return "COPY_TO";
+  case LogicalOperatorType::CREATE_INDEX:
+    return "CREATE_INDEX";
   case LogicalOperatorType::CREATE_MACRO:
     return "CREATE_MACRO";
   case LogicalOperatorType::CREATE_SEQUENCE:

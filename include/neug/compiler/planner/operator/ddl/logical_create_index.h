@@ -1,0 +1,47 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include "neug/compiler/binder/ddl/bound_create_index.h"
+#include "neug/compiler/planner/operator/logical_operator.h"
+
+namespace neug {
+namespace planner {
+
+class LogicalCreateIndex final : public LogicalOperator {
+  static constexpr LogicalOperatorType type_ =
+      LogicalOperatorType::CREATE_INDEX;
+
+ public:
+  explicit LogicalCreateIndex(binder::BoundCreateIndexInfo info)
+      : LogicalOperator{type_}, info{std::move(info)} {}
+
+  void computeFactorizedSchema() override;
+  void computeFlatSchema() override;
+  std::string getExpressionsForPrinting() const override;
+
+  const binder::BoundCreateIndexInfo& getInfo() const { return info; }
+
+  std::unique_ptr<LogicalOperator> copy() override {
+    return std::make_unique<LogicalCreateIndex>(info.copy());
+  }
+
+ private:
+  binder::BoundCreateIndexInfo info;
+};
+
+}  // namespace planner
+}  // namespace neug

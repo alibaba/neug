@@ -268,6 +268,8 @@ class Transformer {
       CypherParser::NEUG_CreateSequenceContext& ctx);
   std::unique_ptr<Statement> transformCreateType(
       CypherParser::NEUG_CreateTypeContext& ctx);
+  std::unique_ptr<Statement> transformCreateIndex(
+      CypherParser::NEUG_CreateIndexContext& ctx);
   std::unique_ptr<Statement> transformDrop(CypherParser::NEUG_DropContext& ctx);
   std::unique_ptr<Statement> transformRenameTable(
       CypherParser::NEUG_AlterTableContext& ctx);

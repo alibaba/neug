@@ -22,6 +22,7 @@
 #include "neug/compiler/gopt/g_expr_converter.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
+#include "neug/compiler/planner/operator/ddl/logical_create_index.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
@@ -61,6 +62,10 @@ class GDDLConverter {
   // Convert LogicalAlter to PhysicalPlan
   void convertAlterTable(const planner::LogicalAlter& op,
                          ::physical::PhysicalPlan* plan);
+
+  // Convert LogicalCreateIndex to PhysicalPlan
+  void convertCreateIndex(const planner::LogicalCreateIndex& op,
+                          ::physical::PhysicalPlan* plan);
 
  private:
   neug::catalog::Catalog* catalog;

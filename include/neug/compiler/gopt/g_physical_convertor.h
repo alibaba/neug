@@ -29,8 +29,9 @@ namespace gopt {
 class GPhysicalConvertor {
  public:
   GPhysicalConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                     neug::catalog::Catalog* catalog)
-      : aliasManager{aliasManager}, catalog{catalog} {}
+                     neug::catalog::Catalog* catalog,
+                     main::ClientContext* ctx = nullptr)
+      : aliasManager{aliasManager}, catalog{catalog}, ctx{ctx} {}
 
   std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
     auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
@@ -41,7 +42,7 @@ class GPhysicalConvertor {
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink = false) {
-    GPhysicalAnalyzer analyzer(catalog);
+    GPhysicalAnalyzer analyzer(catalog, ctx);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
     skipSink |= updateClause(plan.getLastOperator());
     skipSink |= ddlClause(plan.getLastOperator());
@@ -62,6 +63,7 @@ class GPhysicalConvertor {
     flagPB->set_create_temp_table(flag.create_temp_table);
     flagPB->set_checkpoint(flag.transaction);
     flagPB->set_procedure_call(flag.procedure_call);
+    flagPB->set_index(flag.index);
     return flagPB;
   }
 
@@ -75,6 +77,8 @@ class GPhysicalConvertor {
 
   bool ddlClause(std::shared_ptr<planner::LogicalOperator> op) {
     return op->getOperatorType() ==
+               planner::LogicalOperatorType::CREATE_INDEX ||
+           op->getOperatorType() ==
                planner::LogicalOperatorType::CREATE_TABLE ||
            op->getOperatorType() == planner::LogicalOperatorType::ALTER ||
            op->getOperatorType() == planner::LogicalOperatorType::DROP;
@@ -83,13 +87,15 @@ class GPhysicalConvertor {
  private:
   std::unique_ptr<::physical::PhysicalPlan> convertQuery(
       const planner::LogicalPlan& plan, bool skipSink) {
-    auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
+    auto converter =
+        std::make_unique<GQueryConvertor>(aliasManager, catalog, ctx);
     return converter->convert(plan, skipSink);
   }
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;
   neug::catalog::Catalog* catalog;
+  main::ClientContext* ctx;
 };
 
 }  // namespace gopt

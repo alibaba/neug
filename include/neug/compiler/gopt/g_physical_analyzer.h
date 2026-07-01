@@ -20,12 +20,17 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include "neug/common/types.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/catalog/catalog.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/main/client_context.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
@@ -34,7 +39,9 @@
 #include "neug/compiler/planner/operator/logical_transaction.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
+#include "neug/compiler/planner/operator/persistent/logical_delete.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
+#include "neug/compiler/planner/operator/persistent/logical_set.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
 namespace neug {
@@ -49,11 +56,13 @@ struct ExecutionFlag {
   bool create_temp_table = false;
   bool transaction = false;
   bool procedure_call = false;
+  bool index = false;
 };
 
 class GPhysicalAnalyzer {
  public:
-  GPhysicalAnalyzer(catalog::Catalog* catalog) : catalog(catalog) {}
+  GPhysicalAnalyzer(catalog::Catalog* catalog, main::ClientContext* ctx)
+      : catalog(catalog), ctx(ctx) {}
   ExecutionFlag analyze(const planner::LogicalPlan& plan) {
     auto skipScanNames = std::vector<std::string>();
     analyzeOperator(*plan.getLastOperator(), skipScanNames);
@@ -166,6 +175,45 @@ class GPhysicalAnalyzer {
     }
   }
 
+  // check if there exists a bound index on the node type
+  bool containsIndex(binder::expression_vector patterns) {
+    if (ctx == nullptr) {
+      return false;
+    }
+    auto metaData = ctx->getMetadataManager();
+    if (metaData == nullptr) {
+      return false;
+    }
+    auto indexManager = metaData->getIndexManager();
+    if (indexManager == nullptr) {
+      return false;
+    }
+    for (auto& pattern : patterns) {
+      if (pattern == nullptr) {
+        continue;
+      }
+      auto node = dynamic_cast<binder::NodeExpression*>(pattern.get());
+      if (node == nullptr) {
+        continue;
+      }
+      for (auto* entry : node->getEntries()) {
+        if (entry == nullptr) {
+          continue;
+        }
+        for (auto& property : entry->getProperties()) {
+          std::vector<Index*> indexes;
+          auto status =
+              indexManager->GetIndex(static_cast<label_t>(entry->getTableID()),
+                                     {property.getName()}, indexes);
+          if (status.ok() && !indexes.empty()) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   void analyzeOperator(const planner::LogicalOperator& op,
                        std::vector<std::string>& skipScanNames) {
     switch (op.getOperatorType()) {
@@ -173,6 +221,13 @@ class GPhysicalAnalyzer {
       auto insertOp = op.constPtrCast<planner::LogicalInsert>();
       auto& infos = insertOp->getInfos();
       if (!infos.empty()) {
+        binder::expression_vector patterns;
+        for (auto& pattern : infos) {
+          patterns.emplace_back(pattern.pattern);
+        }
+        if (containsIndex(patterns)) {
+          flag.index = true;
+        }
         // we assume that all info have the same table type
         auto tableType = infos[0].tableType;
         if (tableType == common::TableType::NODE) {
@@ -213,8 +268,30 @@ class GPhysicalAnalyzer {
       }
       break;
     }
-    case planner::LogicalOperatorType::SET_PROPERTY:
-    case planner::LogicalOperatorType::DELETE:
+    case planner::LogicalOperatorType::SET_PROPERTY: {
+      auto setOp = op.constPtrCast<planner::LogicalSetProperty>();
+      binder::expression_vector patterns;
+      for (auto& info : setOp->getInfos()) {
+        patterns.emplace_back(info.pattern);
+      }
+      if (containsIndex(patterns)) {
+        flag.index = true;
+      }
+      flag.update = true;
+      break;
+    }
+    case planner::LogicalOperatorType::DELETE: {
+      auto deleteOp = op.constPtrCast<planner::LogicalDelete>();
+      binder::expression_vector patterns;
+      for (auto& info : deleteOp->getInfos()) {
+        patterns.emplace_back(info.pattern);
+      }
+      if (containsIndex(patterns)) {
+        flag.index = true;
+      }
+      flag.update = true;
+      break;
+    }
     case planner::LogicalOperatorType::MERGE: {
       flag.update = true;
       break;
@@ -222,6 +299,11 @@ class GPhysicalAnalyzer {
     case planner::LogicalOperatorType::COPY_FROM:
     case planner::LogicalOperatorType::COPY_TO: {
       flag.batch = true;
+      break;
+    }
+    case planner::LogicalOperatorType::CREATE_INDEX: {
+      flag.index = true;
+      flag.schema = true;
       break;
     }
     case planner::LogicalOperatorType::CREATE_TABLE: {
@@ -299,6 +381,7 @@ class GPhysicalAnalyzer {
   ExecutionFlag flag;
   catalog::Catalog* catalog;
   std::shared_ptr<planner::LogicalOperator> preQuery;
+  main::ClientContext* ctx = nullptr;
 };
 
 }  // namespace gopt

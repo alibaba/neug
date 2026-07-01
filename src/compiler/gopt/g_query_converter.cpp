@@ -42,6 +42,7 @@
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/function/read_function.h"
+#include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/function/table/table_function.h"
@@ -77,10 +78,12 @@ namespace neug {
 namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                                 neug::catalog::Catalog* catalog)
+                                 neug::catalog::Catalog* catalog,
+                                 main::ClientContext* ctx)
     : ddlConverter(aliasManager, catalog),
       aliasManager(aliasManager),
       catalog(catalog),
+      ctx(ctx),
       exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
       typeConverter(std::make_unique<GPhysicalTypeConverter>()) {}
 
@@ -254,6 +257,11 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::EXTENSION: {
     auto extension = op.constPtrCast<planner::LogicalExtension>();
     convertExtension(*extension, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::CREATE_INDEX: {
+    auto createIndex = op.constPtrCast<planner::LogicalCreateIndex>();
+    ddlConverter.convertCreateIndex(*createIndex, plan);
     break;
   }
   case planner::LogicalOperatorType::CREATE_TABLE: {
@@ -1221,11 +1229,32 @@ void GQueryConvertor::convertTableFunc(
   auto bindData = funcCall.getBindData();
   if (dynamic_cast<const function::ScanFileBindData*>(bindData)) {
     convertDataSource(funcCall, plan);
+  } else if (dynamic_cast<const function::IndexScanBindData*>(bindData)) {
+    convertIndexScan(funcCall, plan);
   } else if (dynamic_cast<const function::GDSFuncBindData*>(bindData)) {
     convertGDSFunction(funcCall, plan);
   } else {
     convertProcedureCall(funcCall, plan);
   }
+}
+
+void GQueryConvertor::convertIndexScan(
+    const planner::LogicalTableFunctionCall& funcCall,
+    ::physical::PhysicalPlan* plan) {
+  const auto& bindData =
+      funcCall.getBindData()->cast<function::IndexScanBindData>();
+  auto indexScanPB = std::make_unique<::physical::IndexScan>();
+  indexScanPB->set_index_scan_function(funcCall.getTableFunc().signatureName);
+  indexScanPB->set_unique_index_name(bindData.uniqueIndexName);
+  indexScanPB->set_allocated_target_value(
+      exprConvertor->convert(*bindData.targetValue, {}).release());
+
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_index_scan(indexScanPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  setMetaData(physicalPB.get(), funcCall, bindData.columns);
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertGDSFunction(
@@ -2032,7 +2061,7 @@ common::TableType GQueryConvertor::getTableType(
 void GQueryConvertor::convertCrossProduct(
     const planner::LogicalCrossProduct& cross, ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, ctx);
   // convert left plan
   planner::LogicalPlan leftPlan;
   leftPlan.setLastOperator(cross.getChild(0));
@@ -2087,7 +2116,7 @@ void GQueryConvertor::extractJoinKeys(
 void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
                                       ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
-  GPhysicalConvertor convertor(aliasManager, catalog);
+  GPhysicalConvertor convertor(aliasManager, catalog, ctx);
   auto leftOp = join.getChild(0);
   // convert left plan to pre query before the join, and set empty plan as the
   // join left branch

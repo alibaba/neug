@@ -325,6 +325,13 @@ message GDSAlgo {
   map<string, string> options = 3;
 }
 
+message IndexScan {
+  string index_scan_function = 1;
+  string unique_index_name = 2;
+  common.Expression target_value = 3;
+  map<string, string> options = 4;
+}
+
 message ExtensionInstall {
   string extension_name = 1;
 }
@@ -364,6 +371,7 @@ message PhysicalOpr {
       EdgeExpand edge = 31;
       PathExpand path = 32;
       ProcedureCall procedure_call = 33;
+      IndexScan index_scan = 34;
       GDSAlgo gds_algo = 75;
 
       // DML operators
@@ -400,6 +408,9 @@ message PhysicalOpr {
       ExtensionInstall ext_install = 72;
       ExtensionLoad ext_load = 73;
       ExtensionUninstall ext_uninstall = 74;
+
+      // Index operators
+      CreateIndex create_index = 76;
     }
   }
   message MetaData {
@@ -422,6 +433,8 @@ message ExecutionFlag {
   bool checkpoint = 7;
   bool procedure_call = 8;
   // todo: add a new flag for gds_algo ?
+  // contains index operation
+  bool index = 9;
 }
 
 // A single Cypher query ending with a semicolon (;)

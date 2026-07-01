@@ -51,7 +51,7 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     auto aliasManager =
         std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
     neug::gopt::GPhysicalConvertor converter(aliasManager,
-                                             database->getCatalog());
+                                             database->getCatalog(), ctx.get());
     auto physicalPlan = converter.convert(*statement->logicalPlan);
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
@@ -105,6 +105,10 @@ void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
     return;
   }
   database->updateSchema(schema_yaml_node);
+}
+
+void GOptPlanner::update_index_manager(const IndexManager* index_manager) {
+  database->updateIndexManager(index_manager);
 }
 
 void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {

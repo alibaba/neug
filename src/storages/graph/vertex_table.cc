@@ -47,17 +47,23 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  std::vector<vid_t> ignored;
+  insert_vertices(std::move(supplier), ignored);
+}
+
+void VertexTable::insert_vertices(std::shared_ptr<IDataChunkSupplier> supplier,
+                                  std::vector<vid_t>& new_vids) {
   auto pk_type_id = pk_type_.id();
   if (pk_type_id == DataTypeId::kInt64) {
-    insert_vertices_impl<int64_t>(supplier);
+    insert_vertices_impl<int64_t>(supplier, new_vids);
   } else if (pk_type_id == DataTypeId::kInt32) {
-    insert_vertices_impl<int32_t>(supplier);
+    insert_vertices_impl<int32_t>(supplier, new_vids);
   } else if (pk_type_id == DataTypeId::kUInt32) {
-    insert_vertices_impl<uint32_t>(supplier);
+    insert_vertices_impl<uint32_t>(supplier, new_vids);
   } else if (pk_type_id == DataTypeId::kUInt64) {
-    insert_vertices_impl<uint64_t>(supplier);
+    insert_vertices_impl<uint64_t>(supplier, new_vids);
   } else if (pk_type_id == DataTypeId::kVarchar) {
-    insert_vertices_impl<std::string_view>(supplier);
+    insert_vertices_impl<std::string_view>(supplier, new_vids);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported primary key type for vertex, type: " +

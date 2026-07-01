@@ -133,5 +133,7 @@ add_extension_if_enabled("parquet")
 add_extension_if_enabled("gds")
 # Add httpfs extension (S3/OSS + HTTP/HTTPS)
 add_extension_if_enabled("httpfs")
+# Add the simple Int32 index example
+add_extension_if_enabled("example_index")
 
 message(STATUS "=== Extension configuration complete ===")

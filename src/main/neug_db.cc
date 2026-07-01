@@ -311,6 +311,9 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_statistics(graph().get_statistics_json());
   LOG(INFO) << "Finish initializing planner with schema and statistics";
 
+  planner_->update_index_manager(
+      &snapshot_store_->CurrentSnapshot().index_manager());
+
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 
   query_processor_ = std::make_shared<QueryProcessor>(

@@ -43,6 +43,7 @@ namespace neug {
 namespace main {
 
 MetadataManager::MetadataManager() {
+  this->index_manager = nullptr;
   this->vfs = std::make_unique<neug::fsys::FileSystemRegistry>();
   this->extensionManager = std::make_unique<extension::ExtensionManager>();
   this->memoryManager = std::make_unique<neug::storage::MemoryManager>();
@@ -109,6 +110,10 @@ void MetadataManager::updateStats(const std::string& stats) {
   while (this->statsManagerLock.test_and_set(std::memory_order_acquire)) {}
   this->statsManager = std::move(newManager);
   this->statsManagerLock.clear(std::memory_order_release);
+}
+
+void MetadataManager::updateIndexManager(const IndexManager* indexManager) {
+  this->index_manager = indexManager;
 }
 
 }  // namespace main
