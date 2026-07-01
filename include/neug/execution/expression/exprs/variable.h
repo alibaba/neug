@@ -20,6 +20,7 @@ namespace common {
 class Value;
 class DynamicParam;
 class Variable;
+class IrDataType;
 };  // namespace common
 namespace neug {
 namespace execution {
