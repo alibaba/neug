@@ -202,6 +202,11 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     if (fromIt != boundOpts.end() && toIt != boundOpts.end()) {
       return bindCopyRelFromNoSchema(statement, boundOpts, /*temporary=*/true);
     }
+    if (fromIt != boundOpts.end() || toIt != boundOpts.end()) {
+      THROW_BINDER_EXCEPTION(
+          "Both 'from' and 'to' options are required to create a "
+          "relationship table.");
+    }
     return bindCopyNodeFromNoSchema(statement, boundOpts, /*temporary=*/true);
   }
 
@@ -265,6 +270,11 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
   auto toIt = boundOpts.find(CopyConstants::TO_OPTION_NAME);
   if (fromIt != boundOpts.end() && toIt != boundOpts.end()) {
     return bindCopyRelFromNoSchema(statement, boundOpts);
+  }
+  if (fromIt != boundOpts.end() || toIt != boundOpts.end()) {
+    THROW_BINDER_EXCEPTION(
+        "Both 'from' and 'to' options are required to create a "
+        "relationship table.");
   }
   return bindCopyNodeFromNoSchema(statement, boundOpts);
 }
