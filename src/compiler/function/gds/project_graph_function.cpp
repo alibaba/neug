@@ -71,6 +71,7 @@ static std::vector<graph::ParsedGraphEntryTableInfo>
 extractGraphEntryTableInfos(const common::Value& value) {
   std::vector<graph::ParsedGraphEntryTableInfo> infos;
   switch (value.getDataType().id()) {
+  case common::DataTypeId::kArray:
   case common::DataTypeId::kList: {
     for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
       const auto& childValue = *common::NestedVal::getChildVal(&value, i);
@@ -80,6 +81,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
         auto tableName = getStringVal(childValue);
         infos.emplace_back(tableName, "" /* empty predicate */);
       } break;
+      case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
         if (triplets.size() != 3) {
@@ -137,6 +139,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
         auto tableName = getStringVal(tableField);
         infos.emplace_back(tableName, predicate);
       } break;
+      case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
         if (triplets.size() != 3) {
@@ -159,7 +162,8 @@ extractGraphEntryTableInfos(const common::Value& value) {
   } break;
   default:
     THROW_BINDER_EXCEPTION(common::stringFormat(
-        "Argument {} has data type {}. LIST or STRUCT or MAP was expected.",
+        "Argument {} has data type {}. LIST, ARRAY, STRUCT or MAP was "
+        "expected.",
         value.toString(), value.getDataType().ToString()));
   }
   return infos;

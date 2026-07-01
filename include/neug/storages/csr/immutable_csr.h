@@ -68,8 +68,6 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 
-  void reset_timestamp() override;
-
   void compact() override;
 
   void resize(vid_t vnum) override;
@@ -180,8 +178,6 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
-
-  void reset_timestamp() override;
 
   void compact() override;
 
