@@ -349,25 +349,6 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
-  /**
-   * @brief Opaque, stable identity for the underlying graph.
-   *
-   * Per-query execution passes a short-lived `StorageReadInterface` wrapper on
-   * the stack, so the address of the wrapper itself is not stable and must not
-   * be used as a cache key. This returns an opaque token that is stable for the
-   * lifetime of the open database (it is backed by the underlying property
-   * graph). Callers may only compare it for equality / use it as a map key;
-   * they must not interpret or dereference it.
-   */
-  const void* graph_identity() const {
-    assert(graph_ != nullptr &&
-           "graph_identity() called before graph_ was set");
-    return static_cast<const void*>(graph_);
-  }
-
- private:
-  const PropertyGraph* graph_ = nullptr;
-
  protected:
   const GraphView& view_;
   timestamp_t read_ts_;
