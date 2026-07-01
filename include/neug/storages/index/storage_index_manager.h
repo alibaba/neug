@@ -22,7 +22,7 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
-#include "neug/storages/index/index.h"
+#include "neug/storages/index/storage_index.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -88,9 +88,6 @@ class StorageIndexManager {
    * @brief COW: Fork each Index (shallow copy).
    */
   std::unique_ptr<StorageIndexManager> Clone() const;
-
-  // 删除该接口
-  // const auto& GetAllIndexEntries() const { return indexes_; }
 
   static bool IsIndexModule(const std::string& name);
   static std::string GetKey(const std::string& index_name);

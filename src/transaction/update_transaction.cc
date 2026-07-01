@@ -33,7 +33,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/index/index_manager.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
@@ -711,17 +711,6 @@ Status StorageTPUpdateInterface::DeleteVertexType(
   RETURN_IF_NOT_OK(
       resolveVertexLabel(cow_graph_->schema(), vertex_type_name, v_label));
 
-  wal_.LogDeleteVertexType(vertex_type_name);
-  const auto& v_schema = cow_graph_->schema().get_vertex_schema(v_label);
-  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-       ++prop_idx) {
-    if (v_schema->vprop_soft_deleted[prop_idx]) {
-      continue;
-    }
-    RETURN_IF_NOT_OK(deleteVertexIndexSchema(
-        *cow_graph_, v_label, v_schema->property_names[prop_idx], &cow_state_));
-  }
-
   // Collect related edge triplet IDs before deletion.
   // PropertyGraph::DeleteVertexType removes them from edge_tables_, so
   // we must capture them while the schema is still intact.
@@ -743,6 +732,17 @@ Status StorageTPUpdateInterface::DeleteVertexType(
     }
   }
 
+  wal_.LogDeleteVertexType(vertex_type_name);
+
+  const auto& v_schema = cow_graph_->schema().get_vertex_schema(v_label);
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    RETURN_IF_NOT_OK(deleteVertexIndexSchema(
+        *cow_graph_, v_label, v_schema->property_names[prop_idx], &cow_state_));
+  }
   auto status = cow_graph_->DeleteVertexType(v_label);
   if (status.ok()) {
     cow_state_.vertex_tables[v_label] = VertexTableCowState();

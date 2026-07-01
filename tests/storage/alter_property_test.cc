@@ -116,7 +116,8 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
     }
   }
   auto supplier = std::make_shared<CSVChunkSupplier>(v_file, std::move(config));
-  CHECK(graph.BatchAddVertices(v_label, supplier).ok());
+  auto new_vids = graph.BatchAddVertices(v_label, supplier);
+  CHECK(new_vids) << new_vids.error().ToString();
 }
 
 void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,

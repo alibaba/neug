@@ -26,7 +26,7 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/index/index.h"
+#include "neug/storages/index/storage_index.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"

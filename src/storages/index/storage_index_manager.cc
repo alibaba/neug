@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/storages/index/index_manager.h"
+#include "neug/storages/index/storage_index_manager.h"
 
 #include <glog/logging.h>
 

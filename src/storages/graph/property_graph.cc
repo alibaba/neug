@@ -30,7 +30,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/index/index_manager.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/indexers.h"
@@ -147,18 +147,12 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
   return neug::Status::OK();
 }
 
-Status PropertyGraph::BatchAddVertices(
+result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
+  RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
   std::vector<vid_t> new_vids;
-  return BatchAddVertices(v_label, std::move(supplier), new_vids);
-}
-
-Status PropertyGraph::BatchAddVertices(
-    label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier,
-    std::vector<vid_t>& new_vids) {
-  RETURN_IF_NOT_OK(vertex_label_check(v_label));
   vertex_tables_[v_label].insert_vertices(supplier, new_vids);
-  return neug::Status::OK();
+  return new_vids;
 }
 
 Status PropertyGraph::BatchAddEdges(
