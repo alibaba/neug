@@ -34,7 +34,7 @@ class LocalWalWriter : public IWalWriter {
         fd_(-1),
         file_size_(0),
         file_used_(0) {}
-  ~LocalWalWriter() { close(); }
+  ~LocalWalWriter() override;
 
   void open() override;
   void close() override;

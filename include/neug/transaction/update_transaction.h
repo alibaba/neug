@@ -41,9 +41,9 @@
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
 class Schema;
+class WalWriterSlot;
 
 /**
  * @brief Resource holder and lifecycle manager for update transactions.
@@ -77,7 +77,7 @@ class UpdateTransaction {
    *
    * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
+   * @param wal_writer_slot Reference to session-local WAL writer slot
    * @param vm Reference to version manager
    * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
@@ -87,15 +87,26 @@ class UpdateTransaction {
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
-                    IWalWriter& logger, IVersionManager& vm,
+                    WalWriterSlot& wal_writer_slot, IVersionManager& vm,
                     GraphSnapshotStore& snapshot_store,
                     execution::LocalQueryCache& cache, timestamp_t timestamp);
+
+  static UpdateTransaction Create(GraphSnapshotStore& snapshot_store,
+                                  Allocator& alloc,
+                                  WalWriterSlot& wal_writer_slot,
+                                  IVersionManager& vm,
+                                  execution::LocalQueryCache& cache);
 
   /**
    * @brief Destructor that calls Abort().
    * @since v0.1.0
    */
   ~UpdateTransaction();
+
+  UpdateTransaction(const UpdateTransaction&) = delete;
+  UpdateTransaction& operator=(const UpdateTransaction&) = delete;
+  UpdateTransaction(UpdateTransaction&& other);
+  UpdateTransaction& operator=(UpdateTransaction&& other) = delete;
 
   /**
    * @brief Get the transaction timestamp.
@@ -159,7 +170,7 @@ class UpdateTransaction {
   GraphView view_;
 
   Allocator& alloc_;
-  IWalWriter& logger_;
+  WalWriterSlot& wal_writer_slot_;
   IVersionManager& vm_;
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
@@ -203,7 +214,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                     int32_t ie_offset) override;
 
   // --- Batch methods ---
-  void CreateCheckpoint() override;
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;

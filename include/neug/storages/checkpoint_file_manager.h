@@ -16,7 +16,6 @@
 
 #include <memory>
 #include <mutex>
-#include <set>
 #include <string>
 
 #include "neug/storages/container/container_utils.h"
@@ -34,7 +33,38 @@ namespace neug {
  * Thread safety: all public methods are safe to call concurrently.
  */
 class CheckpointFileManager {
+ private:
+  struct RuntimeFileCleanupContext;
+
  public:
+  class RuntimeFileHandle {
+   public:
+    RuntimeFileHandle() = default;
+    ~RuntimeFileHandle();
+
+    RuntimeFileHandle(const RuntimeFileHandle&) = delete;
+    RuntimeFileHandle& operator=(const RuntimeFileHandle&) = delete;
+
+    RuntimeFileHandle(RuntimeFileHandle&& other) noexcept;
+    RuntimeFileHandle& operator=(RuntimeFileHandle&& other) noexcept;
+
+    const std::string& uuid() const { return uuid_; }
+    const std::string& path() const { return path_; }
+    bool valid() const { return cleanup_ != nullptr; }
+
+   private:
+    friend class CheckpointFileManager;
+
+    RuntimeFileHandle(std::shared_ptr<RuntimeFileCleanupContext> cleanup,
+                      std::string uuid, std::string path);
+
+    void Release();
+
+    std::shared_ptr<RuntimeFileCleanupContext> cleanup_;
+    std::string uuid_;
+    std::string path_;
+  };
+
   CheckpointFileManager(const std::string& snapshot_dir,
                         const std::string& runtime_dir);
   ~CheckpointFileManager();
@@ -43,25 +73,35 @@ class CheckpointFileManager {
   CheckpointFileManager& operator=(const CheckpointFileManager&) = delete;
 
   /// Open (or create) a data container backed by a file.
-  std::unique_ptr<IDataContainer> OpenFile(const std::string& file_path,
+  std::shared_ptr<IDataContainer> OpenFile(const std::string& file_path,
                                            MemoryLevel level);
 
   /// Create an anonymous runtime container of the given size.
-  std::unique_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
+  std::shared_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
                                                          MemoryLevel level);
 
   /// Commit a data container to a persistent snapshot file.
   /// Returns the absolute path to the committed file.
   std::string Commit(IDataContainer& buffer);
 
-  /// Allocate a new UUID-named file slot in runtime_dir.
-  std::string CreateRuntimeObject();
+  /// Create a runtime file for manual writers. The handle removes the file if
+  /// it is destroyed before CommitRuntimeFile() consumes it.
+  RuntimeFileHandle CreateRuntimeFile();
 
-  /// Finalize a runtime object into snapshot_dir.
-  std::string CommitRuntimeObject(const std::string& uuid);
+  /// Finalize a manually-written runtime file into snapshot_dir.
+  std::string CommitRuntimeFile(RuntimeFileHandle file);
 
-  /// Hardlink (or copy) an external file into snapshot_dir.
+  /// Hardlink (or copy) a caller-guaranteed immutable/retired file into
+  /// snapshot_dir. This fast path is valid for files that no legal writer can
+  /// mutate again, such as clean runtime files from a previous checkpoint.
+  ///
+  /// Active MAP_SHARED runtime containers must use Commit(), which materializes
+  /// an independent snapshot and protects the checkpoint from future mmap
+  /// writes through the same backing file.
   std::string LinkToSnapshot(const std::string& abs_path);
+
+  /// fsync snapshot_dir after snapshot file entries are ready.
+  bool SyncSnapshotDirectory() const;
 
   /// Make an absolute path relative to the checkpoint root.
   std::string MakeRelativePath(const std::string& abs_path,
@@ -75,13 +115,22 @@ class CheckpointFileManager {
   const std::string& runtime_dir() const { return runtime_dir_; }
 
  private:
-  std::string CommitToSnapshot(const std::string& abs_path);
-  std::string commitToSnapshotLocked(const std::string& abs_path);
+  std::string WriteBufferToSnapshot(IDataContainer& buffer);
+
+  std::shared_ptr<IDataContainer> AdoptRuntimeContainer(
+      std::unique_ptr<IDataContainer> container) const;
+
+  std::string CreateRuntimeContainerPath();
+  std::string CreateRuntimeObjectNameLocked() const;
+  std::string CopyToSnapshot(const std::string& abs_path);
+  std::string copyToSnapshotLocked(const std::string& abs_path);
+  std::string commitRuntimeFileLocked(const std::string& uuid,
+                                      const std::string& abs_path);
 
   std::string snapshot_dir_;
   std::string runtime_dir_;
   mutable std::mutex mutex_;
-  std::set<std::string> uncommitted_runtime_objects_;
+  std::shared_ptr<RuntimeFileCleanupContext> runtime_cleanup_;
 };
 
 }  // namespace neug

@@ -90,10 +90,10 @@ class GraphSnapshotStore {
   /// Pin the current slot via lock-free optimistic loop: load cur_slot_index_,
   /// fetch_add reader_count, verify index unchanged. Retries on concurrent
   /// PublishSnapshot or cleanup-in-progress. Caller must UnpinSnapshot().
-  SnapshotSlot& PinCurrentSnapshot();
+  SnapshotSlot& PinCurrentSnapshot() noexcept;
 
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
-  void UnpinSnapshot(const SnapshotSlot& slot);
+  void UnpinSnapshot(const SnapshotSlot& slot) noexcept;
 
   /// Current PropertyGraph (for UpdateTransaction to Clone).
   /// No lock — VersionManager guarantees exclusive update access
@@ -106,6 +106,12 @@ class GraphSnapshotStore {
   /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
+
+  /// Replace the current slot in-place after the caller has externally
+  /// serialized all readers/writers. Used by checkpoint reopen, where the new
+  /// graph is equivalent to the current graph but backed by the newly published
+  /// checkpoint files.
+  void ReplaceCurrentSnapshot(std::shared_ptr<PropertyGraph> new_pg);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }
@@ -128,7 +134,7 @@ class GraphSnapshotStore {
   void initFreeList();
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
-  void UnpinSnapshotByIndex(int slot_index);
+  void UnpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
 };
 
@@ -141,14 +147,14 @@ class GraphSnapshotStore {
  */
 class SnapshotGuard {
  public:
-  explicit SnapshotGuard(GraphSnapshotStore& store)
+  explicit SnapshotGuard(GraphSnapshotStore& store) noexcept
       : store_(&store), slot_(&store.PinCurrentSnapshot()) {}
 
   SnapshotGuard(GraphSnapshotStore& store,
-                GraphSnapshotStore::SnapshotSlot& slot)
+                GraphSnapshotStore::SnapshotSlot& slot) noexcept
       : store_(&store), slot_(&slot) {}
 
-  ~SnapshotGuard() {
+  ~SnapshotGuard() noexcept {
     if (slot_) {
       store_->UnpinSnapshot(*slot_);
     }
@@ -179,7 +185,7 @@ class SnapshotGuard {
 
   bool valid() const { return slot_ != nullptr; }
 
-  void release() {
+  void release() noexcept {
     if (slot_) {
       store_->UnpinSnapshot(*slot_);
       slot_ = nullptr;

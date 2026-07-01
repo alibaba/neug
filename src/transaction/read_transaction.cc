@@ -26,7 +26,7 @@
 namespace neug {
 
 ReadTransaction::ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
-                                 timestamp_t timestamp)
+                                 timestamp_t timestamp) noexcept
     : guard_(std::move(guard)), vm_(vm), timestamp_(timestamp) {}
 
 ReadTransaction::~ReadTransaction() { release(); }

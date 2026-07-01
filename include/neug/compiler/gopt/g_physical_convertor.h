@@ -60,7 +60,8 @@ class GPhysicalConvertor {
     flagPB->set_schema(flag.schema);
     flagPB->set_batch(flag.batch);
     flagPB->set_create_temp_table(flag.create_temp_table);
-    flagPB->set_checkpoint(flag.transaction);
+    flagPB->set_transaction(flag.transaction);
+    flagPB->set_checkpoint(flag.checkpoint);
     flagPB->set_procedure_call(flag.procedure_call);
     return flagPB;
   }

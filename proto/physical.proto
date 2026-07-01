@@ -421,6 +421,7 @@ message ExecutionFlag {
   bool create_temp_table = 6; // create temporary table
   bool checkpoint = 7;
   bool procedure_call = 8;
+  bool transaction = 9;
   // todo: add a new flag for gds_algo ?
 }
 

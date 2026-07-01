@@ -83,5 +83,22 @@ TYPED_TEST(QueryRequestSerializerTypedTest, RoundTripParameters) {
   EXPECT_EQ(params, std::get<2>(request));
 }
 
+TEST(QueryRequestSerializerTest, RoundTripCheckpointAccessMode) {
+  neug::execution::ParamsMap params;
+  const std::string serialized =
+      RequestSerializer::SerializeRequest("CHECKPOINT;", "checkpoint", params);
+
+  std::string query;
+  neug::AccessMode mode;
+  rapidjson::Document parameters;
+  const auto status =
+      RequestParser::ParseFromString(serialized, query, mode, parameters);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  EXPECT_EQ(query, "CHECKPOINT;");
+  EXPECT_EQ(mode, neug::AccessMode::kCheckpoint);
+  EXPECT_EQ(neug::AccessModeToString(mode), "checkpoint");
+}
+
 }  // namespace test
 }  // namespace neug

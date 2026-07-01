@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <limits>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 #include "neug/compiler/planner/gopt_planner.h"
@@ -37,6 +38,9 @@
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/checkpoint_session.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
@@ -242,12 +246,19 @@ void NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
   try {
     int ckp_id;
-    if (checkpoint_mgr_.HeadId() >= 0) {
-      ckp_id = checkpoint_mgr_.HeadId();
+    if (checkpoint_mgr_.CurrentCheckpointId() >= 0) {
+      ckp_id = checkpoint_mgr_.CurrentCheckpointId();
     } else {
-      ckp_id = checkpoint_mgr_.CreateCheckpoint();
-      LOG(INFO) << "No checkpoint found, created new checkpoint: " << ckp_id;
+      ckp_id = checkpoint_mgr_.CreateStagingCheckpoint();
+      auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
+      CheckpointManifest meta;
+      meta.SetSchema(Schema());
+      ckp->UpdateMeta(std::move(meta));
+      checkpoint_mgr_.PublishStagingCheckpoint(ckp_id);
+      LOG(INFO) << "No checkpoint found, created initial checkpoint: "
+                << ckp_id;
     }
+    ckp_id = checkpoint_mgr_.CurrentCheckpointId();
     auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
     LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
     auto graph = std::make_shared<PropertyGraph>();
@@ -311,35 +322,30 @@ void NeugDB::initPlannerAndQueryProcessor() {
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 
   query_processor_ = std::make_shared<QueryProcessor>(
-      *snapshot_store_, planner_, global_query_cache_, *allocators_[0],
-      max_thread_num_, config_.mode == DBMode::READ_ONLY);
+      *snapshot_store_, checkpoint_mgr_, planner_, global_query_cache_,
+      *allocators_[0], max_thread_num_, config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       *snapshot_store_, planner_, query_processor_, config_);
 }
 
 void NeugDB::createCheckpoint(bool reopen) {
-  std::unique_lock<std::mutex> lock(mutex_);
   SnapshotGuard guard(*snapshot_store_);
-  auto& graph = *guard.get().mutable_graph();
-  graph.Compact(MAX_TIMESTAMP);
-  auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
-  auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
-  try {
-    graph.Dump(ckp, reopen);
-  } catch (...) {
-    LOG(ERROR) << "Checkpoint dump failed, rolling back checkpoint " << ckp_id;
-    checkpoint_mgr_.RemoveCheckpoint(ckp_id);
-    throw;
+  auto checkpoint_graph = guard.get().mutable_graph()->Clone();
+  GraphView checkpoint_view(*checkpoint_graph);
+  auto checkpoint_session = CheckpointSession::Begin(
+      checkpoint_mgr_, *snapshot_store_, reopen, *checkpoint_graph);
+  StorageAPUpdateInterface update_interface(*checkpoint_graph, checkpoint_view,
+                                            /*timestamp=*/0, *allocators_[0],
+                                            &checkpoint_session);
+  auto status = update_interface.DumpToCheckpoint();
+  if (!status.ok()) {
+    THROW_IO_EXCEPTION("Checkpoint dump failed: " + status.ToString());
   }
-  if (reopen) {
-    // Dump with reopen=true rebuilds the PropertyGraph in-place (Clear + Open),
-    // invalidating raw pointers held by the GraphView. Rebuild the view so it
-    // points to the freshly loaded internal structures.
-    guard.get().mutable_view().Rebuild(*guard.get().mutable_graph());
-  }
-  last_ts_ = 0;  // Reset last_ts_ after checkpointing.
-  VLOG(1) << "Finish checkpoint: " << ckp->path();
+  guard.release();
+  checkpoint_session.CommitAndCleanup();
+  last_ts_ = 0;
+  last_compaction_ts_ = 0;
 }
 
 }  // namespace neug

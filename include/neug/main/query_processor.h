@@ -31,6 +31,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_session.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/access_mode.h"
@@ -41,11 +42,12 @@ namespace neug {
 class QueryProcessor {
  public:
   QueryProcessor(
-      GraphSnapshotStore& snapshot_store,
+      GraphSnapshotStore& snapshot_store, CheckpointManager& checkpoint_mgr,
       std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       Allocator& alloc, int32_t max_thread_num, bool is_read_only = false)
       : snapshot_store_(snapshot_store),
+        checkpoint_mgr_(checkpoint_mgr),
         planner_(planner),
         global_query_cache_(global_query_cache),
         allocator_(alloc),
@@ -81,6 +83,11 @@ class QueryProcessor {
       AccessMode access_mode, const execution::ParamsMap& parameters = {},
       int32_t num_threads = 0);
 
+  result<QueryResult> execute_checkpoint(
+      SnapshotGuard& guard, const std::string& query_string,
+      std::shared_ptr<execution::CacheValue> cache_value,
+      const execution::ParamsMap& parameters = {}, int32_t num_threads = 0);
+
   bool need_exclusive_lock(AccessMode access_mode);
 
   void update_compiler_meta_if_needed(const PropertyGraph& pg,
@@ -88,6 +95,7 @@ class QueryProcessor {
                                       AccessMode mode);
 
   GraphSnapshotStore& snapshot_store_;
+  CheckpointManager& checkpoint_mgr_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;

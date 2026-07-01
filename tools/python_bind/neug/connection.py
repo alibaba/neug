@@ -160,6 +160,7 @@ class Connection(object):
             - `insert`,`i`,`INSERT`,`I`: for insert-only queries
             - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
             - `schema`,`s`,`SCHEMA`,`S`: for schema modification operations
+            - `checkpoint`,`c`,`CHECKPOINT`,`C`: for checkpoint operations
         parameters : dict[str, Any] | None
             The parameters to be used in the query. The parameters should be a dictionary, where the keys are the
             parameter names, and the values are the parameter values. If no parameters are needed, it can be set to None.
@@ -183,6 +184,8 @@ class Connection(object):
             "u",
             "schema",
             "s",
+            "checkpoint",
+            "c",
         ]:
             raise ValueError(
                 f"Invalid access_mode: {access_mode}. Supported access modes are "

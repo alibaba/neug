@@ -28,24 +28,39 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_manager.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
 InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
-                                     IWalWriter& logger, IVersionManager& vm,
-                                     timestamp_t timestamp)
+                                     WalWriterSlot& wal_writer_slot,
+                                     IVersionManager& vm,
+                                     timestamp_t timestamp) noexcept
     : guard_(std::move(guard)),
       view_(&guard_.get().mutable_view()),
       alloc_(alloc),
-      logger_(logger),
+      wal_writer_slot_(wal_writer_slot),
       vm_(vm),
-      timestamp_(timestamp) {
-  arc_.Resize(sizeof(WalHeader));
-}
+      timestamp_(timestamp) {}
 
 InsertTransaction::~InsertTransaction() { Abort(); }
+
+InsertTransaction::InsertTransaction(InsertTransaction&& other) noexcept
+    : arc_(std::move(other.arc_)),
+      added_vertices_(std::move(other.added_vertices_)),
+      added_vertices_base_(std::move(other.added_vertices_base_)),
+      vertex_nums_(std::move(other.vertex_nums_)),
+      guard_(std::move(other.guard_)),
+      view_(other.view_),
+      alloc_(other.alloc_),
+      wal_writer_slot_(other.wal_writer_slot_),
+      vm_(other.vm_),
+      timestamp_(other.timestamp_) {
+  other.view_ = nullptr;
+  other.timestamp_ = INVALID_TIMESTAMP;
+}
 
 bool InsertTransaction::GetVertexIndex(label_t label,
                                        const execution::Value& id,
@@ -112,6 +127,7 @@ Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
+    ensure_wal_header();
     InsertVertexRedo::Serialize(arc_, label, id, props);
   }
   return Status::OK();
@@ -147,6 +163,7 @@ Status InsertTransaction::AddEdge(
                         ", got " + properties[i].type().ToString());
     }
   }
+  ensure_wal_header();
   InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
                             properties);
   prop = nullptr;
@@ -157,7 +174,7 @@ bool InsertTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
-  if (arc_.GetSize() == sizeof(WalHeader)) {
+  if (arc_.Empty() || arc_.GetSize() == sizeof(WalHeader)) {
     vm_.release_insert_timestamp(timestamp_);
     clear();
     return true;
@@ -167,7 +184,7 @@ bool InsertTransaction::Commit() {
   header->type = 0;
   header->timestamp = timestamp_;
 
-  if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+  if (!wal_writer_slot_.Writer().append(arc_.GetBuffer(), arc_.GetSize())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
@@ -233,7 +250,6 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 
 void InsertTransaction::clear() {
   arc_.Clear();
-  arc_.Resize(sizeof(WalHeader));
   added_vertices_.clear();
   added_vertices_base_.clear();
   vertex_nums_.clear();
@@ -242,6 +258,12 @@ void InsertTransaction::clear() {
 }
 
 const Schema& InsertTransaction::schema() const { return view_->schema(); }
+
+void InsertTransaction::ensure_wal_header() {
+  if (arc_.Empty()) {
+    arc_.Resize(sizeof(WalHeader));
+  }
+}
 
 void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   if (label >= added_vertices_.size()) {

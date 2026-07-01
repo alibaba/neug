@@ -20,38 +20,42 @@
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_manager.h"
 
 #include "bthread/bthread.h"
+
+#include <cstdlib>
+#include <new>
 
 namespace neug {
 class NeugDBService;
 
 struct SessionLocalContext {
+  static constexpr size_t kSessionContextAlignment = 4096;
+  static constexpr size_t kAllocatorPadding =
+      (kSessionContextAlignment -
+       sizeof(std::shared_ptr<Allocator>) % kSessionContextAlignment) %
+      kSessionContextAlignment;
+  static constexpr size_t kSessionPadding =
+      (kSessionContextAlignment -
+       sizeof(NeugDBSession) % kSessionContextAlignment) %
+      kSessionContextAlignment;
+
   SessionLocalContext(
       NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<Allocator> alloc,
       std::shared_ptr<IVersionManager> version_manager, int thread_id,
-      std::unique_ptr<IWalWriter> in_logger, const NeugDBConfig& config_)
+      WalWriterSlot& wal_writer_slot, WalManager& wal_manager,
+      const NeugDBConfig& config_)
       : allocator(alloc),
-        logger(std::move(in_logger)),
         session(db, planner, global_query_cache, version_manager, *alloc,
-                *logger, config_, thread_id) {
-    logger->open();
-  }
-  ~SessionLocalContext() {
-    if (logger) {
-      logger->close();
-    }
-  }
+                wal_writer_slot, wal_manager, config_, thread_id) {}
+  ~SessionLocalContext() = default;
   std::shared_ptr<Allocator> allocator;
-  char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
-  std::unique_ptr<IWalWriter> logger;
-  char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
-                 sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
+  char _padding0[kAllocatorPadding];
   NeugDBSession session;
-  char _padding2[(4096 - sizeof(NeugDBSession) % 4096) % 4096];
+  char _padding2[kSessionPadding];
 };
 
 class SessionPool;
@@ -144,17 +148,19 @@ class SessionPool {
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<IVersionManager> version_manager,
       std::vector<std::shared_ptr<Allocator>>& allocators,
-      const NeugDBConfig& config) {
+      const NeugDBConfig& config)
+      : wal_manager_(db.graph().checkpoint().wal_dir(), config.max_thread_num) {
     session_num_ = config.max_thread_num;
-    WalWriterFactory::Init();
+    auto allocation_size = sizeof(SessionLocalContext) * config.max_thread_num;
     contexts_ = static_cast<SessionLocalContext*>(aligned_alloc(
-        4096, sizeof(SessionLocalContext) * config.max_thread_num));
+        SessionLocalContext::kSessionContextAlignment, allocation_size));
+    if (contexts_ == nullptr) {
+      throw std::bad_alloc();
+    }
     for (int i = 0; i < config.max_thread_num; ++i) {
       new (&contexts_[i]) SessionLocalContext(
           db, planner, global_query_cache, allocators[i], version_manager, i,
-          WalWriterFactory::CreateWalWriter(db.graph().checkpoint().wal_dir(),
-                                            i),
-          config);
+          wal_manager_.WriterSlot(i), wal_manager_, config);
     }
     bthread_cond_init(&cond_, nullptr);
     bthread_mutex_init(&mutex_, nullptr);
@@ -205,6 +211,7 @@ class SessionPool {
   friend class SessionGuard;
   friend class NeugDBService;
 
+  WalManager wal_manager_;
   SessionLocalContext* contexts_;
   size_t session_num_;
   std::deque<size_t> available_sessions_;

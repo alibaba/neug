@@ -36,6 +36,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace gopt {
@@ -48,6 +49,7 @@ struct ExecutionFlag {
   bool batch = false;
   bool create_temp_table = false;
   bool transaction = false;
+  bool checkpoint = false;
   bool procedure_call = false;
 };
 
@@ -55,8 +57,24 @@ class GPhysicalAnalyzer {
  public:
   GPhysicalAnalyzer(catalog::Catalog* catalog) : catalog(catalog) {}
   ExecutionFlag analyze(const planner::LogicalPlan& plan) {
+    auto root = plan.getLastOperator();
+    if (root->getOperatorType() == planner::LogicalOperatorType::TRANSACTION) {
+      auto transaction = root->constPtrCast<planner::LogicalTransaction>();
+      if (transaction->getTransactionAction() ==
+          transaction::TransactionAction::CHECKPOINT) {
+        flag.checkpoint = true;
+      } else {
+        flag.transaction = true;
+      }
+      return flag;
+    }
+
     auto skipScanNames = std::vector<std::string>();
-    analyzeOperator(*plan.getLastOperator(), skipScanNames);
+    analyzeOperator(*root, skipScanNames);
+    if (flag.checkpoint || flag.transaction) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Transaction statements must be executed as standalone statements.");
+    }
     return flag;
   }
 
@@ -250,7 +268,13 @@ class GPhysicalAnalyzer {
       break;
     }
     case planner::LogicalOperatorType::TRANSACTION: {
-      flag.transaction = true;
+      auto transaction = op.constPtrCast<planner::LogicalTransaction>();
+      if (transaction->getTransactionAction() ==
+          transaction::TransactionAction::CHECKPOINT) {
+        flag.checkpoint = true;
+      } else {
+        flag.transaction = true;
+      }
       break;
     }
     // set read to true for graph operators
@@ -295,7 +319,6 @@ class GPhysicalAnalyzer {
     }
   }
 
- private:
   ExecutionFlag flag;
   catalog::Catalog* catalog;
   std::shared_ptr<planner::LogicalOperator> preQuery;

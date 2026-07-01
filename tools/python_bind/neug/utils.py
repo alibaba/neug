@@ -31,7 +31,18 @@ def readable(mode: str) -> str:
         )
 
 
-valid_access_modes: Final = ["read", "r", "insert", "i", "update", "u", "schema", "s"]
+valid_access_modes: Final = [
+    "read",
+    "r",
+    "insert",
+    "i",
+    "update",
+    "u",
+    "schema",
+    "s",
+    "checkpoint",
+    "c",
+]
 
 
 def is_access_mode_valid(mode: str) -> bool:

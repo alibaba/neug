@@ -63,6 +63,7 @@ class NeugDB;
  * - `"insert"` or `"i"`: Insert-only operations (CREATE)
  * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
  * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
+ * - `"checkpoint"` or `"c"`: Checkpoint maintenance operation
  *
  * **Thread Safety:** This class is NOT thread-safe. Each thread should use
  * its own Connection instance. Use NeugDB::Connect() to create connections.
@@ -124,6 +125,7 @@ class Connection {
    *        - `"insert"` or `"i"`: Insert-only operations (CREATE)
    *        - `"update"` or `"u"`: Update/delete operations (default)
    *        - `"schema"` or `"s"`: Schema modification operations
+   *        - `"checkpoint"` or `"c"`: Checkpoint maintenance operation
    * @param parameters Named parameters for parameterized queries.
    *        Keys are parameter names (without `$`), values are parameter values.
    *

@@ -84,11 +84,15 @@ Status StorageAPUpdateInterface::AddEdge(
   return status;
 }
 
-void StorageAPUpdateInterface::CreateCheckpoint() {
-  graph_.Dump();
-  // Dump(reopen=true) clears and re-opens the graph, replacing all vertex/edge
-  // tables.  Rebuild the view so cached pointers stay valid.
-  mut_view_.Rebuild(graph_);
+Status StorageAPUpdateInterface::DumpToCheckpoint() {
+  if (checkpoint_session_ == nullptr) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Checkpoint session is not set.");
+  }
+  // CHECKPOINT is a terminal standalone operator executed on a checkpoint
+  // clone. The dump below clears that clone, and no later operator consumes its
+  // view.
+  return checkpoint_session_->Dump(graph_);
 }
 
 Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {

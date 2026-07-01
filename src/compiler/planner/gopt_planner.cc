@@ -159,6 +159,10 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
 
     std::string token(query.data() + token_start, i - token_start);
 
+    if (getCheckpointOpTokens().contains(token)) {
+      return AccessMode::kCheckpoint;
+    }
+
     if (getSchemaOpTokens().contains(token)) {
       return AccessMode::kSchema;
     }
@@ -173,10 +177,15 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
   return AccessMode::kRead;
 }
 
+const common::case_insensitve_set_t& GOptPlanner::getCheckpointOpTokens()
+    const {
+  static common::case_insensitve_set_t checkpointOps = {"checkpoint"};
+  return checkpointOps;
+}
+
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
   static common::case_insensitve_set_t updateOps = {
-      "set",     "copy",      "checkpoint", "load",
-      "install", "uninstall", "call",       "merge"};
+      "set", "copy", "load", "install", "uninstall", "call", "merge"};
   return updateOps;
 }
 

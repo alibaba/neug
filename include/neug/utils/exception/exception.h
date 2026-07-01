@@ -86,6 +86,8 @@ class NEUG_API CheckpointException : public Exception {
   explicit CheckpointException(const std::exception& e);
 
   explicit CheckpointException(const std::string& msg);
+
+  CheckpointException(const std::string& msg, const std::string& file_line);
 };
 
 class NEUG_API ConnectionException : public Exception {

@@ -251,11 +251,11 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
 }
 
 // Allocates a fresh checkpoint on `ws` and returns a shared_ptr to it.
-// Replaces the boilerplate `auto id = ws.CreateCheckpoint(); auto ckp =
+// Replaces the boilerplate `auto id = ws.CreateStagingCheckpoint(); auto ckp =
 // ws.GetCheckpoint(id);` pair that recurs across the storage tests.
 inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
     neug::CheckpointManager& ws) {
-  return ws.GetCheckpoint(ws.CreateCheckpoint());
+  return ws.GetCheckpoint(ws.CreateStagingCheckpoint());
 }
 
 template <typename ModuleT>

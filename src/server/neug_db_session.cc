@@ -24,7 +24,6 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <tl/expected.hpp>
 #include <tuple>
@@ -44,11 +43,14 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/checkpoint_transaction.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/wal.h"
+#include "neug/transaction/wal/wal_manager.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/likely.h"
@@ -67,28 +69,39 @@ neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
 neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
   SnapshotGuard guard(db_.graph_snapshot_store());
-  return neug::InsertTransaction(std::move(guard), alloc_, logger_,
+  return neug::InsertTransaction(std::move(guard), alloc_, wal_writer_slot_,
                                  *version_manager_, ts);
 }
 
 neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
-  uint32_t ts = version_manager_->acquire_update_timestamp();
-  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().Clone();
-  return neug::UpdateTransaction(std::move(cow_graph), alloc_, logger_,
-                                 *version_manager_, db_.graph_snapshot_store(),
-                                 pipeline_cache_, ts);
+  return neug::UpdateTransaction::Create(db_.graph_snapshot_store(), alloc_,
+                                         wal_writer_slot_, *version_manager_,
+                                         pipeline_cache_);
 }
 
 inline bool is_read_only(const physical::ExecutionFlag flags) {
   return !(flags.insert() || flags.update() || flags.schema() ||
-           flags.batch() || flags.create_temp_table() || flags.checkpoint() ||
-           flags.procedure_call());
+           flags.batch() || flags.create_temp_table() || flags.transaction() ||
+           flags.checkpoint() || flags.procedure_call());
 }
 
 inline bool is_insert_only(const physical::ExecutionFlag flags) {
-  return flags.insert() && !(flags.read() || flags.update() || flags.schema() ||
-                             flags.batch() || flags.create_temp_table() ||
-                             flags.checkpoint() || flags.procedure_call());
+  return flags.insert() &&
+         !(flags.read() || flags.update() || flags.schema() || flags.batch() ||
+           flags.create_temp_table() || flags.transaction() ||
+           flags.checkpoint() || flags.procedure_call());
+}
+
+AccessMode resolve_access_mode(const std::shared_ptr<IGraphPlanner>& planner,
+                               const std::string& query, AccessMode mode,
+                               const physical::ExecutionFlag& flags) {
+  if (mode != AccessMode::kUnKnown) {
+    return mode;
+  }
+  if (flags.checkpoint()) {
+    return AccessMode::kCheckpoint;
+  }
+  return planner->analyzeMode(query);
 }
 
 Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
@@ -99,6 +112,19 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
           neug::StatusCode::ERR_INVALID_ARGUMENT,
           "Database is in read-only mode; write operations are not allowed.");
     }
+  }
+  if (flags.checkpoint()) {
+    if (mode != neug::AccessMode::kCheckpoint) {
+      return neug::Status(
+          neug::StatusCode::ERR_INVALID_ARGUMENT,
+          "CHECKPOINT must be executed with checkpoint access mode.");
+    }
+    return Status::OK();
+  }
+  if (mode == neug::AccessMode::kCheckpoint) {
+    return neug::Status(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
+        "Checkpoint access mode only supports CHECKPOINT statements.");
   }
   if (mode == neug::AccessMode::kRead) {
     if (!is_read_only(flags)) {
@@ -159,9 +185,6 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   if (!parse_res.ok()) {
     RETURN_ERROR(parse_res);
   }
-  if (mode == AccessMode::kUnKnown) {
-    mode = planner_->analyzeMode(query);
-  }
 
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<neug::execution::OprTimer> timer = nullptr;
@@ -171,6 +194,10 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
       google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
 
   neug::MetaDatas result_schema;
+  GS_AUTO(route_cache_value, pipeline_cache_.Get(db_.schema(), query));
+  mode = resolve_access_mode(planner_, query, mode, route_cache_value->flags);
+  RETURN_STATUS_ERROR_IF_NOT_OK(
+      validate_flags(mode, route_cache_value->flags, db_config_));
   if (mode == neug::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
     neug::StorageReadInterface gri(read_txn.view(), read_txn.timestamp());
@@ -198,6 +225,18 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
                 param_json_obj, timer.get(), result_schema, update_txn, gui));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
+  } else if (mode == AccessMode::kCheckpoint) {
+    auto checkpoint_txn = GetCheckpointTransaction();
+    neug::StorageAPUpdateInterface gui(checkpoint_txn.graph(),
+                                       checkpoint_txn.view(),
+                                       checkpoint_txn.timestamp(), alloc_,
+                                       &checkpoint_txn.checkpoint_session());
+    GS_AUTO(ctx, ExecutePipelineInTransaction(
+                     pipeline_cache_, checkpoint_txn.schema(), query, mode,
+                     db_config_, param_json_obj, timer.get(), result_schema,
+                     checkpoint_txn, gui));
+    (void) ctx;
+    response->mutable_schema()->CopyFrom(result_schema);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +
@@ -218,8 +257,20 @@ int NeugDBSession::SessionId() const { return thread_id_; }
 
 neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
   neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
-  return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
+  return neug::CompactTransaction(db_.graph_snapshot_store(), wal_writer_slot_,
                                   *version_manager_, ts);
+}
+
+neug::CheckpointTransaction NeugDBSession::GetCheckpointTransaction() {
+  neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
+  try {
+    return neug::CheckpointTransaction(db_.checkpoint_mgr_,
+                                       db_.graph_snapshot_store(), wal_manager_,
+                                       *version_manager_, ts);
+  } catch (...) {
+    version_manager_->revert_compact_timestamp(ts);
+    throw;
+  }
 }
 
 double NeugDBSession::eval_duration() const {

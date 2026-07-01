@@ -155,6 +155,7 @@ class Session:
             - `insert` or `i`: Insert-only operations
             - `update` or `u`: Update/delete operations (default)
             - `schema` or `s`: Schema modification operations
+            - `checkpoint` or `c`: Checkpoint operations
         :param parameters: Optional dict of query parameters.
         :return: The result of the query execution.
         """

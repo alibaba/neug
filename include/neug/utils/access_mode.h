@@ -20,12 +20,20 @@
 
 namespace neug {
 
+/**
+ * @brief Access mode for a query/transaction.
+ *
+ * @note **Breaking change**: `kCheckpoint` was added in the checkpoint GC
+ * refactor.  Existing code that assumes the enum ends at `kSchema` must be
+ * updated.  Numeric values may shift when new modes are appended.
+ */
 enum class AccessMode {
-  kUnKnown,  // Unset access mode
-  kRead,     // Read-only access
-  kInsert,   // Insert-only access
-  kUpdate,   // Update graph data, read existing data, insert new data
-  kSchema    // Modify schema,
+  kUnKnown,    // Unset access mode
+  kRead,       // Read-only access
+  kInsert,     // Insert-only access
+  kUpdate,     // Update graph data, read existing data, insert new data
+  kSchema,     // Modify schema
+  kCheckpoint  // Checkpoint maintenance (GC old checkpoints, publish new one)
 };
 inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
   std::string mode_upper = to_lower_copy(access_mode_str);
@@ -39,6 +47,8 @@ inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
     return AccessMode::kUpdate;
   } else if (mode_upper == "schema" || mode_upper == "s") {
     return AccessMode::kSchema;
+  } else if (mode_upper == "checkpoint" || mode_upper == "c") {
+    return AccessMode::kCheckpoint;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown access mode: " + access_mode_str);
   }
@@ -54,6 +64,8 @@ inline std::string AccessModeToString(AccessMode mode) {
     return "update";
   case AccessMode::kSchema:
     return "schema";
+  case AccessMode::kCheckpoint:
+    return "checkpoint";
   case AccessMode::kUnKnown:
     return "unknown";
   default:

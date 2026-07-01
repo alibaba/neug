@@ -18,7 +18,6 @@
 #include <stdint.h>
 #include <atomic>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <thread>
 
@@ -45,6 +44,7 @@
 namespace neug {
 class NeugDBService;
 class AppManager;
+class CheckpointTransaction;
 class Connection;
 class ConnectionManager;
 class FileLock;
@@ -53,6 +53,7 @@ class IWalParser;
 class NeugDBSession;
 class QueryProcessor;
 class Schema;
+class SessionPool;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -321,6 +322,7 @@ class NeugDB {
 
   friend class NeugDBSession;
   friend class neug::NeugDBService;
+  friend class SessionPool;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
@@ -340,7 +342,6 @@ class NeugDB {
   std::unique_ptr<ConnectionManager> connection_manager_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
 
-  std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for each thread
 };
