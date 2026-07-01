@@ -234,6 +234,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status DeleteEdgeType(const std::string& src_type,
                         const std::string& dst_type,
                         const std::string& edge_type) override;
+  neug::result<StorageIndex*> CreateIndex(
+      const std::string& name, std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
 
  private:
   // --- COW detach helpers ---
@@ -249,6 +252,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status detachForResize(label_t src_label, label_t dst_label,
                          label_t edge_label, size_t capacity);
   Status prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
+  Status detachIndex(StorageIndex& index);
 
   std::shared_ptr<PropertyGraph>& cow_graph_;
   PropertyGraphCowState& cow_state_;

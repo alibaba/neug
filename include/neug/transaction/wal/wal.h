@@ -206,6 +206,13 @@ struct DeleteEdgeTypeRedo {
   static void Deserialize(OutArchive& arc, DeleteEdgeTypeRedo& redo);
 };
 
+struct DropIndexRedo {
+  std::string index_name;
+
+  static void Serialize(InArchive& arc, const std::string& index_name);
+  static void Deserialize(OutArchive& arc, DropIndexRedo& redo);
+};
+
 struct InsertVertexRedo {
   label_t label;
   execution::Value oid;
@@ -288,6 +295,7 @@ struct RemoveEdgeRedo {
 
 InArchive& operator<<(InArchive& in_archive, const DeleteVertexTypeRedo& value);
 InArchive& operator<<(InArchive& in_archive, const DeleteEdgeTypeRedo& value);
+InArchive& operator<<(InArchive& in_archive, const DropIndexRedo& value);
 InArchive& operator<<(InArchive& in_archive, const InsertVertexRedo& value);
 InArchive& operator<<(InArchive& in_archive, const InsertEdgeRedo& value);
 InArchive& operator<<(InArchive& in_archive, const UpdateVertexPropRedo& value);
@@ -297,6 +305,7 @@ InArchive& operator<<(InArchive& in_archive, const RemoveEdgeRedo& value);
 
 OutArchive& operator>>(OutArchive& out_archive, DeleteVertexTypeRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, DeleteEdgeTypeRedo& value);
+OutArchive& operator>>(OutArchive& out_archive, DropIndexRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, InsertVertexRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, InsertEdgeRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, UpdateVertexPropRedo& value);

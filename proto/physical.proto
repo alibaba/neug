@@ -422,6 +422,10 @@ message ExecutionFlag {
   bool checkpoint = 7;
   bool procedure_call = 8;
   // todo: add a new flag for gds_algo ?
+  // If an index already exists on a specific property of a vertex type,
+  // the index data must be updated accordingly whenever the vertex data is modified (via create, delete, or update operations).
+  // This boolean value indicates whether the index needs to be updated.
+  bool index = 9;
 }
 
 // A single Cypher query ending with a semicolon (;)
