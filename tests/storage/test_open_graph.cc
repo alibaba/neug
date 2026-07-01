@@ -204,7 +204,7 @@ TEST(DatabaseTest, TestPersist) {
       std::filesystem::remove_all(db_dir);
     }
     neug::NeugDB db;
-    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true);
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, true);
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
@@ -233,7 +233,7 @@ TEST(DatabaseTest, TestCompaction) {
       std::filesystem::remove_all(db_dir);
     }
     neug::NeugDB db;
-    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true);
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, true);
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
@@ -275,6 +275,6 @@ TEST(DatabaseTest, TestCompaction) {
 
   {
     neug::NeugDB db3;
-    db3.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true);
+    db3.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, true);
   }
 }
