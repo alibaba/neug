@@ -1018,7 +1018,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     }
   }
   this->ExpectBundledStats(edge_num - delete_count);
-  this->edge_table->Compact(true, std::nullopt, neug::MAX_TIMESTAMP);
+  this->edge_table->Compact(std::nullopt, neug::MAX_TIMESTAMP);
   this->ExpectBundledStats(edge_num - delete_count);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {

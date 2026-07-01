@@ -83,8 +83,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 
-  void reset_timestamp() override;
-
   void compact() override;
 
   void resize(vid_t vnum) override;
@@ -290,8 +288,6 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 
-  void reset_timestamp() override;
-
   void compact() override;
 
   void resize(vid_t vnum) override;
@@ -430,8 +426,6 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
     desc.module_type = type_name();
     meta.set_module(key, desc);
   }
-
-  void reset_timestamp() override {}
 
   void compact() override {}
 

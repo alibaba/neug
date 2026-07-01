@@ -36,8 +36,6 @@ class ConnectionTest : public ::testing::Test {
     neug::NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.compact_on_close = true;
-    config.compact_csr = true;
     config.enable_auto_compaction = false;  // TODO(zhanglei): very slow
     db_->Open(config);
     auto conn = db_->Connect();

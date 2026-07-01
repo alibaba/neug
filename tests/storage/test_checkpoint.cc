@@ -180,8 +180,6 @@ class CheckpointTestBase : public ::testing::Test {
     config.data_dir = data_dir;
     config.memory_level = kMemoryLevel;
     config.checkpoint_on_close = true;
-    config.compact_on_close = true;
-    config.compact_csr = true;
     config.enable_auto_compaction = false;
     return config;
   }
@@ -1068,7 +1066,6 @@ class CheckpointSafetyTest : public CheckpointTestBase<T> {
       const std::string& data_dir) {
     auto config = this->MakeConfig(data_dir);
     config.checkpoint_on_close = false;
-    config.compact_on_close = false;
     return config;
   }
 };

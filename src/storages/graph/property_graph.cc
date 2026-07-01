@@ -849,8 +849,7 @@ void PropertyGraph::compact_schema() {
   v_mutex_.resize(new_schema.vertex_label_frontier());
 }
 
-void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
-                            timestamp_t ts) {
+void PropertyGraph::Compact(timestamp_t ts) {
   /**
    * The compaction process includes two parts:
    * 1. Schema: remove the deleted properties and labels from
@@ -889,7 +888,7 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
               schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
           if (edge_tables_.count(index) > 0) {
             auto& edge_table = edge_tables_.at(index);
-            edge_table.Compact(compact_csr, sort_key_for_nbr, ts);
+            edge_table.Compact(sort_key_for_nbr, ts);
           }
         }
       }
