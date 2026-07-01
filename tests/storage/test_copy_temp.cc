@@ -74,7 +74,6 @@ class CopyTempTest : public ::testing::Test {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.compact_on_close = true;
     config.compact_csr = true;
     config.enable_auto_compaction = false;
     db_->Open(config);
@@ -308,7 +307,6 @@ TEST_F(CopyTempTest, CleanupOnClose) {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.compact_on_close = true;
     config.compact_csr = true;
     config.enable_auto_compaction = false;
     db2->Open(config);
@@ -376,7 +374,6 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.compact_on_close = true;
     config.compact_csr = true;
     config.enable_auto_compaction = false;
     db2->Open(config);

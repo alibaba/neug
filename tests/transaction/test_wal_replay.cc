@@ -44,9 +44,8 @@ neug::NeugDBConfig make_config(const std::string& db_dir) {
   neug::NeugDBConfig config(db_dir, 1);
   config.memory_level = neug::MemoryLevel::kInMemory;
   config.enable_auto_compaction = false;
-  config.compact_on_close = false;
   config.checkpoint_on_close = false;
-  config.checkpoint_after_recovery = false;
+  config.checkpoint_on_recovery = false;
   return config;
 }
 
@@ -57,7 +56,6 @@ void assert_query_ok(neug::Connection& conn, const std::string& query) {
 
 void create_checkpointed_base_graph(const std::string& db_dir) {
   auto config = make_config(db_dir);
-  config.compact_on_close = true;
   config.checkpoint_on_close = true;
 
   neug::NeugDB db;
@@ -71,6 +69,13 @@ void create_checkpointed_base_graph(const std::string& db_dir) {
     assert_query_ok(*conn, query);
   }
   db.Close();
+}
+
+void create_person_schema(neug::NeugDB& db) {
+  auto conn = db.Connect();
+  assert_query_ok(
+      *conn,
+      "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
 }
 
 bool replayed_graph_matches(neug::NeugDB& db) {
@@ -109,16 +114,24 @@ bool replayed_graph_matches(neug::NeugDB& db) {
   return matching_edges == 1;
 }
 
-void insert_person(neug::NeugDBService& service, int64_t id,
-                   const std::string& name) {
+neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
+                                              int64_t id,
+                                              const std::string& name) {
   auto sess = service.AcquireSession();
   auto txn = sess->GetInsertTransaction();
+  const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;
-  ASSERT_TRUE(interface.AddVertex(person_label, Value::INT64(id),
+  EXPECT_TRUE(interface.AddVertex(person_label, Value::INT64(id),
                                   {Value::STRING(name)}, vid));
-  ASSERT_TRUE(txn.Commit());
+  EXPECT_TRUE(txn.Commit());
+  return ts;
+}
+
+void insert_person(neug::NeugDBService& service, int64_t id,
+                   const std::string& name) {
+  (void) insert_person_and_return_ts(service, id, name);
 }
 
 void compact(neug::NeugDBService& service) {
@@ -144,6 +157,30 @@ void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
   ASSERT_TRUE(interface.AddEdge(person_label, src_vid, person_label, dst_vid,
                                 knows_label, {Value::INT64(since)}, prop));
   ASSERT_TRUE(txn.Commit());
+}
+
+size_t read_person_count(neug::NeugDBService& service) {
+  auto sess = service.AcquireSession();
+  auto txn = sess->GetReadTransaction();
+  neug::StorageReadInterface graph(txn.view(), txn.timestamp());
+  const auto person_label = graph.schema().get_vertex_label_id("person");
+  size_t count = 0;
+  graph.GetVertexSet(person_label).foreach_vertex([&](neug::vid_t) {
+    ++count;
+  });
+  EXPECT_TRUE(txn.Commit());
+  return count;
+}
+
+bool read_has_person(neug::NeugDBService& service, int64_t id) {
+  auto sess = service.AcquireSession();
+  auto txn = sess->GetReadTransaction();
+  neug::StorageReadInterface graph(txn.view(), txn.timestamp());
+  const auto person_label = graph.schema().get_vertex_label_id("person");
+  neug::vid_t vid = 0;
+  bool found = graph.GetVertexIndex(person_label, Value::INT64(id), vid);
+  EXPECT_TRUE(txn.Commit());
+  return found;
 }
 
 void create_wal_with_insert_compact_insert_collision(
@@ -236,6 +273,95 @@ TEST(WalReplayVersionManagerTest,
 TEST(WalReplayVersionManagerTest,
      RevertedCompactCompletesTimestampAndDoesNotReusePriorInsertTimestamp) {
   expect_compact_completes_timestamp_and_preserves_next_insert(false);
+}
+
+TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
+  {
+    auto config = make_config(db_dir_);
+    config.checkpoint_on_close = true;
+
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    create_person_schema(db);
+    {
+      neug::NeugDBService service(db);
+      EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 1);
+      EXPECT_EQ(read_person_count(service), 1);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_TRUE(read_has_person(service, 1));
+      EXPECT_EQ(insert_person_and_return_ts(service, 2, "new"), 1);
+      EXPECT_EQ(read_person_count(service), 2);
+    }
+    db.Close();
+  }
+}
+
+TEST_F(WalReplayTest, RecoveryWithoutCheckpointContinuesFromWalTimeline) {
+  create_checkpointed_base_graph(db_dir_);
+
+  neug::timestamp_t wal_ts = 0;
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      wal_ts = insert_person_and_return_ts(service, 2, "wal");
+    }
+    db.Close();
+  }
+
+  {
+    auto config = make_config(db_dir_);
+    config.checkpoint_on_recovery = false;
+
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_TRUE(read_has_person(service, 2));
+      EXPECT_EQ(insert_person_and_return_ts(service, 3, "post-wal"),
+                wal_ts + 1);
+      EXPECT_EQ(read_person_count(service), 3);
+    }
+    db.Close();
+  }
+}
+
+TEST_F(WalReplayTest, RecoveryCheckpointResetsServiceTimeline) {
+  create_checkpointed_base_graph(db_dir_);
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_EQ(insert_person_and_return_ts(service, 2, "wal"), 1);
+    }
+    db.Close();
+  }
+
+  {
+    auto config = make_config(db_dir_);
+    config.checkpoint_on_recovery = true;
+
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_TRUE(read_has_person(service, 2));
+      EXPECT_EQ(insert_person_and_return_ts(service, 3, "post-recovery"), 1);
+      EXPECT_EQ(read_person_count(service), 3);
+    }
+    db.Close();
+  }
 }
 
 TEST_F(WalReplayTest, ReopenReplaysInsertWalAcrossCompactionInDependencyOrder) {

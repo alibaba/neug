@@ -106,13 +106,12 @@ NeugDB::~NeugDB() {
 bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
                   const DBMode mode, const std::string& planner_kind,
                   bool enable_auto_compaction, bool compact_csr,
-                  bool compact_on_close, bool checkpoint_on_close) {
+                  bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_thread_num);
   config.mode = mode;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
   config.compact_csr = compact_csr;
-  config.compact_on_close = compact_on_close;
   config.checkpoint_on_close = checkpoint_on_close;
   return Open(config);
 }
@@ -136,9 +135,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 
   LOG(INFO) << "NeugDB opened successfully";
   closed_.store(false);
-  if (last_ts_ > 0 && config.checkpoint_after_recovery) {
+  if (last_ts_ > 0 && config.checkpoint_on_recovery &&
+      config_.mode == DBMode::READ_WRITE) {
     LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
-    createCheckpoint(true);
+    createCheckpoint();
   }
   return true;
 }
@@ -162,7 +162,7 @@ void NeugDB::Close() {
   if (config_.checkpoint_on_close && config_.mode == DBMode::READ_WRITE) {
     VLOG(1) << "Creating checkpoint on close...";
     try {
-      createCheckpoint(false, false);
+      createCheckpoint(false);
     } catch (const std::exception& e) {
       LOG(ERROR) << "Checkpoint on close failed: " << e.what();
     }
@@ -321,14 +321,11 @@ void NeugDB::initPlannerAndQueryProcessor() {
       *snapshot_store_, planner_, query_processor_, config_);
 }
 
-void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
+void NeugDB::createCheckpoint(bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
   SnapshotGuard guard(*snapshot_store_);
   auto& graph = *guard.get().mutable_graph();
-  if (config_.compact_on_close || force_compaction) {
-    graph.Compact(config_.compact_csr, config_.csr_reserve_ratio,
-                  MAX_TIMESTAMP);
-  }
+  graph.Compact(config_.compact_csr, config_.csr_reserve_ratio, MAX_TIMESTAMP);
   auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
   auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
   try {
@@ -344,6 +341,7 @@ void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
     // points to the freshly loaded internal structures.
     guard.get().mutable_view().Rebuild(*guard.get().mutable_graph());
   }
+  last_ts_ = 0;  // Reset last_ts_ after checkpointing.
   VLOG(1) << "Finish checkpoint: " << ckp->path();
 }
 

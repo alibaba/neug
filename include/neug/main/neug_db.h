@@ -97,7 +97,7 @@ class Schema;
  * **Resource Management:**
  * - File locking prevents concurrent database access from multiple processes
  * - Automatic WAL (Write-Ahead Log) for crash recovery
- * - Configurable checkpoint and compaction on close
+ * - Configurable checkpoint on close
  *
  * @note For query execution, obtain a Connection via Connect() method.
  * @note Always call Close() before destroying the NeugDB instance to ensure
@@ -147,7 +147,6 @@ class NeugDB {
    * "greedy"
    * @param enable_auto_compaction Enable background auto-compaction thread
    * @param compact_csr Compact CSR structures during auto-compaction
-   * @param compact_on_close Perform compaction when closing database
    * @param checkpoint_on_close Create checkpoint (persist data) when closing
    *
    * @return true if database opened successfully, false otherwise
@@ -164,7 +163,7 @@ class NeugDB {
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt",
             bool enable_auto_compaction = false, bool compact_csr = true,
-            bool compact_on_close = true, bool checkpoint_on_close = true);
+            bool checkpoint_on_close = true);
 
   /**
    * @brief Open the database with a configuration object.
@@ -199,8 +198,7 @@ class NeugDB {
    * @brief Close the database and release all resources.
    *
    * Performs a graceful shutdown of the database. Depending on configuration:
-   * - Creates checkpoint if checkpoint_on_close is enabled
-   * - Performs compaction if compact_on_close is enabled
+   * - Creates a checkpoint if checkpoint_on_close is enabled
    * - Closes all open connections
    * - Releases file locks
    *
@@ -313,15 +311,14 @@ class NeugDB {
   void initPlannerAndQueryProcessor();
 
   /**
-   * @brief Create a checkpoint of the current graph.
-   * @param force_compaction Whether to force compaction before creating the
-   * checkpoint.
-   * @note force_compaction will override the config_.compact_on_close setting.
-   * force_compaction should be set to true after the database is recovered from
-   * wals to remove the tombstone type/data, otherwise the graph size will keep
-   * growing.
+   * @brief Create a checkpoint of the current graph. Must not be called while a
+   * NeugDBService is running.
+   *
+   * A durable checkpoint is a transaction timeline reset boundary: it always
+   * compacts storage timestamps before dumping, and a successful checkpoint
+   * resets last_ts_ to 0.
    */
-  void createCheckpoint(bool force_compaction = false, bool reopen = true);
+  void createCheckpoint(bool reopen = true);
 
   friend class NeugDBSession;
   friend class neug::NeugDBService;
