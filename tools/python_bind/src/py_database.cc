@@ -79,6 +79,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
 }
 
 PyConnection PyDatabase::connect() {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -88,6 +89,8 @@ PyConnection PyDatabase::connect() {
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t thread_num, bool blocking) {
 #ifdef BUILD_HTTP_SERVER
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
+
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -115,8 +118,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
    * doing this, we make sure all changes made during AP mode is persisted.
    */
 
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-
+  database->ValidateCanStartTPService();
   database->Close();
   database->Open(database->config());
   neug::ServiceConfig config;

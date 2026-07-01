@@ -76,6 +76,7 @@ void create_person_schema(neug::NeugDB& db) {
   assert_query_ok(
       *conn,
       "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
+  conn->Close();
 }
 
 bool replayed_graph_matches(neug::NeugDB& db) {
