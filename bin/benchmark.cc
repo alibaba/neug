@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
               << ", repeat: " << query_num;
 
     auto query_str = parse_query(unit.query_pb_path);
-    neug::storage::StatsManager stats(txn.view());
+    neug::storage::StatsManager stats(txn.graph());
     const auto res =
         compiler->compilePlan(query_str, &txn.view().schema(), stats);
     if (!res) {
