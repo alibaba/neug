@@ -15,6 +15,8 @@
 
 #include "neug/main/connection.h"
 
+#include <exception>
+
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
 #include "neug/utils/pb_utils.h"
@@ -34,10 +36,26 @@ std::string Connection::GetSchema() const {
 }
 
 void Connection::Close() {
-  if (is_closed_.load(std::memory_order_relaxed)) {
+  if (is_closed_.exchange(true, std::memory_order_acq_rel)) {
     LOG(WARNING) << "Connection is already closed.";
     return;
   }
+  struct CloseCallbackGuard {
+    CloseCallback& callback;
+    ~CloseCallbackGuard() noexcept {
+      if (!callback) {
+        return;
+      }
+      try {
+        callback();
+      } catch (const std::exception& e) {
+        LOG(ERROR) << "Connection close callback failed: " << e.what();
+      } catch (...) {
+        LOG(ERROR) << "Connection close callback failed.";
+      }
+    }
+  } close_callback_guard{close_callback_};
+
   LOG(INFO) << "Closing connection.";
 
   // Clean up all temporary schemas created during this session.
@@ -69,8 +87,6 @@ void Connection::Close() {
   if (!temp_edges.empty() || !temp_vertices.empty()) {
     query_processor_->clear_cache();
   }
-
-  is_closed_.store(true);
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,

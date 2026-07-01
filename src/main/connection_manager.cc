@@ -16,6 +16,7 @@
 #include "neug/main/connection_manager.h"
 
 #include <glog/logging.h>
+#include <algorithm>
 #include <ostream>
 #include "neug/config.h"
 #include "neug/main/connection.h"
@@ -35,20 +36,30 @@ void ConnectionManager::ConnectionManager::Close() {
   read_only_connections_.clear();
 }
 
-std::shared_ptr<Connection> ConnectionManager::CreateConnection() {
+std::shared_ptr<Connection> ConnectionManager::CreateConnection(
+    std::function<void()> close_callback) {
   std::lock_guard<std::mutex> lock(connection_mutex_);
   if (config_.mode == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(snapshot_store_, query_processor_);
+    read_only_connections_.erase(
+        std::remove_if(read_only_connections_.begin(),
+                       read_only_connections_.end(),
+                       [](const auto& conn) { return conn->IsClosed(); }),
+        read_only_connections_.end());
+    auto conn = std::make_shared<Connection>(snapshot_store_, query_processor_,
+                                             close_callback);
     read_only_connections_.push_back(conn);
     return conn;
   } else if (config_.mode == DBMode::READ_WRITE) {
+    if (read_write_connection_ && read_write_connection_->IsClosed()) {
+      read_write_connection_.reset();
+    }
     if (read_write_connection_) {
       LOG(ERROR) << "There is already a read-write connection constructed.";
       THROW_TX_STATE_CONFLICT(
           "There is already a read-write connection constructed.");
     }
-    read_write_connection_ =
-        std::make_shared<Connection>(snapshot_store_, query_processor_);
+    read_write_connection_ = std::make_shared<Connection>(
+        snapshot_store_, query_processor_, close_callback);
     return read_write_connection_;
   } else {
     THROW_RUNTIME_ERROR("Invalid mode.");
@@ -61,6 +72,7 @@ void ConnectionManager::RemoveConnection(std::shared_ptr<Connection> conn) {
     for (auto it = read_only_connections_.begin();
          it != read_only_connections_.end(); ++it) {
       if (*it == conn) {
+        conn->Close();
         read_only_connections_.erase(it);
         VLOG(10) << "Removed a read-only connection.";
         return;
@@ -69,6 +81,7 @@ void ConnectionManager::RemoveConnection(std::shared_ptr<Connection> conn) {
     LOG(ERROR) << "Connection not found in read-only connections.";
   } else if (config_.mode == DBMode::READ_WRITE) {
     if (read_write_connection_ == conn) {
+      conn->Close();
       read_write_connection_.reset();
       VLOG(10) << "Removed the read-write connection.";
       return;

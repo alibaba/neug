@@ -17,8 +17,10 @@
 #include <glog/logging.h>
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "neug/compiler/planner/graph_planner.h"
@@ -83,10 +85,14 @@ class NeugDB;
  */
 class Connection {
  public:
+  using CloseCallback = std::function<void()>;
+
   Connection(GraphSnapshotStore& snapshot_store,
-             std::shared_ptr<QueryProcessor> query_processor)
+             std::shared_ptr<QueryProcessor> query_processor,
+             CloseCallback close_callback = {})
       : snapshot_store_(snapshot_store),
         query_processor_(query_processor),
+        close_callback_(std::move(close_callback)),
         is_closed_(false) {}
   ~Connection() { Close(); }
 
@@ -204,6 +210,7 @@ class Connection {
   GraphSnapshotStore& snapshot_store_;
 
   std::shared_ptr<QueryProcessor> query_processor_;
+  CloseCallback close_callback_;
 
   std::atomic<bool> is_closed_{false};
 };

@@ -65,6 +65,10 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
+  if (tp_service_registered_) {
+    db_.unregisterTPService();
+    tp_service_registered_ = false;
+  }
 }
 
 const ServiceConfig& NeugDBService::GetServiceConfig() const {

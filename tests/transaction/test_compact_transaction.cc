@@ -17,6 +17,7 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
 
 #include <atomic>
@@ -106,6 +107,19 @@ class CompactTransactionTest : public ::testing::Test {
     });
     return edge_count;
   }
+
+  void delete_person(neug::NeugDBService& service, int64_t id) {
+    auto sess = service.AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    const auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vertex_id = 0;
+    ASSERT_TRUE(txn.GetVertexIndex(person_label,
+                                   neug::execution::Value::INT64(id),
+                                   vertex_id));
+    ASSERT_TRUE(interface.DeleteVertex(person_label, vertex_id));
+    ASSERT_TRUE(txn.Commit());
+  }
 };
 
 // Commit, Abort, and destructor (auto-abort) should all preserve data.
@@ -163,12 +177,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  // Delete person id=2 via Cypher
-  {
-    auto conn = db.Connect();
-    EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 2 DELETE v;"));
-    conn->Close();
-  }
+  delete_person(*svc, 2);
 
   // Verify deletion visible before compact
   {
@@ -220,12 +229,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
 
-    // Delete person id=1 via Cypher
-    {
-      auto conn = db.Connect();
-      EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;"));
-      conn->Close();
-    }
+    delete_person(*svc, 1);
 
     // Compact explicitly before close
     {

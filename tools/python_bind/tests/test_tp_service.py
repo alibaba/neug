@@ -106,6 +106,32 @@ def test_start_service_on_pure_memory_db():
     db.close()
 
 
+def test_serve_rejects_active_embedded_connection(tmp_path):
+    db_dir = str(tmp_path / "test_serve_rejects_active_embedded_connection")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    try:
+        with pytest.raises(Exception, match="open connections|embedded connections"):
+            db.serve(19002, "127.0.0.1", False)
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_connect_rejected_while_service_active(tmp_path):
+    db_dir = str(tmp_path / "test_connect_rejected_while_service_active")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    try:
+        db.serve(19003, "127.0.0.1", False)
+        with pytest.raises(Exception, match="server is running|TP service"):
+            db.connect()
+    finally:
+        db.stop_serving()
+        db.close()
+
+
 def test_start_serving_and_dump(tmp_path):
     db_dir = str(tmp_path / "test_start_serving_and_dump")
     shutil.rmtree(db_dir, ignore_errors=True)

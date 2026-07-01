@@ -250,6 +250,8 @@ class NeugDB {
    *
    * @note In READ_ONLY mode, multiple connections can be created.
    * @note In READ_WRITE mode, only one write connection is allowed.
+   * @note Embedded connections cannot be opened while a NeugDBService is
+   * active.
    * @note Connections share the planner instance for efficiency.
    *
    * @throws std::runtime_error if database is not open or closed
@@ -273,8 +275,8 @@ class NeugDB {
 
   /**
    * @brief Remove all connection from the database.
-   * @note This method is used to remove all connection when tp svc created, to
-   * remove the handle from the database.
+   * @note This method is used during database shutdown to close and remove
+   * managed connection handles.
    */
   void CloseAllConnection();
 
@@ -319,14 +321,22 @@ class NeugDB {
    * resets last_ts_ to 0.
    */
   void createCheckpoint(bool reopen = true);
+  void ValidateCanStartTPService() const;
+  void registerTPService();
+  void unregisterTPService() noexcept;
+  void registerAPConnection();
+  void unregisterAPConnection() noexcept;
 
   friend class NeugDBSession;
+  friend class PyDatabase;
   friend class neug::NeugDBService;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
+  // 0 means idle, -1 means TP service active, >0 counts AP connections.
+  std::atomic<int32_t> mode_state_;
   bool is_pure_memory_;
   int max_thread_num_;
   NeugDBConfig config_;

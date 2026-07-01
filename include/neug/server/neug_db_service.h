@@ -97,11 +97,19 @@ class NeugDBService {
    * @param db Reference to the NeuG database that will handle queries
    *
    * @note The database should be opened and ready before creating the service
+   * @throws std::runtime_error if embedded connections are active
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()), compact_thread_running_(false) {
-    db_.CloseAllConnection();
-    init(config);
+    db_.registerTPService();
+    tp_service_registered_ = true;
+    try {
+      init(config);
+    } catch (...) {
+      db_.unregisterTPService();
+      tp_service_registered_ = false;
+      throw;
+    }
   }
 
   /**
@@ -251,6 +259,7 @@ class NeugDBService {
 
   std::thread compact_thread_;
   bool compact_thread_running_ = false;
+  bool tp_service_registered_ = false;
 
   std::atomic<bool> running_{false};
   std::mutex mtx_;
