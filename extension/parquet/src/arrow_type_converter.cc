@@ -68,10 +68,10 @@ std::shared_ptr<arrow::DataType> ArrowTypeConverter::convert(
       THROW_CONVERSION_EXCEPTION(
           "Failed to convert ARRAY component type to Arrow DataType");
     }
-    // Use fixed_size_list if max_length is set, otherwise use list
-    if (array.max_length() > 0) {
+    // Use fixed_size_list if fixed_length is set, otherwise use list
+    if (array.fixed_length() > 0) {
       return arrow::fixed_size_list(componentType,
-                                    static_cast<int32_t>(array.max_length()));
+                                    static_cast<int32_t>(array.fixed_length()));
     } else {
       return arrow::list(componentType);
     }
@@ -187,7 +187,7 @@ std::shared_ptr<::common::DataType> ArrowTypeConverter::convert(
           "DataType");
     }
     *array->mutable_component_type() = *componentType;
-    array->set_max_length(fixedListType->list_size());
+    array->set_fixed_length(fixedListType->list_size());
     break;
   }
 
