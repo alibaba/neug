@@ -85,22 +85,25 @@ void expect_signature_eq(const ColumnCowSignature& lhs,
 TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
   auto array_type = DataType::Array(DataType::INT32, 2);
 
-  EXPECT_THROW(
-      {
-        std::vector<execution::Value> values = {execution::Value::INT32(1)};
-        auto value = execution::Value::ARRAY(array_type, std::move(values));
-        (void) value;
-      },
-      exception::InvalidArgumentException);
+  auto build_invalid_array_wrong_size = [&array_type]() {
+    std::vector<execution::Value> values;
+    values.emplace_back(execution::Value::INT32(1));
+    auto value = execution::Value::ARRAY(array_type, std::move(values));
+    (void) value;
+  };
 
-  EXPECT_THROW(
-      {
-        std::vector<execution::Value> values = {execution::Value::INT32(1),
-                                                execution::Value::INT64(2)};
-        auto value = execution::Value::ARRAY(array_type, std::move(values));
-        (void) value;
-      },
-      exception::InvalidArgumentException);
+  auto build_invalid_array_wrong_type = [&array_type]() {
+    std::vector<execution::Value> values;
+    values.emplace_back(execution::Value::INT32(1));
+    values.emplace_back(execution::Value::INT64(2));
+    auto value = execution::Value::ARRAY(array_type, std::move(values));
+    (void) value;
+  };
+
+  EXPECT_THROW(build_invalid_array_wrong_size(),
+               exception::InvalidArgumentException);
+  EXPECT_THROW(build_invalid_array_wrong_type(),
+               exception::InvalidArgumentException);
 }
 #endif
 
