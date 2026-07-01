@@ -42,7 +42,10 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
   auto access_mode = user_access_mode.empty()
                          ? planner_->analyzeMode(query_string)
                          : ParseAccessMode(user_access_mode);
-  GS_AUTO(cache_value, global_query_cache_->Get(pg.schema(), query_string));
+  if (access_mode == AccessMode::kSchema) {
+    global_query_cache_->clear();
+  }
+  GS_AUTO(cache_value, global_query_cache_->Get(pg, query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;
   if (is_read_only_) {
@@ -152,20 +155,16 @@ bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
 void QueryProcessor::update_compiler_meta_if_needed(
     const PropertyGraph& pg, const physical::ExecutionFlag& flags,
     AccessMode mode) {
-  YAML::Node schema_yaml;
-  std::string statistics_json;
   bool need_update = false;
   if (flags.schema() || flags.create_temp_table() ||
       mode == AccessMode::kSchema) {
-    schema_yaml = pg.schema().to_yaml().value();
     need_update = true;
   }
   if (flags.batch() || flags.insert() || flags.update()) {
-    statistics_json = pg.get_statistics_json();
     need_update = true;
   }
   if (need_update) {
-    global_query_cache_->clear(schema_yaml, statistics_json);
+    global_query_cache_->clear();
   }
 }
 

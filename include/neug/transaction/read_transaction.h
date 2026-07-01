@@ -96,6 +96,8 @@ class ReadTransaction {
 
   const GraphView& view() const { return guard_.get().view(); }
 
+  const PropertyGraph& graph() const { return *guard_.get().mutable_graph(); }
+
   const Schema& schema() const;
 
  private:

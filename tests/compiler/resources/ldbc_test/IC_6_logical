@@ -5,7 +5,7 @@ FILTER[NOT_EQUALS(otherTag,t) Cardinality: 6]
 PROJECTION[otherTag,t,postCnt]
 AGGREGATE[Group By [otherTag, t, ], Aggregate [postCnt, ]]
 PROJECTION[p,otherTag,t]
-EXTEND[p-HASTAG_POST_TAG,->otherTag Cardinality: 12]
+EXTEND[p-HASTAG,->otherTag Cardinality: 12]
 PROJECTION[p,t]
 HASH_JOIN[_2_other=_2_other, SIP: NONE, Join Type: INNER, Join Conditions: _2_other=_2_other]
 CHILD:
@@ -16,6 +16,6 @@ CHILD:
     RECURSIVE_EXTEND[rel=, bound=p_, nbr=other, nodePred=null, relPred=null]
     SCAN_NODE_TABLE[p_._ID p_.id PK_SCAN($personId)Type: INTERNAL_ID Cardinality: 1]
 CHILD:
-    EXTEND[p-HASCREATOR_POST_PERSON,->other Cardinality: 51118]
-    EXTEND[t<-HASTAG_POST_TAG,-p Cardinality: 51118]
+    EXTEND[p-HASCREATOR,->other Cardinality: 51118]
+    EXTEND[t<-HASTAG,-p Cardinality: 51118]
     SCAN_NODE_TABLE[t._ID t.name,t._LABEL,t.id,t.urlType: INTERNAL_ID Predicates: EQUALS(t.name,$tagName) Cardinality: 16080]

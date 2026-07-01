@@ -29,9 +29,7 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -56,8 +54,8 @@ std::string ParsedGraphEntryTableInfo::toString() const {
   return result;
 }
 
-GraphEntry::GraphEntry(std::vector<TableCatalogEntry*> nodeEntries,
-                       std::vector<TableCatalogEntry*> relEntries) {
+GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
+                       std::vector<SchemaEntry*> relEntries) {
   for (auto& entry : nodeEntries) {
     nodeInfos.emplace_back(entry);
   }
@@ -82,16 +80,16 @@ std::vector<table_id_t> GraphEntry::getRelTableIDs() const {
   return result;
 }
 
-std::vector<TableCatalogEntry*> GraphEntry::getNodeEntries() const {
-  std::vector<TableCatalogEntry*> result;
+std::vector<SchemaEntry*> GraphEntry::getNodeEntries() const {
+  std::vector<SchemaEntry*> result;
   for (auto& info : nodeInfos) {
     result.push_back(info.entry);
   }
   return result;
 }
 
-std::vector<TableCatalogEntry*> GraphEntry::getRelEntries() const {
-  std::vector<TableCatalogEntry*> result;
+std::vector<SchemaEntry*> GraphEntry::getRelEntries() const {
+  std::vector<SchemaEntry*> result;
   for (auto& info : relInfos) {
     result.push_back(info.entry);
   }
@@ -147,17 +145,18 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
   auto catalog = context.getCatalog();
   auto transaction = context.getTransaction();
   auto nodeEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (nodeEntry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
+  if (nodeEntry->getTableType() != TableType::NODE) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
+  auto nodeLabel = nodeEntry->getLabel(catalog, transaction);
   if (!predicate.empty()) {
-    auto cypher = stringFormat("MATCH (n:`{}`) RETURN n, {}",
-                               nodeEntry->getName(), predicate);
+    auto cypher =
+        stringFormat("MATCH (n:`{}`) RETURN n, {}", nodeLabel, predicate);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 2);
     return {nodeEntry, columns[0], columns[1]};
   } else {
-    auto cypher = stringFormat("MATCH (n:`{}`) RETURN n", nodeEntry->getName());
+    auto cypher = stringFormat("MATCH (n:`{}`) RETURN n", nodeLabel);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 1);
     return {nodeEntry, columns[0], nullptr /* empty predicate */};
@@ -178,18 +177,18 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
         RelGroupCatalogEntry::getChildTableName(edgeLabel, srcLabel, dstLabel);
   }
   auto* relEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (!relEntry || relEntry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
+  if (!relEntry || relEntry->getTableType() != TableType::REL) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a REL table.", tableName));
   }
+  auto relLabel = relEntry->getLabel(catalog, transaction);
   if (!predicate.empty()) {
-    auto cypher = stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}",
-                               relEntry->getName(), predicate);
+    auto cypher =
+        stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}", relLabel, predicate);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 2);
     return {relEntry, columns[0], columns[1]};
   } else {
-    auto cypher =
-        stringFormat("MATCH ()-[r:`{}`]->() RETURN r", relEntry->getName());
+    auto cypher = stringFormat("MATCH ()-[r:`{}`]->() RETURN r", relLabel);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 1);
     return {relEntry, columns[0], nullptr /* empty predicate */};
@@ -198,7 +197,7 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
 
 std::shared_ptr<NodeExpression> GDSFunction::bindNodeOutput(
     const function::TableFuncBindInput& bindInput,
-    const std::vector<TableCatalogEntry*>& nodeEntries, const std::string& name,
+    const std::vector<SchemaEntry*>& nodeEntries, const std::string& name,
     const std::optional<uint64_t>& yieldVariableIdx) {
   std::string nodeColumnName = name;
   StringUtils::toLower(nodeColumnName);
@@ -209,7 +208,7 @@ std::shared_ptr<NodeExpression> GDSFunction::bindNodeOutput(
 
 std::shared_ptr<binder::Expression> GDSFunction::bindRelOutput(
     const function::TableFuncBindInput& bindInput,
-    const std::vector<catalog::TableCatalogEntry*>& relEntries,
+    const std::vector<catalog::SchemaEntry*>& relEntries,
     std::shared_ptr<NodeExpression> srcNode,
     std::shared_ptr<NodeExpression> dstNode, const std::string& name,
     const std::optional<uint64_t>& yieldVariableIdx) {
@@ -226,8 +225,8 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
                                   transaction::Transaction* transaction) {
   for (auto id : connectedNodeTableIDSet) {
     if (!projectedNodeIDSet.contains(id)) {
-      auto entryName =
-          catalog->getTableCatalogEntry(transaction, id)->getName();
+      auto entryName = catalog->getTableCatalogEntry(transaction, id)
+                           ->getLabel(catalog, transaction);
       THROW_BINDER_EXCEPTION(stringFormat(
           "{} is connected to {} but not projected.", entryName, relName));
     }
@@ -235,17 +234,18 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
 }
 
 static void validateRelSrcDstNodeAreProjected(
-    const TableCatalogEntry& entry, const table_id_set_t& projectedNodeIDSet,
+    SchemaEntry& entry, const table_id_set_t& projectedNodeIDSet,
     Catalog* catalog, transaction::Transaction* transaction) {
-  if (entry.getType() != CatalogEntryType::REL_TABLE_ENTRY) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("{} is not a rel table entry.", entry.getName()));
+  if (entry.getTableType() != TableType::REL) {
+    THROW_BINDER_EXCEPTION(stringFormat("{} is not a rel table entry.",
+                                        entry.getLabel(catalog, transaction)));
   }
-  const auto& relEntry = entry.constCast<RelTableCatalogEntry>();
-  validateNodeProjected({relEntry.getSrcTableID()}, projectedNodeIDSet,
-                        relEntry.getName(), catalog, transaction);
-  validateNodeProjected({relEntry.getDstTableID()}, projectedNodeIDSet,
-                        relEntry.getName(), catalog, transaction);
+  auto& relEntry = static_cast<EdgeSchema&>(entry);
+  auto relName = relEntry.getLabel(catalog, transaction);
+  validateNodeProjected({relEntry.getSrcTableID()}, projectedNodeIDSet, relName,
+                        catalog, transaction);
+  validateNodeProjected({relEntry.getDstTableID()}, projectedNodeIDSet, relName,
+                        catalog, transaction);
 }
 
 // parse edgeTableName in format '[src, edge, dst]' into [src, edge, dst]

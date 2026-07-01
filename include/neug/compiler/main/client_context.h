@@ -34,6 +34,7 @@
 #include "neug/compiler/parser/statement.h"
 #include "neug/compiler/processor/warning_context.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/storages/graph/stats_manager.h"
 #include "prepared_statement.h"
 
 namespace neug {
@@ -95,6 +96,7 @@ class NEUG_API ClientContext {
 
  public:
   explicit ClientContext(MetadataManager* database);
+
   ~ClientContext();
 
   // Client config

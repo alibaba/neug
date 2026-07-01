@@ -321,9 +321,9 @@ std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
   return std::make_unique<GeneralExpr>(graph, std::move(expr_ptr), type);
 }
 
-bool is_exchange_index(const common::Expression& expr, int& tag) {
+bool is_exchange_index(const ::common::Expression& expr, int& tag) {
   if (expr.operators().size() == 1 &&
-      expr.operators(0).item_case() == common::ExprOpr::kVar) {
+      expr.operators(0).item_case() == ::common::ExprOpr::kVar) {
     auto var = expr.operators(0).var();
     tag = -1;
     if (var.has_property()) {
@@ -341,12 +341,12 @@ bool is_exchange_index(const common::Expression& expr, int& tag) {
 /**
  * Pattern matching for special expressions
  */
-bool is_check_property_in_range(const common::Expression& expr, int& tag,
+bool is_check_property_in_range(const ::common::Expression& expr, int& tag,
                                 std::string& name, std::string& lower,
-                                std::string& upper, common::Value& then_value,
-                                common::Value& else_value) {
+                                std::string& upper, ::common::Value& then_value,
+                                ::common::Value& else_value) {
   if (expr.operators_size() == 1 &&
-      expr.operators(0).item_case() == common::ExprOpr::kCase) {
+      expr.operators(0).item_case() == ::common::ExprOpr::kCase) {
     auto opr = expr.operators(0).case_();
     if (opr.when_then_expressions_size() != 1) {
       return false;
@@ -377,20 +377,20 @@ bool is_check_property_in_range(const common::Expression& expr, int& tag,
     }
     {
       auto op = when.operators(1);
-      if (op.item_case() != common::ExprOpr::kLogical ||
-          op.logical() != common::GE) {
+      if (op.item_case() != ::common::ExprOpr::kLogical ||
+          op.logical() != ::common::GE) {
         return false;
       }
     }
     auto lower_param = when.operators(2);
-    if (lower_param.item_case() != common::ExprOpr::kParam) {
+    if (lower_param.item_case() != ::common::ExprOpr::kParam) {
       return false;
     }
     lower = lower_param.param().name();
     {
       auto op = when.operators(3);
-      if (op.item_case() != common::ExprOpr::kLogical ||
-          op.logical() != common::AND) {
+      if (op.item_case() != ::common::ExprOpr::kLogical ||
+          op.logical() != ::common::AND) {
         return false;
       }
     }
@@ -414,12 +414,12 @@ bool is_check_property_in_range(const common::Expression& expr, int& tag,
     }
 
     auto op = when.operators(5);
-    if (op.item_case() != common::ExprOpr::kLogical ||
-        op.logical() != common::LT) {
+    if (op.item_case() != ::common::ExprOpr::kLogical ||
+        op.logical() != ::common::LT) {
       return false;
     }
     auto upper_param = when.operators(6);
-    if (upper_param.item_case() != common::ExprOpr::kParam) {
+    if (upper_param.item_case() != ::common::ExprOpr::kParam) {
       return false;
     }
     upper = upper_param.param().name();
@@ -448,12 +448,13 @@ bool is_check_property_in_range(const common::Expression& expr, int& tag,
   return false;
 }
 
-bool is_check_property_cmp(const common::Expression& expr, int& tag,
+bool is_check_property_cmp(const ::common::Expression& expr, int& tag,
                            std::string& name, std::string& target,
-                           common::Value& then_value, common::Value& else_value,
+                           ::common::Value& then_value,
+                           ::common::Value& else_value,
                            SPPredicateType& ptype) {
   if (expr.operators_size() == 1 &&
-      expr.operators(0).item_case() == common::ExprOpr::kCase) {
+      expr.operators(0).item_case() == ::common::ExprOpr::kCase) {
     auto opr = expr.operators(0).case_();
     if (opr.when_then_expressions_size() != 1) {
       return false;
@@ -484,26 +485,26 @@ bool is_check_property_cmp(const common::Expression& expr, int& tag,
     }
     {
       auto op = when.operators(1);
-      if (op.item_case() != common::ExprOpr::kLogical) {
+      if (op.item_case() != ::common::ExprOpr::kLogical) {
         return false;
       }
       switch (op.logical()) {
-      case common::LT:
+      case ::common::LT:
         ptype = SPPredicateType::kPropertyLT;
         break;
-      case common::LE:
+      case ::common::LE:
         ptype = SPPredicateType::kPropertyLE;
         break;
-      case common::GT:
+      case ::common::GT:
         ptype = SPPredicateType::kPropertyGT;
         break;
-      case common::GE:
+      case ::common::GE:
         ptype = SPPredicateType::kPropertyGE;
         break;
-      case common::EQ:
+      case ::common::EQ:
         ptype = SPPredicateType::kPropertyEQ;
         break;
-      case common::NE:
+      case ::common::NE:
         ptype = SPPredicateType::kPropertyNE;
         break;
       default:
@@ -511,7 +512,7 @@ bool is_check_property_cmp(const common::Expression& expr, int& tag,
       }
     }
     auto upper_param = when.operators(2);
-    if (upper_param.item_case() != common::ExprOpr::kParam) {
+    if (upper_param.item_case() != ::common::ExprOpr::kParam) {
       return false;
     }
     target = upper_param.param().name();
@@ -540,10 +541,10 @@ bool is_check_property_cmp(const common::Expression& expr, int& tag,
   return false;
 }
 
-bool is_property_extract(const common::Expression& expr, int& tag,
+bool is_property_extract(const ::common::Expression& expr, int& tag,
                          std::string& name, DataType& type) {
   if (expr.operators_size() == 1 &&
-      expr.operators(0).item_case() == common::ExprOpr::kVar) {
+      expr.operators(0).item_case() == ::common::ExprOpr::kVar) {
     auto var = expr.operators(0).var();
     tag = -1;
     if (!var.has_property()) {
@@ -582,7 +583,7 @@ bool is_property_extract(const common::Expression& expr, int& tag,
 }
 
 std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
-    const common::Expression& expr, int alias) {
+    const ::common::Expression& expr, int alias) {
   int tag = -1;
   if (is_exchange_index(expr, tag)) {
     return std::make_unique<DummyGetterBuilder>(tag, alias);
@@ -591,7 +592,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
 }
 
 std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
-    const common::Expression& expr, int alias) {
+    const ::common::Expression& expr, int alias) {
   int tag;
   std::string name;
   DataType type;
@@ -613,8 +614,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
 template <typename CMP_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
     DataType then_type, const std::vector<std::string>& param_names,
-    const common::Value& then_value, const common::Value& else_value, int tag,
-    const std::string& property_name, int alias) {
+    const ::common::Value& then_value, const ::common::Value& else_value,
+    int tag, const std::string& property_name, int alias) {
   if (then_type.id() == DataTypeId::kInt64) {
     return std::make_unique<CaseWhenExprBuilder<CMP_T, int64_t>>(
         param_names, then_value.i64(), else_value.i64(), tag, property_name,
@@ -629,8 +630,8 @@ template <typename WHEN_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl0(
     SPPredicateType ptype, DataType then_type,
     const std::vector<std::string>& param_names,
-    const common::Value& then_value, const common::Value& else_value, int tag,
-    const std::string& property_name, int alias) {
+    const ::common::Value& then_value, const ::common::Value& else_value,
+    int tag, const std::string& property_name, int alias) {
   if (ptype == SPPredicateType::kPropertyBetween) {
     using CMP_T = BetweenCmp<WHEN_T>;
     return create_case_when_builder_impl1<CMP_T>(then_type, param_names,
@@ -673,10 +674,10 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl0(
 }
 
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
-    const common::Expression& expr, int alias) {
+    const ::common::Expression& expr, int alias) {
   int tag;
   std::string name, lower, upper, target;
-  common::Value then_value, else_value;
+  ::common::Value then_value, else_value;
 
   SPPredicateType ptype = SPPredicateType::kUnknown;
   DataType when_type, then_type;
@@ -700,7 +701,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
                  << then_value.DebugString() << else_value.DebugString();
       return nullptr;
     }
-    if (then_value.item_case() == common::Value::kI64) {
+    if (then_value.item_case() == ::common::Value::kI64) {
       then_type = DataType(DataTypeId::kInt64);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
@@ -721,7 +722,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
                  << then_value.DebugString() << else_value.DebugString();
       return nullptr;
     }
-    if (then_value.item_case() == common::Value::kI64) {
+    if (then_value.item_case() == ::common::Value::kI64) {
       then_type = DataType(DataTypeId::kInt64);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
@@ -748,7 +749,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 }
 
 void create_project_expr_builders(
-    std::vector<std::tuple<common::Expression, int,
+    std::vector<std::tuple<::common::Expression, int,
                            std::unique_ptr<ExprBase>>>&& exprs_infos,
     std::vector<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
     std::vector<std::unique_ptr<ProjectExprBuilderBase>>&

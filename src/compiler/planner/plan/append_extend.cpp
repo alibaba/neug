@@ -17,6 +17,7 @@
 #include "neug/compiler/planner/operator/logical_node_label_filter.h"
 #include "neug/compiler/planner/operator/logical_path_property_probe.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::common;
 using namespace neug::binder;
@@ -31,17 +32,20 @@ static std::unordered_set<table_id_t> getBoundNodeTableIDSet(
     const RelExpression& rel, ExtendDirection extendDirection) {
   std::unordered_set<table_id_t> result;
   for (auto entry : rel.getEntries()) {
-    auto& relTableEntry = entry->constCast<RelTableCatalogEntry>();
+    auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
+    if (!relTableEntry) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Expected an edge schema entry.");
+    }
     switch (extendDirection) {
     case ExtendDirection::FWD: {
-      result.insert(relTableEntry.getBoundTableID(RelDataDirection::FWD));
+      result.insert(relTableEntry->getSrcTableID());
     } break;
     case ExtendDirection::BWD: {
-      result.insert(relTableEntry.getBoundTableID(RelDataDirection::BWD));
+      result.insert(relTableEntry->getDstTableID());
     } break;
     case ExtendDirection::BOTH: {
-      result.insert(relTableEntry.getBoundTableID(RelDataDirection::FWD));
-      result.insert(relTableEntry.getBoundTableID(RelDataDirection::BWD));
+      result.insert(relTableEntry->getSrcTableID());
+      result.insert(relTableEntry->getDstTableID());
     } break;
     default:
       NEUG_UNREACHABLE;
@@ -54,17 +58,20 @@ static std::unordered_set<table_id_t> getNbrNodeTableIDSet(
     const RelExpression& rel, ExtendDirection extendDirection) {
   std::unordered_set<table_id_t> result;
   for (auto entry : rel.getEntries()) {
-    auto& relTableEntry = entry->constCast<RelTableCatalogEntry>();
+    auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
+    if (!relTableEntry) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Expected an edge schema entry.");
+    }
     switch (extendDirection) {
     case ExtendDirection::FWD: {
-      result.insert(relTableEntry.getNbrTableID(RelDataDirection::FWD));
+      result.insert(relTableEntry->getDstTableID());
     } break;
     case ExtendDirection::BWD: {
-      result.insert(relTableEntry.getNbrTableID(RelDataDirection::BWD));
+      result.insert(relTableEntry->getSrcTableID());
     } break;
     case ExtendDirection::BOTH: {
-      result.insert(relTableEntry.getNbrTableID(RelDataDirection::FWD));
-      result.insert(relTableEntry.getNbrTableID(RelDataDirection::BWD));
+      result.insert(relTableEntry->getDstTableID());
+      result.insert(relTableEntry->getSrcTableID());
     } break;
     default:
       NEUG_UNREACHABLE;

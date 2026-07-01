@@ -28,6 +28,7 @@
 #include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/stats_manager.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
 
@@ -285,7 +286,9 @@ int main(int argc, char** argv) {
               << ", repeat: " << query_num;
 
     auto query_str = parse_query(unit.query_pb_path);
-    const auto res = compiler->compilePlan(query_str);
+    neug::storage::StatsManager stats(txn.graph());
+    const auto res =
+        compiler->compilePlan(query_str, &txn.view().schema(), stats);
     if (!res) {
       LOG(ERROR) << "Failed to compile plan: " << res.error().ToString();
       continue;

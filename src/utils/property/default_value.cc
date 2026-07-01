@@ -50,6 +50,8 @@ execution::Value get_default_value(const DataType& type) {
     return execution::Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
     return execution::Value::INTERVAL(Interval());
+  case DataTypeId::kList:
+    return execution::Value::LIST(ListType::GetChildType(type), {});
   case DataTypeId::kArray: {
     auto child_type = ArrayType::GetChildType(type);
     auto child_default = get_default_value(child_type);

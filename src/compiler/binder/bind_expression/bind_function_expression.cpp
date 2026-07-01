@@ -27,6 +27,7 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
+#include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
@@ -241,8 +242,11 @@ std::shared_ptr<Expression> ExpressionBinder::bindAggregateFunctionExpression(
 
 std::shared_ptr<Expression> ExpressionBinder::bindMacroExpression(
     const ParsedExpression& parsedExpression, const std::string& macroName) {
-  auto scalarMacroFunction = context->getCatalog()->getScalarMacroFunction(
-      context->getTransaction(), macroName);
+  auto scalarMacroFunction =
+      context->getCatalog()
+          ->getFunctionEntry(context->getTransaction(), macroName)
+          ->constCast<ScalarMacroCatalogEntry>()
+          .getMacroFunction();
   auto macroExpr = scalarMacroFunction->expression->copy();
   auto parameterVals = scalarMacroFunction->getDefaultParameterVals();
   auto& parsedFuncExpr = parsedExpression.constCast<ParsedFunctionExpression>();

@@ -23,8 +23,8 @@
 #include "neug/compiler/binder/query/query_graph_label_analyzer.h"
 
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -33,6 +33,12 @@ using namespace neug::transaction;
 
 namespace neug {
 namespace binder {
+
+static EdgeSchema* getRelSchema(SchemaEntry* entry) {
+  auto* relEntry = dynamic_cast<EdgeSchema*>(entry);
+  NEUG_ASSERT(relEntry != nullptr);
+  return relEntry;
+}
 
 // NOLINTNEXTLINE(readability-non-const-parameter): graph is supposed to be
 // modified.
@@ -64,40 +70,40 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
     if (queryRel->getDirectionType() == RelDirectionType::BOTH) {
       if (isSrcConnect || isDstConnect) {
         for (auto entry : queryRel->getEntries()) {
-          auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-          auto srcTableID = relEntry.getSrcTableID();
-          auto dstTableID = relEntry.getDstTableID();
+          auto* relEntry = getRelSchema(entry);
+          auto srcTableID = relEntry->getSrcTableID();
+          auto dstTableID = relEntry->getDstTableID();
           candidates.insert(srcTableID);
           candidates.insert(dstTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(srcEntry->getName());
-          candidateNamesSet.insert(dstEntry->getName());
+          candidateNamesSet.insert(srcEntry->getLabel(catalog, tx));
+          candidateNamesSet.insert(dstEntry->getLabel(catalog, tx));
         }
       }
     } else {
       if (isSrcConnect) {
         for (auto entry : queryRel->getEntries()) {
-          auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-          auto srcTableID = relEntry.getSrcTableID();
+          auto* relEntry = getRelSchema(entry);
+          auto srcTableID = relEntry->getSrcTableID();
           candidates.insert(srcTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
-          candidateNamesSet.insert(srcEntry->getName());
+          candidateNamesSet.insert(srcEntry->getLabel(catalog, tx));
         }
       } else if (isDstConnect) {
         for (auto entry : queryRel->getEntries()) {
-          auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-          auto dstTableID = relEntry.getDstTableID();
+          auto* relEntry = getRelSchema(entry);
+          auto dstTableID = relEntry->getDstTableID();
           candidates.insert(dstTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(dstEntry->getName());
+          candidateNamesSet.insert(dstEntry->getLabel(catalog, tx));
         }
       }
     }
     if (candidates.empty()) {  // No need to prune.
       continue;
     }
-    std::vector<TableCatalogEntry*> prunedEntries;
+    std::vector<SchemaEntry*> prunedEntries;
     for (auto entry : node.getEntries()) {
       if (!candidates.contains(entry->getTableID())) {
         continue;
@@ -125,7 +131,7 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
   if (rel.isRecursive()) {
     return;
   }
-  std::vector<TableCatalogEntry*> prunedEntries;
+  std::vector<SchemaEntry*> prunedEntries;
   if (rel.getDirectionType() == RelDirectionType::BOTH) {
     table_id_set_t srcBoundTableIDSet;
     table_id_set_t dstBoundTableIDSet;
@@ -136,9 +142,9 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
       dstBoundTableIDSet.insert(entry->getTableID());
     }
     for (auto& entry : rel.getEntries()) {
-      auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-      auto srcTableID = relEntry.getSrcTableID();
-      auto dstTableID = relEntry.getDstTableID();
+      auto* relEntry = getRelSchema(entry);
+      auto srcTableID = relEntry->getSrcTableID();
+      auto dstTableID = relEntry->getDstTableID();
       if ((srcBoundTableIDSet.contains(srcTableID) &&
            dstBoundTableIDSet.contains(dstTableID)) ||
           (dstBoundTableIDSet.contains(srcTableID) &&
@@ -150,9 +156,9 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
     auto srcTableIDSet = rel.getSrcNode()->getTableIDsSet();
     auto dstTableIDSet = rel.getDstNode()->getTableIDsSet();
     for (auto& entry : rel.getEntries()) {
-      auto& relEntry = entry->constCast<RelTableCatalogEntry>();
-      auto srcTableID = relEntry.getSrcTableID();
-      auto dstTableID = relEntry.getDstTableID();
+      auto* relEntry = getRelSchema(entry);
+      auto srcTableID = relEntry->getSrcTableID();
+      auto dstTableID = relEntry->getDstTableID();
       if (!srcTableIDSet.contains(srcTableID) ||
           !dstTableIDSet.contains(dstTableID)) {
         continue;

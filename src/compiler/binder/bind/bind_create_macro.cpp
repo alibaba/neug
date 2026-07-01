@@ -40,7 +40,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
   auto& createMacro = neug_dynamic_cast<const CreateMacro&>(statement);
   auto macroName = createMacro.getMacroName();
   StringUtils::toUpper(macroName);
-  if (clientContext->getCatalog()->containsMacro(
+  if (clientContext->getCatalog()->containsFunction(
           clientContext->getTransaction(), macroName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Macro {} already exists.", macroName));
   }

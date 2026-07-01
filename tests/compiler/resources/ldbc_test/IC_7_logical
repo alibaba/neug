@@ -11,8 +11,8 @@ HASH_JOIN[_6_liker=_6_liker, SIP: PROHIBIT_PROBE_TO_BUILD, Join Type: LEFT, Join
 CHILD:
     PROJECTION[liker,message,likeTime]
     GET_V[GET_V() Cardinality: 71]
-    EXTEND[message<-likeLIKES_PERSON_COMMENT,LIKES_PERSON_POST,-liker Cardinality: 71]
-    EXTEND[person<-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,-message Cardinality: 187]
+    EXTEND[message<-likeLIKES,LIKES,-liker Cardinality: 71]
+    EXTEND[person<-HASCREATOR,HASCREATOR,-message Cardinality: 187]
     SCAN_NODE_TABLE[person._ID person.id PK_SCAN($personId)Type: INTERNAL_ID Cardinality: 1]
 CHILD:
     GET_V[GET_V() Cardinality: 9]

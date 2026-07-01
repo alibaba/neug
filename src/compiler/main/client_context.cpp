@@ -39,7 +39,7 @@
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 #include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)

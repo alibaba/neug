@@ -30,24 +30,24 @@ std::vector<Value> parse_ids_from_idx_predicate(
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
     std::vector<Value> ret;
-    if (triplet.const_().item_case() == common::Value::kI32) {
+    if (triplet.const_().item_case() == ::common::Value::kI32) {
       ret.emplace_back(
           Value::CreateValue<T>(static_cast<T>(triplet.const_().i32())));
-    } else if (triplet.const_().item_case() == common::Value::kI64) {
+    } else if (triplet.const_().item_case() == ::common::Value::kI64) {
       ret.emplace_back(
           Value::CreateValue<T>(static_cast<T>(triplet.const_().i64())));
-    } else if (triplet.const_().item_case() == common::Value::kU32) {
+    } else if (triplet.const_().item_case() == ::common::Value::kU32) {
       ret.emplace_back(
           Value::CreateValue<T>(static_cast<T>(triplet.const_().u32())));
-    } else if (triplet.const_().item_case() == common::Value::kU64) {
+    } else if (triplet.const_().item_case() == ::common::Value::kU64) {
       ret.emplace_back(
           Value::CreateValue<T>(static_cast<T>(triplet.const_().u64())));
-    } else if (triplet.const_().item_case() == common::Value::kI64Array) {
+    } else if (triplet.const_().item_case() == ::common::Value::kI64Array) {
       const auto& arr = triplet.const_().i64_array();
       for (int i = 0; i < arr.item_size(); ++i) {
         ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
       }
-    } else if (triplet.const_().item_case() == common::Value::kI32Array) {
+    } else if (triplet.const_().item_case() == ::common::Value::kI32Array) {
       const auto& arr = triplet.const_().i32_array();
       for (int i = 0; i < arr.item_size(); ++i) {
         ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
@@ -78,10 +78,10 @@ std::vector<Value> parse_ids_from_idx_predicate(
   std::vector<Value> ret;
   switch (triplet.value_case()) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-    if (triplet.const_().item_case() == common::Value::kStr) {
+    if (triplet.const_().item_case() == ::common::Value::kStr) {
       ret.emplace_back(Value::STRING(triplet.const_().str()));
 
-    } else if (triplet.const_().item_case() == common::Value::kStrArray) {
+    } else if (triplet.const_().item_case() == ::common::Value::kStrArray) {
       const auto& arr = triplet.const_().str_array();
       for (int i = 0; i < arr.item_size(); ++i) {
         ret.emplace_back(Value::STRING(arr.item(i)));
@@ -154,8 +154,8 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
     return false;
   }
 
-  if (triplet.cmp() != common::Logical::EQ &&
-      triplet.cmp() != common::Logical::WITHIN) {
+  if (triplet.cmp() != ::common::Logical::EQ &&
+      triplet.cmp() != ::common::Logical::WITHIN) {
     return false;
   }
 

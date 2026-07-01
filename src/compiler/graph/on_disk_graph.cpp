@@ -36,7 +36,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/schema.h"
 #include "neug/compiler/processor/result/result_set.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/stats_manager.h"
 
 using namespace neug::catalog;
 using namespace neug::storage;
@@ -61,8 +61,8 @@ static expression_vector getProperties(std::shared_ptr<Expression> expr) {
   return ExpressionUtil::removeDuplication(collector.getPropertyExprs());
 }
 
-static Schema getSchema(const expression_vector& exprs) {
-  auto schema = Schema();
+static planner::Schema getSchema(const expression_vector& exprs) {
+  auto schema = planner::Schema();
   schema.createGroup();
   for (auto expr : exprs) {
     schema.insertToGroupAndScope(expr, 0);
@@ -70,7 +70,7 @@ static Schema getSchema(const expression_vector& exprs) {
   return schema;
 }
 
-static neug::processor::ResultSet getResultSet(Schema* schema,
+static neug::processor::ResultSet getResultSet(planner::Schema* schema,
                                                MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");
@@ -190,8 +190,8 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     ClientContext& context, const TableCatalogEntry* tableEntry,
     const std::vector<std::string>& propertyNames)
     : context{context},
-      nodeTable{neug_dynamic_cast<const NodeTable&>(
-          *context.getStatsManager()->getTable(tableEntry->getTableID()))},
+      numRows{context.getStatsManager()->getTableCardinality(
+          tableEntry->getTableID(), common::TableType::NODE)},
       numNodesScanned{0},
       currentOffset{0},
       endOffsetExclusive{0} {}

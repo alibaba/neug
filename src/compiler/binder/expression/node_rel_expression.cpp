@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::catalog;
@@ -48,7 +48,7 @@ table_id_set_t NodeOrRelExpression::getTableIDsSet() const {
 }
 
 void NodeOrRelExpression::addEntries(
-    const std::vector<TableCatalogEntry*>& entries_) {
+    const std::vector<SchemaEntry*>& entries_) {
   auto tableIDsSet = getTableIDsSet();
   for (auto& entry : entries_) {
     if (!tableIDsSet.contains(entry->getTableID())) {
@@ -57,7 +57,7 @@ void NodeOrRelExpression::addEntries(
   }
 }
 
-TableCatalogEntry* NodeOrRelExpression::getSingleEntry() const {
+SchemaEntry* NodeOrRelExpression::getSingleEntry() const {
   // LCOV_EXCL_START
   if (entries.empty()) {
     THROW_RUNTIME_ERROR(
