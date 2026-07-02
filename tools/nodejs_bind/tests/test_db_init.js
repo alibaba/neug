@@ -92,8 +92,8 @@ test('test_local_db_open_exists_and_close', () => {
   db2.close();
 });
 
-test('test_local_ldbc_open_and_close', () => {
-  const dbDir = '/tmp/ldbc';
+test('test_local_modern_graph_open_and_close', () => {
+  const dbDir = '/tmp/modern_graph';
   const db = new Database({ databasePath: String(dbDir), mode: 'r' });
   assert.ok(db);
   db.close();
