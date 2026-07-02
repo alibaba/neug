@@ -1,6 +1,6 @@
 # Pattern Match Extension
 
-Since NeuG **v0.1.3**, we have introduced the Pattern Match extension, which provides subgraph pattern matching over the current NeuG graph.
+Since NeuG **v0.1.4**, we have introduced the Pattern Match extension, which provides subgraph pattern matching over the current NeuG graph.
 
 
 ```cypher
