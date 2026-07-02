@@ -73,8 +73,7 @@ class GPhysicalAnalyzer {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Primary key scan is only supported for node "
             "tables, but got: " +
-            tableEntry->getLabel(catalog,
-                                 &neug::Constants::DEFAULT_TRANSACTION));
+            tableEntry->getLabel());
       }
       result.insert(nodeTableEntry->getPrimaryKeyName());
     }
@@ -137,13 +136,10 @@ class GPhysicalAnalyzer {
                          std::vector<std::string>& result) {
     if (child->getOperatorType() ==
         planner::LogicalOperatorType::SCAN_NODE_TABLE) {
-      auto scan = child->cast<planner::LogicalScanNodeTable>();
-      auto extraInfo = scan.getExtraInfo();
-      if (extraInfo) {
-        auto pkInfo = dynamic_cast<planner::PrimaryKeyScanInfo*>(extraInfo);
-        if (pkInfo) {
-          result.push_back(scan.getAliasName());
-        }
+      auto& scan = child->cast<planner::LogicalScanNodeTable>();
+      auto pkInfo = scan.getPrimaryKeyScanInfo();
+      if (pkInfo != nullptr) {
+        result.push_back(scan.getAliasName());
       }
     } else if (child->getOperatorType() ==
                planner::LogicalOperatorType::INSERT) {

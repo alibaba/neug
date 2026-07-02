@@ -71,8 +71,7 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
   std::unordered_map<table_id_t, std::string> map;
   table_id_t maxTableID = 0;
   for (auto& entry : entries) {
-    auto label =
-        entry->getLabel(context->getCatalog(), context->getTransaction());
+    auto label = entry->getLabel();
     if (auto relEntry = dynamic_cast<EdgeSchema*>(entry)) {
       label = relEntry->getEdgeLabelName();
     }
@@ -118,8 +117,7 @@ std::shared_ptr<Expression> LabelFunction::rewriteFunc(
         return expressionBinder->createLiteralExpression("");
       }
       if (!node.isMultiLabeled()) {
-        auto label = node.getSingleEntry()->getLabel(context->getCatalog(),
-                                                     context->getTransaction());
+        auto label = node.getSingleEntry()->getLabel();
         return expressionBinder->createLiteralExpression(label);
       }
     }

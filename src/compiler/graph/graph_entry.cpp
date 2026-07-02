@@ -148,7 +148,7 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
   if (nodeEntry->getTableType() != TableType::NODE) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
-  auto nodeLabel = nodeEntry->getLabel(catalog, transaction);
+  auto nodeLabel = nodeEntry->getLabel();
   if (!predicate.empty()) {
     auto cypher =
         stringFormat("MATCH (n:`{}`) RETURN n, {}", nodeLabel, predicate);
@@ -180,7 +180,7 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
   if (!relEntry || relEntry->getTableType() != TableType::REL) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a REL table.", tableName));
   }
-  auto relLabel = relEntry->getLabel(catalog, transaction);
+  auto relLabel = relEntry->getLabel();
   if (!predicate.empty()) {
     auto cypher =
         stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}", relLabel, predicate);
@@ -225,8 +225,8 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
                                   transaction::Transaction* transaction) {
   for (auto id : connectedNodeTableIDSet) {
     if (!projectedNodeIDSet.contains(id)) {
-      auto entryName = catalog->getTableCatalogEntry(transaction, id)
-                           ->getLabel(catalog, transaction);
+      auto entryName =
+          catalog->getTableCatalogEntry(transaction, id)->getLabel();
       THROW_BINDER_EXCEPTION(stringFormat(
           "{} is connected to {} but not projected.", entryName, relName));
     }
@@ -237,11 +237,11 @@ static void validateRelSrcDstNodeAreProjected(
     SchemaEntry& entry, const table_id_set_t& projectedNodeIDSet,
     Catalog* catalog, transaction::Transaction* transaction) {
   if (entry.getTableType() != TableType::REL) {
-    THROW_BINDER_EXCEPTION(stringFormat("{} is not a rel table entry.",
-                                        entry.getLabel(catalog, transaction)));
+    THROW_BINDER_EXCEPTION(
+        stringFormat("{} is not a rel table entry.", entry.getLabel()));
   }
   auto& relEntry = static_cast<EdgeSchema&>(entry);
-  auto relName = relEntry.getLabel(catalog, transaction);
+  auto relName = relEntry.getLabel();
   validateNodeProjected({relEntry.getSrcTableID()}, projectedNodeIDSet, relName,
                         catalog, transaction);
   validateNodeProjected({relEntry.getDstTableID()}, projectedNodeIDSet, relName,

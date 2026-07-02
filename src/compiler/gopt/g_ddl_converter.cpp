@@ -742,7 +742,7 @@ std::string GDDLConverter::getVertexLabelName(neug::common::oid_t tableId) {
     THROW_RUNTIME_ERROR("Node table entry not found for id: " +
                         std::to_string(tableId));
   }
-  return vertexSchema->getLabel(catalog, &neug::Constants::DEFAULT_TRANSACTION);
+  return vertexSchema->getLabel();
 }
 
 bool GDDLConverter::checkEntryType(const std::string& labelName,

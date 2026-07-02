@@ -1,5 +1,4 @@
-/**
- * Copyright 2020 Alibaba Group Holding Limited.
+/** Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +15,22 @@
 
 #pragma once
 
-#include "neug/execution/common/property_definition.h"
+#include <cstdint>
+#include <string>
 
 namespace neug {
-namespace binder {
+namespace common {
 
-using ::neug::ColumnDefinition;
-using ::neug::PropertyDefinition;
+enum class TableType : uint8_t {
+  UNKNOWN = 0,
+  NODE = 1,
+  REL = 2,
+  FOREIGN = 5,
+};
 
-}  // namespace binder
+struct TableTypeUtils {
+  static std::string toString(TableType tableType);
+};
+
+}  // namespace common
 }  // namespace neug

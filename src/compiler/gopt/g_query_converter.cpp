@@ -2148,15 +2148,14 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   }
   auto nodeTable = dynamic_cast<VertexSchema*>(table);
   if (!nodeTable) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Source vertex table is not a node table: " +
-        table->getLabel(catalog, &neug::Constants::DEFAULT_TRANSACTION));
+    THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
+                                   table->getLabel());
   }
   std::string pk = nodeTable->getPrimaryKeyName();
   if (pk.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Source vertex table does not have a primary key: " +
-        nodeTable->getLabel(catalog, &neug::Constants::DEFAULT_TRANSACTION));
+        nodeTable->getLabel());
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(

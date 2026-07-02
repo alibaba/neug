@@ -21,7 +21,6 @@
 #include <ostream>
 #include <string>
 #include <vector>
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -269,8 +268,31 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const binder::PropertyDefinition& propertyDef) {
-  return convert(*propertyDef.boundExpr, {});
+    const PropertyDefinition& propertyDef) {
+  const auto& defaultValue = propertyDef.getDefaultValue();
+  if (defaultValue.IsNull()) {
+    return convertValue(common::Value::createNullValue(defaultValue.type()));
+  }
+  switch (defaultValue.type().id()) {
+  case common::DataTypeId::kBoolean:
+    return convertValue(common::Value(defaultValue.GetValue<bool>()));
+  case common::DataTypeId::kInt32:
+    return convertValue(common::Value(defaultValue.GetValue<int32_t>()));
+  case common::DataTypeId::kUInt32:
+    return convertValue(common::Value(defaultValue.GetValue<uint32_t>()));
+  case common::DataTypeId::kInt64:
+    return convertValue(common::Value(defaultValue.GetValue<int64_t>()));
+  case common::DataTypeId::kUInt64:
+    return convertValue(common::Value(defaultValue.GetValue<uint64_t>()));
+  case common::DataTypeId::kFloat:
+    return convertValue(common::Value(defaultValue.GetValue<float>()));
+  case common::DataTypeId::kDouble:
+    return convertValue(common::Value(defaultValue.GetValue<double>()));
+  case common::DataTypeId::kVarchar:
+    return convertValue(common::Value(defaultValue.GetValue<std::string>()));
+  default:
+    return convertValue(common::Value::createNullValue(defaultValue.type()));
+  }
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(

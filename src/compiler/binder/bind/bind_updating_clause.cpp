@@ -46,6 +46,33 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
+static common::Value convertDefaultValue(const PropertyDefinition& definition) {
+  const auto& defaultValue = definition.getDefaultValue();
+  if (defaultValue.IsNull()) {
+    return common::Value::createNullValue(definition.getType());
+  }
+  switch (definition.getType().id()) {
+  case common::DataTypeId::kBoolean:
+    return common::Value(defaultValue.GetValue<bool>());
+  case common::DataTypeId::kInt32:
+    return common::Value(defaultValue.GetValue<int32_t>());
+  case common::DataTypeId::kUInt32:
+    return common::Value(defaultValue.GetValue<uint32_t>());
+  case common::DataTypeId::kInt64:
+    return common::Value(defaultValue.GetValue<int64_t>());
+  case common::DataTypeId::kUInt64:
+    return common::Value(defaultValue.GetValue<uint64_t>());
+  case common::DataTypeId::kFloat:
+    return common::Value(defaultValue.GetValue<float>());
+  case common::DataTypeId::kDouble:
+    return common::Value(defaultValue.GetValue<double>());
+  case common::DataTypeId::kVarchar:
+    return common::Value(defaultValue.GetValue<std::string>());
+  default:
+    return common::Value::createNullValue(definition.getType());
+  }
+}
+
 std::unique_ptr<BoundUpdatingClause> Binder::bindUpdatingClause(
     const UpdatingClause& updatingClause) {
   switch (updatingClause.getClauseType()) {
@@ -313,14 +340,15 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
 expression_vector Binder::bindInsertColumnDataExprs(
     const case_insensitive_map_t<std::shared_ptr<Expression>>&
         propertyDataExprs,
-    const std::vector<PropertyDefinition>& propertyDefinitions) {
+    const std::vector<neug::PropertyDefinition>& propertyDefinitions) {
   expression_vector result;
   for (auto& definition : propertyDefinitions) {
     std::shared_ptr<Expression> rhs;
     if (propertyDataExprs.contains(definition.getName())) {
       rhs = propertyDataExprs.at(definition.getName());
     } else {
-      rhs = expressionBinder.bindExpression(*definition.defaultExpr);
+      rhs = expressionBinder.createLiteralExpression(
+          convertDefaultValue(definition));
     }
     rhs = expressionBinder.implicitCastIfNecessary(rhs, definition.getType());
     result.push_back(std::move(rhs));

@@ -48,27 +48,24 @@ class StatsManager {
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
 
-  common::cardinality_t getTable(common::table_id_t tableID) const;
-  common::cardinality_t getTable(common::table_id_t tableID,
-                                 common::TableType tableType) const;
-  common::cardinality_t getTable(catalog::SchemaEntry* tableEntry) const;
-  common::cardinality_t getTableCardinality(common::table_id_t tableID) const {
+  uint64_t getTable(uint64_t tableID) const;
+  uint64_t getTable(uint64_t tableID, common::TableType tableType) const;
+  uint64_t getTable(catalog::SchemaEntry* tableEntry) const;
+  uint64_t getTableCardinality(uint64_t tableID) const {
     return getTable(tableID);
   }
-  common::cardinality_t getTableCardinality(common::table_id_t tableID,
-                                            common::TableType tableType) const {
+  uint64_t getTableCardinality(uint64_t tableID,
+                               common::TableType tableType) const {
     return getTable(tableID, tableType);
   }
-  common::cardinality_t getTableCardinality(
-      catalog::SchemaEntry* tableEntry) const {
+  uint64_t getTableCardinality(catalog::SchemaEntry* tableEntry) const {
     return getTable(tableEntry);
   }
 
  private:
   const PropertyGraph* graph_ = nullptr;
 #ifdef NEUG_BUILD_TEST
-  std::unordered_map<common::table_id_t, common::cardinality_t>
-      table_cardinalities_;
+  std::unordered_map<uint64_t, uint64_t> table_cardinalities_;
 #endif
 };
 

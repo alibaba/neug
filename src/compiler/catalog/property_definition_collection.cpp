@@ -29,15 +29,14 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_utils.h"
 
-using namespace neug::binder;
 using namespace neug::common;
 
 namespace neug {
 namespace catalog {
 
-std::vector<binder::PropertyDefinition>
-PropertyDefinitionCollection::getDefinitions() const {
-  std::vector<binder::PropertyDefinition> propertyDefinitions;
+std::vector<PropertyDefinition> PropertyDefinitionCollection::getDefinitions()
+    const {
+  std::vector<PropertyDefinition> propertyDefinitions;
   for (auto i = 0u; i < nextPropertyID; i++) {
     if (definitions.contains(i)) {
       propertyDefinitions.push_back(definitions.at(i).copy());

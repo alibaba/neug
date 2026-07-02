@@ -110,11 +110,11 @@ struct NEUG_API GraphEntry {
     std::string result = "GraphEntry{";
     result += "nodeInfos=[";
     for (auto& nodeInfo : nodeInfos) {
-      result += nodeInfo.entry->getLabel(nullptr, nullptr) + ", ";
+      result += nodeInfo.entry->getLabel() + ", ";
     }
     result += "], relInfos=[";
     for (auto& relInfo : relInfos) {
-      result += relInfo.entry->getLabel(nullptr, nullptr) + ", ";
+      result += relInfo.entry->getLabel() + ", ";
     }
     result += "]}";
     return result;

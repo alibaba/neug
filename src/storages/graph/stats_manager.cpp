@@ -9,7 +9,7 @@ namespace neug {
 namespace storage {
 
 namespace {
-common::cardinality_t atLeastOne(common::cardinality_t cardinality) {
+uint64_t atLeastOne(uint64_t cardinality) {
   return cardinality == 0 ? 1 : cardinality;
 }
 }  // namespace
@@ -90,7 +90,7 @@ void StatsManager::LoadFromJson(const Schema& schema,
 }
 #endif
 
-common::cardinality_t StatsManager::getTable(common::table_id_t tableID) const {
+uint64_t StatsManager::getTable(uint64_t tableID) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -106,8 +106,8 @@ common::cardinality_t StatsManager::getTable(common::table_id_t tableID) const {
   return getTable(tableID, common::TableType::REL);
 }
 
-common::cardinality_t StatsManager::getTable(
-    common::table_id_t tableID, common::TableType tableType) const {
+uint64_t StatsManager::getTable(uint64_t tableID,
+                                common::TableType tableType) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -142,8 +142,7 @@ common::cardinality_t StatsManager::getTable(
   return 1;
 }
 
-common::cardinality_t StatsManager::getTable(
-    catalog::SchemaEntry* tableEntry) const {
+uint64_t StatsManager::getTable(catalog::SchemaEntry* tableEntry) const {
   if (tableEntry == nullptr) {
     return 1;
   }

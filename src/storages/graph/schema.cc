@@ -15,8 +15,6 @@
 
 #include "neug/storages/graph/schema.h"
 
-#include "neug/compiler/catalog/catalog.h"
-
 #include <ctype.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
@@ -31,7 +29,6 @@
 #include <stdexcept>
 #include <type_traits>
 #include "neug/common/extra_type_info.h"
-#include "neug/compiler/common/constants.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
@@ -47,24 +44,35 @@ namespace neug {
 using execution::Value;
 
 namespace {
-binder::PropertyDefinition MakePropertyDefinition(const std::string& name,
-                                                  const DataType& type) {
-  return binder::PropertyDefinition(
-      binder::ColumnDefinition(name, common::DataType(type)));
+struct InternalKeyword {
+  static constexpr char ID[] = "_ID";
+  static constexpr char LABEL[] = "_LABEL";
+  static constexpr char SRC[] = "_SRC";
+  static constexpr char DST[] = "_DST";
+};
+
+PropertyDefinition MakePropertyDefinition(
+    const std::string& name, const DataType& type,
+    const Value& default_value = Value(DataType::SQLNULL)) {
+  return PropertyDefinition(ColumnDefinition(name, type),
+                            default_value.type().id() == DataTypeId::kUnknown
+                                ? Value(type)
+                                : default_value);
 }
 
-std::vector<binder::PropertyDefinition> GetVertexSchemaProperties(
+std::vector<PropertyDefinition> GetVertexSchemaProperties(
     const VertexSchema& schema) {
-  std::vector<binder::PropertyDefinition> result;
+  std::vector<PropertyDefinition> result;
   result.emplace_back(MakePropertyDefinition(
-      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
-  result.emplace_back(MakePropertyDefinition(common::InternalKeyword::LABEL,
-                                             common::DataType::Varchar()));
-  std::vector<std::tuple<size_t, std::string, DataType>> user_properties;
+      InternalKeyword::ID, DataType(DataTypeId::kInternalId)));
+  result.emplace_back(
+      MakePropertyDefinition(InternalKeyword::LABEL, DataType::Varchar()));
+  std::vector<std::tuple<size_t, std::string, DataType, std::optional<size_t>>>
+      user_properties;
   user_properties.reserve(schema.primary_keys.size() +
                           schema.property_names.size());
   for (const auto& [type, name, index] : schema.primary_keys) {
-    user_properties.emplace_back(index, name, type);
+    user_properties.emplace_back(index, name, type, std::nullopt);
   }
   for (size_t i = 0; i < schema.property_names.size(); ++i) {
     size_t original_index = i;
@@ -74,40 +82,43 @@ std::vector<binder::PropertyDefinition> GetVertexSchemaProperties(
       }
     }
     user_properties.emplace_back(original_index, schema.property_names[i],
-                                 schema.property_types[i]);
+                                 schema.property_types[i], i);
   }
   std::sort(user_properties.begin(), user_properties.end(),
             [](const auto& lhs, const auto& rhs) {
               return std::get<0>(lhs) < std::get<0>(rhs);
             });
-  for (const auto& [_, name, type] : user_properties) {
-    result.emplace_back(MakePropertyDefinition(name, type));
+  for (const auto& [_, name, type, default_idx] : user_properties) {
+    result.emplace_back(MakePropertyDefinition(
+        name, type,
+        default_idx ? schema.default_property_values[*default_idx]
+                    : Value(type)));
   }
   return result;
 }
 
-std::vector<binder::PropertyDefinition> GetEdgeSchemaProperties(
+std::vector<PropertyDefinition> GetEdgeSchemaProperties(
     const EdgeSchema& schema) {
-  std::vector<binder::PropertyDefinition> result;
+  std::vector<PropertyDefinition> result;
   result.emplace_back(MakePropertyDefinition(
-      common::InternalKeyword::ID, common::DataType(DataTypeId::kInternalId)));
+      InternalKeyword::ID, DataType(DataTypeId::kInternalId)));
   result.emplace_back(MakePropertyDefinition(
-      common::InternalKeyword::SRC, common::DataType(DataTypeId::kInternalId)));
+      InternalKeyword::SRC, DataType(DataTypeId::kInternalId)));
   result.emplace_back(MakePropertyDefinition(
-      common::InternalKeyword::DST, common::DataType(DataTypeId::kInternalId)));
-  result.emplace_back(MakePropertyDefinition(common::InternalKeyword::LABEL,
-                                             common::DataType::Varchar()));
+      InternalKeyword::DST, DataType(DataTypeId::kInternalId)));
+  result.emplace_back(
+      MakePropertyDefinition(InternalKeyword::LABEL, DataType::Varchar()));
   for (size_t i = 0; i < schema.property_names.size(); ++i) {
     result.emplace_back(
-        MakePropertyDefinition(schema.property_names[i], schema.properties[i]));
+        MakePropertyDefinition(schema.property_names[i], schema.properties[i],
+                               schema.default_property_values[i]));
   }
   return result;
 }
 
-common::property_id_t GetPropertyID(
-    const std::vector<binder::PropertyDefinition>& properties,
-    const std::string& propertyName) {
-  for (common::idx_t i = 0; i < properties.size(); ++i) {
+uint32_t GetPropertyID(const std::vector<PropertyDefinition>& properties,
+                       const std::string& propertyName) {
+  for (uint32_t i = 0; i < properties.size(); ++i) {
     if (properties[i].getName() == propertyName) {
       return i;
     }
@@ -116,7 +127,7 @@ common::property_id_t GetPropertyID(
 }
 }  // namespace
 
-common::column_id_t catalog::SchemaEntry::getColumnID(
+uint32_t catalog::SchemaEntry::getColumnID(
     const std::string& propertyName) const {
   return getPropertyID(propertyName);
 }
@@ -271,7 +282,7 @@ void VertexSchema::add_properties(const std::vector<std::string>& names,
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
-      default_property_values.emplace_back(get_default_value(types[i]));
+      default_property_values.emplace_back(types[i]);
     }
   }
 }
@@ -409,16 +420,16 @@ bool VertexSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
-common::column_id_t VertexSchema::getMaxColumnID() const {
+uint32_t VertexSchema::getMaxColumnID() const {
   auto properties = GetVertexSchemaProperties(*this);
   return properties.empty() ? 0 : properties.size() - 1;
 }
 
-std::vector<binder::PropertyDefinition> VertexSchema::getProperties() const {
+std::vector<PropertyDefinition> VertexSchema::getProperties() const {
   return GetVertexSchemaProperties(*this);
 }
 
-common::idx_t VertexSchema::getNumProperties() const {
+uint32_t VertexSchema::getNumProperties() const {
   return GetVertexSchemaProperties(*this).size();
 }
 
@@ -429,29 +440,23 @@ bool VertexSchema::containsProperty(const std::string& propertyName) const {
       [&](const auto& property) { return property.getName() == propertyName; });
 }
 
-common::property_id_t VertexSchema::getPropertyID(
-    const std::string& propertyName) const {
+uint32_t VertexSchema::getPropertyID(const std::string& propertyName) const {
   return GetPropertyID(GetVertexSchemaProperties(*this), propertyName);
 }
 
-binder::PropertyDefinition VertexSchema::getProperty(
+PropertyDefinition VertexSchema::getProperty(
     const std::string& propertyName) const {
   auto properties = GetVertexSchemaProperties(*this);
-  return properties.at(GetPropertyID(properties, propertyName)).copy();
+  return properties.at(GetPropertyID(properties, propertyName));
 }
 
-const binder::PropertyDefinition VertexSchema::getProperty(
-    common::idx_t idx) const {
-  return GetVertexSchemaProperties(*this).at(idx).copy();
+const PropertyDefinition VertexSchema::getProperty(uint32_t idx) const {
+  return GetVertexSchemaProperties(*this).at(idx);
 }
 
-std::string VertexSchema::getLabel(
-    const catalog::Catalog* /*catalog*/,
-    const transaction::Transaction* /*transaction*/) {
-  return label_name;
-}
+std::string VertexSchema::getLabel() { return label_name; }
 
-common::property_id_t VertexSchema::getPrimaryKeyID() const {
+uint32_t VertexSchema::getPrimaryKeyID() const {
   return getPropertyID(getPrimaryKeyName());
 }
 
@@ -504,7 +509,7 @@ void EdgeSchema::add_properties(const std::vector<std::string>& names,
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
-      default_property_values.emplace_back(get_default_value(types[i].id()));
+      default_property_values.emplace_back(types[i]);
     }
     eprop_soft_deleted.emplace_back(false);
   }
@@ -594,16 +599,16 @@ bool EdgeSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
-common::column_id_t EdgeSchema::getMaxColumnID() const {
+uint32_t EdgeSchema::getMaxColumnID() const {
   auto properties = GetEdgeSchemaProperties(*this);
   return properties.empty() ? 0 : properties.size() - 1;
 }
 
-std::vector<binder::PropertyDefinition> EdgeSchema::getProperties() const {
+std::vector<PropertyDefinition> EdgeSchema::getProperties() const {
   return GetEdgeSchemaProperties(*this);
 }
 
-common::idx_t EdgeSchema::getNumProperties() const {
+uint32_t EdgeSchema::getNumProperties() const {
   return GetEdgeSchemaProperties(*this).size();
 }
 
@@ -614,27 +619,21 @@ bool EdgeSchema::containsProperty(const std::string& propertyName) const {
       [&](const auto& property) { return property.getName() == propertyName; });
 }
 
-common::property_id_t EdgeSchema::getPropertyID(
-    const std::string& propertyName) const {
+uint32_t EdgeSchema::getPropertyID(const std::string& propertyName) const {
   return GetPropertyID(GetEdgeSchemaProperties(*this), propertyName);
 }
 
-binder::PropertyDefinition EdgeSchema::getProperty(
+PropertyDefinition EdgeSchema::getProperty(
     const std::string& propertyName) const {
   auto properties = GetEdgeSchemaProperties(*this);
-  return properties.at(GetPropertyID(properties, propertyName)).copy();
+  return properties.at(GetPropertyID(properties, propertyName));
 }
 
-const binder::PropertyDefinition EdgeSchema::getProperty(
-    common::idx_t idx) const {
-  return GetEdgeSchemaProperties(*this).at(idx).copy();
+const PropertyDefinition EdgeSchema::getProperty(uint32_t idx) const {
+  return GetEdgeSchemaProperties(*this).at(idx);
 }
 
-std::string EdgeSchema::getLabel(
-    const catalog::Catalog* /*catalog*/,
-    const transaction::Transaction* /*transaction*/) {
-  return edge_label_name;
-}
+std::string EdgeSchema::getLabel() { return edge_label_name; }
 
 Schema::Schema() = default;
 Schema::~Schema() = default;

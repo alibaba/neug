@@ -26,6 +26,7 @@
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
@@ -47,6 +48,7 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
+#include "neug/utils/property/default_value.h"
 
 using namespace neug::common;
 using namespace neug::parser;
@@ -54,6 +56,33 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
+
+static execution::Value convertToExecutionValue(const Value& value,
+                                                const DataType& type) {
+  if (value.isNull()) {
+    return execution::Value(type.copy());
+  }
+  switch (type.id()) {
+  case DataTypeId::kBoolean:
+    return execution::Value::BOOLEAN(value.getValue<bool>());
+  case DataTypeId::kInt32:
+    return execution::Value::INT32(value.getValue<int32_t>());
+  case DataTypeId::kUInt32:
+    return execution::Value::UINT32(value.getValue<uint32_t>());
+  case DataTypeId::kInt64:
+    return execution::Value::INT64(value.getValue<int64_t>());
+  case DataTypeId::kUInt64:
+    return execution::Value::UINT64(value.getValue<uint64_t>());
+  case DataTypeId::kFloat:
+    return execution::Value::FLOAT(value.getValue<float>());
+  case DataTypeId::kDouble:
+    return execution::Value::DOUBLE(value.getValue<double>());
+  case DataTypeId::kVarchar:
+    return execution::Value::STRING(value.getValue<std::string>());
+  default:
+    return execution::Value(type.copy());
+  }
+}
 
 static void validatePropertyName(
     const std::vector<PropertyDefinition>& definitions) {
@@ -84,9 +113,14 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
     if (boundExpr->dataType != type) {
       boundExpr = expressionBinder.implicitCast(boundExpr, type);
     }
+    auto defaultValue =
+        def.defaultExpr == nullptr
+            ? execution::Value(type.copy())
+            : convertToExecutionValue(
+                  boundExpr->constCast<LiteralExpression>().getValue(), type);
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
     definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultExpr), std::move(boundExpr));
+                             std::move(defaultValue));
   }
   validatePropertyName(definitions);
   return definitions;
@@ -176,8 +210,8 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
 
 void Binder::validateNodeTableType(SchemaEntry* entry) {
   if (entry->getTableType() != TableType::NODE) {
-    THROW_BINDER_EXCEPTION(stringFormat("{} is not of type NODE.",
-                                        entry->getLabel(nullptr, nullptr)));
+    THROW_BINDER_EXCEPTION(
+        stringFormat("{} is not of type NODE.", entry->getLabel()));
   }
 }
 
@@ -193,8 +227,7 @@ void Binder::validateColumnExistence(SchemaEntry* entry,
                                      const std::string& columnName) {
   if (!entry->containsProperty(columnName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Column {} does not exist in table {}.",
-                                        columnName,
-                                        entry->getLabel(nullptr, nullptr)));
+                                        columnName, entry->getLabel()));
   }
 }
 
@@ -423,9 +456,13 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   if (ConstantExpressionVisitor::needFold(*boundDefault)) {
     boundDefault = expressionBinder.foldExpression(boundDefault);
   }
+  auto defaultValue =
+      extraInfo->defaultValue == nullptr
+          ? execution::Value(type.copy())
+          : convertToExecutionValue(
+                boundDefault->constCast<LiteralExpression>().getValue(), type);
   auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultExpr),
-                         std::move(boundDefault));
+      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue));
   auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
       std::move(propertyDefinition), std::move(boundDefault));
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,

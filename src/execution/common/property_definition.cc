@@ -14,34 +14,19 @@
  * limitations under the License.
  */
 
-/**
- * This file is originally from the Kùzu project
- * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
- * Zhou Xiaoli in 2025 to support Neug-specific features.
- */
-
-#include "neug/compiler/binder/ddl/property_definition.h"
+#include "neug/execution/common/property_definition.h"
 
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
-#include "neug/compiler/parser/expression/parsed_literal_expression.h"
+#include "neug/utils/property/default_value.h"
 
 using namespace neug::common;
-using namespace neug::parser;
 
 namespace neug {
-namespace binder {
-
-PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
-    : columnDefinition{std::move(columnDefinition)} {
-  defaultExpr = std::make_unique<ParsedLiteralExpression>(
-      Value::createNullValue(), "NULL");
-}
 
 void PropertyDefinition::serialize(Serializer& serializer) const {
   serializer.serializeValue(columnDefinition.name);
   serializer.serializeValue(static_cast<uint8_t>(columnDefinition.type.id()));
-  defaultExpr->serialize(serializer);
 }
 
 PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
@@ -51,10 +36,8 @@ PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
   deserializer.deserializeValue(typeIdVal);
   auto type = DataType(static_cast<DataTypeId>(typeIdVal));
   auto columnDefinition = ColumnDefinition(name, std::move(type));
-  auto defaultExpr = ParsedExpression::deserialize(deserializer);
   return PropertyDefinition(std::move(columnDefinition),
-                            std::move(defaultExpr));
+                            get_default_value(columnDefinition.type));
 }
 
-}  // namespace binder
 }  // namespace neug

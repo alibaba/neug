@@ -51,7 +51,7 @@ class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
   common::property_id_t getPrimaryKeyID() const {
     return propertyCollection.getPropertyID(primaryKeyName);
   }
-  const binder::PropertyDefinition& getPrimaryKeyDefinition() const {
+  const PropertyDefinition& getPrimaryKeyDefinition() const {
     return getProperty(primaryKeyName);
   }
 

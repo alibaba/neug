@@ -100,7 +100,7 @@ std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
 
 std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
     catalog::Catalog* catalog) const {
-  if (auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(getExtraInfo())) {
+  if (auto pkExtraInfo = getPrimaryKeyScanInfo()) {
     auto tableIds = getTableIDs();
     if (tableIds.empty()) {
       THROW_EXCEPTION_WITH_FILE_LINE(
@@ -113,13 +113,13 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Primary key scan is only supported for node "
           "tables, but got: " +
-          tableEntry->getLabel(nullptr, nullptr));
+          tableEntry->getLabel());
     }
     auto pkName = nodeTableEntry->getPrimaryKeyName();
     if (pkName.empty()) {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "Node table " + nodeTableEntry->getLabel(nullptr, nullptr) +
-          " does not have a primary key.");
+      THROW_EXCEPTION_WITH_FILE_LINE("Node table " +
+                                     nodeTableEntry->getLabel() +
+                                     " does not have a primary key.");
     }
     return PrimaryKey{pkName, pkExtraInfo};
   }

@@ -316,7 +316,7 @@ class Binder {
   expression_vector bindInsertColumnDataExprs(
       const common::case_insensitive_map_t<std::shared_ptr<Expression>>&
           propertyDataExprs,
-      const std::vector<PropertyDefinition>& propertyDefinitions);
+      const std::vector<neug::PropertyDefinition>& propertyDefinitions);
 
   BoundSetPropertyInfo bindSetPropertyInfo(
       const parser::ParsedExpression* column,

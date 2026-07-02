@@ -794,9 +794,8 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     for (auto& name : tableNames) {
       auto entry = bindNodeTableEntry(name);
       if (entry->getTableType() != TableType::NODE) {
-        THROW_BINDER_EXCEPTION(
-            stringFormat("Cannot bind {} as a node pattern label.",
-                         entry->getLabel(catalog, transaction)));
+        THROW_BINDER_EXCEPTION(stringFormat(
+            "Cannot bind {} as a node pattern label.", entry->getLabel()));
       }
       entrySet.insert(entry);
     }
@@ -837,7 +836,7 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
         if (entry->getTableType() != TableType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
-                           entry->getLabel(catalog, transaction)));
+                           entry->getLabel()));
         }
         entrySet.insert(entry);
       } else {

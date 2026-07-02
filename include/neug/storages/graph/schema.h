@@ -25,10 +25,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include "neug/compiler/binder/ddl/property_definition.h"
-#include "neug/compiler/common/enums/table_type.h"
-#include "neug/compiler/common/types/types.h"
+#include "neug/execution/common/property_definition.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/graph/table_type.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
@@ -44,47 +43,39 @@ namespace neug {
 
 class PropertyGraph;
 class Schema;
-namespace transaction {
-class Transaction;
-}  // namespace transaction
 
 namespace catalog {
-class Catalog;
 
 class SchemaEntry {
  public:
-  virtual common::table_id_t getTableID() const = 0;
+  virtual ~SchemaEntry() = default;
 
-  virtual bool isParent(common::table_id_t /*tableID*/) { return false; };
+  virtual uint64_t getTableID() const = 0;
+
+  virtual bool isParent(uint64_t /*tableID*/) { return false; };
 
   virtual common::TableType getTableType() const = 0;
 
-  virtual common::column_id_t getMaxColumnID() const = 0;
+  virtual uint32_t getMaxColumnID() const = 0;
 
-  virtual std::vector<binder::PropertyDefinition> getProperties() const = 0;
+  virtual std::vector<PropertyDefinition> getProperties() const = 0;
 
-  virtual common::idx_t getNumProperties() const = 0;
+  virtual uint32_t getNumProperties() const = 0;
 
   virtual bool containsProperty(const std::string& propertyName) const = 0;
 
-  virtual common::property_id_t getPropertyID(
+  virtual uint32_t getPropertyID(const std::string& propertyName) const = 0;
+
+  virtual PropertyDefinition getProperty(
       const std::string& propertyName) const = 0;
 
-  virtual binder::PropertyDefinition getProperty(
-      const std::string& propertyName) const = 0;
+  virtual const PropertyDefinition getProperty(uint32_t idx) const = 0;
 
-  virtual const binder::PropertyDefinition getProperty(
-      common::idx_t idx) const = 0;
+  virtual uint32_t getColumnID(const std::string& propertyName) const;
 
-  virtual common::column_id_t getColumnID(
-      const std::string& propertyName) const;
+  virtual uint32_t getColumnID(uint32_t idx) const { return idx; };
 
-  virtual common::column_id_t getColumnID(common::idx_t idx) const {
-    return idx;
-  };
-
-  virtual std::string getLabel(const Catalog* catalog,
-                               const transaction::Transaction* transaction) = 0;
+  virtual std::string getLabel() = 0;
 };
 }  // namespace catalog
 
@@ -172,8 +163,7 @@ struct VertexSchema : public catalog::SchemaEntry {
     vprop_soft_deleted.resize(property_names_.size(), false);
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
-        default_property_values.emplace_back(
-            get_default_value(property_types_[i]));
+        default_property_values.emplace_back(property_types_[i]);
       }
     }
     assert(property_types.size() == property_names.size());
@@ -219,28 +209,25 @@ struct VertexSchema : public catalog::SchemaEntry {
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
-  common::table_id_t getTableID() const override { return label_id; }
+  uint64_t getTableID() const override { return label_id; }
   common::TableType getTableType() const override {
     return common::TableType::NODE;
   }
-  common::column_id_t getMaxColumnID() const override;
-  std::vector<binder::PropertyDefinition> getProperties() const override;
-  common::idx_t getNumProperties() const override;
+  uint32_t getMaxColumnID() const override;
+  std::vector<PropertyDefinition> getProperties() const override;
+  uint32_t getNumProperties() const override;
   bool containsProperty(const std::string& propertyName) const override;
-  common::property_id_t getPropertyID(
+  uint32_t getPropertyID(const std::string& propertyName) const override;
+  PropertyDefinition getProperty(
       const std::string& propertyName) const override;
-  binder::PropertyDefinition getProperty(
-      const std::string& propertyName) const override;
-  const binder::PropertyDefinition getProperty(
-      common::idx_t idx) const override;
-  std::string getLabel(const catalog::Catalog* catalog,
-                       const transaction::Transaction* transaction) override;
+  const PropertyDefinition getProperty(uint32_t idx) const override;
+  std::string getLabel() override;
 
-  common::property_id_t getPrimaryKeyID() const;
+  uint32_t getPrimaryKeyID() const;
   std::string getPrimaryKeyName() const;
 
   std::string label_name;
-  common::table_id_t label_id = common::INVALID_TABLE_ID;
+  uint64_t label_id = UINT64_MAX;
   std::vector<DataType> property_types;
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
@@ -341,7 +328,7 @@ struct EdgeSchema : public catalog::SchemaEntry {
     assert(properties.size() == property_names.size());
     if (default_property_values.empty()) {
       for (size_t i = 0; i < properties_.size(); ++i) {
-        default_property_values.emplace_back(get_default_value(properties_[i]));
+        default_property_values.emplace_back(properties_[i]);
       }
     }
     assert(properties.size() == default_property_values.size());
@@ -374,36 +361,33 @@ struct EdgeSchema : public catalog::SchemaEntry {
     return default_property_values;
   }
 
-  common::table_id_t getTableID() const override { return table_id; }
-  bool isParent(common::table_id_t tableID) override {
+  uint64_t getTableID() const override { return table_id; }
+  bool isParent(uint64_t tableID) override {
     return src_label_id == tableID || dst_label_id == tableID;
   }
   common::TableType getTableType() const override {
     return common::TableType::REL;
   }
-  common::column_id_t getMaxColumnID() const override;
-  std::vector<binder::PropertyDefinition> getProperties() const override;
-  common::idx_t getNumProperties() const override;
+  uint32_t getMaxColumnID() const override;
+  std::vector<PropertyDefinition> getProperties() const override;
+  uint32_t getNumProperties() const override;
   bool containsProperty(const std::string& propertyName) const override;
-  common::property_id_t getPropertyID(
+  uint32_t getPropertyID(const std::string& propertyName) const override;
+  PropertyDefinition getProperty(
       const std::string& propertyName) const override;
-  binder::PropertyDefinition getProperty(
-      const std::string& propertyName) const override;
-  const binder::PropertyDefinition getProperty(
-      common::idx_t idx) const override;
-  std::string getLabel(const catalog::Catalog* catalog,
-                       const transaction::Transaction* transaction) override;
+  const PropertyDefinition getProperty(uint32_t idx) const override;
+  std::string getLabel() override;
 
-  common::table_id_t getSrcTableID() const { return src_label_id; }
-  common::table_id_t getDstTableID() const { return dst_label_id; }
-  common::table_id_t getLabelId() const { return edge_label_id; }
+  uint64_t getSrcTableID() const { return src_label_id; }
+  uint64_t getDstTableID() const { return dst_label_id; }
+  uint64_t getLabelId() const { return edge_label_id; }
   const std::string& getEdgeLabelName() const { return edge_label_name; }
 
   std::string src_label_name, dst_label_name, edge_label_name;
-  common::table_id_t table_id = common::INVALID_TABLE_ID;
-  common::table_id_t src_label_id = common::INVALID_TABLE_ID;
-  common::table_id_t dst_label_id = common::INVALID_TABLE_ID;
-  common::table_id_t edge_label_id = common::INVALID_TABLE_ID;
+  uint64_t table_id = UINT64_MAX;
+  uint64_t src_label_id = UINT64_MAX;
+  uint64_t dst_label_id = UINT64_MAX;
+  uint64_t edge_label_id = UINT64_MAX;
   std::optional<std::string> sort_key_for_nbr;
   std::string description;
   bool ie_mutable;

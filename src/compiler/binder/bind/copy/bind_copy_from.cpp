@@ -25,7 +25,6 @@
 #include <optional>
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
@@ -45,7 +44,9 @@
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/compiler/parser/scan_source.h"
+#include "neug/execution/common/property_definition.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/default_value.h"
 
 using namespace neug::binder;
 using namespace neug::catalog;
@@ -68,12 +69,9 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
     if (colName == primaryKeyName) {
       primaryKeyFound = true;
     }
-    auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(col->getDataType()), "NULL");
-    auto boundExpr = binder.bindExpression(*defaultExpr);
     nodeTableEntry->addProperty(
         PropertyDefinition(ColumnDefinition(colName, col->getDataType().copy()),
-                           std::move(defaultExpr), std::move(boundExpr)));
+                           get_default_value(col->getDataType())));
   }
   if (!primaryKeyFound) {
     THROW_BINDER_EXCEPTION(stringFormat(
@@ -136,12 +134,9 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
   for (size_t i = 2; i < columns.size(); ++i) {
     const auto& column = columns[i];
     const auto& colName = column->rawName();
-    auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(column->getDataType()), "NULL");
-    auto boundExpr = binder.bindExpression(*defaultExpr);
     relProps.emplace_back(
         ColumnDefinition(colName, column->getDataType().copy()),
-        std::move(defaultExpr), std::move(boundExpr));
+        get_default_value(column->getDataType()));
   }
   auto boundExtra = std::make_unique<BoundExtraCreateRelTableInfo>(
       RelMultiplicity::MANY, RelMultiplicity::MANY, ExtendDirection::BOTH,
@@ -321,7 +316,8 @@ matchColumnExpression(const expression_vector& columns,
     }
   }
   return {ColumnEvaluateType::DEFAULT,
-          expressionBinder.bindExpression(*property.defaultExpr)};
+          expressionBinder.createLiteralExpression(
+              Value::createDefaultValue(property.getType()))};
 }
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
@@ -515,7 +511,7 @@ static bool skipPropertyInFile(const PropertyDefinition& property) {
   return false;
 }
 
-static bool skipPropertyInSchema(const PropertyDefinition& property) {
+static bool skipPropertyInSchema(const neug::PropertyDefinition& property) {
   if (property.getName() == InternalKeyword::ID) {
     return true;
   }

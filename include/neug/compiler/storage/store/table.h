@@ -42,8 +42,7 @@ class NEUG_API Table {
         const StatsManager* storageManager)
       : tableType{tableEntry->getTableType()},
         tableID{tableEntry->getTableID()},
-        tableName{const_cast<catalog::SchemaEntry*>(tableEntry)
-                      ->getLabel(nullptr, nullptr)} {}
+        tableName{const_cast<catalog::SchemaEntry*>(tableEntry)->getLabel()} {}
 
   Table(const catalog::SchemaEntry* tableEntry,
         const StatsManager* storageManager, MemoryManager* memoryManager);

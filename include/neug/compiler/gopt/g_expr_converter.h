@@ -34,6 +34,7 @@
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/config.h"
+#include "neug/execution/common/property_definition.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -62,7 +63,7 @@ class GExprConverter {
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
   std::unique_ptr<::common::Expression> convertDefaultValue(
-      const binder::PropertyDefinition& propertyDef);
+      const PropertyDefinition& propertyDef);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
 

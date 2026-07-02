@@ -163,9 +163,9 @@ struct GRelType {
         THROW_EXCEPTION_WITH_FILE_LINE("dst table is not a node table");
       }
       label["src_id"] = srcEntry->getTableID();
-      label["src_name"] = srcEntry->getLabel(catalog, &transaction);
+      label["src_name"] = srcEntry->getLabel();
       label["dst_id"] = dstEntry->getTableID();
-      label["dst_name"] = dstEntry->getLabel(catalog, &transaction);
+      label["dst_name"] = dstEntry->getLabel();
       YAML::Node labelNode;
       labelNode["label"] = label;
       labels.push_back(labelNode);

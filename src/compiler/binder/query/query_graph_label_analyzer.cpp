@@ -77,8 +77,8 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           candidates.insert(dstTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(srcEntry->getLabel(catalog, tx));
-          candidateNamesSet.insert(dstEntry->getLabel(catalog, tx));
+          candidateNamesSet.insert(srcEntry->getLabel());
+          candidateNamesSet.insert(dstEntry->getLabel());
         }
       }
     } else {
@@ -88,7 +88,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto srcTableID = relEntry->getSrcTableID();
           candidates.insert(srcTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
-          candidateNamesSet.insert(srcEntry->getLabel(catalog, tx));
+          candidateNamesSet.insert(srcEntry->getLabel());
         }
       } else if (isDstConnect) {
         for (auto entry : queryRel->getEntries()) {
@@ -96,7 +96,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto dstTableID = relEntry->getDstTableID();
           candidates.insert(dstTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(dstEntry->getLabel(catalog, tx));
+          candidateNamesSet.insert(dstEntry->getLabel());
         }
       }
     }
