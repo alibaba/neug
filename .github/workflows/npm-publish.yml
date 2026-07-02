@@ -1,10 +1,9 @@
 name: NPM Publish
 
-# Release tags drive npm publishing.
+# Published GitHub releases drive npm publishing.
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
 
 # Keep one publish run per tag.
@@ -61,6 +60,7 @@ jobs:
       - name: Publish npm packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -80,7 +80,7 @@ jobs:
           fi
 
           # The tag version must match every package version before publish is attempted.
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
             "${linux_x86_64[0]}" '@graphscope-neug/linux-x86_64' "$VERSION"
           python3 tools/nodejs_bind/scripts/validate_npm_version.py \
@@ -95,6 +95,6 @@ jobs:
           tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
           tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
 
-          npm publish dist/npm-packages/linux-x86_64/package --access public --provenance
-          npm publish dist/npm-packages/osx-arm64/package --access public --provenance
-          npm publish dist/npm-main --access public --provenance
+          npm publish ./dist/npm-packages/linux-x86_64/package --access public
+          npm publish ./dist/npm-packages/osx-arm64/package --access public
+          npm publish ./dist/npm-main --access public
