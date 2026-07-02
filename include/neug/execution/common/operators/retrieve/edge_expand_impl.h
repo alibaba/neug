@@ -15,8 +15,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/edge_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -130,7 +131,7 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_vertex_impl(
     const StorageReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const GPRED_T& gpred) {
@@ -219,7 +220,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_vertex_impl(
     const StorageReadInterface& graph, const MLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const GPRED_T& gpred) {
@@ -632,7 +633,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
 }
 
 template <typename GPRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_vertex_impl(
     const StorageReadInterface& graph, const MSVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const GPRED_T& gpred) {
@@ -749,11 +750,10 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_vertex_impl(
 #undef expand_sv_p_ml
 
 template <typename PRED_T>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
-expand_vertex_optional_impl(const StorageReadInterface& graph,
-                            const IVertexColumn& input,
-                            const std::vector<LabelTriplet>& labels,
-                            Direction dir, const PRED_T& pred) {
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_vertex_optional_impl(
+    const StorageReadInterface& graph, const IVertexColumn& input,
+    const std::vector<LabelTriplet>& labels, Direction dir,
+    const PRED_T& pred) {
   auto vertex_column_type = input.vertex_column_type();
   if (vertex_column_type == VertexColumnType::kSingle) {
     const SLVertexColumn& sl_col = dynamic_cast<const SLVertexColumn&>(input);
@@ -768,7 +768,7 @@ expand_vertex_optional_impl(const StorageReadInterface& graph,
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_edge_impl(
     const StorageReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const PRED_T& pred) {
@@ -891,7 +891,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_edge_impl(
     const StorageReadInterface& graph, const MSVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const PRED_T& pred) {
@@ -1016,7 +1016,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
 }
 
 template <typename PRED_T, bool is_optional = false>
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> expand_edge_impl(
+std::pair<std::shared_ptr<IColumn>, sel_vec_t> expand_edge_impl(
     const StorageReadInterface& graph, const MLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir,
     const PRED_T& pred) {

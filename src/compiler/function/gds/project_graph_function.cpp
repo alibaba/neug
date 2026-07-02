@@ -17,6 +17,7 @@
 #include "neug/compiler/function/gds/project_graph_function.h"
 #include <string>
 
+#include "neug/columnar/columns/value_columns.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
@@ -27,7 +28,6 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
@@ -273,7 +273,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   function->execFunc = [](const CallFuncInputBase& /*input*/,
                           neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
-    neug::execution::ValueColumnBuilder<std::string> name_builder;
+    neug::columnar::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
     if (metadataManager == nullptr) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
@@ -284,7 +284,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
     for (const auto& [name, _] : nameToEntryMap) {
       name_builder.push_back_opt(name);
     }
-    execution::DataChunk chunk;
+    columnar::DataChunk chunk;
     chunk.set(0, name_builder.finish());
     out.append_chunk(std::move(chunk));
     out.tag_ids = {0};
@@ -326,8 +326,8 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   function->execFunc = [](const CallFuncInputBase& input,
                           neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
-    neug::execution::ValueColumnBuilder<std::string> name_builder;
-    neug::execution::ValueColumnBuilder<std::string> predicate_builder;
+    neug::columnar::ValueColumnBuilder<std::string> name_builder;
+    neug::columnar::ValueColumnBuilder<std::string> predicate_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
     if (metadataManager == nullptr) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
@@ -351,7 +351,7 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
       name_builder.push_back_opt(std::move(triplets));
       predicate_builder.push_back_opt(relInfo.predicate);
     }
-    execution::DataChunk chunk;
+    columnar::DataChunk chunk;
     chunk.set(0, name_builder.finish());
     chunk.set(1, predicate_builder.finish());
     out.append_chunk(std::move(chunk));

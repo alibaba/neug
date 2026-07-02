@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
@@ -182,17 +182,17 @@ class VertexTable {
 
   size_t EnsureCapacity(size_t capacity);
 
-  bool get_index(const execution::Value& oid, vid_t& lid,
+  bool get_index(const columnar::Value& oid, vid_t& lid,
                  timestamp_t ts = MAX_TIMESTAMP) const;
 
-  execution::Value GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
+  columnar::Value GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
   // Return false if the reserved space is not enough.
-  bool AddVertex(const execution::Value& id,
-                 const std::vector<execution::Value>& props, vid_t& vid,
+  bool AddVertex(const columnar::Value& id,
+                 const std::vector<columnar::Value>& props, vid_t& vid,
                  timestamp_t ts, bool insert_safe);
 
-  bool UpdateProperty(vid_t vid, int32_t prop_id, const execution::Value& value,
+  bool UpdateProperty(vid_t vid, int32_t prop_id, const columnar::Value& value,
                       timestamp_t ts);
 
   size_t VertexNum(timestamp_t ts = MAX_TIMESTAMP) const;
@@ -238,7 +238,7 @@ class VertexTable {
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
-  void DeleteVertex(const execution::Value& id, timestamp_t ts);
+  void DeleteVertex(const columnar::Value& id, timestamp_t ts);
 
   void DeleteVertex(vid_t lid, timestamp_t ts);
 
@@ -247,7 +247,7 @@ class VertexTable {
   void AddProperties(
       Checkpoint& ckp, const std::vector<std::string>& property_names,
       const std::vector<DataType>& property_types,
-      const std::vector<execution::Value>& default_property_values);
+      const std::vector<columnar::Value>& default_property_values);
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -264,11 +264,11 @@ class VertexTable {
   Table& get_table() { return *table_; }
 
  private:
-  vid_t insert_vertex_pk(const execution::Value& id, timestamp_t ts,
+  vid_t insert_vertex_pk(const columnar::Value& id, timestamp_t ts,
                          bool insert_safe);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
-      const std::shared_ptr<execution::IContextColumn>& pk_col) {
+      const std::shared_ptr<columnar::IColumn>& pk_col) {
     size_t row_num = pk_col->size();
     std::vector<vid_t> vids;
     vids.resize(row_num);
@@ -320,7 +320,7 @@ class VertexTable {
       auto pk_col = columns[ind];
 
       // Build a list of property columns excluding the PK column.
-      std::vector<std::shared_ptr<execution::IContextColumn>> prop_cols;
+      std::vector<std::shared_ptr<columnar::IColumn>> prop_cols;
       prop_cols.reserve(columns.size() - 1);
       for (size_t i = 0; i < columns.size(); ++i) {
         if (static_cast<int>(i) != ind) {
@@ -364,7 +364,7 @@ class VertexTable {
 
 namespace internal {
 vid_t insert_vertex_pk_internal(IndexerType& indexer, VertexTimestamp& v_ts,
-                                const execution::Value& id, timestamp_t ts,
+                                const columnar::Value& id, timestamp_t ts,
                                 bool insert_safe);
 }  // namespace internal
 

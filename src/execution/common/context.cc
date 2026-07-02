@@ -45,8 +45,7 @@ void Context::append_chunk(DataChunk&& chunk) {
   chunks_.emplace_back(std::move(chunk));
 }
 
-void Context::append_chunk(DataChunk&& chunk,
-                           std::shared_ptr<IContextColumn> head) {
+void Context::append_chunk(DataChunk&& chunk, std::shared_ptr<IColumn> head) {
   chunks_.emplace_back(std::move(chunk), std::move(head));
 }
 

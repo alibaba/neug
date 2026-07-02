@@ -99,23 +99,23 @@ bool try_parse_source_vertex(const StorageReadInterface& graph,
   auto pk_type =
       std::get<0>(graph.schema().get_vertex_primary_key(vertex_label)[0]);
 
-  execution::Value oid;
+  columnar::Value oid;
   try {
     switch (pk_type.id()) {
     case DataTypeId::kInt32:
-      oid = execution::Value::INT32(std::stoi(source_str));
+      oid = columnar::Value::INT32(std::stoi(source_str));
       break;
     case DataTypeId::kInt64:
-      oid = execution::Value::INT64(std::atoll(source_str.c_str()));
+      oid = columnar::Value::INT64(std::atoll(source_str.c_str()));
       break;
     case DataTypeId::kUInt32:
-      oid = execution::Value::UINT32(std::stoul(source_str));
+      oid = columnar::Value::UINT32(std::stoul(source_str));
       break;
     case DataTypeId::kUInt64:
-      oid = execution::Value::UINT64(std::stoull(source_str));
+      oid = columnar::Value::UINT64(std::stoull(source_str));
       break;
     case DataTypeId::kVarchar:
-      oid = execution::Value::CreateValue(source_str);
+      oid = columnar::Value::CreateValue(source_str);
       break;
     default:
       LOG(ERROR) << "Unsupported primary key type for source vertex lookup.";

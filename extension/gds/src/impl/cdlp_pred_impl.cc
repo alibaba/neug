@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 
 namespace neug {
@@ -149,7 +149,7 @@ void CDLPPred::compute() {
 void CDLPPred::sink(execution::Context& ctx, int32_t node_alias,
                     int32_t label_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> label_builder;
+  columnar::ValueColumnBuilder<int64_t> label_builder;
   label_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {
@@ -157,7 +157,7 @@ void CDLPPred::sink(execution::Context& ctx, int32_t node_alias,
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(label_alias, label_builder.finish());
   ctx.append_chunk(std::move(chunk));

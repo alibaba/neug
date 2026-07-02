@@ -15,11 +15,11 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/data_chunk.h"
+#include "neug/columnar/columns/edge_columns.h"
+#include "neug/columnar/columns/path_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/columnar/data_chunk.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/loader/loader_utils.h"
 
@@ -44,7 +44,7 @@ class VertexColumnTest : public ::testing::Test {
     if (is_optional) {
       col_builder.push_back_null();
     }
-    std::shared_ptr<IContextColumn> col = col_builder.finish();
+    std::shared_ptr<IColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<SLVertexColumn>(col);
   }
 
@@ -57,7 +57,7 @@ class VertexColumnTest : public ::testing::Test {
     if (is_optional) {
       col_builder.push_back_null();
     }
-    std::shared_ptr<IContextColumn> col = col_builder.finish();
+    std::shared_ptr<IColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MSVertexColumn>(col);
   }
 
@@ -70,7 +70,7 @@ class VertexColumnTest : public ::testing::Test {
     if (is_optional) {
       col_builder.push_back_null();
     }
-    std::shared_ptr<IContextColumn> col = col_builder.finish();
+    std::shared_ptr<IColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MLVertexColumn>(col);
   }
 };
@@ -80,7 +80,7 @@ TEST_F(VertexColumnTest, SLVertexColumnBasic) {
       this->build_sl_vertex_column(kLabel0, false);
 
   EXPECT_EQ(sl_col->size(), 2);
-  EXPECT_EQ(sl_col->column_type(), ContextColumnType::kVertex);
+  EXPECT_EQ(sl_col->column_type(), ColumnKind::kVertex);
   EXPECT_EQ(sl_col->column_info(), "SLVertexColumn(0)[2]");
   EXPECT_EQ(sl_col->elem_type().id(), DataTypeId::kVertex);
 
@@ -99,7 +99,7 @@ TEST_F(VertexColumnTest, SLVertexColumnOptional) {
       this->build_sl_vertex_column(kLabel0, true);
 
   EXPECT_EQ(sl_optional_col->size(), 3);
-  EXPECT_EQ(sl_optional_col->column_type(), ContextColumnType::kVertex);
+  EXPECT_EQ(sl_optional_col->column_type(), ColumnKind::kVertex);
 
   EXPECT_EQ(sl_optional_col->vertex_column_type(), VertexColumnType::kSingle);
   EXPECT_TRUE(sl_optional_col->is_optional());
@@ -1303,7 +1303,7 @@ TEST_F(PathColumnTest, OptionalPathColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "PathColumn[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kPath);
+  EXPECT_EQ(col->column_type(), ColumnKind::kPath);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_TRUE(col->is_optional());
   EXPECT_TRUE(col->has_value(0));
@@ -1430,12 +1430,12 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   EXPECT_EQ(collected[0].second, p1);
 }
 
-class ArrowContextColumnTest : public ::testing::Test {
+class ArrowColumnTest : public ::testing::Test {
  protected:
   void SetUp() override {}
 };
 
-TEST_F(ArrowContextColumnTest, DataChunkSupplierBasic) {
+TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/execution/resources";

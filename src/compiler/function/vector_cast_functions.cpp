@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/columnar/value.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -35,7 +36,6 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -725,14 +725,14 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
-static execution::Value castFunc(const std::vector<execution::Value>& args) {
+static columnar::Value castFunc(const std::vector<columnar::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));
   }
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
-  auto type = execution::StringValue::Get(arg1);
+  auto type = columnar::StringValue::Get(arg1);
 
   if (type == "INT64") {
     return performCast<int64_t>(arg0);
@@ -756,7 +756,7 @@ static execution::Value castFunc(const std::vector<execution::Value>& args) {
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));
   }
-  return execution::Value(DataType::SQLNULL);
+  return columnar::Value(DataType::SQLNULL);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

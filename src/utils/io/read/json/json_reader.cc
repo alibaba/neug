@@ -28,11 +28,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/execution/common/columns/columns_utils.h"
+#include "neug/columnar/columns/columns_utils.h"
+#include "neug/columnar/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/row_expression_filter.h"
 #include "neug/utils/io/read/common/schema.h"
@@ -88,64 +88,63 @@ std::vector<std::string> convert_json_array_to_lines(const std::string& path) {
   return lines;
 }
 
-execution::Value parse_json_value(const rapidjson::Value& value,
-                                  const DataType& data_type) {
+columnar::Value parse_json_value(const rapidjson::Value& value,
+                                 const DataType& data_type) {
   if (value.IsNull()) {
-    return execution::Value(data_type);
+    return columnar::Value(data_type);
   }
   switch (data_type.id()) {
   case DataTypeId::kBoolean:
     if (value.IsBool()) {
-      return execution::Value::BOOLEAN(value.GetBool());
+      return columnar::Value::BOOLEAN(value.GetBool());
     }
     if (value.IsString()) {
-      return execution::Value::BOOLEAN(
-          execution::ValueConverter<bool>::typed_from_string(
-              value.GetString()));
+      return columnar::Value::BOOLEAN(
+          columnar::ValueConverter<bool>::typed_from_string(value.GetString()));
     }
-    return execution::Value::BOOLEAN(value.GetBool());
+    return columnar::Value::BOOLEAN(value.GetBool());
   case DataTypeId::kInt32:
     if (value.IsInt()) {
-      return execution::Value::INT32(value.GetInt());
+      return columnar::Value::INT32(value.GetInt());
     }
-    return execution::Value::INT32(static_cast<int32_t>(value.GetInt64()));
+    return columnar::Value::INT32(static_cast<int32_t>(value.GetInt64()));
   case DataTypeId::kUInt32:
-    return execution::Value::UINT32(value.GetUint());
+    return columnar::Value::UINT32(value.GetUint());
   case DataTypeId::kInt64:
-    return execution::Value::INT64(value.GetInt64());
+    return columnar::Value::INT64(value.GetInt64());
   case DataTypeId::kUInt64:
-    return execution::Value::UINT64(value.GetUint64());
+    return columnar::Value::UINT64(value.GetUint64());
   case DataTypeId::kFloat:
-    return execution::Value::FLOAT(static_cast<float>(value.GetDouble()));
+    return columnar::Value::FLOAT(static_cast<float>(value.GetDouble()));
   case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(value.GetDouble());
+    return columnar::Value::DOUBLE(value.GetDouble());
   case DataTypeId::kVarchar:
     if (value.IsString()) {
-      return execution::Value::STRING(value.GetString());
+      return columnar::Value::STRING(value.GetString());
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return columnar::Value::STRING(rapidjson_stringify(value));
   case DataTypeId::kDate:
     if (value.IsString()) {
-      return execution::Value::DATE(Date(std::string(value.GetString())));
+      return columnar::Value::DATE(Date(std::string(value.GetString())));
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return columnar::Value::STRING(rapidjson_stringify(value));
   case DataTypeId::kTimestampMs:
     if (value.IsString()) {
-      return execution::Value::TIMESTAMPMS(
+      return columnar::Value::TIMESTAMPMS(
           DateTime(std::string(value.GetString())));
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return columnar::Value::STRING(rapidjson_stringify(value));
   case DataTypeId::kInterval:
     if (value.IsString()) {
-      return execution::Value::INTERVAL(
+      return columnar::Value::INTERVAL(
           Interval(std::string(value.GetString())));
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return columnar::Value::STRING(rapidjson_stringify(value));
   default:
     if (value.IsString()) {
-      return execution::Value::STRING(value.GetString());
+      return columnar::Value::STRING(value.GetString());
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return columnar::Value::STRING(rapidjson_stringify(value));
   }
 }
 
@@ -173,7 +172,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
     chunk_size_ = resolve_chunk_size(config_);
   }
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override {
+  std::shared_ptr<columnar::DataChunk> GetNextChunk() override {
     const auto& selected_names = config_.include_columns.empty()
                                      ? config_.column_names
                                      : config_.include_columns;
@@ -188,10 +187,10 @@ class JsonChunkSupplier : public IDataChunkSupplier {
       }
     }
 
-    std::vector<std::shared_ptr<execution::IContextColumnBuilder>> builders;
+    std::vector<std::shared_ptr<columnar::IColumnBuilder>> builders;
     builders.reserve(selected_names.size());
     for (const auto& type : selected_types) {
-      builders.push_back(execution::ColumnsUtils::create_builder(type));
+      builders.push_back(columnar::ColumnsUtils::create_builder(type));
     }
 
     size_t rows_in_chunk = 0;
@@ -238,7 +237,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
       return nullptr;
     }
 
-    auto chunk = std::make_shared<execution::DataChunk>();
+    auto chunk = std::make_shared<columnar::DataChunk>();
     for (size_t col = 0; col < builders.size(); ++col) {
       chunk->set(static_cast<int>(col), builders[col]->finish());
     }
@@ -341,8 +340,8 @@ std::shared_ptr<IDataChunkSupplier> JsonReader::full_read(
                                      ? output_config.include_columns
                                      : sharedState_->projectColumns);
   return std::make_shared<MultiDataChunkSupplier>(
-      std::vector<std::shared_ptr<execution::DataChunk>>{
-          std::make_shared<execution::DataChunk>(std::move(projected))});
+      std::vector<std::shared_ptr<columnar::DataChunk>>{
+          std::make_shared<columnar::DataChunk>(std::move(projected))});
 }
 
 std::shared_ptr<IDataChunkSupplier> JsonReader::batch_read(

@@ -15,7 +15,7 @@
 
 #include "neug/utils/io/read/csv/csv_reader.h"
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/columnar/container_types.h"
 
 #include <glog/logging.h>
 
@@ -36,10 +36,10 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/common/operator_precedence.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
@@ -50,24 +50,24 @@ namespace neug {
 namespace reader {
 namespace {
 
-execution::Value proto_value_to_execution(const ::common::Value& value) {
+columnar::Value proto_value_to_execution(const ::common::Value& value) {
   switch (value.item_case()) {
   case ::common::Value::kBoolean:
-    return execution::Value::BOOLEAN(value.boolean());
+    return columnar::Value::BOOLEAN(value.boolean());
   case ::common::Value::kI32:
-    return execution::Value::INT32(value.i32());
+    return columnar::Value::INT32(value.i32());
   case ::common::Value::kI64:
-    return execution::Value::INT64(value.i64());
+    return columnar::Value::INT64(value.i64());
   case ::common::Value::kU32:
-    return execution::Value::UINT32(value.u32());
+    return columnar::Value::UINT32(value.u32());
   case ::common::Value::kU64:
-    return execution::Value::UINT64(value.u64());
+    return columnar::Value::UINT64(value.u64());
   case ::common::Value::kF32:
-    return execution::Value::FLOAT(value.f32());
+    return columnar::Value::FLOAT(value.f32());
   case ::common::Value::kF64:
-    return execution::Value::DOUBLE(value.f64());
+    return columnar::Value::DOUBLE(value.f64());
   case ::common::Value::kStr:
-    return execution::Value::STRING(value.str());
+    return columnar::Value::STRING(value.str());
   default:
     THROW_CONVERSION_EXCEPTION("Unsupported constant type in CSV row filter");
   }
@@ -91,7 +91,7 @@ bool is_numeric_type(DataTypeId id) {
   }
 }
 
-double value_to_double(const execution::Value& v) {
+double value_to_double(const columnar::Value& v) {
   switch (v.type().id()) {
   case DataTypeId::kInt8:
     return static_cast<double>(v.GetValue<int32_t>());
@@ -117,8 +117,7 @@ double value_to_double(const execution::Value& v) {
 }
 
 bool compare_values(const ::common::Logical& logical,
-                    const execution::Value& left,
-                    const execution::Value& right) {
+                    const columnar::Value& left, const columnar::Value& right) {
   // Numeric type coercion: promote both operands to double when types differ.
   if (left.type() != right.type() && is_numeric_type(left.type().id()) &&
       is_numeric_type(right.type().id())) {
@@ -174,7 +173,7 @@ class CsvRowFilter {
     compile(expr);
   }
 
-  bool eval(const execution::DataChunk& chunk, size_t row) const {
+  bool eval(const columnar::DataChunk& chunk, size_t row) const {
     if (!evaluator_) {
       return true;
     }
@@ -183,8 +182,8 @@ class CsvRowFilter {
 
  private:
   using ValueFn =
-      std::function<execution::Value(const execution::DataChunk&, size_t)>;
-  using EvalFn = std::function<bool(const execution::DataChunk&, size_t)>;
+      std::function<columnar::Value(const columnar::DataChunk&, size_t)>;
+  using EvalFn = std::function<bool(const columnar::DataChunk&, size_t)>;
 
   void compile(const ::common::Expression& expr) {
     std::stack<ValueFn> value_stack;
@@ -202,7 +201,7 @@ class CsvRowFilter {
         value_stack.pop();
         auto arith = opr.arith();
         value_stack.push([left_fn, right_fn, arith](
-                             const execution::DataChunk& chunk, size_t row) {
+                             const columnar::DataChunk& chunk, size_t row) {
           double l = value_to_double(left_fn(chunk, row));
           double r = value_to_double(right_fn(chunk, row));
           double result = 0;
@@ -226,7 +225,7 @@ class CsvRowFilter {
             result = 0;
             break;
           }
-          return execution::Value::DOUBLE(result);
+          return columnar::Value::DOUBLE(result);
         });
         return;
       }
@@ -241,10 +240,10 @@ class CsvRowFilter {
         auto operand = value_stack.top();
         value_stack.pop();
         value_stack.push(
-            [operand](const execution::DataChunk& chunk, size_t row) {
-              return execution::Value::BOOLEAN(
+            [operand](const columnar::DataChunk& chunk, size_t row) {
+              return columnar::Value::BOOLEAN(
                   compare_values(::common::Logical::NOT, operand(chunk, row),
-                                 execution::Value::BOOLEAN(false)));
+                                 columnar::Value::BOOLEAN(false)));
             });
         return;
       }
@@ -258,16 +257,16 @@ class CsvRowFilter {
       value_stack.pop();
       auto logical = opr.logical();
       value_stack.push([left_fn, right_fn, logical](
-                           const execution::DataChunk& chunk, size_t row) {
+                           const columnar::DataChunk& chunk, size_t row) {
         auto left_val = left_fn(chunk, row);
         auto right_val = right_fn(chunk, row);
         if (logical == ::common::Logical::AND ||
             logical == ::common::Logical::OR) {
-          return execution::Value::BOOLEAN(compare_values(
-              logical, execution::Value::BOOLEAN(left_val.GetValue<bool>()),
-              execution::Value::BOOLEAN(right_val.GetValue<bool>())));
+          return columnar::Value::BOOLEAN(compare_values(
+              logical, columnar::Value::BOOLEAN(left_val.GetValue<bool>()),
+              columnar::Value::BOOLEAN(right_val.GetValue<bool>())));
         }
-        return execution::Value::BOOLEAN(
+        return columnar::Value::BOOLEAN(
             compare_values(logical, left_val, right_val));
       });
     };
@@ -278,7 +277,7 @@ class CsvRowFilter {
       case ::common::ExprOpr::kConst: {
         auto value = proto_value_to_execution(opr.const_());
         value_stack.push(
-            [value](const execution::DataChunk&, size_t) { return value; });
+            [value](const columnar::DataChunk&, size_t) { return value; });
         break;
       }
       case ::common::ExprOpr::kVar: {
@@ -290,7 +289,7 @@ class CsvRowFilter {
         }
         int col_idx = iter->second;
         value_stack.push(
-            [col_idx](const execution::DataChunk& chunk, size_t row) {
+            [col_idx](const columnar::DataChunk& chunk, size_t row) {
               auto col = chunk.get(col_idx);
               if (!col) {
                 THROW_RUNTIME_ERROR("Missing filter column at index " +
@@ -347,7 +346,7 @@ class CsvRowFilter {
           case ::common::ExprOpr::kConst: {
             auto value = proto_value_to_execution(child_opr.const_());
             value_stack.push(
-                [value](const execution::DataChunk&, size_t) { return value; });
+                [value](const columnar::DataChunk&, size_t) { return value; });
             break;
           }
           case ::common::ExprOpr::kVar: {
@@ -359,7 +358,7 @@ class CsvRowFilter {
             }
             int idx = it->second;
             value_stack.push(
-                [idx](const execution::DataChunk& chunk, size_t row) {
+                [idx](const columnar::DataChunk& chunk, size_t row) {
                   auto col = chunk.get(idx);
                   if (!col) {
                     THROW_RUNTIME_ERROR("Missing filter column at index " +
@@ -397,7 +396,7 @@ class CsvRowFilter {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid filter expression");
     }
     auto value_fn = value_stack.top();
-    evaluator_ = [value_fn](const execution::DataChunk& chunk, size_t row) {
+    evaluator_ = [value_fn](const columnar::DataChunk& chunk, size_t row) {
       return value_fn(chunk, row).GetValue<bool>();
     };
   }
@@ -406,9 +405,9 @@ class CsvRowFilter {
   EvalFn evaluator_;
 };
 
-execution::DataChunk read_all_chunks(
+columnar::DataChunk read_all_chunks(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
-  execution::DataChunk merged;
+  columnar::DataChunk merged;
   for (const auto& supplier : suppliers) {
     while (true) {
       auto chunk = supplier->GetNextChunk();
@@ -432,8 +431,8 @@ void build_name_to_index(const std::vector<std::string>& column_names,
   }
 }
 
-execution::DataChunk filter_chunk(
-    const execution::DataChunk& input,
+columnar::DataChunk filter_chunk(
+    const columnar::DataChunk& input,
     const std::shared_ptr<::common::Expression>& filter_expr,
     const std::vector<std::string>& column_names) {
   if (!filter_expr || input.row_num() == 0) {
@@ -452,13 +451,13 @@ execution::DataChunk filter_chunk(
     }
   }
 
-  execution::DataChunk filtered = input;
+  columnar::DataChunk filtered = input;
   filtered.reshuffle(keep_offsets);
   return filtered;
 }
 
-execution::DataChunk project_chunk(
-    const execution::DataChunk& input,
+columnar::DataChunk project_chunk(
+    const columnar::DataChunk& input,
     const std::vector<std::string>& column_names,
     const std::vector<std::string>& project_columns) {
   if (project_columns.empty()) {
@@ -468,7 +467,7 @@ execution::DataChunk project_chunk(
   std::unordered_map<std::string, int> name_to_index;
   build_name_to_index(column_names, &name_to_index);
 
-  execution::DataChunk projected;
+  columnar::DataChunk projected;
   for (size_t i = 0; i < project_columns.size(); ++i) {
     auto iter = name_to_index.find(project_columns[i]);
     if (iter == name_to_index.end()) {
@@ -568,8 +567,8 @@ std::shared_ptr<IDataChunkSupplier> CsvReader::full_read(
                                      : sharedState_->projectColumns);
 
   return std::make_shared<MultiDataChunkSupplier>(
-      std::vector<std::shared_ptr<execution::DataChunk>>{
-          std::make_shared<execution::DataChunk>(std::move(projected))});
+      std::vector<std::shared_ptr<columnar::DataChunk>>{
+          std::make_shared<columnar::DataChunk>(std::move(projected))});
 }
 
 std::shared_ptr<IDataChunkSupplier> CsvReader::batch_read(

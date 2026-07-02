@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "utils/parallel_utils.h"
 #include "utils/path_utils.h"
@@ -160,11 +160,11 @@ void BFS::compute() {
 void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
                int path_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> distance_builder;
+  columnar::ValueColumnBuilder<int64_t> distance_builder;
 
   distance_builder.reserve(vertices_.size());
 
-  std::shared_ptr<execution::IContextColumn> path_column;
+  std::shared_ptr<columnar::IColumn> path_column;
   if (return_path_) {
     auto oe_view = graph_.GetGenericOutgoingGraphView(
         vertex_label_, vertex_label_, edge_label_);
@@ -189,7 +189,7 @@ void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
       return source_;
     };
 
-    execution::PathColumnBuilder path_builder;
+    columnar::PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();
@@ -210,7 +210,7 @@ void BFS::sink(execution::Context& ctx, int node_alias, int distance_alias,
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(distance_alias, distance_builder.finish());
 

@@ -25,7 +25,7 @@ namespace ops {
  */
 struct DummyGetter : public ProjectExprBase {
   DummyGetter(int from, int to) : from_(from), to_(to) {}
-  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+  std::shared_ptr<IColumn> evaluate(const ContextChunk& chunk) override {
     return chunk.get(from_);
   }
 
@@ -48,10 +48,9 @@ struct VertexPropertyExpr : public ProjectExprBase {
         tag_(tag),
         property_name_(property_name) {}
 
-  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+  std::shared_ptr<IColumn> evaluate(const ContextChunk& chunk) override {
     auto col = chunk.get(tag_);
-    if (col->is_optional() ||
-        col->column_type() != ContextColumnType::kVertex) {
+    if (col->is_optional() || col->column_type() != ColumnKind::kVertex) {
       return nullptr;
     }
     const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
@@ -86,8 +85,7 @@ struct VertexPropertyExpr : public ProjectExprBase {
   bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                       sel_vec_t& indices) const override {
     auto col = chunk.get(tag_);
-    if (col->is_optional() ||
-        col->column_type() != ContextColumnType::kVertex) {
+    if (col->is_optional() || col->column_type() != ColumnKind::kVertex) {
       return false;
     }
     const auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
@@ -136,10 +134,9 @@ struct CaseWhenExpr : public ProjectExprBase {
     }
     return true;
   }
-  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+  std::shared_ptr<IColumn> evaluate(const ContextChunk& chunk) override {
     auto col = chunk.get(tag_);
-    if (col->is_optional() ||
-        col->column_type() != ContextColumnType::kVertex) {
+    if (col->is_optional() || col->column_type() != ColumnKind::kVertex) {
       return nullptr;
     }
     const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
@@ -182,8 +179,7 @@ struct CaseWhenExpr : public ProjectExprBase {
 
  private:
   template <typename COL_T, typename PRED_T>
-  std::shared_ptr<IContextColumn> eval_impl(const COL_T& vertex_col,
-                                            PRED_T&& pred) {
+  std::shared_ptr<IColumn> eval_impl(const COL_T& vertex_col, PRED_T&& pred) {
     ValueColumnBuilder<V> builder;
     size_t num_rows = vertex_col.size();
     builder.reserve(num_rows);
@@ -211,7 +207,7 @@ struct GeneralExpr : public ProjectExprBase {
               std::unique_ptr<BindedExprBase>&& expr, const DataType& type)
       : graph(igraph), expr(std::move(expr)), type(type) {}
 
-  std::shared_ptr<IContextColumn> evaluate(const ContextChunk& chunk) override {
+  std::shared_ptr<IColumn> evaluate(const ContextChunk& chunk) override {
     auto column_builder = ColumnsUtils::create_builder(type);
     column_builder->reserve(chunk.row_num());
     const auto& e = expr->Cast<RecordExprBase>();

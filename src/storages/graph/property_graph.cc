@@ -161,7 +161,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
-  std::vector<execution::Value> default_property_values;
+  std::vector<columnar::Value> default_property_values;
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
   const auto& primary_key_names = config.GetPrimaryKeyNames();
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
@@ -286,7 +286,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
-  std::vector<execution::Value> default_property_values;
+  std::vector<columnar::Value> default_property_values;
   const auto& properties = config.GetProperties();
   for (size_t i = 0; i < properties.size(); i++) {
     const auto& [name, default_value] = properties[i];
@@ -335,7 +335,7 @@ Status PropertyGraph::AddVertexProperties(
   RETURN_IF_NOT_OK(vertex_label_check(vertex_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<execution::Value> add_default_property_values;
+  std::vector<columnar::Value> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     const auto& [property_name, default_value] = add_properties[i];
     if (schema_.vertex_has_property(vertex_type_name, property_name)) {
@@ -368,7 +368,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name));
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<execution::Value> add_default_props;
+  std::vector<columnar::Value> add_default_props;
   for (size_t i = 0; i < add_properties.size(); i++) {
     const auto& [property_name, default_value] = add_properties[i];
     if (schema_.edge_has_property(src_type_name, dst_type_name, edge_type_name,
@@ -660,7 +660,7 @@ Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
   return Status::OK();
 }
 
-Status PropertyGraph::DeleteVertex(label_t label, const execution::Value& oid,
+Status PropertyGraph::DeleteVertex(label_t label, const columnar::Value& oid,
                                    timestamp_t ts) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
   vid_t lid;
@@ -1015,19 +1015,19 @@ size_t PropertyGraph::EdgeNum(label_t src_label, label_t edge_label,
   }
 }
 
-bool PropertyGraph::get_lid(label_t label, const execution::Value& oid,
+bool PropertyGraph::get_lid(label_t label, const columnar::Value& oid,
                             vid_t& lid, timestamp_t ts) const {
   schema_.ensure_vertex_label_valid(label);
   return vertex_tables_[label].get_index(oid, lid, ts);
 }
 
-execution::Value PropertyGraph::GetOid(label_t label, vid_t lid,
-                                       timestamp_t ts) const {
+columnar::Value PropertyGraph::GetOid(label_t label, vid_t lid,
+                                      timestamp_t ts) const {
   return vertex_tables_[label].GetOid(lid, ts);
 }
 
-Status PropertyGraph::AddVertex(label_t label, const execution::Value& id,
-                                const std::vector<execution::Value>& props,
+Status PropertyGraph::AddVertex(label_t label, const columnar::Value& id,
+                                const std::vector<columnar::Value>& props,
                                 vid_t& ret, timestamp_t ts, bool insert_safe) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
   if (!vertex_tables_[label].AddVertex(id, props, ret, ts, insert_safe)) {
@@ -1039,7 +1039,7 @@ Status PropertyGraph::AddVertex(label_t label, const execution::Value& id,
 Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
                               label_t dst_label, vid_t dst_lid,
                               label_t edge_label,
-                              const std::vector<execution::Value>& properties,
+                              const std::vector<columnar::Value>& properties,
                               timestamp_t ts, Allocator& alloc,
                               int32_t& oe_offset, const void*& prop,
                               bool insert_safe) {
@@ -1067,7 +1067,7 @@ Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
 
 Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
                                            int32_t prop_id,
-                                           const execution::Value& value,
+                                           const columnar::Value& value,
                                            timestamp_t ts) {
   assert(prop_id >= 0);
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
@@ -1082,7 +1082,7 @@ Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
                                          label_t dst_v_label, vid_t dst_vid,
                                          label_t e_label, int32_t oe_offset,
                                          int32_t ie_offset, int32_t prop_id,
-                                         const execution::Value& value,
+                                         const columnar::Value& value,
                                          timestamp_t ts) {
   assert(prop_id >= 0);
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));

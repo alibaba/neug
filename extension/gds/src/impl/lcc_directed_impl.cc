@@ -20,8 +20,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 
 namespace neug {
@@ -159,7 +159,7 @@ void LCCDirected::compute() {
 
 void LCCDirected::sink(execution::Context& ctx, int node_alias, int lcc_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<double> lcc_builder;
+  columnar::ValueColumnBuilder<double> lcc_builder;
   lcc_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {
@@ -167,7 +167,7 @@ void LCCDirected::sink(execution::Context& ctx, int node_alias, int lcc_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(lcc_alias, lcc_builder.finish());
   ctx.append_chunk(std::move(chunk));

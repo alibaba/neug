@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/path_expand.h"
 
-#include "neug/execution/common/columns/path_columns.h"
+#include "neug/columnar/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/expression/special_predicates.h"
 
@@ -30,8 +30,7 @@ neug::result<ContextChunk> PathExpand::edge_expand_v(
 
   if (params.labels.size() == 1 &&
       params.labels[0].src_label == params.labels[0].dst_label &&
-      chunk.get(params.start_tag)->column_type() ==
-          ContextColumnType::kVertex) {
+      chunk.get(params.start_tag)->column_type() == ColumnKind::kVertex) {
     auto vertex_col =
         dynamic_cast<const IVertexColumn*>(chunk.get(params.start_tag).get());
     if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {

@@ -20,8 +20,8 @@ struct NumericParameterScenario {
   static std::tuple<std::string, std::string, neug::execution::ParamsMap>
   MakeRequest() {
     neug::execution::ParamsMap params = {
-        {"min_id", execution::Value::INT64(100)},
-        {"limit", execution::Value::INT32(10)},
+        {"min_id", columnar::Value::INT64(100)},
+        {"limit", columnar::Value::INT32(10)},
     };
     return {"MATCH (n) WHERE n.id > $min_id RETURN n.id", "read",
             std::move(params)};
@@ -36,7 +36,7 @@ struct ListParameterScenario {
   static std::tuple<std::string, std::string, neug::execution::ParamsMap>
   MakeRequest() {
     neug::execution::ParamsMap params;
-    params.emplace("id_list", execution::Value::LIST(ListStorage()));
+    params.emplace("id_list", columnar::Value::LIST(ListStorage()));
     return {"MATCH (n) WHERE n.id IN $id_list RETURN n.id", "read",
             std::move(params)};
   }
@@ -46,10 +46,10 @@ struct ListParameterScenario {
   }
 
  private:
-  static std::vector<execution::Value> ListStorage() {
-    static std::vector<execution::Value> elements;
+  static std::vector<columnar::Value> ListStorage() {
+    static std::vector<columnar::Value> elements;
     for (int i = 1; i <= 5; ++i) {
-      elements.emplace_back(execution::Value::INT32(i));
+      elements.emplace_back(columnar::Value::INT32(i));
     }
     return elements;
   }

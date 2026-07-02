@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/execution/columnar_aliases.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/query_result.h"
 namespace neug {

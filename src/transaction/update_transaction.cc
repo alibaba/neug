@@ -25,8 +25,8 @@
 #include <string_view>
 
 #include <flat_hash_map.hpp>
+#include "neug/columnar/value.h"
 #include "neug/common/extra_type_info.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view_utils.h"
@@ -591,8 +591,8 @@ Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
 }
 
 Status StorageTPUpdateInterface::AddVertex(
-    label_t label, const execution::Value& oid,
-    const std::vector<execution::Value>& props, vid_t& vid) {
+    label_t label, const columnar::Value& oid,
+    const std::vector<columnar::Value>& props, vid_t& vid) {
   std::vector<DataType> types =
       cow_graph_->schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -650,7 +650,7 @@ Status StorageTPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
 
 Status StorageTPUpdateInterface::AddEdge(
     label_t src_label, vid_t src_lid, label_t dst_label, vid_t dst_lid,
-    label_t edge_label, const std::vector<execution::Value>& properties,
+    label_t edge_label, const std::vector<columnar::Value>& properties,
     const void*& prop) {
   const auto& edge_table =
       cow_graph_->get_edge_table(src_label, dst_label, edge_label);
@@ -750,8 +750,8 @@ Status StorageTPUpdateInterface::DeleteEdge(label_t src_label, vid_t src_lid,
                                 edge_label, oe_offset, ie_offset, read_ts_);
 }
 
-execution::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
-                                                      int col_id) const {
+columnar::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
+                                                     int col_id) const {
   auto col = cow_graph_->GetVertexPropertyColumn(label, col_id);
   if (!cow_graph_->IsValidLid(label, lid, timestamp_)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -763,19 +763,17 @@ execution::Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
   return col->get_any(lid);
 }
 
-execution::Value UpdateTransaction::GetVertexId(label_t label,
-                                                vid_t lid) const {
+columnar::Value UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
   return cow_graph_->GetOid(label, lid, timestamp_);
 }
 
-bool UpdateTransaction::GetVertexIndex(label_t label,
-                                       const execution::Value& id,
+bool UpdateTransaction::GetVertexIndex(label_t label, const columnar::Value& id,
                                        vid_t& index) const {
   return cow_graph_->get_lid(label, id, index, timestamp_);
 }
 
 Status StorageTPUpdateInterface::UpdateVertexProperty(
-    label_t label, vid_t lid, int col_id, const execution::Value& value) {
+    label_t label, vid_t lid, int col_id, const columnar::Value& value) {
   if (!cow_graph_->IsValidLid(label, lid, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex lid " + std::to_string(lid) + " of label " +
@@ -801,7 +799,7 @@ Status StorageTPUpdateInterface::UpdateVertexProperty(
 Status StorageTPUpdateInterface::UpdateEdgeProperty(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
-    const execution::Value& value) {
+    const columnar::Value& value) {
   if (!cow_graph_->IsValidLid(src_label, src, read_ts_) ||
       !cow_graph_->IsValidLid(dst_label, dst, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,

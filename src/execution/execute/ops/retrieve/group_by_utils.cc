@@ -14,10 +14,10 @@
  */
 
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/list_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -29,7 +29,7 @@ struct GKey : public KeyBase {
       : tag_alias_(tag_alias) {}
   std::pair<sel_vec_t, vector_t<sel_vec_t>> group(
       const ContextChunk& chunk) override {
-    std::vector<std::shared_ptr<IContextColumn>> exprs;
+    std::vector<std::shared_ptr<IColumn>> exprs;
     for (size_t i = 0; i < tag_alias_.size(); ++i) {
       exprs.push_back(chunk.get(tag_alias_[i].first));
     }
@@ -91,22 +91,21 @@ struct ValueWrapper {
 template <typename T>
 struct TypedVarWrapper {
   using V = T;
-  explicit TypedVarWrapper(const IContextColumn& column) : column(column) {}
+  explicit TypedVarWrapper(const IColumn& column) : column(column) {}
   V operator()(size_t idx) const {
     return column.get_elem(idx).template GetValue<T>();
   }
   bool has_value(size_t idx) const { return column.has_value(idx); }
-  const IContextColumn& column;
+  const IColumn& column;
 };
 // General wrapper for Value type
 struct VarWrapper {
   using V = Value;
   Value operator()(size_t idx) const { return vars->get_elem(idx); }
-  explicit VarWrapper(const std::shared_ptr<IContextColumn>& vars)
-      : vars(vars) {}
+  explicit VarWrapper(const std::shared_ptr<IColumn>& vars) : vars(vars) {}
   bool has_value(size_t idx) const { return !vars->get_elem(idx).IsNull(); }
   const DataType& type() const { return vars->elem_type(); }
-  std::shared_ptr<IContextColumn> vars;
+  std::shared_ptr<IColumn> vars;
 };
 
 struct VarPairWrapper {
@@ -115,17 +114,17 @@ struct VarPairWrapper {
     return std::make_pair(fst->get_elem(idx), snd->get_elem(idx));
   }
   bool has_value(size_t idx) const { return !fst->get_elem(idx).IsNull(); }
-  VarPairWrapper(const std::shared_ptr<IContextColumn>& fst,
-                 const std::shared_ptr<IContextColumn>& snd)
+  VarPairWrapper(const std::shared_ptr<IColumn>& fst,
+                 const std::shared_ptr<IColumn>& snd)
       : fst(fst), snd(snd) {}
-  std::shared_ptr<IContextColumn> fst;
-  std::shared_ptr<IContextColumn> snd;
+  std::shared_ptr<IColumn> fst;
+  std::shared_ptr<IColumn> snd;
 };
 
 static std::unique_ptr<KeyBase> create_sp_key(
     const DataChunk& chunk, const std::vector<std::pair<int, int>>& tag_alias) {
   auto col = chunk.get(tag_alias[0].first);
-  if (col->column_type() == ContextColumnType::kVertex) {
+  if (col->column_type() == ColumnKind::kVertex) {
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     VertexWrapper wrapper(*vertex_col);
     return std::make_unique<Key<decltype(wrapper)>>(std::move(wrapper),
@@ -137,7 +136,7 @@ static std::unique_ptr<KeyBase> create_sp_key(
       return std::make_unique<Key<decltype(wrapper)>>(std::move(wrapper),
                                                       tag_alias);
     }
-  } else if (col->column_type() == ContextColumnType::kValue) {
+  } else if (col->column_type() == ColumnKind::kValue) {
     if (col->elem_type().id() == DataTypeId::kInt64) {
       ValueWrapper<int64_t> wrapper(
           *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
@@ -169,8 +168,7 @@ struct SumReducer<EXPR, IS_OPTIONAL,
   using V = typename EXPR::V;
   explicit SumReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -218,8 +216,7 @@ struct CountDistinctReducer : public ReducerBase {
 
   explicit CountDistinctReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -281,8 +278,7 @@ struct CountReducer : public ReducerBase {
 
   explicit CountReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -313,8 +309,7 @@ struct CountStarReducer : public ReducerBase {
   CountStarReducer() {}
   using V = int64_t;
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<int64_t> builder;
     builder.reserve(groups.size());
     if (groups.empty()) {
@@ -335,8 +330,7 @@ struct MinReducer : public ReducerBase {
   using V = typename EXPR::V;
   explicit MinReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -380,8 +374,7 @@ struct MaxReducer : public ReducerBase {
   using V = typename EXPR::V;
   explicit MaxReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -424,8 +417,7 @@ struct FirstReducer : public ReducerBase {
   using V = typename EXPR::V;
   explicit FirstReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<V> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -463,8 +455,7 @@ struct ToSetReducer : public ReducerBase {
   explicit ToSetReducer(EXPR&& expr, const DataType& type)
       : expr(std::move(expr)), type(type) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
@@ -512,8 +503,7 @@ struct ToListReducer : public ReducerBase {
   explicit ToListReducer(EXPR&& expr, const DataType& type)
       : expr(std::move(expr)), type(type) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ListColumnBuilder builder(type);
     builder.reserve(groups.size());
 
@@ -555,8 +545,7 @@ struct AvgReducer<EXPR, IS_OPTIONAL,
   using V = double;
   explicit AvgReducer(EXPR&& expr) : expr(std::move(expr)) {}
 
-  std::shared_ptr<IContextColumn> reduce(
-      const vector_t<sel_vec_t>& groups) override {
+  std::shared_ptr<IColumn> reduce(const vector_t<sel_vec_t>& groups) override {
     ValueColumnBuilder<double> builder;
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
@@ -655,7 +644,7 @@ std::unique_ptr<ReducerBase> create_typed_reducer(EXPR&& expr, AggrKind kind) {
 }
 
 static std::unique_ptr<ReducerBase> create_general_reducer(
-    const std::shared_ptr<IContextColumn>& var, AggrKind kind) {
+    const std::shared_ptr<IColumn>& var, AggrKind kind) {
   VarWrapper var_wrap(var);
   if (kind == AggrKind::kCount) {
     if (!var->is_optional()) {
@@ -691,8 +680,8 @@ static std::unique_ptr<ReducerBase> create_general_reducer(
 }
 
 static std::unique_ptr<ReducerBase> create_pair_reducer(
-    const std::shared_ptr<IContextColumn>& fst,
-    const std::shared_ptr<IContextColumn>& snd, AggrKind kind) {
+    const std::shared_ptr<IColumn>& fst, const std::shared_ptr<IColumn>& snd,
+    AggrKind kind) {
   if (kind == AggrKind::kCount) {
     VarPairWrapper var_wrap(std::move(fst), std::move(snd));
     if ((!fst->is_optional()) && (!snd->is_optional())) {
@@ -725,7 +714,7 @@ static std::unique_ptr<ReducerBase> create_reducer(
     int tag = var.has_tag() ? var.tag().id() : -1;
     auto col = chunk.get(tag);
     {
-      if (col->column_type() == ContextColumnType::kVertex) {
+      if (col->column_type() == ColumnKind::kVertex) {
         auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
         VertexWrapper wrapper(*vertex_col);
         if (col->is_optional()) {
@@ -769,11 +758,11 @@ static std::unique_ptr<ReducerBase> create_reducer(
                 std::move(wrapper), kind);
           }
         }
-      } else if (col->column_type() == ContextColumnType::kValue) {
+      } else if (col->column_type() == ColumnKind::kValue) {
 #define TYPE_DISPATCHER(enum_val, type)                                        \
   case DataTypeId::enum_val: {                                                 \
     ValueWrapper<type> wrapper(                                                \
-        *dynamic_cast<const ValueColumn<type>*>(col.get()));                   \
+        *dynamic_cast<const columnar::ValueColumn<type>*>(col.get()));         \
     if (!col->is_optional()) {                                                 \
       return create_typed_reducer<decltype(wrapper), false>(                   \
           std::move(wrapper), kind);                                           \

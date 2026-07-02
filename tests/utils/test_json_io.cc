@@ -22,13 +22,13 @@
 #include <string>
 #include <vector>
 
+#include "neug/columnar/columns/value_columns.h"
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/io/chunk_stream_adapter.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/json/json_reader.h"
 
@@ -137,7 +137,7 @@ class JsonIOTest : public ::testing::Test {
   execution::Context readToContext(
       const std::shared_ptr<reader::JsonReader>& reader,
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    return reader::toContext(reader->read(), *sharedState);
+    return execution::io::fromChunkSupplier(reader->read(), *sharedState);
   }
 };
 

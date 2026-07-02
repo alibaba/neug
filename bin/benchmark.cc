@@ -22,7 +22,7 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
@@ -54,40 +54,40 @@ neug::execution::ParamsMap deserialize_string_kv_map(
       switch (type.id()) {
       case neug::DataTypeId::kInt32: {
         map.emplace(iter.first,
-                    neug::execution::Value::INT32(std::stoi(iter.second)));
+                    neug::columnar::Value::INT32(std::stoi(iter.second)));
         break;
       }
       case neug::DataTypeId::kInt64: {
         map.emplace(iter.first,
-                    neug::execution::Value::INT64(std::stoll(iter.second)));
+                    neug::columnar::Value::INT64(std::stoll(iter.second)));
         break;
       }
       case neug::DataTypeId::kUInt32: {
         map.emplace(iter.first,
-                    neug::execution::Value::UINT32(std::stoul(iter.second)));
+                    neug::columnar::Value::UINT32(std::stoul(iter.second)));
         break;
       }
       case neug::DataTypeId::kUInt64: {
         map.emplace(iter.first,
-                    neug::execution::Value::UINT64(std::stoull(iter.second)));
+                    neug::columnar::Value::UINT64(std::stoull(iter.second)));
         break;
       }
       case neug::DataTypeId::kBoolean: {
         map.emplace(iter.first,
-                    neug::execution::Value::BOOLEAN(iter.second == "true"));
+                    neug::columnar::Value::BOOLEAN(iter.second == "true"));
         break;
       }
       case neug::DataTypeId::kVarchar: {
-        map.emplace(iter.first, neug::execution::Value::STRING(iter.second));
+        map.emplace(iter.first, neug::columnar::Value::STRING(iter.second));
         break;
       }
       case neug::DataTypeId::kTimestampMs: {
-        map.emplace(iter.first, neug::execution::Value::TIMESTAMPMS(
+        map.emplace(iter.first, neug::columnar::Value::TIMESTAMPMS(
                                     neug::DateTime(std::stoll(iter.second))));
         break;
       }
       case neug::DataTypeId::kDate: {
-        map.emplace(iter.first, neug::execution::Value::DATE(neug::Date(
+        map.emplace(iter.first, neug::columnar::Value::DATE(neug::Date(
                                     int64_t(std::stoll(iter.second)))));
         break;
       default:

@@ -14,10 +14,11 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/columnar/value.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/params_map.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"

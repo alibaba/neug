@@ -16,8 +16,8 @@
 
 #include <optional>
 
-#include "neug/execution/common/columns/container_types.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/container_types.h"
+#include "neug/columnar/value.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -89,7 +89,7 @@ class IStorageInterface {
    * @param index Output parameter for internal vertex index
    * @return true if vertex found, false otherwise
    */
-  virtual bool GetVertexIndex(label_t label, const execution::Value& id,
+  virtual bool GetVertexIndex(label_t label, const columnar::Value& id,
                               vid_t& index) const = 0;
 };
 
@@ -200,7 +200,7 @@ class StorageReadInterface : virtual public IStorageInterface {
     return view_.GetVertexSet(label, read_ts_);
   }
 
-  bool GetVertexIndex(label_t label, const execution::Value& id,
+  bool GetVertexIndex(label_t label, const columnar::Value& id,
                       vid_t& index) const override {
     return view_.get_lid(label, id, index, read_ts_);
   }
@@ -223,11 +223,11 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * @param label Vertex label
    * @param index Internal vertex ID
-   * @return execution::Value containing the primary key value
+   * @return columnar::Value containing the primary key value
    *
    * @since v0.1.0
    */
-  inline execution::Value GetVertexId(label_t label, vid_t index) const {
+  inline columnar::Value GetVertexId(label_t label, vid_t index) const {
     return view_.GetOid(label, index, read_ts_);
   }
 
@@ -236,21 +236,21 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * execution::Value age = reader.GetVertexProperty(person_label, vid,
+   * columnar::Value age = reader.GetVertexProperty(person_label, vid,
    * age_prop_id); int64_t age_val = age.GetValue<int64_t>();
    * @endcode
    *
    * @param label Vertex label
    * @param index Internal vertex ID
    * @param prop_id Property column index
-   * @return execution::Value containing the value
+   * @return columnar::Value containing the value
    *
    * @since v0.1.0
    */
-  inline execution::Value GetVertexProperty(label_t label, vid_t index,
-                                            int prop_id) const {
+  inline columnar::Value GetVertexProperty(label_t label, vid_t index,
+                                           int prop_id) const {
     auto col = view_.GetVertexPropertyColumn(label, prop_id);
-    return col ? col->get_any(index) : execution::Value();
+    return col ? col->get_any(index) : columnar::Value();
   }
 
   /**
@@ -398,8 +398,8 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @return Status::OK() on success, or an error Status if validation fails
    *         (e.g. property count/type mismatch, capacity failure).
    */
-  virtual Status AddVertex(label_t label, const execution::Value& id,
-                           const std::vector<execution::Value>& props,
+  virtual Status AddVertex(label_t label, const columnar::Value& id,
+                           const std::vector<columnar::Value>& props,
                            vid_t& vid) = 0;
 
   /**
@@ -419,7 +419,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
    */
   virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
                          vid_t dst, label_t edge_label,
-                         const std::vector<execution::Value>& properties,
+                         const std::vector<columnar::Value>& properties,
                          const void*& prop) = 0;
 
   /**
@@ -510,7 +510,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param value New property value
    */
   virtual Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                      const execution::Value& value) = 0;
+                                      const columnar::Value& value) = 0;
 
   /**
    * @brief Update an edge property value.
@@ -529,14 +529,14 @@ class StorageUpdateInterface : public StorageReadInterface,
                                     label_t dst_label, vid_t dst,
                                     label_t edge_label, int32_t oe_offset,
                                     int32_t ie_offset, int32_t col_id,
-                                    const execution::Value& value) = 0;
+                                    const columnar::Value& value) = 0;
 
-  virtual Status AddVertex(label_t label, const execution::Value& id,
-                           const std::vector<execution::Value>& props,
+  virtual Status AddVertex(label_t label, const columnar::Value& id,
+                           const std::vector<columnar::Value>& props,
                            vid_t& vid) override = 0;
   virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
                          vid_t dst, label_t edge_label,
-                         const std::vector<execution::Value>& properties,
+                         const std::vector<columnar::Value>& properties,
                          const void*& prop) override = 0;
 
   /**
@@ -629,17 +629,17 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   ~StorageAPUpdateInterface() {}
 
   Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                              const execution::Value& value) override;
+                              const columnar::Value& value) override;
   Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
                             vid_t dst, label_t edge_label, int32_t oe_offset,
                             int32_t ie_offset, int32_t col_id,
-                            const execution::Value& value) override;
-  Status AddVertex(label_t label, const execution::Value& id,
-                   const std::vector<execution::Value>& props,
+                            const columnar::Value& value) override;
+  Status AddVertex(label_t label, const columnar::Value& id,
+                   const std::vector<columnar::Value>& props,
                    vid_t& vid) override;
   Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                  label_t edge_label,
-                 const std::vector<execution::Value>& properties,
+                 const std::vector<columnar::Value>& properties,
                  const void*& prop) override;
   Status DeleteVertex(label_t label, vid_t lid) override;
   Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,

@@ -13,13 +13,11 @@
  * limitations under the License.
  */
 #pragma once
+#include "neug/columnar/value.h"
 #include "neug/common/types.h"
+
 namespace neug {
 
-namespace execution {
-class Value;
-}  // namespace execution
-
-execution::Value get_default_value(const DataType& type);
+columnar::Value get_default_value(const DataType& type);
 
 }  // namespace neug

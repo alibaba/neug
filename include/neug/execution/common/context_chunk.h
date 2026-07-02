@@ -19,7 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/columnar/data_chunk.h"
+#include "neug/execution/columnar_aliases.h"
 
 namespace neug {
 
@@ -45,7 +46,7 @@ class ContextChunk {
   ~ContextChunk() = default;
 
   ContextChunk(DataChunk&& chunk);  // NOLINT(runtime/explicit)
-  ContextChunk(DataChunk&& chunk, std::shared_ptr<IContextColumn> head);
+  ContextChunk(DataChunk&& chunk, std::shared_ptr<IColumn> head);
 
   ContextChunk(const ContextChunk& other) = default;
   ContextChunk& operator=(const ContextChunk& other) = default;
@@ -56,11 +57,11 @@ class ContextChunk {
 
   DataChunk& chunk();
   const DataChunk& chunk() const;
-  std::shared_ptr<IContextColumn>& head();
-  const std::shared_ptr<IContextColumn>& head() const;
+  std::shared_ptr<IColumn>& head();
+  const std::shared_ptr<IColumn>& head() const;
 
-  std::vector<std::shared_ptr<IContextColumn>>& columns();
-  const std::vector<std::shared_ptr<IContextColumn>>& columns() const;
+  std::vector<std::shared_ptr<IColumn>>& columns();
+  const std::vector<std::shared_ptr<IColumn>>& columns() const;
 
   // ---- mutation ----
 
@@ -68,12 +69,12 @@ class ContextChunk {
 
   /// Stores `col`. If alias >= 0 the column is also placed in the chunk
   /// under that alias; head is updated either way.
-  void set(int alias, std::shared_ptr<IContextColumn> col);
+  void set(int alias, std::shared_ptr<IColumn> col);
 
   /// Returns the column referenced by alias. alias = -1 returns head.
-  std::shared_ptr<IContextColumn> get(int alias) const;
+  std::shared_ptr<IColumn> get(int alias) const;
 
-  void set_with_reshuffle(int alias, std::shared_ptr<IContextColumn> col,
+  void set_with_reshuffle(int alias, std::shared_ptr<IColumn> col,
                           const sel_vec_t& offsets);
 
   void remove(int alias);
@@ -103,7 +104,7 @@ class ContextChunk {
 
  private:
   DataChunk chunk_;
-  std::shared_ptr<IContextColumn> head_;
+  std::shared_ptr<IColumn> head_;
 };
 
 }  // namespace execution

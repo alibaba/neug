@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/common/params_map.h"
@@ -26,8 +26,7 @@ namespace execution {
 
 struct ProjectExprBase {
   virtual ~ProjectExprBase() = default;
-  virtual std::shared_ptr<IContextColumn> evaluate(
-      const ContextChunk& chunk) = 0;
+  virtual std::shared_ptr<IColumn> evaluate(const ContextChunk& chunk) = 0;
   virtual bool order_by_limit(const ContextChunk& chunk, bool asc, size_t limit,
                               sel_vec_t& offsets) const {
     return false;
@@ -45,7 +44,7 @@ struct ProjectOp {
         fallback_expr_(std::move(fallback_expr)),
         alias_(alias) {}
   void evaluate(const ContextChunk& chunk, DataChunk& ret) const {
-    std::shared_ptr<IContextColumn> col;
+    std::shared_ptr<IColumn> col;
     if (expr_) {
       col = expr_->evaluate(chunk);
     }

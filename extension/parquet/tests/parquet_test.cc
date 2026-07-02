@@ -25,13 +25,13 @@
 #include <memory>
 #include <vector>
 
+#include "neug/columnar/columns/value_columns.h"
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/io/chunk_stream_adapter.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
 
@@ -193,7 +193,7 @@ class ParquetTest : public ::testing::Test {
   execution::Context readToContext(
       const std::shared_ptr<reader::ArrowReader>& reader,
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
-    return reader::toContext(reader->read(), *sharedState);
+    return execution::io::fromChunkSupplier(reader->read(), *sharedState);
   }
 
   std::shared_ptr<reader::ArrowReader> createParquetReader(
@@ -464,7 +464,7 @@ TEST_F(ParquetTest, TestTypeMapping_StringToLargeUtf8) {
 
   // Verify string column is converted to large_utf8
   auto col1 = ctx.chunk(0).columns()[1];
-  ASSERT_EQ(col1->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(col1->column_type(), columnar::ColumnKind::kValue);
   EXPECT_EQ(col1->elem_type().id(), neug::DataTypeId::kVarchar);
 }
 
@@ -701,7 +701,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
 
   EXPECT_EQ(ctx2.col_num(), 3);
   auto col0_2 = ctx2.chunk(0).columns()[0];
-  EXPECT_EQ(col0_2->column_type(), execution::ContextColumnType::kValue)
+  EXPECT_EQ(col0_2->column_type(), columnar::ColumnKind::kValue)
       << "Extension should use Value column type when batch_read=false";
 }
 

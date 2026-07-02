@@ -14,9 +14,10 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/edge_columns.h"
+#include "neug/columnar/columns/path_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
@@ -51,7 +52,7 @@ inline std::vector<label_t> extract_labels(
 class GetV {
  public:
   template <typename PRED_T, bool is_optional = false>
-  static std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
+  static std::pair<std::shared_ptr<IColumn>, sel_vec_t>
   get_vertex_from_edges_impl(const IEdgeColumn& input_edge_list,
                              const GetVParams& params, const PRED_T& pred) {
     auto labels = input_edge_list.get_labels();
@@ -324,7 +325,7 @@ class GetV {
       const GetVParams& params, const PRED_T& pred) {
     sel_vec_t shuffle_offset;
     auto col = chunk.get(params.tag);
-    if (col->column_type() == ContextColumnType::kPath) {
+    if (col->column_type() == ColumnKind::kPath) {
       return get_vertex_from_path(graph, std::move(chunk), params, pred);
     }
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(chunk.get(params.tag));

@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
@@ -83,7 +83,7 @@ class CsrBase : public Module {
                                   timestamp_t ts) = 0;
 
   virtual std::pair<int32_t, const void*> put_generic_edge(
-      vid_t src, vid_t dst, const execution::Value& data, timestamp_t ts,
+      vid_t src, vid_t dst, const columnar::Value& data, timestamp_t ts,
       Allocator& alloc) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -114,7 +114,7 @@ class TypedCsrBase : public CsrBase {
   }
 
   std::pair<int32_t, const void*> put_generic_edge(vid_t src, vid_t dst,
-                                                   const execution::Value& data,
+                                                   const columnar::Value& data,
                                                    timestamp_t ts,
                                                    Allocator& alloc) override {
     return this->put_edge(src, dst, data.GetValue<EDATA_T>(), ts, alloc);

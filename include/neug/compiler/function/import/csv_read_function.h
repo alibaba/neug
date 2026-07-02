@@ -21,9 +21,9 @@
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/execution/io/chunk_stream_adapter.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/csv/csv_reader.h"
 namespace neug {
@@ -128,8 +128,8 @@ struct CSVReadFunction {
         optionsBuilder->build().include_columns.size();
     std::unique_ptr<reader::FileReader> reader =
         std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
-    return reader::runFileReader(std::move(reader), *state,
-                                 fallback_column_count);
+    return execution::io::runFileReader(std::move(reader), *state,
+                                        fallback_column_count);
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(

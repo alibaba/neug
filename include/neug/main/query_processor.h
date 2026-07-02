@@ -23,9 +23,9 @@
 #include <shared_mutex>
 #include <string>
 
+#include "neug/columnar/value.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/common/params_map.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"

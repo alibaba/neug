@@ -24,10 +24,10 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/columnar/data_chunk.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/csv/csv_read_config.h"
 #include "neug/utils/string_utils.h"
 
@@ -73,7 +73,7 @@ class CSVChunkSupplier : public IDataChunkSupplier {
 
   ~CSVChunkSupplier() override;
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override;
+  std::shared_ptr<columnar::DataChunk> GetNextChunk() override;
 
   int64_t RowNum() const override { return row_num_; }
 
@@ -104,8 +104,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         CsvReadConfig& config);
 
 void set_properties_from_context_column(
-    neug::ColumnBase* col,
-    const std::shared_ptr<execution::IContextColumn>& ctx_col,
+    neug::ColumnBase* col, const std::shared_ptr<columnar::IColumn>& ctx_col,
     const std::vector<vid_t>& vids, std::shared_mutex& mutex);
 
 }  // namespace neug

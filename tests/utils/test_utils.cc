@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/encoder.h"

@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/types/value.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 
 #include "neug/execution/common/context.h"

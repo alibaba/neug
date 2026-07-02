@@ -17,7 +17,7 @@
 
 #include <memory>
 
-#include "neug/utils/io/read/common/chunk_supplier.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/result.h"

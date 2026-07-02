@@ -28,8 +28,8 @@
 #include <unordered_set>
 
 #include "csv.hpp"
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/columns/columns_utils.h"
+#include "neug/columnar/value.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
@@ -154,33 +154,33 @@ std::string canonicalize_bool_token(
 }
 
 template <typename T>
-execution::Value parse_typed_value(const std::string& token) {
-  return execution::Value::CreateValue<T>(
-      execution::ValueConverter<T>::typed_from_string(token));
+columnar::Value parse_typed_value(const std::string& token) {
+  return columnar::Value::CreateValue<T>(
+      columnar::ValueConverter<T>::typed_from_string(token));
 }
 
-execution::Value parse_date_value(const std::string& token) {
+columnar::Value parse_date_value(const std::string& token) {
   int64_t millis = 0;
   if (parse_timestamp_ms(token, &millis) ||
       parse_epoch_timestamp_ms(token, &millis)) {
     Date d;
     d.from_timestamp(millis);
-    return execution::Value::CreateValue<Date>(d);
+    return columnar::Value::CreateValue<Date>(d);
   }
-  return parse_typed_value<execution::date_t>(token);
+  return parse_typed_value<columnar::date_t>(token);
 }
 
-execution::Value parse_timestamp_value(const std::string& token) {
+columnar::Value parse_timestamp_value(const std::string& token) {
   int64_t millis = 0;
   if (parse_timestamp_ms(token, &millis) ||
       parse_epoch_timestamp_ms(token, &millis)) {
-    return execution::Value::CreateValue<execution::timestamp_ms_t>(
+    return columnar::Value::CreateValue<columnar::timestamp_ms_t>(
         DateTime(millis));
   }
-  return parse_typed_value<execution::timestamp_ms_t>(token);
+  return parse_typed_value<columnar::timestamp_ms_t>(token);
 }
 
-execution::Value parse_value_by_type(
+columnar::Value parse_value_by_type(
     const std::string& token, const DataType& data_type,
     const std::unordered_set<std::string>& true_values,
     const std::unordered_set<std::string>& false_values) {
@@ -205,7 +205,7 @@ execution::Value parse_value_by_type(
   case DataTypeId::kTimestampMs:
     return parse_timestamp_value(token);
   case DataTypeId::kInterval:
-    return parse_typed_value<execution::interval_t>(token);
+    return parse_typed_value<columnar::interval_t>(token);
   case DataTypeId::kVarchar:
     return parse_typed_value<std::string>(token);
   default:
@@ -229,7 +229,7 @@ std::string unescape_token(const std::string& token, char escape_char) {
 }
 
 void append_csv_field_to_builder(
-    std::shared_ptr<execution::IContextColumnBuilder>& builder,
+    std::shared_ptr<columnar::IColumnBuilder>& builder,
     const DataType& data_type, csv::CSVField field,
     const std::unordered_set<std::string>& null_values,
     const std::unordered_set<std::string>& true_values,
@@ -289,15 +289,15 @@ struct CsvSupplierRuntime {
     reset_reader();
   }
 
-  std::shared_ptr<execution::DataChunk> get_next_chunk() {
+  std::shared_ptr<columnar::DataChunk> get_next_chunk() {
     if (!reader_) {
       return nullptr;
     }
 
-    std::vector<std::shared_ptr<execution::IContextColumnBuilder>> builders;
+    std::vector<std::shared_ptr<columnar::IColumnBuilder>> builders;
     builders.reserve(selected_column_types_.size());
     for (const auto& column_type : selected_column_types_) {
-      auto builder = execution::ColumnsUtils::create_builder(column_type);
+      auto builder = columnar::ColumnsUtils::create_builder(column_type);
       builder->reserve(chunk_size_);
       builders.emplace_back(std::move(builder));
     }
@@ -330,7 +330,7 @@ struct CsvSupplierRuntime {
       return nullptr;
     }
 
-    auto chunk = std::make_shared<execution::DataChunk>();
+    auto chunk = std::make_shared<columnar::DataChunk>();
     for (size_t column_index = 0; column_index < builders.size();
          ++column_index) {
       chunk->set(static_cast<int>(column_index),
@@ -708,7 +708,7 @@ CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
 
 CSVChunkSupplier::~CSVChunkSupplier() = default;
 
-std::shared_ptr<execution::DataChunk> CSVChunkSupplier::GetNextChunk() {
+std::shared_ptr<columnar::DataChunk> CSVChunkSupplier::GetNextChunk() {
   if (!runtime_) {
     THROW_IO_EXCEPTION("CSV runtime is null for file: " + file_path_);
   }
@@ -954,8 +954,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
 }
 
 void set_properties_from_context_column(
-    neug::ColumnBase* col,
-    const std::shared_ptr<execution::IContextColumn>& ctx_col,
+    neug::ColumnBase* col, const std::shared_ptr<columnar::IColumn>& ctx_col,
     const std::vector<vid_t>& vids, std::shared_mutex& mutex) {
   // Row-by-row via get_elem()
   auto col_type = col->type();

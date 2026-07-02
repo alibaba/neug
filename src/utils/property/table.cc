@@ -101,7 +101,7 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
 void Table::add_columns(
     Checkpoint& ckp, const std::vector<std::string>& col_names,
     const std::vector<DataType>& col_types,
-    const std::vector<execution::Value>& default_property_values,
+    const std::vector<columnar::Value>& default_property_values,
     size_t capacity, MemoryLevel memory_level) {
   if (default_property_values.size() != col_names.size()) {
     THROW_RUNTIME_ERROR("default_property_values size mismatch: expected " +
@@ -210,8 +210,8 @@ const ColumnBase* Table::get_column(const std::string& name) const {
   return nullptr;
 }
 
-std::vector<execution::Value> Table::get_row(size_t row_id) const {
-  std::vector<execution::Value> ret;
+std::vector<columnar::Value> Table::get_row(size_t row_id) const {
+  std::vector<columnar::Value> ret;
   for (auto& ptr : columns_) {
     ret.push_back(ptr->get_any(row_id));
   }
@@ -236,7 +236,7 @@ const ColumnBase* Table::get_column_by_id(size_t index) const {
 
 size_t Table::col_num() const { return columns_.size(); }
 
-void Table::insert(size_t index, const std::vector<execution::Value>& values,
+void Table::insert(size_t index, const std::vector<columnar::Value>& values,
                    bool insert_safe) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
@@ -253,7 +253,7 @@ void Table::resize(size_t row_num) {
 }
 
 void Table::resize(size_t row_num,
-                   const std::vector<execution::Value>& default_values) {
+                   const std::vector<columnar::Value>& default_values) {
   if (default_values.size() != columns_.size()) {
     THROW_RUNTIME_ERROR("default_values size mismatch: expected " +
                         std::to_string(columns_.size()) + " but got " +

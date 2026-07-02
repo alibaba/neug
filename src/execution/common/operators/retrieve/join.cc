@@ -15,10 +15,10 @@
 
 #include "neug/execution/common/operators/retrieve/join.h"
 
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/columnar/data_chunk.h"
 #include "neug/common/types.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"
@@ -620,9 +620,9 @@ neug::result<ContextChunk> Join::join(ContextChunk&& chunk,
       params.join_type == JoinKind::kAntiJoin) {
     if (params.left_columns.size() == 2 &&
         chunk.get(params.left_columns[0])->column_type() ==
-            ContextColumnType::kVertex &&
+            ColumnKind::kVertex &&
         chunk.get(params.left_columns[1])->column_type() ==
-            ContextColumnType::kVertex) {
+            ColumnKind::kVertex) {
       return dual_vertex_column_semi_join(std::move(chunk), std::move(chunk2),
                                           params);
     }
@@ -630,14 +630,14 @@ neug::result<ContextChunk> Join::join(ContextChunk&& chunk,
   } else if (params.join_type == JoinKind::kInnerJoin) {
     if (params.right_columns.size() == 1 &&
         chunk2.get(params.right_columns[0])->column_type() ==
-            ContextColumnType::kVertex) {
+            ColumnKind::kVertex) {
       return single_vertex_column_inner_join(std::move(chunk),
                                              std::move(chunk2), params);
     } else if (params.right_columns.size() == 2 &&
                chunk2.get(params.right_columns[0])->column_type() ==
-                   ContextColumnType::kVertex &&
+                   ColumnKind::kVertex &&
                chunk2.get(params.right_columns[1])->column_type() ==
-                   ContextColumnType::kVertex) {
+                   ColumnKind::kVertex) {
       return dual_vertex_column_inner_join(std::move(chunk), std::move(chunk2),
                                            params);
     } else {
@@ -646,14 +646,14 @@ neug::result<ContextChunk> Join::join(ContextChunk&& chunk,
   } else if (params.join_type == JoinKind::kLeftOuterJoin) {
     if (params.right_columns.size() == 1 &&
         chunk2.get(params.right_columns[0])->column_type() ==
-            ContextColumnType::kVertex) {
+            ColumnKind::kVertex) {
       return single_vertex_column_left_outer_join(std::move(chunk),
                                                   std::move(chunk2), params);
     } else if (params.right_columns.size() == 2 &&
                chunk2.get(params.right_columns[0])->column_type() ==
-                   ContextColumnType::kVertex &&
+                   ColumnKind::kVertex &&
                chunk2.get(params.right_columns[1])->column_type() ==
-                   ContextColumnType::kVertex) {
+                   ColumnKind::kVertex) {
       return dual_vertex_column_left_outer_join(std::move(chunk),
                                                 std::move(chunk2), params);
     } else {

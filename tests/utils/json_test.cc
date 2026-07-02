@@ -20,12 +20,12 @@
 #include <memory>
 #include <vector>
 
+#include "neug/columnar/columns/value_columns.h"
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/io/chunk_stream_adapter.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/json/json_reader.h"
 
@@ -122,18 +122,19 @@ TEST_F(JsonTest, TestJsonArray) {
       {createUInt32Type(), createStringType(), createDoubleType()},
       {{"batch_read", "false"}});
   auto reader = createJsonReader(sharedState);
-  execution::Context ctx = reader::toContext(reader->read(), *sharedState);
+  execution::Context ctx =
+      execution::io::fromChunkSupplier(reader->read(), *sharedState);
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
 
   auto col0 = ctx.chunk(0).columns()[0];
-  ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(col0->column_type(), columnar::ColumnKind::kValue);
   EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
   EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
 
   auto col2 = ctx.chunk(0).columns()[2];
-  ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(col2->column_type(), columnar::ColumnKind::kValue);
   EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
   EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
 }

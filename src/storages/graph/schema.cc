@@ -40,7 +40,7 @@
 
 namespace neug {
 
-using execution::Value;
+using columnar::Value;
 
 std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
   try {

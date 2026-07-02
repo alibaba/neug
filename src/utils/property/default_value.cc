@@ -14,41 +14,41 @@
  */
 
 #include "neug/utils/property/default_value.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 
 namespace neug {
 
-execution::Value get_default_value(const DataType& type) {
+columnar::Value get_default_value(const DataType& type) {
   switch (type.id()) {
   case DataTypeId::kEmpty:
-    return execution::Value(type);
+    return columnar::Value(type);
   case DataTypeId::kBoolean:
-    return execution::Value::BOOLEAN(false);
+    return columnar::Value::BOOLEAN(false);
   case DataTypeId::kInt32:
-    return execution::Value::INT32(0);
+    return columnar::Value::INT32(0);
   case DataTypeId::kUInt32:
-    return execution::Value::UINT32(0);
+    return columnar::Value::UINT32(0);
   case DataTypeId::kInt64:
-    return execution::Value::INT64(0);
+    return columnar::Value::INT64(0);
   case DataTypeId::kUInt64:
-    return execution::Value::UINT64(0);
+    return columnar::Value::UINT64(0);
   case DataTypeId::kFloat:
-    return execution::Value::FLOAT(0.0);
+    return columnar::Value::FLOAT(0.0);
   case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(0.0);
+    return columnar::Value::DOUBLE(0.0);
   case DataTypeId::kVarchar: {
     int32_t width =
         type.getExtraTypeInfo()
             ? type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length
             : STRING_DEFAULT_MAX_LENGTH;
-    return execution::Value::VARCHAR("", width);
+    return columnar::Value::VARCHAR("", width);
   }
   case DataTypeId::kDate:
-    return execution::Value::DATE(Date(0));
+    return columnar::Value::DATE(Date(0));
   case DataTypeId::kTimestampMs:
-    return execution::Value::TIMESTAMPMS(DateTime(0));
+    return columnar::Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
-    return execution::Value::INTERVAL(Interval());
+    return columnar::Value::INTERVAL(Interval());
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported property type for default value: " + type.ToString());

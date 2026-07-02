@@ -2,6 +2,7 @@
 # So currently we just add all the source files to the graph_db library
 file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/execute/*.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/io/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/extension/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/expression/*.cc")

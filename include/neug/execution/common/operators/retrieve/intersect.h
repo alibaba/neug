@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/expression/predicates.h"
 

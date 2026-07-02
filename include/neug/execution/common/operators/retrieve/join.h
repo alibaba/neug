@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/columnar/graph_types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

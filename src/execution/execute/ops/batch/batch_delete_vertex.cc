@@ -14,8 +14,8 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/edge_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 
 namespace neug {
 namespace execution {

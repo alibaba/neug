@@ -19,15 +19,15 @@
 #include <arrow/table.h>
 #include <glog/logging.h>
 
-#include "parquet/arrow_context_column.h"
+#include "parquet/arrow_column.h"
 #include "parquet/arrow_reader.h"
 #include "parquet/arrow_type_converter.h"
 #include "parquet/record_batch_supplier.h"
 
 #include "neug/compiler/common/assert.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/result.h"
 
@@ -163,14 +163,14 @@ std::shared_ptr<IDataChunkSupplier> ArrowReader::full_read(
         ", table: " + std::to_string(table->num_columns()));
   }
 
-  auto chunk = std::make_shared<execution::DataChunk>();
+  auto chunk = std::make_shared<columnar::DataChunk>();
   for (int i = 0; i < num_cols; ++i) {
     auto table_column = table->column(i);
     chunk->set(i,
-               execution::arrow_arrays_to_value_column(table_column->chunks()));
+               columnar::arrow_arrays_to_value_column(table_column->chunks()));
   }
   return std::make_shared<MultiDataChunkSupplier>(
-      std::vector<std::shared_ptr<execution::DataChunk>>{chunk});
+      std::vector<std::shared_ptr<columnar::DataChunk>>{chunk});
 }
 
 std::shared_ptr<IDataChunkSupplier> ArrowReader::batch_read(

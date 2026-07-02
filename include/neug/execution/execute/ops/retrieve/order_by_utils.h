@@ -16,20 +16,19 @@
 
 #include <utility>
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace neug {
 class StorageReadInterface;
 namespace execution {
-class IVertexColumn;
 namespace ops {
 class GeneralComparer {
  public:
   GeneralComparer() : keys_num_(0) {}
   ~GeneralComparer() {}
 
-  void add_keys(const std::shared_ptr<IContextColumn>& key, bool asc) {
+  void add_keys(const std::shared_ptr<IColumn>& key, bool asc) {
     keys_.emplace_back(key);
     order_.push_back(asc);
     ++keys_num_;
@@ -52,7 +51,7 @@ class GeneralComparer {
   }
 
  private:
-  std::vector<std::shared_ptr<IContextColumn>> keys_;
+  std::vector<std::shared_ptr<IColumn>> keys_;
   std::vector<bool> order_;
   size_t keys_num_;
 };

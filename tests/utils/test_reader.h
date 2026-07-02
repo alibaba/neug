@@ -26,13 +26,13 @@
 #include <memory>
 #include <vector>
 
+#include "neug/columnar/data_chunk.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/data_chunk.h"
+#include "neug/execution/io/chunk_stream_adapter.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/io/read/common/options.h"
-#include "neug/utils/io/read/common/reader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/io/reader.h"
@@ -269,8 +269,8 @@ class ReaderTest : public ::testing::Test {
       const std::shared_ptr<reader::FileReader>& reader,
       const std::shared_ptr<reader::ReadSharedState>& sharedState,
       size_t fallback_column_count = 0) {
-    return reader::toContext(reader->read(), *sharedState,
-                             fallback_column_count);
+    return execution::io::fromChunkSupplier(reader->read(), *sharedState,
+                                            fallback_column_count);
   }
 
   std::shared_ptr<reader::FileReader> createCsvReader(

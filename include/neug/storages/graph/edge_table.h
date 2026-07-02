@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_base.h"
@@ -139,13 +139,13 @@ class EdgeTable {
   void BatchAddEdges(
       const std::vector<vid_t>& src_lid_list,
       const std::vector<vid_t>& dst_lid_list,
-      const std::vector<std::vector<execution::Value>>& edge_data_list);
+      const std::vector<std::vector<columnar::Value>>& edge_data_list);
 
   // Add a single edge to the edge table. Note this method requires an Allocator
   // to allocate memory for the edge data. Should be called in tp mode.
   std::pair<int32_t, const void*> AddEdge(
       vid_t src_lid, vid_t dst_lid,
-      const std::vector<execution::Value>& properties, timestamp_t ts,
+      const std::vector<columnar::Value>& properties, timestamp_t ts,
       Allocator& alloc, bool insert_safe);
 
   void RenameProperties(const std::vector<std::string>& old_names,
@@ -153,7 +153,7 @@ class EdgeTable {
 
   void AddProperties(Checkpoint& ckp, const std::vector<std::string>& names,
                      const std::vector<DataType>& types,
-                     const std::vector<execution::Value>& default_values = {});
+                     const std::vector<columnar::Value>& default_values = {});
 
   void DeleteProperties(Checkpoint& ckp,
                         const std::vector<std::string>& col_names);
@@ -171,7 +171,7 @@ class EdgeTable {
 
   void UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
-                          const execution::Value& new_prop, timestamp_t ts);
+                          const columnar::Value& new_prop, timestamp_t ts);
 
   void Compact(bool compact_csr,
                const std::optional<std::string>& sort_key_for_nbr,
@@ -214,7 +214,7 @@ template <typename TABLE>
 std::pair<int32_t, const void*> insert_edge_into_csr_internal(
     CsrBase& out_csr, CsrBase& in_csr, TABLE& table,
     std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
-    vid_t dst_lid, const std::vector<execution::Value>& properties,
+    vid_t dst_lid, const std::vector<columnar::Value>& properties,
     timestamp_t ts, Allocator& alloc, bool insert_safe) {
   int32_t oe_offset;
   const void* data_ptr = nullptr;
@@ -223,8 +223,8 @@ std::pair<int32_t, const void*> insert_edge_into_csr_internal(
         properties.size() == 1 ||
         (properties.size() == 0 && (meta.properties.empty() ||
                                     meta.properties[0] == DataTypeId::kEmpty)));
-    execution::Value bundled_data =
-        properties.empty() ? execution::Value(DataType::EMPTY) : properties[0];
+    columnar::Value bundled_data =
+        properties.empty() ? columnar::Value(DataType::EMPTY) : properties[0];
     in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
     auto out_ret =
         out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
@@ -236,7 +236,7 @@ std::pair<int32_t, const void*> insert_edge_into_csr_internal(
           "edge data size not match edge table property size");
     }
     size_t row_id = table_idx.fetch_add(1);
-    execution::Value prop = execution::Value::UINT64(row_id);
+    columnar::Value prop = columnar::Value::UINT64(row_id);
     in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
     auto out_ret = out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
     oe_offset = out_ret.first;

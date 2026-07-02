@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/columnar/columns/value_columns.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/opr_timer.h"
@@ -468,7 +468,7 @@ neug::result<ContextChunk> EdgeExpand::expand_vertex_ep_cmp(
             nbr_label, edge_label, dir, ep_val, tp);
       }
     }
-    std::shared_ptr<IContextColumn> col = builder.finish();
+    std::shared_ptr<IColumn> col = builder.finish();
     chunk.set_with_reshuffle(params.alias, col, offsets);
     return chunk;
   } else {

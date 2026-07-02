@@ -15,9 +15,9 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/columnar/columns/list_columns.h"
+#include "neug/columnar/columns/struct_columns.h"
+#include "neug/columnar/columns/value_columns.h"
 
 namespace neug {
 namespace execution {
@@ -42,7 +42,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<bool>(), true);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<bool>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kBoolean);
 
   // shuffle
@@ -129,7 +129,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<int32_t>(), 10);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<int32>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt32);
 
   // shuffle
@@ -215,7 +215,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<int64_t>(), 10);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<int64>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt64);
 
   // shuffle
@@ -301,7 +301,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<uint32_t>(), 10);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<uint32>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt32);
 
   // shuffle
@@ -387,7 +387,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<uint64_t>(), 10);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<uint64>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt64);
 
   // shuffle
@@ -473,7 +473,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
   EXPECT_FLOAT_EQ(elem0.GetValue<float>(), 10.42);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<float>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kFloat);
 
   // shuffle
@@ -559,7 +559,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
   EXPECT_DOUBLE_EQ(elem0.GetValue<double>(), 10.42);
 
   EXPECT_EQ(col->column_info(), "ValueColumn<double>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDouble);
 
   // shuffle
@@ -649,7 +649,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
   Value elem0 = col->get_elem(0);
   EXPECT_EQ(StringValue::Get(elem0), "hello");
   EXPECT_EQ(col->column_info(), "ValueColumn<string>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kVarchar);
 
   // shuffle
@@ -736,7 +736,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<Date>(), Date(10));
 
   EXPECT_EQ(col->column_info(), "ValueColumn<date>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDate);
 
   // shuffle
@@ -822,7 +822,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
   EXPECT_EQ(elem0.GetValue<DateTime>(), DateTime(1766386400000));
 
   EXPECT_EQ(col->column_info(), "ValueColumn<timestamp_ms>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kTimestampMs);
 
   // shuffle
@@ -914,7 +914,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
             Interval(std::string("3years 2months")));
 
   EXPECT_EQ(col->column_info(), "ValueColumn<interval>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInterval);
 
   // shuffle
@@ -1032,7 +1032,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
   EXPECT_DOUBLE_EQ(children[2].GetValue<double>(), -3.0);
 
   EXPECT_EQ(col->column_info(), "StructColumn[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kStruct);
 
   // shuffle
@@ -1165,7 +1165,7 @@ TEST_F(ValueColumnTest, ListColumnBasic) {
   EXPECT_EQ(col->size(), 2);
 
   EXPECT_EQ(col->column_info(), "ListColumn[2]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kList);
 
   // // shuffle
@@ -1194,7 +1194,7 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<bool>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kBoolean);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1235,7 +1235,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<int32>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt32);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1276,7 +1276,7 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<int64>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt64);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1317,7 +1317,7 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<uint32>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt32);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1358,7 +1358,7 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<uint64>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt64);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1399,7 +1399,7 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<float>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kFloat);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1440,7 +1440,7 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<double>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDouble);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1485,7 +1485,7 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<string>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kVarchar);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1527,7 +1527,7 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<date>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDate);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1568,7 +1568,7 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<timestamp_ms>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kTimestampMs);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1609,7 +1609,7 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "ValueColumn<interval>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInterval);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1673,7 +1673,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "StructColumn[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kStruct);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_TRUE(col->is_optional());
 
   EXPECT_TRUE(col->has_value(0));
@@ -1732,7 +1732,7 @@ TEST_F(ListColumnTest, ListColumnBasic) {
   EXPECT_EQ(ListValue::GetChildren(col->get_elem(1)).size(), 1);
 
   EXPECT_EQ(col->column_info(), "ListColumn[2]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col->column_type(), ColumnKind::kValue);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kList);
 
   // Check first list [10, 20]

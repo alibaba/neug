@@ -27,26 +27,22 @@ namespace execution {
 
 ContextChunk::ContextChunk(DataChunk&& chunk) : chunk_(std::move(chunk)) {}
 
-ContextChunk::ContextChunk(DataChunk&& chunk,
-                           std::shared_ptr<IContextColumn> head)
+ContextChunk::ContextChunk(DataChunk&& chunk, std::shared_ptr<IColumn> head)
     : chunk_(std::move(chunk)), head_(std::move(head)) {}
 
 DataChunk& ContextChunk::chunk() { return chunk_; }
 
 const DataChunk& ContextChunk::chunk() const { return chunk_; }
 
-std::shared_ptr<IContextColumn>& ContextChunk::head() { return head_; }
+std::shared_ptr<IColumn>& ContextChunk::head() { return head_; }
 
-const std::shared_ptr<IContextColumn>& ContextChunk::head() const {
-  return head_;
-}
+const std::shared_ptr<IColumn>& ContextChunk::head() const { return head_; }
 
-std::vector<std::shared_ptr<IContextColumn>>& ContextChunk::columns() {
+std::vector<std::shared_ptr<IColumn>>& ContextChunk::columns() {
   return chunk_.columns;
 }
 
-const std::vector<std::shared_ptr<IContextColumn>>& ContextChunk::columns()
-    const {
+const std::vector<std::shared_ptr<IColumn>>& ContextChunk::columns() const {
   return chunk_.columns;
 }
 
@@ -55,7 +51,7 @@ void ContextChunk::clear() {
   head_.reset();
 }
 
-void ContextChunk::set(int alias, std::shared_ptr<IContextColumn> col) {
+void ContextChunk::set(int alias, std::shared_ptr<IColumn> col) {
   head_ = col;
   if (alias < 0) {
     return;
@@ -69,7 +65,7 @@ void ContextChunk::set(int alias, std::shared_ptr<IContextColumn> col) {
   chunk_.columns[alias] = std::move(col);
 }
 
-std::shared_ptr<IContextColumn> ContextChunk::get(int alias) const {
+std::shared_ptr<IColumn> ContextChunk::get(int alias) const {
   if (alias == -1) {
     return head_;
   }
@@ -81,8 +77,7 @@ std::shared_ptr<IContextColumn> ContextChunk::get(int alias) const {
   return chunk_.columns[alias];
 }
 
-void ContextChunk::set_with_reshuffle(int alias,
-                                      std::shared_ptr<IContextColumn> col,
+void ContextChunk::set_with_reshuffle(int alias, std::shared_ptr<IColumn> col,
                                       const sel_vec_t& offsets) {
   head_.reset();
   if (alias >= 0 && chunk_.columns.size() > static_cast<size_t>(alias) &&
@@ -120,7 +115,7 @@ size_t ContextChunk::col_num() const { return chunk_.col_num(); }
 
 void ContextChunk::reshuffle(const sel_vec_t& offsets) {
   auto& columns = chunk_.columns;
-  std::vector<std::shared_ptr<IContextColumn>> new_cols;
+  std::vector<std::shared_ptr<IColumn>> new_cols;
   new_cols.reserve(columns.size());
   bool head_shuffled = false;
   for (size_t i = 0; i < columns.size(); ++i) {
@@ -158,7 +153,7 @@ void ContextChunk::reshuffle(const sel_vec_t& offsets) {
 
 void ContextChunk::optional_reshuffle(const sel_vec_t& offsets) {
   auto& columns = chunk_.columns;
-  std::vector<std::shared_ptr<IContextColumn>> new_cols;
+  std::vector<std::shared_ptr<IColumn>> new_cols;
   new_cols.reserve(columns.size());
   bool head_shuffled = false;
   for (size_t i = 0; i < columns.size(); ++i) {
@@ -196,7 +191,7 @@ void ContextChunk::optional_reshuffle(const sel_vec_t& offsets) {
 
 ContextChunk ContextChunk::union_with(const ContextChunk& other) const {
   DataChunk merged = chunk_.union_chunk(other.chunk_);
-  std::shared_ptr<IContextColumn> merged_head;
+  std::shared_ptr<IColumn> merged_head;
   if (head_ != nullptr && other.head_ != nullptr) {
     bool aligned = false;
     for (size_t k = 0; k < chunk_.columns.size(); ++k) {

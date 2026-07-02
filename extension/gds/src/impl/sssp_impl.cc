@@ -23,8 +23,8 @@
 #include <thread>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -180,7 +180,7 @@ void SSSP::compute() {
 
 void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<double> distance_builder;
+  columnar::ValueColumnBuilder<double> distance_builder;
 
   distance_builder.reserve(vertices_.size());
 
@@ -190,7 +190,7 @@ void SSSP::sink(execution::Context& ctx, int node_alias, int distance_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(distance_alias, distance_builder.finish());
 

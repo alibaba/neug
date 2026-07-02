@@ -28,12 +28,13 @@
 #include <tuple>
 #include "neug/utils/exception/exception.h"
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/columnar/columns/i_column.h"
+#include "neug/columnar/value.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/execution/io/chunk_supplier.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
-#include "neug/utils/io/read/common/chunk_supplier.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
@@ -65,7 +66,7 @@ bool check_csv_import_options(
 
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
-                const std::string& key, const execution::Value& value) {
+                const std::string& key, const columnar::Value& value) {
   if (value.type().id() == DataTypeId::kBoolean) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.GetValue<bool>(), allocator);
@@ -117,7 +118,7 @@ void add_member(rapidjson::Value& object,
 
 void add_prop_member(rapidjson::Value& object,
                      rapidjson::Document::AllocatorType& allocator,
-                     const std::string& key, const execution::Value& value) {
+                     const std::string& key, const columnar::Value& value) {
   if (value.type().id() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.GetValue<int32_t>(), allocator);
@@ -170,11 +171,11 @@ rapidjson::Value build_vertex_object(
   std::string internal_id_key = "_ID";
   std::string encoded_id_str =
       std::to_string(label) + ":" + std::to_string(vid);
-  execution::Value encoded_id = execution::Value::STRING(encoded_id_str);
+  columnar::Value encoded_id = columnar::Value::STRING(encoded_id_str);
   add_member(vertex_object, allocator, internal_id_key, encoded_id);
   std::string internal_label_key = "_LABEL";
   std::string label_name_str = graph.schema().get_vertex_label_name(label);
-  execution::Value label_name = execution::Value::STRING(label_name_str);
+  columnar::Value label_name = columnar::Value::STRING(label_name_str);
   add_member(vertex_object, allocator, internal_label_key, label_name);
   std::string primary_key = graph.schema().get_vertex_primary_key_name(label);
   add_member(vertex_object, allocator, primary_key,
@@ -210,30 +211,28 @@ rapidjson::Value build_edge_object(
   std::string internal_src_id = "_SRC";
   std::string encoded_src_id_str =
       std::to_string(src_label) + ":" + std::to_string(edge.src);
-  execution::Value encoded_src_id =
-      execution::Value::STRING(encoded_src_id_str);
+  columnar::Value encoded_src_id = columnar::Value::STRING(encoded_src_id_str);
   add_member(edge_object, allocator, internal_src_id, encoded_src_id);
 
   std::string internal_dst_id = "_DST";
   std::string encoded_dst_id_str =
       std::to_string(dst_label) + ":" + std::to_string(edge.dst);
-  execution::Value encoded_dst_id =
-      execution::Value::STRING(encoded_dst_id_str);
+  columnar::Value encoded_dst_id = columnar::Value::STRING(encoded_dst_id_str);
   add_member(edge_object, allocator, internal_dst_id, encoded_dst_id);
 
   std::string internal_src_label_key = "_SRC_LABEL";
-  execution::Value src_label_name =
-      execution::Value::STRING(graph.schema().get_vertex_label_name(src_label));
+  columnar::Value src_label_name =
+      columnar::Value::STRING(graph.schema().get_vertex_label_name(src_label));
   add_member(edge_object, allocator, internal_src_label_key, src_label_name);
 
   std::string internal_dst_label_key = "_DST_LABEL";
-  execution::Value dst_label_name =
-      execution::Value::STRING(graph.schema().get_vertex_label_name(dst_label));
+  columnar::Value dst_label_name =
+      columnar::Value::STRING(graph.schema().get_vertex_label_name(dst_label));
   add_member(edge_object, allocator, internal_dst_label_key, dst_label_name);
 
   std::string internal_label_key = "_LABEL";
-  execution::Value edge_label_name =
-      execution::Value::STRING(graph.schema().get_edge_label_name(edge_label));
+  columnar::Value edge_label_name =
+      columnar::Value::STRING(graph.schema().get_edge_label_name(edge_label));
   add_member(edge_object, allocator, internal_label_key, edge_label_name);
 
   auto property_names =
@@ -274,18 +273,18 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
     if (i > 0) {
       rapidjson::Value edge_object(rapidjson::kObjectType);
       std::string internal_src_label_key = "_SRC_LABEL";
-      execution::Value src_label_name = execution::Value::STRING(
+      columnar::Value src_label_name = columnar::Value::STRING(
           graph.schema().get_vertex_label_name(path_vertices[i - 1].label_));
       add_member(edge_object, allocator, internal_src_label_key,
                  src_label_name);
       std::string internal_dst_label_key = "_DST_LABEL";
-      execution::Value dst_label_name = execution::Value::STRING(
+      columnar::Value dst_label_name = columnar::Value::STRING(
           graph.schema().get_vertex_label_name(path_vertices[i].label_));
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      execution::Value edge_label_name =
-          execution::Value::STRING(graph.schema().get_edge_label_name(
+      columnar::Value edge_label_name =
+          columnar::Value::STRING(graph.schema().get_edge_label_name(
               path_edges[i - 1].label.edge_label));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);

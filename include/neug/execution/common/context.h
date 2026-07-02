@@ -18,17 +18,19 @@
 #include <utility>
 #include <vector>
 
+#include "neug/columnar/container_types.h"
 #include "neug/common/types.h"
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 class StorageReadInterface;
 
 namespace execution {
-class IContextColumn;
+
+using columnar::DataChunk;
+using columnar::IColumn;
 
 /**
  * @brief Context is a multi-chunk container passed between operators.
@@ -69,7 +71,7 @@ class Context {
   void append_chunk(DataChunk&& chunk);
 
   /// Appends a chunk with the given head column.
-  void append_chunk(DataChunk&& chunk, std::shared_ptr<IContextColumn> head);
+  void append_chunk(DataChunk&& chunk, std::shared_ptr<IColumn> head);
 
   /// Appends a fully-formed ContextChunk to this Context.
   void append_chunk(ContextChunk&& chunk);

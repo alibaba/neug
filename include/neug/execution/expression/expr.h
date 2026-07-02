@@ -16,9 +16,9 @@
 #pragma once
 #include <memory>
 #include "neug/common/types.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/params_map.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {

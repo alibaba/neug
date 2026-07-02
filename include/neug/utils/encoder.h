@@ -20,7 +20,7 @@
 #include <string_view>
 #include <vector>
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/columnar/container_types.h"
 
 namespace neug {
 

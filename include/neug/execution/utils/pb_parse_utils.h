@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/columnar_aliases.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/encoder.h"
 

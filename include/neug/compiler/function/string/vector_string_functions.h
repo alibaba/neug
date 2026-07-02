@@ -22,8 +22,8 @@
 
 #pragma once
 
+#include "neug/columnar/value.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/execution/common/types/value.h"
 
 namespace neug {
 namespace function {
@@ -64,7 +64,7 @@ struct LowerFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static execution::Value Exec(const std::vector<execution::Value>& args);
+  static columnar::Value Exec(const std::vector<columnar::Value>& args);
 };
 
 struct ToLowerFunction : public VectorStringFunction {
@@ -84,8 +84,8 @@ struct ReverseFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static neug::execution::Value Exec(
-      const std::vector<neug::execution::Value>& args);
+  static neug::columnar::Value Exec(
+      const std::vector<neug::columnar::Value>& args);
 };
 
 struct StartsWithFunction : public VectorStringFunction {
@@ -99,8 +99,8 @@ struct UpperFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static neug::execution::Value Exec(
-      const std::vector<neug::execution::Value>& args);
+  static neug::columnar::Value Exec(
+      const std::vector<neug::columnar::Value>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {

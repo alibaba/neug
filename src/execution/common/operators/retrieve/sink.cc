@@ -15,14 +15,14 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/edge_columns.h"
+#include "neug/columnar/columns/list_columns.h"
+#include "neug/columnar/columns/path_columns.h"
+#include "neug/columnar/columns/struct_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
+#include "neug/columnar/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
 
 #include "neug/storages/graph/graph_interface.h"
 
@@ -326,7 +326,7 @@ static void add_primitive_column(const ValueColumn<T>& col,
   }
 }
 
-static void add_column(const std::shared_ptr<IContextColumn>& col,
+static void add_column(const std::shared_ptr<IColumn>& col,
                        const StorageReadInterface& graph, neug::Array* column) {
   switch (col->elem_type().id()) {
   case DataTypeId::kBoolean: {
@@ -525,7 +525,7 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
     // Merge column across all chunks via union_col.
-    std::shared_ptr<IContextColumn> merged;
+    std::shared_ptr<IColumn> merged;
     for (size_t c = 0; c < ctx.chunk_num(); ++c) {
       auto col = ctx.chunk(c).get(i);
       if (col == nullptr)

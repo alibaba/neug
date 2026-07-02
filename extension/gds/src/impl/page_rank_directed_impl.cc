@@ -16,8 +16,8 @@
 
 #include "impl/page_rank_directed_impl.h"
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "utils/parallel_utils.h"
 
@@ -116,13 +116,13 @@ void DirectedPageRank::sink(execution::Context& ctx, int node_alias,
                             int pr_alias) {
   execution::MSVertexColumnBuilder builder(vertex_label_);
   builder.reserve(valid_vertices_.size());
-  execution::ValueColumnBuilder<double> pr_builder;
+  columnar::ValueColumnBuilder<double> pr_builder;
   pr_builder.reserve(valid_vertices_.size());
   for (vid_t v : valid_vertices_) {
     builder.push_back_opt(v);
     pr_builder.push_back_opt(pr_[v]);
   }
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, builder.finish());
   chunk.set(pr_alias, pr_builder.finish());
   ctx.append_chunk(std::move(chunk));

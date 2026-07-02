@@ -61,7 +61,7 @@ struct Key : public KeyBase {
 
 struct ReducerBase {
   virtual ~ReducerBase() = default;
-  virtual std::shared_ptr<IContextColumn> reduce(
+  virtual std::shared_ptr<IColumn> reduce(
       const vector_t<sel_vec_t>& groups) = 0;
 };
 

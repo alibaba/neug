@@ -22,8 +22,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/csr/csr_view.h"
 #include "utils/parallel_utils.h"
@@ -262,7 +262,7 @@ void WCC::compute() {
 
 void WCC::sink(execution::Context& ctx, int node_alias, int component_alias) {
   execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> component_builder;
+  columnar::ValueColumnBuilder<int64_t> component_builder;
   size_t vertex_count = vertices_.size();
 
   component_builder.reserve(vertex_count);
@@ -271,7 +271,7 @@ void WCC::sink(execution::Context& ctx, int node_alias, int component_alias) {
   }
   node_builder.append(vertex_label_, std::move(vertices_));
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, node_builder.finish());
   chunk.set(component_alias, component_builder.finish());
   ctx.append_chunk(std::move(chunk));

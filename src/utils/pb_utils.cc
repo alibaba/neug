@@ -33,7 +33,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/bolt_utils.h"
@@ -249,55 +249,55 @@ bool data_type_to_property_type(const common::DataType& data_type,
 }
 
 bool common_value_to_value(const DataType& type, const common::Value& value,
-                           execution::Value& out_value) {
+                           columnar::Value& out_value) {
   switch (value.item_case()) {
   case common::Value::kBoolean:
-    out_value = execution::Value::BOOLEAN(value.boolean());
+    out_value = columnar::Value::BOOLEAN(value.boolean());
     break;
   case common::Value::kI32:
-    out_value = execution::Value::INT32(value.i32());
+    out_value = columnar::Value::INT32(value.i32());
     break;
   case common::Value::kI64:
-    out_value = execution::Value::INT64(value.i64());
+    out_value = columnar::Value::INT64(value.i64());
     break;
   case common::Value::kU32:
-    out_value = execution::Value::UINT32(value.u32());
+    out_value = columnar::Value::UINT32(value.u32());
     break;
   case common::Value::kU64:
-    out_value = execution::Value::UINT64(value.u64());
+    out_value = columnar::Value::UINT64(value.u64());
     break;
   case common::Value::kF32:
-    out_value = execution::Value::FLOAT(value.f32());
+    out_value = columnar::Value::FLOAT(value.f32());
     break;
   case common::Value::kF64:
-    out_value = execution::Value::DOUBLE(value.f64());
+    out_value = columnar::Value::DOUBLE(value.f64());
     break;
   case common::Value::kStr:
     if (type.id() == DataTypeId::kDate) {
       // Special handling for date stored as string
       Date date(value.str());
-      out_value = execution::Value::DATE(date);
+      out_value = columnar::Value::DATE(date);
       break;
     } else if (type.id() == DataTypeId::kTimestampMs) {
       // Special handling for datetime stored as string
       DateTime datetime(value.str());
-      out_value = execution::Value::TIMESTAMPMS(datetime);
+      out_value = columnar::Value::TIMESTAMPMS(datetime);
       break;
     } else if (type.id() == DataTypeId::kInterval) {
       // Special handling for interval stored as string
       Interval interval(value.str());
-      out_value = execution::Value::INTERVAL(interval);
+      out_value = columnar::Value::INTERVAL(interval);
       break;
     } else {
       auto str_type_info = type.getExtraTypeInfo();
       uint16_t max_length =
           str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
                         : STRING_DEFAULT_MAX_LENGTH;
-      out_value = execution::Value::VARCHAR(value.str(), max_length);
+      out_value = columnar::Value::VARCHAR(value.str(), max_length);
     }
     break;
   case common::Value::kDate:
-    out_value = execution::Value::DATE(Date(value.date().item()));
+    out_value = columnar::Value::DATE(Date(value.date().item()));
     break;
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
@@ -306,14 +306,14 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   return true;
 }
 
-neug::result<std::vector<std::pair<std::string, execution::Value>>>
+neug::result<std::vector<std::pair<std::string, columnar::Value>>>
 property_defs_to_value(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::pair<std::string, execution::Value>> result;
+  std::vector<std::pair<std::string, columnar::Value>> result;
   for (const auto& property : properties) {
     const auto& name = property.name();
-    execution::Value default_value(DataType::SQLNULL);
+    columnar::Value default_value(DataType::SQLNULL);
     DataType type;
     if (!data_type_to_property_type(property.type(), type)) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,

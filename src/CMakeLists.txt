@@ -13,6 +13,7 @@ if(ENABLE_GCOV)
 endif()
 
 add_subdirectory(utils)
+add_subdirectory(columnar)
 add_subdirectory(storages)
 add_subdirectory(transaction)
 add_subdirectory(common)

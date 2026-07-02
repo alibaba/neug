@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-#include "neug/execution/common/types/value.h"
+#include "neug/columnar/value.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
@@ -117,13 +117,12 @@ class UpdateTransaction {
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }
 
-  execution::Value GetVertexId(label_t label, vid_t lid) const;
+  columnar::Value GetVertexId(label_t label, vid_t lid) const;
 
-  bool GetVertexIndex(label_t label, const execution::Value& id,
+  bool GetVertexIndex(label_t label, const columnar::Value& id,
                       vid_t& index) const;
 
-  execution::Value GetVertexProperty(label_t label, vid_t lid,
-                                     int col_id) const;
+  columnar::Value GetVertexProperty(label_t label, vid_t lid, int col_id) const;
 
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& col_name) const {
@@ -183,17 +182,17 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
 
   // --- DML methods ---
   Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                              const execution::Value& value) override;
+                              const columnar::Value& value) override;
   Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
                             vid_t dst, label_t edge_label, int32_t oe_offset,
                             int32_t ie_offset, int32_t col_id,
-                            const execution::Value& value) override;
-  Status AddVertex(label_t label, const execution::Value& id,
-                   const std::vector<execution::Value>& props,
+                            const columnar::Value& value) override;
+  Status AddVertex(label_t label, const columnar::Value& id,
+                   const std::vector<columnar::Value>& props,
                    vid_t& vid) override;
   Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                  label_t edge_label,
-                 const std::vector<execution::Value>& properties,
+                 const std::vector<columnar::Value>& properties,
                  const void*& prop) override;
   Status DeleteVertex(label_t label, vid_t lid) override;
   Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,

@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
@@ -131,7 +131,7 @@ neug::result<vid_t> insert_vertex_row(
   }
 
   Value pk_value;
-  std::vector<execution::Value> property_values(properties.size() - 1);
+  std::vector<columnar::Value> property_values(properties.size() - 1);
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
     Value value = prop_expr->Cast<RecordExprBase>().eval_record(chunk, row);
@@ -226,7 +226,7 @@ class MergeVertexOpr : public IOperator {
             // Standalone MERGE after OPTIONAL MATCH can yield row_num() == 0
             // when the inner scan finds no row. MERGE write semantics still
             // need exactly one logical row (CREATE/MATCH branch once).
-            std::shared_ptr<IContextColumn> alias_col;
+            std::shared_ptr<IColumn> alias_col;
             if (chunk.exist(plan.alias_id)) {
               auto c = chunk.get(plan.alias_id);
               if (c != nullptr && c->size() > 0) {

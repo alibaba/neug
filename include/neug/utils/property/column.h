@@ -30,8 +30,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "neug/columnar/value.h"
 #include "neug/config.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_header.h"
@@ -59,7 +59,7 @@ class ColumnBase : public Module {
   virtual size_t size() const = 0;
 
   virtual void resize(size_t size) = 0;
-  virtual void resize(size_t size, const execution::Value& default_value) = 0;
+  virtual void resize(size_t size, const columnar::Value& default_value) = 0;
 
   virtual DataTypeId type() const = 0;
 
@@ -67,10 +67,10 @@ class ColumnBase : public Module {
   // new value, which can happen when the value is not fixed length. If the
   // value is fixed length, we should already have enough space allocated, so
   // insert_safe can be false.
-  virtual void set_any(size_t index, const execution::Value& value,
+  virtual void set_any(size_t index, const columnar::Value& value,
                        bool insert_safe) = 0;
 
-  virtual execution::Value get_any(size_t index) const = 0;
+  virtual columnar::Value get_any(size_t index) const = 0;
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
@@ -107,7 +107,7 @@ class TypedColumn : public ColumnBase {
 
   // Assume it is safe to insert the default value even if it is reserving,
   // since user could always override
-  void resize(size_t size, const execution::Value& default_value) override {
+  void resize(size_t size, const columnar::Value& default_value) override {
     if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
@@ -121,7 +121,7 @@ class TypedColumn : public ColumnBase {
   }
 
   DataTypeId type() const override {
-    return execution::ValueConverter<T>::type().id();
+    return columnar::ValueConverter<T>::type().id();
   }
 
   void set_value(size_t index, const T& val) {
@@ -132,7 +132,7 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const execution::Value& value,
+  void set_any(size_t index, const columnar::Value& value,
                bool insert_safe) override {
     if (value.IsNull()) {
       set_value(index, T());
@@ -147,8 +147,8 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData())[index];
   }
 
-  execution::Value get_any(size_t index) const override {
-    return execution::Value::CreateValue<T>(get_view(index));
+  columnar::Value get_any(size_t index) const override {
+    return columnar::Value::CreateValue<T>(get_view(index));
   }
 
   void ingest(uint32_t index, OutArchive& arc) override {
@@ -212,17 +212,17 @@ class TypedColumn<EmptyType> : public ColumnBase {
   ModuleDescriptor Dump(Checkpoint& ckp) override { return ModuleDescriptor(); }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
-  void resize(size_t size, const execution::Value& default_value) override {}
+  void resize(size_t size, const columnar::Value& default_value) override {}
 
   DataTypeId type() const override { return DataTypeId::kEmpty; }
 
-  void set_any(size_t index, const execution::Value& value,
+  void set_any(size_t index, const columnar::Value& value,
                bool insert_safe) override {}
 
   void set_value(size_t index, const EmptyType& value) {}
 
-  execution::Value get_any(size_t index) const override {
-    return execution::Value(DataType::EMPTY);
+  columnar::Value get_any(size_t index) const override {
+    return columnar::Value(DataType::EMPTY);
   }
 
   EmptyType get_view(size_t index) const { return EmptyType(); }
@@ -411,7 +411,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
   }
 
-  void resize(size_t size, const execution::Value& default_value) override {
+  void resize(size_t size, const columnar::Value& default_value) override {
     if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
@@ -464,7 +464,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   // When insert_safe is set to true, concurrency control should be guaranteed
   // by caller.
-  void set_any(size_t idx, const execution::Value& value,
+  void set_any(size_t idx, const columnar::Value& value,
                bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");
@@ -500,8 +500,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return std::string_view(raw_data + item.offset, item.length);
   }
 
-  execution::Value get_any(size_t index) const override {
-    return execution::Value::STRING(std::string(get_view(index)));
+  columnar::Value get_any(size_t index) const override {
+    return columnar::Value::STRING(std::string(get_view(index)));
   }
 
   void ingest(uint32_t index, OutArchive& arc) override {
@@ -586,7 +586,7 @@ class RefColumnBase {
     kExternal,
   };
   virtual ~RefColumnBase() {}
-  virtual execution::Value get_any(size_t index) const = 0;
+  virtual columnar::Value get_any(size_t index) const = 0;
   virtual DataTypeId type() const = 0;
   virtual ColType col_type() const = 0;
 };
@@ -607,12 +607,12 @@ class TypedRefColumn : public RefColumnBase {
     return basic_buffer[index];
   }
 
-  execution::Value get_any(size_t index) const override {
-    return execution::Value::CreateValue<T>(get_view(index));
+  columnar::Value get_any(size_t index) const override {
+    return columnar::Value::CreateValue<T>(get_view(index));
   }
 
   DataTypeId type() const override {
-    return execution::ValueConverter<T>::type().id();
+    return columnar::ValueConverter<T>::type().id();
   }
 
   ColType col_type() const override { return ColType::kInternal; }
@@ -636,8 +636,8 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
     return column_.get_view(index);
   }
 
-  execution::Value get_any(size_t index) const override {
-    return execution::Value::STRING(std::string(get_view(index)));
+  columnar::Value get_any(size_t index) const override {
+    return columnar::Value::STRING(std::string(get_view(index)));
   }
 
   DataTypeId type() const override { return DataTypeId::kVarchar; }

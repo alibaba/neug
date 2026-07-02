@@ -22,8 +22,8 @@
 #include <random>
 #include <unordered_map>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/columnar/columns/value_columns.h"
+#include "neug/columnar/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 
 namespace neug {
@@ -465,7 +465,7 @@ void Leiden::sink(execution::Context& ctx, int node_alias,
                   int community_alias) {
   execution::MSVertexColumnBuilder builder(vertex_label_);
   builder.reserve(valid_vertices_.size());
-  execution::ValueColumnBuilder<int64_t> community_builder;
+  columnar::ValueColumnBuilder<int64_t> community_builder;
   community_builder.reserve(valid_vertices_.size());
 
   std::unordered_map<uint32_t, uint32_t> com_remap;
@@ -479,7 +479,7 @@ void Leiden::sink(execution::Context& ctx, int node_alias,
     community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
   }
 
-  execution::DataChunk chunk;
+  columnar::DataChunk chunk;
   chunk.set(node_alias, builder.finish());
   chunk.set(community_alias, community_builder.finish());
   ctx.append_chunk(std::move(chunk));
