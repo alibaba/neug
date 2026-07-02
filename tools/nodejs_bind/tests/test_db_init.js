@@ -20,8 +20,8 @@ const assert = require('assert').strict;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Database } = require('neug');
 const {
+  Database,
   ERR_CONFIG_INVALID,
   ERR_CORRUPTION_DETECTED,
   ERR_DATABASE_LOCKED,
@@ -30,7 +30,7 @@ const {
   ERR_INVALID_PATH,
   ERR_PERMISSION,
   ERR_VERSION_MISMATCHED,
-} = require('../lib/error-codes');
+} = require('neug');
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrors Python tmp_path fixture)
