@@ -25,8 +25,8 @@
 /**
  * @brief Class for subgraph pattern
  */
-#include "../../../pattern_matching_data_graph_meta.h"
-#include "../DataStructure/graph.h"
+#include "pattern_matching_data_graph_meta.h"
+#include "DataStructure/graph.h"
 
 // Use types from neug namespace
 using neug::function::DataGraphMeta;
@@ -73,9 +73,6 @@ class PatternGraph : public Graph {
   std::vector<std::vector<PropCons>> vertex_property_constraints;
   std::vector<std::vector<PropCons>> edge_property_constraints;
 
-  //        void FindFractionalEdgeCover(std::vector<double> &weights);
-  //
-  //        std::vector<double> fractional_edge_cover;
 };
 
 inline void PatternGraph::ProcessPattern(
@@ -127,37 +124,4 @@ inline void PatternGraph::ProcessPattern(
   }
 }
 
-/*void PatternGraph::FindFractionalEdgeCover(std::vector<double> &weights) {
-    std::vector<OR::MPVariable*> edgevariables(GetNumEdges()/2);
-    std::vector<OR::MPConstraint*> vertexconstraints(GetNumVertices());
-    OR::MPObjective* objective = solver->MutableObjective();
-    std::vector<int> X[50];
-    for (int i = 0; i < GetNumVertices(); i++) {
-        vertexconstraints[i] = solver->MakeRowConstraint(1.0, infinity);
-    }
-    for (int i = 0; i < GetNumEdges(); i+=2) {
-        edgevariables[i/2] = solver->MakeNumVar(0.0, 1.0, "e" +
-std::to_string(i/2)); auto &[u, v] = edge_list[i];
-        vertexconstraints[u]->SetCoefficient(edgevariables[i/2], 1.0);
-        vertexconstraints[v]->SetCoefficient(edgevariables[i/2], 1.0);
-        X[u].push_back(i/2);
-        X[v].push_back(i/2);
-        objective->SetCoefficient(edgevariables[i/2], weights[i]);
-    }
-    objective->SetMinimization();
-    const MPSolver::ResultStatus result_status = solver->Solve();
-    // Check that the problem has an optimal solution.
-//        if (result_status != MPSolver::OPTIMAL) {
-//            LOG(FATAL) << "The problem does not have an optimal solution!";
-//        }
-
-    fractional_edge_cover.resize(GetNumEdges()/2);
-//        LOG(INFO) << "Solution:";
-//        LOG(INFO) << "Optimal objective value = " << objective->Value();
-    for (int i = 0; i < GetNumEdges(); i+=2) {
-//            LOG(INFO) << edgevariables[i/2]->name() << " = " <<
-edgevariables[i/2]->solution_value(); fractional_edge_cover[i/2] =
-edgevariables[i/2]->solution_value();
-    }
-}*/
 }  // namespace GraphLib::SubgraphMatching

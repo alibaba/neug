@@ -16,14 +16,10 @@ file(GLOB PATTERN_MATCHING_EXTENSION_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
-file(GLOB DAF_LIB_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/daf_lib/src/*.cc")
-
 # Combine all sources
 set(PATTERN_MATCHING_EXTENSION_OBJECT_FILES
     ${PATTERN_MATCHING_EXTENSION_SOURCES}
-    ${FASTEST_LIB_SOURCES}
-    ${DAF_LIB_SOURCES})
+    ${FASTEST_LIB_SOURCES})
 
 # Use the extension build system (should be called before add_extension_test)
 build_extension_lib("pattern_matching")
@@ -33,7 +29,6 @@ target_include_directories(neug_pattern_matching_extension PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/daf_lib
     ${CMAKE_CURRENT_BINARY_DIR})
 
 # Include rapidjson for JSON parsing

@@ -21,8 +21,7 @@
  * features.
  */
 
-#ifndef GLOBAL_TIMER_H_
-#define GLOBAL_TIMER_H_
+#pragma once
 
 #include <chrono>
 #include <ctime>
@@ -51,4 +50,3 @@ class Timer {
  private:
   std::chrono::high_resolution_clock::time_point s, e;
 };
-#endif

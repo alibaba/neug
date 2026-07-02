@@ -22,7 +22,7 @@
  */
 
 #pragma once
-#include "../SubgraphMatching/candidate_space.h"
+#include "SubgraphMatching/candidate_space.h"
 namespace GraphLib {
 namespace CardinalityEstimation {
 enum TreegenerationStrategy {

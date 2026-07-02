@@ -10,7 +10,7 @@ RETURN *;
 
 - **`Pattern`** — the graph pattern to match, e.g. `'(a:Person)-[r:person_knows_person]->(b:Person)'`. It uses Cypher node/relationship syntax with the leading `MATCH` keyword **optional** (added automatically). It is a pattern only, not a full query: every node and relationship must be written out explicitly, though an inline `WHERE` / `RETURN` is allowed (for property filters and ordering).
 - **`size`** *(optional)* — a positive integer (`>= 1`). In exact mode it is the early-termination bound (stop after the first `size` matches); in sampled mode it is the sample size.
-- **`is_sampled`** *(optional)* — a boolean choosing the algorithm: `false` → exact matching (DAF), `true` → sampled matching (FaSTest). Must be written as `true` / `false` (not `0` / `1`).
+- **`is_sampled`** *(optional)* — a boolean choosing the algorithm: `false` → exact matching, `true` → sampled matching (FaSTest). Must be written as `true` / `false` (not `0` / `1`).
 
 `size` and `is_sampled` go together. Omit both for plain exact matching over all matches:
 

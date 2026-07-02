@@ -26,7 +26,7 @@
 
 #include <cmath>
 
-#include "../SubgraphMatching/candidate_space.h"
+#include "SubgraphMatching/candidate_space.h"
 #include "pattern_matching_data_graph_meta.h"
 
 namespace neug_sampled_match_stats {

@@ -58,11 +58,6 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
 
-#include "daf_lib/include/backtrack.h"
-#include "daf_lib/include/candidate_space.h"
-#include "daf_lib/include/dag.h"
-#include "daf_lib/include/data_graph.h"
-#include "daf_lib/include/query_graph.h"
 #include "fastest_lib/src/SubgraphCounting/cardinality_estimation.h"
 #include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
 #include "pattern_cypher_translator.h"
@@ -72,7 +67,12 @@
 namespace neug {
 namespace function {
 
-inline execution::Context MakeSingleChunkContext(
+// Data-graph vertex id used in an exact-match embedding.
+using MatchVertex = uint32_t;
+inline constexpr MatchVertex kInvalidMatchVertex =
+    std::numeric_limits<MatchVertex>::max();
+
+inline execution::Context make_single_chunk_context(
     std::vector<std::shared_ptr<execution::IContextColumn>> columns) {
   execution::Context ctx;
   execution::DataChunk chunk;
@@ -93,7 +93,7 @@ inline execution::Context MakeSingleChunkContext(
 // (e.g. "and", "or", "like") fall back to COMP_EQUAL — flag the fallback so
 // users notice instead of silently getting equality semantics. Dedup by op
 // string so a typo'd operator only warns once per process.
-inline CompType ParseOperator(const std::string& op_in) {
+inline CompType parse_operator(const std::string& op_in) {
   // Normalize to lowercase so word operators ("IN", "Not_In") are recognized
   // case-insensitively (Cypher keywords are case-insensitive); symbol
   // operators ("=", ">=") are unaffected by tolower.
@@ -132,7 +132,7 @@ inline CompType ParseOperator(const std::string& op_in) {
 }
 
 // Helper function to create Value from rapidjson
-inline Value CreateValueFromRapidjson(const rapidjson::Value& val) {
+inline Value create_value_from_rapidjson(const rapidjson::Value& val) {
   if (val.IsInt()) {
     return Value::INT32(val.GetInt());
   } else if (val.IsInt64()) {
@@ -148,7 +148,7 @@ inline Value CreateValueFromRapidjson(const rapidjson::Value& val) {
 }
 
 // Helper function: escape a string for JSON output
-inline std::string EscapeJsonString(const std::string& s);
+inline std::string escape_json_string(const std::string& s);
 
 /**
  * @brief Convert a neug::execution::Value to JSON format string (preserving
@@ -164,10 +164,10 @@ inline std::string EscapeJsonString(const std::string& s);
  * @param val The Value to serialize
  * @return JSON-formatted string representation
  */
-inline std::string ValueToJsonString(const execution::Value& val);
+inline std::string value_to_json_string(const execution::Value& val);
 
 // Helper function to parse constraints from rapidjson
-inline std::vector<PropCons> ParseConstraints(
+inline std::vector<PropCons> parse_constraints(
     const rapidjson::Value& constraints_json) {
   std::vector<PropCons> constraints;
   if (!constraints_json.IsArray())
@@ -186,7 +186,7 @@ inline std::vector<PropCons> ParseConstraints(
     std::string op_str = (c.HasMember("operator") && c["operator"].IsString())
                              ? c["operator"].GetString()
                              : "=";
-    CompType op = ParseOperator(op_str);
+    CompType op = parse_operator(op_str);
     // Set-membership ('in'/'not_in') is not implemented: the value path below
     // only parses scalars (arrays collapse to 0) and every evaluator returns
     // false for these ops, so accepting them would silently drop all matches.
@@ -197,7 +197,7 @@ inline std::vector<PropCons> ParseConstraints(
           "' is not supported. Supported operators: =, ==, >, <, >=, <=. "
           "Set membership ('in'/'not_in') is not implemented.");
     }
-    Value value = c.HasMember("value") ? CreateValueFromRapidjson(c["value"])
+    Value value = c.HasMember("value") ? create_value_from_rapidjson(c["value"])
                                        : Value::INT32(0);
 
     constraints.emplace_back(prop_name, op, std::move(value));
@@ -212,8 +212,8 @@ inline std::vector<PropCons> ParseConstraints(
 // timestamp alone collides under burst load; the per-process atomic counter
 // and 64-bit random suffix keep concurrent calls distinct.
 // ============================================================================
-inline std::string GenerateTempFilePath(const std::string& prefix,
-                                        const std::string& extension) {
+inline std::string generate_temp_file_path(const std::string& prefix,
+                                           const std::string& extension) {
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                        now.time_since_epoch())
@@ -248,11 +248,11 @@ inline std::string GenerateTempFilePath(const std::string& prefix,
   return (dir / name.str()).string();
 }
 
-inline std::string GenerateOutputFilePath(const std::string& prefix) {
-  return GenerateTempFilePath(prefix, ".csv");
+inline std::string generate_output_file_path(const std::string& prefix) {
+  return generate_temp_file_path(prefix, ".csv");
 }
 
-inline std::string TrimCopy(std::string_view input) {
+inline std::string trim_copy(std::string_view input) {
   size_t begin = 0;
   while (begin < input.size() &&
          std::isspace(static_cast<unsigned char>(input[begin]))) {
@@ -266,7 +266,7 @@ inline std::string TrimCopy(std::string_view input) {
   return std::string(input.substr(begin, end - begin));
 }
 
-inline bool ReadTextFile(const std::string& path, std::string* out) {
+inline bool read_text_file(const std::string& path, std::string* out) {
   std::ifstream ifs(path);
   if (!ifs.is_open())
     return false;
@@ -276,7 +276,7 @@ inline bool ReadTextFile(const std::string& path, std::string* out) {
   return true;
 }
 
-inline bool WriteTextFile(const std::string& path, const std::string& text) {
+inline bool write_text_file(const std::string& path, const std::string& text) {
   std::ofstream ofs(path);
   if (!ofs.is_open())
     return false;
@@ -284,16 +284,18 @@ inline bool WriteTextFile(const std::string& path, const std::string& text) {
   return static_cast<bool>(ofs);
 }
 
-inline bool LooksLikeJsonPattern(std::string_view text) {
-  std::string trimmed = TrimCopy(text);
+inline bool looks_like_json_pattern(std::string_view text) {
+  std::string trimmed = trim_copy(text);
   return !trimmed.empty() && trimmed.front() == '{';
 }
 
-inline std::string WritePatternJsonTempFile(const std::string& pattern_json) {
-  std::string path = GenerateTempFilePath("pattern_matching_pattern", ".json");
+inline std::string write_pattern_json_temp_file(
+    const std::string& pattern_json) {
+  std::string path =
+      generate_temp_file_path("pattern_matching_pattern", ".json");
   if (path.empty())
     return "";
-  if (!WriteTextFile(path, pattern_json)) {
+  if (!write_text_file(path, pattern_json)) {
     LOG(ERROR) << "[PATTERN_MATCHING] Failed to write pattern JSON file: "
                << path;
     return "";
@@ -306,8 +308,8 @@ inline std::string WritePatternJsonTempFile(const std::string& pattern_json) {
 //   * path to a Cypher pattern file
 //   * inline JSON pattern text
 //   * inline Cypher pattern text
-std::string NormalizePatternInputToJsonFile(const std::string& arg,
-                                            const char* log_tag);
+std::string normalize_pattern_input_to_json_file(const std::string& arg,
+                                                 const char* log_tag);
 
 // ============================================================================
 // GraphDataCache: caches preprocessed graph metadata so repeated
@@ -317,7 +319,7 @@ std::string NormalizePatternInputToJsonFile(const std::string& arg,
 
 class GraphDataCache {
  public:
-  static GraphDataCache& Instance() {
+  static GraphDataCache& instance() {
     static GraphDataCache instance;
     return instance;
   }
@@ -343,13 +345,13 @@ class GraphDataCache {
   // Residual: if a graph is destroyed and a different graph is later allocated
   // with its Schema at the same address, a stale entry could be served. The
   // cache is process-global and not cleared on graph teardown, so callers
-  // recycling graph objects should ClearAll() between distinct graphs.
-  static const void* KeyOf(const StorageReadInterface& graph) {
+  // recycling graph objects should clear_all() between distinct graphs.
+  static const void* key_of(const StorageReadInterface& graph) {
     return static_cast<const void*>(&graph.schema());
   }
 
-  CachedData& GetOrCreate(const StorageReadInterface& graph) {
-    const void* key = KeyOf(graph);
+  CachedData& get_or_create(const StorageReadInterface& graph) {
+    const void* key = key_of(graph);
     std::lock_guard<std::mutex> lock(mutex_);
 
     auto it = cache_.find(key);
@@ -363,18 +365,18 @@ class GraphDataCache {
     return cache_[key];
   }
 
-  bool HasCache(const StorageReadInterface& graph) const {
+  bool has_cache(const StorageReadInterface& graph) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = cache_.find(KeyOf(graph));
+    auto it = cache_.find(key_of(graph));
     return it != cache_.end() && it->second.preprocessed;
   }
 
-  void ClearCache(const StorageReadInterface& graph) {
+  void clear_cache(const StorageReadInterface& graph) {
     std::lock_guard<std::mutex> lock(mutex_);
-    cache_.erase(KeyOf(graph));
+    cache_.erase(key_of(graph));
   }
 
-  void ClearAll() {
+  void clear_all() {
     std::lock_guard<std::mutex> lock(mutex_);
     cache_.clear();
   }
@@ -396,12 +398,12 @@ class GraphDataCache {
 static constexpr char SGCH_MAGIC[] = "SGCH";
 static constexpr int32_t SGCH_VERSION = 1;
 
-inline bool SaveSchemaGraph(
+inline bool save_schema_graph(
     const std::unordered_map<
         label_t, std::unordered_map<label_t, std::vector<label_t>>>& sg,
     const std::string& filepath);
 
-bool LoadSchemaGraph(
+bool load_schema_graph(
     std::unordered_map<label_t,
                        std::unordered_map<label_t, std::vector<label_t>>>& sg,
     const std::string& filepath);
@@ -411,15 +413,15 @@ bool LoadSchemaGraph(
  * Files written: {checkpoint_dir}/data_graph_meta.bin,
  * {checkpoint_dir}/schema_graph.bin
  */
-inline bool SaveGraphCheckpoint(const StorageReadInterface& graph,
-                                const std::string& checkpoint_dir);
+inline bool save_graph_checkpoint(const StorageReadInterface& graph,
+                                  const std::string& checkpoint_dir);
 
 /**
  * @brief Try to load graph initialization data from checkpoint files.
  * @return true if checkpoint was loaded successfully, false if not available.
  */
-bool LoadGraphCheckpoint(const StorageReadInterface& graph,
-                         const std::string& checkpoint_dir);
+bool load_graph_checkpoint(const StorageReadInterface& graph,
+                           const std::string& checkpoint_dir);
 
 // ============================================================================
 // Graph initialization: builds label mappings and runs DataGraphMeta
@@ -429,15 +431,15 @@ bool LoadGraphCheckpoint(const StorageReadInterface& graph,
 
 /**
  * @brief Build the per-graph caches that SAMPLED_PATTERN_MATCH relies on.
- * @param graph           Graph storage to preprocess.
+ * @param graph           Graph storage to Preprocess.
  * @param verbose         Emit progress logs when true.
  * @param checkpoint_dir  If non-empty, try loading the cache from this
  *                        directory before falling back to full preprocessing.
  * @return true on success.
  */
-bool DoGraphInitialization(const StorageReadInterface& graph,
-                           bool verbose = true,
-                           const std::string& checkpoint_dir = "");
+bool do_graph_initialization(const StorageReadInterface& graph,
+                             bool verbose = true,
+                             const std::string& checkpoint_dir = "");
 
 enum class PatternOutputKind {
   kVertex,
@@ -485,11 +487,12 @@ struct PatternExecutionModifiers {
   bool has_skip = false;
   bool has_limit = false;
 
-  bool HasOrderBy() const { return !order_by.empty(); }
-  bool HasSkipOrLimit() const { return has_skip || has_limit; }
+  bool has_order_by() const { return !order_by.empty(); }
+  bool has_skip_or_limit() const { return has_skip || has_limit; }
 };
 
-inline bool ReadJsonId(const rapidjson::Value& obj, const char* key, int* out) {
+inline bool read_json_id(const rapidjson::Value& obj, const char* key,
+                         int* out) {
   if (!obj.HasMember(key))
     return false;
   const auto& v = obj[key];
@@ -506,9 +509,9 @@ inline bool ReadJsonId(const rapidjson::Value& obj, const char* key, int* out) {
   return false;
 }
 
-inline std::string ReadPatternAlias(const rapidjson::Value& obj,
-                                    const std::string& fallback_prefix,
-                                    int fallback_id) {
+inline std::string read_pattern_alias(const rapidjson::Value& obj,
+                                      const std::string& fallback_prefix,
+                                      int fallback_id) {
   for (const char* key : {"alias", "variable", "name"}) {
     if (obj.HasMember(key) && obj[key].IsString() &&
         obj[key].GetStringLength() > 0) {
@@ -518,7 +521,7 @@ inline std::string ReadPatternAlias(const rapidjson::Value& obj,
   return fallback_prefix + std::to_string(fallback_id);
 }
 
-inline std::string MakeUniquePatternAlias(
+inline std::string make_unique_pattern_alias(
     const std::string& alias, std::unordered_map<std::string, int>* seen) {
   auto [it, inserted] = seen->emplace(alias, 0);
   if (inserted)
@@ -527,15 +530,15 @@ inline std::string MakeUniquePatternAlias(
   return alias + "_" + std::to_string(next);
 }
 
-inline bool ReadJsonUint64(const rapidjson::Value& value, uint64_t* out);
+inline bool read_json_uint64(const rapidjson::Value& value, uint64_t* out);
 
-std::optional<PatternExecutionModifiers> ParsePatternExecutionModifiers(
+std::optional<PatternExecutionModifiers> parse_pattern_execution_modifiers(
     const rapidjson::Document& doc,
     const std::vector<std::string>& vertex_aliases,
     const std::vector<PatternOutputEdgeInfo>& edge_aliases,
     const char* log_tag);
 
-std::vector<PatternOutputColumn> BuildPatternOutputColumnsFromAliases(
+std::vector<PatternOutputColumn> build_pattern_output_columns_from_aliases(
     const std::vector<std::string>& vertex_aliases,
     const std::vector<std::string>& vertex_labels,
     const std::vector<PatternOutputEdgeInfo>& edges);
@@ -574,45 +577,47 @@ class SampledSubgraphMatcher {
   double match();
 
   // Get sampled results after matching
-  const std::vector<int>& GetSampledResults() const { return sampled_results_; }
-  double GetEstimatedCount() const { return estimated_count_; }
-  int GetPatternVertexCount() const {
+  const std::vector<int>& get_sampled_results() const {
+    return sampled_results_;
+  }
+  double get_estimated_count() const { return estimated_count_; }
+  int get_pattern_vertex_count() const {
     return pattern_graph_ ? pattern_graph_->GetNumVertices() : 0;
   }
-  int GetPatternEdgeCount() const {
+  int get_pattern_edge_count() const {
     return pattern_graph_ ? pattern_graph_->GetNumEdges() : 0;
   }
-  label_t GetPatternVertexLabel(int pattern_vertex_idx) const {
+  label_t get_pattern_vertex_label(int pattern_vertex_idx) const {
     if (!pattern_graph_ || pattern_vertex_idx < 0 ||
         pattern_vertex_idx >= pattern_graph_->GetNumVertices()) {
       return 0;
     }
     return pattern_graph_->vertex_label[pattern_vertex_idx];
   }
-  label_t GetPatternEdgeLabel(int pattern_edge_idx) const {
+  label_t get_pattern_edge_label(int pattern_edge_idx) const {
     if (!pattern_graph_ || pattern_edge_idx < 0 ||
         pattern_edge_idx >= pattern_graph_->GetNumEdges()) {
       return 0;
     }
     return pattern_graph_->edge_label[pattern_edge_idx];
   }
-  std::string GetPatternVertexLabelName(int pattern_vertex_idx) const {
-    label_t label = GetPatternVertexLabel(pattern_vertex_idx);
+  std::string get_pattern_vertex_label_name(int pattern_vertex_idx) const {
+    label_t label = get_pattern_vertex_label(pattern_vertex_idx);
     const auto& schema = graph_.schema();
     if (schema.is_vertex_label_valid(label)) {
       return schema.get_vertex_label_name(label);
     }
     return std::to_string(label);
   }
-  std::string GetPatternEdgeLabelName(int pattern_edge_idx) const {
-    label_t label = GetPatternEdgeLabel(pattern_edge_idx);
+  std::string get_pattern_edge_label_name(int pattern_edge_idx) const {
+    label_t label = get_pattern_edge_label(pattern_edge_idx);
     const auto& schema = graph_.schema();
     if (schema.is_edge_label_valid(label)) {
       return schema.get_edge_label_name(label);
     }
     return std::to_string(label);
   }
-  const std::vector<std::string>& GetVertexRequiredProps(
+  const std::vector<std::string>& get_vertex_required_props(
       int pattern_vertex_idx) const {
     static const std::vector<std::string> kEmpty;
     if (pattern_vertex_idx < 0 ||
@@ -621,7 +626,7 @@ class SampledSubgraphMatcher {
     }
     return vertex_required_props_[pattern_vertex_idx];
   }
-  const std::vector<std::string>& GetEdgeRequiredProps(
+  const std::vector<std::string>& get_edge_required_props(
       int pattern_edge_idx) const {
     static const std::vector<std::string> kEmpty;
     if (pattern_edge_idx < 0 ||
@@ -633,7 +638,7 @@ class SampledSubgraphMatcher {
 
   // Get pattern edge list: [(src_pattern_idx, dst_pattern_idx, edge_label),
   // ...]
-  std::vector<std::tuple<int, int, label_t>> GetPatternEdgeList() const {
+  std::vector<std::tuple<int, int, label_t>> get_pattern_edge_list() const {
     std::vector<std::tuple<int, int, label_t>> result;
     if (!pattern_graph_)
       return result;
@@ -645,15 +650,15 @@ class SampledSubgraphMatcher {
     return result;
   }
 
-  const std::vector<PatternOutputColumn>& GetPatternOutputColumns() const {
+  const std::vector<PatternOutputColumn>& get_pattern_output_columns() const {
     return output_columns_;
   }
 
-  const PatternExecutionModifiers& GetPatternExecutionModifiers() const {
+  const PatternExecutionModifiers& get_pattern_execution_modifiers() const {
     return modifiers_;
   }
 
-  std::string GetPatternVertexAlias(int pattern_vertex_idx) const {
+  std::string get_pattern_vertex_alias(int pattern_vertex_idx) const {
     if (pattern_vertex_idx < 0 ||
         pattern_vertex_idx >= static_cast<int>(vertex_aliases_.size())) {
       return "v" + std::to_string(pattern_vertex_idx);
@@ -661,7 +666,7 @@ class SampledSubgraphMatcher {
     return vertex_aliases_[pattern_vertex_idx];
   }
 
-  std::string GetPatternEdgeAlias(int pattern_edge_idx) const {
+  std::string get_pattern_edge_alias(int pattern_edge_idx) const {
     if (pattern_edge_idx < 0 ||
         pattern_edge_idx >= static_cast<int>(edge_aliases_.size())) {
       return "e" + std::to_string(pattern_edge_idx);
@@ -671,14 +676,14 @@ class SampledSubgraphMatcher {
 
   // Get sampled edge keys for a specific sample and pattern edge
   // Returns edge key in format "src_global:dst_global:edge_label"
-  std::string GetSampledEdgeKey(int sample_idx, int pattern_edge_idx) const {
+  std::string get_sampled_edge_key(int sample_idx, int pattern_edge_idx) const {
     if (!pattern_graph_ || sample_idx < 0 || pattern_edge_idx < 0)
       return "";
-    int patternVertexCount = pattern_graph_->GetNumVertices();
-    int patternEdgeCount = pattern_graph_->GetNumEdges();
-    if (pattern_edge_idx >= patternEdgeCount)
+    int pattern_vertex_count = pattern_graph_->GetNumVertices();
+    int pattern_edge_count = pattern_graph_->GetNumEdges();
+    if (pattern_edge_idx >= pattern_edge_count)
       return "";
-    if (sample_idx * patternVertexCount >= (int) sampled_results_.size())
+    if (sample_idx * pattern_vertex_count >= (int) sampled_results_.size())
       return "";
 
     auto& [src_pattern, dst_pattern] =
@@ -686,22 +691,22 @@ class SampledSubgraphMatcher {
     label_t edge_label = pattern_graph_->edge_label[pattern_edge_idx];
 
     int src_global =
-        sampled_results_[sample_idx * patternVertexCount + src_pattern];
+        sampled_results_[sample_idx * pattern_vertex_count + src_pattern];
     int dst_global =
-        sampled_results_[sample_idx * patternVertexCount + dst_pattern];
+        sampled_results_[sample_idx * pattern_vertex_count + dst_pattern];
 
     return std::to_string(src_global) + ":" + std::to_string(dst_global) + ":" +
            std::to_string(edge_label);
   }
 
  private:
-  // NOTE: BuildLabelMappings logic has been moved to DoGraphInitialization()
+  // NOTE: BuildLabelMappings logic has been moved to do_graph_initialization()
   // for better code reuse and explicit initialization via CALL Initialize().
 
   // Thin wrapper: read the file off disk and delegate to the in-memory
   // text parser. The legacy SAMPLED_PATTERN_MATCH JSON path uses this.
   std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph>
-  CreatePatternFromJsonFile(const std::string& pattern_file) {
+  create_pattern_from_json_file(const std::string& pattern_file) {
     std::ifstream fin(pattern_file);
     if (!fin.is_open()) {
       LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Cannot open pattern file: "
@@ -710,15 +715,15 @@ class SampledSubgraphMatcher {
     }
     std::stringstream buffer;
     buffer << fin.rdbuf();
-    return CreatePatternFromJsonText(buffer.str(), pattern_file);
+    return create_pattern_from_json_text(buffer.str(), pattern_file);
   }
 
   // Core pattern loader. Takes the JSON text directly so Cypher callers can
   // skip the write-tempfile / re-read / re-parse round-trip. The
   // `origin_label` is purely for log lines (file path or "<inline>").
   std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph>
-  CreatePatternFromJsonText(const std::string& json_content,
-                            const std::string& origin_label);
+  create_pattern_from_json_text(const std::string& json_content,
+                                const std::string& origin_label);
 
   // Member variables
   const StorageReadInterface& graph_;
@@ -753,7 +758,7 @@ class SampledSubgraphMatcher {
    *          kFloat->"float", kBoolean->"boolean", kVarchar->"string",
    *          kDate/kTimestampMs/kInterval->"string", others->"string".
    */
-  static std::string DataTypeIdToString(DataTypeId type) {
+  static std::string data_type_id_to_string(DataTypeId type) {
     switch (type) {
     case DataTypeId::kInt8:
       return "int8";
@@ -807,7 +812,7 @@ class SampledSubgraphMatcher {
    *   ]
    * }
    */
-  std::string FetchAndWriteProperties();
+  std::string fetch_and_write_properties();
 };
 
 // ============================================================================
@@ -849,10 +854,9 @@ struct SaveSampledmatchCheckpointFunction {
 };
 
 // ============================================================================
-// ExactPatternMatcher: DAF-backed exact pattern matching. DAF works on a
-// compact text graph format, so NeuG's cached DataGraphMeta is materialized
-// into temporary DAF data/query graph files per call. The final result is
-// validated against NeuG's directed edge index and property storage.
+// Exact pattern matching: directed, isomorphism-preserving subgraph enumeration
+// (enumerate_exact_matches_with_neug) run directly on NeuG's cached
+// DataGraphMeta — no external matcher and no temporary graph files.
 // ============================================================================
 
 struct ExactPatternSpec {
@@ -881,7 +885,7 @@ struct ExactPatternSpec {
   PatternExecutionModifiers modifiers;
 };
 
-inline std::vector<std::string> ParseRequiredProps(
+inline std::vector<std::string> parse_required_props(
     const rapidjson::Value& obj) {
   std::vector<std::string> props;
   if (!obj.HasMember("required_props") || !obj["required_props"].IsArray()) {
@@ -894,10 +898,10 @@ inline std::vector<std::string> ParseRequiredProps(
   return props;
 }
 
-std::optional<ExactPatternSpec> ParseExactPatternJsonFile(
+std::optional<ExactPatternSpec> parse_exact_pattern_json_file(
     const std::string& pattern_json_file, const Schema& schema);
 
-inline bool IsNumericValue(const execution::Value& value, double* out) {
+inline bool is_numeric_value(const execution::Value& value, double* out) {
   if (value.IsNull())
     return false;
   try {
@@ -932,13 +936,13 @@ inline bool IsNumericValue(const execution::Value& value, double* out) {
   } catch (...) { return false; }
 }
 
-bool ComparePropertyValue(const execution::Value& actual, CompType op,
-                          const execution::Value& expected);
+bool compare_property_value(const execution::Value& actual, CompType op,
+                            const execution::Value& expected);
 
-inline bool CheckVertexConstraints(const StorageReadInterface& graph,
-                                   const DataGraphMeta& data_meta,
-                                   int global_id,
-                                   const ExactPatternSpec::VertexSpec& spec) {
+inline bool check_vertex_constraints(const StorageReadInterface& graph,
+                                     const DataGraphMeta& data_meta,
+                                     int global_id,
+                                     const ExactPatternSpec::VertexSpec& spec) {
   if (spec.constraints.empty())
     return true;
   auto [label, local_vid] = data_meta.ToLocalId(global_id);
@@ -953,15 +957,15 @@ inline bool CheckVertexConstraints(const StorageReadInterface& graph,
     int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
     execution::Value actual =
         graph.GetVertexProperty(label, local_vid, prop_idx);
-    if (!ComparePropertyValue(actual, constraint._comp_type,
-                              constraint._value)) {
+    if (!compare_property_value(actual, constraint._comp_type,
+                                constraint._value)) {
       return false;
     }
   }
   return true;
 }
 
-inline std::optional<execution::Value> GetDirectedEdgeProperty(
+inline std::optional<execution::Value> get_directed_edge_property(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label, int prop_idx) {
   auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
@@ -980,7 +984,7 @@ inline std::optional<execution::Value> GetDirectedEdgeProperty(
   return std::nullopt;
 }
 
-inline std::optional<execution::Value> GetVertexPropertyByName(
+inline std::optional<execution::Value> get_vertex_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int global_id, label_t expected_label, const std::string& prop_name) {
   auto [label, local_vid] = data_meta.ToLocalId(global_id);
@@ -998,7 +1002,7 @@ inline std::optional<execution::Value> GetVertexPropertyByName(
   } catch (...) { return std::nullopt; }
 }
 
-inline std::optional<execution::Value> GetEdgePropertyByName(
+inline std::optional<execution::Value> get_edge_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label,
     const std::string& prop_name) {
@@ -1013,17 +1017,17 @@ inline std::optional<execution::Value> GetEdgePropertyByName(
     return std::nullopt;
   }
   int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
-  return GetDirectedEdgeProperty(graph, data_meta, src_global, dst_global,
-                                 edge_label, prop_idx);
+  return get_directed_edge_property(graph, data_meta, src_global, dst_global,
+                                    edge_label, prop_idx);
 }
 
-int CompareExecutionValues(const std::optional<execution::Value>& lhs,
-                           const std::optional<execution::Value>& rhs);
+int compare_execution_values(const std::optional<execution::Value>& lhs,
+                             const std::optional<execution::Value>& rhs);
 
 template <class Rows>
-inline void ApplyPatternWindow(const PatternExecutionModifiers& modifiers,
-                               Rows* rows) {
-  if (rows == nullptr || !modifiers.HasSkipOrLimit()) {
+inline void apply_pattern_window(const PatternExecutionModifiers& modifiers,
+                                 Rows* rows) {
+  if (rows == nullptr || !modifiers.has_skip_or_limit()) {
     return;
   }
   if (modifiers.has_skip && modifiers.skip >= rows->size()) {
@@ -1040,10 +1044,10 @@ inline void ApplyPatternWindow(const PatternExecutionModifiers& modifiers,
   }
 }
 
-inline bool CheckEdgeConstraints(const StorageReadInterface& graph,
-                                 const DataGraphMeta& data_meta, int src_global,
-                                 int dst_global,
-                                 const ExactPatternSpec::EdgeSpec& spec) {
+inline bool check_edge_constraints(const StorageReadInterface& graph,
+                                   const DataGraphMeta& data_meta,
+                                   int src_global, int dst_global,
+                                   const ExactPatternSpec::EdgeSpec& spec) {
   if (spec.constraints.empty())
     return true;
   auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
@@ -1058,117 +1062,41 @@ inline bool CheckEdgeConstraints(const StorageReadInterface& graph,
     if (it == prop_names.end())
       return false;
     int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
-    auto actual = GetDirectedEdgeProperty(graph, data_meta, src_global,
-                                          dst_global, spec.label, prop_idx);
+    auto actual = get_directed_edge_property(graph, data_meta, src_global,
+                                             dst_global, spec.label, prop_idx);
     if (!actual.has_value() ||
-        !ComparePropertyValue(*actual, constraint._comp_type,
-                              constraint._value)) {
+        !compare_property_value(*actual, constraint._comp_type,
+                                constraint._value)) {
       return false;
     }
   }
   return true;
 }
 
-inline bool ValidateExactEmbedding(const StorageReadInterface& graph,
-                                   const DataGraphMeta& data_meta,
-                                   const ExactPatternSpec& spec,
-                                   const std::vector<daf::Vertex>& mapping) {
-  if (mapping.size() < spec.vertices.size())
-    return false;
-  for (const auto& vertex : spec.vertices) {
-    int data_v = static_cast<int>(mapping[vertex.id]);
-    if (data_meta.GetVertexLabel(data_v) != vertex.label)
-      return false;
-    if (!CheckVertexConstraints(graph, data_meta, data_v, vertex)) {
-      return false;
-    }
-  }
-  for (const auto& edge : spec.edges) {
-    int src = static_cast<int>(mapping[edge.src]);
-    int dst = static_cast<int>(mapping[edge.dst]);
-    if (data_meta.GetEdgeIndex(src, dst, edge.label) == -1) {
-      return false;
-    }
-    if (!CheckEdgeConstraints(graph, data_meta, src, dst, edge)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-inline std::optional<execution::Value> ResolveExactOrderValue(
+inline std::optional<execution::Value> resolve_exact_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
-    const ExactPatternSpec& spec, const std::vector<daf::Vertex>& match,
+    const ExactPatternSpec& spec, const std::vector<MatchVertex>& match,
     const PatternOrderBySpec& order_by);
 
-void ApplyExactPatternModifiers(const StorageReadInterface& graph,
-                                const DataGraphMeta& data_meta,
-                                const ExactPatternSpec& spec,
-                                std::vector<std::vector<daf::Vertex>>* matches);
+void apply_exact_pattern_modifiers(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    const ExactPatternSpec& spec,
+    std::vector<std::vector<MatchVertex>>* matches);
 
-std::vector<std::vector<daf::Vertex>> EnumerateExactMatchesWithNeug(
+std::vector<std::vector<MatchVertex>> enumerate_exact_matches_with_neug(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec, uint64_t limit);
 
-struct DafGraphStorageAdapter final : public gbi::GraphStorage {
-  explicit DafGraphStorageAdapter(const DataGraphMeta& data_meta)
-      : data_meta_(data_meta) {}
-
-  bool HasEdge(gbi::EIdType source, gbi::EIdType target) override {
-    return data_meta_.GetEdgeIndex(static_cast<int>(source),
-                                   static_cast<int>(target)) != -1;
-  }
-
-  bool HasEdge(gbi::EIdType source, gbi::EIdType target, int label) override {
-    return data_meta_.GetEdgeIndex(static_cast<int>(source),
-                                   static_cast<int>(target), label) != -1;
-  }
-
-  const DataGraphMeta& data_meta_;
-};
-
-std::string WriteDafDataGraphFile(
-    const DataGraphMeta& data_meta,
-    std::unordered_map<std::string, int>* label_mapping);
-
-inline std::string WriteDafQueryGraphFile(const ExactPatternSpec& spec) {
-  std::string path =
-      GenerateTempFilePath("pattern_matching_daf_query", ".graph");
-  std::ofstream ofs(path);
-  if (!ofs.is_open()) {
-    LOG(ERROR) << "[PATTERN_MATCH] Failed to write DAF query graph: " << path;
-    return "";
-  }
-  ofs << "t " << spec.vertices.size() << " " << spec.edges.size() << "\n";
-  for (const auto& vertex : spec.vertices) {
-    ofs << "v " << vertex.id << " " << static_cast<int>(vertex.label) << "\n";
-  }
-  for (const auto& edge : spec.edges) {
-    ofs << "e " << edge.src << " " << edge.dst << " "
-        << static_cast<int>(edge.label) << "\n";
-  }
-  return path;
-}
-
-inline void PopulateDafDirectedEdgeChecks(daf::QueryGraph* query,
-                                          const ExactPatternSpec& spec) {
-  query->has_out_edge_pairs.assign(spec.vertices.size(), {});
-  query->has_in_edge_pairs.assign(spec.vertices.size(), {});
-  for (const auto& edge : spec.edges) {
-    query->has_out_edge_pairs[edge.src].push_back({edge.dst, edge.label});
-    query->has_in_edge_pairs[edge.dst].push_back({edge.src, edge.label});
-  }
-}
-
-std::string FetchAndWriteExactProperties(
+std::string fetch_and_write_exact_properties(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec,
-    const std::vector<std::vector<daf::Vertex>>& matches);
+    const std::vector<std::vector<MatchVertex>>& matches);
 
-inline bool FindDirectedEdgeDataPtr(const StorageReadInterface& graph,
-                                    const DataGraphMeta& data_meta,
-                                    int src_global, int dst_global,
-                                    label_t edge_label, const void** data_ptr) {
+inline bool find_directed_edge_data_ptr(const StorageReadInterface& graph,
+                                        const DataGraphMeta& data_meta,
+                                        int src_global, int dst_global,
+                                        label_t edge_label,
+                                        const void** data_ptr) {
   if (data_ptr != nullptr) {
     *data_ptr = nullptr;
   }
@@ -1200,7 +1128,7 @@ struct NativePatternColumnBuilder {
   std::unique_ptr<execution::MSEdgeColumnBuilder> edge_builder;
 };
 
-inline execution::Context MakeNativePatternContext(
+inline execution::Context make_native_pattern_context(
     std::vector<NativePatternColumnBuilder>& builders) {
   std::vector<std::shared_ptr<execution::IContextColumn>> columns;
   columns.reserve(builders.size());
@@ -1211,44 +1139,44 @@ inline execution::Context MakeNativePatternContext(
       columns.push_back(builder.edge_builder->finish());
     }
   }
-  return MakeSingleChunkContext(std::move(columns));
+  return make_single_chunk_context(std::move(columns));
 }
 
-execution::Context BuildExactNativePatternContext(
+execution::Context build_exact_native_pattern_context(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec,
-    const std::vector<std::vector<daf::Vertex>>& matches);
+    const std::vector<std::vector<MatchVertex>>& matches);
 
-inline std::optional<execution::Value> ResolveSampledOrderValue(
+inline std::optional<execution::Value> resolve_sampled_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const SampledSubgraphMatcher& matcher, const std::vector<int>& results,
     int pattern_vertex_count,
     const std::vector<std::tuple<int, int, label_t>>& pattern_edges,
     int sample_idx, const PatternOrderBySpec& order_by);
 
-execution::Context BuildSampledNativePatternContext(
+execution::Context build_sampled_native_pattern_context(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const SampledSubgraphMatcher& matcher,
     const std::vector<int>& sampled_results, int pattern_vertex_count,
     int sample_count);
 
-std::unique_ptr<TableFuncBindData> BindPatternNativeOutputColumns(
+std::unique_ptr<TableFuncBindData> bind_pattern_native_output_columns(
     const TableFuncBindInput* input, const char* log_tag);
 
 struct PatternMatchInput : public CallFuncInputBase {
-  std::string patternFilePath;
+  std::string pattern_file_path;
   long long limit;
   PatternMatchInput(std::string path, long long limit)
-      : patternFilePath(std::move(path)), limit(limit) {}
+      : pattern_file_path(std::move(path)), limit(limit) {}
   ~PatternMatchInput() override = default;
 };
 
-execution::Context ExecutePatternMatchPipeline(const PatternMatchInput& input,
-                                               IStorageInterface& graph);
+execution::Context execute_pattern_match_pipeline(
+    const PatternMatchInput& input, IStorageInterface& graph);
 
 // PatternMatchFunction is the single unified CALL PATTERN_MATCH(...) entry; it
 // is defined after the sampled-match helpers below because its sampled overload
-// reuses ExecuteSampledMatchPipeline / SampledMatchInput.
+// reuses execute_sampled_match_pipeline / SampledMatchInput.
 
 // ============================================================================
 // Sampled subgraph matching helpers, reused by the sampled overload of the
@@ -1258,36 +1186,36 @@ execution::Context ExecutePatternMatchPipeline(const PatternMatchInput& input,
 // ============================================================================
 
 struct SampledMatchInput : public CallFuncInputBase {
-  std::string patternFilePath;  // legacy JSON-file path; empty for text flow
+  std::string pattern_file_path;  // legacy JSON-file path; empty for text flow
   // In-memory JSON pattern, populated by the Cypher text flow.
-  std::string patternJsonText;
-  long long sampleSize;
+  std::string pattern_json_text;
+  long long sample_size;
   SampledMatchInput(std::string path, long long sample_size)
-      : patternFilePath(std::move(path)), sampleSize(sample_size) {}
+      : pattern_file_path(std::move(path)), sample_size(sample_size) {}
   // Tag-dispatched ctor for the in-memory variant; keeps the call site
   // explicit about which pattern source it is using.
   struct InlineJsonTag {};
   SampledMatchInput(InlineJsonTag, std::string json, long long sample_size)
-      : patternJsonText(std::move(json)), sampleSize(sample_size) {}
+      : pattern_json_text(std::move(json)), sample_size(sample_size) {}
   ~SampledMatchInput() override = default;
 };
 
 // Runs the FaSTest sampler on a fully prepared pattern file. Factored out of
 // SampledPatternMatchFunction can reuse it after normalizing its input to a
 // temporary JSON pattern file.
-execution::Context ExecuteSampledMatchPipeline(
-    const SampledMatchInput& matchInput, IStorageInterface& graph);
+execution::Context execute_sampled_match_pipeline(
+    const SampledMatchInput& match_input, IStorageInterface& graph);
 
 // ============================================================================
 // PatternMatchFunction: the single unified subgraph-matching entry point.
 //
 //   CALL PATTERN_MATCH(cypher_or_file)
-//       -> exact matching (DAF), enumerates ALL matches.
+//       -> exact matching, enumerates ALL matches.
 //
 //   CALL PATTERN_MATCH(cypher_or_file, size, is_sampled)
 //       size       : positive integer (>= 1).
 //       is_sampled : boolean flag selecting the algorithm.
-//         * is_sampled = false  -> EXACT matching (DAF) that early-terminates
+//         * is_sampled = false  -> EXACT matching that early-terminates
 //                                  after the first `size` matches are found.
 //         * is_sampled = true   -> SAMPLED matching (FaSTest) with sample
 //                                  size = `size`.

@@ -21,7 +21,7 @@
  * features.
  */
 
-#include "../DataStructure/graph.h"
+#include "DataStructure/graph.h"
 
 #include <glog/logging.h>
 

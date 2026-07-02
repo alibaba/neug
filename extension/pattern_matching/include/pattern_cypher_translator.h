@@ -25,7 +25,7 @@ namespace pattern_matching {
 // Translates the supported NeuG Cypher MATCH subset into the JSON pattern
 // format consumed by PATTERN_MATCH and SAMPLED_PATTERN_MATCH. Returns "" when
 // the input is syntactically invalid or outside the supported subset.
-std::string TranslatePatternCypherToJson(std::string_view cypher);
+std::string translate_pattern_cypher_to_json(std::string_view cypher);
 
 }  // namespace pattern_matching
 }  // namespace neug

@@ -32,43 +32,6 @@ void DataGraphMeta::Preprocess() {
   // Step 1: Build neighbors_ and compute degree statistics
   BuildNeighbors();
 
-  // Debug: Print all edges
-  // LOG(INFO) << "[DataGraphMeta] === Printing all edges ===";
-  // const auto& schema = graph_.schema();
-  // int total_edges = 0;
-  // for (const auto& [key, edge_schema] : schema.e_schemas_) {
-  //     auto [src_label, dst_label, e_label] = schema.parse_edge_label(key);
-  //     std::string src_name = schema.get_vertex_label_name(src_label);
-  //     std::string dst_name = schema.get_vertex_label_name(dst_label);
-  //     std::string e_name = schema.get_edge_label_name(e_label);
-
-  //     LOG(INFO) << "  Edge type: " << src_name << " -[" << e_name << "]-> "
-  //     << dst_name;
-
-  //     try {
-  //         GenericView out_view =
-  //         graph_.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
-  //         VertexSet src_vs = graph_.GetVertexSet(src_label);
-
-  //         for (vid_t src_vid : src_vs) {
-  //             if (!graph_.IsValidVertex(src_label, src_vid)) continue;
-
-  //             NbrList edges = out_view.get_edges(src_vid);
-  //             for (auto it = edges.begin(); it != edges.end(); ++it) {
-  //                 vid_t dst_vid = *it;
-  //                 LOG(INFO) << "    " << src_name << "[" << src_vid << "] ->
-  //                 "
-  //                           << dst_name << "[" << dst_vid << "]";
-  //                 total_edges++;
-  //             }
-  //         }
-  //     } catch (const std::exception& e) {
-  //         LOG(WARNING) << "    Exception: " << e.what();
-  //     }
-  // }
-  // LOG(INFO) << "[DataGraphMeta] Total edges found: " << total_edges;
-  // LOG(INFO) << "[DataGraphMeta] === End of edge list ===";
-
   // Step 2: Build schema index and cache views
   BuildSchemaIndex();
 
@@ -411,21 +374,21 @@ bool DataGraphMeta::SaveToFile(const std::string& filepath) const {
     return false;
   }
 
-  auto writeInt = [&](int32_t v) {
+  auto write_int = [&](int32_t v) {
     ofs.write(reinterpret_cast<const char*>(&v), sizeof(v));
   };
-  auto writeDouble = [&](double v) {
+  auto write_double = [&](double v) {
     ofs.write(reinterpret_cast<const char*>(&v), sizeof(v));
   };
-  auto writeIntVec = [&](const std::vector<int>& vec) {
-    writeInt(static_cast<int32_t>(vec.size()));
+  auto write_int_vec = [&](const std::vector<int>& vec) {
+    write_int(static_cast<int32_t>(vec.size()));
     if (!vec.empty()) {
       ofs.write(reinterpret_cast<const char*>(vec.data()),
                 vec.size() * sizeof(int));
     }
   };
-  auto writeDoubleVec = [&](const std::vector<double>& vec) {
-    writeInt(static_cast<int32_t>(vec.size()));
+  auto write_double_vec = [&](const std::vector<double>& vec) {
+    write_int(static_cast<int32_t>(vec.size()));
     if (!vec.empty()) {
       ofs.write(reinterpret_cast<const char*>(vec.data()),
                 vec.size() * sizeof(double));
@@ -433,37 +396,37 @@ bool DataGraphMeta::SaveToFile(const std::string& filepath) const {
   };
 
   ofs.write(DGMC_MAGIC, 4);
-  writeInt(DGMC_VERSION);
+  write_int(DGMC_VERSION);
 
-  writeInt(num_vertex_);
-  writeInt(num_edge_);
-  writeInt(num_labels_);
-  writeInt(num_edge_labels_);
-  writeInt(max_degree_);
-  writeInt(max_in_degree_);
-  writeInt(max_out_degree_);
-  writeInt(degeneracy_);
-  writeDouble(label_statistics_.vertex_label_entropy);
+  write_int(num_vertex_);
+  write_int(num_edge_);
+  write_int(num_labels_);
+  write_int(num_edge_labels_);
+  write_int(max_degree_);
+  write_int(max_in_degree_);
+  write_int(max_out_degree_);
+  write_int(degeneracy_);
+  write_double(label_statistics_.vertex_label_entropy);
 
-  writeInt(static_cast<int32_t>(global_to_local_.size()));
+  write_int(static_cast<int32_t>(global_to_local_.size()));
   for (const auto& [label, vid] : global_to_local_) {
-    writeInt(static_cast<int32_t>(label));
-    writeInt(static_cast<int32_t>(vid));
+    write_int(static_cast<int32_t>(label));
+    write_int(static_cast<int32_t>(vid));
   }
 
-  writeIntVec(vertex_label_);
+  write_int_vec(vertex_label_);
 
-  writeInt(static_cast<int32_t>(vertices_by_label_.size()));
+  write_int(static_cast<int32_t>(vertices_by_label_.size()));
   for (const auto& vec : vertices_by_label_) {
-    writeIntVec(vec);
+    write_int_vec(vec);
   }
 
-  writeIntVec(in_degree_);
-  writeIntVec(out_degree_);
-  writeIntVec(degree_);
-  writeIntVec(core_num_);
-  writeIntVec(degeneracy_order_);
-  writeDoubleVec(label_statistics_.vertex_label_probability);
+  write_int_vec(in_degree_);
+  write_int_vec(out_degree_);
+  write_int_vec(degree_);
+  write_int_vec(core_num_);
+  write_int_vec(degeneracy_order_);
+  write_double_vec(label_statistics_.vertex_label_probability);
 
   ofs.close();
   LOG(INFO) << "[DataGraphMeta] Saved checkpoint to: " << filepath << " ("
@@ -487,21 +450,21 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
     return false;
   };
 
-  auto readInt = [&]() -> int32_t {
+  auto read_int = [&]() -> int32_t {
     int32_t v = 0;
     ifs.read(reinterpret_cast<char*>(&v), sizeof(v));
     return v;
   };
-  auto readDouble = [&]() -> double {
+  auto read_double = [&]() -> double {
     double v = 0;
     ifs.read(reinterpret_cast<char*>(&v), sizeof(v));
     return v;
   };
   // expected_size < 0 means "no consistency check" (variable-length per-label
   // bucket); otherwise the on-disk size must match exactly.
-  auto readIntVec = [&](std::vector<int>& vec, int32_t expected_size,
-                        const char* tag) -> bool {
-    int32_t sz = readInt();
+  auto read_int_vec = [&](std::vector<int>& vec, int32_t expected_size,
+                          const char* tag) -> bool {
+    int32_t sz = read_int();
     if (ifs.fail())
       return bail(std::string("Truncated size for ") + tag);
     if (sz < 0 || sz > kMaxVecSize)
@@ -520,9 +483,9 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
       return bail(std::string("Truncated payload for ") + tag);
     return true;
   };
-  auto readDoubleVec = [&](std::vector<double>& vec, int32_t expected_size,
-                           const char* tag) -> bool {
-    int32_t sz = readInt();
+  auto read_double_vec = [&](std::vector<double>& vec, int32_t expected_size,
+                             const char* tag) -> bool {
+    int32_t sz = read_int();
     if (ifs.fail())
       return bail(std::string("Truncated size for ") + tag);
     if (sz < 0 || sz > kMaxVecSize)
@@ -546,26 +509,26 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
   ifs.read(magic, 4);
   if (ifs.fail() || std::string(magic, 4) != DGMC_MAGIC)
     return bail("Invalid checkpoint magic");
-  int32_t version = readInt();
+  int32_t version = read_int();
   if (ifs.fail() || version != DGMC_VERSION)
-    return bail("Unsupported checkpoint version " + std::to_string(version));
+    return bail("unsupported checkpoint version " + std::to_string(version));
 
-  num_vertex_ = readInt();
-  num_edge_ = readInt();
-  num_labels_ = readInt();
-  num_edge_labels_ = readInt();
-  max_degree_ = readInt();
-  max_in_degree_ = readInt();
-  max_out_degree_ = readInt();
-  degeneracy_ = readInt();
-  label_statistics_.vertex_label_entropy = readDouble();
+  num_vertex_ = read_int();
+  num_edge_ = read_int();
+  num_labels_ = read_int();
+  num_edge_labels_ = read_int();
+  max_degree_ = read_int();
+  max_in_degree_ = read_int();
+  max_out_degree_ = read_int();
+  degeneracy_ = read_int();
+  label_statistics_.vertex_label_entropy = read_double();
   if (ifs.fail())
     return bail("Truncated header");
   if (num_vertex_ < 0 || num_vertex_ > kMaxVecSize || num_edge_ < 0 ||
       num_labels_ < 0 || num_labels_ > kMaxVecSize || num_edge_labels_ < 0)
     return bail("Invalid scalar counts in header");
 
-  int32_t gtl_size = readInt();
+  int32_t gtl_size = read_int();
   if (ifs.fail())
     return bail("Truncated global_to_local size");
   if (gtl_size != num_vertex_)
@@ -575,8 +538,8 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
   local_to_global_.clear();
   local_to_global_.reserve(gtl_size);
   for (int i = 0; i < gtl_size; i++) {
-    int32_t raw_label = readInt();
-    int32_t raw_vid = readInt();
+    int32_t raw_label = read_int();
+    int32_t raw_vid = read_int();
     if (ifs.fail())
       return bail("Truncated global_to_local entry");
     if (raw_label < 0 || raw_label >= num_labels_)
@@ -588,10 +551,10 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
     local_to_global_[{label, vid}] = i;
   }
 
-  if (!readIntVec(vertex_label_, num_vertex_, "vertex_label_"))
+  if (!read_int_vec(vertex_label_, num_vertex_, "vertex_label_"))
     return false;
 
-  int32_t vbl_size = readInt();
+  int32_t vbl_size = read_int();
   if (ifs.fail())
     return bail("Truncated vertices_by_label outer size");
   if (vbl_size != num_labels_)
@@ -600,25 +563,25 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
   vertices_by_label_.resize(vbl_size);
   int64_t vbl_total = 0;
   for (int i = 0; i < vbl_size; i++) {
-    if (!readIntVec(vertices_by_label_[i], -1, "vertices_by_label_[i]"))
+    if (!read_int_vec(vertices_by_label_[i], -1, "vertices_by_label_[i]"))
       return false;
     vbl_total += static_cast<int64_t>(vertices_by_label_[i].size());
     if (vbl_total > num_vertex_)
       return bail("vertices_by_label total exceeds num_vertex_");
   }
 
-  if (!readIntVec(in_degree_, num_vertex_, "in_degree_"))
+  if (!read_int_vec(in_degree_, num_vertex_, "in_degree_"))
     return false;
-  if (!readIntVec(out_degree_, num_vertex_, "out_degree_"))
+  if (!read_int_vec(out_degree_, num_vertex_, "out_degree_"))
     return false;
-  if (!readIntVec(degree_, num_vertex_, "degree_"))
+  if (!read_int_vec(degree_, num_vertex_, "degree_"))
     return false;
-  if (!readIntVec(core_num_, num_vertex_, "core_num_"))
+  if (!read_int_vec(core_num_, num_vertex_, "core_num_"))
     return false;
-  if (!readIntVec(degeneracy_order_, num_vertex_, "degeneracy_order_"))
+  if (!read_int_vec(degeneracy_order_, num_vertex_, "degeneracy_order_"))
     return false;
-  if (!readDoubleVec(label_statistics_.vertex_label_probability, num_labels_,
-                     "vertex_label_probability"))
+  if (!read_double_vec(label_statistics_.vertex_label_probability, num_labels_,
+                       "vertex_label_probability"))
     return false;
 
   ifs.close();

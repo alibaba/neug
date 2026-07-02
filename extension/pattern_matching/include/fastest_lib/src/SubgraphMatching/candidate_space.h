@@ -27,12 +27,12 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
-#include "../Base/base.h"
-#include "../Base/basic_algorithms.h"
-#include "../Base/timer.h"
-#include "../DataStructure/graph.h"
-#include "../SubgraphMatching/data_graph.h"
-#include "../SubgraphMatching/pattern_graph.h"
+#include "Base/base.h"
+#include "Base/basic_algorithms.h"
+#include "Base/timer.h"
+#include "DataStructure/graph.h"
+#include "SubgraphMatching/data_graph.h"
+#include "SubgraphMatching/pattern_graph.h"
 #include "pattern_matching_data_graph_meta.h"
 #include "pattern_matching_value.h"  // Value with comparison operators (>, <, >=, <=)
 

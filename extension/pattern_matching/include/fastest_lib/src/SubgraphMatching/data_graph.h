@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <fstream>
 #include <unordered_map>
-#include "../DataStructure/graph.h"
+#include "DataStructure/graph.h"
 
 namespace GraphLib {
 namespace SubgraphMatching {

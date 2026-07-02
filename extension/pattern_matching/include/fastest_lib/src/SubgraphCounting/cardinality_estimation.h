@@ -29,10 +29,10 @@
 #include <glog/logging.h>
 
 // clang-format off
-#include "../SubgraphCounting/option.h"
-#include "../SubgraphMatching/candidate_space.h"
-#include "../SubgraphCounting/candidate_tree_sampling.h"
-#include "../SubgraphCounting/candidate_graph_sampling.h"
+#include "SubgraphCounting/option.h"
+#include "SubgraphMatching/candidate_space.h"
+#include "SubgraphCounting/candidate_tree_sampling.h"
+#include "SubgraphCounting/candidate_graph_sampling.h"
 // clang-format on
 #include "pattern_matching_data_graph_meta.h"
 // #include "SubgraphCounting/TreeRejectionSampling.h"
