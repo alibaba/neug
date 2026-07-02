@@ -238,17 +238,24 @@ jobs:
         run: |
           bash scripts/install_deps.sh
 
+      - name: Prepare for macos
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0"
+          source ~/.neug_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
       - name: Build
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+          make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Pack
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+          make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Prepare test data
         run: |
