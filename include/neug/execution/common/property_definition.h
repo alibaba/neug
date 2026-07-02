@@ -40,7 +40,6 @@ struct ColumnDefinition {
 struct PropertyDefinition {
   ColumnDefinition columnDefinition;
   execution::Value defaultExpr;
-  execution::Value boundExpr;
 
   PropertyDefinition() = default;
   explicit PropertyDefinition(ColumnDefinition columnDefinition)
@@ -48,18 +47,11 @@ struct PropertyDefinition {
   PropertyDefinition(ColumnDefinition columnDefinition,
                      execution::Value defaultExpr)
       : columnDefinition(std::move(columnDefinition)),
-        defaultExpr(std::move(defaultExpr)),
-        boundExpr(this->defaultExpr) {}
-  PropertyDefinition(ColumnDefinition columnDefinition,
-                     execution::Value defaultExpr, execution::Value boundExpr)
-      : columnDefinition(std::move(columnDefinition)),
-        defaultExpr(std::move(defaultExpr)),
-        boundExpr(std::move(boundExpr)) {}
+        defaultExpr(std::move(defaultExpr)) {}
 
   std::string getName() const { return columnDefinition.name; }
   const DataType& getType() const { return columnDefinition.type; }
   const execution::Value& getDefaultValue() const { return defaultExpr; }
-  const execution::Value& getBoundValue() const { return boundExpr; }
   void rename(const std::string& newName) { columnDefinition.name = newName; }
   PropertyDefinition copy() const { return *this; }
 

@@ -68,22 +68,13 @@ std::shared_ptr<arrow::DataType> ArrowTypeConverter::convert(
       THROW_CONVERSION_EXCEPTION(
           "Failed to convert ARRAY component type to Arrow DataType");
     }
-    const auto fixed_length = array.fixed_length();
-    if (fixed_length == 0) {
-      THROW_CONVERSION_EXCEPTION(
-          "ARRAY fixed_length must be greater than 0 for Arrow conversion");
+    // Use fixed_size_list if fixed_length is set, otherwise use list
+    if (array.fixed_length() > 0) {
+      return arrow::fixed_size_list(componentType,
+                                    static_cast<int32_t>(array.fixed_length()));
+    } else {
+      return arrow::list(componentType);
     }
-    return arrow::fixed_size_list(componentType,
-                                  static_cast<int32_t>(fixed_length));
-  }
-  case ::common::DataType::kList: {
-    const auto& list = type.list();
-    auto componentType = convert(list.component_type());
-    if (!componentType) {
-      THROW_CONVERSION_EXCEPTION(
-          "Failed to convert LIST component type to Arrow DataType");
-    }
-    return arrow::list(componentType);
   }
   case ::common::DataType::kMap: {
     // Handle map type
@@ -174,14 +165,14 @@ std::shared_ptr<::common::DataType> ArrowTypeConverter::convert(
 
   case arrow::Type::LIST:
   case arrow::Type::LARGE_LIST: {
-    auto* list = commonType->mutable_list();
+    auto* array = commonType->mutable_array();
     auto listType = static_cast<const arrow::ListType*>(&arrowType);
     auto componentType = convert(*listType->value_type());
     if (!componentType) {
       THROW_CONVERSION_EXCEPTION(
-          "Failed to convert LIST component type from Arrow DataType");
+          "Failed to convert ARRAY component type from Arrow DataType");
     }
-    *list->mutable_component_type() = *componentType;
+    *array->mutable_component_type() = *componentType;
     break;
   }
 

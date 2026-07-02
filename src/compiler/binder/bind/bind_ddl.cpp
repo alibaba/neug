@@ -115,7 +115,7 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
     }
     auto defaultValue =
         def.defaultExpr == nullptr
-            ? execution::Value(type.copy())
+            ? get_default_value(type)
             : convertToExecutionValue(
                   boundExpr->constCast<LiteralExpression>().getValue(), type);
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));

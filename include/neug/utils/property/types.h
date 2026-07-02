@@ -602,12 +602,18 @@ struct convert<neug::DataType> {
         LOG(ERROR) << "Failed to parse array component_type";
         return false;
       }
-      if (array_node["max_length"]) {
-        uint64_t max_length = array_node["max_length"].as<uint64_t>();
-        property_type = neug::DataType::Array(child_type, max_length);
-      } else {
-        property_type = neug::DataType::List(child_type);
+      uint64_t max_length = array_node["max_length"].as<uint64_t>();
+      CHECK(max_length > 0) << "Array max_length must be greater than 0";
+      property_type = neug::DataType::Array(child_type, max_length);
+    } else if (config["list"]) {
+      auto list_node = config["list"];
+      neug::DataType child_type;
+      if (!list_node["component_type"] ||
+          !decode(list_node["component_type"], child_type)) {
+        LOG(ERROR) << "Failed to parse array component_type";
+        return false;
       }
+      property_type = neug::DataType::List(child_type);
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {
