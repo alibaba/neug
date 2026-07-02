@@ -12,29 +12,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
+#include <cstddef>
 #include <memory>
 
-#include "neug/utils/io/read/common/sniffer.h"
-#include "parquet/arrow_reader.h"
+#include "neug/execution/common/context.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
+#include "neug/utils/io/read/common/file_reader.h"
+#include "neug/utils/io/read/common/read_state.h"
 
 namespace neug {
 namespace reader {
 
-class ArrowSniffer : public Sniffer {
- public:
-  explicit ArrowSniffer(std::shared_ptr<ArrowReader> reader)
-      : reader_(std::move(reader)) {}
+execution::Context toContext(std::shared_ptr<IDataChunkSupplier> supplier,
+                             const ReadSharedState& state,
+                             size_t fallback_column_count = 0);
 
-  result<std::shared_ptr<EntrySchema>> sniff() override;
-
- private:
-  result<std::shared_ptr<EntrySchema>> convertArrowSchemaToEntrySchema(
-      const std::shared_ptr<arrow::Schema>& arrowSchema);
-
-  std::shared_ptr<ArrowReader> reader_;
-};
+inline execution::Context runFileReader(std::unique_ptr<FileReader> reader,
+                                        const ReadSharedState& state,
+                                        size_t fallback_column_count = 0) {
+  return toContext(reader->read(), state, fallback_column_count);
+}
 
 }  // namespace reader
 }  // namespace neug

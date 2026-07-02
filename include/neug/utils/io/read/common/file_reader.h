@@ -13,28 +13,30 @@
  * limitations under the License.
  */
 
-#include "neug/utils/io/read/common/sniffer.h"
+#pragma once
 
+#include <memory>
+
+#include "neug/utils/io/read/common/chunk_supplier.h"
+#include "neug/utils/io/read/common/read_state.h"
+#include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 namespace reader {
 
-result<std::shared_ptr<EntrySchema>> CsvSniffer::sniff() {
-  if (!reader_) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "CsvReader is null");
-  }
-  return reader_->inferSchema();
-}
+/// Reads external files and yields row batches via IDataChunkSupplier.
+class FileReader {
+ public:
+  virtual ~FileReader() = default;
 
-result<std::shared_ptr<EntrySchema>> JsonSniffer::sniff() {
-  if (!reader_) {
-    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                        "JsonReader is null");
-  }
-  return reader_->inferSchema();
-}
+  /// Returns an iterator-like supplier that yields DataChunk batches.
+  /// A nullptr DataChunk from the supplier marks end of stream (EOF).
+  /// Calling read() again after EOF has been signalled is undefined behavior.
+  virtual std::shared_ptr<IDataChunkSupplier> read() = 0;
+
+  virtual result<std::shared_ptr<EntrySchema>> inferSchema() = 0;
+};
 
 }  // namespace reader
 }  // namespace neug

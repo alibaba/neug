@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <memory>
 
-#include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/io/read/common/chunk_supplier.h"
 
 namespace neug {
 
