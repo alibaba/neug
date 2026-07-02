@@ -45,6 +45,8 @@
 namespace neug {
 class NeugDBService;
 class AppManager;
+class Checkpoint;
+class CheckpointSession;
 class Connection;
 class ConnectionManager;
 class FileLock;
@@ -305,6 +307,8 @@ class NeugDB {
   void openGraphAndIngestWals();
   void ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlannerAndQueryProcessor();
+  std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
+      CheckpointSession& checkpoint_session, MemoryLevel* memory_level);
 
   /**
    * @brief Create a checkpoint of the current graph. Must not be called while a
@@ -314,7 +318,8 @@ class NeugDB {
    * compacts storage timestamps before dumping, and a successful checkpoint
    * resets last_ts_ to 0.
    */
-  void createCheckpoint(bool reopen = true);
+  void createCheckpointAfterRecovery();
+  void createCheckpointOnClose();
 
   friend class NeugDBSession;
   friend class neug::NeugDBService;

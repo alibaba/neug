@@ -19,7 +19,6 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <algorithm>
-#include <filesystem>
 #include <set>
 #include <stdexcept>
 #include <system_error>
@@ -897,13 +896,8 @@ void PropertyGraph::Compact(timestamp_t ts) {
   LOG(INFO) << "Compaction completed.";
 }
 
-void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
+void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
-
-  std::string obsolete_wal_dir;
-  if (ckp_ != nullptr && ckp_ != ckp) {
-    obsolete_wal_dir = ckp_->wal_dir();
-  }
 
   CheckpointManifest meta;
   ModuleBroker store;
@@ -930,14 +924,12 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
         schema_.is_vertex_label_temporary(src_label_i)) {
       continue;
     }
-    auto src_label = schema_.get_vertex_label_name(src_label_i);
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.is_vertex_label_valid(dst_label_i) ||
           schema_.is_vertex_label_temporary(dst_label_i)) {
         continue;
       }
-      auto dst_label = schema_.get_vertex_label_name(dst_label_i);
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
         if (!schema_.is_edge_label_valid(e_label_i) ||
@@ -945,7 +937,6 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
                                            e_label_i)) {
           continue;
         }
-        auto edge_label = schema_.get_edge_label_name(e_label_i);
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (schema_.is_edge_label_temporary(index)) {
@@ -973,15 +964,7 @@ void PropertyGraph::Dump(std::shared_ptr<Checkpoint> ckp, bool reopen) {
       std::move(meta));  // Persist meta and set checkpoint to use this meta.
   LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
 
-  // Drop the previous checkpoint's WAL now that the new snapshot is durable.
-  if (!obsolete_wal_dir.empty() && std::filesystem::exists(obsolete_wal_dir)) {
-    remove_directory(obsolete_wal_dir);
-  }
-
   Clear();
-  if (reopen) {
-    Open(ckp, memory_level_);
-  }
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
