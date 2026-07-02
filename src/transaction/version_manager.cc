@@ -113,6 +113,13 @@ uint32_t VersionManager::acquire_insert_timestamp_slow() {
 }
 
 void VersionManager::release_insert_timestamp(uint32_t ts) {
+  complete_write_timestamp(ts);
+
+  // Decrement active inserter count
+  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
+}
+
+void VersionManager::complete_write_timestamp(uint32_t ts) {
   // Mark completion (lock-free atomic operation)
   ts_window_.mark_completed(ts);
 
@@ -124,9 +131,6 @@ void VersionManager::release_insert_timestamp(uint32_t ts) {
     advance_read_ts_locked();
   }
   lock_.unlock();
-
-  // Decrement active inserter count
-  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
 }
 
 void VersionManager::advance_read_ts_locked() {
@@ -198,17 +202,7 @@ void VersionManager::begin_update_commit(uint32_t ts) {
 }
 
 void VersionManager::release_update_timestamp(uint32_t ts) {
-  // Mark completion (lock-free atomic operation)
-  ts_window_.mark_completed(ts);
-
-  // Check under lock: only advance if ts == read_ts + 1
-  lock_.lock();
-  uint32_t current_read_ts = read_ts_.load(std::memory_order_relaxed);
-  if (ts == current_read_ts + 1) {
-    // May need to advance, safe under lock protection
-    advance_read_ts_locked();
-  }
-  lock_.unlock();
+  complete_write_timestamp(ts);
 
   // Restore to normal state (1 -> 0 or 2 -> 0)
   update_state_.store(0, std::memory_order_release);
@@ -231,7 +225,8 @@ uint32_t VersionManager::acquire_compact_timestamp() {
     // Tight spin loop for minimal latency
   }
 
-  // Wait for all active readers to finish — compact resets read_ts_
+  // Wait for all active readers to finish — compact rewrites storage
+  // timestamps.
   while (active_readers_.load(std::memory_order_acquire) > 0) {
     // Tight spin loop for minimal latency
   }
@@ -246,12 +241,7 @@ void VersionManager::release_compact_timestamp(uint32_t ts) {
         "release_compact_timestamp called while not in compact state");
   }
 
-  // Clear all state for compaction (reset to initial state)
-  write_ts_.store(1, std::memory_order_release);
-  read_ts_.store(0, std::memory_order_release);
-  active_readers_.store(0, std::memory_order_release);
-  active_inserters_.store(0, std::memory_order_release);
-  ts_window_.init();
+  complete_write_timestamp(ts);
 
   // Restore to normal state (2 -> 0)
   update_state_.store(0, std::memory_order_release);
@@ -263,6 +253,9 @@ void VersionManager::revert_compact_timestamp(uint32_t ts) {
     THROW_INTERNAL_EXCEPTION(
         "revert_compact_timestamp called while not in compact state");
   }
+
+  // Close the timestamp gap so later commits can advance read_ts_.
+  complete_write_timestamp(ts);
 
   // Revert to normal state (2 -> 0)
   update_state_.store(0, std::memory_order_release);

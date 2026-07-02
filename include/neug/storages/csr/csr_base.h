@@ -51,8 +51,6 @@ class CsrBase : public Module {
   // space, the reserved space will count as 0.
   virtual size_t edge_num() const = 0;
 
-  virtual void reset_timestamp() = 0;
-
   virtual void compact() = 0;
 
   virtual void resize(vid_t vnum) = 0;

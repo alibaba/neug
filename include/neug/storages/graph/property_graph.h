@@ -128,7 +128,7 @@ class PropertyGraph {
    */
   void Open(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
-  void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
+  void Compact(timestamp_t ts);
 
   /**
    * @brief Dump the current graph state to persistent storage.

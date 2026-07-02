@@ -28,14 +28,8 @@ namespace neug {
 
 CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
                                        IWalWriter& logger, IVersionManager& vm,
-                                       bool compact_csr, float reserve_ratio,
                                        timestamp_t timestamp)
-    : guard_(snapshot_store),
-      logger_(logger),
-      vm_(vm),
-      compact_csr_(compact_csr),
-      reserve_ratio_(reserve_ratio),
-      timestamp_(timestamp) {
+    : guard_(snapshot_store), logger_(logger), vm_(vm), timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
 }
 
@@ -60,7 +54,7 @@ bool CompactTransaction::Commit() {
     LOG(INFO) << "before compact - " << timestamp_;
     // In-place compact
     auto& slot = guard_.get();
-    slot.mutable_graph()->Compact(compact_csr_, reserve_ratio_, timestamp_);
+    slot.mutable_graph()->Compact(timestamp_);
     slot.mutable_view().Rebuild(*slot.mutable_graph());
     LOG(INFO) << "after compact - " << timestamp_;
 

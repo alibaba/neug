@@ -67,7 +67,6 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
     NeugDBConfig db_config(data_dir_, std::thread::hardware_concurrency());
     db_config.checkpoint_on_close = GetParam();
     db_config.mode = DBMode::READ_WRITE;
-    db_config.compact_on_close = db_config.checkpoint_on_close;
     ASSERT_TRUE(db_->Open(db_config));
     neug::ServiceConfig config;
     config.host_str = neugdb_host_;
@@ -141,7 +140,6 @@ TEST_P(NeugDBWALRecoveryTest, WALRecoveryViaCypher) {
   // Then Open the DB in read-write mode
   neug::NeugDB db;
   neug::NeugDBConfig db_config(data_dir(), std::thread::hardware_concurrency());
-  db_config.compact_on_close = true;
   db_config.checkpoint_on_close = true;
   ASSERT_TRUE(db.Open(data_dir(), 4, neug::DBMode::READ_WRITE));
   db.Close();

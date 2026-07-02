@@ -89,9 +89,6 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::reset_timestamp() {}
-
-template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
   // For current adj_list where the dst vertex is invalid, swap it to the end.
   vid_t vnum = size();
@@ -409,9 +406,6 @@ void SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
   desc.set("edge_num", std::to_string(edge_num_.load()));
   meta.set_module(key, desc);
 }
-
-template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::compact() {}

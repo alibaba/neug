@@ -267,14 +267,12 @@ TYPED_TEST(IMMutableCsrTest, TestBasicFunction) {
   EXPECT_EQ(immutable_csr.size(), 500);
   EXPECT_EQ(immutable_csr.edge_num(), 10000);
   immutable_csr.compact();
-  immutable_csr.reset_timestamp();
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);
   EXPECT_EQ(single_immutable_csr.size(), 500);
   EXPECT_EQ(single_immutable_csr.edge_num(), 500);
   single_immutable_csr.compact();
-  single_immutable_csr.reset_timestamp();
 }
 
 TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
