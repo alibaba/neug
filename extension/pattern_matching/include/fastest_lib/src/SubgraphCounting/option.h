@@ -23,7 +23,9 @@
 
 #pragma once
 #include "SubgraphMatching/candidate_space.h"
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 namespace CardinalityEstimation {
 enum TreegenerationStrategy {
   TREEGEN_EDGE_MST,
@@ -37,4 +39,6 @@ class CardEstOption : public SubgraphMatching::SubgraphMatchingOption {
   int treegen_strategy = TREEGEN_DENSITY_MST;
 };
 }  // namespace CardinalityEstimation
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

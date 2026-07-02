@@ -24,6 +24,10 @@
 #pragma once
 #include "base.h"
 
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
+
 struct UnionFind {
   std::vector<int> par, sz;
 
@@ -374,3 +378,7 @@ inline void VectorIntersection(std::vector<int>& A, std::vector<int>& B,
     a_idx++;
   }
 }
+
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

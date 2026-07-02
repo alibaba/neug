@@ -21,37 +21,26 @@
  * features.
  */
 
-#pragma once
+#include "Base/base.h"
 
-#include <chrono>
-#include <ctime>
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 
-namespace neug::pattern_matching::graphlib {
+deque<string> parse(string line, const string& del) {
+  deque<string> ret;
 
-class Timer {
- public:
-  Timer() : time(0.0) {}
-  ~Timer() {}
-
-  void Start() { s = std::chrono::high_resolution_clock::now(); }
-
-  void Stop() {
-    e = std::chrono::high_resolution_clock::now();
-    time += std::chrono::duration<double, std::milli>(e - s).count();
-    s = std::chrono::high_resolution_clock::now();
+  size_t pos = 0;
+  string token;
+  while ((pos = line.find(del)) != string::npos) {
+    token = line.substr(0, pos);
+    ret.push_back(token);
+    line.erase(0, pos + del.length());
   }
+  ret.push_back(line);
+  return ret;
+}
 
-  void Add(const Timer& other) { time += other.time; }
-
-  double Peek() {
-    Stop();
-    return std::chrono::duration<double, std::milli>(e - s).count();
-  }
-  double GetTime() { return time; }
-  double time;
-
- private:
-  std::chrono::high_resolution_clock::time_point s, e;
-};
-
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

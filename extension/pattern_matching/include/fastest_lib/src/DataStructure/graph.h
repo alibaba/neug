@@ -39,11 +39,14 @@
 
 // Forward declarations removed - gbi types not used
 
-// Type aliases for FaSTest compatibility
+// #define HUGE_GRAPH
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
+
+// Type alias for the core neug label type used throughout FaSTest.
 using label_t = neug::label_t;
 
-// #define HUGE_GRAPH
-namespace neug::pattern_matching::graphlib {
 class Graph {
  public:
   // Adjacency Lists - for directed graphs
@@ -732,6 +735,8 @@ inline void Graph::WriteToFile(std::string filename) {
     idx++;
   }
 }
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug
 
 // 实现在graph.cpp中，因为需要访问GraphStorage的完整定义

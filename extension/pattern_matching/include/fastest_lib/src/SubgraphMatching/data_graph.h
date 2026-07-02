@@ -32,7 +32,9 @@
 #include <unordered_map>
 #include "DataStructure/graph.h"
 
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 namespace SubgraphMatching {
 struct LabelStatistics {
   std::vector<double> vertex_label_probability, edge_label_probability;
@@ -113,4 +115,6 @@ inline void DataGraph::Preprocess() {
   }
 }
 }  // namespace SubgraphMatching
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

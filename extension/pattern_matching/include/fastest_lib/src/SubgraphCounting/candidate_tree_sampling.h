@@ -29,7 +29,9 @@
 #include "SubgraphMatching/candidate_space.h"
 #include "pattern_matching_data_graph_meta.h"
 
-namespace neug::pattern_matching::sampled_match_stats {
+namespace neug {
+namespace pattern_matching {
+namespace sampled_match_stats {
 // Regularized incomplete beta function I_x(a,b) — the beta CDF. Header-only
 // replacement for gsl_cdf_beta_P so the extension no longer depends on GSL.
 // Uses the Lentz continued-fraction evaluation (Numerical Recipes betacf/betai)
@@ -37,9 +39,9 @@ namespace neug::pattern_matching::sampled_match_stats {
 // convergence; accurate to ~1e-15 across the (a,b,x) ranges the Clopper-Pearson
 // bounds below use.
 inline double beta_continued_fraction(double a, double b, double x) {
-  const int kMaxIter = 200;
-  const double kEps = 3.0e-16;
-  const double kTiny = 1.0e-300;
+  constexpr int kMaxIter = 200;
+  constexpr double kEps = 3.0e-16;
+  constexpr double kTiny = 1.0e-300;
   const double qab = a + b;
   const double qap = a + 1.0;
   const double qam = a - 1.0;
@@ -137,10 +139,13 @@ inline long double clopper_pearson_upper(long trials, long success,
       beta_quantile(1.0 - alpha, static_cast<double>(success + 1),
                     static_cast<double>(trials - success)));
 }
-}  // namespace neug::pattern_matching::sampled_match_stats
+}  // namespace sampled_match_stats
+}  // namespace pattern_matching
+}  // namespace neug
 
-// Use DataGraphMeta from neug namespace
-using neug::pattern_matching::DataGraphMeta;
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 
 static std::random_device rd;
 static std::mt19937 gen(rd());
@@ -149,7 +154,6 @@ inline int sample_from_distribution(
   return weighted_distr(gen);
 }
 
-namespace neug::pattern_matching::graphlib {
 using std::vector;
 using SubgraphMatching::CandidateSpace;
 using SubgraphMatching::PatternGraph;
@@ -256,8 +260,6 @@ class CandidateTreeSampler {
 
   void Preprocess(PatternGraph* query, CandidateSpace* cs) {
     info.clear();
-    Timer timer;
-    timer.Start();
     query_ = query;
     CS = cs;
     sample_dist_.clear();
@@ -269,8 +271,6 @@ class CandidateTreeSampler {
     std::memset(seen, 0, sizeof(bool) * data_meta_.GetNumVertices());
     BuildSpanningTree();
     CountCandidateTrees();
-    timer.Stop();
-    info["TreeCountTime"] = timer.GetTime();
     info["#CandTree"] = total_trees_;
   };
 
@@ -496,8 +496,6 @@ class CandidateTreeSampler {
 
   // (Estimate, #Success)
   std::pair<double, int> Estimate(int sample_size) {
-    Timer timer;
-    timer.Start();
     int success = 0, trials = 0;
     int max_trials = std::max(4000000, sample_size * 50);
     while (++trials) {
@@ -507,10 +505,8 @@ class CandidateTreeSampler {
       double rhohat = (success * 1.0 / trials);
       if ((trials == 50000 and success <= 10) ||
           (trials >= max_trials && success < sample_size)) {
-        timer.Stop();
         info["#TreeTrials"] = trials;
         info["#TreeSuccess"] = success;
-        info["TreeSampleTime"] = timer.GetTime();
         return {-1, success};
       }
 
@@ -524,7 +520,6 @@ class CandidateTreeSampler {
             neug::pattern_matching::sampled_match_stats::clopper_pearson_lower(
                 trials, success, 0.05 / 2);
         if (rhohat * 0.8 < wminus && wplus < rhohat * 1.25) {
-          timer.Stop();
           break;
         }
       }
@@ -534,9 +529,10 @@ class CandidateTreeSampler {
                               success);
     info["#TreeTrials"] = trials;
     info["#TreeSuccess"] = success;
-    info["TreeSampleTime"] = timer.GetTime();
     return est;
   }
 };
 }  // namespace CardinalityEstimation
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

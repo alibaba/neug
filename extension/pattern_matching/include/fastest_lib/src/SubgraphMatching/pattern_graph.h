@@ -28,11 +28,10 @@
 #include "DataStructure/graph.h"
 #include "pattern_matching_data_graph_meta.h"
 
-// Use types from neug namespace
-using neug::pattern_matching::DataGraphMeta;
-using neug::pattern_matching::PropCons;
-
-namespace neug::pattern_matching::graphlib::SubgraphMatching {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
+namespace SubgraphMatching {
 class PatternGraph : public Graph {
  public:
   PatternGraph(){};
@@ -116,4 +115,7 @@ inline void PatternGraph::ProcessPattern(
   }
 }
 
-}  // namespace neug::pattern_matching::graphlib::SubgraphMatching
+}  // namespace SubgraphMatching
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

@@ -44,10 +44,9 @@
  * @ref
  */
 
-// Use DataGraphMeta from neug namespace
-using neug::pattern_matching::DataGraphMeta;
-
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 using SubgraphMatching::PatternGraph, SubgraphMatching::CandidateSpace;
 namespace CardinalityEstimation {
 class FaSTestCardinalityEstimation {
@@ -74,7 +73,6 @@ class FaSTestCardinalityEstimation {
   std::vector<int> GetSampledResult() { return sampled_result; }
   double EstimateEmbeddings(PatternGraph* query, int sample_size) {
     result.clear();
-    double query_time = 0.0;
     query_ = query;
     if (!CS->BuildCS(query_))
       return 0;
@@ -90,7 +88,6 @@ class FaSTestCardinalityEstimation {
     for (auto& [key, value] : TS->GetInfo()) {
       result[key] = value;
     }
-    result["GraphSampleTime"] = 0.00;
     double est = ts_result.first;
 
     if (ts_result.second <= 10 || est < 0) {
@@ -113,12 +110,6 @@ class FaSTestCardinalityEstimation {
       sampled_result = TS->GetSampledResult();
     }
 
-    query_time = std::any_cast<double>(result["CSBuildTime"]) +
-                 std::any_cast<double>(result["TreeCountTime"]) +
-                 std::any_cast<double>(result["TreeSampleTime"]) +
-                 std::any_cast<double>(result["GraphSampleTime"]);
-    result["QueryTime"] = query_time;
-
     // Ensure estimation is never negative (handles NaN/overflow edge cases)
     if (est < 0 || std::isnan(est) || std::isinf(est)) {
       est = 0.0;
@@ -127,4 +118,6 @@ class FaSTestCardinalityEstimation {
   };
 };
 }  // namespace CardinalityEstimation
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

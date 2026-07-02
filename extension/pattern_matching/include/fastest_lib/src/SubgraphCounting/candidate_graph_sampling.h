@@ -25,10 +25,9 @@
 
 #include "pattern_matching_data_graph_meta.h"
 
-// Use DataGraphMeta from neug namespace
-using neug::pattern_matching::DataGraphMeta;
-
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 namespace CardinalityEstimation {
 class CandidateGraphSampler {
   CardEstOption opt;
@@ -105,8 +104,6 @@ inline int printcnt = 0;
 inline double CandidateGraphSampler::Estimate(int ub_initial,
                                               int sample_total_size) {
   printcnt = 0;
-  Timer timer;
-  timer.Start();
   std::vector<int> num_cands(query_->GetNumVertices());
   for (int i = 0; i < query_->GetNumVertices(); i++) {
     num_cands[i] = CS->GetCandidateSetSize(i);
@@ -118,8 +115,6 @@ inline double CandidateGraphSampler::Estimate(int ub_initial,
   // Handle case when there are no candidates (no possible embeddings)
   int num_root_samples = root_candidates_.size();
   if (num_root_samples == 0) {
-    timer.Stop();
-    info["GraphSampleTime"] = timer.GetTime();
     return 0.0;  // No candidates means no embeddings
   }
 
@@ -139,8 +134,6 @@ inline double CandidateGraphSampler::Estimate(int ub_initial,
     used_samples += sampling_result.second;
   }
   est /= num_root_samples;
-  timer.Stop();
-  info["GraphSampleTime"] = timer.GetTime();
   return est;
 }
 
@@ -419,4 +412,6 @@ inline void CandidateGraphSampler::Intersection(int index) {
 }
 
 }  // namespace CardinalityEstimation
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

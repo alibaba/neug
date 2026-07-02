@@ -29,7 +29,6 @@
 #include <vector>
 #include "Base/base.h"
 #include "Base/basic_algorithms.h"
-#include "Base/timer.h"
 #include "DataStructure/graph.h"
 #include "SubgraphMatching/data_graph.h"
 #include "SubgraphMatching/pattern_graph.h"
@@ -38,21 +37,18 @@
 
 #include <glog/logging.h>
 
-// Use types from neug namespace
-using neug::pattern_matching::CompType;
-using neug::pattern_matching::DataGraphMeta;
-using neug::pattern_matching::EdgeKey;
-using neug::pattern_matching::EdgeKeyHash;
-using neug::pattern_matching::PropCons;
-using Value = neug::execution::Value;
-
 /**
  * @brief The Candidate Space structure
  * @date 2023-05
  */
 
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 namespace SubgraphMatching {
+
+// Alias for the core neug Value type used by candidate constraints.
+using Value = neug::execution::Value;
 
 // Dedupes "constraint references unknown property" warnings so a typo'd
 // property name doesn't spam the log on every candidate vertex/edge.
@@ -1254,4 +1250,6 @@ inline bool CandidateSpace::CheckValueConstraint(
 }
 
 }  // namespace SubgraphMatching
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug

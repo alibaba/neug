@@ -23,7 +23,9 @@
 
 #include "graph.h"
 
-namespace neug::pattern_matching::graphlib {
+namespace neug {
+namespace pattern_matching {
+namespace graphlib {
 
 void Graph::BuildNoEdgePairsFromSchema(
     std::shared_ptr<std::unordered_map<
@@ -72,4 +74,6 @@ void Graph::BuildNoEdgePairsFromSchema(
   }
 }
 
-}  // namespace neug::pattern_matching::graphlib
+}  // namespace graphlib
+}  // namespace pattern_matching
+}  // namespace neug
