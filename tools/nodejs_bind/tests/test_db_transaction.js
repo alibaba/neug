@@ -20,7 +20,7 @@ const assert = require('assert').strict;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Database } = require('../lib');
+const { Database } = require('neug');
 const {
   ERR_DATABASE_LOCKED,
   ERR_TX_STATE_CONFLICT,
