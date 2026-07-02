@@ -210,7 +210,13 @@ ORDER BY weight DESC LIMIT 5;
 CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)')
 RETURN count(a) AS matches, count(DISTINCT a.name) AS distinct_sources;
 
--- 7. Sampled matching (sample size 2)
+-- 7. YIELD: rename and expose only the columns you need
+CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)')
+YIELD a AS src, b AS dst
+RETURN src.name AS source, dst.name AS destination
+ORDER BY source;
+
+-- 8. Sampled matching (sample size 2)
 CALL PATTERN_MATCH('(a:Person)-[r:person_knows_person]->(b:Person)', 2, true) RETURN *;
 ```
 
