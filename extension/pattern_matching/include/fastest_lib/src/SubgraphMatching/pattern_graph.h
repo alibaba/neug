@@ -25,8 +25,8 @@
 /**
  * @brief Class for subgraph pattern
  */
-#include "pattern_matching_data_graph_meta.h"
 #include "DataStructure/graph.h"
+#include "pattern_matching_data_graph_meta.h"
 
 // Use types from neug namespace
 using neug::function::DataGraphMeta;
@@ -72,7 +72,6 @@ class PatternGraph : public Graph {
 
   std::vector<std::vector<PropCons>> vertex_property_constraints;
   std::vector<std::vector<PropCons>> edge_property_constraints;
-
 };
 
 inline void PatternGraph::ProcessPattern(
