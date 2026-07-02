@@ -18,8 +18,8 @@ CHILD:
     RECURSIVE_EXTEND[rel=path, bound=person1, nbr=person2, nodePred=null, relPred=null]
     SCAN_NODE_TABLE[person1._ID person1.id PK_SCAN($person1Id)Type: INTERNAL_ID Cardinality: 1]
 CHILD:
-    EXTEND[m-HASCREATOR,HASCREATOR,->rel1 Cardinality: 98]
-    EXTEND[n<-REPLYOF,REPLYOF,->m Cardinality: 98]
-    EXTEND[rel0<-HASCREATOR,HASCREATOR,-n Cardinality: 187]
+    EXTEND[m-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->rel1 Cardinality: 98]
+    EXTEND[n<-REPLYOF_COMMENT_COMMENT,REPLYOF_COMMENT_POST,->m Cardinality: 98]
+    EXTEND[rel0<-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,-n Cardinality: 187]
     DISTINCT[STRUCT_EXTRACT(_15_rel,_16__SRC)]
     EXPRESSIONS_SCAN[rel0._ID]

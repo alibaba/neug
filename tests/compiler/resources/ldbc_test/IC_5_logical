@@ -32,7 +32,7 @@ CHILD:
     PROJECTION[post,forum]
     FILTER[LIST_CONTAINS(forums,forum) Cardinality: 143249]
     EXTEND[post<-CONTAINEROF,-forum Cardinality: 286499]
-    EXTEND[friend<-HASCREATOR,-post Cardinality: 286499]
+    EXTEND[friend<-HASCREATOR_POST_PERSON,-post Cardinality: 286499]
     PROJECTION[friend,forums]
     AGGREGATE[Group By [friend, ], Aggregate [forums, ]]
     PROJECTION[forum,friend]

@@ -498,6 +498,12 @@ class VerifyFactory {
     patterns.emplace_back(
         R"((SCAN_NODE_TABLE\[[^ \]\n]+) [^\]\n]*?(?=(?: PK_SCAN\([^)]*\))?Type:))",
         "$1 <PROPERTIES>");
+    patterns.emplace_back(
+        R"((EXTEND\[[^\]\n]*<-)[^,\]\n]*(?:,[^,\]\n]*)*(,->))", "$1<REL>$2");
+    patterns.emplace_back(R"((EXTEND\[[^\]\n]*<-)[^,\]\n]*(?:,[^,\]\n]*)*(,-))",
+                          "$1<REL>$2");
+    patterns.emplace_back(
+        R"((EXTEND\[[^<\-\]\n]*)-[^,\]\n]*(?:,[^,\]\n]*)*(,->))", "$1-<REL>$2");
     return patterns;
   }
 
