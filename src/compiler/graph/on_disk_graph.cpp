@@ -191,7 +191,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     const std::vector<std::string>& propertyNames)
     : context{context},
       numRows{context.getStatsManager()->getTableCardinality(
-          tableEntry->getTableID(), common::TableType::NODE)},
+          tableEntry->getTableID(), TableType::NODE)},
       numNodesScanned{0},
       currentOffset{0},
       endOffsetExclusive{0} {}

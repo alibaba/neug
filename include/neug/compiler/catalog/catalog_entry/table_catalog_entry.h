@@ -58,7 +58,7 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
       const binder::BoundAlterInfo& alterInfo) const;
 
   virtual bool isParent(common::table_id_t /*tableID*/) { return false; };
-  virtual common::TableType getTableType() const = 0;
+  virtual TableType getTableType() const = 0;
 
   std::string getComment() const { return comment; }
   void setComment(std::string newComment) { comment = std::move(newComment); }

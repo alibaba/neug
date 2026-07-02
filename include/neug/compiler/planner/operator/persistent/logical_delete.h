@@ -29,7 +29,7 @@ class LogicalDelete final : public LogicalOperator {
                 std::shared_ptr<LogicalOperator> child)
       : LogicalOperator{type_, std::move(child)}, infos{std::move(infos)} {}
 
-  common::TableType getTableType() const {
+  TableType getTableType() const {
     NEUG_ASSERT(!infos.empty());
     return infos[0].tableType;
   }

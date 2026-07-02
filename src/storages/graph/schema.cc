@@ -53,11 +53,12 @@ struct InternalKeyword {
 
 PropertyDefinition MakePropertyDefinition(
     const std::string& name, const DataType& type,
-    const Value& default_value = Value(DataType::SQLNULL)) {
+    const Value& default_value = Value()) {
   return PropertyDefinition(ColumnDefinition(name, type),
                             default_value.type().id() == DataTypeId::kUnknown
-                                ? Value(type)
-                                : default_value);
+                                ? get_default_value(type)
+                                : default_value,
+                            false);
 }
 
 std::vector<PropertyDefinition> GetVertexSchemaProperties(
@@ -92,7 +93,7 @@ std::vector<PropertyDefinition> GetVertexSchemaProperties(
     result.emplace_back(MakePropertyDefinition(
         name, type,
         default_idx ? schema.default_property_values[*default_idx]
-                    : Value(type)));
+                    : get_default_value(type)));
   }
   return result;
 }
@@ -282,7 +283,7 @@ void VertexSchema::add_properties(const std::vector<std::string>& names,
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
-      default_property_values.emplace_back(types[i]);
+      default_property_values.emplace_back(get_default_value(types[i]));
     }
   }
 }
@@ -509,7 +510,7 @@ void EdgeSchema::add_properties(const std::vector<std::string>& names,
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
-      default_property_values.emplace_back(types[i]);
+      default_property_values.emplace_back(get_default_value(types[i]));
     }
     eprop_soft_deleted.emplace_back(false);
   }

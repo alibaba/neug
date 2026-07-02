@@ -154,12 +154,12 @@ struct GRelType {
       label["name"] = relTable->getEdgeLabelName();
       auto srcEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getSrcTableID());
-      if (srcEntry->getTableType() != common::TableType::NODE) {
+      if (srcEntry->getTableType() != TableType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("src table is not a node table");
       }
       auto dstEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getDstTableID());
-      if (dstEntry->getTableType() != common::TableType::NODE) {
+      if (dstEntry->getTableType() != TableType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("dst table is not a node table");
       }
       label["src_id"] = srcEntry->getTableID();

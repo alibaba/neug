@@ -192,6 +192,7 @@ PhysicalTypeID getPhysicalType(DataTypeId typeId) {
   case DataTypeId::kDouble:
     return PhysicalTypeID::DOUBLE;
   case DataTypeId::kDate:
+    return PhysicalTypeID::INT32;
   case DataTypeId::kTimestampMs:
     return PhysicalTypeID::INT64;
   case DataTypeId::kInterval:

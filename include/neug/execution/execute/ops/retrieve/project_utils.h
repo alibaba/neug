@@ -26,7 +26,7 @@ namespace neug {
 namespace execution {
 namespace ops {
 
-bool is_exchange_index(const ::common::Expression& expr, int& tag);
+bool is_exchange_index(const common::Expression& expr, int& tag);
 
 struct ProjectExprBuilderBase {
   virtual ~ProjectExprBuilderBase() = default;
@@ -37,7 +37,7 @@ struct ProjectExprBuilderBase {
 };
 
 void create_project_expr_builders(
-    std::vector<std::tuple<::common::Expression, int,
+    std::vector<std::tuple<common::Expression, int,
                            std::unique_ptr<ExprBase>>>&& exprs_infos,
     std::vector<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
     std::vector<std::unique_ptr<ProjectExprBuilderBase>>&

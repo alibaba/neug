@@ -120,33 +120,33 @@ bool multiplicity_to_storage_strategy(
 }
 
 bool primitive_type_to_property_type(
-    const ::common::PrimitiveType& primitive_type, DataType& out_type) {
+    const common::PrimitiveType& primitive_type, DataType& out_type) {
   switch (primitive_type) {
-  case ::common::PrimitiveType::DT_ANY:
+  case common::PrimitiveType::DT_ANY:
     LOG(ERROR) << "Any type is not supported";
     return false;
-  case ::common::PrimitiveType::DT_SIGNED_INT32:
+  case common::PrimitiveType::DT_SIGNED_INT32:
     out_type = DataType::INT32;
     break;
-  case ::common::PrimitiveType::DT_UNSIGNED_INT32:
+  case common::PrimitiveType::DT_UNSIGNED_INT32:
     out_type = DataType::UINT32;
     break;
-  case ::common::PrimitiveType::DT_SIGNED_INT64:
+  case common::PrimitiveType::DT_SIGNED_INT64:
     out_type = DataType::INT64;
     break;
-  case ::common::PrimitiveType::DT_UNSIGNED_INT64:
+  case common::PrimitiveType::DT_UNSIGNED_INT64:
     out_type = DataType::UINT64;
     break;
-  case ::common::PrimitiveType::DT_BOOL:
+  case common::PrimitiveType::DT_BOOL:
     out_type = DataType::BOOLEAN;
     break;
-  case ::common::PrimitiveType::DT_FLOAT:
+  case common::PrimitiveType::DT_FLOAT:
     out_type = DataType::FLOAT;
     break;
-  case ::common::PrimitiveType::DT_DOUBLE:
+  case common::PrimitiveType::DT_DOUBLE:
     out_type = DataType::DOUBLE;
     break;
-  case ::common::PrimitiveType::DT_NULL:
+  case common::PrimitiveType::DT_NULL:
     out_type = DataType::SQLNULL;
     break;
   default:
@@ -156,10 +156,10 @@ bool primitive_type_to_property_type(
   return true;
 }
 
-bool string_type_to_property_type(const ::common::String& string_type,
+bool string_type_to_property_type(const common::String& string_type,
                                   DataType& out_type) {
   switch (string_type.item_case()) {
-  case ::common::String::kVarChar: {
+  case common::String::kVarChar: {
     size_t max_length = STRING_DEFAULT_MAX_LENGTH;
     if (string_type.has_var_char()) {
       auto str_info = string_type.var_char();
@@ -170,15 +170,15 @@ bool string_type_to_property_type(const ::common::String& string_type,
     out_type = DataType::Varchar(max_length);
     break;
   }
-  case ::common::String::kLongText: {
+  case common::String::kLongText: {
     out_type = DataType::Varchar(STRING_DEFAULT_MAX_LENGTH);
     break;
   }
-  case ::common::String::kChar: {
+  case common::String::kChar: {
     // Currently, we implement fixed-char as varchar with fixed length.
     THROW_NOT_SUPPORTED_EXCEPTION("Char type is not supported yet");
   }
-  case ::common::String::ITEM_NOT_SET: {
+  case common::String::ITEM_NOT_SET: {
     LOG(ERROR) << "String type is not set: " << string_type.DebugString();
     return false;
   }
@@ -189,23 +189,23 @@ bool string_type_to_property_type(const ::common::String& string_type,
   return true;
 }
 
-bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
+bool temporal_type_to_property_type(const common::Temporal& temporal_type,
                                     DataType& out_type) {
   switch (temporal_type.item_case()) {
-  case ::common::Temporal::kDate32:
+  case common::Temporal::kDate32:
     out_type = DataTypeId::kDate;
     break;
-  case ::common::Temporal::kDateTime:
+  case common::Temporal::kDateTime:
     out_type = DataTypeId::kTimestampMs;
     break;
-  case ::common::Temporal::kTimestamp:
+  case common::Temporal::kTimestamp:
     out_type = DataTypeId::kTimestampMs;
     break;
-  case ::common::Temporal::kDate:
+  case common::Temporal::kDate:
     // TODO(zhanglei): Parse format
     out_type = DataTypeId::kDate;
     break;
-  case ::common::Temporal::kInterval:
+  case common::Temporal::kInterval:
     out_type = DataTypeId::kInterval;
     break;
   default:
@@ -215,24 +215,24 @@ bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
   return true;
 }
 
-bool data_type_to_property_type(const ::common::DataType& data_type,
+bool data_type_to_property_type(const common::DataType& data_type,
                                 DataType& out_type) {
   switch (data_type.item_case()) {
-  case ::common::DataType::kPrimitiveType: {
+  case common::DataType::kPrimitiveType: {
     return primitive_type_to_property_type(data_type.primitive_type(),
                                            out_type);
   }
-  case ::common::DataType::kDecimal: {
+  case common::DataType::kDecimal: {
     LOG(ERROR) << "Decimal type is not supported";
     return false;
   }
-  case ::common::DataType::kString: {
+  case common::DataType::kString: {
     return string_type_to_property_type(data_type.string(), out_type);
   }
-  case ::common::DataType::kTemporal: {
+  case common::DataType::kTemporal: {
     return temporal_type_to_property_type(data_type.temporal(), out_type);
   }
-  case ::common::DataType::kArray: {
+  case common::DataType::kArray: {
     const auto& array = data_type.array();
     DataType child_type;
     if (!data_type_to_property_type(array.component_type(), child_type)) {
@@ -248,11 +248,11 @@ bool data_type_to_property_type(const ::common::DataType& data_type,
     out_type = DataType::Array(child_type, fixed_length);
     return true;
   }
-  case ::common::DataType::kMap: {
+  case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
     return false;
   }
-  case ::common::DataType::ITEM_NOT_SET: {
+  case common::DataType::ITEM_NOT_SET: {
     LOG(ERROR) << "Data type is not set: " << data_type.DebugString();
     return false;
   }
@@ -263,7 +263,7 @@ bool data_type_to_property_type(const ::common::DataType& data_type,
 }
 
 bool default_expression_to_value(const DataType& type,
-                                 const ::common::Expression& expression,
+                                 const common::Expression& expression,
                                  execution::Value& out_value) {
   try {
     auto expr = execution::parse_expression(

@@ -51,7 +51,7 @@ std::string LogicalSetProperty::getExpressionsForPrinting() const {
   return result;
 }
 
-common::TableType LogicalSetProperty::getTableType() const {
+TableType LogicalSetProperty::getTableType() const {
   NEUG_ASSERT(!infos.empty());
   return infos[0].tableType;
 }

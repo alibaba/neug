@@ -145,7 +145,7 @@ class GPhysicalAnalyzer {
                planner::LogicalOperatorType::INSERT) {
       auto& insert = child->cast<planner::LogicalInsert>();
       auto& infos = insert.getInfos();
-      if (!infos.empty() && infos[0].tableType == common::TableType::NODE) {
+      if (!infos.empty() && infos[0].tableType == TableType::NODE) {
         auto gAliasNames = insert.getGAliasNames();
         for (auto& gAliasName : gAliasNames) {
           result.push_back(gAliasName.uniqueName);
@@ -172,9 +172,9 @@ class GPhysicalAnalyzer {
       if (!infos.empty()) {
         // we assume that all info have the same table type
         auto tableType = infos[0].tableType;
-        if (tableType == common::TableType::NODE) {
+        if (tableType == TableType::NODE) {
           flag.insert = true;
-        } else if (tableType == common::TableType::REL) {
+        } else if (tableType == TableType::REL) {
           if (insertOp->getChildren().empty()) {
             flag.insert = true;
           } else {

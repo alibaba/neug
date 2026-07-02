@@ -59,10 +59,6 @@ class NEUG_API PropertyDefinitionCollection {
 
   std::string toCypher() const;
 
-  void serialize(common::Serializer& serializer) const;
-  static PropertyDefinitionCollection deserialize(
-      common::Deserializer& deserializer);
-
  private:
   PropertyDefinitionCollection(const PropertyDefinitionCollection& other)
       : nextColumnID{other.nextColumnID},

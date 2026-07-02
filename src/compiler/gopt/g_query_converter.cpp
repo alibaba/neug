@@ -1427,11 +1427,11 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
   }
 
   switch (tableEntry->getTableType()) {
-  case common::TableType::NODE: {
+  case TableType::NODE: {
     convertBatchInsertVertex(info, columnExprs, columnIdMap, plan);
     break;
   }
-  case common::TableType::REL: {
+  case TableType::REL: {
     convertBatchInsertEdge(info, columnExprs, columnIdMap, plan);
     break;
   }
@@ -1493,10 +1493,9 @@ void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Insert info should not be empty");
   }
-  common::TableType tableType = infos[0].tableType;
+  TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
-    if (info.tableType != common::TableType::NODE &&
-        info.tableType != common::TableType::REL) {
+    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Insert: " +
                                      static_cast<uint8_t>(info.tableType));
     }
@@ -1504,7 +1503,7 @@ void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
       THROW_EXCEPTION_WITH_FILE_LINE("tableType of Insert is not consistent");
     }
   }
-  if (tableType == common::TableType::NODE) {
+  if (tableType == TableType::NODE) {
     convertInsertVertex(insert, plan);
   } else {  // REL
     convertInsertEdge(insert, plan);
@@ -1936,10 +1935,9 @@ void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("SetProperty info should not be empty");
   }
-  common::TableType tableType = infos[0].tableType;
+  TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
-    if (info.tableType != common::TableType::NODE &&
-        info.tableType != common::TableType::REL) {
+    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for SetProperty: " +
                                      static_cast<uint8_t>(info.tableType));
     }
@@ -1948,7 +1946,7 @@ void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
           "tableType of SetProperty is not consistent");
     }
   }
-  if (tableType == common::TableType::NODE) {
+  if (tableType == TableType::NODE) {
     convertSetVertexProperty(set, plan);
   } else {  // REL
     convertSetEdgeProperty(set, plan);
@@ -1961,10 +1959,9 @@ void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Delete info should not be empty");
   }
-  common::TableType tableType = infos[0].tableType;
+  TableType tableType = infos[0].tableType;
   for (auto& info : infos) {
-    if (info.tableType != common::TableType::NODE &&
-        info.tableType != common::TableType::REL) {
+    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Delete: " +
                                      static_cast<uint8_t>(info.tableType));
     }
@@ -1972,7 +1969,7 @@ void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
       THROW_EXCEPTION_WITH_FILE_LINE("tableType of Delete is not consistent");
     }
   }
-  if (tableType == common::TableType::NODE) {
+  if (tableType == TableType::NODE) {
     convertDeleteVertex(deleteOp, plan);
   } else {  // REL
     convertDeleteEdge(deleteOp, plan);
@@ -2014,11 +2011,10 @@ void GQueryConvertor::convertDeleteEdge(const planner::LogicalDelete& deleteOp,
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
-common::TableType GQueryConvertor::getTableType(
-    const planner::LogicalInsert& insert) {
+TableType GQueryConvertor::getTableType(const planner::LogicalInsert& insert) {
   auto& infos = insert.getInfos();
   if (infos.empty()) {
-    return common::TableType::UNKNOWN;
+    return TableType::UNKNOWN;
   }
   auto firstType = infos[0].tableType;
   for (auto& info : infos) {

@@ -32,7 +32,7 @@ namespace neug {
 namespace execution {
 
 bool is_pk_oid_exact_check(const neug::Schema& schema, label_t label,
-                           const ::common::Expression& expr);
+                           const common::Expression& expr);
 
 enum class SPPredicateType {
   kPropertyGT,
@@ -46,7 +46,7 @@ enum class SPPredicateType {
   kUnknown
 };
 
-SPPredicateType parse_sp_pred(const ::common::Expression& expr);
+SPPredicateType parse_sp_pred(const common::Expression& expr);
 
 template <typename T>
 class SLEdgePropertyGetter {
@@ -318,12 +318,12 @@ struct SpecialPredicateConfig {
 
 bool is_special_edge_predicate(const Schema& schema,
                                const std::vector<LabelTriplet>& labels,
-                               const ::common::Expression& expr,
+                               const common::Expression& expr,
                                SpecialPredicateConfig& config);
 
 bool is_special_vertex_predicate(const Schema& schema,
                                  const std::vector<label_t>& labels,
-                                 const ::common::Expression& expr,
+                                 const common::Expression& expr,
                                  SpecialPredicateConfig& config);
 
 template <typename OP_T, typename CMP_T, typename... Args>

@@ -48,7 +48,7 @@ class NEUG_API Table {
         const StatsManager* storageManager, MemoryManager* memoryManager);
   virtual ~Table() = default;
 
-  common::TableType getTableType() const { return tableType; }
+  TableType getTableType() const { return tableType; }
   common::table_id_t getTableID() const { return tableID; }
   std::string getTableName() const { return tableName; }
 
@@ -72,7 +72,7 @@ class NEUG_API Table {
 
  protected:
  protected:
-  common::TableType tableType;
+  TableType tableType;
   common::table_id_t tableID;
   std::string tableName;
   bool enableCompression;

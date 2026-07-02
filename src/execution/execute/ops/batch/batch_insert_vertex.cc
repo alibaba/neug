@@ -34,7 +34,7 @@ namespace ops {
 class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
-      ::common::NameOrId vertex_type,
+      common::NameOrId vertex_type,
       std::vector<std::pair<int32_t, std::string>> prop_mappings)
       : vertex_type_(std::move(vertex_type)),
         prop_mappings_(std::move(prop_mappings)) {}
@@ -47,7 +47,7 @@ class BatchInsertVertexOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override;
 
  private:
-  ::common::NameOrId vertex_type_;
+  common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
@@ -59,10 +59,10 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   label_t vertex_label_id = 0;
   switch (vertex_type_.item_case()) {
-  case ::common::NameOrId::kId:
+  case common::NameOrId::kId:
     vertex_label_id = vertex_type_.id();
     break;
-  case ::common::NameOrId::kName: {
+  case common::NameOrId::kName: {
     const auto& name = vertex_type_.name();
     if (!graph.schema().is_vertex_label_valid(name)) {
       LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
@@ -96,7 +96,7 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);
 
-  ::common::NameOrId vertex_type;
+  common::NameOrId vertex_type;
   vertex_type.CopyFrom(opr.vertex_type());
   return std::make_pair(std::make_unique<BatchInsertVertexOpr>(
                             std::move(vertex_type), std::move(prop_mappings)),

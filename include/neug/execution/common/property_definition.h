@@ -23,11 +23,6 @@
 
 namespace neug {
 
-namespace common {
-class Deserializer;
-class Serializer;
-}  // namespace common
-
 struct ColumnDefinition {
   std::string name;
   DataType type;
@@ -40,23 +35,23 @@ struct ColumnDefinition {
 struct PropertyDefinition {
   ColumnDefinition columnDefinition;
   execution::Value defaultExpr;
+  bool hasDefault = false;
 
   PropertyDefinition() = default;
   explicit PropertyDefinition(ColumnDefinition columnDefinition)
       : columnDefinition(std::move(columnDefinition)) {}
   PropertyDefinition(ColumnDefinition columnDefinition,
-                     execution::Value defaultExpr)
+                     execution::Value defaultExpr, bool hasDefault = false)
       : columnDefinition(std::move(columnDefinition)),
-        defaultExpr(std::move(defaultExpr)) {}
+        defaultExpr(std::move(defaultExpr)),
+        hasDefault(hasDefault) {}
 
   std::string getName() const { return columnDefinition.name; }
   const DataType& getType() const { return columnDefinition.type; }
   const execution::Value& getDefaultValue() const { return defaultExpr; }
+  bool hasDefaultValue() const { return hasDefault; }
   void rename(const std::string& newName) { columnDefinition.name = newName; }
   PropertyDefinition copy() const { return *this; }
-
-  void serialize(common::Serializer& serializer) const;
-  static PropertyDefinition deserialize(common::Deserializer& deserializer);
 };
 
 }  // namespace neug

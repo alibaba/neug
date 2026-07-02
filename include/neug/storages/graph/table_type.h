@@ -19,7 +19,6 @@
 #include <string>
 
 namespace neug {
-namespace common {
 
 enum class TableType : uint8_t {
   UNKNOWN = 0,
@@ -32,5 +31,4 @@ struct TableTypeUtils {
   static std::string toString(TableType tableType);
 };
 
-}  // namespace common
 }  // namespace neug

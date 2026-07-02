@@ -35,14 +35,14 @@ namespace ops {
 
 namespace {
 
-bool resolve_vertex_label_id(const Schema& schema, const ::common::NameOrId& ni,
+bool resolve_vertex_label_id(const Schema& schema, const common::NameOrId& ni,
                              label_t& out) {
   switch (ni.item_case()) {
-  case ::common::NameOrId::kId: {
+  case common::NameOrId::kId: {
     out = ni.id();
     return true;
   }
-  case ::common::NameOrId::kName: {
+  case common::NameOrId::kName: {
     if (!schema.is_vertex_label_valid(ni.name())) {
       LOG(ERROR) << "Unknown vertex type: " << ni.DebugString();
       return false;
@@ -62,10 +62,10 @@ bool resolve_edge_triplet(const Schema& schema,
                           label_t& edge_label, label_t& src_type,
                           label_t& dst_type) {
   switch (edge_type.type_name().item_case()) {
-  case ::common::NameOrId::kId:
+  case common::NameOrId::kId:
     edge_label = edge_type.type_name().id();
     break;
-  case ::common::NameOrId::kName: {
+  case common::NameOrId::kName: {
     const auto& name = edge_type.type_name().name();
     if (!schema.is_edge_label_valid(name)) {
       LOG(ERROR) << "Unknown edge type: "

@@ -71,64 +71,64 @@ class BoundMergeClause final : public BoundUpdatingClause {
 
   bool hasInsertNodeInfo() const {
     return hasInsertInfo([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   std::vector<const BoundInsertInfo*> getInsertNodeInfos() const {
     return getInsertInfos([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   bool hasInsertRelInfo() const {
     return hasInsertInfo([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
   std::vector<const BoundInsertInfo*> getInsertRelInfos() const {
     return getInsertInfos([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
 
   bool hasOnMatchSetNodeInfo() const {
     return hasOnMatchSetInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   std::vector<BoundSetPropertyInfo> getOnMatchSetNodeInfos() const {
     return getOnMatchSetInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   bool hasOnMatchSetRelInfo() const {
     return hasOnMatchSetInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
   std::vector<BoundSetPropertyInfo> getOnMatchSetRelInfos() const {
     return getOnMatchSetInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
 
   bool hasOnCreateSetNodeInfo() const {
     return hasOnCreateSetInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   std::vector<BoundSetPropertyInfo> getOnCreateSetNodeInfos() const {
     return getOnCreateSetInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == TableType::NODE;
     });
   }
   bool hasOnCreateSetRelInfo() const {
     return hasOnCreateSetInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
   std::vector<BoundSetPropertyInfo> getOnCreateSetRelInfos() const {
     return getOnCreateSetInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == TableType::REL;
     });
   }
 

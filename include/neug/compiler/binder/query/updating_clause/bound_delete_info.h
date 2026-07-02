@@ -31,11 +31,10 @@ namespace binder {
 
 struct BoundDeleteInfo {
   common::DeleteNodeType deleteType;
-  common::TableType tableType;
+  TableType tableType;
   std::shared_ptr<Expression> pattern;
 
-  BoundDeleteInfo(common::DeleteNodeType deleteType,
-                  common::TableType tableType,
+  BoundDeleteInfo(common::DeleteNodeType deleteType, TableType tableType,
                   std::shared_ptr<Expression> pattern)
       : deleteType{deleteType},
         tableType{tableType},

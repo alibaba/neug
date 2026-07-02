@@ -22,7 +22,7 @@ class LogicalSetProperty final : public LogicalOperator {
 
   std::string getExpressionsForPrinting() const override;
 
-  common::TableType getTableType() const;
+  TableType getTableType() const;
   const std::vector<binder::BoundSetPropertyInfo>& getInfos() const {
     return infos;
   }

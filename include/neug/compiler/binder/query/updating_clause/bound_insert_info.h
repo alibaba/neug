@@ -30,14 +30,13 @@ namespace neug {
 namespace binder {
 
 struct BoundInsertInfo {
-  common::TableType tableType;
+  TableType tableType;
   std::shared_ptr<Expression> pattern;
   expression_vector columnExprs;
   expression_vector columnDataExprs;
   common::ConflictAction conflictAction;
 
-  BoundInsertInfo(common::TableType tableType,
-                  std::shared_ptr<Expression> pattern)
+  BoundInsertInfo(TableType tableType, std::shared_ptr<Expression> pattern)
       : tableType{tableType},
         pattern{std::move(pattern)},
         conflictAction{common::ConflictAction::ON_CONFLICT_THROW} {}

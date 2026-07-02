@@ -97,9 +97,9 @@ class ProjectOpr : public IOperator {
 neug::result<OpBuildResultT> ProjectOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<::common::IrDataType> data_types;
+  std::vector<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
-  std::vector<std::tuple<::common::Expression, int, std::unique_ptr<ExprBase>>>
+  std::vector<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
       expr_infos;
   ContextMeta ret_meta;
   bool is_append = plan.plan(op_idx).opr().project().is_append();
@@ -163,7 +163,7 @@ class ProjectOrderByOprBeta : public IOperator {
       std::vector<std::unique_ptr<ProjectExprBuilderBase>>&& expr_builders,
       std::vector<std::unique_ptr<ProjectExprBuilderBase>>&&
           fallback_expr_builders,
-      const ::common::Expression& fst_expr, const std::set<int>& order_by_keys,
+      const common::Expression& fst_expr, const std::set<int>& order_by_keys,
       const std::vector<std::pair<int32_t, bool>>& order_by_pairs,
       int lower_bound, int upper_bound, const std::pair<int, bool>& first_pair)
       : expr_builders_(std::move(expr_builders)),
@@ -230,7 +230,7 @@ class ProjectOrderByOprBeta : public IOperator {
 static bool project_order_by_fusable_beta(
     const physical::Project& project_opr, const algebra::OrderBy& order_by_opr,
     const ContextMeta& ctx_meta,
-    const std::vector<::common::IrDataType>& data_types,
+    const std::vector<common::IrDataType>& data_types,
     std::set<int>& order_by_keys) {
   if (!order_by_opr.has_limit()) {
     return false;
@@ -253,7 +253,7 @@ static bool project_order_by_fusable_beta(
       return false;
     }
     if (!(order_by_opr.pairs(k_i).key().tag().item_case() ==
-          ::common::NameOrId::ItemCase::kId)) {
+          common::NameOrId::ItemCase::kId)) {
       return false;
     }
     order_by_keys.insert(order_by_opr.pairs(k_i).key().tag().id());
@@ -264,7 +264,7 @@ static bool project_order_by_fusable_beta(
 neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  std::vector<::common::IrDataType> data_types;
+  std::vector<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
   if (plan.plan(op_idx).meta_data_size() == mappings_size) {
     for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
@@ -276,8 +276,7 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
                                     plan.plan(op_idx + 1).opr().order_by(),
                                     ctx_meta, data_types, order_by_keys)) {
     ContextMeta ret_meta;
-    std::vector<
-        std::tuple<::common::Expression, int, std::unique_ptr<ExprBase>>>
+    std::vector<std::tuple<common::Expression, int, std::unique_ptr<ExprBase>>>
         expr_infos;
     std::set<int> index_set;
     int first_key =

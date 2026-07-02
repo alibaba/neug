@@ -756,9 +756,9 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   }
   switch (expectedType) {
   case catalog::CatalogEntryType::NODE_TABLE_ENTRY:
-    return entry->getTableType() == common::TableType::NODE;
+    return entry->getTableType() == TableType::NODE;
   case catalog::CatalogEntryType::REL_TABLE_ENTRY:
-    return entry->getTableType() == common::TableType::REL;
+    return entry->getTableType() == TableType::REL;
   default:
     return false;
   }

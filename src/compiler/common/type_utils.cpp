@@ -27,6 +27,17 @@
 namespace neug {
 namespace common {
 
+namespace {
+int64_t normalizeTimestampMillis(timestamp_ms_t val) {
+  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
+  if (val.value > kLikelyMicrosThreshold ||
+      val.value < -kLikelyMicrosThreshold) {
+    return Timestamp::getEpochMilliSeconds(timestamp_t(val.value));
+  }
+  return val.value;
+}
+}  // namespace
+
 std::string TypeUtils::entryToString(const DataType& dataType,
                                      const uint8_t* value,
                                      ValueVector* vector) {
@@ -118,7 +129,8 @@ std::string TypeUtils::toString(const date_t& val, void* /*valueVector*/) {
 template <>
 std::string TypeUtils::toString(const timestamp_ms_t& val,
                                 void* /*valueVector*/) {
-  return toString(Timestamp::fromEpochMilliSeconds(val.value));
+  return toString(
+      Timestamp::fromEpochMilliSeconds(normalizeTimestampMillis(val)));
 }
 
 template <>

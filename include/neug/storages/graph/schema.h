@@ -54,7 +54,7 @@ class SchemaEntry {
 
   virtual bool isParent(uint64_t /*tableID*/) { return false; };
 
-  virtual common::TableType getTableType() const = 0;
+  virtual TableType getTableType() const = 0;
 
   virtual uint32_t getMaxColumnID() const = 0;
 
@@ -163,7 +163,8 @@ struct VertexSchema : public catalog::SchemaEntry {
     vprop_soft_deleted.resize(property_names_.size(), false);
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
-        default_property_values.emplace_back(property_types_[i]);
+        default_property_values.emplace_back(
+            get_default_value(property_types_[i]));
       }
     }
     assert(property_types.size() == property_names.size());
@@ -210,9 +211,7 @@ struct VertexSchema : public catalog::SchemaEntry {
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
   uint64_t getTableID() const override { return label_id; }
-  common::TableType getTableType() const override {
-    return common::TableType::NODE;
-  }
+  TableType getTableType() const override { return TableType::NODE; }
   uint32_t getMaxColumnID() const override;
   std::vector<PropertyDefinition> getProperties() const override;
   uint32_t getNumProperties() const override;
@@ -328,7 +327,7 @@ struct EdgeSchema : public catalog::SchemaEntry {
     assert(properties.size() == property_names.size());
     if (default_property_values.empty()) {
       for (size_t i = 0; i < properties_.size(); ++i) {
-        default_property_values.emplace_back(properties_[i]);
+        default_property_values.emplace_back(get_default_value(properties_[i]));
       }
     }
     assert(properties.size() == default_property_values.size());
@@ -365,9 +364,7 @@ struct EdgeSchema : public catalog::SchemaEntry {
   bool isParent(uint64_t tableID) override {
     return src_label_id == tableID || dst_label_id == tableID;
   }
-  common::TableType getTableType() const override {
-    return common::TableType::REL;
-  }
+  TableType getTableType() const override { return TableType::REL; }
   uint32_t getMaxColumnID() const override;
   std::vector<PropertyDefinition> getProperties() const override;
   uint32_t getNumProperties() const override;

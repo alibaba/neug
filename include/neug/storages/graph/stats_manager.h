@@ -49,13 +49,12 @@ class StatsManager {
 #endif
 
   uint64_t getTable(uint64_t tableID) const;
-  uint64_t getTable(uint64_t tableID, common::TableType tableType) const;
+  uint64_t getTable(uint64_t tableID, TableType tableType) const;
   uint64_t getTable(catalog::SchemaEntry* tableEntry) const;
   uint64_t getTableCardinality(uint64_t tableID) const {
     return getTable(tableID);
   }
-  uint64_t getTableCardinality(uint64_t tableID,
-                               common::TableType tableType) const {
+  uint64_t getTableCardinality(uint64_t tableID, TableType tableType) const {
     return getTable(tableID, tableType);
   }
   uint64_t getTableCardinality(catalog::SchemaEntry* tableEntry) const {

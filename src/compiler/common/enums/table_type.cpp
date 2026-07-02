@@ -25,7 +25,6 @@
 #include "neug/compiler/common/assert.h"
 
 namespace neug {
-namespace common {
 
 std::string TableTypeUtils::toString(TableType tableType) {
   switch (tableType) {
@@ -46,5 +45,4 @@ std::string TableTypeUtils::toString(TableType tableType) {
   }
 }
 
-}  // namespace common
 }  // namespace neug

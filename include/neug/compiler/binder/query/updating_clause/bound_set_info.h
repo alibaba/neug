@@ -29,14 +29,13 @@ namespace neug {
 namespace binder {
 
 struct BoundSetPropertyInfo {
-  common::TableType tableType;
+  TableType tableType;
   std::shared_ptr<Expression> pattern;
   std::shared_ptr<Expression> column;
   std::shared_ptr<Expression> columnData;
   bool updatePk = false;
 
-  BoundSetPropertyInfo(common::TableType tableType,
-                       std::shared_ptr<Expression> pattern,
+  BoundSetPropertyInfo(TableType tableType, std::shared_ptr<Expression> pattern,
                        std::shared_ptr<Expression> column,
                        std::shared_ptr<Expression> columnData)
       : tableType{tableType},

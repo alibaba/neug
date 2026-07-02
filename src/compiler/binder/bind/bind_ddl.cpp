@@ -21,6 +21,8 @@
  */
 
 #include "neug/compiler/binder/binder.h"
+
+#include <optional>
 #include "neug/compiler/binder/ddl/bound_alter.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
 #include "neug/compiler/binder/ddl/bound_create_table.h"
@@ -57,6 +59,30 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
+static execution::date_t convertToExecutionDate(common::date_t value) {
+  return execution::date_t(common::Date::toString(value));
+}
+
+static execution::timestamp_ms_t convertToExecutionTimestamp(
+    common::timestamp_ms_t value) {
+  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
+  auto millis = value.value;
+  if (millis > kLikelyMicrosThreshold || millis < -kLikelyMicrosThreshold) {
+    millis = common::Timestamp::getEpochMilliSeconds(
+        common::timestamp_t(value.value));
+  }
+  return execution::timestamp_ms_t(millis);
+}
+
+static execution::interval_t convertToExecutionInterval(
+    common::interval_t value) {
+  execution::interval_t result;
+  result.months = value.months;
+  result.days = value.days;
+  result.micros = value.micros;
+  return result;
+}
+
 static execution::Value convertToExecutionValue(const Value& value,
                                                 const DataType& type) {
   if (value.isNull()) {
@@ -79,9 +105,89 @@ static execution::Value convertToExecutionValue(const Value& value,
     return execution::Value::DOUBLE(value.getValue<double>());
   case DataTypeId::kVarchar:
     return execution::Value::STRING(value.getValue<std::string>());
+  case DataTypeId::kDate:
+    return execution::Value::DATE(
+        convertToExecutionDate(value.getValue<common::date_t>()));
+  case DataTypeId::kTimestampMs:
+    return execution::Value::TIMESTAMPMS(
+        convertToExecutionTimestamp(value.getValue<common::timestamp_ms_t>()));
+  case DataTypeId::kInterval:
+    return execution::Value::INTERVAL(
+        convertToExecutionInterval(value.getValue<common::interval_t>()));
+  case DataTypeId::kArray: {
+    std::vector<execution::Value> children;
+    children.reserve(value.getChildrenSize());
+    const auto& childType = ArrayType::GetChildType(type);
+    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
+      children.push_back(
+          convertToExecutionValue(*value.children[i], childType));
+    }
+    return execution::Value::ARRAY(type, std::move(children));
+  }
+  case DataTypeId::kList: {
+    std::vector<execution::Value> children;
+    children.reserve(value.getChildrenSize());
+    const auto& childType = ListType::GetChildType(type);
+    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
+      children.push_back(
+          convertToExecutionValue(*value.children[i], childType));
+    }
+    return execution::Value::LIST(childType, std::move(children));
+  }
+  case DataTypeId::kStruct: {
+    std::vector<execution::Value> children;
+    children.reserve(value.getChildrenSize());
+    const auto& childTypes = StructType::GetChildTypes(type);
+    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
+      children.push_back(
+          convertToExecutionValue(*value.children[i], childTypes[i]));
+    }
+    return execution::Value::STRUCT(type, std::move(children));
+  }
   default:
     return execution::Value(type.copy());
   }
+}
+
+static std::optional<execution::Value> tryConvertTemporalDefault(
+    const ParsedExpression* parsedDefault, const DataType& type) {
+  auto functionExpr =
+      dynamic_cast<const ParsedFunctionExpression*>(parsedDefault);
+  if (functionExpr == nullptr || functionExpr->getNumChildren() != 1) {
+    return std::nullopt;
+  }
+  auto literalExpr =
+      dynamic_cast<const ParsedLiteralExpression*>(functionExpr->getChild(0));
+  if (literalExpr == nullptr) {
+    return std::nullopt;
+  }
+  auto literal = literalExpr->getValue();
+  if (literal.getDataType().id() != DataTypeId::kVarchar) {
+    return std::nullopt;
+  }
+  const auto literalString = literal.getValue<std::string>();
+  const auto functionName = functionExpr->getNormalizedFunctionName();
+  switch (type.id()) {
+  case DataTypeId::kDate:
+    if (functionName == "DATE") {
+      return execution::Value::DATE(execution::date_t(literalString));
+    }
+    break;
+  case DataTypeId::kTimestampMs:
+    if (functionName == "TIMESTAMP") {
+      return execution::Value::TIMESTAMPMS(
+          execution::timestamp_ms_t(literalString));
+    }
+    break;
+  case DataTypeId::kInterval:
+    if (functionName == "INTERVAL") {
+      return execution::Value::INTERVAL(execution::interval_t(literalString));
+    }
+    break;
+  default:
+    break;
+  }
+  return std::nullopt;
 }
 
 static void validatePropertyName(
@@ -107,20 +213,30 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
   std::vector<PropertyDefinition> definitions;
   for (auto& def : parsedDefinitions) {
     auto type = convertFromString(def.getType(), clientContext);
-    auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
-                                              tableName, def.getName());
-    auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
-    if (boundExpr->dataType != type) {
-      boundExpr = expressionBinder.implicitCast(boundExpr, type);
+    auto defaultValue = get_default_value(type);
+    if (def.defaultExpr != nullptr) {
+      auto directDefault =
+          tryConvertTemporalDefault(def.defaultExpr.get(), type);
+      if (directDefault.has_value()) {
+        defaultValue = std::move(*directDefault);
+      } else {
+        auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
+                                                  tableName, def.getName());
+        auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
+        if (boundExpr->dataType != type) {
+          boundExpr = expressionBinder.implicitCast(boundExpr, type);
+        }
+        if (ConstantExpressionVisitor::needFold(*boundExpr)) {
+          boundExpr = expressionBinder.foldExpression(boundExpr);
+        }
+        defaultValue = convertToExecutionValue(
+            boundExpr->constCast<LiteralExpression>().getValue(), type);
+      }
     }
-    auto defaultValue =
-        def.defaultExpr == nullptr
-            ? get_default_value(type)
-            : convertToExecutionValue(
-                  boundExpr->constCast<LiteralExpression>().getValue(), type);
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
     definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultValue));
+                             std::move(defaultValue),
+                             def.defaultExpr != nullptr);
   }
   validatePropertyName(definitions);
   return definitions;
@@ -462,7 +578,8 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
           : convertToExecutionValue(
                 boundDefault->constCast<LiteralExpression>().getValue(), type);
   auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue));
+      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue),
+                         extraInfo->defaultValue != nullptr);
   auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
       std::move(propertyDefinition), std::move(boundDefault));
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,

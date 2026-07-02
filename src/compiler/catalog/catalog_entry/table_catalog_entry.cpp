@@ -137,8 +137,6 @@ void TableCatalogEntry::serialize(Serializer& serializer) const {
   CatalogEntry::serialize(serializer);
   serializer.writeDebuggingInfo("comment");
   serializer.write(comment);
-  serializer.writeDebuggingInfo("properties");
-  propertyCollection.serialize(serializer);
 }
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
@@ -147,9 +145,6 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
   std::string comment;
   deserializer.validateDebuggingInfo(debuggingInfo, "comment");
   deserializer.deserializeValue(comment);
-  deserializer.validateDebuggingInfo(debuggingInfo, "properties");
-  auto propertyCollection =
-      PropertyDefinitionCollection::deserialize(deserializer);
   std::unique_ptr<TableCatalogEntry> result;
   switch (type) {
   case CatalogEntryType::NODE_TABLE_ENTRY:
@@ -162,7 +157,6 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
     NEUG_UNREACHABLE;
   }
   result->comment = std::move(comment);
-  result->propertyCollection = std::move(propertyCollection);
   return result;
 }
 

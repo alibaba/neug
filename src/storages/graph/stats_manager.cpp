@@ -101,13 +101,12 @@ uint64_t StatsManager::getTable(uint64_t tableID) const {
     return 1;
   }
   if (graph_->schema().is_vertex_label_valid(tableID)) {
-    return getTable(tableID, common::TableType::NODE);
+    return getTable(tableID, TableType::NODE);
   }
-  return getTable(tableID, common::TableType::REL);
+  return getTable(tableID, TableType::REL);
 }
 
-uint64_t StatsManager::getTable(uint64_t tableID,
-                                common::TableType tableType) const {
+uint64_t StatsManager::getTable(uint64_t tableID, TableType tableType) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -117,7 +116,7 @@ uint64_t StatsManager::getTable(uint64_t tableID,
   if (graph_ == nullptr) {
     return 1;
   }
-  if (tableType == common::TableType::NODE) {
+  if (tableType == TableType::NODE) {
     if (!graph_->schema().is_vertex_label_valid(tableID)) {
       return 1;
     }
@@ -155,8 +154,8 @@ uint64_t StatsManager::getTable(catalog::SchemaEntry* tableEntry) const {
   if (graph_ == nullptr) {
     return 1;
   }
-  if (tableEntry->getTableType() == common::TableType::NODE) {
-    return getTable(tableEntry->getTableID(), common::TableType::NODE);
+  if (tableEntry->getTableType() == TableType::NODE) {
+    return getTable(tableEntry->getTableID(), TableType::NODE);
   }
 
   auto* edgeSchema = dynamic_cast<EdgeSchema*>(tableEntry);

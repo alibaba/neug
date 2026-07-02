@@ -191,7 +191,7 @@ class GQueryConvertor {
       const std::vector<planner::join_condition_t>& joinConditions,
       std::vector<std::shared_ptr<binder::Expression>>& leftKeys,
       std::vector<std::shared_ptr<binder::Expression>>& rightKeys);
-  common::TableType getTableType(const planner::LogicalInsert& insert);
+  TableType getTableType(const planner::LogicalInsert& insert);
 
   void setMetaData(::physical::PhysicalOpr* physicalOpr,
                    const planner::LogicalOperator& op,

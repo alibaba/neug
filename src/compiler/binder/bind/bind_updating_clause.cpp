@@ -46,12 +46,27 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
-static common::Value convertDefaultValue(const PropertyDefinition& definition) {
-  const auto& defaultValue = definition.getDefaultValue();
+static common::date_t convertToCompilerDate(execution::date_t value) {
+  const auto str = value.to_string();
+  return common::Date::fromCString(str.c_str(), str.size());
+}
+
+static common::timestamp_ms_t convertToCompilerTimestamp(
+    execution::timestamp_ms_t value) {
+  return common::timestamp_ms_t(value.milli_second);
+}
+
+static common::interval_t convertToCompilerInterval(
+    execution::interval_t value) {
+  return common::interval_t(value.months, value.days, value.micros);
+}
+
+static common::Value convertExecutionValue(const execution::Value& defaultValue,
+                                           const common::DataType& type) {
   if (defaultValue.IsNull()) {
-    return common::Value::createNullValue(definition.getType());
+    return common::Value::createNullValue(type);
   }
-  switch (definition.getType().id()) {
+  switch (type.id()) {
   case common::DataTypeId::kBoolean:
     return common::Value(defaultValue.GetValue<bool>());
   case common::DataTypeId::kInt32:
@@ -68,9 +83,62 @@ static common::Value convertDefaultValue(const PropertyDefinition& definition) {
     return common::Value(defaultValue.GetValue<double>());
   case common::DataTypeId::kVarchar:
     return common::Value(defaultValue.GetValue<std::string>());
+  case common::DataTypeId::kDate:
+    return common::Value(
+        convertToCompilerDate(defaultValue.GetValue<execution::date_t>()));
+  case common::DataTypeId::kTimestampMs:
+    return common::Value(convertToCompilerTimestamp(
+        defaultValue.GetValue<execution::timestamp_ms_t>()));
+  case common::DataTypeId::kInterval:
+    return common::Value(convertToCompilerInterval(
+        defaultValue.GetValue<execution::interval_t>()));
+  case common::DataTypeId::kArray: {
+    std::vector<std::unique_ptr<common::Value>> children;
+    const auto& childType = common::ArrayType::GetChildType(type);
+    const auto& defaultChildren =
+        execution::ArrayValue::GetChildren(defaultValue);
+    children.reserve(defaultChildren.size());
+    for (const auto& child : defaultChildren) {
+      children.push_back(std::make_unique<common::Value>(
+          convertExecutionValue(child, childType)));
+    }
+    return common::Value(type.copy(), std::move(children));
+  }
+  case common::DataTypeId::kList: {
+    std::vector<std::unique_ptr<common::Value>> children;
+    const auto& childType = common::ListType::GetChildType(type);
+    const auto& defaultChildren =
+        execution::ListValue::GetChildren(defaultValue);
+    children.reserve(defaultChildren.size());
+    for (const auto& child : defaultChildren) {
+      children.push_back(std::make_unique<common::Value>(
+          convertExecutionValue(child, childType)));
+    }
+    return common::Value(type.copy(), std::move(children));
+  }
+  case common::DataTypeId::kStruct: {
+    std::vector<std::unique_ptr<common::Value>> children;
+    const auto& childTypes = common::StructType::GetChildTypes(type);
+    const auto& defaultChildren =
+        execution::StructValue::GetChildren(defaultValue);
+    children.reserve(defaultChildren.size());
+    for (auto i = 0u; i < defaultChildren.size(); ++i) {
+      children.push_back(std::make_unique<common::Value>(
+          convertExecutionValue(defaultChildren[i], childTypes[i])));
+    }
+    return common::Value(type.copy(), std::move(children));
+  }
   default:
+    return common::Value::createNullValue(type);
+  }
+}
+
+static common::Value convertDefaultValue(const PropertyDefinition& definition) {
+  if (!definition.hasDefaultValue()) {
     return common::Value::createNullValue(definition.getType());
   }
+  return convertExecutionValue(definition.getDefaultValue(),
+                               definition.getType());
 }
 
 std::unique_ptr<BoundUpdatingClause> Binder::bindUpdatingClause(
@@ -238,12 +306,9 @@ std::vector<BoundInsertInfo> Binder::bindInsertInfos(
 }
 
 static void validatePrimaryKeyExistence(const VertexSchema* nodeTableEntry,
-                                        const NodeExpression& node,
-                                        const expression_vector& defaultExprs) {
+                                        const NodeExpression& node) {
   auto primaryKeyName = nodeTableEntry->getPrimaryKeyName();
-  auto pkeyDefaultExpr = defaultExprs.at(nodeTableEntry->getPrimaryKeyID());
-  if (!node.hasPropertyDataExpr(primaryKeyName) &&
-      ExpressionUtil::isNullLiteral(*pkeyDefaultExpr)) {
+  if (!node.hasPropertyDataExpr(primaryKeyName)) {
     THROW_BINDER_EXCEPTION(
         stringFormat("Create node {} expects primary key {} as input.",
                      node.toString(), primaryKeyName));
@@ -269,7 +334,7 @@ void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
       node->getPropertyDataExprRef(), entry->getProperties());
   auto nodeEntry = dynamic_cast<VertexSchema*>(entry);
   NEUG_ASSERT(nodeEntry != nullptr);
-  validatePrimaryKeyExistence(nodeEntry, *node, insertInfo.columnDataExprs);
+  validatePrimaryKeyExistence(nodeEntry, *node);
   infos.push_back(std::move(insertInfo));
 }
 

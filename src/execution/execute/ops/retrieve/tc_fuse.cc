@@ -45,7 +45,7 @@ class TCOpr : public IOperator {
     alias1_ = alias1;
     alias2_ = alias2;
     is_lt_ = ee_opr0.params().predicate().operators(1).logical() ==
-             ::common::Logical::LT;
+             common::Logical::LT;
     auto val = ee_opr0.params().predicate().operators(2);
     param_name_ = val.param().name();
     if (dir0_ == Direction::kOut) {
@@ -115,7 +115,7 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
     return false;
   }
   const auto& op2 = ee_opr0.params().predicate().operators(2);
-  if (op2.item_case() != ::common::ExprOpr::ItemCase::kParam) {
+  if (op2.item_case() != common::ExprOpr::ItemCase::kParam) {
     return false;
   }
   int start_tag = ee_opr0.v_tag().value();
@@ -191,8 +191,8 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   if (var.var().tag().id() != alias7) {
     return false;
   }
-  if (within.item_case() != ::common::ExprOpr::ItemCase::kLogical ||
-      within.logical() != ::common::Logical::WITHIN) {
+  if (within.item_case() != common::ExprOpr::ItemCase::kLogical ||
+      within.logical() != common::Logical::WITHIN) {
     return false;
   }
   if ((!v_set.has_var()) || (!v_set.var().has_tag()) ||

@@ -9,7 +9,7 @@ namespace neug {
 namespace planner {
 
 struct LogicalInsertInfo {
-  common::TableType tableType;
+  TableType tableType;
   // including alias and the node or rel expression which defines the query
   // pattern.
   std::shared_ptr<binder::Expression> pattern;
@@ -18,7 +18,7 @@ struct LogicalInsertInfo {
   std::vector<bool> isReturnColumnExprs;
   common::ConflictAction conflictAction;
 
-  LogicalInsertInfo(common::TableType tableType,
+  LogicalInsertInfo(TableType tableType,
                     std::shared_ptr<binder::Expression> pattern,
                     binder::expression_vector columnExprs,
                     binder::expression_vector columnDataExprs,
