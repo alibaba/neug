@@ -42,6 +42,10 @@ class ExplainStatement : public Statement {
     return statementToExplain.get();
   }
 
+  inline std::unique_ptr<Statement> releaseStatementToExplain() {
+    return std::move(statementToExplain);
+  }
+
   inline common::ExplainType getExplainType() const { return explainType; }
 
  private:

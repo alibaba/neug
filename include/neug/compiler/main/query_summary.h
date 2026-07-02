@@ -24,6 +24,7 @@
 
 #include "kuzu_fwd.h"
 #include "neug/utils/api.h"
+#include "neug/compiler/common/enums/explain_type.h"
 
 namespace neug {
 namespace main {
@@ -63,7 +64,9 @@ class QuerySummary {
   /**
    * @return true if the query is executed with EXPLAIN.
    */
-  bool isExplain() const;
+  bool isExplain() const { return explainMode != common::ExplainType::NONE; }
+
+  void setExplainMode(common::ExplainType mode) { explainMode = mode; }
 
   /**
    * @return the statement type of the query.
@@ -73,6 +76,7 @@ class QuerySummary {
  private:
   double executionTime = 0;
   PreparedSummary preparedSummary;
+  common::ExplainType explainMode = common::ExplainType::NONE;
 };
 
 }  // namespace main

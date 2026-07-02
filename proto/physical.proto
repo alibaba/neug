@@ -424,12 +424,20 @@ message ExecutionFlag {
   // todo: add a new flag for gds_algo ?
 }
 
+enum ExplainMode {
+  NONE = 0;
+  PROFILE = 1;
+  EXPLAIN = 2;
+  EXPLAIN_LOGICAL = 3;
+}
+
 // A single Cypher query ending with a semicolon (;)
 message PhysicalPlan {
   int32 plan_id = 1;
   // to be deprecated
   repeated PhysicalOpr plan = 3;
   ExecutionFlag flag = 4;
+  optional ExplainMode explain_mode = 5;
 }
 
 

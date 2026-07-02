@@ -37,6 +37,7 @@
 #include "neug/compiler/main/plan_printer.h"
 #include "neug/compiler/optimizer/optimizer.h"
 #include "neug/compiler/parser/parser.h"
+#include "neug/compiler/parser/explain_statement.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
 #include "neug/compiler/storage/stats_manager.h"
@@ -210,20 +211,33 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
   auto prepareTimer = TimeMetric(true /* enable */);
   prepareTimer.start();
 
+  std::shared_ptr<Statement> actualStatement = parsedStatement;
+
+  if (parsedStatement->getStatementType() == common::StatementType::EXPLAIN) {
+    auto explainStmt = std::static_pointer_cast<parser::ExplainStatement>(parsedStatement);
+    
+    preparedStatement->explainMode = explainStmt->getExplainType();
+    
+    actualStatement = explainStmt->releaseStatementToExplain();
+  } else {
+    preparedStatement->explainMode = common::ExplainType::NONE;
+  }
+
+  preparedStatement->parsedStatement = actualStatement;
+
   preparedStatement->preparedSummary.statementType =
-      parsedStatement->getStatementType();
+      actualStatement->getStatementType();
   auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
 
-  readWriteAnalyzer.visit(*parsedStatement);
+  readWriteAnalyzer.visit(*actualStatement);
 
   preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
-  preparedStatement->parsedStatement = std::move(parsedStatement);
 
   auto binder = Binder(this);
   if (inputParams) {
     binder.setInputParameters(*inputParams);
   }
-  const auto boundStatement = binder.bind(*preparedStatement->parsedStatement);
+  const auto boundStatement = binder.bind(*actualStatement);
   preparedStatement->parameterMap = binder.getParameterMap();
   preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
       boundStatement->getStatementResult()->copy());
