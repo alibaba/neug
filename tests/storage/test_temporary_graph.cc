@@ -18,7 +18,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/checkpoint_manager.h"
@@ -37,7 +37,7 @@ using neug::label_t;
 using neug::MemoryLevel;
 using neug::PropertyGraph;
 using neug::Schema;
-using neug::execution::Value;
+using neug::Value;
 
 // ============================================================================
 // Part 1: Schema layer temporary marking tests

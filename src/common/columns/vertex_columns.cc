@@ -13,10 +13,9 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 
 namespace neug {
-namespace execution {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
     const sel_vec_t& offsets) const {
@@ -296,7 +295,5 @@ std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
   ret->is_optional_ = is_optional_;
   return ret;
 }
-
-}  // namespace execution
 
 }  // namespace neug

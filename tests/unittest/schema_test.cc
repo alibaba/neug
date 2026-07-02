@@ -23,7 +23,7 @@
 #include <tuple>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -80,7 +80,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
   std::vector<DataType> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
-  std::vector<neug::execution::Value> add_defaults;  // not used currently
+  std::vector<neug::Value> add_defaults;  // not used currently
   schema.AddVertexProperties("Person", add_names, add_types, add_defaults);
 
   ASSERT_EQ(schema.get_vertex_properties("Person").size(), 3);
@@ -159,7 +159,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   std::vector<std::string> add_e_names = {"role", "salary"};
   std::vector<DataType> add_e_types = {DataTypeId::kVarchar,
                                        DataTypeId::kInt64};
-  std::vector<neug::execution::Value> dummy_defaults;
+  std::vector<neug::Value> dummy_defaults;
   schema.AddEdgeProperties("Person", "Company", "WorksAt", add_e_names,
                            add_e_types, dummy_defaults);
   auto names_after_add =

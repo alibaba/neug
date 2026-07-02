@@ -14,11 +14,10 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/types/i_context_column.h"
 
 namespace neug {
-namespace execution {
 
 class PathColumnBuilder;
 
@@ -104,5 +103,4 @@ class PathColumnBuilder : public IContextColumnBuilder {
   vector_t<Path> data_;
 };
 
-}  // namespace execution
 }  // namespace neug

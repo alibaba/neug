@@ -1507,8 +1507,8 @@ int main() {
 ```cpp
 // Safe parameter passing prevents injection
 neug::execution::ParamsMap params;
-params["min_age"] = neug::execution::Value(25);
-params["city"] = neug::execution::Value("Beijing");
+params["min_age"] = neug::Value(25);
+params["city"] = neug::Value("Beijing");
 
 auto result = conn->Query(
     "MATCH (p:Person) WHERE p.age > $min_age AND p.city = $city RETURN p",

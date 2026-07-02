@@ -109,7 +109,7 @@ struct DateToStringCast {
     addBC = false;
     if (date[0] <= 0) {
       // add (BC) suffix
-      length += strlen(Date::BC_SUFFIX);
+      length += strlen(compiler_impl::Date::BC_SUFFIX);
       date[0] = -date[0] + 1;
       addBC = true;
     }
@@ -148,9 +148,10 @@ struct DateToStringCast {
     // optionally add BC to the end of the date
     if (addBC) {
       memcpy(ptr,
-             Date::BC_SUFFIX,  // NOLINT(bugprone-not-null-terminated-result):
-                               // no need to put null terminator
-             strlen(Date::BC_SUFFIX));
+             compiler_impl::Date::
+                 BC_SUFFIX,  // NOLINT(bugprone-not-null-terminated-result):
+                             // no need to put null terminator
+             strlen(compiler_impl::Date::BC_SUFFIX));
     }
   }
 };
@@ -268,7 +269,7 @@ struct IntervalToStringCast {
   //! spaces between all characters (+3 characters)
   //! Total: 70 characters
   //! Returns the length of the interval
-  static uint64_t Format(interval_t interval, char buffer[]) {
+  static uint64_t Format(compiler_impl::interval_t interval, char buffer[]) {
     uint64_t length = 0;
     if (interval.months != 0) {
       int32_t years = interval.months / 12;
@@ -292,12 +293,12 @@ struct IntervalToStringCast {
         buffer[length++] = '-';
         micros = -micros;
       }
-      int64_t hour = micros / Interval::MICROS_PER_HOUR;
-      micros -= hour * Interval::MICROS_PER_HOUR;
-      int64_t min = micros / Interval::MICROS_PER_MINUTE;
-      micros -= min * Interval::MICROS_PER_MINUTE;
-      int64_t sec = micros / Interval::MICROS_PER_SEC;
-      micros -= sec * Interval::MICROS_PER_SEC;
+      int64_t hour = micros / compiler_impl::Interval::MICROS_PER_HOUR;
+      micros -= hour * compiler_impl::Interval::MICROS_PER_HOUR;
+      int64_t min = micros / compiler_impl::Interval::MICROS_PER_MINUTE;
+      micros -= min * compiler_impl::Interval::MICROS_PER_MINUTE;
+      int64_t sec = micros / compiler_impl::Interval::MICROS_PER_SEC;
+      micros -= sec * compiler_impl::Interval::MICROS_PER_SEC;
 
       if (hour < 10) {
         buffer[length++] = '0';

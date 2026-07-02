@@ -13,18 +13,17 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/path_columns.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/array_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace execution {
 std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     const DataType& type) {
   switch (type.id()) {
@@ -47,7 +46,7 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return std::make_shared<ListColumnBuilder>(elem_type);
   }
   case DataTypeId::kArray: {
-    return std::make_shared<ArrayColumnBuilder>(type);
+    return std::make_shared<ContextArrayColumnBuilder>(type);
   }
   case DataTypeId::kPath: {
     return std::make_shared<PathColumnBuilder>();
@@ -62,5 +61,4 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return nullptr;
   }
 }
-}  // namespace execution
 }  // namespace neug

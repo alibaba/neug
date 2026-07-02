@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/value.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -35,7 +36,6 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -265,18 +265,16 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
   scalar_func_exec_t execFunc;
   switch (targetType.id()) {
   case DataTypeId::kDate: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<neug_string_t, date_t,
-                                                    CastString, EXECUTOR>;
+    execFunc = ScalarFunction::UnaryCastStringExecFunction<
+        neug_string_t, compiler_impl::date_t, CastString, EXECUTOR>;
   } break;
   case DataTypeId::kTimestampMs: {
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, timestamp_ms_t, CastString, EXECUTOR>;
+        neug_string_t, compiler_impl::timestamp_ms_t, CastString, EXECUTOR>;
   } break;
   case DataTypeId::kInterval: {
-    execFunc =
-        ScalarFunction::UnaryCastStringExecFunction<neug_string_t, interval_t,
-                                                    CastString, EXECUTOR>;
+    execFunc = ScalarFunction::UnaryCastStringExecFunction<
+        neug_string_t, compiler_impl::interval_t, CastString, EXECUTOR>;
   } break;
   case DataTypeId::kVarchar: {
     execFunc =
@@ -413,16 +411,16 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
                                                  CastToString, EXECUTOR>;
   } break;
   case DataTypeId::kDate: {
-    func = ScalarFunction::UnaryCastExecFunction<date_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
+    func = ScalarFunction::UnaryCastExecFunction<
+        compiler_impl::date_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case DataTypeId::kTimestampMs: {
-    func = ScalarFunction::UnaryCastExecFunction<timestamp_ms_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
+    func = ScalarFunction::UnaryCastExecFunction<
+        compiler_impl::timestamp_ms_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case DataTypeId::kInterval: {
-    func = ScalarFunction::UnaryCastExecFunction<interval_t, neug_string_t,
-                                                 CastToString, EXECUTOR>;
+    func = ScalarFunction::UnaryCastExecFunction<
+        compiler_impl::interval_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case DataTypeId::kInternalId: {
     func = ScalarFunction::UnaryCastExecFunction<internalID_t, neug_string_t,
@@ -538,8 +536,8 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
   scalar_func_exec_t func;
   switch (sourceType.id()) {
   case DataTypeId::kTimestampMs:
-    func = ScalarFunction::UnaryExecFunction<timestamp_ms_t, DST_TYPE,
-                                             CastToDate, EXECUTOR>;
+    func = ScalarFunction::UnaryExecFunction<compiler_impl::timestamp_ms_t,
+                                             DST_TYPE, CastToDate, EXECUTOR>;
     break;
   // LCOV_EXCL_START
   default:
@@ -560,12 +558,13 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   scalar_func_exec_t func;
   switch (sourceType.id()) {
   case DataTypeId::kDate: {
-    func = ScalarFunction::UnaryExecFunction<date_t, DST_TYPE,
+    func = ScalarFunction::UnaryExecFunction<compiler_impl::date_t, DST_TYPE,
                                              CastDateToTimestamp, EXECUTOR>;
   } break;
   case DataTypeId::kTimestampMs: {
-    func = ScalarFunction::UnaryExecFunction<timestamp_ms_t, DST_TYPE,
-                                             CastBetweenTimestamp, EXECUTOR>;
+    func = ScalarFunction::UnaryExecFunction<compiler_impl::timestamp_ms_t,
+                                             DST_TYPE, CastBetweenTimestamp,
+                                             EXECUTOR>;
   } break;
   default:
     THROW_CONVERSION_EXCEPTION(
@@ -631,11 +630,11 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
         functionName, sourceType, targetType);
   }
   case DataTypeId::kDate: {
-    return bindCastToDateFunction<EXECUTOR, date_t>(functionName, sourceType,
-                                                    targetType);
+    return bindCastToDateFunction<EXECUTOR, compiler_impl::date_t>(
+        functionName, sourceType, targetType);
   }
   case DataTypeId::kTimestampMs: {
-    return bindCastToTimestampFunction<EXECUTOR, timestamp_ms_t>(
+    return bindCastToTimestampFunction<EXECUTOR, compiler_impl::timestamp_ms_t>(
         functionName, sourceType, targetType);
   }
   case DataTypeId::kList:
@@ -710,39 +709,39 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
-static execution::Value castFunc(const std::vector<execution::Value>& args) {
+static neug::Value castFunc(const std::vector<neug::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));
   }
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
-  auto type = execution::StringValue::Get(arg1);
+  auto type = StringValue::Get(arg1);
   auto targetType = common::convertFromString(std::string(type), nullptr);
   switch (targetType.id()) {
   case DataTypeId::kInt64:
-    return execution::performCast<int64_t>(arg0);
+    return performCast<int64_t>(arg0);
   case DataTypeId::kInt32:
-    return execution::performCast<int32_t>(arg0);
+    return performCast<int32_t>(arg0);
   case DataTypeId::kFloat:
-    return execution::performCast<float>(arg0);
+    return performCast<float>(arg0);
   case DataTypeId::kDouble:
-    return execution::performCast<double>(arg0);
+    return performCast<double>(arg0);
   case DataTypeId::kVarchar:
-    return execution::performCastToString(arg0);
+    return performCastToString(arg0);
   case DataTypeId::kDate:
-    return execution::performCast<neug::Date>(arg0);
+    return performCast<date_t>(arg0);
   case DataTypeId::kTimestampMs:
-    return execution::performCast<neug::DateTime>(arg0);
+    return performCast<timestamp_ms_t>(arg0);
   case DataTypeId::kUInt32:
-    return execution::performCast<uint32_t>(arg0);
+    return performCast<uint32_t>(arg0);
   case DataTypeId::kUInt64:
-    return execution::performCast<uint64_t>(arg0);
+    return performCast<uint64_t>(arg0);
   default:
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));
   }
-  return execution::Value(DataType::SQLNULL);
+  return neug::Value(DataType::SQLNULL);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

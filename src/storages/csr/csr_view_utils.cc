@@ -14,7 +14,7 @@
  */
 
 #include "neug/storages/csr/csr_view_utils.h"
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/common/types/graph_types.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -134,12 +134,11 @@ size_t get_offset_for_edge_record(const NbrList& nbr_list, vid_t expected_nbr,
 }
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
-    const CsrView& oe, const CsrView& ie,
-    const neug::execution::EdgeRecord& record,
+    const CsrView& oe, const CsrView& ie, const EdgeRecord& record,
     const std::vector<DataType>& props) {
   NbrList cur_nbr_list, another_nbr_list;
   vid_t src, nbr;
-  if (record.dir == execution::Direction::kOut) {
+  if (record.dir == Direction::kOut) {
     cur_nbr_list = oe.get_edges(record.src);
     another_nbr_list = ie.get_edges(record.dst);
     src = record.src;
@@ -160,7 +159,7 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   another_offset = neug::fuzzy_search_offset_from_nbr_list(
       another_nbr_list, src, record.prop, e_prop_type);
   assert(another_offset != std::numeric_limits<int32_t>::max());
-  if (record.dir == execution::Direction::kOut) {
+  if (record.dir == Direction::kOut) {
     return std::make_pair(cur_offset, another_offset);
   } else {
     return std::make_pair(another_offset, cur_offset);

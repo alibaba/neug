@@ -60,6 +60,7 @@ namespace {
 
 using common::DataTypeId;
 using common::ExpressionType;
+using compiler_impl::Value;
 using parser::MatchClause;
 using parser::NodePattern;
 using parser::ParsedExpression;
@@ -341,7 +342,7 @@ class OfficialCypherPatternTranslator {
     obj.AddMember("required_props", arr, alloc);
   }
 
-  bool convert_value_to_json(const common::Value& value, rapidjson::Value* out,
+  bool convert_value_to_json(const Value& value, rapidjson::Value* out,
                              bool negate = false) {
     if (value.isNull()) {
       return unsupported(

@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -32,7 +33,7 @@ struct ParsedSubgraphEntry {
 };
 
 struct ParsedSubgraphEdgeEntry {
-  execution::LabelTriplet triplet;
+  LabelTriplet triplet;
   std::unique_ptr<execution::ExprBase> predicate;
 };
 

@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/path_expand.h"
 
-#include "neug/execution/common/columns/path_columns.h"
+#include "neug/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/expression/special_predicates.h"
 

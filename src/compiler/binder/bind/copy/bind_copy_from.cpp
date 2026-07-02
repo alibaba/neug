@@ -67,7 +67,7 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
       primaryKeyFound = true;
     }
     auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(col->getDataType()), "NULL");
+        compiler_impl::Value::createDefaultValue(col->getDataType()), "NULL");
     auto boundExpr = binder.bindExpression(*defaultExpr);
     nodeTableEntry->addProperty(
         PropertyDefinition(ColumnDefinition(colName, col->getDataType().copy()),
@@ -121,7 +121,8 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
     const auto& column = columns[i];
     const auto& colName = column->rawName();
     auto defaultExpr = std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(column->getDataType()), "NULL");
+        compiler_impl::Value::createDefaultValue(column->getDataType()),
+        "NULL");
     auto boundExpr = binder.bindExpression(*defaultExpr);
     relProps.emplace_back(
         ColumnDefinition(colName, column->getDataType().copy()),
@@ -182,7 +183,7 @@ BoundCopyFromInfo::BoundCopyFromInfo(
 
 // boundCopyOptions: keys are upper-case (see bindParsingOptions).
 static bool autoDetectEnabled(
-    const case_insensitive_map_t<Value>& boundCopyOptions) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions) {
   auto it = boundCopyOptions.find("AUTO_DETECT");
   if (it != boundCopyOptions.end()) {
     return it->second.getValue<bool>();
@@ -398,7 +399,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions,
+    bool temporary) {
   (void) boundCopyOptions;
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   auto boundSource = bindScanSource(copyStatement.getSource(),
@@ -425,7 +427,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions,
+    bool temporary) {
   auto& copyStatement = statement.constCast<CopyFrom>();
   if (copyStatement.byColumn()) {
     THROW_BINDER_EXCEPTION(stringFormat(

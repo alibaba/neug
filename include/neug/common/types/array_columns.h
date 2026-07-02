@@ -14,30 +14,30 @@
  */
 #pragma once
 
+#include "neug/common/columns/columns_utils.h"
 #include "neug/common/extra_type_info.h"
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace execution {
 
-class ArrayColumnBuilder;
+class ContextArrayColumnBuilder;
 
 /**
  * @brief Fixed-length array column in the execution layer.
  *
- * Unlike ListColumn which stores variable-length item offsets, ArrayColumn
- * stores elements flat: row i element j is at datas_[i * array_size_ + j].
- * No items_ overhead — simpler and more cache-friendly.
+ * Unlike ListColumn which stores variable-length item offsets,
+ * ContextArrayColumn stores elements flat: row i element j is at datas_[i *
+ * array_size_ + j]. No items_ overhead — simpler and more cache-friendly.
  */
-class ArrayColumn : public IContextColumn {
+class ContextArrayColumn : public IContextColumn {
  public:
-  explicit ArrayColumn(const DataType& array_type)
+  explicit ContextArrayColumn(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         type_(array_type),
         array_size_(ArrayType::GetNumElements(array_type)) {}
-  ~ArrayColumn() = default;
+  ~ContextArrayColumn() = default;
 
   size_t size() const override {
     if (!datas_) {
@@ -47,7 +47,7 @@ class ArrayColumn : public IContextColumn {
   }
 
   std::string column_info() const override {
-    return "ArrayColumn[" + std::to_string(size()) + "][" +
+    return "ContextArrayColumn[" + std::to_string(size()) + "][" +
            std::to_string(array_size_) + "]";
   }
 
@@ -78,7 +78,7 @@ class ArrayColumn : public IContextColumn {
   uint64_t array_size() const { return array_size_; }
 
  private:
-  friend class ArrayColumnBuilder;
+  friend class ContextArrayColumnBuilder;
   DataType elem_type_;
   DataType type_;
   uint64_t array_size_;
@@ -86,18 +86,18 @@ class ArrayColumn : public IContextColumn {
 };
 
 /**
- * @brief Builder for ArrayColumn.
+ * @brief Builder for ContextArrayColumn.
  */
-class ArrayColumnBuilder : public IContextColumnBuilder {
+class ContextArrayColumnBuilder : public IContextColumnBuilder {
  public:
-  explicit ArrayColumnBuilder(const DataType& array_type)
+  explicit ContextArrayColumnBuilder(const DataType& array_type)
       : elem_type_(ArrayType::GetChildType(array_type)),
         array_type_(array_type),
         array_size_(ArrayType::GetNumElements(array_type)) {
     child_builder_ = ColumnsUtils::create_builder(elem_type_);
   }
 
-  ~ArrayColumnBuilder() = default;
+  ~ContextArrayColumnBuilder() = default;
 
   void reserve(size_t size) override {
     if (child_builder_) {
@@ -108,13 +108,13 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   void push_back_elem(const Value& val) override {
     if (val.type().id() != DataTypeId::kArray) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "ArrayColumnBuilder: expected ARRAY value, got " +
+          "ContextArrayColumnBuilder: expected ARRAY value, got " +
           val.type().ToString());
     }
     const auto& children = ArrayValue::GetChildren(val);
     if (children.size() != array_size_) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "ArrayColumnBuilder: expected " + std::to_string(array_size_) +
+          "ContextArrayColumnBuilder: expected " + std::to_string(array_size_) +
           " elements, got " + std::to_string(children.size()));
     }
     for (const auto& v : children) {
@@ -123,7 +123,7 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   }
 
   std::shared_ptr<IContextColumn> finish() override {
-    auto ret = std::make_shared<ArrayColumn>(array_type_);
+    auto ret = std::make_shared<ContextArrayColumn>(array_type_);
     ret->datas_ = child_builder_->finish();
     return ret;
   }
@@ -135,5 +135,4 @@ class ArrayColumnBuilder : public IContextColumnBuilder {
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 
-}  // namespace execution
 }  // namespace neug

@@ -115,7 +115,7 @@ bool Time::tryConvertInternal(const char* buf, uint64_t len, uint64_t& pos,
     return false;
   }
 
-  if (!Date::parseDoubleDigit(buf, len, pos, min)) {
+  if (!compiler_impl::Date::parseDoubleDigit(buf, len, pos, min)) {
     return false;
   }
   if (min < 0 || min >= 60) {
@@ -130,7 +130,7 @@ bool Time::tryConvertInternal(const char* buf, uint64_t len, uint64_t& pos,
     return false;
   }
 
-  if (!Date::parseDoubleDigit(buf, len, pos, sec)) {
+  if (!compiler_impl::Date::parseDoubleDigit(buf, len, pos, sec)) {
     return false;
   }
   if (sec < 0 || sec >= 60) {
@@ -177,7 +177,7 @@ bool Time::tryConvertTime(const char* buf, uint64_t len, uint64_t& pos,
   if (!Time::tryConvertInternal(buf, len, pos, result)) {
     return false;
   }
-  return result.micros < Interval::MICROS_PER_DAY;
+  return result.micros < compiler_impl::Interval::MICROS_PER_DAY;
 }
 
 dtime_t Time::fromCString(const char* buf, uint64_t len) {
@@ -216,10 +216,12 @@ bool Time::isValid(int32_t hour, int32_t minute, int32_t second,
 dtime_t Time::fromTimeInternal(int32_t hour, int32_t minute, int32_t second,
                                int32_t microseconds) {
   int64_t result = 0;
-  result = hour;                                         // hours
-  result = result * Interval::MINS_PER_HOUR + minute;    // hours -> minutes
-  result = result * Interval::SECS_PER_MINUTE + second;  // minutes -> seconds
-  result = result * Interval::MICROS_PER_SEC +
+  result = hour;  // hours
+  result = result * compiler_impl::Interval::MINS_PER_HOUR +
+           minute;  // hours -> minutes
+  result = result * compiler_impl::Interval::SECS_PER_MINUTE +
+           second;  // minutes -> seconds
+  result = result * compiler_impl::Interval::MICROS_PER_SEC +
            microseconds;  // seconds -> microseconds
   return dtime_t(result);
 }
@@ -237,12 +239,12 @@ dtime_t Time::fromTime(int32_t hour, int32_t minute, int32_t second,
 void Time::convert(dtime_t dtime, int32_t& hour, int32_t& min, int32_t& sec,
                    int32_t& micros) {
   int64_t time = dtime.micros;
-  hour = int32_t(time / Interval::MICROS_PER_HOUR);
-  time -= int64_t(hour) * Interval::MICROS_PER_HOUR;
-  min = int32_t(time / Interval::MICROS_PER_MINUTE);
-  time -= int64_t(min) * Interval::MICROS_PER_MINUTE;
-  sec = int32_t(time / Interval::MICROS_PER_SEC);
-  time -= int64_t(sec) * Interval::MICROS_PER_SEC;
+  hour = int32_t(time / compiler_impl::Interval::MICROS_PER_HOUR);
+  time -= int64_t(hour) * compiler_impl::Interval::MICROS_PER_HOUR;
+  min = int32_t(time / compiler_impl::Interval::MICROS_PER_MINUTE);
+  time -= int64_t(min) * compiler_impl::Interval::MICROS_PER_MINUTE;
+  sec = int32_t(time / compiler_impl::Interval::MICROS_PER_SEC);
+  time -= int64_t(sec) * compiler_impl::Interval::MICROS_PER_SEC;
   micros = int32_t(time);
   NEUG_ASSERT(Time::isValid(hour, min, sec, micros));
 }

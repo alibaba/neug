@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 #include "utils/path_utils.h"
 
@@ -82,7 +82,7 @@ void SSSPPred::compute() {
             vertex_label_, vertex_label_, edge_label_, edge_weight_prop_));
   }
 
-  execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+  LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
@@ -138,11 +138,11 @@ void SSSPPred::compute() {
 
 void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
                     int path_alias) {
-  execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<double> distance_builder;
+  MSVertexColumnBuilder node_builder(vertex_label_);
+  ValueColumnBuilder<double> distance_builder;
   distance_builder.reserve(vertices_.size());
 
-  std::shared_ptr<execution::IContextColumn> path_column;
+  std::shared_ptr<IContextColumn> path_column;
   if (return_path_) {
     auto oe_view = graph_.GetGenericOutgoingGraphView(
         vertex_label_, vertex_label_, edge_label_);
@@ -162,7 +162,7 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       epred = std::make_unique<execution::GeneralPred>(
           edge_pred_->bind(&graph_, {}));
     }
-    execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+    LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
 
     auto find_pred = [&](vid_t v) -> vid_t {
       double dv = distances_[v];
@@ -199,7 +199,7 @@ void SSSPPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       return source_;
     };
 
-    execution::PathColumnBuilder path_builder;
+    PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] < 0) {
         path_builder.push_back_null();

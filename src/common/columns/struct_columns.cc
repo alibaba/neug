@@ -13,11 +13,10 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/columns_utils.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/columns_utils.h"
 
 namespace neug {
-namespace execution {
 std::shared_ptr<IContextColumn> StructColumn::shuffle(
     const sel_vec_t& offsets) const {
   std::vector<std::shared_ptr<IContextColumn>> shuffled_children;
@@ -114,5 +113,4 @@ std::shared_ptr<IContextColumn> StructColumnBuilder::finish() {
   return struct_col;
 }
 
-}  // namespace execution
 }  // namespace neug

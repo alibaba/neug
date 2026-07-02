@@ -30,19 +30,20 @@ namespace neug {
 namespace function {
 
 struct ValueHashFunction {
-  uint64_t operator()(const common::Value& value) const {
+  uint64_t operator()(const compiler_impl::Value& value) const {
     return (uint64_t) value.computeHash();
   }
 };
 
 struct ValueEquality {
-  bool operator()(const common::Value& a, const common::Value& b) const {
+  bool operator()(const compiler_impl::Value& a,
+                  const compiler_impl::Value& b) const {
     return a == b;
   }
 };
 
 using ValueSet =
-    std::unordered_set<common::Value, ValueHashFunction, ValueEquality>;
+    std::unordered_set<compiler_impl::Value, ValueHashFunction, ValueEquality>;
 
 using duplicate_value_handler = std::function<void(const std::string&)>;
 using unique_value_handler =

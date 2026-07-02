@@ -14,10 +14,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 
 namespace neug {
-namespace execution {
 class StructColumnBuilder;
 
 class StructColumn : public IContextColumn {
@@ -96,5 +95,4 @@ class StructColumnBuilder : public IContextColumnBuilder {
   std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 
-}  // namespace execution
 }  // namespace neug

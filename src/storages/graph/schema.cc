@@ -41,8 +41,6 @@
 
 namespace neug {
 
-using execution::Value;
-
 std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
   try {
     return node.as<std::shared_ptr<ExtraTypeInfo>>();

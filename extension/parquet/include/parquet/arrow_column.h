@@ -21,11 +21,10 @@
 #include <arrow/array.h>
 #include <arrow/record_batch.h>
 
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/i_context_column.h"
 
 namespace neug {
-namespace execution {
 
 /// Convert a single Arrow array to a ValueColumn.
 std::shared_ptr<IContextColumn> arrow_array_to_value_column(
@@ -39,5 +38,4 @@ std::shared_ptr<IContextColumn> arrow_arrays_to_value_column(
 std::shared_ptr<DataChunk> recordbatch_to_value_datachunk(
     const std::shared_ptr<arrow::RecordBatch>& batch);
 
-}  // namespace execution
 }  // namespace neug

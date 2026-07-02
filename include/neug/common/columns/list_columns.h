@@ -14,10 +14,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/common/columns/value_columns.h"
 
 namespace neug {
-namespace execution {
 
 struct list_item {
   uint64_t offset;
@@ -145,5 +144,4 @@ class ListColumnBuilder : public IContextColumnBuilder {
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 
-}  // namespace execution
 }  // namespace neug

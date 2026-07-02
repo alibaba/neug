@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/csr/csr_view_utils.h"
@@ -127,11 +127,10 @@ TEST_F(InsertTransactionTest, AddVertex) {
     neug::StorageTPInsertInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     neug::vid_t vid;
-    EXPECT_TRUE(
-        interface.AddVertex(person_label, neug::execution::Value::INT64(3),
-                            {neug::execution::Value::STRING(std::string("Eve")),
-                             neug::execution::Value::INT64(28)},
-                            vid));
+    EXPECT_TRUE(interface.AddVertex(
+        person_label, neug::Value::INT64(3),
+        {neug::Value::STRING(std::string("Eve")), neug::Value::INT64(28)},
+        vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -158,17 +157,14 @@ TEST_F(InsertTransactionTest, AddEdge) {
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
     neug::vid_t vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label,
-                                   neug::execution::Value::INT64(1), vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
     neug::vid_t vid2;
-    EXPECT_TRUE(txn.GetVertexIndex(software_label,
-                                   neug::execution::Value::INT64(2), vid2));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, neug::Value::INT64(2), vid2));
     const void* edge_prop = nullptr;
-    EXPECT_TRUE(interface.AddEdge(person_label, vid, software_label, vid2,
-                                  created_label,
-                                  {neug::execution::Value::DOUBLE(0.9),
-                                   neug::execution::Value::INT64(2022)},
-                                  edge_prop));
+    EXPECT_TRUE(interface.AddEdge(
+        person_label, vid, software_label, vid2, created_label,
+        {neug::Value::DOUBLE(0.9), neug::Value::INT64(2022)}, edge_prop));
     EXPECT_TRUE(txn.Commit());
   }
   {

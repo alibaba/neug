@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "neug/common/types/data_chunk.h"
 #include "neug/storages/loader/loader_utils.h"
 
 namespace neug {
@@ -28,7 +29,7 @@ class RecordBatchChunkSupplier : public IDataChunkSupplier {
       const std::shared_ptr<arrow::RecordBatchReader>& reader, int64_t row_num)
       : row_num_(row_num), reader_(reader) {}
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override;
+  std::shared_ptr<DataChunk> GetNextChunk() override;
 
   int64_t RowNum() const override { return row_num_; }
 

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/types/data_chunk.h"
 
 #include <glog/logging.h>
 
@@ -22,8 +22,6 @@
 #include <vector>
 
 namespace neug {
-
-namespace execution {
 
 void DataChunk::clear() { columns.clear(); }
 
@@ -130,7 +128,5 @@ DataChunk DataChunk::union_chunk(const DataChunk& other) const {
   }
   return out;
 }
-
-}  // namespace execution
 
 }  // namespace neug

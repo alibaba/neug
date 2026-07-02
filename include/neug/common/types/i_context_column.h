@@ -19,15 +19,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/columns/container_types.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/container_types.h"
+#include "neug/common/types/value.h"
 
 #include "glog/logging.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
-
-namespace execution {
 
 enum class ContextColumnType {
   kVertex,
@@ -110,7 +108,5 @@ class IContextColumnBuilder {
 
   virtual std::shared_ptr<IContextColumn> finish() = 0;
 };
-
-}  // namespace execution
 
 }  // namespace neug

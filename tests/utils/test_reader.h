@@ -26,9 +26,9 @@
 #include <memory>
 #include <vector>
 
+#include "neug/common/types/data_chunk.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/data_chunk.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/io/read/common/options.h"

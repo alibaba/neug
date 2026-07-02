@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
@@ -33,23 +33,21 @@ class RowExpressionFilter {
   RowExpressionFilter(const ::common::Expression& expr,
                       const std::unordered_map<std::string, int>& column_index);
 
-  bool eval(const execution::DataChunk& chunk, size_t row) const;
+  bool eval(const DataChunk& chunk, size_t row) const;
 
  private:
-  std::function<bool(const execution::DataChunk&, size_t)> evaluator_;
+  std::function<bool(const DataChunk&, size_t)> evaluator_;
 };
 
-execution::DataChunk filter_chunk(
-    const execution::DataChunk& input,
-    const std::shared_ptr<::common::Expression>& filter_expr,
-    const std::vector<std::string>& column_names);
+DataChunk filter_chunk(const DataChunk& input,
+                       const std::shared_ptr<::common::Expression>& filter_expr,
+                       const std::vector<std::string>& column_names);
 
-execution::DataChunk project_chunk(
-    const execution::DataChunk& input,
-    const std::vector<std::string>& column_names,
-    const std::vector<std::string>& project_columns);
+DataChunk project_chunk(const DataChunk& input,
+                        const std::vector<std::string>& column_names,
+                        const std::vector<std::string>& project_columns);
 
-execution::DataChunk read_all_chunks(
+DataChunk read_all_chunks(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
 
 }  // namespace reader

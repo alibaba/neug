@@ -88,7 +88,8 @@ ClientContext::ClientContext(MetadataManager* database)
 
 ClientContext::~ClientContext() = default;
 
-Value ClientContext::getCurrentSetting(const std::string& optionName) const {
+compiler_impl::Value ClientContext::getCurrentSetting(
+    const std::string& optionName) const {
   auto lowerCaseOptionName = optionName;
   StringUtils::toLower(lowerCaseOptionName);
   const ConfigurationOption* option = nullptr;
@@ -121,7 +122,8 @@ std::unique_ptr<function::ScanReplacementData> ClientContext::tryReplace(
   return nullptr;
 }
 
-void ClientContext::setExtensionOption(std::string name, Value value) {
+void ClientContext::setExtensionOption(std::string name,
+                                       compiler_impl::Value value) {
   StringUtils::toLower(name);
   extensionOptionValues.insert_or_assign(name, std::move(value));
 }
@@ -204,7 +206,8 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
 
 std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
     std::shared_ptr<Statement> parsedStatement, bool shouldCommitNewTransaction,
-    std::optional<std::unordered_map<std::string, std::shared_ptr<Value>>>
+    std::optional<
+        std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>>
         inputParams) {
   auto preparedStatement = std::make_unique<PreparedStatement>();
   auto prepareTimer = TimeMetric(true /* enable */);

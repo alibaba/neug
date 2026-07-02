@@ -13,16 +13,15 @@
  * limitations under the License.
  */
 
-#include "parquet/arrow_context_column.h"
+#include "parquet/arrow_column.h"
 
 #include <arrow/array/array_binary.h>
 #include <arrow/type.h>
 
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/common/columns/value_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace execution {
 
 /// Convert numeric arrow arrays directly to ValueColumn<CppT>.
 template <typename ArrowArrayT, typename CppT>
@@ -64,7 +63,7 @@ static std::shared_ptr<IContextColumn> convert_string_arrays(
 /// Convert date32 arrow arrays (days since epoch) to ValueColumn<date_t>.
 static std::shared_ptr<IContextColumn> convert_date32_arrays(
     const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
-  ValueColumnBuilder<date_t> builder;
+  ValueColumnBuilder<Date> builder;
   for (const auto& arr : arrays) {
     auto typed = std::static_pointer_cast<arrow::Date32Array>(arr);
     for (int64_t j = 0; j < typed->length(); ++j) {
@@ -83,7 +82,7 @@ static std::shared_ptr<IContextColumn> convert_date32_arrays(
 /// Convert date64 arrow arrays (ms since epoch) to ValueColumn<date_t>.
 static std::shared_ptr<IContextColumn> convert_date64_arrays(
     const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
-  ValueColumnBuilder<date_t> builder;
+  ValueColumnBuilder<Date> builder;
   for (const auto& arr : arrays) {
     auto typed = std::static_pointer_cast<arrow::Date64Array>(arr);
     for (int64_t j = 0; j < typed->length(); ++j) {
@@ -100,7 +99,7 @@ static std::shared_ptr<IContextColumn> convert_date64_arrays(
 /// Convert timestamp arrow arrays to ValueColumn<timestamp_ms_t>.
 static std::shared_ptr<IContextColumn> convert_timestamp_arrays(
     const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
-  ValueColumnBuilder<timestamp_ms_t> builder;
+  ValueColumnBuilder<DateTime> builder;
   for (const auto& arr : arrays) {
     auto typed = std::static_pointer_cast<arrow::TimestampArray>(arr);
     for (int64_t j = 0; j < typed->length(); ++j) {
@@ -168,5 +167,4 @@ std::shared_ptr<DataChunk> recordbatch_to_value_datachunk(
   return chunk;
 }
 
-}  // namespace execution
 }  // namespace neug

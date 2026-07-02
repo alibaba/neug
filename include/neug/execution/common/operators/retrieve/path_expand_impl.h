@@ -1,4 +1,3 @@
-
 /** Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +14,10 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/common/columns/path_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {

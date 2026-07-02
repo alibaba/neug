@@ -55,8 +55,7 @@ ColumnBase* TableView::get_raw_column(int col_id) const {
   return columns_[col_id];
 }
 
-void TableView::insert(size_t index,
-                       const std::vector<execution::Value>& values,
+void TableView::insert(size_t index, const std::vector<Value>& values,
                        bool insert_safe) {
   assert(!insert_safe);
   assert(values.size() == columns_.size());
@@ -73,7 +72,7 @@ VertexTableView::VertexTableView(VertexTable& table)
       v_ts_(table.v_ts_.get()),
       view_(*table.table_) {}
 
-bool VertexTableView::get_lid(const execution::Value& oid, vid_t& lid,
+bool VertexTableView::get_lid(const Value& oid, vid_t& lid,
                               timestamp_t ts) const {
   auto res = indexer_->get_index(oid, lid);
   if (NEUG_UNLIKELY(res && !v_ts_->IsVertexValid(lid, ts))) {
@@ -88,7 +87,7 @@ bool VertexTableView::IsValidLid(vid_t lid, timestamp_t ts) const {
   return lid < indexer_->size() && v_ts_->IsVertexValid(lid, ts);
 }
 
-execution::Value VertexTableView::GetOid(vid_t lid, timestamp_t ts) const {
+Value VertexTableView::GetOid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(lid >= indexer_->size())) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
                                      " is out of range.");
@@ -117,9 +116,9 @@ std::shared_ptr<RefColumnBase> VertexTableView::GetPropertyColumn(
   return view_.get_column(prop);
 }
 
-bool VertexTableView::AddVertex(const execution::Value& id,
-                                const std::vector<execution::Value>& props,
-                                vid_t& ret, timestamp_t ts, bool insert_safe) {
+bool VertexTableView::AddVertex(const Value& id,
+                                const std::vector<Value>& props, vid_t& ret,
+                                timestamp_t ts, bool insert_safe) {
   assert(!insert_safe);  // insert_safe should be false
   if (indexer_->capacity() <= indexer_->size()) {
     return false;
@@ -180,9 +179,8 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(
 }
 
 std::pair<int32_t, const void*> EdgeTableView::AddEdge(
-    vid_t src_lid, vid_t dst_lid,
-    const std::vector<execution::Value>& properties, timestamp_t ts,
-    Allocator& alloc, bool insert_safe) {
+    vid_t src_lid, vid_t dst_lid, const std::vector<Value>& properties,
+    timestamp_t ts, Allocator& alloc, bool insert_safe) {
   return internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
       properties, ts, alloc, insert_safe);
@@ -221,8 +219,7 @@ VertexSet GraphView::GetVertexSet(label_t label, timestamp_t ts) const {
   return vertex_views_[label].GetVertexSet(ts);
 }
 
-execution::Value GraphView::GetOid(label_t label, vid_t lid,
-                                   timestamp_t ts) const {
+Value GraphView::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
   return vertex_views_[label].GetOid(lid, ts);
 }
 
@@ -279,9 +276,9 @@ EdgeDataAccessor GraphView::GetEdgeDataAccessor(
   return it->second.GetDataAccessor(prop_name);
 }
 
-Status GraphView::AddVertex(label_t label, const execution::Value& id,
-                            const std::vector<execution::Value>& props,
-                            vid_t& vid, timestamp_t ts) {
+Status GraphView::AddVertex(label_t label, const Value& id,
+                            const std::vector<Value>& props, vid_t& vid,
+                            timestamp_t ts) {
   if (!vertex_views_[label].AddVertex(id, props, vid, ts, false)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
   }
@@ -290,8 +287,8 @@ Status GraphView::AddVertex(label_t label, const execution::Value& id,
 
 Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                           vid_t dst_lid, label_t edge_label,
-                          const std::vector<execution::Value>& properties,
-                          timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
+                          const std::vector<Value>& properties, timestamp_t ts,
+                          Allocator& alloc, int32_t& oe_offset,
                           const void*& prop) {
   uint32_t index =
       schema_->generate_edge_label(src_label, dst_label, edge_label);

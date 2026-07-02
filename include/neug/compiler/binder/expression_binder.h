@@ -133,12 +133,12 @@ class ExpressionBinder {
   std::shared_ptr<Expression> bindLiteralExpression(
       const parser::ParsedExpression& parsedExpression) const;
   std::shared_ptr<Expression> createLiteralExpression(
-      const common::Value& value) const;
+      const compiler_impl::Value& value) const;
   std::shared_ptr<Expression> createLiteralExpression(
       const std::string& strVal) const;
   std::shared_ptr<Expression> createNullLiteralExpression() const;
   std::shared_ptr<Expression> createNullLiteralExpression(
-      const common::Value& value) const;
+      const compiler_impl::Value& value) const;
   // Variable expressions.
   std::shared_ptr<Expression> bindVariableExpression(
       const parser::ParsedExpression& parsedExpression) const;
@@ -176,7 +176,8 @@ class ExpressionBinder {
  private:
   Binder* binder;
   main::ClientContext* context;
-  std::unordered_map<std::string, std::shared_ptr<common::Value>> parameterMap;
+  std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
+      parameterMap;
   ExpressionBinderConfig config;
 };
 

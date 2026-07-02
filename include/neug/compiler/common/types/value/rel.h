@@ -31,9 +31,11 @@
 #include "neug/utils/api.h"
 
 namespace neug {
-namespace common {
-
+namespace compiler_impl {
 class Value;
+}  // namespace compiler_impl
+
+namespace common {
 
 /**
  * @brief RelVal represents a rel in the graph and stores the relID, src/dst
@@ -46,43 +48,50 @@ class RelVal {
    * @note this function copies all the properties into a vector, which is not
    * efficient. use `getPropertyName` and `getPropertyVal` instead if possible.
    */
-  NEUG_API static std::vector<std::pair<std::string, std::unique_ptr<Value>>>
-  getProperties(const Value* val);
+  NEUG_API static std::vector<
+      std::pair<std::string, std::unique_ptr<compiler_impl::Value>>>
+  getProperties(const compiler_impl::Value* val);
   /**
    * @return number of properties of the RelVal.
    */
-  NEUG_API static uint64_t getNumProperties(const Value* val);
+  NEUG_API static uint64_t getNumProperties(const compiler_impl::Value* val);
   /**
    * @return the name of the property at the given index.
    */
-  NEUG_API static std::string getPropertyName(const Value* val, uint64_t index);
+  NEUG_API static std::string getPropertyName(const compiler_impl::Value* val,
+                                              uint64_t index);
   /**
    * @return the value of the property at the given index.
    */
-  NEUG_API static Value* getPropertyVal(const Value* val, uint64_t index);
+  NEUG_API static compiler_impl::Value* getPropertyVal(
+      const compiler_impl::Value* val, uint64_t index);
   /**
    * @return the src nodeID value of the RelVal in Value.
    */
-  NEUG_API static Value* getSrcNodeIDVal(const Value* val);
+  NEUG_API static compiler_impl::Value* getSrcNodeIDVal(
+      const compiler_impl::Value* val);
   /**
    * @return the dst nodeID value of the RelVal in Value.
    */
-  NEUG_API static Value* getDstNodeIDVal(const Value* val);
+  NEUG_API static compiler_impl::Value* getDstNodeIDVal(
+      const compiler_impl::Value* val);
   /**
    * @return the internal ID value of the RelVal in Value.
    */
-  NEUG_API static Value* getIDVal(const Value* val);
+  NEUG_API static compiler_impl::Value* getIDVal(
+      const compiler_impl::Value* val);
   /**
    * @return the label value of the RelVal.
    */
-  NEUG_API static Value* getLabelVal(const Value* val);
+  NEUG_API static compiler_impl::Value* getLabelVal(
+      const compiler_impl::Value* val);
   /**
    * @return the value of the RelVal in string format.
    */
-  NEUG_API static std::string toString(const Value* val);
+  NEUG_API static std::string toString(const compiler_impl::Value* val);
 
  private:
-  static void throwIfNotRel(const Value* val);
+  static void throwIfNotRel(const compiler_impl::Value* val);
   // 4 offset for id, label, src, dst.
   static constexpr uint64_t OFFSET = 4;
 };

@@ -21,15 +21,15 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/columns/path_columns.h"
 #include "neug/common/extra_type_info.h"
 #include "neug/common/types.h"
+#include "neug/common/types/graph_types.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/function/table/table_function.h"
-#include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -38,11 +38,12 @@ namespace gds {
 // Build a Path object from a predecessor chain, looking up real edge data
 // pointers from the CSR graph view.  The caller provides the vertex chain in
 // source-to-target order.
-inline execution::Path build_path_from_chain(
-    const std::vector<vid_t>& chain, label_t vertex_label, label_t edge_label,
-    bool directed, const StorageReadInterface& graph) {
+inline Path build_path_from_chain(const std::vector<vid_t>& chain,
+                                  label_t vertex_label, label_t edge_label,
+                                  bool directed,
+                                  const StorageReadInterface& graph) {
   if (chain.size() <= 1) {
-    return execution::Path(vertex_label, chain[0]);
+    return Path(vertex_label, chain[0]);
   }
 
   auto oe_view =
@@ -50,14 +51,14 @@ inline execution::Path build_path_from_chain(
   auto ie_view =
       graph.GetGenericIncomingGraphView(vertex_label, vertex_label, edge_label);
 
-  std::vector<std::pair<execution::Direction, const void*>> edge_datas;
+  std::vector<std::pair<Direction, const void*>> edge_datas;
   edge_datas.reserve(chain.size() - 1);
 
   for (size_t i = 0; i + 1 < chain.size(); ++i) {
     vid_t from = chain[i];
     vid_t to = chain[i + 1];
     const void* prop = nullptr;
-    execution::Direction dir = execution::Direction::kOut;
+    Direction dir = Direction::kOut;
 
     // Try outgoing edges first
     auto oe_edges = oe_view.get_edges(from);
@@ -74,7 +75,7 @@ inline execution::Path build_path_from_chain(
       for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
         if (*it == to) {
           prop = it.get_data_ptr();
-          dir = execution::Direction::kIn;
+          dir = Direction::kIn;
           break;
         }
       }
@@ -83,7 +84,7 @@ inline execution::Path build_path_from_chain(
     edge_datas.push_back({dir, prop});
   }
 
-  return execution::Path(vertex_label, edge_label, chain, edge_datas);
+  return Path(vertex_label, edge_label, chain, edge_datas);
 }
 
 // Reconstruct a path by walking backward from `target` to `source` using
@@ -92,11 +93,10 @@ inline execution::Path build_path_from_chain(
 // vertex ID.  This enables post-hoc path reconstruction from the distance
 // array without storing predecessors during computation.
 template <typename PredFinder>
-inline execution::Path reconstruct_path(vid_t target, vid_t source,
-                                        const PredFinder& find_pred,
-                                        label_t vertex_label,
-                                        label_t edge_label, bool directed,
-                                        const StorageReadInterface& graph) {
+inline Path reconstruct_path(vid_t target, vid_t source,
+                             const PredFinder& find_pred, label_t vertex_label,
+                             label_t edge_label, bool directed,
+                             const StorageReadInterface& graph) {
   std::vector<vid_t> chain;
   vid_t cur = target;
   while (cur != source) {

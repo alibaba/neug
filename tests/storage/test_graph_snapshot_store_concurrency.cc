@@ -68,7 +68,7 @@ class GraphSnapshotStoreConcurrencyTest : public ::testing::Test {
     CreateVertexTypeParamBuilder person_builder;
     auto status = initial_pg_->CreateVertexType(
         person_builder.VertexLabel("person")
-            .AddProperty("id", execution::Value::INT64(0))
+            .AddProperty("id", neug::Value::INT64(0))
             .AddPrimaryKeyName("id")
             .Build());
     ASSERT_TRUE(status.ok());
@@ -291,11 +291,11 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
   // Clone and add a new vertex type to the COW copy.
   auto cow_pg = initial_pg_->Clone();
   CreateVertexTypeParamBuilder builder;
-  auto status = cow_pg->CreateVertexType(
-      builder.VertexLabel("company")
-          .AddProperty("name", execution::Value::STRING(""))
-          .AddPrimaryKeyName("name")
-          .Build());
+  auto status =
+      cow_pg->CreateVertexType(builder.VertexLabel("company")
+                                   .AddProperty("name", neug::Value::STRING(""))
+                                   .AddPrimaryKeyName("name")
+                                   .Build());
   ASSERT_TRUE(status.ok());
 
   // Publish the mutated snapshot.
@@ -341,8 +341,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, AbortReleasesSlotWithoutLeak) {
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Phase 1: seed the initial snapshot with a vertex.
   vid_t vid0 = 0;
-  auto status =
-      initial_pg_->AddVertex(0, execution::Value::INT64(1), {}, vid0, 1);
+  auto status = initial_pg_->AddVertex(0, neug::Value::INT64(1), {}, vid0, 1);
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(initial_pg_->VertexNum(0, MAX_TIMESTAMP), 1u);
 
@@ -356,7 +355,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   vt1.get_table().DetachAllColumns(*cow1->checkpoint_ptr(),
                                    cow1->memory_level());
   vid_t vid1 = 0;
-  status = cow1->AddVertex(0, execution::Value::INT64(2), {}, vid1, 2);
+  status = cow1->AddVertex(0, neug::Value::INT64(2), {}, vid1, 2);
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(cow1->VertexNum(0, MAX_TIMESTAMP), 2u);
 
@@ -372,7 +371,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   vt2.get_table().DetachAllColumns(*cow2->checkpoint_ptr(),
                                    cow2->memory_level());
   vid_t vid2 = 0;
-  status = cow2->AddVertex(0, execution::Value::INT64(3), {}, vid2, 3);
+  status = cow2->AddVertex(0, neug::Value::INT64(3), {}, vid2, 3);
   ASSERT_TRUE(status.ok());
 
   // cow2 sees all three vertices.

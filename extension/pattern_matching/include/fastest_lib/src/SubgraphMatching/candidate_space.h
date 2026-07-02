@@ -48,7 +48,7 @@ namespace graphlib {
 namespace SubgraphMatching {
 
 // Alias for the core neug Value type used by candidate constraints.
-using Value = neug::execution::Value;
+using Value = neug::Value;
 
 // Dedupes "constraint references unknown property" warnings so a typo'd
 // property name doesn't spam the log on every candidate vertex/edge.
