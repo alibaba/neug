@@ -41,8 +41,7 @@ class GPhysicalConvertor {
   }
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
-      const planner::LogicalPlan& plan,
-      bool skipSink = false,
+      const planner::LogicalPlan& plan, bool skipSink = false,
       common::ExplainType explainNode = common::ExplainType::NONE) {
     GPhysicalAnalyzer analyzer(catalog);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
