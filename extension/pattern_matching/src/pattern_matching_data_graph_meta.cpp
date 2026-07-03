@@ -613,5 +613,481 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
   return true;
 }
 
+size_t EdgeKeyHash::operator()(const EdgeKey& k) const {
+  uint64_t h = (static_cast<uint64_t>(static_cast<uint32_t>(k.src)) << 32) |
+               static_cast<uint64_t>(static_cast<uint32_t>(k.dst));
+  h ^= static_cast<uint64_t>(k.label) * 0x9e3779b97f4a7c15ULL;
+  h ^= (h >> 33);
+  h *= 0xff51afd7ed558ccdULL;
+  h ^= (h >> 33);
+  return static_cast<size_t>(h);
+}
+
+std::vector<int> DataGraphMeta::GetNeighbors(int global_id) const {
+  std::vector<int> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto& scratch = GetDedupScratch();
+  scratch.EnsureSize(num_vertex_);
+  auto& seen = scratch.seen;
+  auto& reset_list = scratch.reset_list;
+  for (const auto& edge : GetAllOutIncidentEdges(global_id)) {
+    int dst_global = std::get<1>(edge);
+    if (!seen[dst_global]) {
+      seen[dst_global] = true;
+      reset_list.push_back(dst_global);
+      result.push_back(dst_global);
+    }
+  }
+  for (const auto& edge : GetAllInIncidentEdges(global_id)) {
+    int src_global = std::get<0>(edge);
+    if (!seen[src_global]) {
+      seen[src_global] = true;
+      reset_list.push_back(src_global);
+      result.push_back(src_global);
+    }
+  }
+  for (int v : reset_list)
+    seen[v] = false;
+  reset_list.clear();
+  return result;
+}
+
+DataGraphMeta::Edge DataGraphMeta::GetEdge(int u, int v, int label) const {
+  if (u < 0 || u >= num_vertex_ || v < 0 || v >= num_vertex_)
+    return {-1, -1, 255};
+  auto [src_label, src_vid] = ToLocalId(u);
+  auto [dst_label, dst_vid] = ToLocalId(v);
+  uint64_t vk = PackViewKey(src_label, dst_label, (label_t) label);
+  auto vit = out_view_cache_.find(vk);
+  if (vit == out_view_cache_.end())
+    return {-1, -1, 255};
+  NbrList edges = vit->second.get_edges(src_vid);
+  for (auto it = edges.begin(); it != edges.end(); ++it) {
+    if (*it == dst_vid)
+      return {u, v, (label_t) label};
+  }
+  return {-1, -1, 255};
+}
+
+int DataGraphMeta::GetEdgeIndex(int u, int v) const {
+  if (u < 0 || u >= num_vertex_ || v < 0 || v >= num_vertex_)
+    return -1;
+  auto [src_label, src_vid] = ToLocalId(u);
+  auto [dst_label, dst_vid] = ToLocalId(v);
+  uint32_t sk = PackLabelPair(src_label, dst_label);
+  auto sit = out_schema_index_.find(sk);
+  if (sit == out_schema_index_.end())
+    return -1;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(src_label, dst_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (*it == dst_vid)
+        return e_label;
+    }
+  }
+  return -1;
+}
+
+std::vector<DataGraphMeta::Edge> DataGraphMeta::GetOutIncidentEdges(
+    int global_id, int target_dst_label) const {
+  std::vector<Edge> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [src_label, src_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
+  auto sit = out_schema_index_.find(sk);
+  if (sit == out_schema_index_.end())
+    return result;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
+      if (dst_global >= 0)
+        result.push_back({global_id, dst_global, e_label});
+    }
+  }
+  return result;
+}
+
+std::vector<DataGraphMeta::Edge> DataGraphMeta::GetInIncidentEdges(
+    int global_id, int target_src_label) const {
+  std::vector<Edge> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [dst_label, dst_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
+  auto sit = in_schema_index_.find(sk);
+  if (sit == in_schema_index_.end())
+    return result;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
+    auto vit = in_view_cache_.find(vk);
+    if (vit == in_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(dst_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int src_global = FastToGlobalId((label_t) target_src_label, *it);
+      if (src_global >= 0)
+        result.push_back({src_global, global_id, e_label});
+    }
+  }
+  return result;
+}
+
+std::vector<DataGraphMeta::Edge> DataGraphMeta::GetAllOutIncidentEdges(
+    int global_id) const {
+  std::vector<Edge> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [src_label, src_vid] = ToLocalId(global_id);
+  auto sit = out_schemas_by_src_.find(src_label);
+  if (sit == out_schemas_by_src_.end())
+    return result;
+  for (const auto& [d_label, e_label] : sit->second) {
+    uint64_t vk = PackViewKey(src_label, d_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int dst_global = FastToGlobalId(d_label, *it);
+      if (dst_global >= 0)
+        result.push_back({global_id, dst_global, e_label});
+    }
+  }
+  return result;
+}
+
+std::vector<DataGraphMeta::Edge> DataGraphMeta::GetAllInIncidentEdges(
+    int global_id) const {
+  std::vector<Edge> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [dst_label, dst_vid] = ToLocalId(global_id);
+  auto sit = in_schemas_by_dst_.find(dst_label);
+  if (sit == in_schemas_by_dst_.end())
+    return result;
+  for (const auto& [s_label, e_label] : sit->second) {
+    uint64_t vk = PackViewKey(dst_label, s_label, e_label);
+    auto vit = in_view_cache_.find(vk);
+    if (vit == in_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(dst_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int src_global = FastToGlobalId(s_label, *it);
+      if (src_global >= 0)
+        result.push_back({src_global, global_id, e_label});
+    }
+  }
+  return result;
+}
+
+std::vector<int> DataGraphMeta::GetOutNeighbors(int global_id) const {
+  std::vector<int> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [src_label, src_vid] = ToLocalId(global_id);
+  auto sit = out_schemas_by_src_.find(src_label);
+  if (sit == out_schemas_by_src_.end())
+    return result;
+  auto& scratch = GetDedupScratch();
+  scratch.EnsureSize(num_vertex_);
+  auto& seen = scratch.seen;
+  auto& reset_list = scratch.reset_list;
+  for (const auto& [d_label, e_label] : sit->second) {
+    uint64_t vk = PackViewKey(src_label, d_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int dst_global = FastToGlobalId(d_label, *it);
+      if (dst_global >= 0 && !seen[dst_global]) {
+        seen[dst_global] = true;
+        reset_list.push_back(dst_global);
+        result.push_back(dst_global);
+      }
+    }
+  }
+  for (int v : reset_list)
+    seen[v] = false;
+  reset_list.clear();
+  return result;
+}
+
+std::vector<int> DataGraphMeta::GetInNeighbors(int global_id) const {
+  std::vector<int> result;
+  if (global_id < 0 || global_id >= num_vertex_)
+    return result;
+  auto [dst_label, dst_vid] = ToLocalId(global_id);
+  auto sit = in_schemas_by_dst_.find(dst_label);
+  if (sit == in_schemas_by_dst_.end())
+    return result;
+  auto& scratch = GetDedupScratch();
+  scratch.EnsureSize(num_vertex_);
+  auto& seen = scratch.seen;
+  auto& reset_list = scratch.reset_list;
+  for (const auto& [s_label, e_label] : sit->second) {
+    uint64_t vk = PackViewKey(dst_label, s_label, e_label);
+    auto vit = in_view_cache_.find(vk);
+    if (vit == in_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(dst_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int src_global = FastToGlobalId(s_label, *it);
+      if (src_global >= 0 && !seen[src_global]) {
+        seen[src_global] = true;
+        reset_list.push_back(src_global);
+        result.push_back(src_global);
+      }
+    }
+  }
+  for (int v : reset_list)
+    seen[v] = false;
+  reset_list.clear();
+  return result;
+}
+
+int DataGraphMeta::GetOutNeighborCountMasked(int global_id,
+                                             int target_dst_label,
+                                             const bool* mask) const {
+  if (global_id < 0 || global_id >= num_vertex_)
+    return 0;
+  auto [src_label, src_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
+  auto sit = out_schema_index_.find(sk);
+  if (sit == out_schema_index_.end())
+    return 0;
+  int count = 0;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
+      if (dst_global >= 0 && mask[dst_global]) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+int DataGraphMeta::GetInNeighborCountMasked(int global_id, int target_src_label,
+                                            const bool* mask) const {
+  if (global_id < 0 || global_id >= num_vertex_)
+    return 0;
+  auto [dst_label, dst_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
+  auto sit = in_schema_index_.find(sk);
+  if (sit == in_schema_index_.end())
+    return 0;
+  int count = 0;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
+    auto vit = in_view_cache_.find(vk);
+    if (vit == in_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(dst_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int src_global = FastToGlobalId((label_t) target_src_label, *it);
+      if (src_global >= 0 && mask[src_global]) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+int DataGraphMeta::CountOutNeighborsInSet(int global_id, int target_dst_label,
+                                          const bool* set, int needed) const {
+  if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
+    return 0;
+  auto [src_label, src_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
+  auto sit = out_schema_index_.find(sk);
+  if (sit == out_schema_index_.end())
+    return 0;
+  int count = 0;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
+    auto vit = out_view_cache_.find(vk);
+    if (vit == out_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
+      if (dst_global >= 0 && set[dst_global]) {
+        if (++count >= needed)
+          return count;
+      }
+    }
+  }
+  return count;
+}
+
+int DataGraphMeta::CountInNeighborsInSet(int global_id, int target_src_label,
+                                         const bool* set, int needed) const {
+  if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
+    return 0;
+  auto [dst_label, dst_vid] = ToLocalId(global_id);
+  uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
+  auto sit = in_schema_index_.find(sk);
+  if (sit == in_schema_index_.end())
+    return 0;
+  int count = 0;
+  for (label_t e_label : sit->second) {
+    uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
+    auto vit = in_view_cache_.find(vk);
+    if (vit == in_view_cache_.end())
+      continue;
+    NbrList edges = vit->second.get_edges(dst_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      int src_global = FastToGlobalId((label_t) target_src_label, *it);
+      if (src_global >= 0 && set[src_global]) {
+        if (++count >= needed)
+          return count;
+      }
+    }
+  }
+  return count;
+}
+
+std::string DataGraphMeta::EdgeToKey(const Edge& edge) const {
+  int src = std::get<0>(edge);
+  int dst = std::get<1>(edge);
+  label_t label = std::get<2>(edge);
+  if (src == -1)
+    return "";
+  return std::to_string(src) + ":" + std::to_string(dst) + ":" +
+         std::to_string(label);
+}
+
+std::string DataGraphMeta::EdgeToKey(int src, int dst, label_t label) const {
+  if (src == -1)
+    return "";
+  return std::to_string(src) + ":" + std::to_string(dst) + ":" +
+         std::to_string(label);
+}
+
+std::size_t LabelVidHash::operator()(const std::pair<label_t, vid_t>& p) const {
+  return std::hash<uint64_t>()((static_cast<uint64_t>(p.first) << 32) |
+                               p.second);
+}
+
+int DataGraphMeta::GetDegree(int global_id) const {
+  return (global_id >= 0 && global_id < (int) degree_.size())
+             ? degree_[global_id]
+             : 0;
+}
+
+int DataGraphMeta::GetVertexLabel(int global_id) const {
+  return (global_id >= 0 && global_id < (int) vertex_label_.size())
+             ? vertex_label_[global_id]
+             : 0;
+}
+
+int DataGraphMeta::GetCoreNum(int global_id) const {
+  return (global_id >= 0 && global_id < (int) core_num_.size())
+             ? core_num_[global_id]
+             : 0;
+}
+
+int DataGraphMeta::GetEdgeIndex(int u, int v, int label) const {
+  Edge e = GetEdge(u, v, label);
+  return std::get<0>(e) != -1 ? label : -1;
+}
+
+const std::vector<int>& DataGraphMeta::GetVerticesByLabel(int label) const {
+  static const std::vector<int> empty;
+  if (label < 0 || label >= (int) vertices_by_label_.size())
+    return empty;
+  return vertices_by_label_[label];
+}
+
+int DataGraphMeta::GetInDegree(int global_id) const {
+  return (global_id >= 0 && global_id < (int) in_degree_.size())
+             ? in_degree_[global_id]
+             : 0;
+}
+
+int DataGraphMeta::GetOutDegree(int global_id) const {
+  return (global_id >= 0 && global_id < (int) out_degree_.size())
+             ? out_degree_[global_id]
+             : 0;
+}
+
+EdgeKey DataGraphMeta::EdgeToIntKey(const Edge& edge) const {
+  return EdgeKey(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
+}
+
+EdgeKey DataGraphMeta::EdgeToIntKey(int src, int dst, label_t label) const {
+  return EdgeKey(src, dst, label);
+}
+
+int DataGraphMeta::ToGlobalId(label_t label, vid_t vid) const {
+  auto key = std::make_pair(label, vid);
+  auto it = local_to_global_.find(key);
+  return (it != local_to_global_.end()) ? it->second : -1;
+}
+
+std::pair<label_t, vid_t> DataGraphMeta::ToLocalId(int global_id) const {
+  if (global_id < 0 || global_id >= (int) global_to_local_.size()) {
+    return {255, (vid_t) -1};  // Invalid
+  }
+  return global_to_local_[global_id];
+}
+
+label_t DataGraphMeta::GetVertexLabelFromGlobal(int global_id) const {
+  if (global_id < 0 || global_id >= (int) global_to_local_.size())
+    return 255;
+  return global_to_local_[global_id].first;
+}
+
+vid_t DataGraphMeta::GetOriginalVid(int global_id) const {
+  if (global_id < 0 || global_id >= (int) global_to_local_.size())
+    return (vid_t) -1;
+  return global_to_local_[global_id].second;
+}
+
+int DataGraphMeta::FastToGlobalId(label_t label, vid_t vid) const {
+  if (label >= (label_t) label_vid_to_global_.size())
+    return -1;
+  const auto& arr = label_vid_to_global_[label];
+  if (vid >= (vid_t) arr.size())
+    return -1;
+  return arr[vid];
+}
+
+void DataGraphMeta::DedupScratch::EnsureSize(int n) {
+  if (static_cast<int>(seen.size()) < n)
+    seen.resize(n, false);
+}
+
+DataGraphMeta::DedupScratch& DataGraphMeta::GetDedupScratch() {
+  thread_local DedupScratch scratch;
+  return scratch;
+}
+
+uint32_t DataGraphMeta::PackLabelPair(label_t a, label_t b) {
+  return (static_cast<uint32_t>(a) << 16) | static_cast<uint32_t>(b);
+}
+
+uint64_t DataGraphMeta::PackViewKey(label_t src, label_t dst, label_t edge) {
+  return (static_cast<uint64_t>(src) << 32) |
+         (static_cast<uint64_t>(dst) << 16) | static_cast<uint64_t>(edge);
+}
+
 }  // namespace pattern_matching
 }  // namespace neug

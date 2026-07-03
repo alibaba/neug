@@ -35,10 +35,7 @@ namespace pattern_matching {
 
 // Hash function for std::pair<label_t, vid_t>
 struct LabelVidHash {
-  std::size_t operator()(const std::pair<label_t, vid_t>& p) const {
-    return std::hash<uint64_t>()((static_cast<uint64_t>(p.first) << 32) |
-                                 p.second);
-  }
+  std::size_t operator()(const std::pair<label_t, vid_t>& p) const;
 };
 
 // Integer-based edge key to replace string-based EdgeToKey for performance.
@@ -56,15 +53,7 @@ struct EdgeKey {
 };
 
 struct EdgeKeyHash {
-  size_t operator()(const EdgeKey& k) const {
-    uint64_t h = (static_cast<uint64_t>(static_cast<uint32_t>(k.src)) << 32) |
-                 static_cast<uint64_t>(static_cast<uint32_t>(k.dst));
-    h ^= static_cast<uint64_t>(k.label) * 0x9e3779b97f4a7c15ULL;
-    h ^= (h >> 33);
-    h *= 0xff51afd7ed558ccdULL;
-    h ^= (h >> 33);
-    return static_cast<size_t>(h);
-  }
+  size_t operator()(const EdgeKey& k) const;
 };
 
 // Use Value from neug::execution
@@ -134,52 +123,12 @@ class DataGraphMeta {
   inline int GetMaxOutDegree() const { return max_out_degree_; }
   inline int GetDegeneracy() const { return degeneracy_; }
 
-  inline int GetDegree(int global_id) const {
-    return (global_id >= 0 && global_id < (int) degree_.size())
-               ? degree_[global_id]
-               : 0;
-  }
+  int GetDegree(int global_id) const;
   // Get vertex label by global_id (returns label_t as int)
-  inline int GetVertexLabel(int global_id) const {
-    return (global_id >= 0 && global_id < (int) vertex_label_.size())
-               ? vertex_label_[global_id]
-               : 0;
-  }
+  int GetVertexLabel(int global_id) const;
   // Get undirected neighbors by global_id (returns global_ids)
-  inline std::vector<int> GetNeighbors(int global_id) const {
-    std::vector<int> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto& scratch = GetDedupScratch();
-    scratch.EnsureSize(num_vertex_);
-    auto& seen = scratch.seen;
-    auto& reset_list = scratch.reset_list;
-    for (const auto& edge : GetAllOutIncidentEdges(global_id)) {
-      int dst_global = std::get<1>(edge);
-      if (!seen[dst_global]) {
-        seen[dst_global] = true;
-        reset_list.push_back(dst_global);
-        result.push_back(dst_global);
-      }
-    }
-    for (const auto& edge : GetAllInIncidentEdges(global_id)) {
-      int src_global = std::get<0>(edge);
-      if (!seen[src_global]) {
-        seen[src_global] = true;
-        reset_list.push_back(src_global);
-        result.push_back(src_global);
-      }
-    }
-    for (int v : reset_list)
-      seen[v] = false;
-    reset_list.clear();
-    return result;
-  }
-  inline int GetCoreNum(int global_id) const {
-    return (global_id >= 0 && global_id < (int) core_num_.size())
-               ? core_num_[global_id]
-               : 0;
-  }
+  std::vector<int> GetNeighbors(int global_id) const;
+  int GetCoreNum(int global_id) const;
   inline const std::vector<int>& GetDegeneracyOrder() const {
     return degeneracy_order_;
   }
@@ -192,357 +141,63 @@ class DataGraphMeta {
   using Edge = std::tuple<int, int, label_t>;
 
   // Edge lookup: check if edge exists, return edge or invalid edge
-  inline Edge GetEdge(int u, int v, int label) const {
-    if (u < 0 || u >= num_vertex_ || v < 0 || v >= num_vertex_)
-      return {-1, -1, 255};
-    auto [src_label, src_vid] = ToLocalId(u);
-    auto [dst_label, dst_vid] = ToLocalId(v);
-    uint64_t vk = PackViewKey(src_label, dst_label, (label_t) label);
-    auto vit = out_view_cache_.find(vk);
-    if (vit == out_view_cache_.end())
-      return {-1, -1, 255};
-    NbrList edges = vit->second.get_edges(src_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      if (*it == dst_vid)
-        return {u, v, (label_t) label};
-    }
-    return {-1, -1, 255};
-  }
+  Edge GetEdge(int u, int v, int label) const;
 
   // Check if edge exists (any label), u, v are global_ids
-  inline int GetEdgeIndex(int u, int v) const {
-    if (u < 0 || u >= num_vertex_ || v < 0 || v >= num_vertex_)
-      return -1;
-    auto [src_label, src_vid] = ToLocalId(u);
-    auto [dst_label, dst_vid] = ToLocalId(v);
-    uint32_t sk = PackLabelPair(src_label, dst_label);
-    auto sit = out_schema_index_.find(sk);
-    if (sit == out_schema_index_.end())
-      return -1;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(src_label, dst_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        if (*it == dst_vid)
-          return e_label;
-      }
-    }
-    return -1;
-  }
+  int GetEdgeIndex(int u, int v) const;
 
   // Check if edge with specific label exists, u, v are global_ids
-  inline int GetEdgeIndex(int u, int v, int label) const {
-    Edge e = GetEdge(u, v, label);
-    return std::get<0>(e) != -1 ? label : -1;
-  }
+  int GetEdgeIndex(int u, int v, int label) const;
 
   // Vertex by label lookup
-  inline const std::vector<int>& GetVerticesByLabel(int label) const {
-    static const std::vector<int> empty;
-    if (label < 0 || label >= (int) vertices_by_label_.size())
-      return empty;
-    return vertices_by_label_[label];
-  }
+  const std::vector<int>& GetVerticesByLabel(int label) const;
 
   // Degree accessors for individual vertices (by global_id)
-  inline int GetInDegree(int global_id) const {
-    return (global_id >= 0 && global_id < (int) in_degree_.size())
-               ? in_degree_[global_id]
-               : 0;
-  }
-  inline int GetOutDegree(int global_id) const {
-    return (global_id >= 0 && global_id < (int) out_degree_.size())
-               ? out_degree_[global_id]
-               : 0;
-  }
+  int GetInDegree(int global_id) const;
+  int GetOutDegree(int global_id) const;
 
   // Get out-edges from vertex (by global_id) to vertices with target_dst_label
-  inline std::vector<Edge> GetOutIncidentEdges(int global_id,
-                                               int target_dst_label) const {
-    std::vector<Edge> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [src_label, src_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
-    auto sit = out_schema_index_.find(sk);
-    if (sit == out_schema_index_.end())
-      return result;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
-        if (dst_global >= 0)
-          result.push_back({global_id, dst_global, e_label});
-      }
-    }
-    return result;
-  }
+  std::vector<Edge> GetOutIncidentEdges(int global_id,
+                                        int target_dst_label) const;
 
   // Get in-edges to vertex (by global_id) from vertices with target_src_label
-  inline std::vector<Edge> GetInIncidentEdges(int global_id,
-                                              int target_src_label) const {
-    std::vector<Edge> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [dst_label, dst_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
-    auto sit = in_schema_index_.find(sk);
-    if (sit == in_schema_index_.end())
-      return result;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
-      auto vit = in_view_cache_.find(vk);
-      if (vit == in_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(dst_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int src_global = FastToGlobalId((label_t) target_src_label, *it);
-        if (src_global >= 0)
-          result.push_back({src_global, global_id, e_label});
-      }
-    }
-    return result;
-  }
+  std::vector<Edge> GetInIncidentEdges(int global_id,
+                                       int target_src_label) const;
 
   // Get all out-edges from vertex (by global_id)
-  inline std::vector<Edge> GetAllOutIncidentEdges(int global_id) const {
-    std::vector<Edge> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [src_label, src_vid] = ToLocalId(global_id);
-    auto sit = out_schemas_by_src_.find(src_label);
-    if (sit == out_schemas_by_src_.end())
-      return result;
-    for (const auto& [d_label, e_label] : sit->second) {
-      uint64_t vk = PackViewKey(src_label, d_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int dst_global = FastToGlobalId(d_label, *it);
-        if (dst_global >= 0)
-          result.push_back({global_id, dst_global, e_label});
-      }
-    }
-    return result;
-  }
+  std::vector<Edge> GetAllOutIncidentEdges(int global_id) const;
 
   // Get all in-edges to vertex (by global_id)
-  inline std::vector<Edge> GetAllInIncidentEdges(int global_id) const {
-    std::vector<Edge> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [dst_label, dst_vid] = ToLocalId(global_id);
-    auto sit = in_schemas_by_dst_.find(dst_label);
-    if (sit == in_schemas_by_dst_.end())
-      return result;
-    for (const auto& [s_label, e_label] : sit->second) {
-      uint64_t vk = PackViewKey(dst_label, s_label, e_label);
-      auto vit = in_view_cache_.find(vk);
-      if (vit == in_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(dst_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int src_global = FastToGlobalId(s_label, *it);
-        if (src_global >= 0)
-          result.push_back({src_global, global_id, e_label});
-      }
-    }
-    return result;
-  }
+  std::vector<Edge> GetAllInIncidentEdges(int global_id) const;
 
   // Get out-neighbors with flat boolean dedup
-  inline std::vector<int> GetOutNeighbors(int global_id) const {
-    std::vector<int> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [src_label, src_vid] = ToLocalId(global_id);
-    auto sit = out_schemas_by_src_.find(src_label);
-    if (sit == out_schemas_by_src_.end())
-      return result;
-    auto& scratch = GetDedupScratch();
-    scratch.EnsureSize(num_vertex_);
-    auto& seen = scratch.seen;
-    auto& reset_list = scratch.reset_list;
-    for (const auto& [d_label, e_label] : sit->second) {
-      uint64_t vk = PackViewKey(src_label, d_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int dst_global = FastToGlobalId(d_label, *it);
-        if (dst_global >= 0 && !seen[dst_global]) {
-          seen[dst_global] = true;
-          reset_list.push_back(dst_global);
-          result.push_back(dst_global);
-        }
-      }
-    }
-    for (int v : reset_list)
-      seen[v] = false;
-    reset_list.clear();
-    return result;
-  }
+  std::vector<int> GetOutNeighbors(int global_id) const;
 
   // Get in-neighbors with flat boolean dedup
-  inline std::vector<int> GetInNeighbors(int global_id) const {
-    std::vector<int> result;
-    if (global_id < 0 || global_id >= num_vertex_)
-      return result;
-    auto [dst_label, dst_vid] = ToLocalId(global_id);
-    auto sit = in_schemas_by_dst_.find(dst_label);
-    if (sit == in_schemas_by_dst_.end())
-      return result;
-    auto& scratch = GetDedupScratch();
-    scratch.EnsureSize(num_vertex_);
-    auto& seen = scratch.seen;
-    auto& reset_list = scratch.reset_list;
-    for (const auto& [s_label, e_label] : sit->second) {
-      uint64_t vk = PackViewKey(dst_label, s_label, e_label);
-      auto vit = in_view_cache_.find(vk);
-      if (vit == in_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(dst_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int src_global = FastToGlobalId(s_label, *it);
-        if (src_global >= 0 && !seen[src_global]) {
-          seen[src_global] = true;
-          reset_list.push_back(src_global);
-          result.push_back(src_global);
-        }
-      }
-    }
-    for (int v : reset_list)
-      seen[v] = false;
-    reset_list.clear();
-    return result;
-  }
+  std::vector<int> GetInNeighbors(int global_id) const;
 
   // Get the count of out-neighbors with vertex label target_dst_label that are
   // in the mask. Used by CheckNeighborSafety to count per-label masked
   // neighbors directly.
-  inline int GetOutNeighborCountMasked(int global_id, int target_dst_label,
-                                       const bool* mask) const {
-    if (global_id < 0 || global_id >= num_vertex_)
-      return 0;
-    auto [src_label, src_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
-    auto sit = out_schema_index_.find(sk);
-    if (sit == out_schema_index_.end())
-      return 0;
-    int count = 0;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
-        if (dst_global >= 0 && mask[dst_global]) {
-          count++;
-        }
-      }
-    }
-    return count;
-  }
+  int GetOutNeighborCountMasked(int global_id, int target_dst_label,
+                                const bool* mask) const;
 
   // Get the count of in-neighbors with vertex label target_src_label that are
   // in the mask. Used by CheckNeighborSafety to count per-label masked
   // neighbors directly.
-  inline int GetInNeighborCountMasked(int global_id, int target_src_label,
-                                      const bool* mask) const {
-    if (global_id < 0 || global_id >= num_vertex_)
-      return 0;
-    auto [dst_label, dst_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
-    auto sit = in_schema_index_.find(sk);
-    if (sit == in_schema_index_.end())
-      return 0;
-    int count = 0;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
-      auto vit = in_view_cache_.find(vk);
-      if (vit == in_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(dst_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int src_global = FastToGlobalId((label_t) target_src_label, *it);
-        if (src_global >= 0 && mask[src_global]) {
-          count++;
-        }
-      }
-    }
-    return count;
-  }
+  int GetInNeighborCountMasked(int global_id, int target_src_label,
+                               const bool* mask) const;
 
   // Count out-neighbors of specific label that are in a boolean set, with early
   // termination. Skips dedup (slight over-count is conservative for safety
   // checks).
-  inline int CountOutNeighborsInSet(int global_id, int target_dst_label,
-                                    const bool* set, int needed) const {
-    if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
-      return 0;
-    auto [src_label, src_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
-    auto sit = out_schema_index_.find(sk);
-    if (sit == out_schema_index_.end())
-      return 0;
-    int count = 0;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
-      auto vit = out_view_cache_.find(vk);
-      if (vit == out_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(src_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
-        if (dst_global >= 0 && set[dst_global]) {
-          if (++count >= needed)
-            return count;
-        }
-      }
-    }
-    return count;
-  }
+  int CountOutNeighborsInSet(int global_id, int target_dst_label,
+                             const bool* set, int needed) const;
 
   // Count in-neighbors of specific label that are in a boolean set, with early
   // termination.
-  inline int CountInNeighborsInSet(int global_id, int target_src_label,
-                                   const bool* set, int needed) const {
-    if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
-      return 0;
-    auto [dst_label, dst_vid] = ToLocalId(global_id);
-    uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
-    auto sit = in_schema_index_.find(sk);
-    if (sit == in_schema_index_.end())
-      return 0;
-    int count = 0;
-    for (label_t e_label : sit->second) {
-      uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
-      auto vit = in_view_cache_.find(vk);
-      if (vit == in_view_cache_.end())
-        continue;
-      NbrList edges = vit->second.get_edges(dst_vid);
-      for (auto it = edges.begin(); it != edges.end(); ++it) {
-        int src_global = FastToGlobalId((label_t) target_src_label, *it);
-        if (src_global >= 0 && set[src_global]) {
-          if (++count >= needed)
-            return count;
-        }
-      }
-    }
-    return count;
-  }
+  int CountInNeighborsInSet(int global_id, int target_src_label,
+                            const bool* set, int needed) const;
 
   // Edge accessors (using Edge tuple with global_ids)
   inline label_t GetEdgeLabel(const Edge& edge) const {
@@ -556,31 +211,14 @@ class DataGraphMeta {
   }
 
   // Convert Edge to unique string key (legacy, prefer EdgeToIntKey)
-  inline std::string EdgeToKey(const Edge& edge) const {
-    int src = std::get<0>(edge);
-    int dst = std::get<1>(edge);
-    label_t label = std::get<2>(edge);
-    if (src == -1)
-      return "";
-    return std::to_string(src) + ":" + std::to_string(dst) + ":" +
-           std::to_string(label);
-  }
+  std::string EdgeToKey(const Edge& edge) const;
 
-  inline std::string EdgeToKey(int src, int dst, label_t label) const {
-    if (src == -1)
-      return "";
-    return std::to_string(src) + ":" + std::to_string(dst) + ":" +
-           std::to_string(label);
-  }
+  std::string EdgeToKey(int src, int dst, label_t label) const;
 
   // Integer-based edge key (no heap allocation, fast hash)
-  inline EdgeKey EdgeToIntKey(const Edge& edge) const {
-    return EdgeKey(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
-  }
+  EdgeKey EdgeToIntKey(const Edge& edge) const;
 
-  inline EdgeKey EdgeToIntKey(int src, int dst, label_t label) const {
-    return EdgeKey(src, dst, label);
-  }
+  EdgeKey EdgeToIntKey(int src, int dst, label_t label) const;
 
   // Configuration flags
   bool build_triangle = false;
@@ -588,43 +226,19 @@ class DataGraphMeta {
 
   // ========== ID Mapping Methods ==========
   // Map (label, vid) to global_id
-  inline int ToGlobalId(label_t label, vid_t vid) const {
-    auto key = std::make_pair(label, vid);
-    auto it = local_to_global_.find(key);
-    return (it != local_to_global_.end()) ? it->second : -1;
-  }
+  int ToGlobalId(label_t label, vid_t vid) const;
 
   // Map global_id back to (label, vid)
-  inline std::pair<label_t, vid_t> ToLocalId(int global_id) const {
-    if (global_id < 0 || global_id >= (int) global_to_local_.size()) {
-      return {255, (vid_t) -1};  // Invalid
-    }
-    return global_to_local_[global_id];
-  }
+  std::pair<label_t, vid_t> ToLocalId(int global_id) const;
 
   // Get vertex label from global_id
-  inline label_t GetVertexLabelFromGlobal(int global_id) const {
-    if (global_id < 0 || global_id >= (int) global_to_local_.size())
-      return 255;
-    return global_to_local_[global_id].first;
-  }
+  label_t GetVertexLabelFromGlobal(int global_id) const;
 
   // Get original vid from global_id
-  inline vid_t GetOriginalVid(int global_id) const {
-    if (global_id < 0 || global_id >= (int) global_to_local_.size())
-      return (vid_t) -1;
-    return global_to_local_[global_id].second;
-  }
+  vid_t GetOriginalVid(int global_id) const;
 
   // Fast ToGlobalId using direct array indexing (no hash map)
-  inline int FastToGlobalId(label_t label, vid_t vid) const {
-    if (label >= (label_t) label_vid_to_global_.size())
-      return -1;
-    const auto& arr = label_vid_to_global_[label];
-    if (vid >= (vid_t) arr.size())
-      return -1;
-    return arr[vid];
-  }
+  int FastToGlobalId(label_t label, vid_t vid) const;
 
  private:
   void BuildIdMapping();
@@ -641,23 +255,12 @@ class DataGraphMeta {
   struct DedupScratch {
     std::vector<bool> seen;
     std::vector<int> reset_list;
-    inline void EnsureSize(int n) {
-      if (static_cast<int>(seen.size()) < n)
-        seen.resize(n, false);
-    }
+    void EnsureSize(int n);
   };
-  static inline DedupScratch& GetDedupScratch() {
-    thread_local DedupScratch scratch;
-    return scratch;
-  }
+  static DedupScratch& GetDedupScratch();
 
-  static inline uint32_t PackLabelPair(label_t a, label_t b) {
-    return (static_cast<uint32_t>(a) << 16) | static_cast<uint32_t>(b);
-  }
-  static inline uint64_t PackViewKey(label_t src, label_t dst, label_t edge) {
-    return (static_cast<uint64_t>(src) << 32) |
-           (static_cast<uint64_t>(dst) << 16) | static_cast<uint64_t>(edge);
-  }
+  static uint32_t PackLabelPair(label_t a, label_t b);
+  static uint64_t PackViewKey(label_t src, label_t dst, label_t edge);
 
   const StorageReadInterface& graph_;
 

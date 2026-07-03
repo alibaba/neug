@@ -3200,5 +3200,599 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
   return func_set;
 }
 
+// --- Definitions moved out of pattern_matching_functions.h (decl/impl split)
+// ---
+
+execution::Context make_single_chunk_context(
+    std::vector<std::shared_ptr<execution::IContextColumn>> columns) {
+  execution::Context ctx;
+  execution::DataChunk chunk;
+  ctx.tag_ids.reserve(columns.size());
+  for (size_t i = 0; i < columns.size(); ++i) {
+    chunk.set(static_cast<int>(i), std::move(columns[i]));
+    ctx.tag_ids.push_back(static_cast<int>(i));
+  }
+  ctx.append_chunk(std::move(chunk));
+  return ctx;
+}
+
+CompType parse_operator(const std::string& op_in) {
+  // Normalize to lowercase so word operators ("IN", "Not_In") are recognized
+  // case-insensitively (Cypher keywords are case-insensitive); symbol
+  // operators ("=", ">=") are unaffected by tolower.
+  std::string op = op_in;
+  std::transform(op.begin(), op.end(), op.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  if (op == "=" || op == "==")
+    return CompType::COMP_EQUAL;
+  if (op == ">")
+    return CompType::COMP_GREATER;
+  if (op == "<")
+    return CompType::COMP_LESS;
+  if (op == ">=")
+    return CompType::COMP_GREATER_EQUAL;
+  if (op == "<=")
+    return CompType::COMP_LESS_EQUAL;
+  if (op == "in")
+    return CompType::COMP_IN;
+  if (op == "not_in")
+    return CompType::COMP_NOT_IN;
+
+  static std::mutex op_warn_mu;
+  static std::unordered_set<std::string> op_warn_seen;
+  bool fresh = false;
+  {
+    std::lock_guard<std::mutex> lk(op_warn_mu);
+    fresh = op_warn_seen.insert(op).second;
+  }
+  if (fresh) {
+    LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Unknown constraint operator '"
+                 << op << "'; falling back to '=' (COMP_EQUAL). "
+                 << "Boolean combinators like 'and'/'or' are not supported — "
+                 << "constraints in an array are AND-combined implicitly.";
+  }
+  return CompType::COMP_EQUAL;
+}
+
+Value create_value_from_rapidjson(const rapidjson::Value& val) {
+  if (val.IsInt()) {
+    return Value::INT32(val.GetInt());
+  } else if (val.IsInt64()) {
+    return Value::INT64(val.GetInt64());
+  } else if (val.IsDouble()) {
+    return Value::DOUBLE(val.GetDouble());
+  } else if (val.IsString()) {
+    return Value::STRING(val.GetString());
+  } else if (val.IsBool()) {
+    return Value::BOOLEAN(val.GetBool());
+  }
+  return Value::INT32(0);
+}
+
+std::vector<PropCons> parse_constraints(
+    const rapidjson::Value& constraints_json) {
+  std::vector<PropCons> constraints;
+  if (!constraints_json.IsArray())
+    return constraints;
+
+  for (rapidjson::SizeType i = 0; i < constraints_json.Size(); i++) {
+    const auto& c = constraints_json[i];
+    // A constraint must be an object; rapidjson's HasMember()/GetString()
+    // assert on the wrong type, so guard before touching any field.
+    if (!c.IsObject())
+      continue;
+    std::string prop_name =
+        (c.HasMember("property") && c["property"].IsString())
+            ? c["property"].GetString()
+            : "";
+    std::string op_str = (c.HasMember("operator") && c["operator"].IsString())
+                             ? c["operator"].GetString()
+                             : "=";
+    CompType op = parse_operator(op_str);
+    // Set-membership ('in'/'not_in') is not implemented: the value path below
+    // only parses scalars (arrays collapse to 0) and every evaluator returns
+    // false for these ops, so accepting them would silently drop all matches.
+    // Reject loudly instead of returning a wrong (empty) result.
+    if (op == CompType::COMP_IN || op == CompType::COMP_NOT_IN) {
+      THROW_EXTENSION_EXCEPTION(
+          std::string("[PATTERN_MATCH] Constraint operator '") + op_str +
+          "' is not supported. Supported operators: =, ==, >, <, >=, <=. "
+          "Set membership ('in'/'not_in') is not implemented.");
+    }
+    Value value = c.HasMember("value") ? create_value_from_rapidjson(c["value"])
+                                       : Value::INT32(0);
+
+    constraints.emplace_back(prop_name, op, std::move(value));
+  }
+  return constraints;
+}
+
+std::string generate_temp_file_path(const std::string& prefix,
+                                    const std::string& extension) {
+  auto now = std::chrono::system_clock::now();
+  auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       now.time_since_epoch())
+                       .count();
+
+  static std::atomic<uint64_t> counter{0};
+  uint64_t seq = counter.fetch_add(1, std::memory_order_relaxed);
+
+  // Each thread keeps its own RNG seeded from random_device + a high-res
+  // clock — random_device alone has been observed to repeat on some libcs
+  // when multiple threads construct one back-to-back.
+  thread_local std::mt19937_64 rng{
+      static_cast<uint64_t>(std::random_device{}()) ^
+      static_cast<uint64_t>(std::chrono::high_resolution_clock::now()
+                                .time_since_epoch()
+                                .count())};
+  uint64_t rand_bits = rng();
+
+  std::ostringstream name;
+  name << prefix << "_" << timestamp << "_" << seq << "_" << std::hex
+       << std::setw(16) << std::setfill('0') << rand_bits << extension;
+
+  std::filesystem::path dir =
+      std::filesystem::temp_directory_path() / "neug_sample";
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) {
+    LOG(ERROR) << "[SAMPLED_PATTERN_MATCH] Failed to create output directory "
+               << dir << ": " << ec.message();
+    return "";
+  }
+  return (dir / name.str()).string();
+}
+
+std::string generate_output_file_path(const std::string& prefix) {
+  return generate_temp_file_path(prefix, ".csv");
+}
+
+std::string trim_copy(std::string_view input) {
+  size_t begin = 0;
+  while (begin < input.size() &&
+         std::isspace(static_cast<unsigned char>(input[begin]))) {
+    begin++;
+  }
+  size_t end = input.size();
+  while (end > begin &&
+         std::isspace(static_cast<unsigned char>(input[end - 1]))) {
+    end--;
+  }
+  return std::string(input.substr(begin, end - begin));
+}
+
+bool read_text_file(const std::string& path, std::string* out) {
+  std::ifstream ifs(path);
+  if (!ifs.is_open())
+    return false;
+  std::ostringstream oss;
+  oss << ifs.rdbuf();
+  *out = oss.str();
+  return true;
+}
+
+bool write_text_file(const std::string& path, const std::string& text) {
+  std::ofstream ofs(path);
+  if (!ofs.is_open())
+    return false;
+  ofs << text;
+  return static_cast<bool>(ofs);
+}
+
+bool looks_like_json_pattern(std::string_view text) {
+  std::string trimmed = trim_copy(text);
+  return !trimmed.empty() && trimmed.front() == '{';
+}
+
+std::string write_pattern_json_temp_file(const std::string& pattern_json) {
+  std::string path =
+      generate_temp_file_path("pattern_matching_pattern", ".json");
+  if (path.empty())
+    return "";
+  if (!write_text_file(path, pattern_json)) {
+    LOG(ERROR) << "[PATTERN_MATCHING] Failed to write pattern JSON file: "
+               << path;
+    return "";
+  }
+  return path;
+}
+
+bool read_json_id(const rapidjson::Value& obj, const char* key, int* out) {
+  if (!obj.HasMember(key))
+    return false;
+  const auto& v = obj[key];
+  if (v.IsInt()) {
+    *out = v.GetInt();
+    return true;
+  }
+  if (v.IsString()) {
+    try {
+      *out = std::stoi(v.GetString());
+      return true;
+    } catch (...) { return false; }
+  }
+  return false;
+}
+
+std::string read_pattern_alias(const rapidjson::Value& obj,
+                               const std::string& fallback_prefix,
+                               int fallback_id) {
+  for (const char* key : {"alias", "variable", "name"}) {
+    if (obj.HasMember(key) && obj[key].IsString() &&
+        obj[key].GetStringLength() > 0) {
+      return obj[key].GetString();
+    }
+  }
+  return fallback_prefix + std::to_string(fallback_id);
+}
+
+std::string make_unique_pattern_alias(
+    const std::string& alias, std::unordered_map<std::string, int>* seen) {
+  auto [it, inserted] = seen->emplace(alias, 0);
+  if (inserted)
+    return alias;
+  int next = ++it->second;
+  return alias + "_" + std::to_string(next);
+}
+
+std::vector<std::string> parse_required_props(const rapidjson::Value& obj) {
+  std::vector<std::string> props;
+  if (!obj.HasMember("required_props") || !obj["required_props"].IsArray()) {
+    return props;
+  }
+  for (const auto& item : obj["required_props"].GetArray()) {
+    if (item.IsString())
+      props.emplace_back(item.GetString());
+  }
+  return props;
+}
+
+bool is_numeric_value(const execution::Value& value, double* out) {
+  if (value.IsNull())
+    return false;
+  try {
+    switch (value.type().id()) {
+    case DataTypeId::kInt8:
+    case DataTypeId::kInt16:
+    case DataTypeId::kUInt8:
+    case DataTypeId::kUInt16:
+      *out = std::stod(value.to_string());
+      return true;
+    case DataTypeId::kInt32:
+      *out = static_cast<double>(value.GetValue<int32_t>());
+      return true;
+    case DataTypeId::kInt64:
+      *out = static_cast<double>(value.GetValue<int64_t>());
+      return true;
+    case DataTypeId::kUInt32:
+      *out = static_cast<double>(value.GetValue<uint32_t>());
+      return true;
+    case DataTypeId::kUInt64:
+      *out = static_cast<double>(value.GetValue<uint64_t>());
+      return true;
+    case DataTypeId::kFloat:
+      *out = static_cast<double>(value.GetValue<float>());
+      return true;
+    case DataTypeId::kDouble:
+      *out = value.GetValue<double>();
+      return true;
+    default:
+      return false;
+    }
+  } catch (...) { return false; }
+}
+
+bool check_vertex_constraints(const StorageReadInterface& graph,
+                              const DataGraphMeta& data_meta, int global_id,
+                              const ExactPatternSpec::VertexSpec& spec) {
+  if (spec.constraints.empty())
+    return true;
+  auto [label, local_vid] = data_meta.ToLocalId(global_id);
+  if (label != spec.label)
+    return false;
+  const auto prop_names = graph.schema().get_vertex_property_names(label);
+  for (const auto& constraint : spec.constraints) {
+    auto it =
+        std::find(prop_names.begin(), prop_names.end(), constraint._prop_name);
+    if (it == prop_names.end())
+      return false;
+    int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+    execution::Value actual =
+        graph.GetVertexProperty(label, local_vid, prop_idx);
+    if (!compare_property_value(actual, constraint._comp_type,
+                                constraint._value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<execution::Value> get_directed_edge_property(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    int src_global, int dst_global, label_t edge_label, int prop_idx) {
+  auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
+  auto [dst_label, dst_vid] = data_meta.ToLocalId(dst_global);
+  try {
+    EdgeDataAccessor accessor =
+        graph.GetEdgeDataAccessor(src_label, dst_label, edge_label, prop_idx);
+    CsrView view =
+        graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label);
+    NbrList edges = view.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (*it == dst_vid)
+        return accessor.get_data(it);
+    }
+  } catch (...) { return std::nullopt; }
+  return std::nullopt;
+}
+
+std::optional<execution::Value> get_vertex_property_by_name(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    int global_id, label_t expected_label, const std::string& prop_name) {
+  auto [label, local_vid] = data_meta.ToLocalId(global_id);
+  if (label != expected_label) {
+    return std::nullopt;
+  }
+  const auto prop_names = graph.schema().get_vertex_property_names(label);
+  auto it = std::find(prop_names.begin(), prop_names.end(), prop_name);
+  if (it == prop_names.end()) {
+    return std::nullopt;
+  }
+  int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+  try {
+    return graph.GetVertexProperty(label, local_vid, prop_idx);
+  } catch (...) { return std::nullopt; }
+}
+
+std::optional<execution::Value> get_edge_property_by_name(
+    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
+    int src_global, int dst_global, label_t edge_label,
+    const std::string& prop_name) {
+  auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
+  auto [dst_label, dst_vid] = data_meta.ToLocalId(dst_global);
+  (void) src_vid;
+  (void) dst_vid;
+  const auto prop_names =
+      graph.schema().get_edge_property_names(src_label, dst_label, edge_label);
+  auto it = std::find(prop_names.begin(), prop_names.end(), prop_name);
+  if (it == prop_names.end()) {
+    return std::nullopt;
+  }
+  int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+  return get_directed_edge_property(graph, data_meta, src_global, dst_global,
+                                    edge_label, prop_idx);
+}
+
+bool check_edge_constraints(const StorageReadInterface& graph,
+                            const DataGraphMeta& data_meta, int src_global,
+                            int dst_global,
+                            const ExactPatternSpec::EdgeSpec& spec) {
+  if (spec.constraints.empty())
+    return true;
+  auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
+  auto [dst_label, dst_vid] = data_meta.ToLocalId(dst_global);
+  (void) src_vid;
+  (void) dst_vid;
+  const auto prop_names =
+      graph.schema().get_edge_property_names(src_label, dst_label, spec.label);
+  for (const auto& constraint : spec.constraints) {
+    auto it =
+        std::find(prop_names.begin(), prop_names.end(), constraint._prop_name);
+    if (it == prop_names.end())
+      return false;
+    int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
+    auto actual = get_directed_edge_property(graph, data_meta, src_global,
+                                             dst_global, spec.label, prop_idx);
+    if (!actual.has_value() ||
+        !compare_property_value(*actual, constraint._comp_type,
+                                constraint._value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool find_directed_edge_data_ptr(const StorageReadInterface& graph,
+                                 const DataGraphMeta& data_meta, int src_global,
+                                 int dst_global, label_t edge_label,
+                                 const void** data_ptr) {
+  if (data_ptr != nullptr) {
+    *data_ptr = nullptr;
+  }
+  auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
+  auto [dst_label, dst_vid] = data_meta.ToLocalId(dst_global);
+  if (src_label == static_cast<label_t>(255) ||
+      dst_label == static_cast<label_t>(255)) {
+    return false;
+  }
+  try {
+    CsrView view =
+        graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label);
+    NbrList edges = view.get_edges(src_vid);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (*it == dst_vid) {
+        if (data_ptr != nullptr) {
+          *data_ptr = it.get_data_ptr();
+        }
+        return true;
+      }
+    }
+  } catch (...) { return false; }
+  return false;
+}
+
+execution::Context make_native_pattern_context(
+    std::vector<NativePatternColumnBuilder>& builders) {
+  std::vector<std::shared_ptr<execution::IContextColumn>> columns;
+  columns.reserve(builders.size());
+  for (auto& builder : builders) {
+    if (builder.column.kind == PatternOutputKind::kVertex) {
+      columns.push_back(builder.vertex_builder->finish());
+    } else {
+      columns.push_back(builder.edge_builder->finish());
+    }
+  }
+  return make_single_chunk_context(std::move(columns));
+}
+
+// --- Class method definitions moved out of the header (decl/impl split) ---
+
+GraphDataCache::CachedData& GraphDataCache::get_or_create(
+    const StorageReadInterface& graph) {
+  const void* key = key_of(graph);
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  auto it = cache_.find(key);
+  if (it == cache_.end()) {
+    auto& data = cache_[key];
+    data.data_meta = std::make_unique<DataGraphMeta>(graph);
+    data.schema_graph = std::make_shared<std::unordered_map<
+        label_t, std::unordered_map<label_t, std::vector<label_t>>>>();
+    data.preprocessed = false;
+  }
+  return cache_[key];
+}
+
+bool GraphDataCache::has_cache(const StorageReadInterface& graph) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = cache_.find(key_of(graph));
+  return it != cache_.end() && it->second.preprocessed;
+}
+
+label_t SampledSubgraphMatcher::get_pattern_vertex_label(
+    int pattern_vertex_idx) const {
+  if (!pattern_graph_ || pattern_vertex_idx < 0 ||
+      pattern_vertex_idx >= pattern_graph_->GetNumVertices()) {
+    return 0;
+  }
+  return pattern_graph_->vertex_label[pattern_vertex_idx];
+}
+
+label_t SampledSubgraphMatcher::get_pattern_edge_label(
+    int pattern_edge_idx) const {
+  if (!pattern_graph_ || pattern_edge_idx < 0 ||
+      pattern_edge_idx >= pattern_graph_->GetNumEdges()) {
+    return 0;
+  }
+  return pattern_graph_->edge_label[pattern_edge_idx];
+}
+
+std::string SampledSubgraphMatcher::get_pattern_vertex_label_name(
+    int pattern_vertex_idx) const {
+  label_t label = get_pattern_vertex_label(pattern_vertex_idx);
+  const auto& schema = graph_.schema();
+  if (schema.is_vertex_label_valid(label)) {
+    return schema.get_vertex_label_name(label);
+  }
+  return std::to_string(label);
+}
+
+std::string SampledSubgraphMatcher::get_pattern_edge_label_name(
+    int pattern_edge_idx) const {
+  label_t label = get_pattern_edge_label(pattern_edge_idx);
+  const auto& schema = graph_.schema();
+  if (schema.is_edge_label_valid(label)) {
+    return schema.get_edge_label_name(label);
+  }
+  return std::to_string(label);
+}
+
+std::vector<std::tuple<int, int, label_t>>
+SampledSubgraphMatcher::get_pattern_edge_list() const {
+  std::vector<std::tuple<int, int, label_t>> result;
+  if (!pattern_graph_)
+    return result;
+  for (int i = 0; i < pattern_graph_->GetNumEdges(); i++) {
+    auto& [src, dst] = pattern_graph_->edge_list[i];
+    label_t label = pattern_graph_->edge_label[i];
+    result.emplace_back(src, dst, label);
+  }
+  return result;
+}
+
+std::string SampledSubgraphMatcher::get_pattern_vertex_alias(
+    int pattern_vertex_idx) const {
+  if (pattern_vertex_idx < 0 ||
+      pattern_vertex_idx >= static_cast<int>(vertex_aliases_.size())) {
+    return "v" + std::to_string(pattern_vertex_idx);
+  }
+  return vertex_aliases_[pattern_vertex_idx];
+}
+
+std::string SampledSubgraphMatcher::get_pattern_edge_alias(
+    int pattern_edge_idx) const {
+  if (pattern_edge_idx < 0 ||
+      pattern_edge_idx >= static_cast<int>(edge_aliases_.size())) {
+    return "e" + std::to_string(pattern_edge_idx);
+  }
+  return edge_aliases_[pattern_edge_idx].alias;
+}
+
+std::string SampledSubgraphMatcher::get_sampled_edge_key(
+    int sample_idx, int pattern_edge_idx) const {
+  if (!pattern_graph_ || sample_idx < 0 || pattern_edge_idx < 0)
+    return "";
+  int pattern_vertex_count = pattern_graph_->GetNumVertices();
+  int pattern_edge_count = pattern_graph_->GetNumEdges();
+  if (pattern_edge_idx >= pattern_edge_count)
+    return "";
+  if (sample_idx * pattern_vertex_count >= (int) sampled_results_.size())
+    return "";
+
+  auto& [src_pattern, dst_pattern] =
+      pattern_graph_->edge_list[pattern_edge_idx];
+  label_t edge_label = pattern_graph_->edge_label[pattern_edge_idx];
+
+  int src_global =
+      sampled_results_[sample_idx * pattern_vertex_count + src_pattern];
+  int dst_global =
+      sampled_results_[sample_idx * pattern_vertex_count + dst_pattern];
+
+  return std::to_string(src_global) + ":" + std::to_string(dst_global) + ":" +
+         std::to_string(edge_label);
+}
+
+std::string SampledSubgraphMatcher::data_type_id_to_string(DataTypeId type) {
+  switch (type) {
+  case DataTypeId::kInt8:
+    return "int8";
+  case DataTypeId::kInt16:
+    return "int16";
+  case DataTypeId::kInt32:
+    return "int32";
+  case DataTypeId::kUInt32:
+    return "uint32";
+  case DataTypeId::kInt64:
+    return "int64";
+  case DataTypeId::kUInt64:
+    return "uint64";
+  case DataTypeId::kFloat:
+    return "float";
+  case DataTypeId::kDouble:
+    return "double";
+  case DataTypeId::kBoolean:
+    return "boolean";
+  case DataTypeId::kVarchar:
+    return "string";
+  default:
+    return "string";
+  }
+}
+
+std::unique_ptr<
+    neug::pattern_matching::graphlib::SubgraphMatching::PatternGraph>
+SampledSubgraphMatcher::create_pattern_from_json_file(
+    const std::string& pattern_file) {
+  std::ifstream fin(pattern_file);
+  if (!fin.is_open()) {
+    LOG(WARNING) << "[SAMPLED_PATTERN_MATCH] Cannot open pattern file: "
+                 << pattern_file;
+    return nullptr;
+  }
+  std::stringstream buffer;
+  buffer << fin.rdbuf();
+  return create_pattern_from_json_text(buffer.str(), pattern_file);
+}
+
 }  // namespace pattern_matching
 }  // namespace neug

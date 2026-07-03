@@ -62,60 +62,10 @@ class FaSTestCardinalityEstimation {
 
  public:
   FaSTestCardinalityEstimation(const neug::StorageReadInterface& graph,
-                               DataGraphMeta& data_meta, CardEstOption opt)
-      : graph_(graph), data_meta_(data_meta), opt_(opt) {
-    CS = new CandidateSpace(graph_, data_meta_, opt);
-    TS = new CandidateTreeSampler(graph_, data_meta_, opt);
-    GS = new CandidateGraphSampler(graph_, data_meta_, opt);
-    result.clear();
-  };
+                               DataGraphMeta& data_meta, CardEstOption opt);
   dict GetResult() { return result; }
   std::vector<int> GetSampledResult() { return sampled_result; }
-  double EstimateEmbeddings(PatternGraph* query, int sample_size) {
-    result.clear();
-    query_ = query;
-    if (!CS->BuildCS(query_))
-      return 0;
-    for (auto& [key, value] : CS->GetCSInfo()) {
-      result[key] = value;
-    }
-    TS->Preprocess(query, CS);
-    TS->ClearSampledResult();
-
-    VLOG(1) << "[FaSTest] Tree sampler preprocess done.";
-    auto ts_result = TS->Estimate(sample_size);
-    VLOG(1) << "[FaSTest] Tree sampler estimate done.";
-    for (auto& [key, value] : TS->GetInfo()) {
-      result[key] = value;
-    }
-    double est = ts_result.first;
-
-    if (ts_result.second <= 10 || est < 0) {
-      GS->ClearSampledResult();
-      GS->Preprocess(query, CS);
-      VLOG(1) << "[FaSTest] Graph sampler preprocess done.";
-      // est = GS->Estimate(ceil((double)(opt_.ub_initial *
-      // query_->GetNumVertices()) / sqrt(ts_result.second + 1)));
-      int ub = std::max(
-          sample_size,
-          (int) ceil((double) (opt_.ub_initial * query_->GetNumVertices()) /
-                     sqrt(ts_result.second + 1)));
-      est = GS->Estimate(ub, sample_size);
-
-      for (auto& [key, value] : GS->GetInfo()) {
-        result[key] = value;
-      }
-      sampled_result = GS->GetSampledResult();
-    } else {
-      sampled_result = TS->GetSampledResult();
-    }
-
-    // Ensure estimation is never negative (handles NaN/overflow edge cases)
-    if (est < 0 || std::isnan(est) || std::isinf(est)) {
-      est = 0.0;
-    }
-    return est;
-  };
+  double EstimateEmbeddings(PatternGraph* query, int sample_size);
 };
 }  // namespace CardinalityEstimation
 }  // namespace graphlib
