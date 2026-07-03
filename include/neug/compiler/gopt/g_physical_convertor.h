@@ -16,13 +16,13 @@
 #pragma once
 
 #include <memory>
+#include "neug/compiler/common/enums/explain_type.h"
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/gopt/g_query_converter.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/compiler/common/enums/explain_type.h"
 
 namespace neug {
 namespace gopt {
@@ -41,8 +41,7 @@ class GPhysicalConvertor {
   }
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
-      const planner::LogicalPlan& plan, 
-      common::ExplainType explainMode,
+      const planner::LogicalPlan& plan, common::ExplainType explainMode,
       bool skipSink = false) {
     GPhysicalAnalyzer analyzer(catalog);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
@@ -50,7 +49,8 @@ class GPhysicalConvertor {
     skipSink |= ddlClause(plan.getLastOperator());
     auto queryPlan = convertQuery(plan, skipSink);
     queryPlan->set_allocated_flag(flagPB.release());
-    // Only set explain_mode if it's not NONE to avoid serializing default values
+    // Only set explain_mode if it's not NONE to avoid serializing default
+    // values
     if (explainMode != common::ExplainType::NONE) {
       queryPlan->set_explain_mode(toProtoExplainMode(explainMode));
     }
@@ -87,8 +87,7 @@ class GPhysicalConvertor {
            op->getOperatorType() == planner::LogicalOperatorType::DROP;
   }
 
-  ::physical::ExplainMode toProtoExplainMode(
-      common::ExplainType mode) const {
+  ::physical::ExplainMode toProtoExplainMode(common::ExplainType mode) const {
     switch (mode) {
     case common::ExplainType::PROFILE:
       return ::physical::ExplainMode::PROFILE;

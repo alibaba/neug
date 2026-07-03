@@ -23,8 +23,8 @@
 #pragma once
 
 #include "kuzu_fwd.h"
-#include "neug/utils/api.h"
 #include "neug/compiler/common/enums/explain_type.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace main {
