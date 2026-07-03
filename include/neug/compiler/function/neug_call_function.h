@@ -48,19 +48,8 @@ using call_output_columns =
 
 using call_input_types = std::vector<common::DataType>;
 
-namespace detail {
-inline std::vector<common::DataTypeId> toParameterTypeIDs(
-    const call_input_types& inputTypes) {
-  std::vector<common::DataTypeId> ids;
-  ids.reserve(inputTypes.size());
-  for (const auto& type : inputTypes) {
-    ids.push_back(type.id());
-  }
-  return ids;
-}
-}  // namespace detail
-
 struct NeugCallFunction : public TableFunction {
+  call_input_types parameterTypes;
   call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
@@ -68,17 +57,40 @@ struct NeugCallFunction : public TableFunction {
   NeugCallFunction() = default;
 
   NeugCallFunction(std::string name, call_input_types inputTypes)
-      : TableFunction{std::move(name), detail::toParameterTypeIDs(inputTypes)} {}
+      : TableFunction{std::move(name), toParameterTypeIDs(inputTypes)},
+        parameterTypes{std::move(inputTypes)} {}
   NeugCallFunction(std::string name, call_input_types inputTypes,
                    call_output_columns outputColumns)
-      : TableFunction{std::move(name), detail::toParameterTypeIDs(inputTypes)},
+      : TableFunction{std::move(name), toParameterTypeIDs(inputTypes)},
+        parameterTypes{std::move(inputTypes)},
         outputColumns{std::move(outputColumns)} {}
   NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
-      : TableFunction{std::move(name), std::move(inputTypes)} {}
+      : NeugCallFunction{std::move(name), toParameterTypes(inputTypes)} {}
   NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
                    call_output_columns outputColumns)
-      : TableFunction{std::move(name), std::move(inputTypes)},
-        outputColumns{std::move(outputColumns)} {}
+      : NeugCallFunction{std::move(name), toParameterTypes(inputTypes),
+                         std::move(outputColumns)} {}
+
+ private:
+  static std::vector<common::DataTypeId> toParameterTypeIDs(
+      const call_input_types& inputTypes) {
+    std::vector<common::DataTypeId> ids;
+    ids.reserve(inputTypes.size());
+    for (const auto& type : inputTypes) {
+      ids.push_back(type.id());
+    }
+    return ids;
+  }
+
+  static call_input_types toParameterTypes(
+      const std::vector<common::DataTypeId>& inputTypes) {
+    call_input_types types;
+    types.reserve(inputTypes.size());
+    for (auto id : inputTypes) {
+      types.emplace_back(id);
+    }
+    return types;
+  }
 };
 
 }  // namespace function
