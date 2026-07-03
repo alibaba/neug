@@ -33,7 +33,7 @@ class TestShowExtensionsFunction : public function::NeugCallFunction {
  public:
   TestShowExtensionsFunction()
       : NeugCallFunction(
-            "TEST_SHOW_LOADED_EXTENSIONS", {},
+            "TEST_SHOW_LOADED_EXTENSIONS", function::call_input_types{},
             {{"name", ::neug::DataType(::neug::DataTypeId::kVarchar)},
              {"description", ::neug::DataType(::neug::DataTypeId::kVarchar)},
              {"path", ::neug::DataType(::neug::DataTypeId::kVarchar)}}) {}

@@ -61,12 +61,6 @@ struct NeugCallFunction : public TableFunction {
                    call_output_columns outputColumns)
       : TableFunction{std::move(name), std::move(inputTypes)},
         outputColumns{std::move(outputColumns)} {}
-  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
-      : TableFunction{std::move(name), std::move(inputTypes)} {}
-  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
-                   call_output_columns outputColumns)
-      : TableFunction{std::move(name), std::move(inputTypes)},
-        outputColumns{std::move(outputColumns)} {}
 };
 
 }  // namespace function
