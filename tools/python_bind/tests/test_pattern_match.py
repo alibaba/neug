@@ -198,9 +198,3 @@ def test_yield_hidden_variable_not_in_scope(conn):
     """A variable not listed in YIELD is hidden from the trailing RETURN."""
     with pytest.raises(RuntimeError):
         conn.execute(f"CALL PATTERN_MATCH('{PATTERN}') YIELD a RETURN b.name;")
-
-
-if __name__ == "__main__":
-    # Allow running directly (`python3 test_pattern_match.py`) in addition to
-    # the usual `python3 -m pytest tests/test_pattern_match.py`.
-    sys.exit(pytest.main([__file__, "-v"]))
