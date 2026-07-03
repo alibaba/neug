@@ -2036,11 +2036,11 @@ void GQueryConvertor::convertCrossProduct(
   // convert left plan
   planner::LogicalPlan leftPlan;
   leftPlan.setLastOperator(cross.getChild(0));
-  auto leftPB = convertor.convert(leftPlan, common::ExplainType::NONE, true);
+  auto leftPB = convertor.convert(leftPlan, true);
   // convert right plan
   planner::LogicalPlan rightPlan;
   rightPlan.setLastOperator(cross.getChild(1));
-  auto rightPB = convertor.convert(rightPlan, common::ExplainType::NONE, true);
+  auto rightPB = convertor.convert(rightPlan, true);
   // set join PB
   joinPB->set_allocated_left_plan(leftPB.release());
   joinPB->set_allocated_right_plan(rightPB.release());
@@ -2097,14 +2097,14 @@ void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
   } else {
     planner::LogicalPlan leftPlan;
     leftPlan.setLastOperator(leftOp);
-    auto leftPB = convertor.convert(leftPlan, common::ExplainType::NONE, true);
+    auto leftPB = convertor.convert(leftPlan, true);
     joinPB->set_allocated_left_plan(leftPB.release());
   }
   // convert right plan
   planner::LogicalPlan rightPlan;
   auto rightOp = join.getChild(1);
   rightPlan.setLastOperator(rightOp);
-  auto rightPB = convertor.convert(rightPlan, common::ExplainType::NONE, true);
+  auto rightPB = convertor.convert(rightPlan, true);
   // set join PB
   joinPB->set_allocated_right_plan(rightPB.release());
   // set join kind

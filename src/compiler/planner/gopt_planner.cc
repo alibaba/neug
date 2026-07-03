@@ -53,8 +53,8 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     neug::gopt::GPhysicalConvertor converter(aliasManager,
                                              database->getCatalog());
     auto physicalPlan =
-        converter.convert(*statement->logicalPlan, statement->getExplainMode(),
-                          false);  // skipSink
+        converter.convert(*statement->logicalPlan, false,
+                          statement->getExplainMode());
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
 

@@ -63,7 +63,7 @@ class ExplainTest : public GOptTest {
       common::ExplainType explainMode) {
     auto aliasManager = std::make_shared<gopt::GAliasManager>(logicalPlan);
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
-    return converter.convert(logicalPlan, explainMode, false);
+    return converter.convert(logicalPlan, false, explainMode);
   }
 };
 

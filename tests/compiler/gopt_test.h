@@ -226,7 +226,7 @@ class GOptTest : public ::testing::Test {
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
     auto physicalPlan =
-        converter.convert(plan, common::ExplainType::NONE, false);
+        converter.convert(plan);
     return physicalPlan;
   }
 
@@ -236,7 +236,7 @@ class GOptTest : public ::testing::Test {
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
     auto physicalPlan =
-        converter.convert(plan, common::ExplainType::NONE, false);
+        converter.convert(plan);
     return physicalPlan;
   }
 

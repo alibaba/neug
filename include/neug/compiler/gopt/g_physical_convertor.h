@@ -41,8 +41,9 @@ class GPhysicalConvertor {
   }
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
-      const planner::LogicalPlan& plan, common::ExplainType explainMode,
-      bool skipSink = false) {
+      const planner::LogicalPlan& plan,
+      bool skipSink = false,
+      common::ExplainType explainNode = common::ExplainType::NONE) {
     GPhysicalAnalyzer analyzer(catalog);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
     skipSink |= updateClause(plan.getLastOperator());
@@ -51,8 +52,8 @@ class GPhysicalConvertor {
     queryPlan->set_allocated_flag(flagPB.release());
     // Only set explain_mode if it's not NONE to avoid serializing default
     // values
-    if (explainMode != common::ExplainType::NONE) {
-      queryPlan->set_explain_mode(toProtoExplainMode(explainMode));
+    if (explainNode != common::ExplainType::NONE) {
+      queryPlan->set_explain_mode(toProtoExplainMode(explainNode));
     }
     return queryPlan;
   }
