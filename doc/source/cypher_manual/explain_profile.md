@@ -9,11 +9,10 @@ The EXPLAIN clause allows you to inspect the execution plan of a query without a
 ### Syntax
 
 ```cypher
-EXPLAIN [LOGICAL | PHYSICAL] <query>
+EXPLAIN <query>
 ```
 
-- **PHYSICAL** (default): Display the physical execution plan that will actually be executed
-- **LOGICAL**: Display the logical execution plan before physical optimization
+Displays the physical execution plan that will actually be executed.
 
 ### EXPLAIN PHYSICAL
 
@@ -32,24 +31,6 @@ RETURN p.name, f.name;
 - Filter operations and conditions
 - Join strategies and ordering
 - Projection operations
-
-### EXPLAIN LOGICAL
-
-Displays the logical execution plan before physical optimization, useful for understanding the semantic structure of your query.
-
-#### Example
-
-```cypher
-EXPLAIN LOGICAL MATCH (p:Person)-[:KNOWS]->(f:Person)
-WHERE p.age > 30
-RETURN p.name, f.name;
-```
-
-**Output:** The logical plan representation showing:
-- Pattern matching structure
-- Filter conditions
-- Aggregations (if any)
-- Output projections
 
 ## PROFILE
 
