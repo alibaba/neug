@@ -142,6 +142,18 @@ struct ScalarOrAggregateFunction : Function {
 
   ScalarOrAggregateFunction() : Function{} {}
   ScalarOrAggregateFunction(std::string name,
+                            std::vector<common::DataType> parameterTypes,
+                            common::DataTypeId returnTypeID)
+      : Function{std::move(name), std::move(parameterTypes)},
+        returnTypeID{returnTypeID} {}
+  ScalarOrAggregateFunction(std::string name,
+                            std::vector<common::DataType> parameterTypes,
+                            common::DataTypeId returnTypeID,
+                            scalar_bind_func bindFunc)
+      : Function{std::move(name), std::move(parameterTypes)},
+        returnTypeID{returnTypeID},
+        bindFunc{std::move(bindFunc)} {}
+  ScalarOrAggregateFunction(std::string name,
                             std::vector<common::DataTypeId> parameterTypeIDs,
                             common::DataTypeId returnTypeID)
       : Function{std::move(name), std::move(parameterTypeIDs)},

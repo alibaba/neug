@@ -81,7 +81,8 @@ using write_exec_func_t = std::function<execution::Context(
     const StorageReadInterface& graph)>;
 
 struct NEUG_API ExportFunction : public Function {
-  explicit ExportFunction(std::string name) : Function{std::move(name), {}} {}
+  explicit ExportFunction(std::string name)
+      : Function{std::move(name), std::vector<common::DataType>{}} {}
 
   export_bind_t bind;
   write_exec_func_t execFunc;
