@@ -28,9 +28,9 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowLoadedExtensionsFunction::name,
       std::vector<neug::common::DataTypeId>{},
-      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
-          {"name", neug::common::DataTypeId::kVarchar},
-          {"description", common::DataTypeId::kVarchar}});
+      std::vector<std::pair<std::string, neug::common::DataType>>{
+          {"name", neug::common::DataType(neug::common::DataTypeId::kVarchar)},
+          {"description", common::DataType(common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,

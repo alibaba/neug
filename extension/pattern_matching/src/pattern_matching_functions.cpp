@@ -2377,11 +2377,11 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
   function::function_set func_set;
 
   function::call_output_columns output_cols{
-      {"status", common::DataTypeId::kVarchar},
-      {"num_vertices", common::DataTypeId::kInt64},
-      {"num_edges", common::DataTypeId::kInt64},
-      {"max_degree", common::DataTypeId::kInt64},
-      {"degeneracy", common::DataTypeId::kInt64}};
+      {"status", common::DataType(common::DataTypeId::kVarchar)},
+      {"num_vertices", common::DataType(common::DataTypeId::kInt64)},
+      {"num_edges", common::DataType(common::DataTypeId::kInt64)},
+      {"max_degree", common::DataType(common::DataTypeId::kInt64)},
+      {"degeneracy", common::DataType(common::DataTypeId::kInt64)}};
 
   // Overload 1: CALL INITIALIZE() — no checkpoint
   {
@@ -2524,8 +2524,8 @@ function::function_set SaveSampledmatchCheckpointFunction::getFunctionSet() {
   function::function_set func_set;
 
   function::call_output_columns output_cols{
-      {"status", common::DataTypeId::kVarchar},
-      {"checkpoint_dir", common::DataTypeId::kVarchar}};
+      {"status", common::DataType(common::DataTypeId::kVarchar)},
+      {"checkpoint_dir", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
       name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
@@ -2780,7 +2780,7 @@ function::function_set GetVertexPropertyFunction::getFunctionSet() {
 
   // Output schema: single string column carrying the generated file path.
   function::call_output_columns output_cols{
-      {"result_file", common::DataTypeId::kVarchar}};
+      {"result_file", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
       name,
@@ -2964,7 +2964,7 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
 
   // Output schema: single string column carrying the generated file path.
   function::call_output_columns output_cols{
-      {"result_file", common::DataTypeId::kVarchar}};
+      {"result_file", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
       name,

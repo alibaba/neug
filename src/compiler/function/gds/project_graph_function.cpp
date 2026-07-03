@@ -264,8 +264,8 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowProjectedGraphsFunction::name,
       std::vector<neug::common::DataTypeId>{},
-      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
-          {"name", neug::common::DataTypeId::kVarchar}});
+      std::vector<std::pair<std::string, neug::common::DataType>>{
+          {"name", neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -304,9 +304,9 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ProjectedGraphInfoFunction::name,
       std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
-      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
-          {"label", neug::common::DataTypeId::kVarchar},
-          {"predicate", neug::common::DataTypeId::kVarchar}});
+      std::vector<std::pair<std::string, neug::common::DataType>>{
+          {"label", neug::common::DataType(neug::common::DataTypeId::kVarchar)},
+          {"predicate", neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,

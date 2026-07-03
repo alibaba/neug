@@ -130,12 +130,13 @@ execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set BFSFunction::getFunctionSet() {
   function::function_set funcSet;
-  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
-                                                common::DataTypeId::kUnknown};
+  function::call_input_types inputTypes = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   function::call_output_columns outputColumns = {
-      {"node", common::DataTypeId::kVertex},
-      {"distance", common::DataTypeId::kInt64},
-      {"path", common::DataTypeId::kPath}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"distance", common::DataType(common::DataTypeId::kInt64)},
+      {"path", common::DataType(common::DataTypeId::kPath)}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
