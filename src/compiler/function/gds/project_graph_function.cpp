@@ -265,7 +265,8 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
       ShowProjectedGraphsFunction::name,
       std::vector<neug::common::DataTypeId>{},
       std::vector<std::pair<std::string, neug::common::DataType>>{
-          {"name", neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
+          {"name",
+           neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -306,7 +307,8 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
       std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
       std::vector<std::pair<std::string, neug::common::DataType>>{
           {"label", neug::common::DataType(neug::common::DataTypeId::kVarchar)},
-          {"predicate", neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
+          {"predicate",
+           neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
