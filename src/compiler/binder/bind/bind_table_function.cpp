@@ -102,7 +102,7 @@ BoundTableScanInfo Binder::bindTableFunc(
   std::vector<common::DataType> inputTypes;
   inputTypes.reserve(signatureParamTypes.size());
   for (const auto& type : signatureParamTypes) {
-    inputTypes.push_back(type);
+    inputTypes.push_back(type.copy());
   }
   for (auto i = 0u; i < positionalParams.size(); ++i) {
     auto parameterTypeID = signatureParamTypes[i].id();
