@@ -56,21 +56,37 @@ function(build_brpc_as_third_party)
     endif()
 
     add_subdirectory(third_party/brpc)
-    
+
+    # Probe and collect warning suppression flags for brpc targets.
+    # Apple Clang 21.0+ marks __is_trivially_relocatable as deprecated; brpc
+    # sources include protobuf headers which pull in abseil-cpp headers using
+    # that builtin.  Suppress the warning to avoid -Werror failures.
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-Wno-deprecated-builtins" BRPC_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+
+    set(_brpc_warning_flags -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+    if(BRPC_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+        list(APPEND _brpc_warning_flags -Wno-deprecated-builtins)
+    endif()
+
     # Apply warning suppression flags to brpc targets
     if (TARGET brpc-static)
-        target_compile_options(brpc-static PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+        target_compile_options(brpc-static PRIVATE ${_brpc_warning_flags})
     endif()
     if (TARGET SOURCES_LIB)
-        target_compile_options(SOURCES_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+        target_compile_options(SOURCES_LIB PRIVATE ${_brpc_warning_flags})
     endif()
     if (TARGET BUTIL_LIB)
         message(STATUS "Applying warning suppression flags to BUTIL_LIB")
-        target_compile_options(BUTIL_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+        target_compile_options(BUTIL_LIB PRIVATE ${_brpc_warning_flags})
     endif()
     if (TARGET PROTO_LIB)
         message(STATUS "Applying warning suppression flags to PROTO_LIB")
-        target_compile_options(PROTO_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+        target_compile_options(PROTO_LIB PRIVATE ${_brpc_warning_flags})
+    endif()
+    if (TARGET protoc-gen-mcpack)
+        message(STATUS "Applying warning suppression flags to protoc-gen-mcpack")
+        target_compile_options(protoc-gen-mcpack PRIVATE ${_brpc_warning_flags})
     endif()
     
     set(BRPC_LIB brpc-static PARENT_SCOPE)

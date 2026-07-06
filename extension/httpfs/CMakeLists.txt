@@ -37,6 +37,13 @@ if(CURL_STATIC_LIB)
         ZLIB::ZLIB
         pthread
         dl)
+    # On macOS, a static libcurl references network proxy APIs such as
+    # SCDynamicStoreCopyProxies from SystemConfiguration.framework.
+    if(APPLE)
+        find_library(SYSTEMCONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
+        message(STATUS "httpfs: linking SystemConfiguration.framework for static cURL")
+        list(APPEND CURL_LIBRARIES ${SYSTEMCONFIGURATION_FRAMEWORK})
+    endif()
 else()
     message(STATUS "httpfs: static libcurl.a not found, falling back to shared cURL")
     find_package(CURL REQUIRED)

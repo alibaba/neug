@@ -2195,8 +2195,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = false;
-  config.compact_on_close = false;
-  config.checkpoint_after_recovery = true;
+  config.checkpoint_on_recovery = true;
   {
     neug::NeugDB db;
     db.Open(config);

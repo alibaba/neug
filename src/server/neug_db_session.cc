@@ -219,8 +219,7 @@ int NeugDBSession::SessionId() const { return thread_id_; }
 neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
   neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
   return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
-                                  *version_manager_, db_config_.compact_csr,
-                                  db_config_.csr_reserve_ratio, ts);
+                                  *version_manager_, ts);
 }
 
 double NeugDBSession::eval_duration() const {
