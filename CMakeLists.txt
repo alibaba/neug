@@ -438,8 +438,15 @@ function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${OPENSSL_LIBRARIES} 
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    # The bundled googletest (v1.13.0, fetched into _deps) must beat any
+    # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
+    # tests compile against newer gtest headers but link the bundled library,
+    # producing undefined MakeAndRegisterTestInfo symbols at link time.
+    target_include_directories(${TEST_NAME} BEFORE PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
         target_link_options(${TEST_NAME} PRIVATE --coverage)
@@ -963,14 +970,27 @@ install(EXPORT neug-targets
 	    NAMESPACE neug::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
+# Cover the same dirs and .h/.cc/.cpp extensions as the CI format gate
+# (.github/workflows/format-check.yml), which neug_clformat is advertised to
+# fix. NOTE: the excludes applied below (generated/.pb/third_party/etc.) are
+# broader than CI's find (which only skips *pb.h/*pb.cc), so a non-generated
+# source under an excluded path is checked by CI but not formatted here.
 file(GLOB_RECURSE FILES_NEED_FORMAT
         "include/**/*.h"
+        "include/**/*.cc"
+        "include/**/*.cpp"
         "src/**/*.h"
         "src/**/*.cc"
+        "src/**/*.cpp"
         "tests/**/*.h"
         "tests/**/*.cc"
+        "tests/**/*.cpp"
         "tools/**/*.h"
-        "tools/**/*.cc")
+        "tools/**/*.cc"
+        "tools/**/*.cpp"
+        "extension/**/*.h"
+        "extension/**/*.cc"
+        "extension/**/*.cpp")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/third_party/.*")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")

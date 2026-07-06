@@ -14,7 +14,6 @@
  */
 
 #include "neug/execution/expression/exprs/variable.h"
-#include "glog/logging.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/execution/expression/accessors/edge_accessor.h"
@@ -99,58 +98,6 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
                                   ddt.DebugString());
     break;
   }
-  return DataType(DataTypeId::kUnknown);
-}
-
-DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
-  switch (dt.type_case()) {
-  case ::common::IrDataType::TypeCase::kDataType: {
-    const ::common::DataType ddt = dt.data_type();
-    return parse_from_data_type(ddt);
-  }
-  case ::common::IrDataType::TypeCase::kGraphType: {
-    const ::common::GraphDataType gdt = dt.graph_type();
-    switch (gdt.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return DataType(DataTypeId::kVertex);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return DataType(DataTypeId::kEdge);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_PATH:
-      return DataType(DataTypeId::kPath);
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
-                                    gdt.DebugString());
-      break;
-    }
-  } break;
-  case ::common::IrDataType::TypeCase::kListType: {
-    const auto& element_type = dt.list_type().component_type();
-    switch (element_type.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return DataType(DataTypeId::kList, std::make_shared<ListTypeInfo>(
-                                             DataType(DataTypeId::kVertex)));
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return DataType(DataTypeId::kList, std::make_shared<ListTypeInfo>(
-                                             DataType(DataTypeId::kEdge)));
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_PATH:
-      return DataType(DataTypeId::kList, std::make_shared<ListTypeInfo>(
-                                             DataType(DataTypeId::kPath)));
-
-    default:
-      break;
-    }
-  }
-
-  default:
-    break;
-  }
-  LOG(ERROR) << "unrecognized ir data type - " << dt.DebugString();
   return DataType(DataTypeId::kUnknown);
 }
 

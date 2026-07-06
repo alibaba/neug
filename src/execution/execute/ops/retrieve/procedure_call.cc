@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/retrieve/procedure_call.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/execution/expression/exprs/variable.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -55,6 +56,16 @@ neug::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto callFunc = func->ptrCast<function::NeugCallFunction>();
   ContextMeta ret_meta = ctx_meta;
+
+  // Publish the procedure's output columns into the context meta so that
+  // downstream operators (projection, order by, filter, ...) can resolve the
+  // produced variables and their property accesses. The alias id and type of
+  // each output column are carried in the operator's meta_data, populated by
+  // the planner's setMetaData().
+  for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
+    const auto& meta = plan.plan(op_idx).meta_data(i);
+    ret_meta.set(meta.alias(), parse_from_ir_data_type(meta.type()));
+  }
 
   return std::make_pair(
       std::make_unique<ProcedureCallOpr>(

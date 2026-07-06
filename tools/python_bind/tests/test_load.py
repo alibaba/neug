@@ -2251,3 +2251,39 @@ class TestCopyFrom:
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
         count = next(res)[0]
         assert count == 1, f"Expected 1 edge, got {count}"
+
+    def test_auto_detect_only_from_raises(self):
+        """Auto-detect COPY FROM with only 'from' (no 'to') must raise."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,Alice\n2,Bob\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("src,dst,weight\n1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+
+        with pytest.raises(Exception, match="Both.*from.*to"):
+            self.conn.execute(
+                f'COPY NewEdge FROM "{csv_edge}" '
+                f'(HEADER=true, delim=",", from="Person")'
+            )
+
+    def test_auto_detect_only_to_raises(self):
+        """Auto-detect COPY FROM with only 'to' (no 'from') must raise."""
+        csv_node = self.tmp_path / "nodes.csv"
+        csv_node.write_text("id,name\n1,Alice\n2,Bob\n")
+        csv_edge = self.tmp_path / "edges.csv"
+        csv_edge.write_text("src,dst,weight\n1,2,1.0\n")
+
+        self.conn.execute(
+            "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
+        )
+        self.conn.execute(f'COPY Person FROM "{csv_node}" (HEADER=true, delim=",");')
+
+        with pytest.raises(Exception, match="Both.*from.*to"):
+            self.conn.execute(
+                f'COPY NewEdge FROM "{csv_edge}" '
+                f'(HEADER=true, delim=",", to="Person")'
+            )

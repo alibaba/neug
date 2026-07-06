@@ -839,3 +839,38 @@ def test_copy_temp_rejected_in_session(tmp_path):
         db.stop_serving()
         db.close()
         shutil.rmtree(db_dir, ignore_errors=True)
+
+
+# ======================================================================
+# COPY TEMP / COPY FROM: partial from/to validation (#632)
+# ======================================================================
+class TestFromToValidation:
+    """Only 'from' or only 'to' must raise an error."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        self.db_dir = str(tmp_path / "db")
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        self.csv = os.path.join(str(tmp_path), "data.csv")
+        with open(self.csv, "w") as f:
+            f.write("id|name|age\n1|Alice|30\n2|Bob|25\n")
+        # Create a node table first so from/to refs could be valid
+        self.conn.execute(f'COPY TEMP TempUser FROM "{self.csv}" (header=true)')
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_only_from_raises(self):
+        with pytest.raises(Exception, match="Both.*from.*to"):
+            self.conn.execute(
+                f'COPY TEMP TempEdge FROM "{self.csv}" '
+                f"(header=true, from='TempUser')"
+            )
+
+    def test_only_to_raises(self):
+        with pytest.raises(Exception, match="Both.*from.*to"):
+            self.conn.execute(
+                f'COPY TEMP TempEdge FROM "{self.csv}" ' f"(header=true, to='TempUser')"
+            )

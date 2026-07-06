@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <optional>
 
 #include "neug/execution/common/columns/container_types.h"
