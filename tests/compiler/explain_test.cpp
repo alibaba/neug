@@ -67,21 +67,23 @@ class ExplainTest : public GOptTest {
   }
 };
 
-// Test 1: Regular query without EXPLAIN should not have explain_mode in JSON
+// Test 1: Regular query without EXPLAIN should have explain_mode set to NONE
 TEST_F(ExplainTest, RegularQueryNoExplainMode) {
   std::string query = "MATCH (n:person) RETURN n.name";
   auto statement = prepareWithSchema(query);
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::NONE);
-  EXPECT_FALSE(statement->hasExplainMode());
+  EXPECT_FALSE(statement->isExplain());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan = planPhysical(*logicalPlan);
   auto physicalJson = Utils::getPhysicalJson(*physicalPlan);
 
-  EXPECT_FALSE(hasExplainModeInJson(physicalJson))
-      << "explain_mode should not be present for NONE mode";
+  EXPECT_TRUE(hasExplainModeInJson(physicalJson))
+      << "explain_mode should be present for all queries";
+  EXPECT_EQ(getExplainModeFromJson(physicalJson), "NONE")
+      << "explain_mode should be NONE for regular queries";
 }
 
 // Test 2: EXPLAIN sets explain_mode to EXPLAIN
@@ -91,7 +93,7 @@ TEST_F(ExplainTest, ExplainPhysicalPlan) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PHYSICAL_PLAN);
-  EXPECT_TRUE(statement->hasExplainMode());
+  EXPECT_TRUE(statement->isExplain());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -109,7 +111,7 @@ TEST_F(ExplainTest, ProfileQuery) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PROFILE);
-  EXPECT_TRUE(statement->hasExplainMode());
+  EXPECT_TRUE(statement->isExplain());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -128,7 +130,7 @@ TEST_F(ExplainTest, ExplainWithJoin) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PHYSICAL_PLAN);
-  EXPECT_TRUE(statement->hasExplainMode());
+  EXPECT_TRUE(statement->isExplain());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -148,7 +150,7 @@ TEST_F(ExplainTest, ProfileWithJoin) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PROFILE);
-  EXPECT_TRUE(statement->hasExplainMode());
+  EXPECT_TRUE(statement->isExplain());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =

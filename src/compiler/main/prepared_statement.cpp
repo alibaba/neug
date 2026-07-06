@@ -49,7 +49,7 @@ PreparedStatement::~PreparedStatement() = default;
 
 ExplainType PreparedStatement::getExplainMode() const { return explainMode; }
 
-bool PreparedStatement::hasExplainMode() const {
+bool PreparedStatement::isExplain() const {
   return explainMode != ExplainType::NONE;
 }
 

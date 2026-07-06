@@ -64,7 +64,7 @@ class QuerySummary {
   /**
    * @return true if the query is executed with EXPLAIN.
    */
-  bool hasExplainMode() const {
+  bool isExplain() const {
     return explainMode != common::ExplainType::NONE;
   }
 
