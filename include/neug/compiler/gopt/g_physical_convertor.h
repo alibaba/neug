@@ -93,8 +93,6 @@ class GPhysicalConvertor {
       return ::physical::ExplainMode::PROFILE;
     case common::ExplainType::PHYSICAL_PLAN:
       return ::physical::ExplainMode::EXPLAIN;
-    case common::ExplainType::LOGICAL_PLAN:
-      return ::physical::ExplainMode::EXPLAIN_LOGICAL;
     default:
       return ::physical::ExplainMode::NONE;
     }

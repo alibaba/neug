@@ -64,7 +64,7 @@ class PreparedStatement {
   std::unique_ptr<planner::LogicalPlan> logicalPlan;
 
   NEUG_API common::ExplainType getExplainMode() const;
-  NEUG_API bool isExplain() const;
+  NEUG_API bool hasExplainMode() const;
 
  private:
   bool isProfile() const;

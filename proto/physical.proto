@@ -428,7 +428,6 @@ enum ExplainMode {
   NONE = 0;
   PROFILE = 1;
   EXPLAIN = 2;
-  EXPLAIN_LOGICAL = 3;
 }
 
 // A single Cypher query ending with a semicolon (;)

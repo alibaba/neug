@@ -31,7 +31,6 @@ enum class ExplainType : uint8_t {
   NONE = 0,
   PROFILE = 1,
   PHYSICAL_PLAN = 2,
-  LOGICAL_PLAN = 3,
 };
 
 }  // namespace common

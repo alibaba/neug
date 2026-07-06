@@ -13,7 +13,6 @@ add_library(neug_planner_operator
         logical_distinct.cpp
         logical_dummy_scan.cpp
         logical_dummy_sink.cpp
-        logical_explain.cpp
         logical_filter.cpp
         logical_flatten.cpp
         logical_hash_join.cpp

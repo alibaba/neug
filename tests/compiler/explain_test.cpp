@@ -74,7 +74,7 @@ TEST_F(ExplainTest, RegularQueryNoExplainMode) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::NONE);
-  EXPECT_FALSE(statement->isExplain());
+  EXPECT_FALSE(statement->hasExplainMode());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan = planPhysical(*logicalPlan);
@@ -91,7 +91,7 @@ TEST_F(ExplainTest, ExplainPhysicalPlan) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PHYSICAL_PLAN);
-  EXPECT_TRUE(statement->isExplain());
+  EXPECT_TRUE(statement->hasExplainMode());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -102,32 +102,14 @@ TEST_F(ExplainTest, ExplainPhysicalPlan) {
   EXPECT_EQ(getExplainModeFromJson(physicalJson), "EXPLAIN");
 }
 
-// Test 3: EXPLAIN LOGICAL sets explain_mode to EXPLAIN_LOGICAL
-TEST_F(ExplainTest, ExplainLogicalPlan) {
-  std::string query = "EXPLAIN LOGICAL MATCH (n:person) RETURN n.name";
-  auto statement = prepareWithSchema(query);
-  ASSERT_NE(statement, nullptr);
-
-  EXPECT_EQ(statement->getExplainMode(), common::ExplainType::LOGICAL_PLAN);
-  EXPECT_TRUE(statement->isExplain());
-
-  auto logicalPlan = std::move(statement->logicalPlan);
-  auto physicalPlan =
-      planPhysicalWithExplainMode(*logicalPlan, statement->getExplainMode());
-  auto physicalJson = Utils::getPhysicalJson(*physicalPlan);
-
-  EXPECT_TRUE(hasExplainModeInJson(physicalJson));
-  EXPECT_EQ(getExplainModeFromJson(physicalJson), "EXPLAIN_LOGICAL");
-}
-
-// Test 4: PROFILE sets explain_mode to PROFILE
+// Test 3: PROFILE sets explain_mode to PROFILE
 TEST_F(ExplainTest, ProfileQuery) {
   std::string query = "PROFILE MATCH (n:person) RETURN n.name";
   auto statement = prepareWithSchema(query);
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PROFILE);
-  EXPECT_TRUE(statement->isExplain());
+  EXPECT_TRUE(statement->hasExplainMode());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -138,7 +120,7 @@ TEST_F(ExplainTest, ProfileQuery) {
   EXPECT_EQ(getExplainModeFromJson(physicalJson), "PROFILE");
 }
 
-// Test 5: EXPLAIN on join query
+// Test 4: EXPLAIN on join query
 TEST_F(ExplainTest, ExplainWithJoin) {
   std::string query =
       "EXPLAIN MATCH (n:person)-[e:knows]->(m:person) RETURN n.name, m.name";
@@ -146,7 +128,7 @@ TEST_F(ExplainTest, ExplainWithJoin) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PHYSICAL_PLAN);
-  EXPECT_TRUE(statement->isExplain());
+  EXPECT_TRUE(statement->hasExplainMode());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -158,7 +140,7 @@ TEST_F(ExplainTest, ExplainWithJoin) {
   EXPECT_FALSE(physicalJson.empty());
 }
 
-// Test 6: PROFILE on join query
+// Test 5: PROFILE on join query
 TEST_F(ExplainTest, ProfileWithJoin) {
   std::string query =
       "PROFILE MATCH (n:person)-[e:knows]->(m:person) RETURN n.name, m.name";
@@ -166,7 +148,7 @@ TEST_F(ExplainTest, ProfileWithJoin) {
   ASSERT_NE(statement, nullptr);
 
   EXPECT_EQ(statement->getExplainMode(), common::ExplainType::PROFILE);
-  EXPECT_TRUE(statement->isExplain());
+  EXPECT_TRUE(statement->hasExplainMode());
 
   auto logicalPlan = std::move(statement->logicalPlan);
   auto physicalPlan =
@@ -177,7 +159,7 @@ TEST_F(ExplainTest, ProfileWithJoin) {
   EXPECT_EQ(getExplainModeFromJson(physicalJson), "PROFILE");
 }
 
-// Test 7: EXPLAIN unwrapping - inner statement is preserved
+// Test 6: EXPLAIN unwrapping - inner statement is preserved
 TEST_F(ExplainTest, ExplainUnwrappingVerification) {
   std::string query = "EXPLAIN MATCH (n:person) RETURN n.name";
   auto statement = prepareWithSchema(query);
@@ -192,14 +174,12 @@ TEST_F(ExplainTest, ExplainUnwrappingVerification) {
       << "Unwrapped statement type should be QUERY (MATCH), not EXPLAIN";
 }
 
-// Test 8: Verify all four modes
+// Test 7: Verify all four modes
 TEST_F(ExplainTest, AllExplainModes) {
   std::vector<std::pair<std::string, common::ExplainType>> cases = {
       {"MATCH (n:person) RETURN n.name", common::ExplainType::NONE},
       {"EXPLAIN MATCH (n:person) RETURN n.name",
        common::ExplainType::PHYSICAL_PLAN},
-      {"EXPLAIN LOGICAL MATCH (n:person) RETURN n.name",
-       common::ExplainType::LOGICAL_PLAN},
       {"PROFILE MATCH (n:person) RETURN n.name", common::ExplainType::PROFILE},
   };
 

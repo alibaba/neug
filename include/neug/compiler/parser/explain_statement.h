@@ -42,7 +42,7 @@ class ExplainStatement : public Statement {
     return statementToExplain.get();
   }
 
-  inline std::unique_ptr<Statement> releaseStatementToExplain() {
+  inline std::unique_ptr<Statement> takeStatementToExplain() {
     return std::move(statementToExplain);
   }
 

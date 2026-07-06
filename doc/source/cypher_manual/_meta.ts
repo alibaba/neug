@@ -4,5 +4,4 @@ export default {
   dml_clause: "DML Clause",
   expression: "Expression",
   query_clauses: "Query Clauses",
-  explain_profile: "EXPLAIN and PROFILE",
 };

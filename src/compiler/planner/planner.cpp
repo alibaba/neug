@@ -3,7 +3,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "neug/compiler/binder/bound_explain.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h";
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/logical_plan_util.h"
@@ -100,9 +99,6 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
   case StatementType::STANDALONE_CALL_FUNCTION: {
     appendStandaloneCallFunction(statement, *plan);
   } break;
-  case StatementType::EXPLAIN: {
-    appendExplain(statement, *plan);
-  } break;
   case StatementType::CREATE_MACRO: {
     appendCreateMacro(statement, *plan);
   } break;
@@ -137,13 +133,6 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::getAllPlans(
     for (auto& plan : planQuery(statement)) {
       // Avoid sharing operator across plans.
       plans.push_back(plan->deepCopy());
-    }
-  } break;
-  case StatementType::EXPLAIN: {
-    auto& explain = neug_dynamic_cast<const BoundExplain&>(statement);
-    plans = getAllPlans(*explain.getStatementToExplain());
-    for (auto& plan : plans) {
-      appendExplain(explain, *plan);
     }
   } break;
   default:

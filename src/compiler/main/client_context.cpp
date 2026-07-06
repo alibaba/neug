@@ -211,26 +211,23 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
   auto prepareTimer = TimeMetric(true /* enable */);
   prepareTimer.start();
 
-  std::shared_ptr<Statement> actualStatement = parsedStatement;
+  auto statementToPrepare = parsedStatement;
+  preparedStatement->explainMode = common::ExplainType::NONE;
 
   if (parsedStatement->getStatementType() == common::StatementType::EXPLAIN) {
     auto explainStmt =
         std::static_pointer_cast<parser::ExplainStatement>(parsedStatement);
-
     preparedStatement->explainMode = explainStmt->getExplainType();
-
-    actualStatement = explainStmt->releaseStatementToExplain();
-  } else {
-    preparedStatement->explainMode = common::ExplainType::NONE;
+    statementToPrepare = explainStmt->takeStatementToExplain();
   }
 
-  preparedStatement->parsedStatement = actualStatement;
-
+  preparedStatement->parsedStatement = statementToPrepare;
   preparedStatement->preparedSummary.statementType =
-      actualStatement->getStatementType();
+      parsedStatement->getStatementType();
+
   auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
 
-  readWriteAnalyzer.visit(*actualStatement);
+  readWriteAnalyzer.visit(*statementToPrepare);
 
   preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
 
@@ -238,7 +235,7 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
   if (inputParams) {
     binder.setInputParameters(*inputParams);
   }
-  const auto boundStatement = binder.bind(*actualStatement);
+  const auto boundStatement = binder.bind(*statementToPrepare);
   preparedStatement->parameterMap = binder.getParameterMap();
   preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
       boundStatement->getStatementResult()->copy());

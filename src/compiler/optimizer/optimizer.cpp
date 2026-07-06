@@ -47,7 +47,6 @@
 #include "neug/compiler/optimizer/schema_populator.h"
 #include "neug/compiler/optimizer/top_k_optimizer.h"
 #include "neug/compiler/optimizer/union_alias_map_optimizer.h"
-#include "neug/compiler/planner/operator/logical_explain.h"
 
 namespace neug {
 namespace optimizer {
