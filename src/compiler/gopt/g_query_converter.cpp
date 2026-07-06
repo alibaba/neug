@@ -2142,7 +2142,7 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table not found: " +
                                    std::to_string(labelId));
   }
-  auto nodeTable = dynamic_cast<VertexSchema*>(table);
+  auto nodeTable = dynamic_cast<const VertexSchema*>(table);
   if (!nodeTable) {
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
                                    table->getLabel());

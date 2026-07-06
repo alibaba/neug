@@ -556,10 +556,12 @@ void bindExpectedRelColumns(const EdgeSchema* relTableEntry,
   NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   auto catalog = context->getCatalog();
   auto transaction = context->getTransaction();
-  auto* srcTable = dynamic_cast<VertexSchema*>(catalog->getTableCatalogEntry(
-      transaction, relTableEntry->getSrcTableID()));
-  auto* dstTable = dynamic_cast<VertexSchema*>(catalog->getTableCatalogEntry(
-      transaction, relTableEntry->getDstTableID()));
+  auto* srcTable =
+      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
+          transaction, relTableEntry->getSrcTableID()));
+  auto* dstTable =
+      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
+          transaction, relTableEntry->getDstTableID()));
   NEUG_ASSERT(srcTable != nullptr);
   NEUG_ASSERT(dstTable != nullptr);
   columnNames.push_back("from");

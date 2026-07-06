@@ -36,6 +36,7 @@
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
@@ -53,101 +54,6 @@
 
 namespace neug {
 namespace gopt {
-
-namespace {
-common::date_t convertToCompilerDate(execution::date_t value) {
-  const auto str = value.to_string();
-  return common::Date::fromCString(str.c_str(), str.size());
-}
-
-common::timestamp_ms_t convertToCompilerTimestamp(
-    execution::timestamp_ms_t value) {
-  return common::timestamp_ms_t(value.milli_second);
-}
-
-common::interval_t convertToCompilerInterval(execution::interval_t value) {
-  return common::interval_t(value.months, value.days, value.micros);
-}
-
-int64_t normalizeTimestampMillis(common::timestamp_ms_t value) {
-  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
-  if (value.value > kLikelyMicrosThreshold ||
-      value.value < -kLikelyMicrosThreshold) {
-    return common::Timestamp::getEpochMilliSeconds(
-        common::timestamp_t(value.value));
-  }
-  return value.value;
-}
-
-common::Value convertExecutionValue(const execution::Value& value,
-                                    const common::DataType& type) {
-  if (value.IsNull()) {
-    return common::Value::createNullValue(type);
-  }
-  switch (type.id()) {
-  case common::DataTypeId::kBoolean:
-    return common::Value(value.GetValue<bool>());
-  case common::DataTypeId::kInt32:
-    return common::Value(value.GetValue<int32_t>());
-  case common::DataTypeId::kUInt32:
-    return common::Value(value.GetValue<uint32_t>());
-  case common::DataTypeId::kInt64:
-    return common::Value(value.GetValue<int64_t>());
-  case common::DataTypeId::kUInt64:
-    return common::Value(value.GetValue<uint64_t>());
-  case common::DataTypeId::kFloat:
-    return common::Value(value.GetValue<float>());
-  case common::DataTypeId::kDouble:
-    return common::Value(value.GetValue<double>());
-  case common::DataTypeId::kVarchar:
-    return common::Value(value.GetValue<std::string>());
-  case common::DataTypeId::kDate:
-    return common::Value(
-        convertToCompilerDate(value.GetValue<execution::date_t>()));
-  case common::DataTypeId::kTimestampMs:
-    return common::Value(convertToCompilerTimestamp(
-        value.GetValue<execution::timestamp_ms_t>()));
-  case common::DataTypeId::kInterval:
-    return common::Value(
-        convertToCompilerInterval(value.GetValue<execution::interval_t>()));
-  case common::DataTypeId::kArray: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType = common::ArrayType::GetChildType(type);
-    const auto& defaultChildren = execution::ArrayValue::GetChildren(value);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  case common::DataTypeId::kList: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType = common::ListType::GetChildType(type);
-    const auto& defaultChildren = execution::ListValue::GetChildren(value);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  case common::DataTypeId::kStruct: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childTypes = common::StructType::GetChildTypes(type);
-    const auto& defaultChildren = execution::StructValue::GetChildren(value);
-    children.reserve(defaultChildren.size());
-    for (auto i = 0u; i < defaultChildren.size(); ++i) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(defaultChildren[i], childTypes[i])));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  default:
-    return common::Value::createNullValue(type);
-  }
-}
-}  // namespace
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
     const binder::Expression& expr, const planner::LogicalOperator& child) {
@@ -368,76 +274,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
   if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
     return convertValue(common::Value::createNullValue(defaultValue.type()));
   }
-  switch (defaultValue.type().id()) {
-  case common::DataTypeId::kBoolean:
-    return convertValue(common::Value(defaultValue.GetValue<bool>()));
-  case common::DataTypeId::kInt32:
-    return convertValue(common::Value(defaultValue.GetValue<int32_t>()));
-  case common::DataTypeId::kUInt32:
-    return convertValue(common::Value(defaultValue.GetValue<uint32_t>()));
-  case common::DataTypeId::kInt64:
-    return convertValue(common::Value(defaultValue.GetValue<int64_t>()));
-  case common::DataTypeId::kUInt64:
-    return convertValue(common::Value(defaultValue.GetValue<uint64_t>()));
-  case common::DataTypeId::kFloat:
-    return convertValue(common::Value(defaultValue.GetValue<float>()));
-  case common::DataTypeId::kDouble:
-    return convertValue(common::Value(defaultValue.GetValue<double>()));
-  case common::DataTypeId::kVarchar:
-    return convertValue(common::Value(defaultValue.GetValue<std::string>()));
-  case common::DataTypeId::kDate:
-    return convertValue(common::Value(
-        convertToCompilerDate(defaultValue.GetValue<execution::date_t>())));
-  case common::DataTypeId::kTimestampMs:
-    return convertValue(common::Value(convertToCompilerTimestamp(
-        defaultValue.GetValue<execution::timestamp_ms_t>())));
-  case common::DataTypeId::kInterval:
-    return convertValue(common::Value(convertToCompilerInterval(
-        defaultValue.GetValue<execution::interval_t>())));
-  case common::DataTypeId::kArray: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType =
-        common::ArrayType::GetChildType(defaultValue.type());
-    const auto& defaultChildren =
-        execution::ArrayValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return convertValue(
-        common::Value(defaultValue.type().copy(), std::move(children)));
-  }
-  case common::DataTypeId::kList: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType = common::ListType::GetChildType(defaultValue.type());
-    const auto& defaultChildren =
-        execution::ListValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return convertValue(
-        common::Value(defaultValue.type().copy(), std::move(children)));
-  }
-  case common::DataTypeId::kStruct: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childTypes =
-        common::StructType::GetChildTypes(defaultValue.type());
-    const auto& defaultChildren =
-        execution::StructValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (auto i = 0u; i < defaultChildren.size(); ++i) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(defaultChildren[i], childTypes[i])));
-    }
-    return convertValue(
-        common::Value(defaultValue.type().copy(), std::move(children)));
-  }
-  default:
-    return convertValue(common::Value::createNullValue(defaultValue.type()));
-  }
+  return convertValue(
+      common::convertToCompilerValue(defaultValue, defaultValue.type()));
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(
@@ -504,7 +342,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
       auto datetime = std::make_unique<::common::ToDatetime>();
       datetime->set_datetime_str(neug::common::Timestamp::toString(
           neug::common::Timestamp::fromEpochMilliSeconds(
-              normalizeTimestampMillis(
+              common::normalizeTimestampMillis(
                   value.getValue<neug::common::timestamp_ms_t>()))));
       oprPB->set_allocated_to_datetime(datetime.release());
       break;

@@ -737,7 +737,7 @@ std::string GDDLConverter::getVertexLabelName(neug::common::oid_t tableId) {
 
   auto* entry = catalog->getTableCatalogEntry(
       &neug::Constants::DEFAULT_TRANSACTION, tableId);
-  auto* vertexSchema = dynamic_cast<VertexSchema*>(entry);
+  auto* vertexSchema = dynamic_cast<const VertexSchema*>(entry);
   if (!vertexSchema) {
     THROW_RUNTIME_ERROR("Node table entry not found for id: " +
                         std::to_string(tableId));

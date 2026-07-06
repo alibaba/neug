@@ -94,8 +94,9 @@ class NEUG_API Catalog {
                                     const std::string& tableName,
                                     bool useInternal = true) const;
   // Get table entry with id.
-  SchemaEntry* getTableCatalogEntry(const transaction::Transaction* transaction,
-                                    common::table_id_t tableID) const;
+  const SchemaEntry* getTableCatalogEntry(
+      const transaction::Transaction* transaction,
+      common::table_id_t tableID) const;
   // Get all node table entries.
   std::vector<VertexSchema*> getNodeTableEntries(
       const transaction::Transaction* transaction,

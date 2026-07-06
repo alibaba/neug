@@ -32,6 +32,7 @@
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/parser/query/updating_clause/delete_clause.h"
 #include "neug/compiler/parser/query/updating_clause/insert_clause.h"
 #include "neug/compiler/parser/query/updating_clause/merge_clause.h"
@@ -46,99 +47,12 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
-static common::date_t convertToCompilerDate(execution::date_t value) {
-  const auto str = value.to_string();
-  return common::Date::fromCString(str.c_str(), str.size());
-}
-
-static common::timestamp_ms_t convertToCompilerTimestamp(
-    execution::timestamp_ms_t value) {
-  return common::timestamp_ms_t(value.milli_second);
-}
-
-static common::interval_t convertToCompilerInterval(
-    execution::interval_t value) {
-  return common::interval_t(value.months, value.days, value.micros);
-}
-
-static common::Value convertExecutionValue(const execution::Value& defaultValue,
-                                           const common::DataType& type) {
-  if (defaultValue.IsNull()) {
-    return common::Value::createNullValue(type);
-  }
-  switch (type.id()) {
-  case common::DataTypeId::kBoolean:
-    return common::Value(defaultValue.GetValue<bool>());
-  case common::DataTypeId::kInt32:
-    return common::Value(defaultValue.GetValue<int32_t>());
-  case common::DataTypeId::kUInt32:
-    return common::Value(defaultValue.GetValue<uint32_t>());
-  case common::DataTypeId::kInt64:
-    return common::Value(defaultValue.GetValue<int64_t>());
-  case common::DataTypeId::kUInt64:
-    return common::Value(defaultValue.GetValue<uint64_t>());
-  case common::DataTypeId::kFloat:
-    return common::Value(defaultValue.GetValue<float>());
-  case common::DataTypeId::kDouble:
-    return common::Value(defaultValue.GetValue<double>());
-  case common::DataTypeId::kVarchar:
-    return common::Value(defaultValue.GetValue<std::string>());
-  case common::DataTypeId::kDate:
-    return common::Value(
-        convertToCompilerDate(defaultValue.GetValue<execution::date_t>()));
-  case common::DataTypeId::kTimestampMs:
-    return common::Value(convertToCompilerTimestamp(
-        defaultValue.GetValue<execution::timestamp_ms_t>()));
-  case common::DataTypeId::kInterval:
-    return common::Value(convertToCompilerInterval(
-        defaultValue.GetValue<execution::interval_t>()));
-  case common::DataTypeId::kArray: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType = common::ArrayType::GetChildType(type);
-    const auto& defaultChildren =
-        execution::ArrayValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  case common::DataTypeId::kList: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childType = common::ListType::GetChildType(type);
-    const auto& defaultChildren =
-        execution::ListValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (const auto& child : defaultChildren) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(child, childType)));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  case common::DataTypeId::kStruct: {
-    std::vector<std::unique_ptr<common::Value>> children;
-    const auto& childTypes = common::StructType::GetChildTypes(type);
-    const auto& defaultChildren =
-        execution::StructValue::GetChildren(defaultValue);
-    children.reserve(defaultChildren.size());
-    for (auto i = 0u; i < defaultChildren.size(); ++i) {
-      children.push_back(std::make_unique<common::Value>(
-          convertExecutionValue(defaultChildren[i], childTypes[i])));
-    }
-    return common::Value(type.copy(), std::move(children));
-  }
-  default:
-    return common::Value::createNullValue(type);
-  }
-}
-
 static common::Value convertDefaultValue(const PropertyDefinition& definition) {
   if (!definition.hasDefaultValue()) {
     return common::Value::createNullValue(definition.getType());
   }
-  return convertExecutionValue(definition.getDefaultValue(),
-                               definition.getType());
+  return common::convertToCompilerValue(definition.getDefaultValue(),
+                                        definition.getType());
 }
 
 std::unique_ptr<BoundUpdatingClause> Binder::bindUpdatingClause(

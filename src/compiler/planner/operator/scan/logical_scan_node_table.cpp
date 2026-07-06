@@ -83,11 +83,11 @@ gopt::GAliasName LogicalScanNodeTable::getGAliasName() const {
 std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
-  std::vector<VertexSchema*> nodeTables;
+  std::vector<const VertexSchema*> nodeTables;
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
-    auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
                                      std::to_string(tableId) +
@@ -108,7 +108,7 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
     }
     auto tableEntry = catalog->getTableCatalogEntry(
         &neug::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
-    auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Primary key scan is only supported for node "

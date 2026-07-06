@@ -455,7 +455,7 @@ const PropertyDefinition VertexSchema::getProperty(uint32_t idx) const {
   return GetVertexSchemaProperties(*this).at(idx);
 }
 
-std::string VertexSchema::getLabel() { return label_name; }
+std::string VertexSchema::getLabel() const { return label_name; }
 
 uint32_t VertexSchema::getPrimaryKeyID() const {
   return getPropertyID(getPrimaryKeyName());
@@ -634,7 +634,7 @@ const PropertyDefinition EdgeSchema::getProperty(uint32_t idx) const {
   return GetEdgeSchemaProperties(*this).at(idx);
 }
 
-std::string EdgeSchema::getLabel() { return edge_label_name; }
+std::string EdgeSchema::getLabel() const { return edge_label_name; }
 
 Schema::Schema() = default;
 Schema::~Schema() = default;

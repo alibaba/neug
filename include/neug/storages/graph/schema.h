@@ -17,6 +17,7 @@
 #include <rapidjson/document.h>
 #include <stddef.h>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -52,7 +53,7 @@ class SchemaEntry {
 
   virtual uint64_t getTableID() const = 0;
 
-  virtual bool isParent(uint64_t /*tableID*/) { return false; };
+  virtual bool isParent(uint64_t /*tableID*/) const { return false; };
 
   virtual TableType getTableType() const = 0;
 
@@ -75,7 +76,7 @@ class SchemaEntry {
 
   virtual uint32_t getColumnID(uint32_t idx) const { return idx; };
 
-  virtual std::string getLabel() = 0;
+  virtual std::string getLabel() const = 0;
 };
 }  // namespace catalog
 
@@ -220,13 +221,13 @@ struct VertexSchema : public catalog::SchemaEntry {
   PropertyDefinition getProperty(
       const std::string& propertyName) const override;
   const PropertyDefinition getProperty(uint32_t idx) const override;
-  std::string getLabel() override;
+  std::string getLabel() const override;
 
   uint32_t getPrimaryKeyID() const;
   std::string getPrimaryKeyName() const;
 
   std::string label_name;
-  uint64_t label_id = UINT64_MAX;
+  label_t label_id = std::numeric_limits<label_t>::max();
   std::vector<DataType> property_types;
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
@@ -361,7 +362,7 @@ struct EdgeSchema : public catalog::SchemaEntry {
   }
 
   uint64_t getTableID() const override { return table_id; }
-  bool isParent(uint64_t tableID) override {
+  bool isParent(uint64_t tableID) const override {
     return src_label_id == tableID || dst_label_id == tableID;
   }
   TableType getTableType() const override { return TableType::REL; }
@@ -373,7 +374,7 @@ struct EdgeSchema : public catalog::SchemaEntry {
   PropertyDefinition getProperty(
       const std::string& propertyName) const override;
   const PropertyDefinition getProperty(uint32_t idx) const override;
-  std::string getLabel() override;
+  std::string getLabel() const override;
 
   uint64_t getSrcTableID() const { return src_label_id; }
   uint64_t getDstTableID() const { return dst_label_id; }
@@ -382,9 +383,9 @@ struct EdgeSchema : public catalog::SchemaEntry {
 
   std::string src_label_name, dst_label_name, edge_label_name;
   uint64_t table_id = UINT64_MAX;
-  uint64_t src_label_id = UINT64_MAX;
-  uint64_t dst_label_id = UINT64_MAX;
-  uint64_t edge_label_id = UINT64_MAX;
+  label_t src_label_id = std::numeric_limits<label_t>::max();
+  label_t dst_label_id = std::numeric_limits<label_t>::max();
+  label_t edge_label_id = std::numeric_limits<label_t>::max();
   std::optional<std::string> sort_key_for_nbr;
   std::string description;
   bool ie_mutable;

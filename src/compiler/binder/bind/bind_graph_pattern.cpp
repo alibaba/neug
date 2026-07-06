@@ -437,13 +437,15 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
   schema_entry_set_t entrySet;
+  auto getMutableTableEntry = [&](common::table_id_t tableID) {
+    auto* entry = catalog->getTableCatalogEntry(transaction, tableID);
+    return catalog->getTableCatalogEntry(transaction, entry->getLabel());
+  };
   for (auto entry : entries) {
     auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
     NEUG_ASSERT(relTableEntry != nullptr);
-    entrySet.insert(catalog->getTableCatalogEntry(
-        transaction, relTableEntry->getSrcTableID()));
-    entrySet.insert(catalog->getTableCatalogEntry(
-        transaction, relTableEntry->getDstTableID()));
+    entrySet.insert(getMutableTableEntry(relTableEntry->getSrcTableID()));
+    entrySet.insert(getMutableTableEntry(relTableEntry->getDstTableID()));
   }
   auto recursivePatternInfo = relPattern.getRecursiveInfo();
   auto prevScope = saveScope();

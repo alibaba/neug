@@ -230,7 +230,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected NodeType for NODE type, "
                    << "but got: " << type.ToString()
                    << " , return NODE type with empty label";
-      return convertNodeType(gopt::GNodeType({}));
+      return convertNodeType(gopt::GNodeType());
     }
     break;
   }
@@ -242,7 +242,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected RelType for REL type, "
                    << "but got: " << type.ToString()
                    << " , return REL type with empty label";
-      return convertRelType(gopt::GRelType({}));
+      return convertRelType(gopt::GRelType());
     }
     break;
   }
@@ -251,7 +251,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected StructType for RECURSIVE_REL type, "
                    << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
     auto fieldIdx =
         common::StructType::GetFieldIdx(type, common::InternalKeyword::RELS);
@@ -259,7 +259,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected RELS field for RECURSIVE_REL type, "
                    << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
 
     const auto& relsType = common::StructType::GetChildType(type, fieldIdx);
@@ -273,7 +273,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
                      << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
+        return convertPathType(gopt::GRelType());
       }
     } else if (common::getPhysicalType(relsType.id()) ==
                common::PhysicalTypeID::ARRAY) {
@@ -285,13 +285,13 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
                      << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
+        return convertPathType(gopt::GRelType());
       }
     } else {
       LOG(WARNING) << "Expected ListType or ArrayType for RECURSIVE_REL type, "
                    << "but got: " << relsType.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
     break;
   }

@@ -28,13 +28,20 @@
 namespace neug {
 namespace gopt {
 struct GNodeType {
-  GNodeType(const std::vector<VertexSchema*>& nodeTables_)
+  GNodeType() = default;
+  GNodeType(const std::vector<const VertexSchema*>& nodeTables_)
       : nodeTables{nodeTables_} {}
+  GNodeType(const std::vector<VertexSchema*>& nodeTables_) {
+    nodeTables.reserve(nodeTables_.size());
+    for (auto* table : nodeTables_) {
+      nodeTables.push_back(table);
+    }
+  }
 
   GNodeType(const binder::NodeExpression& nodeExpr) {
     nodeTables.reserve(nodeExpr.getNumEntries());
     for (auto& table : nodeExpr.getEntries()) {
-      auto nodeTable = dynamic_cast<VertexSchema*>(table);
+      auto nodeTable = dynamic_cast<const VertexSchema*>(table);
       if (nodeTable) {
         nodeTables.emplace_back(nodeTable);
       } else {
@@ -43,8 +50,15 @@ struct GNodeType {
     }
   }
 
-  void setNodeTables(std::vector<VertexSchema*>&& nodeTables) {
+  void setNodeTables(std::vector<const VertexSchema*>&& nodeTables) {
     this->nodeTables = std::move(nodeTables);
+  }
+  void setNodeTables(std::vector<VertexSchema*>&& nodeTables) {
+    this->nodeTables.clear();
+    this->nodeTables.reserve(nodeTables.size());
+    for (auto* table : nodeTables) {
+      this->nodeTables.push_back(table);
+    }
   }
 
   std::vector<common::table_id_t> getLabelIds() const {
@@ -60,7 +74,7 @@ struct GNodeType {
     return labelIds;
   }
 
-  std::vector<VertexSchema*> nodeTables;
+  std::vector<const VertexSchema*> nodeTables;
 
   std::string toString() const {
     std::stringstream ss;
@@ -97,12 +111,19 @@ struct GNodeType {
 };
 
 struct GRelType {
-  GRelType(const std::vector<EdgeSchema*>& relTables_)
+  GRelType() = default;
+  GRelType(const std::vector<const EdgeSchema*>& relTables_)
       : relTables{relTables_} {}
+  GRelType(const std::vector<EdgeSchema*>& relTables_) {
+    relTables.reserve(relTables_.size());
+    for (auto* table : relTables_) {
+      relTables.push_back(table);
+    }
+  }
   GRelType(const binder::RelExpression& relExpr) {
     relTables.reserve(relExpr.getNumEntries());
     for (auto& table : relExpr.getEntries()) {
-      auto relTable = dynamic_cast<EdgeSchema*>(table);
+      auto relTable = dynamic_cast<const EdgeSchema*>(table);
       if (relTable) {
         relTables.emplace_back(relTable);
       } else {
@@ -111,8 +132,15 @@ struct GRelType {
     }
   }
 
-  void setRelTables(std::vector<EdgeSchema*>&& relTables) {
+  void setRelTables(std::vector<const EdgeSchema*>&& relTables) {
     this->relTables = std::move(relTables);
+  }
+  void setRelTables(std::vector<EdgeSchema*>&& relTables) {
+    this->relTables.clear();
+    this->relTables.reserve(relTables.size());
+    for (auto* table : relTables) {
+      this->relTables.push_back(table);
+    }
   }
 
   std::vector<common::table_id_t> getLabelIds() const {
@@ -176,7 +204,7 @@ struct GRelType {
     return typeNode;
   }
 
-  std::vector<EdgeSchema*> relTables;
+  std::vector<const EdgeSchema*> relTables;
 };
 }  // namespace gopt
 }  // namespace neug

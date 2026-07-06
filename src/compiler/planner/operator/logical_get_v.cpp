@@ -71,11 +71,11 @@ gopt::GAliasName LogicalGetV::getGAliasName() const {
 std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
-  std::vector<VertexSchema*> nodeTables;
+  std::vector<const VertexSchema*> nodeTables;
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
-    auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
                                      std::to_string(tableId) +

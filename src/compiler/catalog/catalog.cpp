@@ -97,7 +97,6 @@ bool Catalog::containsTable(const Transaction* transaction,
       return true;
     }
   }
-  common::idx_t count = 0;
   for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
     if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
         !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
@@ -105,10 +104,10 @@ bool Catalog::containsTable(const Transaction* transaction,
     }
     if (nameEquals(edgeSchema->edge_label_name, tableName) ||
         nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
-      ++count;
+      return true;
     }
   }
-  return count == 1;
+  return false;
 }
 
 bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
@@ -129,15 +128,14 @@ bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
   return false;
 }
 
-SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
-                                           table_id_t tableID) const {
+const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
+                                                 table_id_t tableID) const {
   if (schema != nullptr && tableID <= std::numeric_limits<label_t>::max() &&
       schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
-    return const_cast<VertexSchema*>(
-        schema->get_vertex_schema(static_cast<label_t>(tableID)).get());
+    return schema->get_vertex_schema(static_cast<label_t>(tableID)).get();
   }
   if (schema != nullptr) {
-    EdgeSchema* labelMatch = nullptr;
+    const EdgeSchema* labelMatch = nullptr;
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
       if (edgeSchema->getTableID() == tableID) {
         return edgeSchema.get();

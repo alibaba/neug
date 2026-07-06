@@ -37,6 +37,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/main/client_context.h"
@@ -58,96 +59,6 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
-
-static execution::date_t convertToExecutionDate(common::date_t value) {
-  return execution::date_t(common::Date::toString(value));
-}
-
-static execution::timestamp_ms_t convertToExecutionTimestamp(
-    common::timestamp_ms_t value) {
-  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
-  auto millis = value.value;
-  if (millis > kLikelyMicrosThreshold || millis < -kLikelyMicrosThreshold) {
-    millis = common::Timestamp::getEpochMilliSeconds(
-        common::timestamp_t(value.value));
-  }
-  return execution::timestamp_ms_t(millis);
-}
-
-static execution::interval_t convertToExecutionInterval(
-    common::interval_t value) {
-  execution::interval_t result;
-  result.months = value.months;
-  result.days = value.days;
-  result.micros = value.micros;
-  return result;
-}
-
-static execution::Value convertToExecutionValue(const Value& value,
-                                                const DataType& type) {
-  if (value.isNull()) {
-    return execution::Value(type.copy());
-  }
-  switch (type.id()) {
-  case DataTypeId::kBoolean:
-    return execution::Value::BOOLEAN(value.getValue<bool>());
-  case DataTypeId::kInt32:
-    return execution::Value::INT32(value.getValue<int32_t>());
-  case DataTypeId::kUInt32:
-    return execution::Value::UINT32(value.getValue<uint32_t>());
-  case DataTypeId::kInt64:
-    return execution::Value::INT64(value.getValue<int64_t>());
-  case DataTypeId::kUInt64:
-    return execution::Value::UINT64(value.getValue<uint64_t>());
-  case DataTypeId::kFloat:
-    return execution::Value::FLOAT(value.getValue<float>());
-  case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(value.getValue<double>());
-  case DataTypeId::kVarchar:
-    return execution::Value::STRING(value.getValue<std::string>());
-  case DataTypeId::kDate:
-    return execution::Value::DATE(
-        convertToExecutionDate(value.getValue<common::date_t>()));
-  case DataTypeId::kTimestampMs:
-    return execution::Value::TIMESTAMPMS(
-        convertToExecutionTimestamp(value.getValue<common::timestamp_ms_t>()));
-  case DataTypeId::kInterval:
-    return execution::Value::INTERVAL(
-        convertToExecutionInterval(value.getValue<common::interval_t>()));
-  case DataTypeId::kArray: {
-    std::vector<execution::Value> children;
-    children.reserve(value.getChildrenSize());
-    const auto& childType = ArrayType::GetChildType(type);
-    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
-      children.push_back(
-          convertToExecutionValue(*value.children[i], childType));
-    }
-    return execution::Value::ARRAY(type, std::move(children));
-  }
-  case DataTypeId::kList: {
-    std::vector<execution::Value> children;
-    children.reserve(value.getChildrenSize());
-    const auto& childType = ListType::GetChildType(type);
-    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
-      children.push_back(
-          convertToExecutionValue(*value.children[i], childType));
-    }
-    return execution::Value::LIST(childType, std::move(children));
-  }
-  case DataTypeId::kStruct: {
-    std::vector<execution::Value> children;
-    children.reserve(value.getChildrenSize());
-    const auto& childTypes = StructType::GetChildTypes(type);
-    for (auto i = 0u; i < value.getChildrenSize(); ++i) {
-      children.push_back(
-          convertToExecutionValue(*value.children[i], childTypes[i]));
-    }
-    return execution::Value::STRUCT(type, std::move(children));
-  }
-  default:
-    return execution::Value(type.copy());
-  }
-}
 
 static std::optional<execution::Value> tryConvertTemporalDefault(
     const ParsedExpression* parsedDefault, const DataType& type) {
@@ -229,7 +140,7 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
         if (ConstantExpressionVisitor::needFold(*boundExpr)) {
           boundExpr = expressionBinder.foldExpression(boundExpr);
         }
-        defaultValue = convertToExecutionValue(
+        defaultValue = common::convertToExecutionValue(
             boundExpr->constCast<LiteralExpression>().getValue(), type);
       }
     }
@@ -575,7 +486,7 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   auto defaultValue =
       extraInfo->defaultValue == nullptr
           ? execution::Value(type.copy())
-          : convertToExecutionValue(
+          : common::convertToExecutionValue(
                 boundDefault->constCast<LiteralExpression>().getValue(), type);
   auto propertyDefinition =
       PropertyDefinition(std::move(columnDefinition), std::move(defaultValue),

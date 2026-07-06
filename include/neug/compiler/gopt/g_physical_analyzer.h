@@ -68,7 +68,7 @@ class GPhysicalAnalyzer {
     for (auto& tableId : tableIds) {
       auto tableEntry = catalog->getTableCatalogEntry(
           &neug::Constants::DEFAULT_TRANSACTION, tableId);
-      auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
+      auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
       if (!nodeTableEntry) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Primary key scan is only supported for node "
