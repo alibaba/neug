@@ -30,6 +30,7 @@
 #include <utility>
 
 #include "neug/common/columns/value_columns.h"
+#include "neug/common/types/property_types.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
@@ -38,7 +39,6 @@
 #include "neug/storages/module/type_name.h"
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

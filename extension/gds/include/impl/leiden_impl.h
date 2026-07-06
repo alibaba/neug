@@ -19,9 +19,9 @@
 #include <memory>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace gds {

@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include "neug/common/types.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/query_result.h"
 namespace neug {
@@ -27,6 +29,11 @@ class Context;
 
 class Sink {
  public:
+  /// Materialize graph-type columns to VARCHAR strings per Context chunk.
+  /// Returns one DataChunk per Context chunk without cross-chunk column fusion.
+  static std::vector<DataChunk> materialize_for_export(
+      const Context& ctx, const StorageReadInterface& graph);
+
   static void sink_results(const Context& ctx,
                            const StorageReadInterface& graph,
                            neug::QueryResponse* response);

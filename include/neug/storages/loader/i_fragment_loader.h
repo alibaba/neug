@@ -14,10 +14,10 @@
  */
 #pragma once
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/indexers.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/indexers.h"
 #include "neug/utils/result.h"
 
 namespace neug {

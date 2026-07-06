@@ -18,12 +18,12 @@
 #include "neug/common/columns/vertex_columns.h"
 #include "neug/common/types.h"
 #include "neug/common/types/data_chunk.h"
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

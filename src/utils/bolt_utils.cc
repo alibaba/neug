@@ -31,8 +31,8 @@
 #include <utility>
 #include "glog/logging.h"
 
+#include "neug/common/types/property_types.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

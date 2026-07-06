@@ -16,13 +16,13 @@
 #include "neug/execution/execute/ops/retrieve/vertex.h"
 
 #include "neug/common/types/graph_types.h"
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Schema;

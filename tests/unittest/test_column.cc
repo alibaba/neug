@@ -20,9 +20,9 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/property/array_column.h"
+#include "neug/storages/property/column.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/array_column.h"
-#include "neug/utils/property/column.h"
 #include "unittest/utils.h"
 
 namespace neug {

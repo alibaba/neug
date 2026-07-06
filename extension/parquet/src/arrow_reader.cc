@@ -24,7 +24,6 @@
 #include "parquet/record_batch_supplier.h"
 
 #include "neug/compiler/common/assert.h"
-#include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
@@ -32,8 +31,8 @@
 namespace neug {
 namespace reader {
 
-void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
-                       execution::Context& ctx) {
+std::vector<DataChunk> ArrowReader::read(
+    std::shared_ptr<ReadLocalState> localState) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -49,10 +48,9 @@ void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
   const auto& fileSchema = sharedState->schema.file;
   ReadOptions options;
   if (options.batch_read.get(fileSchema.options)) {
-    batch_read(scanner, ctx);
-  } else {
-    full_read(scanner, ctx);
+    return batch_read(scanner);
   }
+  return full_read(scanner);
 }
 
 std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
@@ -136,8 +134,8 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
   return scanner_result.ValueOrDie();
 }
 
-void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                            execution::Context& output) {
+std::vector<DataChunk> ArrowReader::full_read(
+    std::shared_ptr<arrow::dataset::Scanner> scanner) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -162,17 +160,18 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
         ", table: " + std::to_string(table->num_columns()));
   }
 
-  output.clear();
   DataChunk chunk;
   for (int i = 0; i < num_cols; ++i) {
     auto table_column = table->column(i);
     chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
   }
-  output.append_chunk(std::move(chunk));
+  std::vector<DataChunk> output;
+  output.push_back(std::move(chunk));
+  return output;
 }
 
-void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                             execution::Context& output) {
+std::vector<DataChunk> ArrowReader::batch_read(
+    std::shared_ptr<arrow::dataset::Scanner> scanner) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -203,10 +202,11 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   auto batch_supplier =
       std::make_shared<RecordBatchChunkSupplier>(batch_reader, row_num);
 
-  output.clear();
+  std::vector<DataChunk> output;
   while (auto chunk = batch_supplier->GetNextChunk()) {
-    output.append_chunk(std::move(*chunk));
+    output.push_back(std::move(*chunk));
   }
+  return output;
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

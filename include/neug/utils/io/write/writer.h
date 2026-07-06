@@ -18,10 +18,8 @@
 #include <string>
 #include <utility>
 
-#include "neug/execution/common/context.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/generated/proto/response/response.pb.h"
-#include "neug/storages/graph/graph_interface.h"
+#include "neug/common/types.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/stream/output_stream.h"
@@ -54,29 +52,13 @@ class ExportWriter {
 
   virtual ~ExportWriter() = default;
 
-  virtual neug::Status write(const execution::Context& context,
-                             const StorageReadInterface& graph) = 0;
+  virtual neug::Status write(
+      const DataChunk& chunk,
+      const std::vector<DataType>& source_types = {}) = 0;
 
  protected:
   const reader::FileSchema& schema_;
   std::shared_ptr<reader::EntrySchema> entry_schema_;
-};
-
-class StringFormatBuffer {
- public:
-  StringFormatBuffer(const neug::QueryResponse* response,
-                     const reader::FileSchema& schema)
-      : response_(response), schema_(schema) {}
-  ~StringFormatBuffer() {}
-  virtual void addValue(int rowIdx, int colIdx) = 0;
-  virtual neug::Status flush(io::OutputStream& stream) = 0;
-  static bool validateIndex(const neug::QueryResponse* response, int rowIdx,
-                            int colIdx);
-  static bool validateProtoValue(const std::string& validity, int rowIdx);
-
- protected:
-  const neug::QueryResponse* response_;
-  const reader::FileSchema& schema_;
 };
 
 struct BinaryData {
@@ -84,41 +66,37 @@ struct BinaryData {
   uint64_t size = 0;
 };
 
-class CSVStringFormatBuffer : public StringFormatBuffer {
+class DataChunkCSVStringFormatBuffer {
  public:
-  CSVStringFormatBuffer(const neug::QueryResponse* response,
-                        const reader::FileSchema& schema,
-                        const reader::EntrySchema& entry_schema);
-  ~CSVStringFormatBuffer() {}
-  void addValue(int rowIdx, int colIdx) override;
+  DataChunkCSVStringFormatBuffer(const DataChunk& chunk,
+                                 const reader::FileSchema& schema,
+                                 const reader::EntrySchema& entry_schema);
+  ~DataChunkCSVStringFormatBuffer() = default;
+
+  void addValue(size_t row_idx, size_t col_idx);
   void addHeader();
-  neug::Status flush(io::OutputStream& stream) override;
+  neug::Status flush(io::OutputStream& stream);
 
  private:
+  neug::Status formatValueToStr(const Value& value, size_t row_idx);
+  void writeWithEscapes(char* toEscape, char escape, const std::string& str);
+  void write(const uint8_t* buffer, uint64_t len);
+
+  const DataChunk& chunk_;
+  const reader::FileSchema& schema_;
+  const reader::EntrySchema& entry_schema_;
   BinaryData blob_;
   size_t capacity_;
   uint8_t* data_;
-  const reader::EntrySchema& entry_schema_;
-  // Cached WriteOptions resolved once at construction to avoid per-cell lookup.
   bool has_header_;
   char delimiter_;
   bool ignore_errors_;
   char escape_char_;
   char quote_char_;
 
- private:
-  // write the current value to string buffer, return error status if value is
-  // invalid
-  neug::Status formatValueToStr(const neug::Array& arr, int rowIdx);
-  void writeWithEscapes(char* toEscape, char escape, const std::string& str);
-  void write(const uint8_t* buffer, uint64_t len);
-
- private:
   static constexpr const char* DEFAULT_CSV_NEWLINE = "\n";
   static constexpr const char* DEFAULT_NULL_STR = "";
   static constexpr size_t DEFAULT_CAPACITY = 64;
-  static constexpr const char* LIST_ARRAY_CHAR = "[]";
-  static constexpr const char* COMMA_CHAR = ",";
 };
 
 class QueryExportWriter : public ExportWriter {
@@ -128,11 +106,6 @@ class QueryExportWriter : public ExportWriter {
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
       : ExportWriter(schema, std::move(entry_schema)) {}
   ~QueryExportWriter() override = default;
-
-  neug::Status write(const execution::Context& context,
-                     const StorageReadInterface& graph) override;
-
-  virtual neug::Status writeTable(const QueryResponse* table) = 0;
 };
 
 class CsvQueryExportWriter : public QueryExportWriter {
@@ -143,7 +116,8 @@ class CsvQueryExportWriter : public QueryExportWriter {
       : QueryExportWriter(schema, std::move(entry_schema)) {}
   ~CsvQueryExportWriter() override = default;
 
-  neug::Status writeTable(const QueryResponse* table) override;
+  neug::Status write(const DataChunk& chunk,
+                     const std::vector<DataType>& source_types = {}) override;
 };
 
 }  // namespace writer

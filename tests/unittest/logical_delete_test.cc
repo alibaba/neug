@@ -15,9 +15,9 @@
 
 #include <gtest/gtest.h>
 #include <filesystem>
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 #include "unittest/utils.h"
 

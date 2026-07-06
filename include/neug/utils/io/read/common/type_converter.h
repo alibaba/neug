@@ -17,8 +17,8 @@
 
 #include <memory>
 
+#include "neug/common/types/property_types.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace reader {

@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-#include "neug/execution/common/context.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/read_state.h"
 #include "neug/utils/io/read/json/json_read_config.h"
@@ -28,10 +28,6 @@ namespace neug {
 
 class IDataChunkSupplier;
 
-namespace execution {
-class Context;
-}
-
 namespace reader {
 
 class JsonReader {
@@ -40,18 +36,16 @@ class JsonReader {
                       std::unique_ptr<JsonOptionsBuilder> optionsBuilder);
   ~JsonReader();
 
-  void read(std::shared_ptr<ReadLocalState> localState,
-            execution::Context& ctx);
+  std::vector<DataChunk> read(std::shared_ptr<ReadLocalState> localState);
 
   result<std::shared_ptr<EntrySchema>> inferSchema();
 
  private:
-  void full_read(
+  std::vector<DataChunk> full_read(
       const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-      execution::Context& output, const JsonReadConfig& output_config);
-  void batch_read(
-      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-      execution::Context& output);
+      const JsonReadConfig& output_config);
+  std::vector<DataChunk> batch_read(
+      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
 
   std::shared_ptr<ReadSharedState> sharedState_;
   std::unique_ptr<JsonOptionsBuilder> optionsBuilder_;

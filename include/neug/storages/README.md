@@ -26,11 +26,11 @@ In `PropertyGraph`, schema is defined [here](./graph/schema.h). To initialize an
 
 In `PropertyGraph`, each vertex is assigned an internal ID starting from zero, which is a consecutive integer. This ID can uniquely identify a vertex and can also be used as an offset to quickly access data related to the vertex in property tables and adjacency lists. 
 
-The mapping between the external and internal IDs is maintained in [LFIndexer](../utils/id_indexer.h), which is implemented based on ska::flat_hash_map and supports concurrent, lock-free insertion of elements.
+The mapping between the external and internal IDs is maintained in [LFIndexer](id_indexer.h), which is implemented based on ska::flat_hash_map and supports concurrent, lock-free insertion of elements.
 
 ### 3.2 Vertex properties storage
 
-The properties of vertices are maintained in [Table](../utils/property/table.h) in a column-oriented manner. Storing data in a column-oriented manner makes it more compact, and users can access only the necessary columns as per their requirements, without introducing redundant memory/disk access.
+The properties of vertices are maintained in [Table](../property/table.h) in a column-oriented manner. Storing data in a column-oriented manner makes it more compact, and users can access only the necessary columns as per their requirements, without introducing redundant memory/disk access.
 
 All the columns are implemented with `mmap`-ed memory. The `max_vertex_num` field of Schema will be used to ensure virtual memory region is large enough.
 

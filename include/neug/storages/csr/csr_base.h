@@ -18,12 +18,12 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/module/module.h"
-#include "neug/utils/property/types.h"
 
 #include <glog/logging.h>
 

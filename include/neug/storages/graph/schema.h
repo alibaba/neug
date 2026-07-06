@@ -26,11 +26,11 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "neug/common/types/default_value.h"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/utils/bitset.h"
-#include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"

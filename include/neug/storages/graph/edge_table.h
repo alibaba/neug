@@ -23,16 +23,16 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/indexers.h"
 #include "neug/storages/module/module.h"
-#include "neug/utils/indexers.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/property/table.h"
 
 namespace neug {
 

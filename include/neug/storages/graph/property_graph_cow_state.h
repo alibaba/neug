@@ -20,7 +20,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 

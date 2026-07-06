@@ -15,6 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
+#include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/path_columns.h"
@@ -22,12 +23,11 @@
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
 #include "neug/common/types/array_columns.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-
 #include "neug/storages/graph/graph_interface.h"
-
-#include "neug/utils/property/types.h"
 
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
@@ -544,7 +544,6 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
 
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
-    // Merge column across all chunks via union_col.
     std::shared_ptr<IContextColumn> merged;
     for (size_t c = 0; c < ctx.chunk_num(); ++c) {
       auto col = ctx.chunk(c).get(i);
@@ -561,6 +560,156 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
     }
     add_column(merged, graph, response->add_arrays());
   }
+}
+
+namespace {
+
+std::shared_ptr<IContextColumn> materialize_graph_column_as_string(
+    const std::shared_ptr<IContextColumn>& col,
+    const StorageReadInterface& graph) {
+  auto builder =
+      std::make_shared<ValueColumnBuilder<std::string>>(col->is_optional());
+  builder->reserve(col->size());
+
+  switch (col->elem_type().id()) {
+  case DataTypeId::kVertex: {
+    auto vcol = std::dynamic_pointer_cast<IVertexColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_vertex_to_json(graph, vcol->get_vertex(i))));
+      }
+    }
+    break;
+  }
+  case DataTypeId::kEdge: {
+    auto ecol = std::dynamic_pointer_cast<IEdgeColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_edge_to_json(graph, ecol->get_edge(i))));
+      }
+    }
+    break;
+  }
+  case DataTypeId::kPath: {
+    auto pcol = std::dynamic_pointer_cast<PathColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_path_to_json(graph, pcol->get_path(i))));
+      }
+    }
+    break;
+  }
+  default:
+    return col;
+  }
+  return builder->finish();
+}
+
+Value materialize_value_for_export(const Value& value,
+                                   const StorageReadInterface& graph) {
+  if (value.IsNull()) {
+    return Value(value.type());
+  }
+  switch (value.type().id()) {
+  case DataTypeId::kVertex:
+    return Value::STRING(
+        convert_vertex_to_json(graph, value.GetValue<vertex_t>()));
+  case DataTypeId::kEdge:
+    return Value::STRING(convert_edge_to_json(graph, value.GetValue<edge_t>()));
+  case DataTypeId::kPath:
+    return Value::STRING(convert_path_to_json(graph, PathValue::Get(value)));
+  case DataTypeId::kList: {
+    const auto& children = ListValue::GetChildren(value);
+    const auto& child_type = ListType::GetChildType(value.type());
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (const auto& child : children) {
+      materialized.push_back(materialize_value_for_export(child, graph));
+    }
+    return Value::LIST(child_type, std::move(materialized));
+  }
+  case DataTypeId::kStruct: {
+    const auto& children = StructValue::GetChildren(value);
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (const auto& child : children) {
+      materialized.push_back(materialize_value_for_export(child, graph));
+    }
+    return Value::STRUCT(value.type(), std::move(materialized));
+  }
+  case DataTypeId::kArray: {
+    const auto& children = ArrayValue::GetChildren(value);
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (const auto& child : children) {
+      materialized.push_back(materialize_value_for_export(child, graph));
+    }
+    return Value::ARRAY(value.type(), std::move(materialized));
+  }
+  default:
+    return value;
+  }
+}
+
+std::shared_ptr<IContextColumn> materialize_column_for_export(
+    const std::shared_ptr<IContextColumn>& col,
+    const StorageReadInterface& graph) {
+  if (col == nullptr) {
+    return nullptr;
+  }
+  switch (col->elem_type().id()) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return materialize_graph_column_as_string(col, graph);
+  case DataTypeId::kList:
+  case DataTypeId::kStruct:
+  case DataTypeId::kArray: {
+    auto builder = ColumnsUtils::create_builder(col->elem_type());
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(
+            materialize_value_for_export(col->get_elem(i), graph));
+      }
+    }
+    return builder->finish();
+  }
+  default:
+    return col;
+  }
+}
+
+}  // namespace
+
+std::vector<DataChunk> Sink::materialize_for_export(
+    const Context& ctx, const StorageReadInterface& graph) {
+  std::vector<DataChunk> result;
+  result.reserve(ctx.chunk_num());
+  for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+    const auto& ctx_chunk = ctx.chunk(c);
+    DataChunk chunk;
+    int alias = 0;
+    for (size_t tag_id : ctx.tag_ids) {
+      auto col = ctx_chunk.get(tag_id);
+      if (col == nullptr) {
+        continue;
+      }
+      chunk.set(alias++, materialize_column_for_export(col, graph));
+    }
+    result.push_back(std::move(chunk));
+  }
+  return result;
 }
 
 }  // namespace execution

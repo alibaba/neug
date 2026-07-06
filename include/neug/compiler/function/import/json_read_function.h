@@ -61,7 +61,7 @@ struct JsonReadFunction {
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
+    ctx.append_chunks(reader->read(localState));
     return ctx;
   }
 
@@ -127,7 +127,7 @@ struct JsonLReadFunction {
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
+    ctx.append_chunks(reader->read(localState));
     return ctx;
   }
 

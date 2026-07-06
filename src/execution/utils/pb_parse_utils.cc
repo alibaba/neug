@@ -25,12 +25,12 @@
 #include <string_view>
 #include <tuple>
 
+#include "neug/common/types/property_types.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

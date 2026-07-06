@@ -15,11 +15,11 @@
 
 #include "neug/execution/execute/ops/retrieve/edge.h"
 
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Schema;

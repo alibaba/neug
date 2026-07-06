@@ -74,6 +74,11 @@ class Context {
   /// Appends a fully-formed ContextChunk to this Context.
   void append_chunk(ContextChunk&& chunk);
 
+  /// Appends multiple chunks (each with no head) to this Context. Convenience
+  /// for consuming the output of the IO read layer, which produces plain
+  /// DataChunks with no knowledge of Context.
+  void append_chunks(std::vector<DataChunk>&& chunks);
+
   /// Applies a chunk-level operation to every chunk in this Context.
   template <typename F>
   neug::result<Context> apply_chunks(F&& func) {
@@ -105,6 +110,10 @@ class Context {
 
   /// Returns the total number of rows across all chunks.
   size_t row_num() const;
+
+  /// Column logical types in tag_ids order (from the first chunk that has each
+  /// tag).
+  std::vector<DataType> column_types() const;
 
   std::vector<int> tag_ids;
 
