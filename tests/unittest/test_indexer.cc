@@ -27,9 +27,9 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/container/file_header.h"
+#include "neug/storages/id_indexer.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module/type_name.h"
-#include "neug/utils/id_indexer.h"
 #include "unittest/utils.h"
 
 namespace neug {

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
@@ -33,10 +34,9 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/property_graph_cow_state.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/storages/property/table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/wal/wal_builder.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

@@ -37,7 +37,7 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Verify data: should have 3 columns
   EXPECT_EQ(ctx.col_num(), 3);
@@ -62,7 +62,7 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -87,7 +87,7 @@ TEST_F(ReaderTest, TestCsvWithCustomQuoting) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -108,7 +108,7 @@ TEST_F(ReaderTest, TestCsvWithNoHeader) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -136,7 +136,7 @@ TEST_F(ReaderTest, TestBatchRead) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Batch mode: data is materialized into Context chunks
   EXPECT_GT(ctx.chunk_num(), 0);
@@ -167,7 +167,7 @@ TEST_F(ReaderTest, TestColumnPruning) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should only have 2 columns (id and score)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -197,7 +197,7 @@ TEST_F(ReaderTest, TestFilterPushdown) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -230,7 +230,7 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -259,7 +259,7 @@ TEST_F(ReaderTest, TestMultipleFiles) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should read all rows from both files (4 rows total)
   EXPECT_EQ(ctx.col_num(), 3);
@@ -285,7 +285,7 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -329,7 +329,7 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should have 3 columns
   EXPECT_EQ(ctx.col_num(), 3);
@@ -360,7 +360,7 @@ TEST_F(ReaderTest, TestBatchReadWithFilter) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -392,7 +392,7 @@ TEST_F(ReaderTest, TestBatchReadWithFilterAndProjection) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -419,7 +419,7 @@ TEST_F(ReaderTest, TestBasicJsonRead) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -441,7 +441,7 @@ TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  EXPECT_THROW(reader->read(localState, ctx),
+  EXPECT_THROW(ctx.append_chunks(reader->read(localState)),
                exception::SchemaMismatchException);
 }
 
@@ -470,7 +470,7 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilter) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -504,7 +504,7 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilterAndProjection) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);

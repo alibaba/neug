@@ -35,7 +35,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
@@ -485,8 +484,8 @@ CsvReader::CsvReader(std::shared_ptr<ReadSharedState> sharedState,
 
 CsvReader::~CsvReader() = default;
 
-void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                     execution::Context& ctx) {
+std::vector<DataChunk> CsvReader::read(
+    std::shared_ptr<ReadLocalState> /*localState*/) {
   if (!sharedState_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -531,15 +530,14 @@ void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   }
 
   if (use_batch_read && !sharedState_->skipRows) {
-    batch_read(suppliers, ctx);
-  } else {
-    full_read(suppliers, ctx, config);
+    return batch_read(suppliers);
   }
+  return full_read(suppliers, config);
 }
 
-void CsvReader::full_read(
+std::vector<DataChunk> CsvReader::full_read(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output, const CsvReadConfig& output_config) {
+    const CsvReadConfig& output_config) {
   auto merged = read_all_chunks(suppliers);
 
   int expected_cols = sharedState_->columnNum();
@@ -559,19 +557,20 @@ void CsvReader::full_read(
                                      ? output_config.include_columns
                                      : sharedState_->projectColumns);
 
-  output.clear();
-  output.append_chunk(std::move(projected));
+  std::vector<DataChunk> output;
+  output.push_back(std::move(projected));
+  return output;
 }
 
-void CsvReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
+std::vector<DataChunk> CsvReader::batch_read(
+    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
+  std::vector<DataChunk> output;
   for (const auto& supplier : suppliers) {
     while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
+      output.push_back(std::move(*chunk));
     }
   }
+  return output;
 }
 
 result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {

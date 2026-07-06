@@ -20,11 +20,11 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#include "neug/common/types/property_types.h"
 #include "neug/compiler/common/arrow/arrow.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/bolt_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 
 // ---------------------------------------------------------------------------
 // Arrow C Data Interface helpers – build ArrowSchema / ArrowArray from the

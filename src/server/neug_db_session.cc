@@ -30,6 +30,7 @@
 #include <tuple>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/config.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/common/params_map.h"
@@ -53,7 +54,6 @@
 #include "neug/utils/encoder.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

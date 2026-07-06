@@ -27,15 +27,15 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/indexers.h"
 #include "neug/storages/module/module_broker.h"
+#include "neug/storages/property/column.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/indexers.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {

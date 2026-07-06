@@ -13,14 +13,14 @@
  * limitations under the License.
  */
 
-#include "neug/utils/property/array_column.h"
+#include "neug/storages/property/array_column.h"
 
 #include <glog/logging.h>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 
 #include <yaml-cpp/yaml.h>
 

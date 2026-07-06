@@ -22,13 +22,13 @@
 #include <ostream>
 #include <unordered_map>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {

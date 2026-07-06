@@ -14,9 +14,9 @@
  */
 #pragma once
 
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
+#include "neug/storages/property/column.h"
+#include "neug/storages/property/table.h"
 
 namespace neug {
 

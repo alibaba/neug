@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/csr/nbr.h"
@@ -36,10 +37,9 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/storages/property/column.h"
+#include "neug/storages/property/table.h"
 #include "neug/transaction/transaction_utils.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

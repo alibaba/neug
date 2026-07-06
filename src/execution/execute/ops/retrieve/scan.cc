@@ -17,11 +17,11 @@
 
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace execution {

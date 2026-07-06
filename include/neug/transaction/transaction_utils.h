@@ -15,9 +15,9 @@
 #pragma once
 
 #include "glog/logging.h"
+#include "neug/common/types/property_types.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 

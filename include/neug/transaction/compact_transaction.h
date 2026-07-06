@@ -14,8 +14,8 @@
  */
 #pragma once
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
 namespace neug {

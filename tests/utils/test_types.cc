@@ -16,8 +16,8 @@
 #include <filesystem>
 
 #include "neug/common/types/value.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
+#include "neug/storages/property/column.h"
+#include "neug/storages/property/table.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 

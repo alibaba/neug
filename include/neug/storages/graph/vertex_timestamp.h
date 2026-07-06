@@ -20,9 +20,9 @@
 #include <memory>
 #include <set>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

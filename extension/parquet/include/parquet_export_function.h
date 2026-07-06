@@ -38,7 +38,8 @@ class ArrowParquetExportWriter : public QueryExportWriter {
         fileSystem_(std::move(fileSystem)) {}
   ~ArrowParquetExportWriter() override = default;
 
-  neug::Status writeTable(const QueryResponse* table) override;
+  neug::Status write(const DataChunk& chunk,
+                     const std::vector<DataType>& source_types = {}) override;
 
  private:
   std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
