@@ -4,6 +4,7 @@
 #include <cmath>
 #include <random>
 #include <unordered_map>
+#include <unordered_set>
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
@@ -45,12 +46,17 @@ MultiLabelLouvain::MultiLabelLouvain(
   std::fill_n(thread_comm_weight_.get(), total_scratch, 0.0);
   std::fill_n(thread_gen_.get(), total_scratch, 0);
   if (!initial_community_property_.empty()) {
+    initial_community_ = std::make_unique<uint32_t[]>(array_size_);
+    std::fill_n(initial_community_.get(), array_size_, UINT32_MAX);
     for (size_t li = 0; li < vertex_labels_.size(); ++li) {
       label_t label = vertex_labels_[li];
       auto prop_col = graph_.GetVertexPropColumn(label, initial_community_property_);
       const auto& vs = graph_.GetVertexSet(label); size_t base = label_base_offsets_[li];
       for (const auto& v : vs) { uint32_t gid = static_cast<uint32_t>(base+v);
-        if (prop_col) { auto val = prop_col->get_any(v); if (!val.IsNull()) community_[gid] = static_cast<uint32_t>(val.GetValue<int64_t>()); else community_[gid] = gid; } else community_[gid] = gid;
+        if (prop_col) { auto val = prop_col->get_any(v);
+          if (!val.IsNull()) { uint32_t cval = static_cast<uint32_t>(val.GetValue<int64_t>()); community_[gid] = cval; initial_community_[gid] = cval; }
+          else community_[gid] = gid;
+        } else community_[gid] = gid;
         stot_[gid] = 0; degree_[gid] = 0; }
     }
   } else { for (uint32_t gid : valid_vertices_) { community_[gid] = gid; stot_[gid] = 0; degree_[gid] = 0; } }
@@ -173,8 +179,37 @@ bool MultiLabelLouvain::one_level() {
   return improved;
 }
 void MultiLabelLouvain::sink(execution::Context& ctx, int node_alias, int community_alias) {
-  std::unordered_map<uint32_t,uint32_t> cr; uint32_t ni = 0;
-  for (uint32_t gid : valid_vertices_) { uint32_t c = community_[gid]; if (cr.find(c) == cr.end()) cr[c] = ni++; }
+  std::unordered_map<uint32_t,uint32_t> cr;
+  if (initial_community_) {
+    // Stable ID: inherit old community IDs via majority vote
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> new_to_old_counts;
+    uint32_t max_old_id = 0;
+    for (uint32_t gid : valid_vertices_) {
+      uint32_t new_com = community_[gid]; uint32_t old_com = initial_community_[gid];
+      if (old_com != UINT32_MAX) { new_to_old_counts[new_com][old_com]++; if (old_com > max_old_id) max_old_id = old_com; }
+      else { new_to_old_counts[new_com]; }
+    }
+    std::vector<std::pair<uint32_t, uint32_t>> com_sizes;
+    for (auto& [nc, old_counts] : new_to_old_counts) {
+      uint32_t total = 0; for (auto& [_, cnt] : old_counts) total += cnt;
+      com_sizes.push_back({nc, total});
+    }
+    std::sort(com_sizes.begin(), com_sizes.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::unordered_set<uint32_t> used_ids;
+    for (auto& [nc, _] : com_sizes) {
+      auto& old_counts = new_to_old_counts[nc];
+      uint32_t best_old = UINT32_MAX; uint32_t best_count = 0;
+      for (auto& [oc, cnt] : old_counts) { if (cnt > best_count && used_ids.find(oc) == used_ids.end()) { best_count = cnt; best_old = oc; } }
+      if (best_old != UINT32_MAX) { cr[nc] = best_old; used_ids.insert(best_old); }
+    }
+    uint32_t next_fresh = max_old_id + 1;
+    for (auto& [nc, _] : com_sizes) {
+      if (cr.find(nc) == cr.end()) { while (used_ids.find(next_fresh) != used_ids.end()) next_fresh++; cr[nc] = next_fresh; used_ids.insert(next_fresh); next_fresh++; }
+    }
+  } else {
+    uint32_t ni = 0;
+    for (uint32_t gid : valid_vertices_) { uint32_t c = community_[gid]; if (cr.find(c) == cr.end()) cr[c] = ni++; }
+  }
   for (size_t li = 0; li < vertex_labels_.size(); ++li) { label_t label = vertex_labels_[li]; size_t base = label_base_offsets_[li]; const auto& vs = graph_.GetVertexSet(label);
     execution::MSVertexColumnBuilder b(label); execution::ValueColumnBuilder<int64_t> cb; size_t cnt = 0; for (const auto& v : vs) { (void)v; cnt++; } b.reserve(cnt); cb.reserve(cnt);
     for (const auto& v : vs) { uint32_t gid = static_cast<uint32_t>(base+v); b.push_back_opt(v); cb.push_back_opt(static_cast<int64_t>(cr[community_[gid]])); }

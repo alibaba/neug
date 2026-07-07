@@ -80,6 +80,7 @@ class MultiLabelLeiden {
   size_t vertex_count_ = 0;
   size_t array_size_ = 0;
   std::unique_ptr<uint32_t[]> community_;
+  std::unique_ptr<uint32_t[]> initial_community_;  // for stable ID inheritance
   std::unique_ptr<double[]> degree_;
   std::unique_ptr<double[]> stot_;
 

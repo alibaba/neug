@@ -5,6 +5,7 @@
 #include <numeric>
 #include <random>
 #include <unordered_map>
+#include <unordered_set>
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
@@ -59,6 +60,8 @@ MultiLabelLeiden::MultiLabelLeiden(
   std::fill_n(thread_gen_.get(), total_scratch, 0);
   for (size_t i = 0; i < array_size_; ++i) sub_com_flat_[i] = kInvalidSubCom;
   if (!initial_community_property_.empty()) {
+    initial_community_ = std::make_unique<uint32_t[]>(array_size_);
+    std::fill_n(initial_community_.get(), array_size_, UINT32_MAX);
     for (size_t li = 0; li < vertex_labels_.size(); ++li) {
       label_t label = vertex_labels_[li];
       auto prop_col = graph_.GetVertexPropColumn(label, initial_community_property_);
@@ -68,8 +71,11 @@ MultiLabelLeiden::MultiLabelLeiden(
         uint32_t gid = static_cast<uint32_t>(base + v);
         if (prop_col) {
           auto val = prop_col->get_any(v);
-          if (!val.IsNull()) community_[gid] = static_cast<uint32_t>(val.GetValue<int64_t>());
-          else community_[gid] = gid;
+          if (!val.IsNull()) {
+            uint32_t cval = static_cast<uint32_t>(val.GetValue<int64_t>());
+            community_[gid] = cval;
+            initial_community_[gid] = cval;
+          } else { community_[gid] = gid; }
         } else { community_[gid] = gid; }
         stot_[gid] = 0; degree_[gid] = 0;
       }
@@ -430,8 +436,64 @@ void MultiLabelLeiden::refine() {
   }
 }
 void MultiLabelLeiden::sink(execution::Context& ctx, int node_alias, int community_alias) {
-  std::unordered_map<uint32_t,uint32_t> com_remap; uint32_t next_id = 0;
-  for (uint32_t gid : valid_vertices_) { uint32_t c = community_[gid]; if (com_remap.find(c) == com_remap.end()) com_remap[c] = next_id++; }
+  std::unordered_map<uint32_t,uint32_t> com_remap;
+  if (initial_community_) {
+    // Stable ID: inherit old community IDs via majority vote
+    // Step 1: collect members per new community, count votes from old communities
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> new_to_old_counts;
+    uint32_t max_old_id = 0;
+    for (uint32_t gid : valid_vertices_) {
+      uint32_t new_com = community_[gid];
+      uint32_t old_com = initial_community_[gid];
+      if (old_com != UINT32_MAX) {
+        new_to_old_counts[new_com][old_com]++;
+        if (old_com > max_old_id) max_old_id = old_com;
+      } else {
+        new_to_old_counts[new_com]; // ensure entry exists
+      }
+    }
+    // Step 2: for each new community, find best matching old ID (majority vote)
+    // Sort by community size descending so larger communities get priority
+    std::vector<std::pair<uint32_t, uint32_t>> com_sizes; // (new_com, size)
+    for (auto& [nc, old_counts] : new_to_old_counts) {
+      uint32_t total = 0;
+      for (auto& [_, cnt] : old_counts) total += cnt;
+      com_sizes.push_back({nc, total});
+    }
+    std::sort(com_sizes.begin(), com_sizes.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::unordered_set<uint32_t> used_ids;
+    for (auto& [nc, _] : com_sizes) {
+      auto& old_counts = new_to_old_counts[nc];
+      uint32_t best_old = UINT32_MAX; uint32_t best_count = 0;
+      for (auto& [oc, cnt] : old_counts) {
+        if (cnt > best_count && used_ids.find(oc) == used_ids.end()) {
+          best_count = cnt; best_old = oc;
+        }
+      }
+      if (best_old != UINT32_MAX) {
+        com_remap[nc] = best_old;
+        used_ids.insert(best_old);
+      }
+    }
+    // Step 3: assign fresh IDs for unmatched new communities
+    uint32_t next_fresh = max_old_id + 1;
+    for (auto& [nc, _] : com_sizes) {
+      if (com_remap.find(nc) == com_remap.end()) {
+        while (used_ids.find(next_fresh) != used_ids.end()) next_fresh++;
+        com_remap[nc] = next_fresh;
+        used_ids.insert(next_fresh);
+        next_fresh++;
+      }
+    }
+  } else {
+    // No initial community: sequential 0-based IDs
+    uint32_t next_id = 0;
+    for (uint32_t gid : valid_vertices_) {
+      uint32_t c = community_[gid];
+      if (com_remap.find(c) == com_remap.end()) com_remap[c] = next_id++;
+    }
+  }
   for (size_t li = 0; li < vertex_labels_.size(); ++li) {
     label_t label = vertex_labels_[li]; size_t base = label_base_offsets_[li];
     const auto& vertex_set = graph_.GetVertexSet(label);
