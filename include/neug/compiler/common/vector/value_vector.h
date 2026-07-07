@@ -34,9 +34,13 @@
 #include "neug/compiler/common/vector/auxiliary_buffer.h"
 
 namespace neug {
+namespace compiler_impl {
+class Value;
+}  // namespace compiler_impl
+
 namespace common {
 
-class Value;
+class ValueVector;
 
 //! A Vector represents values of the same data type.
 //! The capacity of a ValueVector is either 1 (sequence) or
@@ -140,9 +144,9 @@ class NEUG_API ValueVector {
                           const uint8_t* srcVectorData);
   void copyFromVectorData(uint64_t dstPos, const ValueVector* srcVector,
                           uint64_t srcPos);
-  void copyFromValue(uint64_t pos, const Value& value);
+  void copyFromValue(uint64_t pos, const compiler_impl::Value& value);
 
-  std::unique_ptr<Value> getAsValue(uint64_t pos) const;
+  std::unique_ptr<compiler_impl::Value> getAsValue(uint64_t pos) const;
 
   uint8_t* getData() const { return valueBuffer.get(); }
 
@@ -220,13 +224,13 @@ struct NEUG_API BlobVector {
   static void addBlob(ValueVector* vector, uint32_t pos, const char* data,
                       uint32_t length) {
     StringVector::addString(vector, pos, data, length);
-  }  // namespace common
+  }
   static void addBlob(ValueVector* vector, uint32_t pos, const uint8_t* data,
                       uint64_t length) {
     StringVector::addString(vector, pos, reinterpret_cast<const char*>(data),
                             length);
   }
-};  // namespace neug
+};
 
 // ListVector is used for both LIST and ARRAY physical type
 class NEUG_API ListVector {

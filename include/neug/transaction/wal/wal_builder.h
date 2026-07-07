@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/wal/wal.h"
@@ -61,23 +61,21 @@ class WalBuilder {
                          const std::string& edge_type);
 
   // --- DML logging ---
-  void LogInsertVertex(label_t label, const execution::Value& oid,
-                       const std::vector<execution::Value>& props);
-  void LogInsertEdge(label_t src_label, const execution::Value& src,
-                     label_t dst_label, const execution::Value& dst,
-                     label_t edge_label,
-                     const std::vector<execution::Value>& properties);
-  void LogUpdateVertexProp(label_t label, const execution::Value& oid,
-                           int prop_id, const execution::Value& value);
-  void LogUpdateEdgeProp(label_t src_label, const execution::Value& src,
-                         label_t dst_label, const execution::Value& dst,
-                         label_t edge_label, int32_t oe_offset,
-                         int32_t ie_offset, int prop_id,
-                         const execution::Value& value);
-  void LogRemoveVertex(label_t label, const execution::Value& oid);
-  void LogRemoveEdge(label_t src_label, const execution::Value& src,
-                     label_t dst_label, const execution::Value& dst,
-                     label_t edge_label, int32_t oe_offset, int32_t ie_offset);
+  void LogInsertVertex(label_t label, const Value& oid,
+                       const std::vector<Value>& props);
+  void LogInsertEdge(label_t src_label, const Value& src, label_t dst_label,
+                     const Value& dst, label_t edge_label,
+                     const std::vector<Value>& properties);
+  void LogUpdateVertexProp(label_t label, const Value& oid, int prop_id,
+                           const Value& value);
+  void LogUpdateEdgeProp(label_t src_label, const Value& src, label_t dst_label,
+                         const Value& dst, label_t edge_label,
+                         int32_t oe_offset, int32_t ie_offset, int prop_id,
+                         const Value& value);
+  void LogRemoveVertex(label_t label, const Value& oid);
+  void LogRemoveEdge(label_t src_label, const Value& src, label_t dst_label,
+                     const Value& dst, label_t edge_label, int32_t oe_offset,
+                     int32_t ie_offset);
 
   /// Checkpoint: only increments op_num, no WAL content serialized.
   void LogCheckpoint() { ++op_num_; }

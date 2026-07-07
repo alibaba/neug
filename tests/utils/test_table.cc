@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <filesystem>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
@@ -197,61 +197,59 @@ TEST_F(TableTest, TestTableBasic) {
   size_t index = 0;
   for (size_t i = 0; i < 10; i++) {
     disk_table.get_column("bool_column")
-        ->set_any(index, execution::Value::BOOLEAN(bool_data[i]), false);
+        ->set_any(index, neug::Value::BOOLEAN(bool_data[i]), false);
     mem_table.get_column("bool_column")
-        ->set_any(index, execution::Value::BOOLEAN(bool_data[i]), false);
+        ->set_any(index, neug::Value::BOOLEAN(bool_data[i]), false);
 
     disk_table.get_column("int32_column")
-        ->set_any(index, execution::Value::INT32(int32_data[i]), false);
+        ->set_any(index, neug::Value::INT32(int32_data[i]), false);
     mem_table.get_column("int32_column")
-        ->set_any(index, execution::Value::INT32(int32_data[i]), false);
+        ->set_any(index, neug::Value::INT32(int32_data[i]), false);
 
     disk_table.get_column("uint32_column")
-        ->set_any(index, execution::Value::UINT32(uint32_data[i]), false);
+        ->set_any(index, neug::Value::UINT32(uint32_data[i]), false);
     mem_table.get_column("uint32_column")
-        ->set_any(index, execution::Value::UINT32(uint32_data[i]), false);
+        ->set_any(index, neug::Value::UINT32(uint32_data[i]), false);
 
     disk_table.get_column("int64_column")
-        ->set_any(index, execution::Value::INT64(int64_data[i]), false);
+        ->set_any(index, neug::Value::INT64(int64_data[i]), false);
     mem_table.get_column("int64_column")
-        ->set_any(index, execution::Value::INT64(int64_data[i]), false);
+        ->set_any(index, neug::Value::INT64(int64_data[i]), false);
 
     disk_table.get_column("uint64_column")
-        ->set_any(index, execution::Value::UINT64(uint64_data[i]), false);
+        ->set_any(index, neug::Value::UINT64(uint64_data[i]), false);
     mem_table.get_column("uint64_column")
-        ->set_any(index, execution::Value::UINT64(uint64_data[i]), false);
+        ->set_any(index, neug::Value::UINT64(uint64_data[i]), false);
 
     disk_table.get_column("float_column")
-        ->set_any(index, execution::Value::FLOAT(float_data[i]), false);
+        ->set_any(index, neug::Value::FLOAT(float_data[i]), false);
     mem_table.get_column("float_column")
-        ->set_any(index, execution::Value::FLOAT(float_data[i]), false);
+        ->set_any(index, neug::Value::FLOAT(float_data[i]), false);
 
     disk_table.get_column("double_column")
-        ->set_any(index, execution::Value::DOUBLE(double_data[i]), false);
+        ->set_any(index, neug::Value::DOUBLE(double_data[i]), false);
     mem_table.get_column("double_column")
-        ->set_any(index, execution::Value::DOUBLE(double_data[i]), false);
+        ->set_any(index, neug::Value::DOUBLE(double_data[i]), false);
 
     disk_table.get_column("date_column")
-        ->set_any(index, execution::Value::DATE(date_data[i]), false);
+        ->set_any(index, neug::Value::DATE(date_data[i]), false);
     mem_table.get_column("date_column")
-        ->set_any(index, execution::Value::DATE(date_data[i]), false);
+        ->set_any(index, neug::Value::DATE(date_data[i]), false);
 
     disk_table.get_column("datetime_column")
-        ->set_any(index, execution::Value::TIMESTAMPMS(datetime_data[i]),
-                  false);
+        ->set_any(index, neug::Value::TIMESTAMPMS(datetime_data[i]), false);
     mem_table.get_column("datetime_column")
-        ->set_any(index, execution::Value::TIMESTAMPMS(datetime_data[i]),
-                  false);
+        ->set_any(index, neug::Value::TIMESTAMPMS(datetime_data[i]), false);
 
     disk_table.get_column("interval_column")
-        ->set_any(index, execution::Value::INTERVAL(interval_data[i]), false);
+        ->set_any(index, neug::Value::INTERVAL(interval_data[i]), false);
     mem_table.get_column("interval_column")
-        ->set_any(index, execution::Value::INTERVAL(interval_data[i]), false);
+        ->set_any(index, neug::Value::INTERVAL(interval_data[i]), false);
 
     disk_table.get_column("string_column")
-        ->set_any(index, execution::Value::STRING(string_data[i]), true);
+        ->set_any(index, neug::Value::STRING(string_data[i]), true);
     mem_table.get_column("string_column")
-        ->set_any(index, execution::Value::STRING(string_data[i]), true);
+        ->set_any(index, neug::Value::STRING(string_data[i]), true);
     index++;
   }
 
@@ -434,8 +432,8 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   Table table(col_name, property_types);
   OpenTableLegacy(table, *ckp, CheckpointManifest(), MemoryLevel::kInMemory,
                   property_types);
-  table.resize(2, std::vector<execution::Value>{
-                      execution::Value::STRING(std::string("default_value"))});
+  table.resize(2, std::vector<neug::Value>{
+                      neug::Value::STRING(std::string("default_value"))});
 
   auto string_column =
       dynamic_cast<StringColumn*>(table.get_column("string_column"));
@@ -443,11 +441,11 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
 
   EXPECT_EQ(string_column->get_any(0).GetValue<std::string>(), "default_value");
 
-  string_column->set_any(1, execution::Value::STRING(std::string("")), true);
+  string_column->set_any(1, neug::Value::STRING(std::string("")), true);
   EXPECT_TRUE(string_column->get_any(1).GetValue<std::string>().empty());
   EXPECT_EQ(string_column->get_any(1).type().id(), DataTypeId::kVarchar);
   string_column->set_any(
-      1, execution::Value::STRING(std::string("new value new value new value")),
+      1, neug::Value::STRING(std::string("new value new value new value")),
       true);
   EXPECT_EQ(string_column->get_any(1).GetValue<std::string>(),
             "new value new value new value");

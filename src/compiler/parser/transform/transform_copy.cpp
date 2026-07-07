@@ -139,7 +139,7 @@ options_t Transformer::transformOptions(
     } else {
       // If no literal is provided, set the default value to true
       options.emplace(optionName, std::make_unique<ParsedLiteralExpression>(
-                                      Value(true), "true"));
+                                      compiler_impl::Value(true), "true"));
     }
   }
   return options;

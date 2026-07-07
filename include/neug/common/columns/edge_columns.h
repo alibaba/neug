@@ -14,15 +14,13 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/types/graph_types.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
-
-namespace execution {
 
 enum class EdgeColumnType { kSDSL, kSDML, kBDSL, kBDML, kMS, kUnKnown };
 
@@ -884,7 +882,5 @@ void foreach_edge(
     }
   }
 }
-
-}  // namespace execution
 
 }  // namespace neug

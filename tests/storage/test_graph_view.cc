@@ -54,43 +54,40 @@ class GraphViewTest : public ::testing::Test {
 
     // Create vertex type: person with id as primary key and name as property
     CreateVertexTypeParamBuilder person_builder;
-    ASSERT_TRUE(graph_
-                    ->CreateVertexType(
-                        person_builder.VertexLabel("person")
-                            .AddProperty("id", execution::Value::INT64(0))
-                            .AddProperty("name", execution::Value::STRING(""))
-                            .AddPrimaryKeyName("id")
-                            .Build())
-                    .ok());
+    ASSERT_TRUE(
+        graph_
+            ->CreateVertexType(person_builder.VertexLabel("person")
+                                   .AddProperty("id", neug::Value::INT64(0))
+                                   .AddProperty("name", neug::Value::STRING(""))
+                                   .AddPrimaryKeyName("id")
+                                   .Build())
+            .ok());
 
     // Create edge type: knows
     CreateEdgeTypeParamBuilder knows_builder;
-    ASSERT_TRUE(
-        graph_
-            ->CreateEdgeType(
-                knows_builder.SrcLabel("person")
-                    .DstLabel("person")
-                    .EdgeLabel("knows")
-                    .AddProperty("weight", execution::Value::DOUBLE(0.0))
-                    .Build())
-            .ok());
+    ASSERT_TRUE(graph_
+                    ->CreateEdgeType(
+                        knows_builder.SrcLabel("person")
+                            .DstLabel("person")
+                            .EdgeLabel("knows")
+                            .AddProperty("weight", neug::Value::DOUBLE(0.0))
+                            .Build())
+                    .ok());
 
     // Add vertices
     label_t person_label = graph_->schema().get_vertex_label_id("person");
     vid_t vid1, vid2, vid3;
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, execution::Value::INT64(1),
-                                {execution::Value::STRING("Alice")}, vid1, 0,
-                                false)
+                    ->AddVertex(person_label, neug::Value::INT64(1),
+                                {neug::Value::STRING("Alice")}, vid1, 0, false)
                     .ok());
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, execution::Value::INT64(2),
-                                {execution::Value::STRING("Bob")}, vid2, 0,
-                                false)
+                    ->AddVertex(person_label, neug::Value::INT64(2),
+                                {neug::Value::STRING("Bob")}, vid2, 0, false)
                     .ok());
     ASSERT_TRUE(graph_
-                    ->AddVertex(person_label, execution::Value::INT64(3),
-                                {execution::Value::STRING("Charlie")}, vid3, 0,
+                    ->AddVertex(person_label, neug::Value::INT64(3),
+                                {neug::Value::STRING("Charlie")}, vid3, 0,
                                 false)
                     .ok());
 
@@ -100,12 +97,12 @@ class GraphViewTest : public ::testing::Test {
     const void* edge_prop = nullptr;
     ASSERT_TRUE(graph_
                     ->AddEdge(person_label, vid1, person_label, vid2,
-                              knows_label, {execution::Value::DOUBLE(0.5)}, 0,
+                              knows_label, {neug::Value::DOUBLE(0.5)}, 0,
                               *alloc_, oe_offset, edge_prop, false)
                     .ok());
     ASSERT_TRUE(graph_
                     ->AddEdge(person_label, vid2, person_label, vid3,
-                              knows_label, {execution::Value::DOUBLE(0.7)}, 0,
+                              knows_label, {neug::Value::DOUBLE(0.7)}, 0,
                               *alloc_, oe_offset, edge_prop, false)
                     .ok());
   }
@@ -130,11 +127,10 @@ TEST_F(GraphViewTest, GetLid) {
   label_t person_label = view.schema().get_vertex_label_id("person");
 
   vid_t lid;
-  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(1), lid, 0));
-  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(2), lid, 0));
-  EXPECT_TRUE(view.get_lid(person_label, execution::Value::INT64(3), lid, 0));
-  EXPECT_FALSE(
-      view.get_lid(person_label, execution::Value::INT64(999), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, neug::Value::INT64(1), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, neug::Value::INT64(2), lid, 0));
+  EXPECT_TRUE(view.get_lid(person_label, neug::Value::INT64(3), lid, 0));
+  EXPECT_FALSE(view.get_lid(person_label, neug::Value::INT64(999), lid, 0));
 }
 
 TEST_F(GraphViewTest, GetOid) {

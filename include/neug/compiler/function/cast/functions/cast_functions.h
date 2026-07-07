@@ -63,64 +63,64 @@ struct CastRelToString {
 
 struct CastDateToTimestamp {
   template <typename T>
-  static inline void operation(common::date_t& input, T& result) {
+  static inline void operation(compiler_impl::date_t& input, T& result) {
     // base case: timestamp
-    result = common::Timestamp::fromDateTime(input, common::dtime_t{});
+    result = compiler_impl::Timestamp::fromDateTime(input, common::dtime_t{});
   }
 };
 
 template <>
-inline void CastDateToTimestamp::operation(common::date_t& input,
-                                           common::timestamp_ns_t& result) {
-  operation<common::timestamp_t>(input, result);
-  result =
-      common::timestamp_ns_t{common::Timestamp::getEpochNanoSeconds(result)};
+inline void CastDateToTimestamp::operation(
+    compiler_impl::date_t& input, compiler_impl::timestamp_ns_t& result) {
+  operation<compiler_impl::timestamp_t>(input, result);
+  result = compiler_impl::timestamp_ns_t{
+      compiler_impl::Timestamp::getEpochNanoSeconds(result)};
 }
 
 template <>
-inline void CastDateToTimestamp::operation(common::date_t& input,
-                                           common::timestamp_ms_t& result) {
-  operation<common::timestamp_t>(input, result);
-  result.value /= common::Interval::MICROS_PER_MSEC;
+inline void CastDateToTimestamp::operation(
+    compiler_impl::date_t& input, compiler_impl::timestamp_ms_t& result) {
+  operation<compiler_impl::timestamp_t>(input, result);
+  result.value /= compiler_impl::Interval::MICROS_PER_MSEC;
 }
 
 template <>
-inline void CastDateToTimestamp::operation(common::date_t& input,
-                                           common::timestamp_sec_t& result) {
-  operation<common::timestamp_t>(input, result);
-  result.value /= common::Interval::MICROS_PER_SEC;
+inline void CastDateToTimestamp::operation(
+    compiler_impl::date_t& input, compiler_impl::timestamp_sec_t& result) {
+  operation<compiler_impl::timestamp_t>(input, result);
+  result.value /= compiler_impl::Interval::MICROS_PER_SEC;
 }
 
 struct CastToDate {
   template <typename T>
-  static inline void operation(T& input, common::date_t& result);
+  static inline void operation(T& input, compiler_impl::date_t& result);
 };
 
 template <>
-inline void CastToDate::operation(common::timestamp_t& input,
-                                  common::date_t& result) {
-  result = common::Timestamp::getDate(input);
+inline void CastToDate::operation(compiler_impl::timestamp_t& input,
+                                  compiler_impl::date_t& result) {
+  result = compiler_impl::Timestamp::getDate(input);
 }
 
 template <>
-inline void CastToDate::operation(common::timestamp_ns_t& input,
-                                  common::date_t& result) {
-  auto tmp = common::Timestamp::fromEpochNanoSeconds(input.value);
-  operation<common::timestamp_t>(tmp, result);
+inline void CastToDate::operation(compiler_impl::timestamp_ns_t& input,
+                                  compiler_impl::date_t& result) {
+  auto tmp = compiler_impl::Timestamp::fromEpochNanoSeconds(input.value);
+  operation<compiler_impl::timestamp_t>(tmp, result);
 }
 
 template <>
-inline void CastToDate::operation(common::timestamp_ms_t& input,
-                                  common::date_t& result) {
-  auto tmp = common::Timestamp::fromEpochMilliSeconds(input.value);
-  operation<common::timestamp_t>(tmp, result);
+inline void CastToDate::operation(compiler_impl::timestamp_ms_t& input,
+                                  compiler_impl::date_t& result) {
+  auto tmp = compiler_impl::Timestamp::fromEpochMilliSeconds(input.value);
+  operation<compiler_impl::timestamp_t>(tmp, result);
 }
 
 template <>
-inline void CastToDate::operation(common::timestamp_sec_t& input,
-                                  common::date_t& result) {
-  auto tmp = common::Timestamp::fromEpochSeconds(input.value);
-  operation<common::timestamp_t>(tmp, result);
+inline void CastToDate::operation(compiler_impl::timestamp_sec_t& input,
+                                  compiler_impl::date_t& result) {
+  auto tmp = compiler_impl::Timestamp::fromEpochSeconds(input.value);
+  operation<compiler_impl::timestamp_t>(tmp, result);
 }
 
 struct CastToDouble {
@@ -339,81 +339,105 @@ struct CastBetweenTimestamp {
 };
 
 template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_t& input,
-                                            common::timestamp_ns_t& output) {
-  output.value = common::Timestamp::getEpochNanoSeconds(input);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_t& input,
-                                            common::timestamp_ms_t& output) {
-  output.value = common::Timestamp::getEpochMilliSeconds(input);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_t& input,
-                                            common::timestamp_sec_t& output) {
-  output.value = common::Timestamp::getEpochSeconds(input);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ms_t& input,
-                                            common::timestamp_t& output) {
-  output = common::Timestamp::fromEpochMilliSeconds(input.value);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ms_t& input,
-                                            common::timestamp_ns_t& output) {
-  operation<common::timestamp_ms_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_ns_t>(output, output);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ms_t& input,
-                                            common::timestamp_sec_t& output) {
-  operation<common::timestamp_ms_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_sec_t>(output, output);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ns_t& input,
-                                            common::timestamp_t& output) {
-  output = common::Timestamp::fromEpochNanoSeconds(input.value);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ns_t& input,
-                                            common::timestamp_ms_t& output) {
-  operation<common::timestamp_ns_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_ms_t>(output, output);
-}
-
-template <>
-inline void CastBetweenTimestamp::operation(const common::timestamp_ns_t& input,
-                                            common::timestamp_sec_t& output) {
-  operation<common::timestamp_ns_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_sec_t>(output, output);
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_t& input,
+    compiler_impl::timestamp_ns_t& output) {
+  output.value = compiler_impl::Timestamp::getEpochNanoSeconds(input);
 }
 
 template <>
 inline void CastBetweenTimestamp::operation(
-    const common::timestamp_sec_t& input, common::timestamp_t& output) {
-  output = common::Timestamp::fromEpochSeconds(input.value);
+    const compiler_impl::timestamp_t& input,
+    compiler_impl::timestamp_ms_t& output) {
+  output.value = compiler_impl::Timestamp::getEpochMilliSeconds(input);
 }
 
 template <>
 inline void CastBetweenTimestamp::operation(
-    const common::timestamp_sec_t& input, common::timestamp_ns_t& output) {
-  operation<common::timestamp_sec_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_ns_t>(output, output);
+    const compiler_impl::timestamp_t& input,
+    compiler_impl::timestamp_sec_t& output) {
+  output.value = compiler_impl::Timestamp::getEpochSeconds(input);
 }
 
 template <>
 inline void CastBetweenTimestamp::operation(
-    const common::timestamp_sec_t& input, common::timestamp_ms_t& output) {
-  operation<common::timestamp_sec_t, common::timestamp_t>(input, output);
-  operation<common::timestamp_t, common::timestamp_ms_t>(output, output);
+    const compiler_impl::timestamp_ms_t& input,
+    compiler_impl::timestamp_t& output) {
+  output = compiler_impl::Timestamp::fromEpochMilliSeconds(input.value);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_ms_t& input,
+    compiler_impl::timestamp_ns_t& output) {
+  operation<compiler_impl::timestamp_ms_t, compiler_impl::timestamp_t>(input,
+                                                                       output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_ns_t>(output,
+                                                                       output);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_ms_t& input,
+    compiler_impl::timestamp_sec_t& output) {
+  operation<compiler_impl::timestamp_ms_t, compiler_impl::timestamp_t>(input,
+                                                                       output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_sec_t>(output,
+                                                                        output);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_ns_t& input,
+    compiler_impl::timestamp_t& output) {
+  output = compiler_impl::Timestamp::fromEpochNanoSeconds(input.value);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_ns_t& input,
+    compiler_impl::timestamp_ms_t& output) {
+  operation<compiler_impl::timestamp_ns_t, compiler_impl::timestamp_t>(input,
+                                                                       output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_ms_t>(output,
+                                                                       output);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_ns_t& input,
+    compiler_impl::timestamp_sec_t& output) {
+  operation<compiler_impl::timestamp_ns_t, compiler_impl::timestamp_t>(input,
+                                                                       output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_sec_t>(output,
+                                                                        output);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_sec_t& input,
+    compiler_impl::timestamp_t& output) {
+  output = compiler_impl::Timestamp::fromEpochSeconds(input.value);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_sec_t& input,
+    compiler_impl::timestamp_ns_t& output) {
+  operation<compiler_impl::timestamp_sec_t, compiler_impl::timestamp_t>(input,
+                                                                        output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_ns_t>(output,
+                                                                       output);
+}
+
+template <>
+inline void CastBetweenTimestamp::operation(
+    const compiler_impl::timestamp_sec_t& input,
+    compiler_impl::timestamp_ms_t& output) {
+  operation<compiler_impl::timestamp_sec_t, compiler_impl::timestamp_t>(input,
+                                                                        output);
+  operation<compiler_impl::timestamp_t, compiler_impl::timestamp_ms_t>(output,
+                                                                       output);
 }
 
 }  // namespace function

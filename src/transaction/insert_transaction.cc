@@ -22,7 +22,7 @@
 #include <ostream>
 #include <unordered_map>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
@@ -47,8 +47,7 @@ InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
-bool InsertTransaction::GetVertexIndex(label_t label,
-                                       const execution::Value& id,
+bool InsertTransaction::GetVertexIndex(label_t label, const Value& id,
                                        vid_t& index) const {
   if (view_->get_lid(label, id, index, timestamp_)) {
     return true;
@@ -61,14 +60,13 @@ bool InsertTransaction::GetVertexIndex(label_t label,
   return false;
 }
 
-execution::Value InsertTransaction::get_vertex_id(label_t label,
-                                                  vid_t lid) const {
+Value InsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
     return view_->GetOid(label, lid, timestamp_);
   }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
-    execution::Value ret{DataType{DataTypeId::kNull}};
+    Value ret{DataType{DataTypeId::kNull}};
     CHECK(added_vertices_[label]->get_key(lid - base, ret));
     return ret;
   } else {
@@ -76,8 +74,8 @@ execution::Value InsertTransaction::get_vertex_id(label_t label,
   }
 }
 
-Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
-                                    const std::vector<execution::Value>& props,
+Status InsertTransaction::AddVertex(label_t label, const Value& id,
+                                    const std::vector<Value>& props,
                                     vid_t& vid) {
   std::vector<DataType> types = view_->schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -117,10 +115,11 @@ Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
   return Status::OK();
 }
 
-Status InsertTransaction::AddEdge(
-    label_t src_label, vid_t src_vid, label_t dst_label, vid_t dst_vid,
-    label_t edge_label, const std::vector<execution::Value>& properties,
-    const void*& prop) {
+Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
+                                  label_t dst_label, vid_t dst_vid,
+                                  label_t edge_label,
+                                  const std::vector<Value>& properties,
+                                  const void*& prop) {
   const auto& src = get_vertex_id(src_label, src_vid);
   const auto& dst = get_vertex_id(dst_label, dst_vid);
   const auto& types =

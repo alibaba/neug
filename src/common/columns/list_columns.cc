@@ -13,15 +13,14 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/array_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     const {
@@ -60,7 +59,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     return {builder.finish(), offsets};
   }
   case DataTypeId::kArray: {
-    ArrayColumnBuilder builder(elem_type_);
+    ContextArrayColumnBuilder builder(elem_type_);
     sel_vec_t offsets;
     size_t i = 0;
     for (const auto& list : items_) {
@@ -123,5 +122,4 @@ std::shared_ptr<IContextColumn> ListColumn::shuffle(
   return ptr;
 }
 
-}  // namespace execution
 }  // namespace neug

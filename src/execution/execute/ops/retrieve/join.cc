@@ -17,9 +17,9 @@
 
 #include <glog/logging.h>
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/join.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/params.h"

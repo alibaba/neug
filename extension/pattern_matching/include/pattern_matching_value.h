@@ -16,10 +16,9 @@
 
 #pragma once
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 namespace neug {
-namespace execution {
 
 // Value already defines operator< and operator==. FaSTest code expects the
 // full set of relational operators, so round out the interface here using the
@@ -39,5 +38,4 @@ inline bool operator!=(const Value& lhs, const Value& rhs) {
   return !(lhs == rhs);
 }
 
-}  // namespace execution
 }  // namespace neug

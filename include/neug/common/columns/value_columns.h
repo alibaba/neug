@@ -14,13 +14,11 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/columns_utils.h"
+#include "neug/common/columns/columns_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace neug {
-
-namespace execution {
 
 template <typename T>
 class ValueColumnBuilder;
@@ -262,7 +260,5 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
   }
   return true;
 }
-
-}  // namespace execution
 
 }  // namespace neug

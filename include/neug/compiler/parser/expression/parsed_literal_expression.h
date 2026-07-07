@@ -33,25 +33,26 @@ class ParsedLiteralExpression : public ParsedExpression {
       common::ExpressionType::LITERAL;
 
  public:
-  ParsedLiteralExpression(common::Value value, std::string raw)
+  ParsedLiteralExpression(compiler_impl::Value value, std::string raw)
       : ParsedExpression{expressionType, std::move(raw)},
         value{std::move(value)} {}
 
   ParsedLiteralExpression(std::string alias, std::string rawName,
-                          parsed_expr_vector children, common::Value value)
+                          parsed_expr_vector children,
+                          compiler_impl::Value value)
       : ParsedExpression{expressionType, std::move(alias), std::move(rawName),
                          std::move(children)},
         value{std::move(value)} {}
 
-  explicit ParsedLiteralExpression(common::Value value)
+  explicit ParsedLiteralExpression(compiler_impl::Value value)
       : ParsedExpression{expressionType}, value{std::move(value)} {}
 
-  common::Value getValue() const { return value; }
+  compiler_impl::Value getValue() const { return value; }
 
   static std::unique_ptr<ParsedLiteralExpression> deserialize(
       common::Deserializer& deserializer) {
     return std::make_unique<ParsedLiteralExpression>(
-        *common::Value::deserialize(deserializer));
+        *compiler_impl::Value::deserialize(deserializer));
   }
 
   std::unique_ptr<ParsedExpression> copy() const override {
@@ -65,7 +66,7 @@ class ParsedLiteralExpression : public ParsedExpression {
   }
 
  private:
-  common::Value value;
+  compiler_impl::Value value;
 };
 
 }  // namespace parser

@@ -132,37 +132,39 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   date_t& result, ValueVector* /*vector*/,
-                                   uint64_t /*rowToAdd*/,
-                                   const CSVOption* /*option*/) {
-  result = Date::fromCString(input, len);
-}
-
-template <>
-inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   timestamp_ms_t& result,
+                                   compiler_impl::date_t& result,
                                    ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<timestamp_ms_t>(input, len, result,
-                                                 DataTypeId::kTimestampMs);
+  result = compiler_impl::Date::fromCString(input, len);
 }
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   neug::common::timestamp_t& result,
+                                   compiler_impl::timestamp_ms_t& result,
                                    ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  result = Timestamp::fromCString(input, len);
+  TryCastStringToTimestamp::cast<compiler_impl::timestamp_ms_t>(
+      input, len, result, DataTypeId::kTimestampMs);
 }
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   interval_t& result, ValueVector* /*vector*/,
+                                   compiler_impl::timestamp_t& result,
+                                   ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  result = neug::common::Interval::fromCString(input, len);
+  result = compiler_impl::Timestamp::fromCString(input, len);
+}
+
+template <>
+inline void CastStringHelper::cast(const char* input, uint64_t len,
+                                   compiler_impl::interval_t& result,
+                                   ValueVector* /*vector*/,
+                                   uint64_t /*rowToAdd*/,
+                                   const CSVOption* /*option*/) {
+  result = compiler_impl::Interval::fromCString(input, len);
 }
 
 // ---------------------- cast String to nested types
@@ -445,7 +447,7 @@ bool SplitStringMapOperation::handleKey(const char* start, const char* end,
   if (fieldVector->isNull(offset)) {
     THROW_CONVERSION_EXCEPTION("Map does not allow null as key.");
   }
-  auto val = common::Value::createDefaultValue(fieldVector->dataType);
+  auto val = compiler_impl::Value::createDefaultValue(fieldVector->dataType);
   val.copyFromColLayout(
       fieldVector->getData() + fieldVector->getNumBytesPerValue() * offset,
       fieldVector);
@@ -760,18 +762,18 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
     StringVector::addString(vector, vectorPos, strVal.data(), strVal.length());
   } break;
   case DataTypeId::kDate: {
-    date_t val;
+    compiler_impl::date_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
   case DataTypeId::kTimestampMs: {
-    timestamp_ms_t val;
+    compiler_impl::timestamp_ms_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
   // TIMESTAMP removed — merged into kTimestampMs
   case DataTypeId::kInterval: {
-    interval_t val;
+    compiler_impl::interval_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;

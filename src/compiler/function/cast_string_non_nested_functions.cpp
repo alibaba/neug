@@ -83,42 +83,42 @@ void castStringToBool(const char* input, uint64_t len, bool& result) {
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result) {
-  if (!Timestamp::tryConvertTimestamp(input, len, result)) {
+bool TryCastStringToTimestamp::tryCast<compiler_impl::timestamp_ns_t>(
+    const char* input, uint64_t len, compiler_impl::timestamp_t& result) {
+  if (!compiler_impl::Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
-  result = Timestamp::getEpochNanoSeconds(result);
+  result = compiler_impl::Timestamp::getEpochNanoSeconds(result);
   return true;
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result) {
-  if (!Timestamp::tryConvertTimestamp(input, len, result)) {
+bool TryCastStringToTimestamp::tryCast<compiler_impl::timestamp_ms_t>(
+    const char* input, uint64_t len, compiler_impl::timestamp_t& result) {
+  if (!compiler_impl::Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
-  result = Timestamp::getEpochMilliSeconds(result);
+  result = compiler_impl::Timestamp::getEpochMilliSeconds(result);
   return true;
 }
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result) {
-  if (!Timestamp::tryConvertTimestamp(input, len, result)) {
+bool TryCastStringToTimestamp::tryCast<compiler_impl::timestamp_sec_t>(
+    const char* input, uint64_t len, compiler_impl::timestamp_t& result) {
+  if (!compiler_impl::Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
-  result = Timestamp::getEpochSeconds(result);
+  result = compiler_impl::Timestamp::getEpochSeconds(result);
   return true;
 }
 
 static bool isDate(std::string_view str) {
-  return RE2::FullMatch(str, Date::regexPattern());
+  return RE2::FullMatch(str, compiler_impl::Date::regexPattern());
 }
 
 static bool isInterval(std::string_view str) {
-  return RE2::FullMatch(str, Interval::regexPattern1()) ||
-         RE2::FullMatch(str, Interval::regexPattern2());
+  return RE2::FullMatch(str, compiler_impl::Interval::regexPattern1()) ||
+         RE2::FullMatch(str, compiler_impl::Interval::regexPattern2());
 }
 
 static DataType inferMapOrStruct(std::string_view str) {
@@ -243,8 +243,9 @@ DataType inferMinimalTypeFromString(std::string_view str) {
     return DataType(DataTypeId::kDate);
   }
   // It might just be quicker to try cast to timestamp.
-  neug::common::timestamp_t tmp;
-  if (common::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(), tmp)) {
+  compiler_impl::timestamp_t tmp;
+  if (compiler_impl::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(),
+                                                    tmp)) {
     return DataType(DataTypeId::kTimestampMs);
   }
 

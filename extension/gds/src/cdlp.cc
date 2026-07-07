@@ -53,7 +53,7 @@ struct CDLPInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   std::unique_ptr<execution::ExprBase> vertex_pred;
-  execution::LabelTriplet edge_triplet;
+  LabelTriplet edge_triplet;
   std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t max_iterations;
   int32_t node_alias, label_alias;
@@ -90,7 +90,7 @@ std::unique_ptr<function::CallFuncInputBase> CDLPFunction::bind(
 }
 
 execution::Context CDLPFunction::exec(const function::CallFuncInputBase& input,
-                                      neug::IStorageInterface& g) {
+                                      IStorageInterface& g) {
   const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 

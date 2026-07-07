@@ -15,9 +15,9 @@
 
 #include "neug/execution/common/operators/retrieve/unfold.h"
 
-#include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/list_columns.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/types/array_columns.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"
@@ -62,7 +62,7 @@ neug::result<ContextChunk> Unfold::unfold(ContextChunk&& chunk, int key,
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list or array");
   }
   if (col->elem_type().id() == DataTypeId::kArray) {
-    auto array_col = std::dynamic_pointer_cast<ArrayColumn>(col);
+    auto array_col = std::dynamic_pointer_cast<ContextArrayColumn>(col);
     auto [ptr, offsets] = array_col->unfold();
     chunk.set_with_reshuffle(alias, ptr, offsets);
     return chunk;

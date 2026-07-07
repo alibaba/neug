@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/retrieve/edge.h"
 #include "neug/execution/expression/special_predicates.h"

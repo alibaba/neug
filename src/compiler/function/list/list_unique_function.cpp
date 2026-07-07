@@ -37,7 +37,7 @@ uint64_t ListUnique::appendListElementsToValueSet(
     null_value_handler nullValueHandler) {
   ValueSet uniqueKeys;
   auto dataVector = common::ListVector::getDataVector(&inputVector);
-  auto val = common::Value::createDefaultValue(dataVector->dataType);
+  auto val = compiler_impl::Value::createDefaultValue(dataVector->dataType);
   for (auto i = 0u; i < input.size; i++) {
     if (dataVector->isNull(input.offset + i)) {
       if (nullValueHandler != nullptr) {

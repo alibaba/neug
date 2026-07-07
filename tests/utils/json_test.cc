@@ -20,8 +20,8 @@
 #include <memory>
 #include <vector>
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/io/read/common/options.h"
@@ -130,12 +130,12 @@ TEST_F(JsonTest, TestJsonArray) {
   EXPECT_EQ(ctx.row_num(), 2);
 
   auto col0 = ctx.chunk(0).columns()[0];
-  ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(col0->column_type(), ContextColumnType::kValue);
   EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
   EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
 
   auto col2 = ctx.chunk(0).columns()[2];
-  ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(col2->column_type(), ContextColumnType::kValue);
   EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
   EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
 }

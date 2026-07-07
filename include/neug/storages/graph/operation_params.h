@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -28,7 +28,7 @@ class OutArchive;
 class CreateVertexTypeParam {
  private:
   std::string vertex_label_name;
-  std::vector<std::pair<std::string, execution::Value>> properties;
+  std::vector<std::pair<std::string, Value>> properties;
   std::vector<std::string> primary_key_names;
   bool temporary = false;
   CreateVertexTypeParam() = default;
@@ -36,8 +36,7 @@ class CreateVertexTypeParam {
 
  public:
   const std::string& GetVertexLabel() const { return vertex_label_name; }
-  const std::vector<std::pair<std::string, execution::Value>>& GetProperties()
-      const {
+  const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
   const std::vector<std::string>& GetPrimaryKeyNames() const {
@@ -60,13 +59,13 @@ class CreateVertexTypeParamBuilder {
   }
 
   CreateVertexTypeParamBuilder& Properties(
-      const std::vector<std::pair<std::string, execution::Value>>& properties) {
+      const std::vector<std::pair<std::string, Value>>& properties) {
     config.properties = properties;
     return *this;
   }
 
   CreateVertexTypeParamBuilder& AddProperty(const std::string& name,
-                                            const execution::Value& value) {
+                                            const Value& value) {
     config.properties.emplace_back(name, value);
     return *this;
   }
@@ -106,7 +105,7 @@ class CreateEdgeTypeParam {
   std::string src_label_name;
   std::string dst_label_name;
   std::string edge_label_name;
-  std::vector<std::pair<std::string, execution::Value>> properties;
+  std::vector<std::pair<std::string, Value>> properties;
   EdgeStrategy oe_edge_strategy;
   EdgeStrategy ie_edge_strategy;
   std::optional<std::string> sort_key_for_nbr;
@@ -118,8 +117,7 @@ class CreateEdgeTypeParam {
   const std::string& GetSrcLabel() const { return src_label_name; }
   const std::string& GetDstLabel() const { return dst_label_name; }
   const std::string& GetEdgeLabel() const { return edge_label_name; }
-  const std::vector<std::pair<std::string, execution::Value>>& GetProperties()
-      const {
+  const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
   EdgeStrategy GetOEEdgeStrategy() const { return oe_edge_strategy; }
@@ -157,13 +155,13 @@ class CreateEdgeTypeParamBuilder {
   }
 
   CreateEdgeTypeParamBuilder& Properties(
-      const std::vector<std::pair<std::string, execution::Value>>& properties) {
+      const std::vector<std::pair<std::string, Value>>& properties) {
     config.properties = properties;
     return *this;
   }
 
   CreateEdgeTypeParamBuilder& AddProperty(const std::string& name,
-                                          const execution::Value& value) {
+                                          const Value& value) {
     config.properties.emplace_back(name, value);
     return *this;
   }
@@ -209,14 +207,13 @@ class CreateEdgeTypeParamBuilder {
 class AddVertexPropertiesParam {
  private:
   std::string vertex_label_name;
-  std::vector<std::pair<std::string, execution::Value>> properties;
+  std::vector<std::pair<std::string, Value>> properties;
   AddVertexPropertiesParam() = default;
   friend class AddVertexPropertiesParamBuilder;
 
  public:
   const std::string& GetVertexLabel() const { return vertex_label_name; }
-  const std::vector<std::pair<std::string, execution::Value>>& GetProperties()
-      const {
+  const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
 
@@ -235,13 +232,13 @@ class AddVertexPropertiesParamBuilder {
   }
 
   AddVertexPropertiesParamBuilder& Properties(
-      const std::vector<std::pair<std::string, execution::Value>>& properties) {
+      const std::vector<std::pair<std::string, Value>>& properties) {
     config.properties = properties;
     return *this;
   }
 
   AddVertexPropertiesParamBuilder& AddProperty(const std::string& name,
-                                               const execution::Value& value) {
+                                               const Value& value) {
     config.properties.emplace_back(name, value);
     return *this;
   }
@@ -260,7 +257,7 @@ class AddEdgePropertiesParam {
   std::string src_label_name;
   std::string dst_label_name;
   std::string edge_label_name;
-  std::vector<std::pair<std::string, execution::Value>> properties;
+  std::vector<std::pair<std::string, Value>> properties;
   AddEdgePropertiesParam() = default;
   friend class AddEdgePropertiesParamBuilder;
 
@@ -268,8 +265,7 @@ class AddEdgePropertiesParam {
   const std::string& GetSrcLabel() const { return src_label_name; }
   const std::string& GetDstLabel() const { return dst_label_name; }
   const std::string& GetEdgeLabel() const { return edge_label_name; }
-  const std::vector<std::pair<std::string, execution::Value>>& GetProperties()
-      const {
+  const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
 
@@ -298,13 +294,13 @@ class AddEdgePropertiesParamBuilder {
   }
 
   AddEdgePropertiesParamBuilder& Properties(
-      const std::vector<std::pair<std::string, execution::Value>>& properties) {
+      const std::vector<std::pair<std::string, Value>>& properties) {
     config.properties = properties;
     return *this;
   }
 
   AddEdgePropertiesParamBuilder& AddProperty(const std::string& name,
-                                             const execution::Value& value) {
+                                             const Value& value) {
     config.properties.emplace_back(name, value);
     return *this;
   }

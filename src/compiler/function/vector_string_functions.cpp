@@ -25,7 +25,7 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 using namespace neug::common;
 
@@ -64,8 +64,7 @@ function_set UpperFunction::getFunctionSet() {
   return functionSet;
 }
 
-execution::Value UpperFunction::Exec(
-    const std::vector<execution::Value>& args) {
+neug::Value UpperFunction::Exec(const std::vector<neug::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -74,9 +73,9 @@ execution::Value UpperFunction::Exec(
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
-  std::string str(execution::StringValue::Get(val));
+  std::string str(neug::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-  return execution::Value::STRING(str);
+  return neug::Value::STRING(str);
 }
 
 function_set LowerFunction::getFunctionSet() {
@@ -87,8 +86,7 @@ function_set LowerFunction::getFunctionSet() {
   return functionSet;
 }
 
-execution::Value LowerFunction::Exec(
-    const std::vector<execution::Value>& args) {
+neug::Value LowerFunction::Exec(const std::vector<neug::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -97,9 +95,9 @@ execution::Value LowerFunction::Exec(
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
-  std::string str(execution::StringValue::Get(val));
+  std::string str(neug::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-  return execution::Value::STRING(str);
+  return neug::Value::STRING(str);
 }
 
 function_set ReverseFunction::getFunctionSet() {
@@ -110,8 +108,7 @@ function_set ReverseFunction::getFunctionSet() {
   return functionSet;
 }
 
-execution::Value ReverseFunction::Exec(
-    const std::vector<execution::Value>& args) {
+neug::Value ReverseFunction::Exec(const std::vector<neug::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -120,9 +117,9 @@ execution::Value ReverseFunction::Exec(
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }
-  std::string str(execution::StringValue::Get(val));
+  std::string str(neug::StringValue::Get(val));
   std::reverse(str.begin(), str.end());
-  return execution::Value::STRING(str);
+  return neug::Value::STRING(str);
 }
 
 }  // namespace function

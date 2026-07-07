@@ -13,11 +13,9 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/edge_columns.h"
+#include "neug/common/columns/edge_columns.h"
 
 namespace neug {
-
-namespace execution {
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
     const sel_vec_t& offsets) const {
@@ -350,7 +348,5 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
   }
   return builder.finish();
 }
-
-}  // namespace execution
 
 }  // namespace neug

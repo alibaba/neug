@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/property/types.h"
 
@@ -34,9 +35,6 @@ class IDataChunkSupplier;
 class Schema;
 class StorageReadInterface;
 namespace execution {
-class VertexRecord;
-class EdgeRecord;
-struct Path;
 
 namespace ops {
 

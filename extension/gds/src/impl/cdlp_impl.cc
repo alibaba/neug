@@ -22,15 +22,15 @@
 #include <thread>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 
 namespace neug {
 namespace gds {
 
 CDLP::CDLP(const StorageReadInterface& graph, label_t vertex_label,
-           const execution::LabelTriplet& edge_triplet, int max_iterations,
+           const LabelTriplet& edge_triplet, int max_iterations,
            int concurrency)
     : graph_(graph),
       vertex_label_(vertex_label),
@@ -222,8 +222,8 @@ void CDLP::compute() {
 
 void CDLP::sink(execution::Context& ctx, int32_t node_alias,
                 int32_t label_alias) {
-  execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> label_builder;
+  MSVertexColumnBuilder node_builder(vertex_label_);
+  ValueColumnBuilder<int64_t> label_builder;
   label_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {

@@ -19,7 +19,7 @@
 
 #include "neug/common/extra_type_info.h"
 #include "neug/common/types.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/property/column.h"
 
 namespace neug {
@@ -49,14 +49,13 @@ class ArrayColumn : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override;
-  void resize(size_t size, const execution::Value& default_value) override;
+  void resize(size_t size, const Value& default_value) override;
 
   DataTypeId type() const override { return DataTypeId::kArray; }
 
-  void set_any(size_t index, const execution::Value& value,
-               bool insert_safe) override;
+  void set_any(size_t index, const Value& value, bool insert_safe) override;
 
-  execution::Value get_any(size_t index) const override;
+  Value get_any(size_t index) const override;
 
   void ingest(uint32_t index, OutArchive& arc) override;
 
@@ -87,9 +86,7 @@ class ArrayRefColumn : public RefColumnBase {
   explicit ArrayRefColumn(const ArrayColumn& column) : column_(column) {}
   ~ArrayRefColumn() override = default;
 
-  execution::Value get_any(size_t index) const override {
-    return column_.get_any(index);
-  }
+  Value get_any(size_t index) const override { return column_.get_any(index); }
 
   DataTypeId type() const override { return DataTypeId::kArray; }
 

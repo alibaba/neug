@@ -19,14 +19,13 @@
  * by Liu Lexiao in 2026 to support Neug-specific features.
  */
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
-namespace execution {
 enum class ExtraValueInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
   STRING_VALUE_INFO = 1,
@@ -706,67 +705,65 @@ Value Value::FromJson(const rapidjson::Value& json_value,
   case DataTypeId::kBoolean: {
     // If the value is 1/0, treat it as boolean
     if (json_value.IsInt()) {
-      return execution::Value::BOOLEAN(json_value.GetInt() != 0);
+      return Value::BOOLEAN(json_value.GetInt() != 0);
     }
-    return execution::Value::BOOLEAN(json_value.GetBool());
+    return Value::BOOLEAN(json_value.GetBool());
   }
   case DataTypeId::kDate: {
     if (json_value.IsInt64()) {
-      return execution::Value::DATE(Date(json_value.GetInt64()));
+      return Value::DATE(Date(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return execution::Value::DATE(Date(json_value.GetString()));
+      return Value::DATE(Date(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int/string for Date type");
     }
   }
   case DataTypeId::kDouble: {
-    return execution::Value::DOUBLE(json_value.GetDouble());
+    return Value::DOUBLE(json_value.GetDouble());
   }
   case DataTypeId::kFloat: {
-    return execution::Value::FLOAT(json_value.GetFloat());
+    return Value::FLOAT(json_value.GetFloat());
   }
   case DataTypeId::kInt32: {
-    return execution::Value::INT32(json_value.GetInt());
+    return Value::INT32(json_value.GetInt());
   }
   case DataTypeId::kInt64: {
-    return execution::Value::INT64(json_value.GetInt64());
+    return Value::INT64(json_value.GetInt64());
   }
   case DataTypeId::kUInt32: {
-    return execution::Value::UINT32(json_value.GetUint());
+    return Value::UINT32(json_value.GetUint());
   }
   case DataTypeId::kUInt64: {
-    return execution::Value::UINT64(json_value.GetUint64());
+    return Value::UINT64(json_value.GetUint64());
   }
   case DataTypeId::kVarchar: {
-    return execution::Value::STRING(json_value.GetString());
+    return Value::STRING(json_value.GetString());
   }
   case DataTypeId::kTimestampMs: {
     if (json_value.IsInt64()) {
-      return execution::Value::TIMESTAMPMS(
-          execution::timestamp_ms_t(json_value.GetInt64()));
+      return Value::TIMESTAMPMS(timestamp_ms_t(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return execution::Value::TIMESTAMPMS(
-          execution::timestamp_ms_t(json_value.GetString()));
+      return Value::TIMESTAMPMS(timestamp_ms_t(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int64/string for TimestampMs type");
     }
   }
   case DataTypeId::kList: {
-    std::vector<execution::Value> values;
+    std::vector<Value> values;
     if (!json_value.IsArray()) {
-      return execution::Value::LIST(DataType::UNKNOWN, std::move(values));
+      return Value::LIST(DataType::UNKNOWN, std::move(values));
     }
     const auto list = json_value.GetArray();
     auto child_type = ListType::GetChildType(type);
     for (auto item = list.begin(); item != list.end(); ++item) {
       values.emplace_back(FromJson(*item, child_type));
     }
-    return execution::Value::LIST(child_type, std::move(values));
+    return Value::LIST(child_type, std::move(values));
   }
   case DataTypeId::kArray: {
-    std::vector<execution::Value> values;
+    std::vector<Value> values;
     if (!json_value.IsArray()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Expected an array for ARRAY type");
     }
@@ -782,7 +779,7 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     for (auto item = arr.begin(); item != arr.end(); ++item) {
       values.emplace_back(FromJson(*item, child_type));
     }
-    return execution::Value::ARRAY(type, std::move(values));
+    return Value::ARRAY(type, std::move(values));
   }
   default:
     THROW_NOT_IMPLEMENTED_EXCEPTION(
@@ -808,37 +805,37 @@ rapidjson::Value Value::ToJson(const Value& value,
   }
   auto type_id = value.type().id();
   switch (type_id) {
-  case neug::DataTypeId::kVarchar: {
+  case DataTypeId::kVarchar: {
     return rapidjson::Value(value.GetValue<std::string>().c_str(), allocator);
   }
 #define TYPE_DISPATCHER(type_enum, cpp_type)                \
-  case neug::DataTypeId::type_enum: {                       \
+  case DataTypeId::type_enum: {                             \
     return rapidjson::Value(                                \
         static_cast<cpp_type>(value.GetValue<cpp_type>())); \
   }
     FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case neug::DataTypeId::kList: {
+  case DataTypeId::kList: {
     rapidjson::Value list_doc(rapidjson::kArrayType);
-    const auto& list = execution::ListValue::GetChildren(value);
+    const auto& list = ListValue::GetChildren(value);
     for (size_t i = 0; i < list.size(); ++i) {
       list_doc.PushBack(ToJson(list[i], allocator), allocator);
     }
     return list_doc;
   }
-  case neug::DataTypeId::kArray: {
+  case DataTypeId::kArray: {
     rapidjson::Value array_doc(rapidjson::kArrayType);
-    const auto& elements = execution::ArrayValue::GetChildren(value);
+    const auto& elements = ArrayValue::GetChildren(value);
     for (size_t i = 0; i < elements.size(); ++i) {
       array_doc.PushBack(ToJson(elements[i], allocator), allocator);
     }
     return array_doc;
   }
-  case neug::DataTypeId::kDate: {
+  case DataTypeId::kDate: {
     return rapidjson::Value(value.GetValue<date_t>().to_string().c_str(),
                             allocator);
   }
-  case neug::DataTypeId::kTimestampMs: {
+  case DataTypeId::kTimestampMs: {
     return rapidjson::Value(
         value.GetValue<timestamp_ms_t>().to_string().c_str(), allocator);
   }
@@ -959,9 +956,7 @@ Value performCastToString(const Value& input) {
   return Value::STRING(ret);
 }
 
-}  // namespace execution
-
-InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
+InArchive& operator<<(InArchive& in_archive, const Value& value) {
   auto type_id = value.type().id();
   if (value.IsNull()) {
     in_archive << DataTypeId::kEmpty;
@@ -980,21 +975,20 @@ InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
   } else if (type_id == DataTypeId::kDouble) {
     in_archive << type_id << value.GetValue<double>();
   } else if (type_id == DataTypeId::kVarchar) {
-    in_archive << type_id << execution::StringValue::Get(value);
+    in_archive << type_id << StringValue::Get(value);
   } else if (type_id == DataTypeId::kDate) {
-    in_archive << type_id << value.GetValue<execution::date_t>().to_u32();
+    in_archive << type_id << value.GetValue<date_t>().to_u32();
   } else if (type_id == DataTypeId::kTimestampMs) {
-    in_archive << type_id
-               << value.GetValue<execution::timestamp_ms_t>().milli_second;
+    in_archive << type_id << value.GetValue<timestamp_ms_t>().milli_second;
   } else if (type_id == DataTypeId::kInterval) {
-    auto interval = value.GetValue<execution::interval_t>();
+    auto interval = value.GetValue<interval_t>();
     in_archive << type_id << interval.months << interval.days
                << interval.micros;
   } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
     in_archive << type_id << value.type();
     const auto& children = (type_id == DataTypeId::kList)
-                               ? execution::ListValue::GetChildren(value)
-                               : execution::ArrayValue::GetChildren(value);
+                               ? ListValue::GetChildren(value)
+                               : ArrayValue::GetChildren(value);
     in_archive << static_cast<uint32_t>(children.size());
     for (const auto& child : children) {
       in_archive << child;
@@ -1007,74 +1001,73 @@ InArchive& operator<<(InArchive& in_archive, const execution::Value& value) {
   return in_archive;
 }
 
-OutArchive& operator>>(OutArchive& out_archive, execution::Value& value) {
+OutArchive& operator>>(OutArchive& out_archive, Value& value) {
   DataTypeId type_id;
   out_archive >> type_id;
   if (type_id == DataTypeId::kEmpty) {
-    value = execution::Value();
+    value = Value();
   } else if (type_id == DataTypeId::kBoolean) {
     bool tmp;
     out_archive >> tmp;
-    value = execution::Value::BOOLEAN(tmp);
+    value = Value::BOOLEAN(tmp);
   } else if (type_id == DataTypeId::kInt32) {
     int32_t tmp;
     out_archive >> tmp;
-    value = execution::Value::INT32(tmp);
+    value = Value::INT32(tmp);
   } else if (type_id == DataTypeId::kUInt32) {
     uint32_t tmp;
     out_archive >> tmp;
-    value = execution::Value::UINT32(tmp);
+    value = Value::UINT32(tmp);
   } else if (type_id == DataTypeId::kInt64) {
     int64_t tmp;
     out_archive >> tmp;
-    value = execution::Value::INT64(tmp);
+    value = Value::INT64(tmp);
   } else if (type_id == DataTypeId::kUInt64) {
     uint64_t tmp;
     out_archive >> tmp;
-    value = execution::Value::UINT64(tmp);
+    value = Value::UINT64(tmp);
   } else if (type_id == DataTypeId::kFloat) {
     float tmp;
     out_archive >> tmp;
-    value = execution::Value::FLOAT(tmp);
+    value = Value::FLOAT(tmp);
   } else if (type_id == DataTypeId::kDouble) {
     double tmp;
     out_archive >> tmp;
-    value = execution::Value::DOUBLE(tmp);
+    value = Value::DOUBLE(tmp);
   } else if (type_id == DataTypeId::kVarchar) {
     std::string_view tmp;
     out_archive >> tmp;
-    value = execution::Value::STRING(std::string(tmp));
+    value = Value::STRING(std::string(tmp));
   } else if (type_id == DataTypeId::kDate) {
     uint32_t date_val;
     out_archive >> date_val;
     Date d;
     d.from_u32(date_val);
-    value = execution::Value::DATE(d);
+    value = Value::DATE(d);
   } else if (type_id == DataTypeId::kTimestampMs) {
     int64_t dt_val;
     out_archive >> dt_val;
-    value = execution::Value::TIMESTAMPMS(DateTime(dt_val));
+    value = Value::TIMESTAMPMS(DateTime(dt_val));
   } else if (type_id == DataTypeId::kInterval) {
     Interval interval;
     out_archive >> interval.months >> interval.days >> interval.micros;
-    value = execution::Value::INTERVAL(interval);
+    value = Value::INTERVAL(interval);
   } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
     DataType dt;
     out_archive >> dt;
     uint32_t num_children;
     out_archive >> num_children;
-    std::vector<execution::Value> children;
+    std::vector<Value> children;
     children.reserve(num_children);
     for (uint32_t i = 0; i < num_children; ++i) {
-      execution::Value child;
+      Value child;
       out_archive >> child;
       children.push_back(std::move(child));
     }
     if (type_id == DataTypeId::kList) {
-      value = execution::Value::LIST(ListType::GetChildType(dt),
-                                     std::move(children));
+      value = Value::LIST(ListType::GetChildType(dt), std::move(children));
     } else {
-      value = execution::Value::ARRAY(dt, std::move(children));
+      value = Value::ARRAY(dt, std::move(children));
     }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(

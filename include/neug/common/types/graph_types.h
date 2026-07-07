@@ -27,8 +27,6 @@
 
 namespace neug {
 
-namespace execution {
-
 int64_t encode_unique_vertex_id(label_t label_id, vid_t vid);
 std::pair<label_t, vid_t> decode_unique_vertex_id(uint64_t unique_id);
 uint32_t generate_edge_label_id(label_t src_label_id, label_t dst_label_id,
@@ -195,8 +193,6 @@ struct Path {
   std::shared_ptr<PathImpl> impl_;
 };
 
-}  // namespace execution
-
 }  // namespace neug
 
 namespace std {
@@ -207,14 +203,14 @@ static inline void hash_combine(std::size_t& seed, const T& val) {
   seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 template <>
-struct hash<neug::execution::VertexRecord> {
+struct hash<neug::VertexRecord> {
   // Hash combine functions copied from Boost.ContainerHash
   // https://github.com/boostorg/container_hash/blob/171c012d4723c5e93cc7cffe42919afdf8b27dfa/include/boost/container_hash/hash.hpp#L311
   // that is based on Peter Dimov's proposal
   // http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2005/n1756.pdf
   // issue 6.18.
 
-  size_t operator()(const neug::execution::VertexRecord& record) const {
+  size_t operator()(const neug::VertexRecord& record) const {
     std::size_t seed = 0;
     hash_combine(seed, record.vid_);
     hash_combine(seed, record.label_);
@@ -222,8 +218,7 @@ struct hash<neug::execution::VertexRecord> {
   }
 
   std::size_t operator()(
-      const std::pair<neug::execution::VertexRecord,
-                      neug::execution::VertexRecord>& p) const {
+      const std::pair<neug::VertexRecord, neug::VertexRecord>& p) const {
     std::size_t seed = 0;
     hash_combine(seed, p.first.vid_);
     hash_combine(seed, p.first.label_);
@@ -241,8 +236,8 @@ struct hash<neug::DateTime> {
 };
 
 template <>
-struct hash<neug::execution::LabelTriplet> {
-  size_t operator()(const neug::execution::LabelTriplet& lt) const {
+struct hash<neug::LabelTriplet> {
+  size_t operator()(const neug::LabelTriplet& lt) const {
     size_t seed = 0;
     hash_combine(seed, lt.src_label);
     hash_combine(seed, lt.dst_label);

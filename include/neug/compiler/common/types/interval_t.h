@@ -33,7 +33,7 @@ namespace regex {
 class RE2;
 }
 
-namespace common {
+namespace compiler_impl {
 
 struct timestamp_t;
 struct date_t;
@@ -152,5 +152,6 @@ class Interval {
   NEUG_API static const regex::RE2& regexPattern2();
 };
 
-}  // namespace common
+}  // namespace compiler_impl
+
 }  // namespace neug

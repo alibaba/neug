@@ -30,10 +30,11 @@
 namespace neug {
 namespace common {
 
-std::vector<std::pair<std::string, std::unique_ptr<Value>>>
-NodeVal::getProperties(const Value* val) {
+std::vector<std::pair<std::string, std::unique_ptr<compiler_impl::Value>>>
+NodeVal::getProperties(const compiler_impl::Value* val) {
   throwIfNotNode(val);
-  std::vector<std::pair<std::string, std::unique_ptr<Value>>> properties;
+  std::vector<std::pair<std::string, std::unique_ptr<compiler_impl::Value>>>
+      properties;
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   for (auto i = 0u; i < val->childrenSize; ++i) {
     auto currKey = fieldNames[i];
@@ -45,13 +46,14 @@ NodeVal::getProperties(const Value* val) {
   return properties;
 }
 
-uint64_t NodeVal::getNumProperties(const Value* val) {
+uint64_t NodeVal::getNumProperties(const compiler_impl::Value* val) {
   throwIfNotNode(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   return fieldNames.size() - OFFSET;
 }
 
-std::string NodeVal::getPropertyName(const Value* val, uint64_t index) {
+std::string NodeVal::getPropertyName(const compiler_impl::Value* val,
+                                     uint64_t index) {
   throwIfNotNode(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
@@ -60,7 +62,8 @@ std::string NodeVal::getPropertyName(const Value* val, uint64_t index) {
   return fieldNames[index + OFFSET];
 }
 
-Value* NodeVal::getPropertyVal(const Value* val, uint64_t index) {
+compiler_impl::Value* NodeVal::getPropertyVal(const compiler_impl::Value* val,
+                                              uint64_t index) {
   throwIfNotNode(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
@@ -69,25 +72,25 @@ Value* NodeVal::getPropertyVal(const Value* val, uint64_t index) {
   return val->children[index + OFFSET].get();
 }
 
-Value* NodeVal::getNodeIDVal(const Value* val) {
+compiler_impl::Value* NodeVal::getNodeIDVal(const compiler_impl::Value* val) {
   throwIfNotNode(val);
   auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::ID);
   return val->children[fieldIdx].get();
 }
 
-Value* NodeVal::getLabelVal(const Value* val) {
+compiler_impl::Value* NodeVal::getLabelVal(const compiler_impl::Value* val) {
   throwIfNotNode(val);
   auto fieldIdx =
       StructType::GetFieldIdx(val->dataType, InternalKeyword::LABEL);
   return val->children[fieldIdx].get();
 }
 
-std::string NodeVal::toString(const Value* val) {
+std::string NodeVal::toString(const compiler_impl::Value* val) {
   throwIfNotNode(val);
   return val->toString();
 }
 
-void NodeVal::throwIfNotNode(const Value* val) {
+void NodeVal::throwIfNotNode(const compiler_impl::Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.id() != DataTypeId::kVertex) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(

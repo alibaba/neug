@@ -14,10 +14,9 @@
  */
 
 #include "neug/execution/common/operators/insert/create_vertex.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
@@ -60,7 +59,7 @@ neug::result<ContextChunk> CreateVertex::insert_vertex(
     }
 
     Value pk_value;
-    std::vector<execution::Value> property_values(properties.size() - 1);
+    std::vector<Value> property_values(properties.size() - 1);
     // When the chunk has no rows (seed from DummySourceOpr), we still need to
     // execute exactly once to create the vertex from constant expressions.
     size_t num_rows = std::max(chunk.row_num(), (size_t) 1);

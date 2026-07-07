@@ -52,7 +52,7 @@ class PreparedStatement {
    */
   NEUG_API bool isReadOnly() const;
 
-  std::unordered_map<std::string, std::shared_ptr<common::Value>>
+  std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
   getParameterMap() {
     return parameterMap;
   }
@@ -73,7 +73,8 @@ class PreparedStatement {
   bool readOnly = false;
   bool useInternalCatalogEntry = false;
   PreparedSummary preparedSummary;
-  std::unordered_map<std::string, std::shared_ptr<common::Value>> parameterMap;
+  std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
+      parameterMap;
   std::unique_ptr<binder::BoundStatementResult> statementResult;
   std::shared_ptr<parser::Statement> parsedStatement;
 

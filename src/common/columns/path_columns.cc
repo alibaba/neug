@@ -13,12 +13,11 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/columns/path_columns.h"
+#include "neug/common/columns/path_columns.h"
 
 #include <limits>
 
 namespace neug {
-namespace execution {
 
 std::shared_ptr<IContextColumn> PathColumn::shuffle(
     const sel_vec_t& offsets) const {
@@ -59,5 +58,4 @@ std::shared_ptr<IContextColumn> PathColumn::optional_shuffle(
   return builder.finish();
 }
 
-}  // namespace execution
 }  // namespace neug

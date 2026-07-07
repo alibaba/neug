@@ -15,10 +15,10 @@
 
 #include "neug/execution/common/operators/retrieve/join.h"
 
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/common/types.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
 #include "neug/execution/utils/params.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"

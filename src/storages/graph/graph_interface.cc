@@ -17,23 +17,24 @@
 
 namespace neug {
 
-Status StorageAPUpdateInterface::UpdateVertexProperty(
-    label_t label, vid_t lid, int col_id, const execution::Value& value) {
+Status StorageAPUpdateInterface::UpdateVertexProperty(label_t label, vid_t lid,
+                                                      int col_id,
+                                                      const Value& value) {
   return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
 }
 
 Status StorageAPUpdateInterface::UpdateEdgeProperty(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
-    const execution::Value& value) {
+    const Value& value) {
   return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                                    oe_offset, ie_offset, col_id, value,
                                    neug::timestamp_t(0));
 }
 
-Status StorageAPUpdateInterface::AddVertex(
-    label_t label, const execution::Value& id,
-    const std::vector<execution::Value>& props, vid_t& vid) {
+Status StorageAPUpdateInterface::AddVertex(label_t label, const Value& id,
+                                           const std::vector<Value>& props,
+                                           vid_t& vid) {
   const auto& vertex_table = graph_.get_vertex_table(label);
   if (vertex_table.Size() >= vertex_table.Capacity()) {
     auto new_cap = vertex_table.Size() < 4096
@@ -56,10 +57,11 @@ Status StorageAPUpdateInterface::AddVertex(
   return status;
 }
 
-Status StorageAPUpdateInterface::AddEdge(
-    label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-    label_t edge_label, const std::vector<execution::Value>& properties,
-    const void*& prop) {
+Status StorageAPUpdateInterface::AddEdge(label_t src_label, vid_t src,
+                                         label_t dst_label, vid_t dst,
+                                         label_t edge_label,
+                                         const std::vector<Value>& properties,
+                                         const void*& prop) {
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
   if (edge_table.PropTableSize() >= edge_table.Capacity()) {

@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <tuple>
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/utils/encoder.h"
 
 namespace neug {

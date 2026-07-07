@@ -9,19 +9,17 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See the License for permissions and limitations under the License.
  */
 
-#include "neug/execution/common/columns/array_columns.h"
+#include "neug/common/types/array_columns.h"
 
 #include <glog/logging.h>
 
 namespace neug {
-namespace execution {
 
-std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ArrayColumn::unfold()
-    const {
+std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
+ContextArrayColumn::unfold() const {
   sel_vec_t offsets;
   offsets.reserve(size() * array_size_);
   for (size_t i = 0; i < size(); ++i) {
@@ -32,12 +30,12 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ArrayColumn::unfold()
   return {datas_, offsets};
 }
 
-std::shared_ptr<IContextColumn> ArrayColumn::shuffle(
+std::shared_ptr<IContextColumn> ContextArrayColumn::shuffle(
     const sel_vec_t& offsets) const {
   if (!datas_)
     return nullptr;
 
-  auto result = std::make_shared<ArrayColumn>(type_);
+  auto result = std::make_shared<ContextArrayColumn>(type_);
   sel_vec_t data_offsets;
   data_offsets.reserve(offsets.size() * array_size_);
 
@@ -52,5 +50,4 @@ std::shared_ptr<IContextColumn> ArrayColumn::shuffle(
   return result;
 }
 
-}  // namespace execution
 }  // namespace neug

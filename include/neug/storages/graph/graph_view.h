@@ -42,8 +42,7 @@ class TableView {
 
   // Note: insert_safe is kept for compatibility with the old interface.
   // It must be false for TableView.
-  void insert(size_t index, const std::vector<execution::Value>& values,
-              bool insert_safe);
+  void insert(size_t index, const std::vector<Value>& values, bool insert_safe);
 
  private:
   const std::unordered_map<std::string, int>* col_id_map_{nullptr};
@@ -55,17 +54,16 @@ class VertexTableView {
   VertexTableView() = default;
   explicit VertexTableView(VertexTable& table);
 
-  bool get_lid(const execution::Value& oid, vid_t& lid, timestamp_t ts) const;
+  bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
   vid_t LidNum() const;
   bool IsValidLid(vid_t lid, timestamp_t ts) const;
-  execution::Value GetOid(vid_t lid, timestamp_t ts) const;
+  Value GetOid(vid_t lid, timestamp_t ts) const;
   VertexSet GetVertexSet(timestamp_t ts) const;
   std::shared_ptr<RefColumnBase> GetPropertyColumn(int col_id) const;
   std::shared_ptr<RefColumnBase> GetPropertyColumn(
       const std::string& prop) const;
 
-  bool AddVertex(const execution::Value& id,
-                 const std::vector<execution::Value>& props, vid_t& ret,
+  bool AddVertex(const Value& id, const std::vector<Value>& props, vid_t& ret,
                  timestamp_t ts, bool insert_safe);
 
  private:
@@ -86,10 +84,10 @@ class EdgeTableView {
   EdgeDataAccessor GetDataAccessor(int prop_id) const;
   EdgeDataAccessor GetDataAccessor(const std::string& prop_name) const;
 
-  std::pair<int32_t, const void*> AddEdge(
-      vid_t src_lid, vid_t dst_lid,
-      const std::vector<execution::Value>& properties, timestamp_t ts,
-      Allocator& alloc, bool insert_safe);
+  std::pair<int32_t, const void*> AddEdge(vid_t src_lid, vid_t dst_lid,
+                                          const std::vector<Value>& properties,
+                                          timestamp_t ts, Allocator& alloc,
+                                          bool insert_safe);
 
  private:
   std::shared_ptr<const EdgeSchema> meta_;
@@ -114,7 +112,7 @@ class GraphView {
 
   const Schema& schema() const { return *schema_; }
 
-  inline bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
+  inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {
     return vertex_views_[label].get_lid(oid, lid, ts);
   }
@@ -134,7 +132,7 @@ class GraphView {
   }
 
   VertexSet GetVertexSet(label_t label, timestamp_t ts) const;
-  execution::Value GetOid(label_t label, vid_t lid, timestamp_t ts) const;
+  Value GetOid(label_t label, vid_t lid, timestamp_t ts) const;
 
   CsrView GetGenericOutgoingView(label_t src_label, label_t dst_label,
                                  label_t edge_label, timestamp_t ts) const;
@@ -146,15 +144,13 @@ class GraphView {
                                        label_t edge_label,
                                        const std::string& prop_name) const;
 
-  Status AddVertex(label_t label, const execution::Value& id,
-                   const std::vector<execution::Value>& props, vid_t& vid,
-                   timestamp_t ts);
+  Status AddVertex(label_t label, const Value& id,
+                   const std::vector<Value>& props, vid_t& vid, timestamp_t ts);
 
   Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                  vid_t dst_lid, label_t edge_label,
-                 const std::vector<execution::Value>& properties,
-                 timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
-                 const void*& prop);
+                 const std::vector<Value>& properties, timestamp_t ts,
+                 Allocator& alloc, int32_t& oe_offset, const void*& prop);
 
   void Rebuild(PropertyGraph& pg);
 

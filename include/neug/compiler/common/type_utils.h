@@ -124,7 +124,7 @@ class TypeUtils {
       return common::PhysicalTypeID::DOUBLE;
     } else if constexpr (std::is_same_v<T, int128_t>) {
       return common::PhysicalTypeID::INT128;
-    } else if constexpr (std::is_same_v<T, interval_t>) {
+    } else if constexpr (std::is_same_v<T, compiler_impl::interval_t>) {
       return common::PhysicalTypeID::INTERVAL;
     } else if constexpr (std::same_as<T, neug_string_t> ||
                          std::same_as<T, std::string> ||
@@ -202,15 +202,15 @@ class TypeUtils {
     case DataTypeId::kFloat:
       return func(float());
     case DataTypeId::kInterval:
-      return func(interval_t());
+      return func(compiler_impl::interval_t());
     case DataTypeId::kInternalId:
       return func(internalID_t());
     case DataTypeId::kVarchar:
       return func(neug_string_t());
     case DataTypeId::kDate:
-      return func(date_t());
+      return func(compiler_impl::date_t());
     case DataTypeId::kTimestampMs:
-      return func(timestamp_ms_t());
+      return func(compiler_impl::timestamp_ms_t());
     case DataTypeId::kArray:
     case DataTypeId::kList:
       return func(list_entry_t());
@@ -260,7 +260,7 @@ class TypeUtils {
     case PhysicalTypeID::FLOAT:
       return func(float());
     case PhysicalTypeID::INTERVAL:
-      return func(interval_t());
+      return func(compiler_impl::interval_t());
     case PhysicalTypeID::INTERNAL_ID:
       return func(internalID_t());
     case PhysicalTypeID::STRING:
@@ -294,13 +294,17 @@ std::string TypeUtils::toString(const bool& val, void* valueVector);
 template <>
 std::string TypeUtils::toString(const internalID_t& val, void* valueVector);
 template <>
-std::string TypeUtils::toString(const date_t& val, void* valueVector);
+std::string TypeUtils::toString(const compiler_impl::date_t& val,
+                                void* valueVector);
 template <>
-std::string TypeUtils::toString(const timestamp_ms_t& val, void* valueVector);
+std::string TypeUtils::toString(const compiler_impl::timestamp_ms_t& val,
+                                void* valueVector);
 template <>
-std::string TypeUtils::toString(const timestamp_t& val, void* valueVector);
+std::string TypeUtils::toString(const compiler_impl::timestamp_t& val,
+                                void* valueVector);
 template <>
-std::string TypeUtils::toString(const interval_t& val, void* valueVector);
+std::string TypeUtils::toString(const compiler_impl::interval_t& val,
+                                void* valueVector);
 template <>
 std::string TypeUtils::toString(const neug_string_t& val, void* valueVector);
 template <>

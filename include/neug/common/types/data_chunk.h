@@ -20,13 +20,11 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 class StorageReadInterface;
-
-namespace execution {
 
 /**
  * @brief A DataChunk holds a set of columns that share the same row count.
@@ -75,5 +73,4 @@ class DataChunk {
   std::vector<std::shared_ptr<IContextColumn>> columns;
 };
 
-}  // namespace execution
 }  // namespace neug

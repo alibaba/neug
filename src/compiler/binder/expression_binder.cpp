@@ -55,7 +55,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindExpression(
       auto name =
           parsedExpr->constCast<ParsedParameterExpression>().getParameterName();
       if (!parameterMap.contains(name)) {
-        auto value = std::make_shared<Value>(Value::createNullValue());
+        auto value = std::make_shared<compiler_impl::Value>(
+            compiler_impl::Value::createNullValue());
         parameterMap.insert({name, value});
         allParamExist = false;
       }
@@ -162,7 +163,8 @@ std::shared_ptr<Expression> ExpressionBinder::forceCast(
     return expression;
   }
   auto children = expression_vector{
-      expression, createLiteralExpression(Value(targetType.ToString()))};
+      expression,
+      createLiteralExpression(compiler_impl::Value(targetType.ToString()))};
   return bindScalarFunctionExpression(children, functionName);
 }
 

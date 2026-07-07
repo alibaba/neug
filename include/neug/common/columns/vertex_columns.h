@@ -14,11 +14,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 
 namespace neug {
-
-namespace execution {
 
 enum class VertexColumnType {
   kSingle,
@@ -467,7 +465,5 @@ void foreach_vertex(const IVertexColumn& col, const FUNC_T& func) {
     ref.foreach_vertex(func);
   }
 }
-
-}  // namespace execution
 
 }  // namespace neug

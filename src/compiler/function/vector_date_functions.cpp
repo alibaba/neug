@@ -35,31 +35,31 @@ function_set DatePartFunction::getFunctionSet() {
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kDate},
       DataTypeId::kInt64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, date_t, int64_t,
-                                         DatePart>));
+      ScalarFunction::BinaryExecFunction<neug_string_t, compiler_impl::date_t,
+                                         int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kTimestampMs},
       DataTypeId::kInt64,
       ScalarFunction::BinaryExecFunction<
-          neug_string_t, neug::common::timestamp_t, int64_t, DatePart>));
+          neug_string_t, compiler_impl::timestamp_t, int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kInterval},
       DataTypeId::kInt64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
-                                         DatePart>));
+      ScalarFunction::BinaryExecFunction<
+          neug_string_t, compiler_impl::interval_t, int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kDate},
       DataTypeId::kInt64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
-                                         DatePart>));
+      ScalarFunction::BinaryExecFunction<
+          neug_string_t, compiler_impl::interval_t, int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kTimestampMs},
       DataTypeId::kInt64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, interval_t, int64_t,
-                                         DatePart>));
+      ScalarFunction::BinaryExecFunction<
+          neug_string_t, compiler_impl::interval_t, int64_t, DatePart>));
   return result;
 }
 
