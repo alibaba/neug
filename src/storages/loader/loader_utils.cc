@@ -960,7 +960,7 @@ namespace {
 template <typename SRC_T, typename COL_T = SRC_T>
 void set_column_from_value_column(
     ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
-    const std::vector<vid_t>& vids, std::shared_mutex* mutex = nullptr) {
+    const std::vector<vid_t>& vids) {
   auto* typed = dynamic_cast<TypedColumn<COL_T>*>(col);
   CHECK(typed != nullptr)
       << "Storage column type does not match expected type.";
@@ -968,16 +968,9 @@ void set_column_from_value_column(
   auto value_col = std::dynamic_pointer_cast<ValueColumn<SRC_T>>(ctx_col);
 
   if constexpr (std::is_same_v<COL_T, std::string_view>) {
-    // String writes require mutex-protected capacity management.
-    CHECK(mutex != nullptr) << "String column write requires a shared mutex.";
     auto write = [&](vid_t vid, const auto& s) {
-      std::shared_lock<std::shared_mutex> lock(*mutex);
       if (typed->available_space() <= s.size()) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> w_lock(*mutex);
         typed->resize(typed->size());
-        w_lock.unlock();
-        lock.lock();
       }
       typed->set_value(vid, std::string_view(s));
     };
@@ -1011,7 +1004,7 @@ void set_column_from_value_column(
 
 void set_properties_from_context_column(
     neug::ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
-    const std::vector<vid_t>& vids, std::shared_mutex& mutex) {
+    const std::vector<vid_t>& vids) {
   auto col_type = col->type();
   switch (col_type) {
 #define SET_TYPED_VALUE(enum_val, ctype)                     \
@@ -1035,7 +1028,7 @@ void set_properties_from_context_column(
   }
   case DataTypeId::kVarchar: {
     set_column_from_value_column<std::string, std::string_view>(col, ctx_col,
-                                                                vids, &mutex);
+                                                                vids);
     break;
   }
   default:

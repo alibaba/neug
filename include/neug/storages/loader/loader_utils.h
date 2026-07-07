@@ -114,6 +114,6 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
 
 void set_properties_from_context_column(
     ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
-    const std::vector<vid_t>& vids, std::shared_mutex& mutex);
+    const std::vector<vid_t>& vids);
 
 }  // namespace neug
