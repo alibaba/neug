@@ -28,8 +28,8 @@ namespace neug {
 namespace common {
 
 enum class ExplainType : uint8_t {
-  PROFILE = 0,
-  LOGICAL_PLAN = 1,
+  NONE = 0,
+  PROFILE = 1,
   PHYSICAL_PLAN = 2,
 };
 

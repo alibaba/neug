@@ -15,8 +15,8 @@
 
 #include "neug/execution/execute/ops/retrieve/path.h"
 
+#include "neug/common/types/value.h"
 #include "neug/execution/common/operators/retrieve/path_expand.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 
@@ -467,14 +467,14 @@ class ASPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    execution::Value oid;
+    Value oid;
     if (expr_opr_.has_param()) {
       auto name = expr_opr_.param().name();
       auto val = params.at(name).GetValue<int64_t>();
-      oid = execution::Value::INT64(val);
+      oid = Value::INT64(val);
     } else {
       const auto& c = expr_opr_.const_();
-      oid = execution::Value::INT64(c.i64());
+      oid = Value::INT64(c.i64());
     }
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
@@ -512,14 +512,14 @@ class SSSDSPOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    execution::Value vertex = [&]() {
+    Value vertex = [&]() {
       if (expr_opr_.has_param()) {
         auto name = expr_opr_.param().name();
         auto val = params.at(name).GetValue<int64_t>();
-        return execution::Value::INT64(val);
+        return Value::INT64(val);
       } else {
         const auto& c = expr_opr_.const_();
-        return execution::Value::INT64(c.i64());
+        return Value::INT64(c.i64());
       }
     }();
     vid_t vid;

@@ -207,7 +207,7 @@ BoundCopyFromInfo::BoundCopyFromInfo(
 
 // boundCopyOptions: keys are upper-case (see bindParsingOptions).
 static bool autoDetectEnabled(
-    const case_insensitive_map_t<Value>& boundCopyOptions) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions) {
   auto it = boundCopyOptions.find("AUTO_DETECT");
   if (it != boundCopyOptions.end()) {
     return it->second.getValue<bool>();
@@ -327,7 +327,7 @@ matchColumnExpression(const expression_vector& columns,
   }
   return {ColumnEvaluateType::DEFAULT,
           expressionBinder.createLiteralExpression(
-              Value::createDefaultValue(property.getType()))};
+              compiler_impl::Value::createDefaultValue(property.getType()))};
 }
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFrom(
@@ -421,7 +421,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions,
+    bool temporary) {
   (void) boundCopyOptions;
   auto& copyStatement = neug_dynamic_cast<const CopyFrom&>(statement);
   auto boundSource = bindScanSource(copyStatement.getSource(),
@@ -448,7 +449,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
 
 std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
     const Statement& statement,
-    const case_insensitive_map_t<Value>& boundCopyOptions, bool temporary) {
+    const case_insensitive_map_t<compiler_impl::Value>& boundCopyOptions,
+    bool temporary) {
   auto& copyStatement = statement.constCast<CopyFrom>();
   if (copyStatement.byColumn()) {
     THROW_BINDER_EXCEPTION(stringFormat(

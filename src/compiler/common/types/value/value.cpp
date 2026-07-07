@@ -24,6 +24,7 @@
 
 #include <utility>
 
+#include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/null_buffer.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
@@ -33,7 +34,27 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace common {
+namespace compiler_impl {
+
+using common::DataType;
+using common::DataTypeId;
+using common::Deserializer;
+using common::getPhysicalType;
+using common::InMemOverflowBuffer;
+using common::InternalKeyword;
+using common::ListType;
+using common::ListVector;
+using common::LogicalTypeUtils;
+using common::neug_string_t;
+using common::NullMask;
+using common::PhysicalTypeID;
+using common::Serializer;
+using common::stringFormat;
+using common::StringVector;
+using common::StructType;
+using common::StructVector;
+using common::TypeUtils;
+using common::ValueVector;
 
 bool Value::operator==(const Value& rhs) const {
   if (dataType != rhs.dataType || isNull_ != rhs.isNull_) {
@@ -878,5 +899,5 @@ std::string Value::relToString() const {
   return result;
 }
 
-}  // namespace common
+}  // namespace compiler_impl
 }  // namespace neug

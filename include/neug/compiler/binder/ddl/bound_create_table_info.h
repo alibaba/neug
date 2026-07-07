@@ -133,7 +133,7 @@ struct BoundExtraCreateRelTableInfo final : BoundExtraCreateTableInfo {
   common::table_id_t dstTableID;
   std::string srcLabelName;
   std::string dstTableName;
-  common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<compiler_impl::Value> options;
 
   BoundExtraCreateRelTableInfo(common::table_id_t srcTableID,
                                common::table_id_t dstTableID,

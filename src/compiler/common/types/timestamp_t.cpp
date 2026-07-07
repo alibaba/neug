@@ -28,7 +28,7 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace common {
+namespace compiler_impl {
 
 timestamp_t::timestamp_t() : value(0) {}
 
@@ -82,7 +82,7 @@ bool timestamp_t::operator>=(const date_t& rhs) const { return rhs <= *this; }
 timestamp_t timestamp_t::operator+(const interval_t& interval) const {
   date_t date{};
   date_t result_date{};
-  dtime_t time{};
+  common::dtime_t time{};
   Timestamp::convert(*this, date, time);
   result_date = date + interval;
   date = result_date;
@@ -127,14 +127,14 @@ bool Timestamp::tryConvertTimestamp(const char* str, uint64_t len,
                                     timestamp_t& result) {
   uint64_t pos = 0;
   date_t date;
-  dtime_t time;
+  common::dtime_t time;
 
   if (!Date::tryConvertDate(str, len, pos, date, true /*allowTrailing*/)) {
     return false;
   }
   if (pos == len) {
     // no time: only a date
-    result = fromDateTime(date, dtime_t(0));
+    result = fromDateTime(date, common::dtime_t(0));
     return true;
   }
   // try to parse a time field
@@ -142,7 +142,7 @@ bool Timestamp::tryConvertTimestamp(const char* str, uint64_t len,
     pos++;
   }
   uint64_t time_pos = 0;
-  if (!Time::tryConvertTime(str + pos, len - pos, time_pos, time)) {
+  if (!common::Time::tryConvertTime(str + pos, len - pos, time_pos, time)) {
     return false;
   }
   pos += time_pos;
@@ -230,9 +230,9 @@ bool Timestamp::tryParseUTCOffset(const char* str, uint64_t& pos, uint64_t len,
 
 std::string Timestamp::toString(timestamp_t timestamp) {
   date_t date;
-  dtime_t time;
+  common::dtime_t time;
   Timestamp::convert(timestamp, date, time);
-  return Date::toString(date) + " " + Time::toString(time);
+  return Date::toString(date) + " " + common::Time::toString(time);
 }
 
 date_t Timestamp::getDate(timestamp_t timestamp) {
@@ -241,24 +241,24 @@ date_t Timestamp::getDate(timestamp_t timestamp) {
                 (timestamp.value < 0));
 }
 
-dtime_t Timestamp::getTime(timestamp_t timestamp) {
+common::dtime_t Timestamp::getTime(timestamp_t timestamp) {
   date_t date = Timestamp::getDate(timestamp);
-  return dtime_t(timestamp.value -
-                 (int64_t(date.days) * int64_t(Interval::MICROS_PER_DAY)));
+  return common::dtime_t(timestamp.value - (int64_t(date.days) *
+                                            int64_t(Interval::MICROS_PER_DAY)));
 }
 
-timestamp_t Timestamp::fromDateTime(date_t date, dtime_t time) {
+timestamp_t Timestamp::fromDateTime(date_t date, common::dtime_t time) {
   timestamp_t result;
   int32_t year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0,
           microsecond = -1;
   Date::convert(date, year, month, day);
-  Time::convert(time, hour, minute, second, microsecond);
+  common::Time::convert(time, hour, minute, second, microsecond);
   result.value = date.days * Interval::MICROS_PER_DAY + time.micros;
   return result;
 }
 
 void Timestamp::convert(timestamp_t timestamp, date_t& out_date,
-                        dtime_t& out_time) {
+                        common::dtime_t& out_time) {
   out_date = getDate(timestamp);
   out_time = getTime(timestamp);
 }
@@ -312,29 +312,30 @@ timestamp_t Timestamp::trunc(DatePartSpecifier specifier,
                              timestamp_t timestamp) {
   int32_t hour = 0, min = 0, sec = 0, micros = 0;
   date_t date;
-  dtime_t time;
+  common::dtime_t time;
   Timestamp::convert(timestamp, date, time);
-  Time::convert(time, hour, min, sec, micros);
+  common::Time::convert(time, hour, min, sec, micros);
   switch (specifier) {
   case DatePartSpecifier::MICROSECOND:
     return timestamp;
   case DatePartSpecifier::MILLISECOND:
     micros -= micros % Interval::MICROS_PER_MSEC;
-    return Timestamp::fromDateTime(date,
-                                   Time::fromTime(hour, min, sec, micros));
+    return Timestamp::fromDateTime(
+        date, common::Time::fromTime(hour, min, sec, micros));
   case DatePartSpecifier::SECOND:
     return Timestamp::fromDateTime(
-        date, Time::fromTime(hour, min, sec, 0 /* microseconds */));
+        date, common::Time::fromTime(hour, min, sec, 0 /* microseconds */));
   case DatePartSpecifier::MINUTE:
     return Timestamp::fromDateTime(
-        date, Time::fromTime(hour, min, 0 /* seconds */, 0 /* microseconds */));
+        date, common::Time::fromTime(hour, min, 0 /* seconds */,
+                                     0 /* microseconds */));
   case DatePartSpecifier::HOUR:
     return Timestamp::fromDateTime(
-        date, Time::fromTime(hour, 0 /* minutes */, 0 /* seconds */,
-                             0 /* microseconds */));
+        date, common::Time::fromTime(hour, 0 /* minutes */, 0 /* seconds */,
+                                     0 /* microseconds */));
   default:
     date = getDate(timestamp);
-    return fromDateTime(Date::trunc(specifier, date), dtime_t(0));
+    return fromDateTime(Date::trunc(specifier, date), common::dtime_t(0));
   }
 }
 
@@ -359,5 +360,5 @@ timestamp_t Timestamp::getCurrentTimestamp() {
       duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
 }
 
-}  // namespace common
+}  // namespace compiler_impl
 }  // namespace neug

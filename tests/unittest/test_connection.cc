@@ -206,8 +206,8 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
       "MATCH (n:atomic_person {id: $person_id}) SET n.id2 = n.id2 + "
       "$increment;",
       "update",
-      {{"person_id", execution::Value::INT64(1)},
-       {"increment", execution::Value::INT64(5)}});
+      {{"person_id", neug::Value::INT64(1)},
+       {"increment", neug::Value::INT64(5)}});
   EXPECT_TRUE(res);
   LOG(INFO) << res.value().ToString();
 }

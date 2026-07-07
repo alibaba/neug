@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 

@@ -34,24 +34,36 @@
 namespace neug {
 
 namespace common {
-
-class NodeVal;
-class RelVal;
-struct FileInfo;
-class NestedVal;
-class RecursiveRelVal;
-class ArrowRowBatch;
-class ValueVector;
-class Serializer;
 class Deserializer;
+class Serializer;
+class NestedVal;
+class NodeVal;
+class RecursiveRelVal;
+class RelVal;
+class ValueVector;
+}  // namespace common
+
+namespace compiler_impl {
+
+using common::int128_t;
+using common::internalID_t;
+using common::list_entry_t;
+using common::neug_list_t;
+using common::nodeID_t;
+using common::getPhysicalType;
+using common::PhysicalTypeID;
+using common::struct_entry_t;
+
+struct FileInfo;
+class ArrowRowBatch;
 
 class Value {
-  friend class NodeVal;
-  friend class RelVal;
-  friend class NestedVal;
-  friend class RecursiveRelVal;
+  friend class common::NodeVal;
+  friend class common::RelVal;
+  friend class common::NestedVal;
+  friend class common::RecursiveRelVal;
   friend class ArrowRowBatch;
-  friend class ValueVector;
+  friend class common::ValueVector;
 
  public:
   /**
@@ -199,7 +211,7 @@ class Value {
    * @param value value to copy from.
    */
   NEUG_API void copyFromColLayout(const uint8_t* value,
-                                  ValueVector* vec = nullptr);
+                                  common::ValueVector* vec = nullptr);
   /**
    * @brief Copies from the other.
    * @param other value to copy from.
@@ -237,10 +249,10 @@ class Value {
    */
   NEUG_API std::string toString() const;
 
-  NEUG_API void serialize(Serializer& serializer) const;
+  NEUG_API void serialize(common::Serializer& serializer) const;
 
   NEUG_API static std::unique_ptr<Value> deserialize(
-      Deserializer& deserializer);
+      common::Deserializer& deserializer);
 
   NEUG_API void validateType(common::DataTypeId targetTypeID) const;
 
@@ -258,10 +270,11 @@ class Value {
   void resizeChildrenVector(uint64_t size, const DataType& childType);
   void copyFromRowLayoutList(const neug_list_t& list,
                              const DataType& childType);
-  void copyFromColLayoutList(const list_entry_t& list, ValueVector* vec);
+  void copyFromColLayoutList(const list_entry_t& list,
+                             common::ValueVector* vec);
   void copyFromRowLayoutStruct(const uint8_t* kuStruct);
   void copyFromColLayoutStruct(const struct_entry_t& structEntry,
-                               ValueVector* vec);
+                               common::ValueVector* vec);
   std::string mapToString() const;
   std::string listToString() const;
   std::string structToString() const;
@@ -773,5 +786,6 @@ NEUG_API inline Value Value::createValue(const char* value) {
   return Value(DataType::Varchar(), std::string(value));
 }
 
-}  // namespace common
+}  // namespace compiler_impl
+
 }  // namespace neug

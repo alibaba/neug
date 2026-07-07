@@ -21,8 +21,8 @@
 #include <string>
 #include <vector>
 
+#include "neug/common/types/value.h"
 #include "neug/compiler/planner/graph_planner.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
@@ -104,7 +104,7 @@ class Connection {
    *
    * // Query with parameters
    * neug::execution::ParamsMap params;
-   * params["min_age"] = neug::execution::Value(18);
+   * params["min_age"] = neug::Value(18);
    * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
    * "read", params);
    *

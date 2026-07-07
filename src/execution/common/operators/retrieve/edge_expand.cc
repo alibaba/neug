@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/common/columns/value_columns.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/opr_timer.h"

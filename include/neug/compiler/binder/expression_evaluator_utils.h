@@ -30,7 +30,7 @@ namespace neug {
 namespace evaluator {
 
 struct ExpressionEvaluatorUtils {
-  static NEUG_API common::Value evaluateConstantExpression(
+  static NEUG_API compiler_impl::Value evaluateConstantExpression(
       std::shared_ptr<binder::Expression> expression,
       main::ClientContext* clientContext);
 };

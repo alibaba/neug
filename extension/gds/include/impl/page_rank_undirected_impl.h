@@ -19,7 +19,7 @@
 #include <memory>
 #include <vector>
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
 #include "neug/execution/expression/expr.h"
 
 namespace neug {

@@ -14,7 +14,6 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/common/params_map.h"

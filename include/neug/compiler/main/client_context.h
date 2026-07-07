@@ -102,7 +102,7 @@ class NEUG_API ClientContext {
   // Client config
   const ClientConfig* getClientConfig() const { return &clientConfig; }
   ClientConfig* getClientConfigUnsafe() { return &clientConfig; }
-  common::Value getCurrentSetting(const std::string& optionName) const;
+  compiler_impl::Value getCurrentSetting(const std::string& optionName) const;
 
   // TODO: This will be removed after decoupling other dependencies.
   // Currently returns a dummy `transaction` to maintain compatibility. It will
@@ -113,7 +113,7 @@ class NEUG_API ClientContext {
       const std::string& objectName) const;
 
   // Extension
-  void setExtensionOption(std::string name, common::Value value);
+  void setExtensionOption(std::string name, compiler_impl::Value value);
   const main::ExtensionOption* getExtensionOption(std::string optionName) const;
 
   MetadataManager* getMetadataManager() const { return localDatabase; }
@@ -145,8 +145,8 @@ class NEUG_API ClientContext {
   std::unique_ptr<PreparedStatement> prepareNoLock(
       std::shared_ptr<parser::Statement> parsedStatement,
       bool shouldCommitNewTransaction,
-      std::optional<
-          std::unordered_map<std::string, std::shared_ptr<common::Value>>>
+      std::optional<std::unordered_map<std::string,
+                                       std::shared_ptr<compiler_impl::Value>>>
           inputParams = std::nullopt);
 
   // Client side configurable settings.
@@ -156,7 +156,7 @@ class NEUG_API ClientContext {
   // Replace external object as pointer Value;
   std::vector<function::ScanReplacement> scanReplacements;
   // Extension configurable settings.
-  std::unordered_map<std::string, common::Value> extensionOptionValues;
+  std::unordered_map<std::string, compiler_impl::Value> extensionOptionValues;
   // Local database.
   MetadataManager* localDatabase;
   // Warning information

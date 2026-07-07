@@ -35,13 +35,12 @@ std::string MakeChildModuleKey(const std::string& parent_key,
   return parent_key + "/" + role;
 }
 
-const std::vector<execution::Value>& GetArrayChildren(
-    const execution::Value& value) {
+const std::vector<Value>& GetArrayChildren(const Value& value) {
   if (value.type().id() != DataTypeId::kArray) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "ArrayColumn expects an ARRAY value, got " + value.type().ToString());
   }
-  return execution::ArrayValue::GetChildren(value);
+  return ArrayValue::GetChildren(value);
 }
 
 }  // namespace
@@ -152,7 +151,7 @@ void ArrayColumn::resize(size_t size) {
   child_column_->resize(size_ * array_size_);
 }
 
-void ArrayColumn::resize(size_t size, const execution::Value& default_value) {
+void ArrayColumn::resize(size_t size, const Value& default_value) {
   if (size <= size_) {
     size_ = size;
     child_column_->resize(size_ * array_size_);
@@ -167,8 +166,7 @@ void ArrayColumn::resize(size_t size, const execution::Value& default_value) {
   }
 }
 
-void ArrayColumn::set_any(size_t index, const execution::Value& value,
-                          bool insert_safe) {
+void ArrayColumn::set_any(size_t index, const Value& value, bool insert_safe) {
   if (index >= size_) {
     THROW_RUNTIME_ERROR("ArrayColumn::set_any: index " + std::to_string(index) +
                         " out of range (size=" + std::to_string(size_) + ")");
@@ -185,20 +183,20 @@ void ArrayColumn::set_any(size_t index, const execution::Value& value,
   }
 }
 
-execution::Value ArrayColumn::get_any(size_t index) const {
+Value ArrayColumn::get_any(size_t index) const {
   if (index >= size_) {
     THROW_RUNTIME_ERROR("ArrayColumn::get_value: index " +
                         std::to_string(index) +
                         " out of range (size=" + std::to_string(size_) + ")");
   }
   auto child_type = ArrayType::GetChildType(array_type_);
-  std::vector<execution::Value> values;
+  std::vector<Value> values;
   values.reserve(array_size_);
   size_t base = index * array_size_;
   for (size_t j = 0; j < array_size_; ++j) {
     values.emplace_back(child_column_->get_any(base + j));
   }
-  return execution::Value::ARRAY(array_type_, std::move(values));
+  return Value::ARRAY(array_type_, std::move(values));
 }
 
 void ArrayColumn::ingest(uint32_t index, OutArchive& arc) {

@@ -26,7 +26,7 @@
 #include "dtime_t.h"
 
 namespace neug {
-namespace common {
+namespace compiler_impl {
 
 // Type used to represent timestamps (value is in microseconds since 1970-01-01)
 struct NEUG_API timestamp_t {
@@ -97,17 +97,17 @@ class Timestamp {
 
   NEUG_API static date_t getDate(timestamp_t timestamp);
 
-  NEUG_API static dtime_t getTime(timestamp_t timestamp);
+  NEUG_API static common::dtime_t getTime(timestamp_t timestamp);
 
   // Create a Timestamp object from a specified (date, time) combination.
-  NEUG_API static timestamp_t fromDateTime(date_t date, dtime_t time);
+  NEUG_API static timestamp_t fromDateTime(date_t date, common::dtime_t time);
 
   NEUG_API static bool tryConvertTimestamp(const char* str, uint64_t len,
                                            timestamp_t& result);
 
   // Extract the date and time from a given timestamp object.
   NEUG_API static void convert(timestamp_t timestamp, date_t& out_date,
-                               dtime_t& out_time);
+                               common::dtime_t& out_time);
 
   // Create a Timestamp object from the specified epochMs.
   NEUG_API static timestamp_t fromEpochMicroSeconds(int64_t epochMs);
@@ -147,5 +147,6 @@ class Timestamp {
   NEUG_API static timestamp_t getCurrentTimestamp();
 };
 
-}  // namespace common
+}  // namespace compiler_impl
+
 }  // namespace neug

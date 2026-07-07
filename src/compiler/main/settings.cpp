@@ -29,7 +29,7 @@ namespace neug {
 namespace main {
 
 void SpillToDiskSetting::setContext(ClientContext* context,
-                                    const common::Value& parameter) {}
+                                    const compiler_impl::Value& parameter) {}
 
 }  // namespace main
 }  // namespace neug

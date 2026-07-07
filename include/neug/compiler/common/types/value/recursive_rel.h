@@ -25,9 +25,11 @@
 #include "neug/utils/api.h"
 
 namespace neug {
-namespace common {
-
+namespace compiler_impl {
 class Value;
+}  // namespace compiler_impl
+
+namespace common {
 
 /**
  * @brief RecursiveRelVal represents a path in the graph and stores the
@@ -38,15 +40,17 @@ class RecursiveRelVal {
   /**
    * @return the list of nodes in the recursive rel as a Value.
    */
-  NEUG_API static Value* getNodes(const Value* val);
+  NEUG_API static compiler_impl::Value* getNodes(
+      const compiler_impl::Value* val);
 
   /**
    * @return the list of rels in the recursive rel as a Value.
    */
-  NEUG_API static Value* getRels(const Value* val);
+  NEUG_API static compiler_impl::Value* getRels(
+      const compiler_impl::Value* val);
 
  private:
-  static void throwIfNotRecursiveRel(const Value* val);
+  static void throwIfNotRecursiveRel(const compiler_impl::Value* val);
 };
 
 }  // namespace common

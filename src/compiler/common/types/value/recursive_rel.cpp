@@ -30,17 +30,19 @@
 namespace neug {
 namespace common {
 
-Value* RecursiveRelVal::getNodes(const Value* val) {
+compiler_impl::Value* RecursiveRelVal::getNodes(
+    const compiler_impl::Value* val) {
   throwIfNotRecursiveRel(val);
   return val->children[0].get();
 }
 
-Value* RecursiveRelVal::getRels(const Value* val) {
+compiler_impl::Value* RecursiveRelVal::getRels(
+    const compiler_impl::Value* val) {
   throwIfNotRecursiveRel(val);
   return val->children[1].get();
 }
 
-void RecursiveRelVal::throwIfNotRecursiveRel(const Value* val) {
+void RecursiveRelVal::throwIfNotRecursiveRel(const compiler_impl::Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.id() != DataTypeId::kPath) {
     THROW_EXCEPTION_WITH_FILE_LINE(

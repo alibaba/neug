@@ -21,8 +21,8 @@
 #include <memory>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 #include "utils/path_utils.h"
 
@@ -70,7 +70,7 @@ void BFSPred::compute() {
     }
   }
 
-  execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+  LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
@@ -122,11 +122,11 @@ void BFSPred::compute() {
 
 void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
                    int path_alias) {
-  execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> distance_builder;
+  MSVertexColumnBuilder node_builder(vertex_label_);
+  ValueColumnBuilder<int64_t> distance_builder;
   distance_builder.reserve(vertices_.size());
 
-  std::shared_ptr<execution::IContextColumn> path_column;
+  std::shared_ptr<IContextColumn> path_column;
   if (return_path_) {
     auto oe_view = graph_.GetGenericOutgoingGraphView(
         vertex_label_, vertex_label_, edge_label_);
@@ -138,7 +138,7 @@ void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       epred = std::make_unique<execution::GeneralPred>(
           edge_pred_->bind(&graph_, {}));
     }
-    execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+    LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
 
     auto find_pred = [&](vid_t v) -> vid_t {
       auto ie_edges = ie_view.get_edges(v);
@@ -164,7 +164,7 @@ void BFSPred::sink(execution::Context& ctx, int node_alias, int distance_alias,
       return source_;
     };
 
-    execution::PathColumnBuilder path_builder;
+    PathColumnBuilder path_builder;
     for (vid_t v : vertices_) {
       if (distances_[v] == std::numeric_limits<uint32_t>::max()) {
         path_builder.push_back_null();

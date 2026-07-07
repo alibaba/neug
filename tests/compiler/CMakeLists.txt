@@ -11,6 +11,7 @@ add_neug_test(
 	path_test.cpp
 	order_test.cpp
 	expr_test.cpp
+	explain_test.cpp
 	project_test.cpp
 	result_test.cpp
 	# cyclic_test.cpp

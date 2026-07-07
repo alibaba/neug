@@ -14,7 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {

@@ -14,7 +14,7 @@
  */
 
 #include "neug/execution/expression/exprs/path_expr.h"
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/execution/common/context.h"
 
 namespace neug {

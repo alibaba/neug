@@ -19,7 +19,7 @@
 #include <memory>
 #include <string>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "py_query_result.h"

@@ -15,8 +15,8 @@
 
 #include "neug/execution/execute/ops/retrieve/scan.h"
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/expression/predicates.h"

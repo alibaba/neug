@@ -37,13 +37,21 @@ bool PreparedStatement::isTransactionStatement() const {
 
 bool PreparedStatement::isReadOnly() const { return readOnly; }
 
-bool PreparedStatement::isProfile() const { return logicalPlan->isProfile(); }
+bool PreparedStatement::isProfile() const {
+  return explainMode == ExplainType::PROFILE;
+}
 
 StatementType PreparedStatement::getStatementType() const {
   return parsedStatement->getStatementType();
 }
 
 PreparedStatement::~PreparedStatement() = default;
+
+ExplainType PreparedStatement::getExplainMode() const { return explainMode; }
+
+bool PreparedStatement::isExplain() const {
+  return explainMode != ExplainType::NONE;
+}
 
 }  // namespace main
 }  // namespace neug

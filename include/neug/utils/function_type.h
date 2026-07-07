@@ -20,9 +20,12 @@
 #include <memory>
 #include <vector>
 
+#include "neug/common/types/value.h"
+
 namespace neug {
 namespace execution {
-class Value;
+
+using neug::Value;
 
 using neug_func_exec_t = Value (*)(const std::vector<Value>&);
 

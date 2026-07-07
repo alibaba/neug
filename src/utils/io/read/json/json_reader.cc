@@ -28,9 +28,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/execution/common/columns/columns_utils.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
@@ -95,67 +95,64 @@ std::vector<std::string> convert_json_array_to_lines(const std::string& path) {
   return lines;
 }
 
-execution::Value parse_json_value(const rapidjson::Value& value,
-                                  const DataType& data_type) {
+Value parse_json_value(const rapidjson::Value& value,
+                       const DataType& data_type) {
   if (value.IsNull()) {
-    return execution::Value(data_type);
+    return Value(data_type);
   }
   switch (data_type.id()) {
   case DataTypeId::kBoolean:
     if (value.IsBool()) {
-      return execution::Value::BOOLEAN(value.GetBool());
+      return Value::BOOLEAN(value.GetBool());
     }
     if (value.IsString()) {
-      return execution::Value::BOOLEAN(
-          execution::ValueConverter<bool>::typed_from_string(
-              value.GetString()));
+      return Value::BOOLEAN(
+          ValueConverter<bool>::typed_from_string(value.GetString()));
     }
-    return execution::Value::BOOLEAN(value.GetBool());
+    return Value::BOOLEAN(value.GetBool());
   case DataTypeId::kInt32:
     if (value.IsInt()) {
-      return execution::Value::INT32(value.GetInt());
+      return Value::INT32(value.GetInt());
     }
-    return execution::Value::INT32(static_cast<int32_t>(value.GetInt64()));
+    return Value::INT32(static_cast<int32_t>(value.GetInt64()));
   case DataTypeId::kUInt32:
-    return execution::Value::UINT32(value.GetUint());
+    return Value::UINT32(value.GetUint());
   case DataTypeId::kInt64:
-    return execution::Value::INT64(value.GetInt64());
+    return Value::INT64(value.GetInt64());
   case DataTypeId::kUInt64:
-    return execution::Value::UINT64(value.GetUint64());
+    return Value::UINT64(value.GetUint64());
   case DataTypeId::kFloat:
-    return execution::Value::FLOAT(static_cast<float>(value.GetDouble()));
+    return Value::FLOAT(static_cast<float>(value.GetDouble()));
   case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(value.GetDouble());
+    return Value::DOUBLE(value.GetDouble());
   case DataTypeId::kDate: {
     std::string str =
         value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::date_t>(
-        execution::ValueConverter<execution::date_t>::typed_from_string(str));
+    return Value::CreateValue<date_t>(
+        ValueConverter<date_t>::typed_from_string(str));
   }
   case DataTypeId::kTimestampMs: {
     std::string str =
         value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::timestamp_ms_t>(
-        execution::ValueConverter<execution::timestamp_ms_t>::typed_from_string(
-            str));
+    return Value::CreateValue<timestamp_ms_t>(
+        ValueConverter<timestamp_ms_t>::typed_from_string(str));
   }
   case DataTypeId::kInterval: {
     std::string str =
         value.IsString() ? value.GetString() : rapidjson_stringify(value);
-    return execution::Value::CreateValue<execution::interval_t>(
-        execution::ValueConverter<execution::interval_t>::typed_from_string(
-            str));
+    return Value::CreateValue<interval_t>(
+        ValueConverter<interval_t>::typed_from_string(str));
   }
   case DataTypeId::kVarchar:
     if (value.IsString()) {
-      return execution::Value::STRING(value.GetString());
+      return Value::STRING(value.GetString());
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return Value::STRING(rapidjson_stringify(value));
   default:
     if (value.IsString()) {
-      return execution::Value::STRING(value.GetString());
+      return Value::STRING(value.GetString());
     }
-    return execution::Value::STRING(rapidjson_stringify(value));
+    return Value::STRING(rapidjson_stringify(value));
   }
 }
 
@@ -183,7 +180,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
     chunk_size_ = resolve_chunk_size(config_);
   }
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override {
+  std::shared_ptr<DataChunk> GetNextChunk() override {
     const auto& selected_names = config_.include_columns.empty()
                                      ? config_.column_names
                                      : config_.include_columns;
@@ -198,10 +195,10 @@ class JsonChunkSupplier : public IDataChunkSupplier {
       }
     }
 
-    std::vector<std::shared_ptr<execution::IContextColumnBuilder>> builders;
+    std::vector<std::shared_ptr<IContextColumnBuilder>> builders;
     builders.reserve(selected_names.size());
     for (const auto& type : selected_types) {
-      builders.push_back(execution::ColumnsUtils::create_builder(type));
+      builders.push_back(ColumnsUtils::create_builder(type));
     }
 
     size_t rows_in_chunk = 0;
@@ -245,7 +242,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
       return nullptr;
     }
 
-    auto chunk = std::make_shared<execution::DataChunk>();
+    auto chunk = std::make_shared<DataChunk>();
     for (size_t col = 0; col < builders.size(); ++col) {
       chunk->set(static_cast<int>(col), builders[col]->finish());
     }

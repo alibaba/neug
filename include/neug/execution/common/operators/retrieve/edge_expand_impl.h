@@ -15,8 +15,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {

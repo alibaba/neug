@@ -47,9 +47,10 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
-static common::Value convertDefaultValue(const PropertyDefinition& definition) {
+static compiler_impl::Value convertDefaultValue(
+    const PropertyDefinition& definition) {
   if (!definition.hasDefaultValue()) {
-    return common::Value::createNullValue(definition.getType());
+    return compiler_impl::Value::createNullValue(definition.getType());
   }
   return common::convertToCompilerValue(definition.getDefaultValue(),
                                         definition.getType());

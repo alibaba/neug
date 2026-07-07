@@ -292,12 +292,12 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
 
   // Verify the first column (id) is int32 ValueColumn
   auto column0 = ctx.chunk(0).columns()[0];
-  ASSERT_EQ(column0->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(column0->column_type(), ContextColumnType::kValue);
   EXPECT_EQ(column0->elem_type().id(), DataTypeId::kInt32);
 
   // Verify the third column (value) is int64 ValueColumn
   auto column2 = ctx.chunk(0).columns()[2];
-  ASSERT_EQ(column2->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(column2->column_type(), ContextColumnType::kValue);
   EXPECT_EQ(column2->elem_type().id(), DataTypeId::kInt64);
 }
 

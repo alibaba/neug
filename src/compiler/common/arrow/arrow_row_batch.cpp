@@ -246,8 +246,9 @@ void ArrowRowBatch::templateCopyNonNullValue<DataTypeId::kInterval>(
     std::int64_t pos) {
   auto destAddr = (int64_t*) (vector->data.data() + pos * sizeof(std::int64_t));
   auto intervalVal = value->val.intervalVal;
-  *destAddr = intervalVal.micros + intervalVal.days * Interval::MICROS_PER_DAY +
-              intervalVal.months * Interval::MICROS_PER_MONTH;
+  *destAddr = intervalVal.micros +
+              intervalVal.days * compiler_impl::Interval::MICROS_PER_DAY +
+              intervalVal.months * compiler_impl::Interval::MICROS_PER_MONTH;
 }
 
 template <>

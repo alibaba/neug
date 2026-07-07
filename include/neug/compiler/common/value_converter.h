@@ -20,18 +20,18 @@
 
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 namespace neug {
 namespace common {
 
-execution::Value convertToExecutionValue(const Value& value,
-                                         const DataType& type);
+::neug::Value convertToExecutionValue(const compiler_impl::Value& value,
+                                      const DataType& type);
 
-Value convertToCompilerValue(const execution::Value& value,
-                             const DataType& type);
+compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
+                                            const DataType& type);
 
-int64_t normalizeTimestampMillis(timestamp_ms_t value);
+int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t value);
 
 }  // namespace common
 }  // namespace neug

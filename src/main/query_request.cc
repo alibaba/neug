@@ -17,7 +17,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "rapidjson/document.h"
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/stringbuffer.h"
@@ -38,8 +38,7 @@ execution::ParamsMap ParamsParser::ParseFromJsonObj(
     if (meta.count(key) <= 0) {
       VLOG(1) << "Parameter key not found in meta: " << key;
     } else {
-      param_map.emplace(key,
-                        execution::Value::FromJson(itr->value, meta.at(key)));
+      param_map.emplace(key, Value::FromJson(itr->value, meta.at(key)));
     }
   }
   return param_map;
@@ -89,7 +88,7 @@ std::string RequestSerializer::SerializeRequest(
   for (const auto& kv : parameters) {
     parameter_obj.AddMember(
         rapidjson::Value(kv.first.c_str(), kv.first.size(), allocator),
-        execution::Value::ToJson(kv.second, allocator), allocator);
+        Value::ToJson(kv.second, allocator), allocator);
   }
   document.AddMember("parameters", parameter_obj, allocator);
   rapidjson::StringBuffer buffer;

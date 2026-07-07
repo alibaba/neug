@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <filesystem>
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
@@ -52,7 +52,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 
   CreateVertexTypeParam BuildCreateVertexTypeParam(
       const std::string& name,
-      const std::vector<std::pair<std::string, execution::Value>>& properties,
+      const std::vector<std::pair<std::string, neug::Value>>& properties,
       const std::vector<std::string>& primary_keys) {
     CreateVertexTypeParamBuilder builder;
     builder.VertexLabel(name)
@@ -64,7 +64,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
   CreateEdgeTypeParam BuildCreateEdgeTypeParam(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::pair<std::string, execution::Value>>& properties,
+      const std::vector<std::pair<std::string, neug::Value>>& properties,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
       EdgeStrategy ie_strategy = EdgeStrategy::kMultiple) {
     CreateEdgeTypeParamBuilder builder;
@@ -101,11 +101,11 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 // Test DeleteVertexType - physically removes vertex type and data
 TEST_F(PropertyGraphLogicalDeleteTest, DeleteVertexType_RemovesTypeAndData) {
   // Create a vertex type with properties
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"age", execution::Value::INT32(0)},
-      {"name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"age", neug::Value::INT32(0)},
+      {"name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
-  properties.insert(properties.begin(), {"id", execution::Value::INT64(0L)});
+  properties.insert(properties.begin(), {"id", neug::Value::INT64(0L)});
 
   auto status = graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", properties, pk_names));
@@ -126,9 +126,9 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteVertexType_RemovesTypeAndData) {
 
 // Test corner case: Create -> Delete Physical -> Create again
 TEST_F(PropertyGraphLogicalDeleteTest, CreateDeletePhysicalRecreate_Succeeds) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
 
   // First creation
@@ -155,9 +155,9 @@ TEST_F(PropertyGraphLogicalDeleteTest, CreateDeletePhysicalRecreate_Succeeds) {
 
 TEST_F(PropertyGraphLogicalDeleteTest,
        CreateDeleteLogicalRecreate_ActsAsRevert) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
 
   auto status = graph_.CreateVertexType(
@@ -179,8 +179,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test DeleteEdgeType
 TEST_F(PropertyGraphLogicalDeleteTest, DeleteEdgeTypePhysical_RemovesEdgeType) {
   // Create source and destination vertex types
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)}};
   std::vector<std::string> pk_names = {"id"};
 
   auto status = graph_.CreateVertexType(
@@ -191,8 +191,8 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteEdgeTypePhysical_RemovesEdgeType) {
   ASSERT_TRUE(status.ok());
 
   // Create edge type
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)}};
+  std::vector<std::pair<std::string, neug::Value>> e_props = {
+      {"years", neug::Value::INT32(0)}};
   status = graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
   ASSERT_TRUE(status.ok());
@@ -212,10 +212,10 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeleteEdgeTypePhysical_RemovesEdgeType) {
 // Test DeleteVertexProperties
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeleteVertexPropertiesPhysical_RemovesProperties) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))},
-      {"age", execution::Value::INT32(0)}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))},
+      {"age", neug::Value::INT32(0)}};
   std::vector<std::string> pk_names = {"id"};
 
   auto status = graph_.CreateVertexType(
@@ -240,10 +240,10 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test DeleteVertexPropertiesSoft
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeleteVertexPropertiesLogical_MarksPropertiesDeleted) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))},
-      {"age", execution::Value::INT32(0)}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))},
+      {"age", neug::Value::INT32(0)}};
   std::vector<std::string> pk_names = {"id"};
 
   auto status = graph_.CreateVertexType(
@@ -266,8 +266,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test DeleteEdgeProperties
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeleteEdgePropertiesPhysical_RemovesProperties) {
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)}};
   std::vector<std::string> pk_names = {"id"};
 
   graph_.CreateVertexType(
@@ -275,9 +275,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Company", v_props, pk_names));
 
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props = {
+      {"years", neug::Value::INT32(0)},
+      {"position", neug::Value::STRING(std::string("string"))}};
   auto status = graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
   ASSERT_TRUE(status.ok());
@@ -306,8 +306,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test DeleteEdgePropertiesSoft
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeleteEdgePropertiesLogical_MarksPropertiesDeleted) {
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)}};
   std::vector<std::string> pk_names = {"id"};
 
   graph_.CreateVertexType(
@@ -315,9 +315,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Company", v_props, pk_names));
 
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props = {
+      {"years", neug::Value::INT32(0)},
+      {"position", neug::Value::STRING(std::string("string"))}};
   graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
 
@@ -338,11 +338,11 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
 // Test corner case: Multiple logical deletes
 TEST_F(PropertyGraphLogicalDeleteTest, MultipleLogicalDeletes_WorksCorrectly) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))},
-      {"age", execution::Value::INT32(0)},
-      {"email", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))},
+      {"age", neug::Value::INT32(0)},
+      {"email", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
 
   graph_.CreateVertexType(
@@ -362,9 +362,9 @@ TEST_F(PropertyGraphLogicalDeleteTest, MultipleLogicalDeletes_WorksCorrectly) {
 
 // Test corner case: Cannot delete primary key property
 TEST_F(PropertyGraphLogicalDeleteTest, DeletePrimaryKeyProperty_ShouldFail) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
 
   graph_.CreateVertexType(
@@ -381,10 +381,10 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeletePrimaryKeyProperty_ShouldFail) {
 // Test physical delete of properties after logical delete
 TEST_F(PropertyGraphLogicalDeleteTest,
        PhysicalDeletePropertiesAfterLogicalDelete_Succeeds) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))},
-      {"age", execution::Value::INT32(0)}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))},
+      {"age", neug::Value::INT32(0)}};
   std::vector<std::string> pk_names = {"id"};
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", properties, pk_names));
@@ -404,16 +404,16 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test physical delete of edge properties after logical delete
 TEST_F(PropertyGraphLogicalDeleteTest,
        PhysicalDeleteEdgePropertiesAfterLogicalDelete_Succeeds) {
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)}};
   std::vector<std::string> pk_names = {"id"};
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", v_props, pk_names));
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Company", v_props, pk_names));
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props = {
+      {"years", neug::Value::INT32(0)},
+      {"position", neug::Value::STRING(std::string("string"))}};
   graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
   label_t src_label = graph_.schema().get_vertex_label_id("Person");
@@ -437,9 +437,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // contains the Delete label and properties.
 TEST_F(PropertyGraphLogicalDeleteTest,
        StatisticsAfterLogicalDelete_DoesNotContainDeletedInfo) {
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)},
-      {"Name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)},
+      {"Name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", v_props, pk_names));
@@ -447,12 +447,12 @@ TEST_F(PropertyGraphLogicalDeleteTest,
       BuildCreateVertexTypeParam("Company", v_props, pk_names));
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Location", v_props, pk_names));
-  std::vector<std::pair<std::string, execution::Value>> e_props_workat = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
-  std::vector<std::pair<std::string, execution::Value>> e_props_locatedat = {
-      {"since", execution::Value::INT32(0)},
-      {"city", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props_workat = {
+      {"years", neug::Value::INT32(0)},
+      {"position", neug::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props_locatedat = {
+      {"since", neug::Value::INT32(0)},
+      {"city", neug::Value::STRING(std::string("string"))}};
   graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props_workat));
   graph_.CreateEdgeType(BuildCreateEdgeTypeParam(
@@ -492,9 +492,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 // Test deleting primary key: should raise an error
 TEST_F(PropertyGraphLogicalDeleteTest,
        DeletePrimaryKeyProperty_ShouldRaiseError) {
-  std::vector<std::pair<std::string, execution::Value>> properties = {
-      {"id", execution::Value::INT64(0L)},
-      {"name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> properties = {
+      {"id", neug::Value::INT64(0L)},
+      {"name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
   auto status = graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", properties, pk_names));
@@ -508,9 +508,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
   // Insert vertex types and edge types to an empty schema, and check
   // whether the statistics are correct.
-  std::vector<std::pair<std::string, execution::Value>> v_props = {
-      {"id", execution::Value::INT64(0L)},
-      {"Name", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> v_props = {
+      {"id", neug::Value::INT64(0L)},
+      {"Name", neug::Value::STRING(std::string("string"))}};
   std::vector<std::string> pk_names = {"id"};
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Person", v_props, pk_names));
@@ -518,9 +518,9 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
       BuildCreateVertexTypeParam("Company", v_props, pk_names));
   graph_.CreateVertexType(
       BuildCreateVertexTypeParam("Location", v_props, pk_names));
-  std::vector<std::pair<std::string, execution::Value>> e_props = {
-      {"years", execution::Value::INT32(0)},
-      {"position", execution::Value::STRING(std::string("string"))}};
+  std::vector<std::pair<std::string, neug::Value>> e_props = {
+      {"years", neug::Value::INT32(0)},
+      {"position", neug::Value::STRING(std::string("string"))}};
   graph_.CreateEdgeType(
       BuildCreateEdgeTypeParam("Person", "Company", "WorksAt", e_props));
   graph_.CreateEdgeType(

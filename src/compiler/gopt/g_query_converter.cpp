@@ -547,7 +547,7 @@ GQueryConvertor::convertPathBase(
   }
 }
 
-uint64_t GQueryConvertor::convertValueAsUint64(common::Value value) {
+uint64_t GQueryConvertor::convertValueAsUint64(compiler_impl::Value value) {
   std::string valueStr = value.toString();
   return std::stoull(valueStr);
 }

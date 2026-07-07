@@ -19,8 +19,8 @@
 #include <memory>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 
 namespace neug {
@@ -74,7 +74,7 @@ void PageRankPred::compute() {
     return;
   }
 
-  execution::LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
+  LabelTriplet triplet{vertex_label_, vertex_label_, edge_label_};
   auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
                                                     vertex_label_, edge_label_);
   auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
@@ -184,8 +184,8 @@ void PageRankPred::compute() {
 }
 
 void PageRankPred::sink(execution::Context& ctx, int node_alias, int pr_alias) {
-  execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<double> pr_builder;
+  MSVertexColumnBuilder node_builder(vertex_label_);
+  ValueColumnBuilder<double> pr_builder;
   pr_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {

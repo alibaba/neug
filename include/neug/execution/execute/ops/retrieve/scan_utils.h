@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/utils/property/types.h"
 

@@ -19,7 +19,7 @@
 #include <arrow/table.h>
 #include <glog/logging.h>
 
-#include "parquet/arrow_context_column.h"
+#include "parquet/arrow_column.h"
 #include "parquet/arrow_reader.h"
 #include "parquet/record_batch_supplier.h"
 
@@ -163,11 +163,10 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
 
   output.clear();
-  execution::DataChunk chunk;
+  DataChunk chunk;
   for (int i = 0; i < num_cols; ++i) {
     auto table_column = table->column(i);
-    chunk.set(i,
-              execution::arrow_arrays_to_value_column(table_column->chunks()));
+    chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
   }
   output.append_chunk(std::move(chunk));
 }

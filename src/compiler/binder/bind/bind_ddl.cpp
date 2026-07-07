@@ -60,7 +60,7 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
-static std::optional<execution::Value> tryConvertTemporalDefault(
+static std::optional<::neug::Value> tryConvertTemporalDefault(
     const ParsedExpression* parsedDefault, const DataType& type) {
   auto functionExpr =
       dynamic_cast<const ParsedFunctionExpression*>(parsedDefault);
@@ -81,18 +81,17 @@ static std::optional<execution::Value> tryConvertTemporalDefault(
   switch (type.id()) {
   case DataTypeId::kDate:
     if (functionName == "DATE") {
-      return execution::Value::DATE(execution::date_t(literalString));
+      return ::neug::Value::DATE(::neug::Date(literalString));
     }
     break;
   case DataTypeId::kTimestampMs:
     if (functionName == "TIMESTAMP") {
-      return execution::Value::TIMESTAMPMS(
-          execution::timestamp_ms_t(literalString));
+      return ::neug::Value::TIMESTAMPMS(::neug::DateTime(literalString));
     }
     break;
   case DataTypeId::kInterval:
     if (functionName == "INTERVAL") {
-      return execution::Value::INTERVAL(execution::interval_t(literalString));
+      return ::neug::Value::INTERVAL(::neug::Interval(literalString));
     }
     break;
   default:
@@ -159,7 +158,7 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
   if (parsedDefault == nullptr) {  // No default provided.
     // set system default value if query default value is not set
     return std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(type), "NULL");
+        compiler_impl::Value::createDefaultValue(type), "NULL");
   } else {
     return parsedDefault->copy();
   }
@@ -259,7 +258,7 @@ void Binder::validateColumnExistence(SchemaEntry* entry,
 }
 
 static ExtendDirection getStorageDirection(
-    const case_insensitive_map_t<Value>& options) {
+    const case_insensitive_map_t<compiler_impl::Value>& options) {
   if (options.contains(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)) {
     return ExtendDirectionUtil::fromString(
         options.at(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)
@@ -485,7 +484,7 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   }
   auto defaultValue =
       extraInfo->defaultValue == nullptr
-          ? execution::Value(type.copy())
+          ? ::neug::Value(type.copy())
           : common::convertToExecutionValue(
                 boundDefault->constCast<LiteralExpression>().getValue(), type);
   auto propertyDefinition =

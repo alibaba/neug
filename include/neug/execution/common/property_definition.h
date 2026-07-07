@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -34,21 +34,21 @@ struct ColumnDefinition {
 
 struct PropertyDefinition {
   ColumnDefinition columnDefinition;
-  execution::Value defaultExpr;
+  Value defaultExpr;
   bool hasDefault = false;
 
   PropertyDefinition() = default;
   explicit PropertyDefinition(ColumnDefinition columnDefinition)
       : columnDefinition(std::move(columnDefinition)) {}
-  PropertyDefinition(ColumnDefinition columnDefinition,
-                     execution::Value defaultExpr, bool hasDefault = false)
+  PropertyDefinition(ColumnDefinition columnDefinition, Value defaultExpr,
+                     bool hasDefault = false)
       : columnDefinition(std::move(columnDefinition)),
         defaultExpr(std::move(defaultExpr)),
         hasDefault(hasDefault) {}
 
   std::string getName() const { return columnDefinition.name; }
   const DataType& getType() const { return columnDefinition.type; }
-  const execution::Value& getDefaultValue() const { return defaultExpr; }
+  const Value& getDefaultValue() const { return defaultExpr; }
   bool hasDefaultValue() const { return hasDefault; }
   void rename(const std::string& newName) { columnDefinition.name = newName; }
   PropertyDefinition copy() const { return *this; }

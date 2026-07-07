@@ -14,9 +14,9 @@
  */
 #pragma once
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/path_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/common/context_chunk.h"
 #include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"

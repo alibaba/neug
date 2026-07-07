@@ -27,176 +27,183 @@ namespace neug {
 namespace common {
 
 namespace {
-execution::date_t convertToExecutionDate(date_t value) {
-  return execution::date_t(Date::toString(value));
+::neug::Date convertToExecutionDate(compiler_impl::date_t value) {
+  return ::neug::Date(compiler_impl::Date::toString(value));
 }
 
-execution::timestamp_ms_t convertToExecutionTimestamp(timestamp_ms_t value) {
-  return execution::timestamp_ms_t(normalizeTimestampMillis(value));
+::neug::DateTime convertToExecutionTimestamp(
+    compiler_impl::timestamp_ms_t value) {
+  return ::neug::DateTime(normalizeTimestampMillis(value));
 }
 
-execution::interval_t convertToExecutionInterval(interval_t value) {
-  execution::interval_t result;
+::neug::Interval convertToExecutionInterval(compiler_impl::interval_t value) {
+  ::neug::Interval result;
   result.months = value.months;
   result.days = value.days;
   result.micros = value.micros;
   return result;
 }
 
-date_t convertToCompilerDate(execution::date_t value) {
+compiler_impl::date_t convertToCompilerDate(::neug::Date value) {
   const auto str = value.to_string();
-  return Date::fromCString(str.c_str(), str.size());
+  return compiler_impl::Date::fromCString(str.c_str(), str.size());
 }
 
-timestamp_ms_t convertToCompilerTimestamp(execution::timestamp_ms_t value) {
-  return timestamp_ms_t(value.milli_second);
+compiler_impl::timestamp_ms_t convertToCompilerTimestamp(
+    ::neug::DateTime value) {
+  return compiler_impl::timestamp_ms_t(value.milli_second);
 }
 
-interval_t convertToCompilerInterval(execution::interval_t value) {
-  return interval_t(value.months, value.days, value.micros);
+compiler_impl::interval_t convertToCompilerInterval(::neug::Interval value) {
+  return compiler_impl::interval_t(value.months, value.days, value.micros);
 }
 }  // namespace
 
-int64_t normalizeTimestampMillis(timestamp_ms_t value) {
+int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t value) {
   constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
   if (value.value > kLikelyMicrosThreshold ||
       value.value < -kLikelyMicrosThreshold) {
-    return Timestamp::getEpochMilliSeconds(timestamp_t(value.value));
+    return compiler_impl::Timestamp::getEpochMilliSeconds(
+        compiler_impl::timestamp_t(value.value));
   }
   return value.value;
 }
 
-execution::Value convertToExecutionValue(const Value& value,
-                                         const DataType& type) {
+::neug::Value convertToExecutionValue(const compiler_impl::Value& value,
+                                      const DataType& type) {
   if (value.isNull()) {
-    return execution::Value(type.copy());
+    return ::neug::Value(type.copy());
   }
   switch (type.id()) {
   case DataTypeId::kBoolean:
-    return execution::Value::BOOLEAN(value.getValue<bool>());
+    return ::neug::Value::BOOLEAN(value.getValue<bool>());
   case DataTypeId::kInt32:
-    return execution::Value::INT32(value.getValue<int32_t>());
+    return ::neug::Value::INT32(value.getValue<int32_t>());
   case DataTypeId::kUInt32:
-    return execution::Value::UINT32(value.getValue<uint32_t>());
+    return ::neug::Value::UINT32(value.getValue<uint32_t>());
   case DataTypeId::kInt64:
-    return execution::Value::INT64(value.getValue<int64_t>());
+    return ::neug::Value::INT64(value.getValue<int64_t>());
   case DataTypeId::kUInt64:
-    return execution::Value::UINT64(value.getValue<uint64_t>());
+    return ::neug::Value::UINT64(value.getValue<uint64_t>());
   case DataTypeId::kFloat:
-    return execution::Value::FLOAT(value.getValue<float>());
+    return ::neug::Value::FLOAT(value.getValue<float>());
   case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(value.getValue<double>());
+    return ::neug::Value::DOUBLE(value.getValue<double>());
   case DataTypeId::kVarchar:
-    return execution::Value::STRING(value.getValue<std::string>());
+    return ::neug::Value::STRING(value.getValue<std::string>());
   case DataTypeId::kDate:
-    return execution::Value::DATE(
-        convertToExecutionDate(value.getValue<date_t>()));
+    return ::neug::Value::DATE(
+        convertToExecutionDate(value.getValue<compiler_impl::date_t>()));
   case DataTypeId::kTimestampMs:
-    return execution::Value::TIMESTAMPMS(
-        convertToExecutionTimestamp(value.getValue<timestamp_ms_t>()));
+    return ::neug::Value::TIMESTAMPMS(
+        convertToExecutionTimestamp(
+            value.getValue<compiler_impl::timestamp_ms_t>()));
   case DataTypeId::kInterval:
-    return execution::Value::INTERVAL(
-        convertToExecutionInterval(value.getValue<interval_t>()));
+    return ::neug::Value::INTERVAL(
+        convertToExecutionInterval(value.getValue<compiler_impl::interval_t>()));
   case DataTypeId::kArray: {
-    std::vector<execution::Value> children;
+    std::vector<::neug::Value> children;
     children.reserve(value.getChildrenSize());
     const auto& childType = ArrayType::GetChildType(type);
     for (auto i = 0u; i < value.getChildrenSize(); ++i) {
       children.push_back(
           convertToExecutionValue(*value.children[i], childType));
     }
-    return execution::Value::ARRAY(type, std::move(children));
+    return ::neug::Value::ARRAY(type, std::move(children));
   }
   case DataTypeId::kList: {
-    std::vector<execution::Value> children;
+    std::vector<::neug::Value> children;
     children.reserve(value.getChildrenSize());
     const auto& childType = ListType::GetChildType(type);
     for (auto i = 0u; i < value.getChildrenSize(); ++i) {
       children.push_back(
           convertToExecutionValue(*value.children[i], childType));
     }
-    return execution::Value::LIST(childType, std::move(children));
+    return ::neug::Value::LIST(childType, std::move(children));
   }
   case DataTypeId::kStruct: {
-    std::vector<execution::Value> children;
+    std::vector<::neug::Value> children;
     children.reserve(value.getChildrenSize());
     const auto& childTypes = StructType::GetChildTypes(type);
     for (auto i = 0u; i < value.getChildrenSize(); ++i) {
       children.push_back(
           convertToExecutionValue(*value.children[i], childTypes[i]));
     }
-    return execution::Value::STRUCT(type, std::move(children));
+    return ::neug::Value::STRUCT(type, std::move(children));
   }
   default:
-    return execution::Value(type.copy());
+    return ::neug::Value(type.copy());
   }
 }
 
-Value convertToCompilerValue(const execution::Value& value,
-                             const DataType& type) {
+compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
+                                            const DataType& type) {
   if (value.IsNull()) {
-    return Value::createNullValue(type);
+    return compiler_impl::Value::createNullValue(type);
   }
   switch (type.id()) {
   case DataTypeId::kBoolean:
-    return Value(value.GetValue<bool>());
+    return compiler_impl::Value(value.GetValue<bool>());
   case DataTypeId::kInt32:
-    return Value(value.GetValue<int32_t>());
+    return compiler_impl::Value(value.GetValue<int32_t>());
   case DataTypeId::kUInt32:
-    return Value(value.GetValue<uint32_t>());
+    return compiler_impl::Value(value.GetValue<uint32_t>());
   case DataTypeId::kInt64:
-    return Value(value.GetValue<int64_t>());
+    return compiler_impl::Value(value.GetValue<int64_t>());
   case DataTypeId::kUInt64:
-    return Value(value.GetValue<uint64_t>());
+    return compiler_impl::Value(value.GetValue<uint64_t>());
   case DataTypeId::kFloat:
-    return Value(value.GetValue<float>());
+    return compiler_impl::Value(value.GetValue<float>());
   case DataTypeId::kDouble:
-    return Value(value.GetValue<double>());
+    return compiler_impl::Value(value.GetValue<double>());
   case DataTypeId::kVarchar:
-    return Value(value.GetValue<std::string>());
+    return compiler_impl::Value(value.GetValue<std::string>());
   case DataTypeId::kDate:
-    return Value(convertToCompilerDate(value.GetValue<execution::date_t>()));
+    return compiler_impl::Value(
+        convertToCompilerDate(value.GetValue<::neug::Date>()));
   case DataTypeId::kTimestampMs:
-    return Value(convertToCompilerTimestamp(
-        value.GetValue<execution::timestamp_ms_t>()));
+    return compiler_impl::Value(convertToCompilerTimestamp(
+        value.GetValue<::neug::DateTime>()));
   case DataTypeId::kInterval:
-    return Value(
-        convertToCompilerInterval(value.GetValue<execution::interval_t>()));
+    return compiler_impl::Value(
+        convertToCompilerInterval(value.GetValue<::neug::Interval>()));
   case DataTypeId::kArray: {
-    std::vector<std::unique_ptr<Value>> children;
+    std::vector<std::unique_ptr<compiler_impl::Value>> children;
     const auto& childType = ArrayType::GetChildType(type);
-    const auto& defaultChildren = execution::ArrayValue::GetChildren(value);
+    const auto& defaultChildren = ::neug::ArrayValue::GetChildren(value);
     children.reserve(defaultChildren.size());
     for (const auto& child : defaultChildren) {
       children.push_back(
-          std::make_unique<Value>(convertToCompilerValue(child, childType)));
+          std::make_unique<compiler_impl::Value>(
+              convertToCompilerValue(child, childType)));
     }
-    return Value(type.copy(), std::move(children));
+    return compiler_impl::Value(type.copy(), std::move(children));
   }
   case DataTypeId::kList: {
-    std::vector<std::unique_ptr<Value>> children;
+    std::vector<std::unique_ptr<compiler_impl::Value>> children;
     const auto& childType = ListType::GetChildType(type);
-    const auto& defaultChildren = execution::ListValue::GetChildren(value);
+    const auto& defaultChildren = ::neug::ListValue::GetChildren(value);
     children.reserve(defaultChildren.size());
     for (const auto& child : defaultChildren) {
       children.push_back(
-          std::make_unique<Value>(convertToCompilerValue(child, childType)));
+          std::make_unique<compiler_impl::Value>(
+              convertToCompilerValue(child, childType)));
     }
-    return Value(type.copy(), std::move(children));
+    return compiler_impl::Value(type.copy(), std::move(children));
   }
   case DataTypeId::kStruct: {
-    std::vector<std::unique_ptr<Value>> children;
+    std::vector<std::unique_ptr<compiler_impl::Value>> children;
     const auto& childTypes = StructType::GetChildTypes(type);
-    const auto& defaultChildren = execution::StructValue::GetChildren(value);
+    const auto& defaultChildren = ::neug::StructValue::GetChildren(value);
     children.reserve(defaultChildren.size());
     for (auto i = 0u; i < defaultChildren.size(); ++i) {
-      children.push_back(std::make_unique<Value>(
+      children.push_back(std::make_unique<compiler_impl::Value>(
           convertToCompilerValue(defaultChildren[i], childTypes[i])));
     }
-    return Value(type.copy(), std::move(children));
+    return compiler_impl::Value(type.copy(), std::move(children));
   }
   default:
-    return Value::createNullValue(type);
+    return compiler_impl::Value::createNullValue(type);
   }
 }
 

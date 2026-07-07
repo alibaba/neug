@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -30,7 +30,7 @@
 
 namespace {
 
-using neug::execution::Value;
+using neug::Value;
 
 std::string make_test_dir() {
   const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();

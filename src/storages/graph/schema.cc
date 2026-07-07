@@ -41,8 +41,6 @@
 
 namespace neug {
 
-using execution::Value;
-
 namespace {
 struct InternalKeyword {
   static constexpr char ID[] = "_ID";
