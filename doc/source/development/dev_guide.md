@@ -220,7 +220,7 @@ artifacts. Safe to run repeatedly.
 Then NodeJS can automatically load these modules:
 ```bash
 cd tools/nodejs_bind
-const { Database } = require('./lib');
+const { Database } = require('neug');
 ```
 
 #### Building NPM Package

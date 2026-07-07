@@ -15,6 +15,15 @@ set(PARQUET_EXTENSION_OBJECT_FILES ${PARQUET_EXTENSION_SOURCES})
 # those references; the AWS code paths are never actually executed in parquet.
 find_package(OpenSSL REQUIRED)
 
+# On macOS, Arrow's bundled AWS SDK pulls in a static libcurl.a which
+# references network proxy APIs such as SCDynamicStoreCopyProxies from
+# SystemConfiguration.framework. Link it here to avoid undefined-symbol
+# errors at extension load time.
+if(APPLE)
+    find_library(SYSTEMCONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
+    message(STATUS "parquet: linking SystemConfiguration.framework for static cURL")
+endif()
+
 # Use the extension build system (should be called before add_subdirectory(test))
 build_extension_lib("parquet")
 
@@ -85,6 +94,7 @@ target_link_libraries(neug_parquet_extension PRIVATE
     $<$<NOT:$<PLATFORM_ID:Darwin>>:-Wl,--no-whole-archive>
     neug
     ${Protobuf_LIBRARIES}
+    $<$<PLATFORM_ID:Darwin>:${SYSTEMCONFIGURATION_FRAMEWORK}>
 )
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)

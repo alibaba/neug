@@ -15,6 +15,8 @@
 
 'use strict';
 
+const path = require('path');
+
 /**
  * Minimal test shim compatible with Node.js 16 (no node:test built-in).
  * Provides test(), before(), and after() with basic TAP-style output.
@@ -58,6 +60,39 @@ function test(name, optsOrFn, maybeFn) {
     _running = true;
     process.nextTick(_run);
   }
+}
+
+function prepareModernGraphDataset(Database, dbDir = '/tmp/modern_graph') {
+  const dataDir = process.env.FLEX_DATA_DIR;
+  if (!dataDir) {
+    throw new Error('FLEX_DATA_DIR is not set');
+  }
+
+  const db = new Database({ databasePath: dbDir, mode: 'w' });
+  const conn = db.connect();
+
+  conn.execute(
+    'CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));'
+  );
+  conn.execute(
+    'CREATE NODE TABLE software(id INT64, name STRING, lang STRING, PRIMARY KEY(id));'
+  );
+  conn.execute('CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);');
+  conn.execute(
+    'CREATE REL TABLE created(FROM person TO software, weight DOUBLE, since INT64);'
+  );
+
+  conn.execute(`COPY person from "${path.join(dataDir, 'person.csv')}"`);
+  conn.execute(`COPY software from "${path.join(dataDir, 'software.csv')}"`);
+  conn.execute(
+    `COPY knows from "${path.join(dataDir, 'person_knows_person.csv')}" (from="person", to="person")`
+  );
+  conn.execute(
+    `COPY created from "${path.join(dataDir, 'person_created_software.csv')}" (from="person", to="software")`
+  );
+
+  conn.close();
+  db.close();
 }
 
 async function _run() {
@@ -124,4 +159,4 @@ async function _run() {
   }
 }
 
-module.exports = { test, before, after };
+module.exports = { test, before, after, prepareModernGraphDataset };

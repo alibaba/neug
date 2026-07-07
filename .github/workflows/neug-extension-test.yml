@@ -93,7 +93,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -113,6 +113,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/build
         ctest -R parquet_extension_test -V
         ctest -R httpfs_extension_test -V
+        ctest -R pattern_matching_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -184,7 +185,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -263,7 +264,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet;httpfs" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
