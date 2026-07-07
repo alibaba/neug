@@ -237,6 +237,25 @@ function(build_arrow_as_third_party)
                 message(STATUS "Patched Arrow ThirdpartyToolchain.cmake to propagate CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
             endif()
         endif()
+
+        # Patch Arrow's libtool version detection regex to support newer macOS
+        # cctools output format "cctools_ld-N" in addition to "cctools-N".
+        # Apple Clang 21.0+ / macOS 26.5 ships libtool that reports
+        # "Apple Inc. version cctools_ld-1267", which Arrow 18.0.0's
+        # BuildUtils.cmake rejects as "incompatible GNU libtool".
+        if(APPLE)
+            set(_build_utils "${arrow_SOURCE_DIR}/cpp/cmake_modules/BuildUtils.cmake")
+            file(READ "${_build_utils}" _build_utils_content)
+            string(FIND "${_build_utils_content}" "cctools(_ld)?" _libtool_regex_patched)
+            if(_libtool_regex_patched EQUAL -1)
+                string(REPLACE
+                    ".*cctools-([0-9.]+).*"
+                    ".*cctools(_ld)?-([0-9.]+).*"
+                    _build_utils_content "${_build_utils_content}")
+                file(WRITE "${_build_utils}" "${_build_utils_content}")
+                message(STATUS "Patched Arrow BuildUtils.cmake libtool regex for cctools_ld compatibility")
+            endif()
+        endif()
         add_subdirectory(${arrow_SOURCE_DIR}/cpp ${arrow_BINARY_DIR} EXCLUDE_FROM_ALL)
     endif()
 

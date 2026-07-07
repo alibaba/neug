@@ -34,7 +34,7 @@ class NEUG_API ParameterExpression final : public Expression {
 
  public:
   explicit ParameterExpression(const std::string& parameterName,
-                               common::Value value)
+                               compiler_impl::Value value)
       : Expression{expressionType, value.getDataType().copy(),
                    createUniqueName(parameterName)},
         parameterName(parameterName),
@@ -42,7 +42,7 @@ class NEUG_API ParameterExpression final : public Expression {
 
   void cast(const common::DataType& type) override;
 
-  common::Value getValue() const { return value; }
+  compiler_impl::Value getValue() const { return value; }
 
   std::string getName() const { return parameterName; }
 
@@ -54,7 +54,7 @@ class NEUG_API ParameterExpression final : public Expression {
 
  private:
   std::string parameterName;
-  common::Value value;
+  compiler_impl::Value value;
 };
 
 }  // namespace binder

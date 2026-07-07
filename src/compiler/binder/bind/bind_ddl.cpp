@@ -100,7 +100,7 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
   if (parsedDefault == nullptr) {  // No default provided.
     // set system default value if query default value is not set
     return std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(type), "NULL");
+        compiler_impl::Value::createDefaultValue(type), "NULL");
   } else {
     return parsedDefault->copy();
   }
@@ -225,7 +225,7 @@ void Binder::validateColumnExistence(const TableCatalogEntry* entry,
 }
 
 static ExtendDirection getStorageDirection(
-    const case_insensitive_map_t<Value>& options) {
+    const case_insensitive_map_t<compiler_impl::Value>& options) {
   if (options.contains(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)) {
     return ExtendDirectionUtil::fromString(
         options.at(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)

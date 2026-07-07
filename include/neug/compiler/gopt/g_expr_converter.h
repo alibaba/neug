@@ -127,7 +127,7 @@ class GExprConverter {
 
   // helper functions
   std::unique_ptr<::common::Expression> convertValue(
-      const neug::common::Value& value);
+      const compiler_impl::Value& value);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
       common::DataType& type);

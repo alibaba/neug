@@ -17,7 +17,7 @@
 
 #include <sstream>
 #include <string>
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/main/query_request.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/exception/exception.h"

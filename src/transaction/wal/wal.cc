@@ -23,7 +23,7 @@
 #include <sstream>
 #include <utility>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/transaction/wal/dummy_wal_writer.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -249,8 +249,8 @@ void DeleteEdgeTypeRedo::Deserialize(OutArchive& arc,
 }
 
 void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
-                                 const execution::Value& oid,
-                                 const std::vector<execution::Value>& props) {
+                                 const Value& oid,
+                                 const std::vector<Value>& props) {
   arc << static_cast<uint8_t>(OpType::kInsertVertex);
   arc << label << oid;
   arc << static_cast<uint32_t>(props.size());
@@ -269,10 +269,10 @@ void InsertVertexRedo::Deserialize(OutArchive& arc, InsertVertexRedo& redo) {
   }
 }
 
-void InsertEdgeRedo::Serialize(
-    InArchive& arc, label_t src_label, const execution::Value& src,
-    label_t dst_label, const execution::Value& dst, label_t edge_label,
-    const std::vector<execution::Value>& properties) {
+void InsertEdgeRedo::Serialize(InArchive& arc, label_t src_label,
+                               const Value& src, label_t dst_label,
+                               const Value& dst, label_t edge_label,
+                               const std::vector<Value>& properties) {
   arc << static_cast<uint8_t>(OpType::kInsertEdge);
   arc << src_label << src << dst_label << dst << edge_label;
   arc << static_cast<uint32_t>(properties.size());
@@ -293,8 +293,8 @@ void InsertEdgeRedo::Deserialize(OutArchive& arc, InsertEdgeRedo& redo) {
 }
 
 void UpdateVertexPropRedo::Serialize(InArchive& arc, label_t label,
-                                     const execution::Value& oid, int prop_id,
-                                     const execution::Value& value) {
+                                     const Value& oid, int prop_id,
+                                     const Value& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateVertexProp);
   arc << label << oid << prop_id << value;
 }
@@ -305,12 +305,10 @@ void UpdateVertexPropRedo::Deserialize(OutArchive& arc,
 }
 
 void UpdateEdgePropRedo::Serialize(InArchive& arc, label_t src_label,
-                                   const execution::Value& src,
-                                   label_t dst_label,
-                                   const execution::Value& dst,
-                                   label_t edge_label, int32_t oe_offset,
-                                   int32_t ie_offset, int prop_id,
-                                   const execution::Value& value) {
+                                   const Value& src, label_t dst_label,
+                                   const Value& dst, label_t edge_label,
+                                   int32_t oe_offset, int32_t ie_offset,
+                                   int prop_id, const Value& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateEdgeProp);
   arc << src_label << src << dst_label << dst << edge_label;
   arc << oe_offset << ie_offset;
@@ -326,7 +324,7 @@ void UpdateEdgePropRedo::Deserialize(OutArchive& arc,
 }
 
 void RemoveVertexRedo::Serialize(InArchive& arc, label_t label,
-                                 const execution::Value& oid) {
+                                 const Value& oid) {
   arc << static_cast<uint8_t>(OpType::kRemoveVertex);
   arc << label << oid;
 }
@@ -336,8 +334,8 @@ void RemoveVertexRedo::Deserialize(OutArchive& arc, RemoveVertexRedo& redo) {
 }
 
 void RemoveEdgeRedo::Serialize(InArchive& arc, label_t src_label,
-                               const execution::Value& src, label_t dst_label,
-                               const execution::Value& dst, label_t edge_label,
+                               const Value& src, label_t dst_label,
+                               const Value& dst, label_t edge_label,
                                int32_t oe_offset, int32_t ie_offset) {
   arc << static_cast<uint8_t>(OpType::kRemoveEdge);
   arc << src_label << src << dst_label << dst << edge_label;

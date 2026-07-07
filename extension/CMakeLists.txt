@@ -129,6 +129,8 @@ endfunction()
 
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add pattern_matching extension
+add_extension_if_enabled("pattern_matching")
 # Add gds (graph data science) extension
 add_extension_if_enabled("gds")
 # Add httpfs extension (S3/OSS + HTTP/HTTPS)

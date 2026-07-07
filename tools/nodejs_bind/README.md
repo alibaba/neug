@@ -83,7 +83,7 @@ node example.js
 
 
 ```js
-const { Database } = require('./lib');
+const { Database } = require('neug');
 
 // Open an in-memory database
 const db = new Database({ databasePath: '', mode: 'w' });

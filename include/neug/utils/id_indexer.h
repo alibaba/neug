@@ -32,7 +32,7 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/module/module.h"
@@ -168,8 +168,8 @@ struct GHash<int64_t> {
 };
 
 template <>
-struct GHash<execution::Value> {
-  size_t operator()(const execution::Value& val) const {
+struct GHash<Value> {
+  size_t operator()(const Value& val) const {
     if (val.IsNull()) {
       return 0;
     }
@@ -346,7 +346,7 @@ class LFIndexer {
   size_t size() const { return num_elements_.load(); }
   DataTypeId get_type() const { return keys_->type(); }
 
-  INDEX_T insert(const execution::Value& oid, bool insert_safe) {
+  INDEX_T insert(const Value& oid, bool insert_safe) {
     assert(oid.type().id() == get_type());
 
     if (insert_safe) {
@@ -378,7 +378,7 @@ class LFIndexer {
     return ind;
   }
 
-  INDEX_T get_index(const execution::Value& oid) const {
+  INDEX_T get_index(const Value& oid) const {
     assert(oid.type().id() == get_type());
     auto* indices_ptr = indices_->data();
     size_t index =
@@ -396,7 +396,7 @@ class LFIndexer {
     }
   }
 
-  bool get_index(const execution::Value& oid, INDEX_T& ret) const {
+  bool get_index(const Value& oid, INDEX_T& ret) const {
     if (indices_->size() == 0) {
       return false;
     }
@@ -420,7 +420,7 @@ class LFIndexer {
     return false;
   }
 
-  bool contains(const execution::Value& oid) const {
+  bool contains(const Value& oid) const {
     assert(oid.type().id() == get_type());
     auto* indices_ptr = indices_->data();
     size_t index =
@@ -437,9 +437,7 @@ class LFIndexer {
     }
   }
 
-  execution::Value get_key(const INDEX_T& index) const {
-    return keys_->get_any(index);
-  }
+  Value get_key(const INDEX_T& index) const { return keys_->get_any(index); }
 
   void Close() {
     keys_.reset();
@@ -459,7 +457,7 @@ class LFIndexer {
   DataType pk_type_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
-  GHash<execution::Value> hasher_;
+  GHash<Value> hasher_;
 };
 
 template <typename INDEX_T>
@@ -468,10 +466,10 @@ class IdIndexerBase {
   IdIndexerBase() = default;
   virtual ~IdIndexerBase() = default;
   virtual DataTypeId get_type() const = 0;
-  virtual void _add(const execution::Value& oid) = 0;
-  virtual bool add(const execution::Value& oid, INDEX_T& lid) = 0;
-  virtual bool get_key(const INDEX_T& lid, execution::Value& oid) const = 0;
-  virtual bool get_index(const execution::Value& oid, INDEX_T& lid) const = 0;
+  virtual void _add(const Value& oid) = 0;
+  virtual bool add(const Value& oid, INDEX_T& lid) = 0;
+  virtual bool get_key(const INDEX_T& lid, Value& oid) const = 0;
+  virtual bool get_index(const Value& oid, INDEX_T& lid) const = 0;
   virtual size_t size() const = 0;
 };
 
@@ -489,32 +487,32 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     if constexpr (std::is_same_v<KEY_T, std::string_view>) {
       return DataTypeId::kVarchar;
     } else {
-      return execution::ValueConverter<KEY_T>::type().id();
+      return ValueConverter<KEY_T>::type().id();
     }
   }
 
-  void _add(const execution::Value& oid) override {
+  void _add(const Value& oid) override {
     assert(get_type() == oid.type().id());
     KEY_T oid_ = oid.GetValue<KEY_T>();
     _add(oid_);
   }
 
-  bool add(const execution::Value& oid, INDEX_T& lid) override {
+  bool add(const Value& oid, INDEX_T& lid) override {
     assert(get_type() == oid.type().id());
     KEY_T oid_ = oid.GetValue<KEY_T>();
     return add(oid_, lid);
   }
 
-  bool get_key(const INDEX_T& lid, execution::Value& oid) const override {
+  bool get_key(const INDEX_T& lid, Value& oid) const override {
     KEY_T oid_;
     bool flag = get_key(lid, oid_);
     if (flag) {
-      oid = execution::Value::CreateValue<KEY_T>(oid_);
+      oid = Value::CreateValue<KEY_T>(oid_);
     }
     return flag;
   }
 
-  bool get_index(const execution::Value& oid, INDEX_T& lid) const override {
+  bool get_index(const Value& oid, INDEX_T& lid) const override {
     assert(get_type() == oid.type().id());
     KEY_T oid_ = oid.GetValue<KEY_T>();
     return get_index(oid_, lid);

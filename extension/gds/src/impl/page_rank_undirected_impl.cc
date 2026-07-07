@@ -16,8 +16,8 @@
 
 #include "impl/page_rank_undirected_impl.h"
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "utils/parallel_utils.h"
 
@@ -121,9 +121,9 @@ void UndirectedPageRank::compute(int max_iterations) {
 
 void UndirectedPageRank::sink(execution::Context& ctx, int node_alias,
                               int pr_alias) {
-  execution::MSVertexColumnBuilder builder(vertex_label_);
+  MSVertexColumnBuilder builder(vertex_label_);
 
-  execution::ValueColumnBuilder<double> pr_builder;
+  ValueColumnBuilder<double> pr_builder;
   pr_builder.reserve(valid_vertices_.size());
   for (vid_t v : valid_vertices_) {
     pr_builder.push_back_opt(pr_[v]);

@@ -296,8 +296,8 @@ Transformer::transformUnaryAddSubtractOrFactorialExpression(
       neug_string_t literal{negStr.c_str(), negStr.length()};
       int64_t negResult = 0;
       if (CastString::tryCast(literal, negResult)) {
-        return std::make_unique<ParsedLiteralExpression>(Value(negResult),
-                                                         negStr);
+        return std::make_unique<ParsedLiteralExpression>(
+            compiler_impl::Value(negResult), negStr);
       }
     }
     for ([[maybe_unused]] auto& _ : ctx.MINUS()) {
@@ -448,12 +448,12 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
     return transformBooleanLiteral(*ctx.oC_BooleanLiteral());
   } else if (ctx.StringLiteral()) {
     return std::make_unique<ParsedLiteralExpression>(
-        Value(DataType::Varchar(),
-              transformStringLiteral(*ctx.StringLiteral())),
+        compiler_impl::Value(DataType::Varchar(),
+                             transformStringLiteral(*ctx.StringLiteral())),
         ctx.getText());
   } else if (ctx.NULL_()) {
-    return std::make_unique<ParsedLiteralExpression>(Value::createNullValue(),
-                                                     ctx.getText());
+    return std::make_unique<ParsedLiteralExpression>(
+        compiler_impl::Value::createNullValue(), ctx.getText());
   } else if (ctx.nEUG_StructLiteral()) {
     return transformStructLiteral(*ctx.nEUG_StructLiteral());
   } else {
@@ -465,11 +465,11 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
 std::unique_ptr<ParsedExpression> Transformer::transformBooleanLiteral(
     CypherParser::OC_BooleanLiteralContext& ctx) {
   if (ctx.BTRUE()) {
-    return std::make_unique<ParsedLiteralExpression>(Value(true),
+    return std::make_unique<ParsedLiteralExpression>(compiler_impl::Value(true),
                                                      ctx.getText());
   } else if (ctx.BFALSE()) {
-    return std::make_unique<ParsedLiteralExpression>(Value(false),
-                                                     ctx.getText());
+    return std::make_unique<ParsedLiteralExpression>(
+        compiler_impl::Value(false), ctx.getText());
   }
   NEUG_UNREACHABLE;
 }
@@ -484,7 +484,7 @@ std::unique_ptr<ParsedExpression> Transformer::transformListLiteral(
   listCreation->addChild(transformExpression(*ctx.oC_Expression()));
   for (auto& listEntry : ctx.nEUG_ListEntry()) {
     if (listEntry->oC_Expression() == nullptr) {
-      auto nullValue = Value::createNullValue();
+      auto nullValue = compiler_impl::Value::createNullValue();
       listCreation->addChild(std::make_unique<ParsedLiteralExpression>(
           nullValue, nullValue.toString()));
     } else {
@@ -547,7 +547,7 @@ std::unique_ptr<ParsedExpression> Transformer::transformFunctionInvocation(
     }
     if (ctx.nEUG_DataType()) {
       expression->addChild(std::make_unique<ParsedLiteralExpression>(
-          common::Value(transformDataType(*ctx.nEUG_DataType()))));
+          compiler_impl::Value(transformDataType(*ctx.nEUG_DataType()))));
     }
   } else {
     for (auto& functionParameter : ctx.nEUG_FunctionParameter()) {
@@ -728,21 +728,21 @@ std::unique_ptr<ParsedExpression> Transformer::transformIntegerLiteral(
   neug_string_t literal{text.c_str(), text.length()};
   int64_t result = 0;
   if (function::CastString::tryCast(literal, result)) {
-    return std::make_unique<ParsedLiteralExpression>(Value(result),
-                                                     ctx.getText());
+    return std::make_unique<ParsedLiteralExpression>(
+        compiler_impl::Value(result), ctx.getText());
   }
   // Value exceeds INT64_MAX; try uint64_t before falling back to int128_t.
-  // This avoids the broken Value(int128_t) constructor which sets kInt64 type
-  // but stores data in the int128Val union member.
+  // This avoids the broken compiler_impl::Value(int128_t) constructor which
+  // sets kInt64 type but stores data in the int128Val union member.
   uint64_t resultU64 = 0;
   if (function::CastString::tryCast(literal, resultU64)) {
-    return std::make_unique<ParsedLiteralExpression>(Value(resultU64),
-                                                     ctx.getText());
+    return std::make_unique<ParsedLiteralExpression>(
+        compiler_impl::Value(resultU64), ctx.getText());
   }
   int128_t result128 = 0;
   function::CastString::operation(literal, result128);
-  return std::make_unique<ParsedLiteralExpression>(Value(result128),
-                                                   ctx.getText());
+  return std::make_unique<ParsedLiteralExpression>(
+      compiler_impl::Value(result128), ctx.getText());
 }
 
 std::unique_ptr<ParsedExpression> Transformer::transformDoubleLiteral(
@@ -752,7 +752,7 @@ std::unique_ptr<ParsedExpression> Transformer::transformDoubleLiteral(
   neug_string_t literal{text.c_str(), text.length()};
   double result = 0;
   function::CastString::operation(literal, result);
-  return std::make_unique<ParsedLiteralExpression>(Value(result),
+  return std::make_unique<ParsedLiteralExpression>(compiler_impl::Value(result),
                                                    ctx.getText());
 }
 

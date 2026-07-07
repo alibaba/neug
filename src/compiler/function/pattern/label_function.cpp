@@ -78,17 +78,19 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
       maxTableID = entry->getTableID();
     }
   }
-  std::vector<std::unique_ptr<Value>> labels;
+  std::vector<std::unique_ptr<compiler_impl::Value>> labels;
   labels.resize(maxTableID + 1);
   for (auto i = 0u; i < labels.size(); ++i) {
     if (map.contains(i)) {
-      labels[i] = std::make_unique<Value>(DataType::Varchar(), map.at(i));
+      labels[i] = std::make_unique<compiler_impl::Value>(DataType::Varchar(),
+                                                         map.at(i));
     } else {
-      labels[i] = std::make_unique<Value>(DataType::Varchar(), std::string(""));
+      labels[i] = std::make_unique<compiler_impl::Value>(DataType::Varchar(),
+                                                         std::string(""));
     }
   }
-  auto labelsValue =
-      Value(DataType::List(DataType::Varchar()), std::move(labels));
+  auto labelsValue = compiler_impl::Value(DataType::List(DataType::Varchar()),
+                                          std::move(labels));
   return expressionBinder->createLiteralExpression(labelsValue);
 }
 

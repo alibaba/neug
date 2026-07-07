@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/common/types/value.h"
 #include "neug/config.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/module/module.h"
@@ -62,7 +62,7 @@ class Table {
 
   void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
-                   const std::vector<execution::Value>& default_property_values,
+                   const std::vector<Value>& default_property_values,
                    size_t capacity,
                    MemoryLevel memory_level = MemoryLevel::kInMemory);
 
@@ -78,7 +78,7 @@ class Table {
 
   const ColumnBase* get_column(const std::string& name) const;
 
-  std::vector<execution::Value> get_row(size_t row_id) const;
+  std::vector<Value> get_row(size_t row_id) const;
 
   ColumnBase* get_column_by_id(size_t index);
 
@@ -97,8 +97,7 @@ class Table {
     }
   }
 
-  void insert(size_t index, const std::vector<execution::Value>& values,
-              bool insert_safe);
+  void insert(size_t index, const std::vector<Value>& values, bool insert_safe);
 
   void resize(size_t row_num);
   /**
@@ -106,8 +105,7 @@ class Table {
    * values. Assume it is safe to insert the default value even if it is
    * reserving, since user could always override.
    */
-  void resize(size_t row_num,
-              const std::vector<execution::Value>& default_values);
+  void resize(size_t row_num, const std::vector<Value>& default_values);
 
   void ingest(uint32_t index, OutArchive& arc);
 

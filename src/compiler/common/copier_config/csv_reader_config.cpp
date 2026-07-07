@@ -121,7 +121,7 @@ static bool validateIntParsingOptionName(const std::string& parsingOptionName) {
   return hasOption(CopyConstants::INT_CSV_PARSING_OPTIONS, parsingOptionName);
 }
 
-static bool isValidBooleanOptionValue(const Value& value,
+static bool isValidBooleanOptionValue(const compiler_impl::Value& value,
                                       const std::string& name) {
   // Normalize and check if the string is a valid Boolean representation
   auto strValue = value.toString();
@@ -140,7 +140,7 @@ static bool isValidBooleanOptionValue(const Value& value,
 }
 
 CSVReaderConfig CSVReaderConfig::construct(
-    const common::case_insensitive_map_t<common::Value>& options) {
+    const common::case_insensitive_map_t<compiler_impl::Value>& options) {
   auto config = CSVReaderConfig();
   for (auto& op : options) {
     auto name = op.first;

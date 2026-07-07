@@ -14,12 +14,10 @@
  */
 #pragma once
 #include "neug/common/types.h"
+#include "neug/common/types/value.h"
+
 namespace neug {
 
-namespace execution {
-class Value;
-}  // namespace execution
-
-execution::Value get_default_value(const DataType& type);
+Value get_default_value(const DataType& type);
 
 }  // namespace neug

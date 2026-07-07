@@ -14,13 +14,13 @@
  */
 #pragma once
 
+#include "neug/common/types/graph_types.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 class StorageInsertInterface;
 namespace execution {
 class ContextChunk;
-struct LabelTriplet;
 class BindedExprBase;
 namespace ops {
 class CreateEdge {

@@ -190,7 +190,8 @@ void ValueVector::copyFromVectorData(uint64_t dstPos,
   }
 }
 
-void ValueVector::copyFromValue(uint64_t pos, const Value& value) {
+void ValueVector::copyFromValue(uint64_t pos,
+                                const compiler_impl::Value& value) {
   if (value.isNull()) {
     setNull(pos, true);
     return;
@@ -271,8 +272,9 @@ void ValueVector::copyFromValue(uint64_t pos, const Value& value) {
   }
 }
 
-std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
-  auto value = Value::createNullValue(dataType).copy();
+std::unique_ptr<compiler_impl::Value> ValueVector::getAsValue(
+    uint64_t pos) const {
+  auto value = compiler_impl::Value::createNullValue(dataType).copy();
   if (isNull(pos)) {
     return value;
   }
@@ -316,7 +318,7 @@ std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
     value->val.booleanVal = getValue<bool>(pos);
   } break;
   case PhysicalTypeID::INTERVAL: {
-    value->val.intervalVal = getValue<interval_t>(pos);
+    value->val.intervalVal = getValue<compiler_impl::interval_t>(pos);
   } break;
   case PhysicalTypeID::STRING: {
     value->strVal = getValue<neug_string_t>(pos).getAsString();
@@ -325,7 +327,7 @@ std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
   case PhysicalTypeID::LIST: {
     auto dataVector = ListVector::getDataVector(this);
     auto listEntry = getValue<list_entry_t>(pos);
-    std::vector<std::unique_ptr<Value>> children;
+    std::vector<std::unique_ptr<compiler_impl::Value>> children;
     children.reserve(listEntry.size);
     for (auto i = 0u; i < listEntry.size; ++i) {
       children.push_back(dataVector->getAsValue(listEntry.offset + i));
@@ -335,7 +337,7 @@ std::unique_ptr<Value> ValueVector::getAsValue(uint64_t pos) const {
   } break;
   case PhysicalTypeID::STRUCT: {
     auto& fieldVectors = StructVector::getFieldVectors(this);
-    std::vector<std::unique_ptr<Value>> children;
+    std::vector<std::unique_ptr<compiler_impl::Value>> children;
     children.reserve(fieldVectors.size());
     for (auto& fieldVector : fieldVectors) {
       children.push_back(fieldVector->getAsValue(pos));
@@ -451,7 +453,7 @@ std::unique_ptr<ValueVector> ValueVector::deSerialize(
   }
   deSer.validateDebuggingInfo(key, "values");
   for (auto i = 0u; i < numValues; i++) {
-    auto val = Value::deserialize(deSer);
+    auto val = compiler_impl::Value::deserialize(deSer);
     result->copyFromValue(result->state->getSelVector()[i], *val);
   }
   return result;
@@ -479,13 +481,14 @@ template NEUG_API void ValueVector::setValue<int128_t>(uint32_t pos,
                                                        int128_t val);
 template NEUG_API void ValueVector::setValue<double>(uint32_t pos, double val);
 template NEUG_API void ValueVector::setValue<float>(uint32_t pos, float val);
-template NEUG_API void ValueVector::setValue<date_t>(uint32_t pos, date_t val);
-template NEUG_API void ValueVector::setValue<timestamp_t>(uint32_t pos,
-                                                          timestamp_t val);
-template NEUG_API void ValueVector::setValue<timestamp_ms_t>(
-    uint32_t pos, timestamp_ms_t val);
-template NEUG_API void ValueVector::setValue<interval_t>(uint32_t pos,
-                                                         interval_t val);
+template NEUG_API void ValueVector::setValue<compiler_impl::date_t>(
+    uint32_t pos, compiler_impl::date_t val);
+template NEUG_API void ValueVector::setValue<compiler_impl::timestamp_t>(
+    uint32_t pos, compiler_impl::timestamp_t val);
+template NEUG_API void ValueVector::setValue<compiler_impl::timestamp_ms_t>(
+    uint32_t pos, compiler_impl::timestamp_ms_t val);
+template NEUG_API void ValueVector::setValue<compiler_impl::interval_t>(
+    uint32_t pos, compiler_impl::interval_t val);
 template NEUG_API void ValueVector::setValue<list_entry_t>(uint32_t pos,
                                                            list_entry_t val);
 

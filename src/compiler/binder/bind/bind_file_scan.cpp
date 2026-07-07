@@ -88,9 +88,9 @@ std::vector<std::string> Binder::bindFilePaths(
   return filePaths;
 }
 
-case_insensitive_map_t<Value> Binder::bindParsingOptions(
+case_insensitive_map_t<compiler_impl::Value> Binder::bindParsingOptions(
     const options_t& parsingOptions) {
-  case_insensitive_map_t<Value> options;
+  case_insensitive_map_t<compiler_impl::Value> options;
   for (auto& option : parsingOptions) {
     auto name = option.first;
     StringUtils::toUpper(name);
@@ -169,7 +169,7 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
 
   // Bind table function
   auto bindInput = TableFuncBindInput();
-  bindInput.addLiteralParam(Value::createValue(filePaths[0]));
+  bindInput.addLiteralParam(compiler_impl::Value::createValue(filePaths[0]));
   auto extraInput = std::make_unique<ExtraScanTableFuncBindInput>();
   extraInput->fileScanInfo = fileScanInfo->copy();
   auto& expectedColumnNames = extraInput->expectedColumnNames;

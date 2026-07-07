@@ -86,17 +86,17 @@ TEST(ArrayValueTest, ConstructorValidatesPayloadShapeInDebug) {
   auto array_type = DataType::Array(DataType::INT32, 2);
 
   auto build_invalid_array_wrong_size = [&array_type]() {
-    std::vector<execution::Value> values;
-    values.emplace_back(execution::Value::INT32(1));
-    auto value = execution::Value::ARRAY(array_type, std::move(values));
+    std::vector<Value> values;
+    values.emplace_back(Value::INT32(1));
+    auto value = Value::ARRAY(array_type, std::move(values));
     (void) value;
   };
 
   auto build_invalid_array_wrong_type = [&array_type]() {
-    std::vector<execution::Value> values;
-    values.emplace_back(execution::Value::INT32(1));
-    values.emplace_back(execution::Value::INT64(2));
-    auto value = execution::Value::ARRAY(array_type, std::move(values));
+    std::vector<Value> values;
+    values.emplace_back(Value::INT32(1));
+    values.emplace_back(Value::INT64(2));
+    auto value = Value::ARRAY(array_type, std::move(values));
     (void) value;
   };
 
@@ -358,22 +358,18 @@ TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
   column.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
   column.resize(1);
 
-  std::vector<execution::Value> list_values = {execution::Value::INT32(1),
-                                               execution::Value::INT32(2)};
-  auto list_value =
-      execution::Value::LIST(DataType::INT32, std::move(list_values));
+  std::vector<Value> list_values = {Value::INT32(1), Value::INT32(2)};
+  auto list_value = Value::LIST(DataType::INT32, std::move(list_values));
   EXPECT_THROW({ column.set_any(0, list_value, true); },
                exception::InvalidArgumentException);
 
-  std::vector<execution::Value> array_values = {execution::Value::INT32(3),
-                                                execution::Value::INT32(4)};
-  auto array_value =
-      execution::Value::ARRAY(array_type, std::move(array_values));
+  std::vector<Value> array_values = {Value::INT32(3), Value::INT32(4)};
+  auto array_value = Value::ARRAY(array_type, std::move(array_values));
   EXPECT_NO_THROW({ column.set_any(0, array_value, true); });
 
   auto stored = column.get_any(0);
   ASSERT_EQ(stored.type(), array_type);
-  const auto& stored_values = execution::ArrayValue::GetChildren(stored);
+  const auto& stored_values = ArrayValue::GetChildren(stored);
   ASSERT_EQ(stored_values.size(), 2);
   EXPECT_EQ(stored_values[0].GetValue<int32_t>(), 3);
   EXPECT_EQ(stored_values[1].GetValue<int32_t>(), 4);

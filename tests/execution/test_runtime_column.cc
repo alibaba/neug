@@ -15,11 +15,11 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/path_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/loader/loader_utils.h"
 
@@ -1430,12 +1430,12 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   EXPECT_EQ(collected[0].second, p1);
 }
 
-class ArrowContextColumnTest : public ::testing::Test {
+class ArrowColumnTest : public ::testing::Test {
  protected:
   void SetUp() override {}
 };
 
-TEST_F(ArrowContextColumnTest, DataChunkSupplierBasic) {
+TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
   const char* var = std::getenv("TEST_PATH");
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/execution/resources";

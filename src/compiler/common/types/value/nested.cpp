@@ -28,11 +28,12 @@
 namespace neug {
 namespace common {
 
-uint32_t NestedVal::getChildrenSize(const Value* val) {
+uint32_t NestedVal::getChildrenSize(const compiler_impl::Value* val) {
   return val->childrenSize;
 }
 
-Value* NestedVal::getChildVal(const Value* val, uint32_t idx) {
+compiler_impl::Value* NestedVal::getChildVal(const compiler_impl::Value* val,
+                                             uint32_t idx) {
   if (idx > val->childrenSize) {
     THROW_RUNTIME_ERROR("NestedVal::getChildVal index out of bound.");
   }

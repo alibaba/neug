@@ -23,7 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -207,15 +207,15 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
   {
     LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
-    std::vector<std::pair<std::string, execution::Value>> properties;
+    std::vector<std::pair<std::string, neug::Value>> properties;
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(
-        std::make_pair(std::string("id"), execution::Value::INT32(0)));
+        std::make_pair(std::string("id"), neug::Value::INT32(0)));
     properties.emplace_back(
-        std::make_pair(std::string("name"), execution::Value::STRING("")));
+        std::make_pair(std::string("name"), neug::Value::STRING("")));
     properties.emplace_back(
-        std::make_pair(std::string("age"), execution::Value::INT32(0)));
+        std::make_pair(std::string("age"), neug::Value::INT32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     CreateVertexTypeParamBuilder builder;
     auto status = graph.CreateVertexType(builder.VertexLabel(vertex_label_name)
@@ -233,9 +233,9 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
-    std::vector<std::pair<std::string, execution::Value>> edge_properties;
+    std::vector<std::pair<std::string, neug::Value>> edge_properties;
     edge_properties.emplace_back(
-        std::make_pair(std::string("weight"), execution::Value::FLOAT(0.0)));
+        std::make_pair(std::string("weight"), neug::Value::FLOAT(0.0)));
     CreateEdgeTypeParamBuilder builder;
     auto status = graph.CreateEdgeType(builder.SrcLabel(src_vertex_label)
                                            .DstLabel(dst_vertex_label)
@@ -293,10 +293,9 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::vector<std::pair<std::string, execution::Value>> add_properties;
-    add_properties.emplace_back(
-        std::make_pair(std::string("creationDate"),
-                       execution::Value::TIMESTAMPMS(DateTime(0))));
+    std::vector<std::pair<std::string, neug::Value>> add_properties;
+    add_properties.emplace_back(std::make_pair(
+        std::string("creationDate"), neug::Value::TIMESTAMPMS(DateTime(0))));
     AddEdgePropertiesParamBuilder builder;
     graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)
                                 .DstLabel(dst_vertex_type)

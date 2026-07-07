@@ -16,7 +16,7 @@
 
 #include <glog/logging.h>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/csr/prefetch_utils.h"
 #include "neug/utils/property/column.h"
@@ -253,8 +253,8 @@ static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
  * NbrList edges = view.get_edges(v);
  *
  * for (auto it = edges.begin(); it != edges.end(); ++it) {
- *     // Get property as generic execution::Value
- *     execution::Value val = accessor.get_value(it);
+ *     // Get property as generic Value
+ *     Value val = accessor.get_value(it);
  *
  *     // Or get as typed value (faster if type is known)
  *     double weight = accessor.get_typed_data<double>(it);
@@ -308,25 +308,25 @@ struct EdgeDataAccessor {
   }
 
   /**
-   * @brief Get property value for current edge as execution::Value.
+   * @brief Get property value for current edge as Value.
    * @param it Iterator pointing to the edge
-   * @return execution::Value containing the edge data
+   * @return Value containing the edge data
    */
-  inline execution::Value get_data(const NbrIterator& it) const {
+  inline Value get_data(const NbrIterator& it) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(it.get_data_ptr())
                : data_column_->get_any(
                      *reinterpret_cast<const size_t*>(it.get_data_ptr()));
   }
 
-  inline execution::Value get_data_from_ptr(const void* data_ptr) const {
+  inline Value get_data_from_ptr(const void* data_ptr) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(data_ptr)
                : data_column_->get_any(
                      *reinterpret_cast<const size_t*>(data_ptr));
   }
 
-  inline void set_data(const NbrIterator& it, const execution::Value& value,
+  inline void set_data(const NbrIterator& it, const Value& value,
                        timestamp_t ts) {
     if (it.cfg.ts_offset != 0) {
       *const_cast<timestamp_t*>(it.get_timestamp_ptr()) = ts;
@@ -366,15 +366,14 @@ struct EdgeDataAccessor {
     return reinterpret_cast<const TypedColumn<T>*>(data_column_)->get_view(idx);
   }
 
-  inline execution::Value get_generic_bundled_data_from_ptr(
-      const void* data_ptr) const {
+  inline Value get_generic_bundled_data_from_ptr(const void* data_ptr) const {
     if (data_type_ == DataTypeId::kEmpty) {
-      return execution::Value(DataType::EMPTY);
+      return Value(DataType::EMPTY);
     }
     switch (data_type_) {
 #define TYPE_DISPATCHER(enum_val, type)             \
   case DataTypeId::enum_val: {                      \
-    return execution::Value::CreateValue<type>(     \
+    return Value::CreateValue<type>(                \
         get_bundled_data_from_ptr<type>(data_ptr)); \
   }
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
@@ -382,7 +381,7 @@ struct EdgeDataAccessor {
     default:
       THROW_RUNTIME_ERROR("Could not get bundled data for type " +
                           std::to_string(data_type_));
-      return execution::Value(DataType::SQLNULL);
+      return Value(DataType::SQLNULL);
     }
   }
 

@@ -29,10 +29,11 @@
 namespace neug {
 namespace common {
 
-std::vector<std::pair<std::string, std::unique_ptr<Value>>>
-RelVal::getProperties(const Value* val) {
+std::vector<std::pair<std::string, std::unique_ptr<compiler_impl::Value>>>
+RelVal::getProperties(const compiler_impl::Value* val) {
   throwIfNotRel(val);
-  std::vector<std::pair<std::string, std::unique_ptr<Value>>> properties;
+  std::vector<std::pair<std::string, std::unique_ptr<compiler_impl::Value>>>
+      properties;
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   for (auto i = 0u; i < val->childrenSize; ++i) {
     auto currKey = fieldNames[i];
@@ -46,13 +47,14 @@ RelVal::getProperties(const Value* val) {
   return properties;
 }
 
-uint64_t RelVal::getNumProperties(const Value* val) {
+uint64_t RelVal::getNumProperties(const compiler_impl::Value* val) {
   throwIfNotRel(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   return fieldNames.size() - OFFSET;
 }
 
-std::string RelVal::getPropertyName(const Value* val, uint64_t index) {
+std::string RelVal::getPropertyName(const compiler_impl::Value* val,
+                                    uint64_t index) {
   throwIfNotRel(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
@@ -61,7 +63,8 @@ std::string RelVal::getPropertyName(const Value* val, uint64_t index) {
   return fieldNames[index + OFFSET];
 }
 
-Value* RelVal::getPropertyVal(const Value* val, uint64_t index) {
+compiler_impl::Value* RelVal::getPropertyVal(const compiler_impl::Value* val,
+                                             uint64_t index) {
   throwIfNotRel(val);
   auto fieldNames = StructType::GetFieldNames(val->dataType);
   if (index >= fieldNames.size() - OFFSET) {
@@ -70,33 +73,33 @@ Value* RelVal::getPropertyVal(const Value* val, uint64_t index) {
   return val->children[index + OFFSET].get();
 }
 
-Value* RelVal::getIDVal(const Value* val) {
+compiler_impl::Value* RelVal::getIDVal(const compiler_impl::Value* val) {
   auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::ID);
   return val->children[fieldIdx].get();
 }
 
-Value* RelVal::getSrcNodeIDVal(const Value* val) {
+compiler_impl::Value* RelVal::getSrcNodeIDVal(const compiler_impl::Value* val) {
   auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::SRC);
   return val->children[fieldIdx].get();
 }
 
-Value* RelVal::getDstNodeIDVal(const Value* val) {
+compiler_impl::Value* RelVal::getDstNodeIDVal(const compiler_impl::Value* val) {
   auto fieldIdx = StructType::GetFieldIdx(val->dataType, InternalKeyword::DST);
   return val->children[fieldIdx].get();
 }
 
-Value* RelVal::getLabelVal(const Value* val) {
+compiler_impl::Value* RelVal::getLabelVal(const compiler_impl::Value* val) {
   auto fieldIdx =
       StructType::GetFieldIdx(val->dataType, InternalKeyword::LABEL);
   return val->children[fieldIdx].get();
 }
 
-std::string RelVal::toString(const Value* val) {
+std::string RelVal::toString(const compiler_impl::Value* val) {
   throwIfNotRel(val);
   return val->toString();
 }
 
-void RelVal::throwIfNotRel(const Value* val) {
+void RelVal::throwIfNotRel(const compiler_impl::Value* val) {
   // LCOV_EXCL_START
   if (val->dataType.id() != DataTypeId::kEdge) {
     THROW_EXCEPTION_WITH_FILE_LINE(stringFormat(

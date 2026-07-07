@@ -17,7 +17,7 @@
 #include <limits>
 #include <vector>
 
-#include "neug/execution/common/types/graph_types.h"
+#include "neug/common/types/graph_types.h"
 
 namespace neug {
 namespace execution {

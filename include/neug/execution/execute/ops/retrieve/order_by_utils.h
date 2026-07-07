@@ -16,13 +16,14 @@
 
 #include <utility>
 
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/i_context_column.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace neug {
 class StorageReadInterface;
 namespace execution {
-class IVertexColumn;
 namespace ops {
 class GeneralComparer {
  public:

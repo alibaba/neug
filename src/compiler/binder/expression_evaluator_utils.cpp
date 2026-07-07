@@ -31,7 +31,7 @@ using namespace neug::processor;
 namespace neug {
 namespace evaluator {
 
-Value ExpressionEvaluatorUtils::evaluateConstantExpression(
+compiler_impl::Value ExpressionEvaluatorUtils::evaluateConstantExpression(
     std::shared_ptr<binder::Expression> expression,
     main::ClientContext* clientContext) {
   auto exprMapper = ExpressionMapper();

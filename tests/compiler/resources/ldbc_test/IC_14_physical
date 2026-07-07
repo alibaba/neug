@@ -704,7 +704,8 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false
-                        }
+                        },
+                        "explain_mode": "NONE"
                     },
                     "right_plan": {
                         "plan_id": 0,
@@ -896,7 +897,8 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false
-                        }
+                        },
+                        "explain_mode": "NONE"
                     }
                 }
             },
@@ -2705,5 +2707,6 @@
         "create_temp_table": false,
         "checkpoint": false,
         "procedure_call": false
-    }
+    },
+    "explain_mode": "NONE"
 }
