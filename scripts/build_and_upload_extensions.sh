@@ -147,8 +147,10 @@ fi
 echo ""
 echo "Step 2: Packaging extension files and computing checksums..."
 
-cd "${WORKSPACE_DIR}/tools/python_bind"
-EXT_DIR="build"
+cd "${WORKSPACE_DIR}"
+# Extensions are built into the root build tree (<repo>/build/extension/<name>/),
+# not into tools/python_bind/build (which only holds wheel intermediates).
+EXT_DIR="build/extension"
 PACKAGE_DIR="/tmp/extension_packages"
 mkdir -p ${PACKAGE_DIR}
 
