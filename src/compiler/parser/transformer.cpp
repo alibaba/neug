@@ -40,9 +40,7 @@ std::vector<std::shared_ptr<Statement>> Transformer::transform() {
       auto cypherOption = oc_Statement->oC_AnyCypherOption();
       auto explainType = ExplainType::PROFILE;
       if (cypherOption->oC_Explain()) {
-        explainType = cypherOption->oC_Explain()->LOGICAL()
-                          ? ExplainType::LOGICAL_PLAN
-                          : ExplainType::PHYSICAL_PLAN;
+        explainType = ExplainType::PHYSICAL_PLAN;
       }
       statements.push_back(std::make_unique<ExplainStatement>(
           std::move(statement), explainType));

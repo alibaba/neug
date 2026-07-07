@@ -51,7 +51,6 @@ class NEUG_API LogicalPlan {
 
   std::string toString() const { return lastOperator->toString(); }
 
-  bool isProfile() const;
   bool hasUpdate() const;
 
   std::unique_ptr<LogicalPlan> shallowCopy() const;
