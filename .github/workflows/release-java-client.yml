@@ -1,4 +1,4 @@
-name: Release Java SDK
+name: Release Java Client
 
 on:
   release:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-java-sdk:
+  release-java-client:
     name: Build and Publish Java SDK
     runs-on: ubuntu-22.04
     if: github.repository == 'alibaba/neug'
