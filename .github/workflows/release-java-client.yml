@@ -4,6 +4,13 @@ on:
   release:
     types:
       - created
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tools/java_driver/**'
+      - '.github/workflows/release-java-client.yml'
+      - 'proto/response.proto'
   workflow_dispatch:
 
 concurrency:
@@ -42,9 +49,20 @@ jobs:
         run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
 
       - name: Publish to Maven Central
+        if: github.event_name != 'pull_request'
         working-directory: tools/java_driver
         run: mvn -B deploy -DskipTests
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish to Maven Central (dry-run)
+        if: github.event_name == 'pull_request'
+        working-directory: tools/java_driver
+        run: |
+          mvn -B deploy -DskipTests \
+              -Dcentral-publishing-maven-plugin.skip=true \
+              -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging
+        env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
