@@ -44,6 +44,10 @@ class MultiLabelLouvain {
   int num_threads_ = 1;
   double m_ = 0.0;
   double modularity_ = 0.0;
+  // Simple-graph fast path
+  bool is_simple_graph_ = false;
+  label_t simple_vertex_label_{};
+  label_t simple_edge_label_{};
   bool one_level();
 };
 }}}  // namespace neug::gds::community

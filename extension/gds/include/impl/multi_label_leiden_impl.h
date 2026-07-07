@@ -95,6 +95,12 @@ class MultiLabelLeiden {
   double m_ = 0.0;
   double modularity_ = 0.0;
 
+  // Simple-graph fast path: when vertex_labels_.size()==1 && edge_triplets_.size()==1,
+  // fall back to parallel preprocessing and cached views (zero overhead vs standard leiden).
+  bool is_simple_graph_ = false;
+  label_t simple_vertex_label_{};
+  label_t simple_edge_label_{};
+
   // Internal methods
   bool local_moving_phase();
   void refine();

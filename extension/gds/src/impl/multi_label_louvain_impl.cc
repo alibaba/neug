@@ -60,43 +60,118 @@ MultiLabelLouvain::MultiLabelLouvain(
     if (si != label_to_index_.end()) label_out_triplets_[si->second].push_back(ti);
     if (di != label_to_index_.end()) label_in_triplets_[di->second].push_back(ti);
   }
+  // Detect simple graph for fast path
+  is_simple_graph_ = (vertex_labels_.size() == 1 && edge_triplets_.size() == 1);
+  if (is_simple_graph_) {
+    simple_vertex_label_ = vertex_labels_[0];
+    simple_edge_label_ = edge_triplets_[0].edge_label;
+  }
 }
 void MultiLabelLouvain::compute() {
-  for (uint32_t gid : valid_vertices_) { size_t li = label_to_index_[global_to_label_[gid]]; vid_t lv = global_to_vid_[gid]; double deg = 0;
-    for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) deg += 1.0; }
-    for (size_t ti : label_in_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericIncomingGraphView(t.dst_label, t.src_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) deg += 1.0; }
-    degree_[gid] = deg; }
-  m_ = 0;
-  for (uint32_t gid : valid_vertices_) { size_t li = label_to_index_[global_to_label_[gid]]; vid_t lv = global_to_vid_[gid];
-    for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) m_ += 1.0; } }
-  if (m_ == 0) { modularity_ = 0; return; }
-  for (uint32_t gid : valid_vertices_) stot_[community_[gid]] += degree_[gid];
-  double prev_mod = -1.0;
-  for (int level = 0; level < 100; ++level) { bool improved = one_level(); if (!improved) break;
-    double new_mod = 0;
+  if (is_simple_graph_) {
+    // Fast path: parallel preprocessing
+    auto oe_view = graph_.GetGenericOutgoingGraphView(simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int /*tid*/) {
+          double deg = 0;
+          auto oes = oe_view.get_edges(v); for (auto it = oes.begin(); it != oes.end(); ++it) deg += 1.0;
+          auto ies = ie_view.get_edges(v); for (auto it = ies.begin(); it != ies.end(); ++it) deg += 1.0;
+          degree_[v] = deg;
+        }, num_threads_);
+    std::vector<double> local_m(num_threads_, 0.0);
+    ParallelUtils::parallel_for(
+        valid_vertices_.data(), valid_vertices_.size(),
+        [&](vid_t v, int tid) {
+          auto oes = oe_view.get_edges(v); double cnt = 0;
+          for (auto it = oes.begin(); it != oes.end(); ++it) cnt += 1.0;
+          local_m[tid] += cnt;
+        }, num_threads_);
+    m_ = 0;
+    for (int i = 0; i < num_threads_; ++i) m_ += local_m[i];
+    if (m_ == 0) { modularity_ = 0; return; }
+    for (uint32_t gid : valid_vertices_) stot_[community_[gid]] += degree_[gid];
+    double prev_mod = -1.0;
+    for (int level = 0; level < 100; ++level) {
+      bool improved = one_level(); if (!improved) break;
+      std::vector<double> local_mod(num_threads_, 0.0);
+      ParallelUtils::parallel_for(
+          valid_vertices_.data(), valid_vertices_.size(),
+          [&](vid_t v, int tid) {
+            auto oes = oe_view.get_edges(v);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              vid_t u = *it;
+              if (community_[v] == community_[u])
+                local_mod[tid] += 1.0/(2.0*m_) - degree_[v]*degree_[u]/(4.0*m_*m_);
+            }
+          }, num_threads_);
+      double new_mod = 0;
+      for (int i = 0; i < num_threads_; ++i) new_mod += local_mod[i];
+      modularity_ = new_mod;
+      if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_) break;
+      prev_mod = modularity_;
+    }
+  } else {
+    // Generic path
+    for (uint32_t gid : valid_vertices_) { size_t li = label_to_index_[global_to_label_[gid]]; vid_t lv = global_to_vid_[gid]; double deg = 0;
+      for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) deg += 1.0; }
+      for (size_t ti : label_in_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericIncomingGraphView(t.dst_label, t.src_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) deg += 1.0; }
+      degree_[gid] = deg; }
+    m_ = 0;
     for (uint32_t gid : valid_vertices_) { size_t li = label_to_index_[global_to_label_[gid]]; vid_t lv = global_to_vid_[gid];
-      for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto ov = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto di = label_to_index_.find(t.dst_label); if (di == label_to_index_.end()) continue; size_t db = label_base_offsets_[di->second]; auto oes = ov.get_edges(lv); for (auto it = oes.begin(); it != oes.end(); ++it) { uint32_t ug = static_cast<uint32_t>(db+(*it)); if (community_[gid] == community_[ug]) new_mod += 1.0/(2.0*m_) - degree_[gid]*degree_[ug]/(4.0*m_*m_); } } }
-    modularity_ = new_mod; if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_) break; prev_mod = modularity_; }
+      for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto v = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto e = v.get_edges(lv); for (auto it = e.begin(); it != e.end(); ++it) m_ += 1.0; } }
+    if (m_ == 0) { modularity_ = 0; return; }
+    for (uint32_t gid : valid_vertices_) stot_[community_[gid]] += degree_[gid];
+    double prev_mod = -1.0;
+    for (int level = 0; level < 100; ++level) { bool improved = one_level(); if (!improved) break;
+      double new_mod = 0;
+      for (uint32_t gid : valid_vertices_) { size_t li = label_to_index_[global_to_label_[gid]]; vid_t lv = global_to_vid_[gid];
+        for (size_t ti : label_out_triplets_[li]) { const auto& t = edge_triplets_[ti]; auto ov = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto di = label_to_index_.find(t.dst_label); if (di == label_to_index_.end()) continue; size_t db = label_base_offsets_[di->second]; auto oes = ov.get_edges(lv); for (auto it = oes.begin(); it != oes.end(); ++it) { uint32_t ug = static_cast<uint32_t>(db+(*it)); if (community_[gid] == community_[ug]) new_mod += 1.0/(2.0*m_) - degree_[gid]*degree_[ug]/(4.0*m_*m_); } } }
+      modularity_ = new_mod; if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_) break; prev_mod = modularity_; }
+  }
 }
 bool MultiLabelLouvain::one_level() {
   std::vector<uint32_t> order = valid_vertices_; std::mt19937 rng(42); std::shuffle(order.begin(), order.end(), rng);
   bool improved = false; const size_t n = order.size(), chunk = 4096, num_batches = (n+chunk-1)/chunk; const int nt = num_threads_;
   std::vector<uint32_t> best_com(n); std::vector<std::vector<uint32_t>> touched(nt); for (int t = 0; t < nt; ++t) touched[t].reserve(256);
-  for (int pass = 0; pass < 10; ++pass) { bool moved = false;
-    for (size_t batch = 0; batch < num_batches; ++batch) { size_t bs = batch*chunk, be = std::min(bs+chunk, n);
-      { std::atomic<size_t> cursor(bs); std::vector<std::thread> threads; threads.reserve(nt-1);
-        auto worker = [&](int tid) { uint32_t* mg = thread_gen_.get()+static_cast<size_t>(tid)*array_size_; double* mc = thread_comm_weight_.get()+static_cast<size_t>(tid)*array_size_; uint32_t gv = 0; auto& mt = touched[tid];
-          while (true) { size_t s = cursor.fetch_add(64); if (s >= be) break; size_t e = std::min(s+size_t(64), be);
-            for (size_t i = s; i < e; ++i) { uint32_t ug = order[i]; uint32_t cc = community_[ug]; double du = degree_[ug]; size_t ul = label_to_index_[global_to_label_[ug]]; vid_t uv = global_to_vid_[ug]; ++gv; mt.clear();
-              auto pn = [&](uint32_t vg) { if (vg == ug) return; uint32_t cm = community_[vg]; if (mg[cm] != gv) { mg[cm] = gv; mc[cm] = 0.0; mt.push_back(cm); } mc[cm] += 1.0; };
-              for (size_t ti : label_out_triplets_[ul]) { const auto& t = edge_triplets_[ti]; auto ov = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto di = label_to_index_.find(t.dst_label); if (di == label_to_index_.end()) continue; size_t db = label_base_offsets_[di->second]; auto oes = ov.get_edges(uv); for (auto it = oes.begin(); it != oes.end(); ++it) pn(static_cast<uint32_t>(db+(*it))); }
-              for (size_t ti : label_in_triplets_[ul]) { const auto& t = edge_triplets_[ti]; auto iv = graph_.GetGenericIncomingGraphView(t.dst_label, t.src_label, t.edge_label); auto si = label_to_index_.find(t.src_label); if (si == label_to_index_.end()) continue; size_t sb = label_base_offsets_[si->second]; auto ies = iv.get_edges(uv); for (auto it = ies.begin(); it != ies.end(); ++it) pn(static_cast<uint32_t>(sb+(*it))); }
-              double ws = (mg[cc] == gv) ? mc[cc] : 0.0; double sm = stot_[cc] - du; uint32_t best = cc; double bg = 0.0;
-              for (uint32_t cm : mt) { if (cm == cc) continue; double wc = mc[cm]; double g = (wc-ws)/m_ - resolution_*stot_[cm]*du/(2.0*m_*m_) + resolution_*sm*du/(2.0*m_*m_); if (g > bg) { bg = g; best = cm; } }
-              best_com[i] = best; } } };
-        for (int t = 1; t < nt; ++t) threads.emplace_back(worker, t); worker(0); for (auto& th : threads) th.join(); }
-      for (size_t i = bs; i < be; ++i) { uint32_t ug = order[i], cc = community_[ug], nc = best_com[i]; if (nc != cc) { stot_[cc] -= degree_[ug]; stot_[nc] += degree_[ug]; community_[ug] = nc; moved = true; improved = true; } }
-    } if (!moved) break; } return improved; }
+  if (is_simple_graph_) {
+    auto oe_view = graph_.GetGenericOutgoingGraphView(simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    auto ie_view = graph_.GetGenericIncomingGraphView(simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    for (int pass = 0; pass < 10; ++pass) { bool moved = false;
+      for (size_t batch = 0; batch < num_batches; ++batch) { size_t bs = batch*chunk, be = std::min(bs+chunk, n);
+        { std::atomic<size_t> cursor(bs); std::vector<std::thread> threads; threads.reserve(nt-1);
+          auto worker = [&](int tid) { uint32_t* mg = thread_gen_.get()+static_cast<size_t>(tid)*array_size_; double* mc = thread_comm_weight_.get()+static_cast<size_t>(tid)*array_size_; uint32_t gv = 0; auto& mt = touched[tid];
+            while (true) { size_t s = cursor.fetch_add(64); if (s >= be) break; size_t e = std::min(s+size_t(64), be);
+              for (size_t i = s; i < e; ++i) { vid_t u = order[i]; uint32_t cc = community_[u]; double du = degree_[u]; ++gv; mt.clear();
+                auto pn = [&](vid_t v) { if (v == u) return; uint32_t cm = community_[v]; if (mg[cm] != gv) { mg[cm] = gv; mc[cm] = 0.0; mt.push_back(cm); } mc[cm] += 1.0; };
+                auto oes = oe_view.get_edges(u); for (auto it = oes.begin(); it != oes.end(); ++it) pn(*it);
+                auto ies = ie_view.get_edges(u); for (auto it = ies.begin(); it != ies.end(); ++it) pn(*it);
+                double ws = (mg[cc] == gv) ? mc[cc] : 0.0; double sm = stot_[cc] - du; uint32_t best = cc; double bg = 0.0;
+                for (uint32_t cm : mt) { if (cm == cc) continue; double wc = mc[cm]; double g = (wc-ws)/m_ - resolution_*stot_[cm]*du/(2.0*m_*m_) + resolution_*sm*du/(2.0*m_*m_); if (g > bg) { bg = g; best = cm; } }
+                best_com[i] = best; } } };
+          for (int t = 1; t < nt; ++t) threads.emplace_back(worker, t); worker(0); for (auto& th : threads) th.join(); }
+        for (size_t i = bs; i < be; ++i) { vid_t u = order[i]; uint32_t cc = community_[u], nc = best_com[i]; if (nc != cc) { stot_[cc] -= degree_[u]; stot_[nc] += degree_[u]; community_[u] = nc; moved = true; improved = true; } }
+      } if (!moved) break; }
+  } else {
+    for (int pass = 0; pass < 10; ++pass) { bool moved = false;
+      for (size_t batch = 0; batch < num_batches; ++batch) { size_t bs = batch*chunk, be = std::min(bs+chunk, n);
+        { std::atomic<size_t> cursor(bs); std::vector<std::thread> threads; threads.reserve(nt-1);
+          auto worker = [&](int tid) { uint32_t* mg = thread_gen_.get()+static_cast<size_t>(tid)*array_size_; double* mc = thread_comm_weight_.get()+static_cast<size_t>(tid)*array_size_; uint32_t gv = 0; auto& mt = touched[tid];
+            while (true) { size_t s = cursor.fetch_add(64); if (s >= be) break; size_t e = std::min(s+size_t(64), be);
+              for (size_t i = s; i < e; ++i) { uint32_t ug = order[i]; uint32_t cc = community_[ug]; double du = degree_[ug]; size_t ul = label_to_index_[global_to_label_[ug]]; vid_t uv = global_to_vid_[ug]; ++gv; mt.clear();
+                auto pn = [&](uint32_t vg) { if (vg == ug) return; uint32_t cm = community_[vg]; if (mg[cm] != gv) { mg[cm] = gv; mc[cm] = 0.0; mt.push_back(cm); } mc[cm] += 1.0; };
+                for (size_t ti : label_out_triplets_[ul]) { const auto& t = edge_triplets_[ti]; auto ov = graph_.GetGenericOutgoingGraphView(t.src_label, t.dst_label, t.edge_label); auto di = label_to_index_.find(t.dst_label); if (di == label_to_index_.end()) continue; size_t db = label_base_offsets_[di->second]; auto oes = ov.get_edges(uv); for (auto it = oes.begin(); it != oes.end(); ++it) pn(static_cast<uint32_t>(db+(*it))); }
+                for (size_t ti : label_in_triplets_[ul]) { const auto& t = edge_triplets_[ti]; auto iv = graph_.GetGenericIncomingGraphView(t.dst_label, t.src_label, t.edge_label); auto si = label_to_index_.find(t.src_label); if (si == label_to_index_.end()) continue; size_t sb = label_base_offsets_[si->second]; auto ies = iv.get_edges(uv); for (auto it = ies.begin(); it != ies.end(); ++it) pn(static_cast<uint32_t>(sb+(*it))); }
+                double ws = (mg[cc] == gv) ? mc[cc] : 0.0; double sm = stot_[cc] - du; uint32_t best = cc; double bg = 0.0;
+                for (uint32_t cm : mt) { if (cm == cc) continue; double wc = mc[cm]; double g = (wc-ws)/m_ - resolution_*stot_[cm]*du/(2.0*m_*m_) + resolution_*sm*du/(2.0*m_*m_); if (g > bg) { bg = g; best = cm; } }
+                best_com[i] = best; } } };
+          for (int t = 1; t < nt; ++t) threads.emplace_back(worker, t); worker(0); for (auto& th : threads) th.join(); }
+        for (size_t i = bs; i < be; ++i) { uint32_t ug = order[i], cc = community_[ug], nc = best_com[i]; if (nc != cc) { stot_[cc] -= degree_[ug]; stot_[nc] += degree_[ug]; community_[ug] = nc; moved = true; improved = true; } }
+      } if (!moved) break; }
+  }
+  return improved;
+}
 void MultiLabelLouvain::sink(execution::Context& ctx, int node_alias, int community_alias) {
   std::unordered_map<uint32_t,uint32_t> cr; uint32_t ni = 0;
   for (uint32_t gid : valid_vertices_) { uint32_t c = community_[gid]; if (cr.find(c) == cr.end()) cr[c] = ni++; }
