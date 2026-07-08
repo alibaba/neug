@@ -70,7 +70,8 @@ class DataChunkCSVStringFormatBuffer {
  public:
   DataChunkCSVStringFormatBuffer(const DataChunk& chunk,
                                  const reader::FileSchema& schema,
-                                 const reader::EntrySchema& entry_schema);
+                                 const reader::EntrySchema& entry_schema,
+                                 const std::vector<DataType>& source_types);
   ~DataChunkCSVStringFormatBuffer() = default;
 
   void addValue(size_t row_idx, size_t col_idx);
@@ -78,13 +79,16 @@ class DataChunkCSVStringFormatBuffer {
   neug::Status flush(io::OutputStream& stream);
 
  private:
-  neug::Status formatValueToStr(const Value& value, size_t row_idx);
+  neug::Status formatValueToStr(const Value& value, size_t row_idx,
+                                size_t col_idx);
+  bool shouldWriteRawString(size_t col_idx) const;
   void writeWithEscapes(char* toEscape, char escape, const std::string& str);
   void write(const uint8_t* buffer, uint64_t len);
 
   const DataChunk& chunk_;
   const reader::FileSchema& schema_;
   const reader::EntrySchema& entry_schema_;
+  const std::vector<DataType>& source_types_;
   BinaryData blob_;
   size_t capacity_;
   uint8_t* data_;
