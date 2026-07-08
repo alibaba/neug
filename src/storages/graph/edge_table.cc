@@ -27,6 +27,7 @@
 #include <string_view>
 #include <utility>
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
@@ -181,9 +182,43 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   }
 }
 
+/// Fast-path helper: direct data() access on ValueColumn<T>, avoiding
+/// per-element virtual dispatch via get_elem().
+template <typename T>
+static void parse_endpoint_column_typed(const IndexerType& indexer,
+                                        const ValueColumn<T>& vc,
+                                        std::vector<vid_t>& lids) {
+  const auto& data = vc.data();
+  for (size_t i = 0; i < data.size(); ++i) {
+    auto vid = indexer.get_index(Value::CreateValue<T>(data[i]));
+    lids.push_back(vid);
+  }
+}
+
 static void parse_endpoint_column(const IndexerType& indexer,
                                   const std::shared_ptr<IContextColumn>& col,
                                   std::vector<vid_t>& lids) {
+  // Dispatch based on the column's element type to access data() directly.
+#define ENDPOINT_TYPE_DISPATCH(enum_val, type)                   \
+  case DataTypeId::enum_val: {                                   \
+    auto vc = std::dynamic_pointer_cast<ValueColumn<type>>(col); \
+    if (vc) {                                                    \
+      parse_endpoint_column_typed<type>(indexer, *vc, lids);     \
+      return;                                                    \
+    }                                                            \
+    break;                                                       \
+  }
+  switch (col->elem_type().id()) {
+    ENDPOINT_TYPE_DISPATCH(kInt64, int64_t)
+    ENDPOINT_TYPE_DISPATCH(kInt32, int32_t)
+    ENDPOINT_TYPE_DISPATCH(kUInt32, uint32_t)
+    ENDPOINT_TYPE_DISPATCH(kUInt64, uint64_t)
+    ENDPOINT_TYPE_DISPATCH(kVarchar, std::string)
+  default:
+    break;
+  }
+#undef ENDPOINT_TYPE_DISPATCH
+  // Fallback: virtual dispatch path.
   for (size_t i = 0; i < col->size(); ++i) {
     auto val = col->get_elem(i);
     auto vid = indexer.get_index(val);

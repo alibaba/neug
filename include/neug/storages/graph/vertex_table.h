@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
@@ -270,8 +271,18 @@ class VertexTable {
     size_t row_num = pk_col->size();
     std::vector<vid_t> vids;
     vids.resize(row_num);
+    bool is_string = std::is_same_v<PK_T, std::string_view> ||
+                     std::is_same_v<PK_T, std::string>;
+    // Fast path: direct data() access when the column is a ValueColumn<PK_T>,
+    // avoiding per-element virtual dispatch via get_elem().
+    auto value_col = std::dynamic_pointer_cast<ValueColumn<PK_T>>(pk_col);
     for (size_t j = 0; j < row_num; ++j) {
-      auto oid = pk_col->get_elem(j);
+      Value oid;
+      if (value_col) {
+        oid = Value::CreateValue<PK_T>(value_col->data()[j]);
+      } else {
+        oid = pk_col->get_elem(j);
+      }
       if (NEUG_UNLIKELY(indexer_->get_index(oid, vids[j]))) {
         if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
           vids[j] = std::numeric_limits<vid_t>::max();
@@ -280,8 +291,6 @@ class VertexTable {
         }
         continue;
       }
-      bool is_string = std::is_same_v<PK_T, std::string_view> ||
-                       std::is_same_v<PK_T, std::string>;
       vids[j] = insert_vertex_pk(oid, 0, is_string);
     }
     return vids;
