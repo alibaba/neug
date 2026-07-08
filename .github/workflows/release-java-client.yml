@@ -63,5 +63,5 @@ jobs:
         run: |
           mvn -B deploy -DskipTests \
               -Dgpg.skip=true \
-              -Dcentral-publishing-maven-plugin.skip=true \
+              -DskipPublishing=true \
               -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging
