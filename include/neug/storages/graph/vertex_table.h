@@ -302,7 +302,6 @@ class VertexTable {
       }
       EnsureCapacity(cap);
     }
-    std::shared_mutex rw_mutex;
     while (true) {
       auto chunk = supplier->GetNextChunk();
       if (chunk == nullptr) {
@@ -341,7 +340,7 @@ class VertexTable {
 
       for (size_t i = 0; i < prop_cols.size(); ++i) {
         auto col = table_->get_column_by_id(i);
-        set_properties_from_context_column(col, prop_cols[i], vids, rw_mutex);
+        set_properties_from_context_column(col, prop_cols[i], vids);
       }
       VLOG(10) << "Inserted " << chunk_rows
                << " vertices, current vertex num: " << VertexNum();
