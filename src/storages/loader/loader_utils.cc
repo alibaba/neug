@@ -332,10 +332,8 @@ FieldAppender make_appender(const DataType& type, void* builder,
     FOR_EACH_DATA_TYPE(MAKE_APPENDER)
 #undef MAKE_APPENDER
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported data type for CSV field appender: " +
-        std::to_string(static_cast<int>(type.id())));
-    return {};
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
+                                  type.ToString() + " is not supported");
   }
 }
 
