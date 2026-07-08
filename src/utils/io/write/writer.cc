@@ -150,7 +150,8 @@ neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
   return neug::Status::OK();
 }
 
-bool DataChunkCSVStringFormatBuffer::shouldWriteRawString(size_t col_idx) const {
+bool DataChunkCSVStringFormatBuffer::shouldWriteRawString(
+    size_t col_idx) const {
   if (col_idx >= source_types_.size()) {
     return false;
   }
@@ -185,8 +186,8 @@ void DataChunkCSVStringFormatBuffer::addValue(size_t row_idx, size_t col_idx) {
     write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
           strlen(DEFAULT_NULL_STR));
   } else {
-    auto str_result = formatValueToStr(column->get_elem(row_idx), row_idx,
-                                       col_idx);
+    auto str_result =
+        formatValueToStr(column->get_elem(row_idx), row_idx, col_idx);
     if (!str_result.ok()) {
       if (!ignore_errors_) {
         THROW_IO_EXCEPTION(
@@ -235,9 +236,8 @@ neug::Status CsvQueryExportWriter::write(
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Batch size should be positive");
   }
-  auto csv_buffer =
-      DataChunkCSVStringFormatBuffer(chunk, schema_, *entry_schema_,
-                                     source_types);
+  auto csv_buffer = DataChunkCSVStringFormatBuffer(
+      chunk, schema_, *entry_schema_, source_types);
   csv_buffer.addHeader();
   for (size_t i = 0; i < chunk.row_num(); ++i) {
     for (size_t j = 0; j < chunk.col_num(); ++j) {
