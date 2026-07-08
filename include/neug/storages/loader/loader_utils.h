@@ -78,8 +78,7 @@ class IDataChunkSupplier {
 /// csv-parser based supplier. Reads CSV in chunks and yields ValueColumns.
 class CSVChunkSupplier : public IDataChunkSupplier {
  public:
-  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config,
-                   bool count_rows = true);
+  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config);
 
   ~CSVChunkSupplier() override;
 

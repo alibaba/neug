@@ -17,12 +17,14 @@
 
 #include <glog/logging.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <sys/statvfs.h>
 
 #include <fast_float.h>
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -31,8 +33,10 @@
 #include <sstream>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <type_traits>
 #include <unordered_set>
+#include <vector>
 
 #include "csv.hpp"
 #include "neug/common/columns/columns_utils.h"
@@ -321,11 +325,282 @@ void append_csv_field_to_builder(
   }
 }
 
+/// Quote-tracking state machine for counting CSV row boundaries.
+/// One instance tracks a single speculative execution path (in or out
+/// of quotes at chunk start).  Config is set once in init(); step()
+/// processes one byte using the stored config.
+struct RowCounterState {
+  bool in_quotes = false;
+  bool has_content = false;
+  bool pending_quote = false;
+  int64_t count = 0;
+  // Config (constant throughout the scan, set in init()).
+  bool quoting = false;
+  char quote_char = '"';
+  bool double_quote = true;
+  char delimiter = ',';
+  // State: whether the next character starts a new field.
+  // Only at field start can a quote_char open a quoted field.
+  bool at_field_start = true;
+
+  void init(bool start_in_quotes, bool q, char qc, bool dq, char delim) {
+    in_quotes = start_in_quotes;
+    has_content = start_in_quotes;  // in quotes → has content
+    pending_quote = false;
+    count = 0;
+    quoting = q;
+    quote_char = qc;
+    double_quote = dq;
+    delimiter = delim;
+    at_field_start = !start_in_quotes;  // outside → field start; inside → not
+  }
+
+  /// Advance the state machine by one byte.
+  void step(char c) {
+    if (in_quotes) {
+      has_content = true;
+      if (pending_quote) {
+        if (double_quote && c == quote_char) {
+          // "" — escaped quote, stay in quotes.
+          pending_quote = false;
+          return;
+        }
+        // Quote ended; fall through to unquoted context.
+        in_quotes = false;
+        pending_quote = false;
+      }
+      if (in_quotes) {
+        if (c == quote_char) {
+          if (double_quote)
+            pending_quote = true;
+          else
+            in_quotes = false;
+        }
+        return;
+      }
+      // Quote just closed — not at field start.
+      at_field_start = false;
+    }
+    // Unquoted context.
+    // Only treat quote_char as opening quote at field start, matching
+    // csv-parser semantics where a bare quote inside an unquoted field
+    // is a literal character.
+    if (quoting && at_field_start && c == quote_char) {
+      in_quotes = true;
+      has_content = true;
+      at_field_start = false;
+    } else if (c == '\n' || c == '\r') {
+      // Treat both \n (LF) and \r (CR) as row terminators.
+      // For CRLF, \r counts the row and clears has_content,
+      // so the following \n is a no-op (no double-count).
+      if (has_content)
+        ++count;
+      has_content = false;
+      at_field_start = true;  // new row = new field
+    } else if (c == delimiter) {
+      at_field_start = true;  // next char starts a new field
+    } else {
+      has_content = true;
+      at_field_start = false;
+    }
+  }
+};
+
+/// Fast CSV row counter: scans raw bytes to count row boundaries
+/// without parsing fields.  Uses a quote-tracking state machine;
+/// parallelizes via speculative dual-state-machine scan for large files.
+class CsvRowCountCounter {
+ public:
+  // rows_to_skip is intentionally NOT a parameter: the counter counts
+  // all non-empty rows.  The reader's skip_rows() handles skipping
+  // separately, and RowNum() is only a pre-allocation hint, so a slight
+  // overcount (by at most skip_rows, typically 1 for header) is safe.
+  CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
+                     bool double_quote, char delimiter)
+      : file_path_(std::move(file_path)),
+        quoting_(quoting),
+        quote_char_(quote_char),
+        double_quote_(double_quote),
+        delimiter_(delimiter) {}
+
+  int64_t count() const {
+    struct stat st;
+    if (stat(file_path_.c_str(), &st) != 0) {
+      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
+    }
+    auto file_size = static_cast<size_t>(st.st_size);
+    if (file_size == 0)
+      return 0;
+
+    constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
+    unsigned num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0)
+      num_threads = 1;
+    if (file_size < kMinChunkSize * num_threads) {
+      num_threads =
+          std::max(1u, static_cast<unsigned>(file_size / kMinChunkSize));
+    }
+    if (num_threads <= 1)
+      return count_single(file_size);
+    return count_parallel(file_size, num_threads);
+  }
+
+ private:
+  struct ChunkResult {
+    RowCounterState outside;  // assumed start outside quotes
+    RowCounterState inside;   // assumed start inside quotes
+  };
+
+  /// Read [start, end) from the file in 1 MB buffers, calling \p fn
+  /// for each buffer.  Shared by count_single() and scan_chunk().
+  template <typename Fn>
+  void scan_range(size_t start, size_t end, Fn&& fn) const {
+    std::ifstream file(file_path_, std::ios::binary);
+    if (!file.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for counting: " + file_path_);
+    }
+    file.seekg(static_cast<std::streamoff>(start));
+    constexpr size_t kBufSize = 1 << 20;  // 1 MB
+    std::vector<char> buffer(kBufSize);
+    size_t pos = start;
+    while (pos < end) {
+      size_t to_read = std::min(kBufSize, end - pos);
+      file.read(buffer.data(), to_read);
+      auto bytes_read = static_cast<size_t>(file.gcount());
+      if (bytes_read == 0)
+        break;
+      fn(buffer.data(), bytes_read);
+      pos += bytes_read;
+    }
+  }
+
+  /// Find byte offset after the first row terminator (\n or \r) at or
+  /// after \p start.  Used for newline-aligned chunk boundaries.
+  size_t align_to_newline(size_t start, size_t end) const {
+    if (start >= end)
+      return end;
+    std::ifstream file(file_path_, std::ios::binary);
+    file.seekg(static_cast<std::streamoff>(start));
+    constexpr size_t kScanBuf = 4096;
+    char buf[kScanBuf];
+    size_t pos = start;
+    while (pos < end) {
+      size_t to_read = std::min(kScanBuf, end - pos);
+      file.read(buf, to_read);
+      auto n = static_cast<size_t>(file.gcount());
+      if (n == 0)
+        break;
+      for (size_t i = 0; i < n; ++i) {
+        if (buf[i] == '\n' || buf[i] == '\r')
+          return pos + i + 1;
+      }
+      pos += n;
+    }
+    return end;
+  }
+
+  /// Scan a byte range with dual state machines (single pass).
+  /// When quoting is disabled, only one state machine is run and the
+  /// other is copied — both produce identical results.
+  ChunkResult scan_chunk(size_t start, size_t end) const {
+    ChunkResult res;
+    res.outside.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    res.inside.init(true, quoting_, quote_char_, double_quote_, delimiter_);
+    if (quoting_) {
+      scan_range(start, end, [&](const char* data, size_t n) {
+        for (size_t i = 0; i < n; ++i) {
+          char c = data[i];
+          res.outside.step(c);
+          res.inside.step(c);
+        }
+      });
+    } else {
+      // quoting=false: both state machines produce identical results.
+      // Only run one to halve the CPU work.
+      scan_range(start, end, [&](const char* data, size_t n) {
+        for (size_t i = 0; i < n; ++i) {
+          res.outside.step(data[i]);
+        }
+      });
+      res.inside = res.outside;
+    }
+    return res;
+  }
+
+  /// Single-threaded scan.
+  int64_t count_single(size_t file_size) const {
+    RowCounterState state;
+    state.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    scan_range(0, file_size, [&](const char* data, size_t n) {
+      for (size_t i = 0; i < n; ++i) {
+        state.step(data[i]);
+      }
+    });
+    int64_t total = state.count;
+    if (state.has_content)
+      ++total;  // last row without trailing newline
+    return total;
+  }
+
+  /// Parallel scan with speculative dual state machines.
+  int64_t count_parallel(size_t file_size, unsigned num_threads) const {
+    // Compute newline-aligned chunk boundaries.
+    size_t approx_chunk = file_size / num_threads;
+    std::vector<size_t> bounds;
+    bounds.push_back(0);
+    for (unsigned i = 1; i < num_threads; ++i) {
+      size_t actual = align_to_newline(i * approx_chunk, file_size);
+      if (actual <= bounds.back() || actual >= file_size)
+        break;
+      bounds.push_back(actual);
+    }
+    bounds.push_back(file_size);
+    unsigned actual_threads = static_cast<unsigned>(bounds.size() - 1);
+
+    // Parallel scan: each thread scans its chunk with dual state machines.
+    std::vector<ChunkResult> results(actual_threads);
+    std::vector<std::thread> threads;
+    for (unsigned i = 0; i < actual_threads; ++i) {
+      threads.emplace_back([this, &results, i, &bounds]() {
+        results[i] = scan_chunk(bounds[i], bounds[i + 1]);
+      });
+    }
+    for (auto& t : threads)
+      t.join();
+
+    // Sequential resolution: chain quote state across chunks.
+    int64_t total = 0;
+    bool in_quotes = false;  // chunk 0 starts outside quotes
+    const RowCounterState* last_selected = nullptr;
+    for (unsigned i = 0; i < actual_threads; ++i) {
+      const RowCounterState& s =
+          in_quotes ? results[i].inside : results[i].outside;
+      total += s.count;
+      in_quotes = s.in_quotes;
+      last_selected = &s;
+    }
+
+    // Handle last row without trailing newline.
+    // Use the actually-selected variant for the last chunk, not the
+    // ending in_quotes state (which may differ from the start assumption).
+    if (last_selected && last_selected->has_content)
+      ++total;
+
+    return total;
+  }
+
+  std::string file_path_;
+  bool quoting_;
+  char quote_char_;
+  bool double_quote_;
+  char delimiter_;
+};
+
 }  // namespace
 
 struct CsvSupplierRuntime {
   explicit CsvSupplierRuntime(const std::string& file_path,
-                              const CsvReadConfig& config, bool count_rows)
+                              const CsvReadConfig& config)
       : file_path_(file_path),
         csv_format_(build_csv_format(config)),
         selected_column_names_(resolve_selected_column_names(config)),
@@ -343,7 +618,9 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = count_rows ? count_file_rows() : -1;
+    row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
+                                  config.double_quote, config.delimiter)
+                   .count();
     reset_reader();
   }
 
@@ -417,25 +694,6 @@ struct CsvSupplierRuntime {
       if (!reader.read_row(skipped_row)) {
         break;
       }
-    }
-  }
-
-  int64_t count_file_rows() const {
-    try {
-      csv::CSVReader counter(file_path_, csv_format_);
-      skip_rows(counter);
-      int64_t count = 0;
-      csv::CSVRow row;
-      while (counter.read_row(row)) {
-        if (row.empty()) {
-          continue;
-        }
-        count += 1;
-      }
-      return count;
-    } catch (const std::exception& error) {
-      THROW_IO_EXCEPTION("Failed to count rows for file: " + file_path_ +
-                         ", reason=" + error.what());
     }
   }
 
@@ -757,10 +1015,9 @@ std::vector<std::string> columnMappingsToSelectedCols(
 }
 
 CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
-                                   CsvReadConfig config, bool count_rows)
+                                   CsvReadConfig config)
     : file_path_(file_path) {
-  runtime_ =
-      std::make_unique<CsvSupplierRuntime>(file_path, config, count_rows);
+  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config);
   row_num_ = runtime_->row_num();
   VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path_;
 }
