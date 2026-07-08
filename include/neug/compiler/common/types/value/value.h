@@ -45,12 +45,12 @@ class ValueVector;
 
 namespace compiler_impl {
 
+using common::getPhysicalType;
 using common::int128_t;
 using common::internalID_t;
 using common::list_entry_t;
 using common::neug_list_t;
 using common::nodeID_t;
-using common::getPhysicalType;
 using common::PhysicalTypeID;
 using common::struct_entry_t;
 

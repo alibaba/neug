@@ -26,8 +26,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include "neug/execution/common/property_definition.h"
 #include "neug/common/types/value.h"
+#include "neug/execution/common/property_definition.h"
 #include "neug/storages/graph/table_type.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"

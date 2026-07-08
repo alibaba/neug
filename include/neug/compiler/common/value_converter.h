@@ -18,9 +18,9 @@
 
 #include <cstdint>
 
+#include "neug/common/types/value.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
-#include "neug/common/types/value.h"
 
 namespace neug {
 namespace common {

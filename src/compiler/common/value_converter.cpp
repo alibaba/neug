@@ -95,12 +95,11 @@ int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t value) {
     return ::neug::Value::DATE(
         convertToExecutionDate(value.getValue<compiler_impl::date_t>()));
   case DataTypeId::kTimestampMs:
-    return ::neug::Value::TIMESTAMPMS(
-        convertToExecutionTimestamp(
-            value.getValue<compiler_impl::timestamp_ms_t>()));
+    return ::neug::Value::TIMESTAMPMS(convertToExecutionTimestamp(
+        value.getValue<compiler_impl::timestamp_ms_t>()));
   case DataTypeId::kInterval:
-    return ::neug::Value::INTERVAL(
-        convertToExecutionInterval(value.getValue<compiler_impl::interval_t>()));
+    return ::neug::Value::INTERVAL(convertToExecutionInterval(
+        value.getValue<compiler_impl::interval_t>()));
   case DataTypeId::kArray: {
     std::vector<::neug::Value> children;
     children.reserve(value.getChildrenSize());
@@ -162,8 +161,8 @@ compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
     return compiler_impl::Value(
         convertToCompilerDate(value.GetValue<::neug::Date>()));
   case DataTypeId::kTimestampMs:
-    return compiler_impl::Value(convertToCompilerTimestamp(
-        value.GetValue<::neug::DateTime>()));
+    return compiler_impl::Value(
+        convertToCompilerTimestamp(value.GetValue<::neug::DateTime>()));
   case DataTypeId::kInterval:
     return compiler_impl::Value(
         convertToCompilerInterval(value.GetValue<::neug::Interval>()));
@@ -173,9 +172,8 @@ compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
     const auto& defaultChildren = ::neug::ArrayValue::GetChildren(value);
     children.reserve(defaultChildren.size());
     for (const auto& child : defaultChildren) {
-      children.push_back(
-          std::make_unique<compiler_impl::Value>(
-              convertToCompilerValue(child, childType)));
+      children.push_back(std::make_unique<compiler_impl::Value>(
+          convertToCompilerValue(child, childType)));
     }
     return compiler_impl::Value(type.copy(), std::move(children));
   }
@@ -185,9 +183,8 @@ compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
     const auto& defaultChildren = ::neug::ListValue::GetChildren(value);
     children.reserve(defaultChildren.size());
     for (const auto& child : defaultChildren) {
-      children.push_back(
-          std::make_unique<compiler_impl::Value>(
-              convertToCompilerValue(child, childType)));
+      children.push_back(std::make_unique<compiler_impl::Value>(
+          convertToCompilerValue(child, childType)));
     }
     return compiler_impl::Value(type.copy(), std::move(children));
   }
