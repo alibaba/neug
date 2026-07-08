@@ -40,26 +40,27 @@ namespace storage {
 
 // Statistics access interface used by the compiler layer. It reads
 // cardinalities directly from a PropertyGraph when estimating table sizes.
-class StatsManager {
+class GraphStats {
  public:
-  StatsManager() = default;
-  explicit StatsManager(const PropertyGraph& graph) : graph_(&graph) {}
+  GraphStats() = default;
+  explicit GraphStats(const PropertyGraph& graph) : graph_(&graph) {}
 
   void UpdateGraph(const PropertyGraph& graph) { graph_ = &graph; }
+  const Schema& schema() const { return graph_->schema(); }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
 
   uint64_t getTable(uint64_t tableID) const;
   uint64_t getTable(uint64_t tableID, TableType tableType) const;
-  uint64_t getTable(catalog::SchemaEntry* tableEntry) const;
+  uint64_t getTable(SchemaEntry* tableEntry) const;
   uint64_t getTableCardinality(uint64_t tableID) const {
     return getTable(tableID);
   }
   uint64_t getTableCardinality(uint64_t tableID, TableType tableType) const {
     return getTable(tableID, tableType);
   }
-  uint64_t getTableCardinality(catalog::SchemaEntry* tableEntry) const {
+  uint64_t getTableCardinality(SchemaEntry* tableEntry) const {
     return getTable(tableEntry);
   }
 

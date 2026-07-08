@@ -126,8 +126,7 @@ uint32_t GetPropertyID(const std::vector<PropertyDefinition>& properties,
 }
 }  // namespace
 
-uint32_t catalog::SchemaEntry::getColumnID(
-    const std::string& propertyName) const {
+uint32_t SchemaEntry::getColumnID(const std::string& propertyName) const {
   return getPropertyID(propertyName);
 }
 

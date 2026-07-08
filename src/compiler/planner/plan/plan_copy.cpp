@@ -63,7 +63,7 @@ std::unique_ptr<LogicalPlan> Planner::planCopyFrom(
   auto& copyFrom = statement.constCast<BoundCopyFrom>();
   auto outExprs = statement.getStatementResult()->getColumns();
   auto copyFromInfo = copyFrom.getInfo();
-  auto tableType = copyFromInfo->tableEntry->getTableType();
+  auto tableType = copyFromInfo->tableEntry->getEntryType();
   switch (tableType) {
   case TableType::NODE: {
     return planCopyNodeFrom(copyFromInfo, outExprs);

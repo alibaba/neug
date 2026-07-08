@@ -26,6 +26,7 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/property/types.h"
@@ -197,7 +198,9 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  const PropertyGraph& graph() const { return *guard_.get().mutable_graph(); }
+  storage::GraphStats statistic() const {
+    return storage::GraphStats(*guard_.get().mutable_graph());
+  }
 
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
 

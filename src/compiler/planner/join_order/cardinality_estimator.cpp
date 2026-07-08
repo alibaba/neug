@@ -11,7 +11,7 @@
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
-#include "neug/storages/graph/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 
 using namespace neug::binder;
 using namespace neug::common;
@@ -46,8 +46,8 @@ void CardinalityEstimator::addNodeIDDomAndStats(
   auto key = nodeID.getUniqueName();
   cardinality_t numNodes = 0u;
   for (auto tableID : tableIDs) {
-    auto tableCard = context->getStatsManager()->getTableCardinality(
-        tableID, TableType::NODE);
+    auto tableCard =
+        context->getGraphStats()->getTableCardinality(tableID, TableType::NODE);
     numNodes += tableCard;
     if (!nodeTableStats.contains(tableID)) {
       std::vector<common::DataType> types;
@@ -248,8 +248,8 @@ uint64_t CardinalityEstimator::getNumRels(
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
-    numRels += context->getStatsManager()->getTableCardinality(tableID,
-                                                               TableType::REL);
+    numRels +=
+        context->getGraphStats()->getTableCardinality(tableID, TableType::REL);
   }
   return atLeastOne(numRels);
 }

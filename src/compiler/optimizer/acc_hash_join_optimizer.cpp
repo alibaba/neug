@@ -49,11 +49,10 @@ static std::shared_ptr<LogicalOperator> appendAccumulate(
   return accumulate;
 }
 
-static table_id_vector_t getTableIDs(
-    const std::vector<catalog::SchemaEntry*>& entries) {
+static table_id_vector_t getTableIDs(const std::vector<SchemaEntry*>& entries) {
   table_id_vector_t result;
   for (auto& entry : entries) {
-    result.push_back(entry->getTableID());
+    result.push_back(entry->getEntryID());
   }
   return result;
 }

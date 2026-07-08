@@ -45,19 +45,17 @@ namespace neug {
 class PropertyGraph;
 class Schema;
 
-namespace catalog {
-
 // Compatibility interface used by the compiler layer to access graph schema
 // metadata with minimal changes to compiler-side catalog calls.
 class SchemaEntry {
  public:
   virtual ~SchemaEntry() = default;
 
-  virtual uint64_t getTableID() const = 0;
+  virtual uint64_t getEntryID() const = 0;
 
   virtual bool isParent(uint64_t /*tableID*/) const { return false; };
 
-  virtual TableType getTableType() const = 0;
+  virtual TableType getEntryType() const = 0;
 
   virtual uint32_t getMaxColumnID() const = 0;
 
@@ -80,8 +78,6 @@ class SchemaEntry {
 
   virtual std::string getLabel() const = 0;
 };
-}  // namespace catalog
-
 class LabelIndexer {
  public:
   bool add(const std::string& name, label_t& lid);
@@ -131,7 +127,7 @@ class LabelIndexer {
  *
  * @since v0.1.0
  */
-struct VertexSchema : public catalog::SchemaEntry {
+struct VertexSchema : public SchemaEntry {
   VertexSchema() = default;
 
   /**
@@ -212,8 +208,8 @@ struct VertexSchema : public catalog::SchemaEntry {
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
-  uint64_t getTableID() const override { return label_id; }
-  TableType getTableType() const override { return TableType::NODE; }
+  uint64_t getEntryID() const override { return label_id; }
+  TableType getEntryType() const override { return TableType::NODE; }
   uint32_t getMaxColumnID() const override;
   std::vector<PropertyDefinition> getProperties() const override;
   uint32_t getNumProperties() const override;
@@ -281,7 +277,7 @@ struct VertexSchema : public catalog::SchemaEntry {
  *
  * @since v0.1.0
  */
-struct EdgeSchema : public catalog::SchemaEntry {
+struct EdgeSchema : public SchemaEntry {
   EdgeSchema() = default;
 
   /**
@@ -362,11 +358,11 @@ struct EdgeSchema : public catalog::SchemaEntry {
     return default_property_values;
   }
 
-  uint64_t getTableID() const override { return table_id; }
+  uint64_t getEntryID() const override { return table_id; }
   bool isParent(uint64_t tableID) const override {
     return src_label_id == tableID || dst_label_id == tableID;
   }
-  TableType getTableType() const override { return TableType::REL; }
+  TableType getEntryType() const override { return TableType::REL; }
   uint32_t getMaxColumnID() const override;
   std::vector<PropertyDefinition> getProperties() const override;
   uint32_t getNumProperties() const override;

@@ -32,7 +32,7 @@ namespace binder {
 
 NodeExpression::~NodeExpression() = default;
 
-void NodeExpression::setEntries(std::vector<catalog::SchemaEntry*> entries_) {
+void NodeExpression::setEntries(std::vector<SchemaEntry*> entries_) {
   entries = std::move(entries_);
   auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
   auto nodeTypeInfo = dynamic_cast<common::GNodeTypeInfo*>(extraTypeInfo);

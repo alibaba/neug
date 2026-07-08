@@ -135,17 +135,17 @@ bool ExpandGetVFusion::hasLabelFiltering(const gopt::GNodeType& getVType,
   for (auto& edge : transformType.relTables) {
     for (auto& node : sourceType.nodeTables) {
       if (direction != common::ExtendDirection::BWD &&
-          node->getTableID() == edge->getSrcTableID()) {
+          node->getEntryID() == edge->getSrcTableID()) {
         targetLabels.push_back(edge->getDstTableID());
       } else if (direction != common::ExtendDirection::FWD &&
-                 node->getTableID() == edge->getDstTableID()) {
+                 node->getEntryID() == edge->getDstTableID()) {
         targetLabels.push_back(edge->getSrcTableID());
       }
     }
   }
   std::vector<common::table_id_t> getVLabels;
   for (auto& node : getVType.nodeTables) {
-    getVLabels.push_back(node->getTableID());
+    getVLabels.push_back(node->getEntryID());
   }
   for (auto& targetLabel : targetLabels) {
     if (std::find(getVLabels.begin(), getVLabels.end(), targetLabel) ==

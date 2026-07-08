@@ -62,7 +62,7 @@ class VirtualFileSystem;
 namespace storage {
 class MemoryManager;
 class BufferManager;
-class StatsManager;
+class GraphStats;
 class WAL;
 enum class WALReplayMode : uint8_t;
 }  // namespace storage

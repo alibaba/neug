@@ -36,7 +36,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/schema.h"
 #include "neug/compiler/processor/result/result_set.h"
-#include "neug/storages/graph/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 
 using namespace neug::catalog;
 using namespace neug::storage;
@@ -190,7 +190,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     ClientContext& context, const TableCatalogEntry* tableEntry,
     const std::vector<std::string>& propertyNames)
     : context{context},
-      numRows{context.getStatsManager()->getTableCardinality(
+      numRows{context.getGraphStats()->getTableCardinality(
           tableEntry->getTableID(), TableType::NODE)},
       numNodesScanned{0},
       currentOffset{0},

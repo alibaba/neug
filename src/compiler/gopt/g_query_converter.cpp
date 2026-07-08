@@ -1240,7 +1240,7 @@ void GQueryConvertor::convertGDSFunction(
   auto* sub = gdsPB->mutable_sub_graph();
   for (auto& info : gdsData.graphEntry.nodeInfos) {
     auto* v = sub->add_vertex_entries();
-    v->set_label_id(static_cast<int32_t>(info.entry->getTableID()));
+    v->set_label_id(static_cast<int32_t>(info.entry->getEntryID()));
     if (info.predicate != nullptr) {
       auto pred = exprConvertor->convert(*info.predicate, {});
       v->set_allocated_predicate(pred.release());
@@ -1426,7 +1426,7 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
     }
   }
 
-  switch (tableEntry->getTableType()) {
+  switch (tableEntry->getEntryType()) {
   case TableType::NODE: {
     convertBatchInsertVertex(info, columnExprs, columnIdMap, plan);
     break;
@@ -1438,7 +1438,7 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
   default: {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported table type for COPY FROM: " +
-        std::to_string(static_cast<int>(tableEntry->getTableType())));
+        std::to_string(static_cast<int>(tableEntry->getEntryType())));
   }
   }
 }
@@ -2176,7 +2176,7 @@ std::unique_ptr<::common::NameOrId> convertVertexType(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "cannot convert batch insert vertex without node table entry");
     }
-    labelPB->set_id(tableEntry->getTableID());
+    labelPB->set_id(tableEntry->getEntryID());
   }
   return labelPB;
 }

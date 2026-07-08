@@ -48,7 +48,7 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
-using schema_entry_set_t = std::unordered_set<catalog::SchemaEntry*>;
+using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 
 // A graph pattern contains node/rel and a set of key-value pairs associated
 // with the variable. We bind node/rel as query graph and key-value pairs as a
@@ -197,13 +197,13 @@ static std::unique_ptr<Expression> createPropertyExpression(
     }
     // Bind isPrimaryKey
     auto isPrimaryKey = false;
-    if (entry->getTableType() == TableType::NODE) {
+    if (entry->getEntryType() == TableType::NODE) {
       auto nodeEntry = dynamic_cast<const VertexSchema*>(entry);
       NEUG_ASSERT(nodeEntry != nullptr);
       isPrimaryKey = nodeEntry->getPrimaryKeyName() == propertyName;
     }
     auto info = SingleLabelPropertyInfo(exists, isPrimaryKey);
-    infos.insert({entry->getTableID(), std::move(info)});
+    infos.insert({entry->getEntryID(), std::move(info)});
   }
   // Validate property under the same name has the same type.
   NEUG_ASSERT(!dataTypes.empty());
@@ -777,7 +777,7 @@ static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
                        std::tie(rhsEdge->edge_label_id, rhsEdge->src_label_id,
                                 rhsEdge->dst_label_id, rhsEdge->table_id);
               }
-              return a->getTableID() < b->getTableID();
+              return a->getEntryID() < b->getEntryID();
             });
   return entries;
 }
@@ -795,7 +795,7 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
   } else {
     for (auto& name : tableNames) {
       auto entry = bindNodeTableEntry(name);
-      if (entry->getTableType() != TableType::NODE) {
+      if (entry->getEntryType() != TableType::NODE) {
         THROW_BINDER_EXCEPTION(stringFormat(
             "Cannot bind {} as a node pattern label.", entry->getLabel()));
       }
@@ -835,7 +835,7 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
       } else if (catalog->containsTable(transaction, name)) {
         auto entry =
             catalog->getTableCatalogEntry(transaction, name, useInternal);
-        if (entry->getTableType() != TableType::REL) {
+        if (entry->getEntryType() != TableType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
                            entry->getLabel()));

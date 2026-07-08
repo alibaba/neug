@@ -68,14 +68,13 @@ struct ParsedGraphEntry {
 };
 
 struct BoundGraphEntryTableInfo {
-  catalog::SchemaEntry* entry;
+  SchemaEntry* entry;
 
   std::shared_ptr<binder::Expression> nodeOrRel;
   std::shared_ptr<binder::Expression> predicate;
 
-  explicit BoundGraphEntryTableInfo(catalog::SchemaEntry* entry)
-      : entry{entry} {}
-  BoundGraphEntryTableInfo(catalog::SchemaEntry* entry,
+  explicit BoundGraphEntryTableInfo(SchemaEntry* entry) : entry{entry} {}
+  BoundGraphEntryTableInfo(SchemaEntry* entry,
                            std::shared_ptr<binder::Expression> nodeOrRel,
                            std::shared_ptr<binder::Expression> predicate)
       : entry{entry},
@@ -91,16 +90,16 @@ struct NEUG_API GraphEntry {
   std::vector<BoundGraphEntryTableInfo> relInfos;
 
   GraphEntry() = default;
-  GraphEntry(std::vector<catalog::SchemaEntry*> nodeEntries,
-             std::vector<catalog::SchemaEntry*> relEntries);
+  GraphEntry(std::vector<SchemaEntry*> nodeEntries,
+             std::vector<SchemaEntry*> relEntries);
   EXPLICIT_COPY_DEFAULT_MOVE(GraphEntry);
 
   bool isEmpty() const { return nodeInfos.empty() && relInfos.empty(); }
 
   std::vector<common::table_id_t> getNodeTableIDs() const;
   std::vector<common::table_id_t> getRelTableIDs() const;
-  std::vector<catalog::SchemaEntry*> getNodeEntries() const;
-  std::vector<catalog::SchemaEntry*> getRelEntries() const;
+  std::vector<SchemaEntry*> getNodeEntries() const;
+  std::vector<SchemaEntry*> getRelEntries() const;
 
   const BoundGraphEntryTableInfo& getRelInfo(common::table_id_t tableID) const;
 
@@ -182,13 +181,12 @@ class NEUG_API GDSFunction {
 
   static std::shared_ptr<binder::NodeExpression> bindNodeOutput(
       const function::TableFuncBindInput& bindInput,
-      const std::vector<catalog::SchemaEntry*>& nodeEntries,
-      const std::string& name,
+      const std::vector<SchemaEntry*>& nodeEntries, const std::string& name,
       const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);
 
   static std::shared_ptr<binder::Expression> bindRelOutput(
       const function::TableFuncBindInput& bindInput,
-      const std::vector<catalog::SchemaEntry*>& relEntries,
+      const std::vector<SchemaEntry*>& relEntries,
       std::shared_ptr<binder::NodeExpression> srcNode,
       std::shared_ptr<binder::NodeExpression> dstNode, const std::string& name,
       const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);

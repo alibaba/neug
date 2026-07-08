@@ -39,13 +39,13 @@ struct LocalRelTableScanState;
 
 class NEUG_API RelTable : public Table {
  public:
-  RelTable(EdgeSchema* relTableEntry, const StatsManager* storageManager)
+  RelTable(EdgeSchema* relTableEntry, const GraphStats* storageManager)
       : Table{relTableEntry, storageManager},
         fromNodeTableID{relTableEntry->getSrcTableID()},
         toNodeTableID{relTableEntry->getDstTableID()},
         nextRelOffset{0} {}
 
-  RelTable(EdgeSchema* relTableEntry, const StatsManager* storageManager,
+  RelTable(EdgeSchema* relTableEntry, const GraphStats* storageManager,
            MemoryManager* memoryManager, common::Deserializer* deSer = nullptr)
       : Table{relTableEntry, storageManager, memoryManager},
         fromNodeTableID{relTableEntry->getSrcTableID()},

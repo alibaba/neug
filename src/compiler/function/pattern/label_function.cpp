@@ -66,7 +66,7 @@ static void execFunction(
 }
 
 static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
-    main::ClientContext* context, std::vector<catalog::SchemaEntry*> entries,
+    main::ClientContext* context, std::vector<SchemaEntry*> entries,
     binder::ExpressionBinder* expressionBinder) {
   std::unordered_map<table_id_t, std::string> map;
   table_id_t maxTableID = 0;
@@ -75,9 +75,9 @@ static std::shared_ptr<binder::Expression> getLabelsAsLiteral(
     if (auto relEntry = dynamic_cast<EdgeSchema*>(entry)) {
       label = relEntry->getEdgeLabelName();
     }
-    map.insert({entry->getTableID(), label});
-    if (entry->getTableID() > maxTableID) {
-      maxTableID = entry->getTableID();
+    map.insert({entry->getEntryID(), label});
+    if (entry->getEntryID() > maxTableID) {
+      maxTableID = entry->getEntryID();
     }
   }
   std::vector<std::unique_ptr<compiler_impl::Value>> labels;

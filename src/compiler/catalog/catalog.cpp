@@ -92,7 +92,7 @@ bool Catalog::containsTable(const Transaction* transaction,
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
     if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->getTableID()) &&
+        schema->is_vertex_label_valid(entry->getEntryID()) &&
         nameEquals(entry->label_name, tableName)) {
       return true;
     }
@@ -120,7 +120,7 @@ bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
     return true;
   }
   for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-    if (edgeSchema->getTableID() == tableID ||
+    if (edgeSchema->getEntryID() == tableID ||
         edgeSchema->getLabelId() == tableID) {
       return true;
     }
@@ -137,7 +137,7 @@ const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
   if (schema != nullptr) {
     const EdgeSchema* labelMatch = nullptr;
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-      if (edgeSchema->getTableID() == tableID) {
+      if (edgeSchema->getEntryID() == tableID) {
         return edgeSchema.get();
       }
       if (edgeSchema->getLabelId() == tableID) {
@@ -164,7 +164,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
     VertexSchema* vertexResult = nullptr;
     for (auto& entry : schema->get_all_vertex_schemas()) {
       if (entry == nullptr ||
-          !schema->is_vertex_label_valid(entry->getTableID()) ||
+          !schema->is_vertex_label_valid(entry->getEntryID()) ||
           !nameEquals(entry->label_name, tableName)) {
         continue;
       }
@@ -211,7 +211,7 @@ std::vector<VertexSchema*> Catalog::getNodeTableEntries(
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
     if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->getTableID())) {
+        schema->is_vertex_label_valid(entry->getEntryID())) {
       result.push_back(entry.get());
     }
   }

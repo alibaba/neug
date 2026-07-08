@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 #include "neug/compiler/main/option_config.h"
-#include "neug/storages/graph/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 
 namespace neug {
 namespace gopt {
@@ -31,7 +31,7 @@ class MetaDataTest : public GOptTest {
     auto catalog = ctx->getCatalog();
     auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
-    return ctx->getStatsManager()->getTableCardinality(tableEntry);
+    return ctx->getGraphStats()->getTableCardinality(tableEntry);
   }
 };
 
@@ -73,11 +73,11 @@ TEST_F(MetaDataTest, GStorageManager) {
   auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
   ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
   auto schema = std::move(schemaResult).value();
-  storage::StatsManager stats;
+  storage::GraphStats stats;
   database = database->clone(&schema, stats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   auto& catalog = *ctx->getCatalog();
-  auto storageManager = ctx->getStatsManager();
+  auto storageManager = ctx->getGraphStats();
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   ASSERT_EQ(storageManager->getTableCardinality(entry), 1);
@@ -104,8 +104,8 @@ TEST_F(MetaDataTest, CheckStats) {
   auto beforeSchemaResult = Schema::LoadFromYamlNode(YAML::Load(beforeSchema));
   ASSERT_TRUE(beforeSchemaResult) << beforeSchemaResult.error().ToString();
   auto beforeSchemaObj = std::move(beforeSchemaResult).value();
-  storage::StatsManager beforeStatsManager;
-  database = database->clone(&beforeSchemaObj, beforeStatsManager);
+  storage::GraphStats beforeGraphStats;
+  database = database->clone(&beforeSchemaObj, beforeGraphStats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
   ASSERT_EQ(getTableCard(ctx.get(), "software"), 1);
@@ -116,7 +116,7 @@ TEST_F(MetaDataTest, CheckStats) {
   auto afterSchemaResult = Schema::LoadFromYamlNode(YAML::Load(afterSchema));
   ASSERT_TRUE(afterSchemaResult) << afterSchemaResult.error().ToString();
   auto afterSchemaObj = std::move(afterSchemaResult).value();
-  database = database->clone(&afterSchemaObj, beforeStatsManager);
+  database = database->clone(&afterSchemaObj, beforeGraphStats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   // person is not updated
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
@@ -129,8 +129,8 @@ TEST_F(MetaDataTest, CheckStats) {
   ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 1);
 
   // check the statistics after schema and stats are updated
-  storage::StatsManager afterStatsManager;
-  database = database->clone(&afterSchemaObj, afterStatsManager);
+  storage::GraphStats afterGraphStats;
+  database = database->clone(&afterSchemaObj, afterGraphStats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
   ASSERT_EQ(getTableCard(ctx.get(), "person_v2"), 1);

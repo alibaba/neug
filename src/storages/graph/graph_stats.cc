@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/storages/graph/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 
 #include <rapidjson/document.h>
 
@@ -30,8 +30,8 @@ uint64_t atLeastOne(uint64_t cardinality) {
 }  // namespace
 
 #ifdef NEUG_BUILD_TEST
-void StatsManager::LoadFromJson(const Schema& schema,
-                                const std::string& stats_json) {
+void GraphStats::LoadFromJson(const Schema& schema,
+                              const std::string& stats_json) {
   table_cardinalities_.clear();
   if (stats_json.empty()) {
     return;
@@ -57,7 +57,7 @@ void StatsManager::LoadFromJson(const Schema& schema,
             schema.get_vertex_label_id(vertex_stat["type_name"].GetString());
         auto vertex_schema = schema.get_vertex_schema(label_id);
         if (vertex_schema) {
-          table_cardinalities_[vertex_schema->getTableID()] =
+          table_cardinalities_[vertex_schema->getEntryID()] =
               vertex_stat["count"].GetUint64();
         }
       } catch (const std::exception&) { continue; }
@@ -95,7 +95,7 @@ void StatsManager::LoadFromJson(const Schema& schema,
           auto edge_schema =
               schema.get_edge_schema(src_label, dst_label, edge_label);
           if (edge_schema) {
-            table_cardinalities_[edge_schema->getTableID()] =
+            table_cardinalities_[edge_schema->getEntryID()] =
                 pair_stat["count"].GetUint64();
           }
         } catch (const std::exception&) { continue; }
@@ -105,7 +105,7 @@ void StatsManager::LoadFromJson(const Schema& schema,
 }
 #endif
 
-uint64_t StatsManager::getTable(uint64_t tableID) const {
+uint64_t GraphStats::getTable(uint64_t tableID) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -121,7 +121,7 @@ uint64_t StatsManager::getTable(uint64_t tableID) const {
   return getTable(tableID, TableType::REL);
 }
 
-uint64_t StatsManager::getTable(uint64_t tableID, TableType tableType) const {
+uint64_t GraphStats::getTable(uint64_t tableID, TableType tableType) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -147,7 +147,7 @@ uint64_t StatsManager::getTable(uint64_t tableID, TableType tableType) const {
         }
         auto edgeSchema =
             graph_->schema().get_edge_schema(src_label, dst_label, edge_label);
-        if (edgeSchema && edgeSchema->getTableID() == tableID) {
+        if (edgeSchema && edgeSchema->getEntryID() == tableID) {
           return atLeastOne(graph_->EdgeNum(src_label, edge_label, dst_label));
         }
       }
@@ -156,12 +156,12 @@ uint64_t StatsManager::getTable(uint64_t tableID, TableType tableType) const {
   return 1;
 }
 
-uint64_t StatsManager::getTable(catalog::SchemaEntry* tableEntry) const {
+uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
   if (tableEntry == nullptr) {
     return 1;
   }
 #ifdef NEUG_BUILD_TEST
-  if (auto it = table_cardinalities_.find(tableEntry->getTableID());
+  if (auto it = table_cardinalities_.find(tableEntry->getEntryID());
       it != table_cardinalities_.end()) {
     return atLeastOne(it->second);
   }
@@ -169,8 +169,8 @@ uint64_t StatsManager::getTable(catalog::SchemaEntry* tableEntry) const {
   if (graph_ == nullptr) {
     return 1;
   }
-  if (tableEntry->getTableType() == TableType::NODE) {
-    return getTable(tableEntry->getTableID(), TableType::NODE);
+  if (tableEntry->getEntryType() == TableType::NODE) {
+    return getTable(tableEntry->getEntryID(), TableType::NODE);
   }
 
   auto* edgeSchema = dynamic_cast<EdgeSchema*>(tableEntry);

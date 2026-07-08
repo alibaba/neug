@@ -66,9 +66,9 @@ struct GNodeType {
     labelIds.reserve(nodeTables.size());
     for (const auto& nodeTable : nodeTables) {
       if (std::find(labelIds.begin(), labelIds.end(),
-                    nodeTable->getTableID()) == labelIds.end()) {
+                    nodeTable->getEntryID()) == labelIds.end()) {
         labelIds.emplace_back(
-            nodeTable->getTableID());  // avoid duplicate label ids
+            nodeTable->getEntryID());  // avoid duplicate label ids
       }
     }
     return labelIds;
@@ -97,7 +97,7 @@ struct GNodeType {
     YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
     for (auto& nodeTable : nodeTables) {
       YAML::Node label;
-      label["id"] = nodeTable->getTableID();
+      label["id"] = nodeTable->getEntryID();
       label["name"] = nodeTable->label_name;
       YAML::Node labelNode;
       labelNode["label"] = label;
@@ -182,17 +182,17 @@ struct GRelType {
       label["name"] = relTable->getEdgeLabelName();
       auto srcEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getSrcTableID());
-      if (srcEntry->getTableType() != TableType::NODE) {
+      if (srcEntry->getEntryType() != TableType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("src table is not a node table");
       }
       auto dstEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getDstTableID());
-      if (dstEntry->getTableType() != TableType::NODE) {
+      if (dstEntry->getEntryType() != TableType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("dst table is not a node table");
       }
-      label["src_id"] = srcEntry->getTableID();
+      label["src_id"] = srcEntry->getEntryID();
       label["src_name"] = srcEntry->getLabel();
-      label["dst_id"] = dstEntry->getTableID();
+      label["dst_id"] = dstEntry->getEntryID();
       label["dst_name"] = dstEntry->getLabel();
       YAML::Node labelNode;
       labelNode["label"] = label;

@@ -35,17 +35,16 @@ class MemoryManager;
 class Table;
 
 class LocalTable;
-class StatsManager;
+class GraphStats;
 class NEUG_API Table {
  public:
-  Table(const catalog::SchemaEntry* tableEntry,
-        const StatsManager* storageManager)
-      : tableType{tableEntry->getTableType()},
-        tableID{tableEntry->getTableID()},
-        tableName{const_cast<catalog::SchemaEntry*>(tableEntry)->getLabel()} {}
+  Table(const SchemaEntry* tableEntry, const GraphStats* storageManager)
+      : tableType{tableEntry->getEntryType()},
+        tableID{tableEntry->getEntryID()},
+        tableName{const_cast<SchemaEntry*>(tableEntry)->getLabel()} {}
 
-  Table(const catalog::SchemaEntry* tableEntry,
-        const StatsManager* storageManager, MemoryManager* memoryManager);
+  Table(const SchemaEntry* tableEntry, const GraphStats* storageManager,
+        MemoryManager* memoryManager);
   virtual ~Table() = default;
 
   TableType getTableType() const { return tableType; }

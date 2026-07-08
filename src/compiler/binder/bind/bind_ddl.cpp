@@ -235,7 +235,7 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
 }
 
 void Binder::validateNodeTableType(SchemaEntry* entry) {
-  if (entry->getTableType() != TableType::NODE) {
+  if (entry->getEntryType() != TableType::NODE) {
     THROW_BINDER_EXCEPTION(
         stringFormat("{} is not of type NODE.", entry->getLabel()));
   }
@@ -295,7 +295,7 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
   auto storageDirection = getStorageDirection(boundOptions);
   auto boundExtraInfo = std::make_unique<BoundExtraCreateRelTableInfo>(
       srcMultiplicity, dstMultiplicity, storageDirection,
-      srcEntry->getTableID(), dstEntry->getTableID(),
+      srcEntry->getEntryID(), dstEntry->getEntryID(),
       std::move(propertyDefinitions));
   boundExtraInfo->options = std::move(boundOptions);
   return BoundCreateTableInfo(

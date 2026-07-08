@@ -127,7 +127,7 @@ void PropertyCollector::visitDelete(const BoundUpdatingClause& updatingClause) {
   for (const auto& info : boundDeleteClause.getNodeInfos()) {
     auto& node = info.pattern->constCast<NodeExpression>();
     for (const auto entry : node.getEntries()) {
-      auto pk = node.getPrimaryKey(entry->getTableID());
+      auto pk = node.getPrimaryKey(entry->getEntryID());
       if (!containsExpr(properties, *pk)) {
         properties.push_back(std::move(pk));
       }

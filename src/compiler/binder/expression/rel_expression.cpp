@@ -66,7 +66,7 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
   for (const auto direction : {ExtendDirection::FWD, ExtendDirection::BWD}) {
     const bool addDirection =
         std::all_of(entries.begin(), entries.end(),
-                    [direction](const catalog::SchemaEntry* tableEntry) {
+                    [direction](const SchemaEntry* tableEntry) {
                       const auto* relTableEntry =
                           dynamic_cast<const EdgeSchema*>(tableEntry);
                       NEUG_ASSERT(relTableEntry != nullptr);
@@ -94,7 +94,7 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
   return ret;
 }
 
-void RelExpression::setEntries(std::vector<catalog::SchemaEntry*> entries_) {
+void RelExpression::setEntries(std::vector<SchemaEntry*> entries_) {
   entries = std::move(entries_);
   auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
   auto relTypeInfo = dynamic_cast<common::GRelTypeInfo*>(extraTypeInfo);

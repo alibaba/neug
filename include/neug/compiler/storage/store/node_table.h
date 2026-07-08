@@ -46,15 +46,15 @@ class Transaction;
 namespace storage {
 class NodeTable;
 
-class StatsManager;
+class GraphStats;
 
 class NEUG_API NodeTable : public Table {
  public:
   NodeTable() = delete;
-  NodeTable(const StatsManager* storageManager,
+  NodeTable(const GraphStats* storageManager,
             const VertexSchema* nodeTableEntry)
       : Table(nodeTableEntry, storageManager) {}
-  NodeTable(const StatsManager* storageManager,
+  NodeTable(const GraphStats* storageManager,
             const VertexSchema* nodeTableEntry, MemoryManager* memoryManager,
             common::VirtualFileSystem* vfs, main::ClientContext* context,
             common::Deserializer* deSer = nullptr)

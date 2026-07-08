@@ -52,7 +52,7 @@ struct ExtraBoundCopyFromInfo {
 // for parsed CREATE TABLE).
 struct NEUG_API DDLTableInfo {
   virtual ~DDLTableInfo() = default;
-  virtual catalog::SchemaEntry* getTableEntry() const = 0;
+  virtual SchemaEntry* getTableEntry() const = 0;
   virtual binder::BoundCreateTableInfo getCreateInfo() const = 0;
 };
 
@@ -66,7 +66,7 @@ struct NEUG_API DDLVertexInfo : public DDLTableInfo {
   // return vertex label name
   std::string getVertexLabelName();
 
-  catalog::SchemaEntry* getTableEntry() const override;
+  SchemaEntry* getTableEntry() const override;
   binder::BoundCreateTableInfo getCreateInfo() const override;
 
  private:
@@ -85,7 +85,7 @@ struct NEUG_API DDLEdgeInfo : public DDLTableInfo {
   std::string getSrcLabelName();
   std::string getDstLabelName();
 
-  catalog::SchemaEntry* getTableEntry() const override;
+  SchemaEntry* getTableEntry() const override;
   binder::BoundCreateTableInfo getCreateInfo() const override;
 
  private:
@@ -98,7 +98,7 @@ struct NEUG_API DDLEdgeInfo : public DDLTableInfo {
 
 struct NEUG_API BoundCopyFromInfo {
   // Table entry to copy into.
-  catalog::SchemaEntry* tableEntry;
+  SchemaEntry* tableEntry;
   // Data source.
   std::unique_ptr<BoundBaseScanSource> source;
   // Row offset.
@@ -109,7 +109,7 @@ struct NEUG_API BoundCopyFromInfo {
   // extra table info to create vertex or edge type from inferred results
   std::shared_ptr<DDLTableInfo> ddlTableInfo;
 
-  BoundCopyFromInfo(catalog::SchemaEntry* tableEntry,
+  BoundCopyFromInfo(SchemaEntry* tableEntry,
                     std::unique_ptr<BoundBaseScanSource> source,
                     std::shared_ptr<Expression> offset,
                     expression_vector columnExprs,

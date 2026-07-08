@@ -34,8 +34,7 @@ namespace binder {
 class NEUG_API NodeExpression final : public NodeOrRelExpression {
  public:
   NodeExpression(common::DataType dataType, std::string uniqueName,
-                 std::string variableName,
-                 std::vector<catalog::SchemaEntry*> entries)
+                 std::string variableName, std::vector<SchemaEntry*> entries)
       : NodeOrRelExpression{std::move(dataType), std::move(uniqueName),
                             std::move(variableName), std::move(entries)} {}
 
@@ -66,7 +65,7 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
     }
   }
 
-  void setEntries(std::vector<catalog::SchemaEntry*> entries_) override;
+  void setEntries(std::vector<SchemaEntry*> entries_) override;
 
   // Get primary key property expression for a given table ID.
   std::shared_ptr<Expression> getPrimaryKey(common::table_id_t tableID) const;

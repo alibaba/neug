@@ -106,9 +106,7 @@ std::string DDLVertexInfo::getVertexLabelName() {
   return nodeTableEntry->getName();
 }
 
-catalog::SchemaEntry* DDLVertexInfo::getTableEntry() const {
-  return schemaEntry.get();
-}
+SchemaEntry* DDLVertexInfo::getTableEntry() const { return schemaEntry.get(); }
 
 BoundCreateTableInfo DDLVertexInfo::getCreateInfo() const {
   return createTableInfo.copy();
@@ -177,9 +175,7 @@ std::string DDLEdgeInfo::getSrcLabelName() { return srcLabelName_; }
 
 std::string DDLEdgeInfo::getDstLabelName() { return dstLabelName_; }
 
-catalog::SchemaEntry* DDLEdgeInfo::getTableEntry() const {
-  return schemaEntry.get();
-}
+SchemaEntry* DDLEdgeInfo::getTableEntry() const { return schemaEntry.get(); }
 
 BoundCreateTableInfo DDLEdgeInfo::getCreateInfo() const {
   return createTableInfo.copy();
@@ -268,7 +264,7 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
         stringFormat("REL GROUP {} does not exist.", tableName));
   } else if (catalog->containsTable(transaction, tableName)) {
     auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
-    switch (tableEntry->getTableType()) {
+    switch (tableEntry->getEntryType()) {
     case TableType::NODE: {
       auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
       NEUG_ASSERT(nodeTableEntry != nullptr);
@@ -479,8 +475,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
   expression_vector warningDataExprs;
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
-  auto srcTableID = srcNode->getTableID();
-  auto dstTableID = dstNode->getTableID();
+  auto srcTableID = srcNode->getEntryID();
+  auto dstTableID = dstNode->getEntryID();
 
   auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
                                   DataType(DataTypeId::kInt64));

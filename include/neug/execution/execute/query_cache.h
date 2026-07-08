@@ -19,7 +19,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/generated/proto/response/response.pb.h"
-#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/access_mode.h"
 
 namespace neug {
@@ -57,7 +57,7 @@ class GlobalQueryCache {
 
   uint64_t version() const { return version_.load(); }
 
-  result<std::shared_ptr<CacheValue>> Get(const PropertyGraph& graph,
+  result<std::shared_ptr<CacheValue>> Get(const storage::GraphStats& stats,
                                           const std::string& query) {
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
@@ -66,12 +66,11 @@ class GlobalQueryCache {
         return iter->second;
       }
     }
-    storage::StatsManager stats(graph);
-    GS_AUTO(plan_result, planner_->compilePlan(query, &graph.schema(), stats));
+    const auto& schema = stats.schema();
+    GS_AUTO(plan_result, planner_->compilePlan(query, &schema, stats));
     ContextMeta ctx_meta;
-    GS_AUTO(pipeline_result_pair,
-            PlanParser::get().parse_execute_pipeline(graph.schema(), ctx_meta,
-                                                     plan_result.first));
+    GS_AUTO(pipeline_result_pair, PlanParser::get().parse_execute_pipeline(
+                                      schema, ctx_meta, plan_result.first));
     auto pipeline_result = std::move(pipeline_result_pair.first);
 
     const auto& rt_names = parse_result_schema_column_names(plan_result.second);
@@ -120,7 +119,7 @@ class LocalQueryCache {
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
       : global_cache_(global_cache), version_(global_cache_->version()) {}
   ~LocalQueryCache() = default;
-  result<std::shared_ptr<CacheValue>> Get(const PropertyGraph& graph,
+  result<std::shared_ptr<CacheValue>> Get(const storage::GraphStats& stats,
                                           const std::string& query) {
     if (version_ != global_cache_->version()) {
       cache_.clear();
@@ -130,7 +129,7 @@ class LocalQueryCache {
     if (iter != cache_.end()) {
       return iter->second;
     }
-    GS_AUTO(cache_value_res, global_cache_->Get(graph, query));
+    GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
     cache_.emplace(query, cache_value_res);
     return cache_.at(query);
   }

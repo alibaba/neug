@@ -29,7 +29,7 @@ class GNodeTable : public NodeTable {
   common::row_idx_t numRows;
 
  public:
-  GNodeTable(const VertexSchema* tableEntry, StatsManager* storageManager,
+  GNodeTable(const VertexSchema* tableEntry, GraphStats* storageManager,
              MemoryManager* memoryManager, common::row_idx_t numRows)
       : NodeTable{storageManager, tableEntry}, numRows{numRows} {}
 

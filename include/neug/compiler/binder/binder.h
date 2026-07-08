@@ -352,13 +352,12 @@ class Binder {
       const std::shared_ptr<NodeExpression>& leftNode,
       const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph);
   std::shared_ptr<RelExpression> createNonRecursiveQueryRel(
-      const std::string& parsedName,
-      const std::vector<catalog::SchemaEntry*>& entries,
+      const std::string& parsedName, const std::vector<SchemaEntry*>& entries,
       std::shared_ptr<NodeExpression> srcNode,
       std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType);
   std::shared_ptr<RelExpression> createRecursiveQueryRel(
       const parser::RelPattern& relPattern,
-      const std::vector<catalog::SchemaEntry*>& entries,
+      const std::vector<SchemaEntry*>& entries,
       std::shared_ptr<NodeExpression> srcNode,
       std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType);
   expression_vector bindRecursivePatternNodeProjectionList(
@@ -376,15 +375,14 @@ class Binder {
   std::shared_ptr<NodeExpression> createQueryNode(
       const parser::NodePattern& nodePattern);
   NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
-      const std::string& parsedName,
-      const std::vector<catalog::SchemaEntry*>& entries);
+      const std::string& parsedName, const std::vector<SchemaEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
 
   /*** bind table entries ***/
-  std::vector<catalog::SchemaEntry*> bindNodeTableEntries(
+  std::vector<SchemaEntry*> bindNodeTableEntries(
       const std::vector<std::string>& tableNames) const;
-  catalog::SchemaEntry* bindNodeTableEntry(const std::string& name) const;
-  std::vector<catalog::SchemaEntry*> bindRelTableEntries(
+  SchemaEntry* bindNodeTableEntry(const std::string& name) const;
+  std::vector<SchemaEntry*> bindRelTableEntries(
       const std::vector<std::string>& tableNames) const;
 
   /*** validations ***/
@@ -394,8 +392,8 @@ class Binder {
 
   NEUG_API static void validateTableExistence(
       const main::ClientContext& context, const std::string& tableName);
-  NEUG_API static void validateNodeTableType(catalog::SchemaEntry* entry);
-  NEUG_API static void validateColumnExistence(catalog::SchemaEntry* entry,
+  NEUG_API static void validateNodeTableType(SchemaEntry* entry);
+  NEUG_API static void validateColumnExistence(SchemaEntry* entry,
                                                const std::string& columnName);
 
   void validateNoIndexOnProperty(const std::string& tableName,

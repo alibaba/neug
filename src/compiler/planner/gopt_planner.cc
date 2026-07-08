@@ -26,7 +26,7 @@ namespace neug {
 
 result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     const std::string& query, const Schema* schema,
-    const storage::StatsManager& stats) {
+    const storage::GraphStats& stats) {
   VLOG(1) << "[GOptPlanner] compilePlan called with query: " << query;
   // read access to the planner
 

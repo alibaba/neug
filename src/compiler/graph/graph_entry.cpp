@@ -67,7 +67,7 @@ GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
 std::vector<table_id_t> GraphEntry::getNodeTableIDs() const {
   std::vector<table_id_t> result;
   for (auto& info : nodeInfos) {
-    result.push_back(info.entry->getTableID());
+    result.push_back(info.entry->getEntryID());
   }
   return result;
 }
@@ -75,7 +75,7 @@ std::vector<table_id_t> GraphEntry::getNodeTableIDs() const {
 std::vector<table_id_t> GraphEntry::getRelTableIDs() const {
   std::vector<table_id_t> result;
   for (auto& info : relInfos) {
-    result.push_back(info.entry->getTableID());
+    result.push_back(info.entry->getEntryID());
   }
   return result;
 }
@@ -99,7 +99,7 @@ std::vector<SchemaEntry*> GraphEntry::getRelEntries() const {
 const BoundGraphEntryTableInfo& GraphEntry::getRelInfo(
     table_id_t tableID) const {
   for (auto& info : relInfos) {
-    if (info.entry->getTableID() == tableID) {
+    if (info.entry->getEntryID() == tableID) {
       return info;
     }
   }
@@ -145,7 +145,7 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
   auto catalog = context.getCatalog();
   auto transaction = context.getTransaction();
   auto nodeEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (nodeEntry->getTableType() != TableType::NODE) {
+  if (nodeEntry->getEntryType() != TableType::NODE) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
   auto nodeLabel = nodeEntry->getLabel();
@@ -177,7 +177,7 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
         RelGroupCatalogEntry::getChildTableName(edgeLabel, srcLabel, dstLabel);
   }
   auto* relEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (!relEntry || relEntry->getTableType() != TableType::REL) {
+  if (!relEntry || relEntry->getEntryType() != TableType::REL) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a REL table.", tableName));
   }
   auto relLabel = relEntry->getLabel();
@@ -208,7 +208,7 @@ std::shared_ptr<NodeExpression> GDSFunction::bindNodeOutput(
 
 std::shared_ptr<binder::Expression> GDSFunction::bindRelOutput(
     const function::TableFuncBindInput& bindInput,
-    const std::vector<catalog::SchemaEntry*>& relEntries,
+    const std::vector<SchemaEntry*>& relEntries,
     std::shared_ptr<NodeExpression> srcNode,
     std::shared_ptr<NodeExpression> dstNode, const std::string& name,
     const std::optional<uint64_t>& yieldVariableIdx) {
@@ -236,7 +236,7 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
 static void validateRelSrcDstNodeAreProjected(
     SchemaEntry& entry, const table_id_set_t& projectedNodeIDSet,
     Catalog* catalog, transaction::Transaction* transaction) {
-  if (entry.getTableType() != TableType::REL) {
+  if (entry.getEntryType() != TableType::REL) {
     THROW_BINDER_EXCEPTION(
         stringFormat("{} is not a rel table entry.", entry.getLabel()));
   }
@@ -309,7 +309,7 @@ GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);
       renameVar.visit(boundInfo.predicate);
     }
-    projectedNodeTableIDSet.insert(boundInfo.entry->getTableID());
+    projectedNodeTableIDSet.insert(boundInfo.entry->getEntryID());
     result.nodeInfos.push_back(std::move(boundInfo));
   }
   for (auto& relInfo : entry.relInfos) {

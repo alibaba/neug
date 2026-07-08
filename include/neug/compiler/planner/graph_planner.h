@@ -19,8 +19,8 @@
 #include <vector>
 
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/graph/stats_manager.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -45,7 +45,7 @@ class IGraphPlanner {
    */
   virtual result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
       const std::string& query, const Schema* schema,
-      const storage::StatsManager& stats) = 0;
+      const storage::GraphStats& stats) = 0;
 
   // Attempts to infer the execution access mode from the given query.
   // The current implementation relies on static analysis of the query string

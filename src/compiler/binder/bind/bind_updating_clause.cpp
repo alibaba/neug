@@ -237,11 +237,11 @@ void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
                            " with multiple node labels is not supported.");
   }
   auto entry = node->getSingleEntry();
-  NEUG_ASSERT(entry->getTableType() == TableType::NODE);
+  NEUG_ASSERT(entry->getEntryType() == TableType::NODE);
   auto insertInfo = BoundInsertInfo(TableType::NODE, node);
   for (auto& expr : node->getPropertyExprs()) {
     auto propertyExpr = expr->constPtrCast<PropertyExpression>();
-    if (propertyExpr->hasProperty(entry->getTableID())) {
+    if (propertyExpr->hasProperty(entry->getEntryID())) {
       insertInfo.columnExprs.push_back(expr);
     }
   }
@@ -258,7 +258,7 @@ static SchemaEntry* tryPruneMultiLabeled(const RelExpression& rel,
                                          table_id_t dstTableID) {
   std::vector<SchemaEntry*> candidates;
   for (auto& entry : rel.getEntries()) {
-    NEUG_ASSERT(entry->getTableType() == TableType::REL);
+    NEUG_ASSERT(entry->getEntryType() == TableType::REL);
     auto* relEntry = dynamic_cast<EdgeSchema*>(entry);
     NEUG_ASSERT(relEntry != nullptr);
     if (relEntry->getSrcTableID() == srcTableID &&
@@ -294,8 +294,8 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
   if (!rel->isMultiLabeled()) {
     entry = rel->getSingleEntry();
   } else {
-    auto srcTableID = rel->getSrcNode()->getSingleEntry()->getTableID();
-    auto dstTableID = rel->getDstNode()->getSingleEntry()->getTableID();
+    auto srcTableID = rel->getSrcNode()->getSingleEntry()->getEntryID();
+    auto dstTableID = rel->getDstNode()->getSingleEntry()->getEntryID();
     entry = tryPruneMultiLabeled(*rel, srcTableID, dstTableID);
     // LCOV_EXCL_START
     if (entry == nullptr) {
@@ -366,7 +366,7 @@ BoundSetPropertyInfo Binder::bindSetPropertyInfo(
                                      boundColumnData);
     auto& property = boundSetItem.first->constCast<PropertyExpression>();
     for (auto entry : nodeOrRel.getEntries()) {
-      if (property.isPrimaryKey(entry->getTableID())) {
+      if (property.isPrimaryKey(entry->getEntryID())) {
         info.updatePk = true;
       }
     }

@@ -105,7 +105,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
     }
     std::vector<SchemaEntry*> prunedEntries;
     for (auto entry : node.getEntries()) {
-      if (!candidates.contains(entry->getTableID())) {
+      if (!candidates.contains(entry->getEntryID())) {
         continue;
       }
       prunedEntries.push_back(entry);
@@ -136,10 +136,10 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
     table_id_set_t srcBoundTableIDSet;
     table_id_set_t dstBoundTableIDSet;
     for (auto entry : rel.getSrcNode()->getEntries()) {
-      srcBoundTableIDSet.insert(entry->getTableID());
+      srcBoundTableIDSet.insert(entry->getEntryID());
     }
     for (auto entry : rel.getDstNode()->getEntries()) {
-      dstBoundTableIDSet.insert(entry->getTableID());
+      dstBoundTableIDSet.insert(entry->getEntryID());
     }
     for (auto& entry : rel.getEntries()) {
       auto* relEntry = getRelSchema(entry);
