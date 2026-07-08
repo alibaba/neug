@@ -47,6 +47,8 @@ class Schema;
 
 namespace catalog {
 
+// Compatibility interface used by the compiler layer to access graph schema
+// metadata with minimal changes to compiler-side catalog calls.
 class SchemaEntry {
  public:
   virtual ~SchemaEntry() = default;

@@ -20,6 +20,8 @@
 
 namespace neug {
 
+// Table category exposed to the compiler layer for distinguishing node,
+// relationship, and non-graph table metadata.
 enum class TableType : uint8_t {
   UNKNOWN = 0,
   NODE = 1,

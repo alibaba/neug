@@ -38,6 +38,8 @@ class CatalogEntry;
 
 namespace storage {
 
+// Statistics access interface used by the compiler layer. It reads
+// cardinalities directly from a PropertyGraph when estimating table sizes.
 class StatsManager {
  public:
   StatsManager() = default;
