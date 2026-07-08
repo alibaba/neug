@@ -16,7 +16,7 @@
 
 #include "leiden.h"
 
-#include "impl/leiden_impl.h"
+#include "impl/multi_label_leiden_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
 
@@ -33,28 +33,42 @@ struct LeidenInput : public function::CallFuncInputBase {
     if (!parse_subgraph_entries(subgraph, ctx_meta, parsed)) {
       return false;
     }
-    if (!check_simple_graph_subgraph(parsed, "leiden")) {
+    if (parsed.vertex_entries.empty()) {
+      LOG(ERROR) << "leiden requires at least one vertex label.";
       return false;
     }
-    if (parsed.vertex_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Vertex predicates are not supported in leiden.";
+    if (parsed.edge_entries.empty()) {
+      LOG(ERROR) << "leiden requires at least one edge label.";
       return false;
     }
-    if (parsed.edge_entries[0].predicate != nullptr) {
-      LOG(ERROR) << "Edge predicates are not supported in leiden.";
-      return false;
+    for (const auto& ve : parsed.vertex_entries) {
+      if (ve.predicate != nullptr) {
+        LOG(ERROR) << "Vertex predicates are not supported in leiden.";
+        return false;
+      }
     }
-    vertex_label = parsed.vertex_entries[0].label;
-    edge_label = parsed.edge_entries[0].triplet.edge_label;
+    for (const auto& ee : parsed.edge_entries) {
+      if (ee.predicate != nullptr) {
+        LOG(ERROR) << "Edge predicates are not supported in leiden.";
+        return false;
+      }
+    }
+    for (const auto& ve : parsed.vertex_entries) {
+      vertex_labels.push_back(ve.label);
+    }
+    for (const auto& ee : parsed.edge_entries) {
+      edge_triplets.push_back(ee.triplet);
+    }
     return true;
   }
 
-  label_t vertex_label;
-  label_t edge_label;
+  std::vector<label_t> vertex_labels;
+  std::vector<execution::LabelTriplet> edge_triplets;
   double resolution = 1.0;
   bool directed = false;
   double threshold = 1e-7;
   int32_t concurrency;
+  std::string initial_community_property;
   int32_t node_alias;
   int32_t community_alias;
 };
@@ -77,6 +91,8 @@ std::unique_ptr<function::CallFuncInputBase> LeidenFunction::bind(
   input->threshold = get_option_value<double>(options, "threshold", 1e-7);
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
+  input->initial_community_property = get_option_value<std::string>(
+      options, "initial_community_property", "");
 
   input->node_alias = -1;
   input->community_alias = -1;
@@ -99,9 +115,11 @@ execution::Context LeidenFunction::exec(
   const auto& input = dynamic_cast<const LeidenInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
-  community::Leiden leiden(graph, input.vertex_label, input.edge_label,
-                           input.resolution, input.threshold,
-                           input.concurrency);
+  // directed is accepted for interface compatibility but ignored (same as
+  // the original leiden implementation).
+  community::MultiLabelLeiden leiden(
+      graph, input.vertex_labels, input.edge_triplets, input.resolution,
+      input.threshold, input.concurrency, input.initial_community_property);
   leiden.compute();
 
   execution::Context ctx;

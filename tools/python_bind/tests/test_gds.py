@@ -1245,3 +1245,324 @@ def test_multi_label_louvain_incremental_with_writeback(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+def test_leiden_multi_edge_alias(tmp_path):
+    """leiden (now aliased to multi_label impl) runs on a multi-edge graph,
+    confirming the simple-graph restriction has been lifted."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "leiden must return results on a multi-edge graph"
+        communities = {row[1] for row in rows}
+        assert len(communities) >= 1, "should detect at least one community"
+
+
+def test_louvain_multi_edge_alias(tmp_path):
+    """louvain (now aliased to multi_label impl) runs on a multi-edge graph,
+    confirming the simple-graph restriction has been lifted."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "louvain must return results on a multi-edge graph"
+        communities = {row[1] for row in rows}
+        assert len(communities) >= 1, "should detect at least one community"
+
+
+def test_leiden_incremental_alias(tmp_path):
+    """leiden alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_leiden_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        for node_id, comm in r1_map.items():
+            conn.execute(
+                f"MATCH (n:person) WHERE n.id = {node_id} SET n.leiden_comm = {comm};"
+            )
+        conn.execute("CALL drop_projected_graph('g_leiden_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias',
+                    {concurrency: 1, initial_community_property: 'leiden_comm'})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental leiden alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_alias(tmp_path):
+    """louvain alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_louvain_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        for node_id, comm in r1_map.items():
+            conn.execute(
+                f"MATCH (n:person) WHERE n.id = {node_id} SET n.louvain_comm = {comm};"
+            )
+        conn.execute("CALL drop_projected_graph('g_louvain_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias',
+                    {concurrency: 1, initial_community_property: 'louvain_comm'})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental louvain alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+
+def test_leiden_multi_edge_alias(tmp_path):
+    """leiden (now aliased to multi_label impl) runs on a multi-edge graph,
+    confirming the simple-graph restriction has been lifted."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "leiden must return results on a multi-edge graph"
+        communities = {row[1] for row in rows}
+        assert len(communities) >= 1, "should detect at least one community"
+
+
+def test_louvain_multi_edge_alias(tmp_path):
+    """louvain (now aliased to multi_label impl) runs on a multi-edge graph,
+    confirming the simple-graph restriction has been lifted."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "louvain must return results on a multi-edge graph"
+        communities = {row[1] for row in rows}
+        assert len(communities) >= 1, "should detect at least one community"
+
+
+def test_leiden_incremental_alias(tmp_path):
+    """leiden alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_leiden_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        for node_id, comm in r1_map.items():
+            conn.execute(
+                f"MATCH (n:person) WHERE n.id = {node_id} SET n.leiden_comm = {comm};"
+            )
+        conn.execute("CALL drop_projected_graph('g_leiden_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias',
+                    {concurrency: 1, initial_community_property: 'leiden_comm'})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental leiden alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_alias(tmp_path):
+    """louvain alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_louvain_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        for node_id, comm in r1_map.items():
+            conn.execute(
+                f"MATCH (n:person) WHERE n.id = {node_id} SET n.louvain_comm = {comm};"
+            )
+        conn.execute("CALL drop_projected_graph('g_louvain_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias',
+                    {concurrency: 1, initial_community_property: 'louvain_comm'})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental louvain alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
