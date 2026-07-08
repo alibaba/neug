@@ -19,8 +19,10 @@
 #include <stdint.h>
 #include <sys/statvfs.h>
 
+#include <fast_float.h>
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -28,6 +30,7 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <unordered_set>
 
@@ -130,94 +133,140 @@ std::vector<DataType> resolve_selected_column_types(
   return selected_column_types;
 }
 
-bool parse_timestamp_ms(const std::string& token, int64_t* out_ms) {
+bool parse_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
   return utils::parse_timestamp_ms(token.data(), token.size(), out_ms);
 }
 
-bool parse_epoch_timestamp_ms(const std::string& token, int64_t* out_ms) {
+bool parse_epoch_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
   return utils::parse_epoch_timestamp_ms(token.data(), token.size(), out_ms);
 }
 
-std::string canonicalize_bool_token(
-    const std::string& token,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values) {
-  if (token == "1" || token == "0") {
-    return token;
+bool contains_sv(const std::unordered_set<std::string>& set,
+                 std::string_view sv) {
+  for (const auto& v : set) {
+    if (v.size() == sv.size() &&
+        std::memcmp(v.data(), sv.data(), sv.size()) == 0) {
+      return true;
+    }
   }
-  if (true_values.contains(token)) {
-    return "true";
-  }
-  if (false_values.contains(token)) {
-    return "false";
-  }
+  return false;
+}
 
-  auto lowered = to_lower_copy(token);
-  if (lowered == "true" || lowered == "false") {
-    return lowered;
+bool parse_bool_value(std::string_view token,
+                      const std::unordered_set<std::string>& true_values,
+                      const std::unordered_set<std::string>& false_values) {
+  if (token == "1" || token == "true" || token == "True" || token == "TRUE") {
+    return true;
   }
-  THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + token);
+  if (token == "0" || token == "false" || token == "False" ||
+      token == "FALSE") {
+    return false;
+  }
+  if (contains_sv(true_values, token)) {
+    return true;
+  }
+  if (contains_sv(false_values, token)) {
+    return false;
+  }
+  auto matches_ci = [](std::string_view a, std::string_view b) {
+    if (a.size() != b.size())
+      return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+      if (std::tolower(static_cast<unsigned char>(a[i])) !=
+          std::tolower(static_cast<unsigned char>(b[i])))
+        return false;
+    }
+    return true;
+  };
+  if (matches_ci(token, "true"))
+    return true;
+  if (matches_ci(token, "false"))
+    return false;
+  THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + std::string(token));
 }
 
 template <typename T>
-Value parse_typed_value(const std::string& token) {
-  return Value::CreateValue<T>(ValueConverter<T>::typed_from_string(token));
+Value parse_typed_value_sv(std::string_view token) {
+  if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+    T value{};
+    auto [ptr, ec] =
+        std::from_chars(token.data(), token.data() + token.size(), value);
+    if (ec != std::errc() || ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse numeric value: " +
+                                 std::string(token));
+    }
+    return Value::CreateValue<T>(value);
+  } else if constexpr (std::is_floating_point_v<T>) {
+    T value{};
+    auto result = kuzu_fast_float::from_chars(
+        token.data(), token.data() + token.size(), value);
+    if (result.ec != std::errc() || result.ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse floating value: " +
+                                 std::string(token));
+    }
+    return Value::CreateValue<T>(value);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return Value::CreateValue<std::string>(std::string(token));
+  } else {
+    return Value::CreateValue<T>(T(std::string(token)));
+  }
 }
 
-Value parse_date_value(const std::string& token) {
+Value parse_date_value_sv(std::string_view token) {
   int64_t millis = 0;
-  if (parse_timestamp_ms(token, &millis) ||
-      parse_epoch_timestamp_ms(token, &millis)) {
+  if (parse_timestamp_ms_sv(token, &millis) ||
+      parse_epoch_timestamp_ms_sv(token, &millis)) {
     Date d;
     d.from_timestamp(millis);
     return Value::CreateValue<Date>(d);
   }
-  return parse_typed_value<date_t>(token);
+  return parse_typed_value_sv<date_t>(token);
 }
 
-Value parse_timestamp_value(const std::string& token) {
+Value parse_timestamp_value_sv(std::string_view token) {
   int64_t millis = 0;
-  if (parse_timestamp_ms(token, &millis) ||
-      parse_epoch_timestamp_ms(token, &millis)) {
+  if (parse_timestamp_ms_sv(token, &millis) ||
+      parse_epoch_timestamp_ms_sv(token, &millis)) {
     return Value::CreateValue<timestamp_ms_t>(DateTime(millis));
   }
-  return parse_typed_value<timestamp_ms_t>(token);
+  return parse_typed_value_sv<timestamp_ms_t>(token);
 }
 
-Value parse_value_by_type(const std::string& token, const DataType& data_type,
-                          const std::unordered_set<std::string>& true_values,
-                          const std::unordered_set<std::string>& false_values) {
+Value parse_value_by_type_sv(
+    std::string_view token, const DataType& data_type,
+    const std::unordered_set<std::string>& true_values,
+    const std::unordered_set<std::string>& false_values) {
   switch (data_type.id()) {
   case DataTypeId::kInt32:
-    return parse_typed_value<int32_t>(token);
+    return parse_typed_value_sv<int32_t>(token);
   case DataTypeId::kInt64:
-    return parse_typed_value<int64_t>(token);
+    return parse_typed_value_sv<int64_t>(token);
   case DataTypeId::kUInt32:
-    return parse_typed_value<uint32_t>(token);
+    return parse_typed_value_sv<uint32_t>(token);
   case DataTypeId::kUInt64:
-    return parse_typed_value<uint64_t>(token);
+    return parse_typed_value_sv<uint64_t>(token);
   case DataTypeId::kFloat:
-    return parse_typed_value<float>(token);
+    return parse_typed_value_sv<float>(token);
   case DataTypeId::kDouble:
-    return parse_typed_value<double>(token);
+    return parse_typed_value_sv<double>(token);
   case DataTypeId::kBoolean:
-    return parse_typed_value<bool>(
-        canonicalize_bool_token(token, true_values, false_values));
+    return Value::CreateValue<bool>(
+        parse_bool_value(token, true_values, false_values));
   case DataTypeId::kDate:
-    return parse_date_value(token);
+    return parse_date_value_sv(token);
   case DataTypeId::kTimestampMs:
-    return parse_timestamp_value(token);
+    return parse_timestamp_value_sv(token);
   case DataTypeId::kInterval:
-    return parse_typed_value<interval_t>(token);
+    return parse_typed_value_sv<interval_t>(token);
   case DataTypeId::kVarchar:
-    return parse_typed_value<std::string>(token);
+    return parse_typed_value_sv<std::string>(token);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
                                   data_type.ToString());
   }
 }
 
-std::string unescape_token(const std::string& token, char escape_char) {
+std::string unescape_token_sv(std::string_view token, char escape_char) {
   std::string res;
   res.reserve(token.size());
   for (size_t i = 0; i < token.size(); ++i) {
@@ -243,25 +292,32 @@ void append_csv_field_to_builder(
     return;
   }
 
-  auto token = field.get<std::string>();
-  if (null_values.contains(token)) {
+  // Zero-copy: get string_view directly from the CSV field without heap
+  // allocation.
+  std::string_view token_sv = static_cast<csv::string_view>(field);
+
+  if (contains_sv(null_values, token_sv)) {
     builder->push_back_null();
     return;
   }
 
-  if (escaping) {
-    token = unescape_token(token, escape_char);
-  }
-
   try {
-    builder->push_back_elem(
-        parse_value_by_type(token, data_type, true_values, false_values));
+    if (escaping) {
+      // Only allocate a string when escaping is actually needed (rare path).
+      auto unescaped = unescape_token_sv(token_sv, escape_char);
+      builder->push_back_elem(parse_value_by_type_sv(
+          unescaped, data_type, true_values, false_values));
+    } else {
+      // Common path: parse directly from string_view, no heap allocation.
+      builder->push_back_elem(parse_value_by_type_sv(
+          token_sv, data_type, true_values, false_values));
+    }
   } catch (const std::exception& error) {
-    THROW_CONVERSION_EXCEPTION("Failed to parse CSV field, file=" + file_path +
-                               ", row=" + std::to_string(row_number) +
-                               ", column=" + column_name +
-                               ", type=" + data_type.ToString() + ", value='" +
-                               token + "', reason=" + error.what());
+    THROW_CONVERSION_EXCEPTION(
+        "Failed to parse CSV field, file=" + file_path +
+        ", row=" + std::to_string(row_number) + ", column=" + column_name +
+        ", type=" + data_type.ToString() + ", value='" + std::string(token_sv) +
+        "', reason=" + error.what());
   }
 }
 
