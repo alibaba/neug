@@ -123,7 +123,8 @@ class TypedColumn : public ColumnBase {
 
   DataTypeId type() const override { return ValueConverter<T>::type().id(); }
 
-  void set_value(size_t index, const T& val) {
+  // insert_safe: resize buffer if needed (fixed-length types ignore it).
+  void set_value(size_t index, const T& val, bool /*insert_safe*/ = false) {
     if (index < size_) {
       reinterpret_cast<T*>(buffer_->GetData())[index] = val;
     } else {
@@ -133,11 +134,10 @@ class TypedColumn : public ColumnBase {
 
   void set_any(size_t index, const Value& value, bool insert_safe) override {
     if (value.IsNull()) {
-      set_value(index, T());
+      set_value(index, T(), insert_safe);
       return;
     }
-    // allow resize is ignored for fixed-length types
-    set_value(index, value.GetValue<T>());
+    set_value(index, value.GetValue<T>(), insert_safe);
   }
 
   inline T get_view(size_t index) const {
@@ -442,12 +442,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   DataTypeId type() const override { return DataTypeId::kVarchar; }
 
-  void set_value(size_t idx, const std::string_view& val) {
+  // insert_safe: resize buffer if needed.
+  void set_value(size_t idx, const std::string_view& val,
+                 bool insert_safe = false) {
     auto copied_val = val;
     if (copied_val.size() >= width_) {
       VLOG(1) << "String length" << copied_val.size()
               << " exceeds the maximum length: " << width_ << ", cut off.";
       copied_val = truncate_utf8(copied_val, width_);
+    }
+    if (insert_safe && idx < size_ &&
+        pos_.load() + copied_val.size() > data_buffer_->GetDataSize()) {
+      size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+      size_t new_len =
+          std::max(size_ * new_avg_width, pos_.load() + copied_val.size());
+      data_buffer_->Resize(new_len);
     }
     if (idx < size_ &&
         pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
@@ -459,13 +468,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
       assert(offset + copied_val.size() <= data_buffer_->GetDataSize());
       auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
       memcpy(raw_data + offset, copied_val.data(), copied_val.size());
+    } else if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
     } else {
-      THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
+      THROW_STORAGE_EXCEPTION(
+          "Not enough space in buffer for new value, and insert_safe is "
+          "false. "
+          "Current buffer size: " +
+          std::to_string(data_buffer_->GetDataSize()) +
+          ", current position: " + std::to_string(pos_.load()) +
+          ", new value size: " + std::to_string(copied_val.size()));
     }
   }
 
-  // When insert_safe is set to true, concurrency control should be guaranteed
-  // by caller.
+  // Preserves StorageException when buffer is too small and insert_safe is
+  // false.
   void set_any(size_t idx, const Value& value, bool insert_safe) override {
     if (idx >= size_) {
       THROW_RUNTIME_ERROR("Index out of range");

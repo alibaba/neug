@@ -271,19 +271,40 @@ class VertexTable {
     size_t row_num = pk_col->size();
     std::vector<vid_t> vids;
     vids.resize(row_num);
-    bool is_string = std::is_same_v<PK_T, std::string_view> ||
-                     std::is_same_v<PK_T, std::string>;
+    bool is_string = std::is_same_v<PK_T, std::string_view>;
     // Fast path: direct data() access when the column is a ValueColumn<PK_T>,
     // avoiding per-element virtual dispatch via get_elem().
     auto value_col = std::dynamic_pointer_cast<ValueColumn<PK_T>>(pk_col);
-    for (size_t j = 0; j < row_num; ++j) {
-      Value oid;
-      if (value_col) {
-        oid = Value::CreateValue<PK_T>(value_col->data()[j]);
-      } else {
-        oid = pk_col->get_elem(j);
+    // For string PK, CSV parser may produce ValueColumn<std::string> instead
+    // of ValueColumn<std::string_view>; handle both by converting to
+    // string_view for typed lookup/insert.
+    std::shared_ptr<ValueColumn<std::string>> str_col;
+    if constexpr (std::is_same_v<PK_T, std::string_view>) {
+      if (!value_col) {
+        str_col = std::dynamic_pointer_cast<ValueColumn<std::string>>(pk_col);
       }
-      if (NEUG_UNLIKELY(indexer_->get_index(oid, vids[j]))) {
+    }
+    bool is_optional = pk_col->is_optional();
+    for (size_t j = 0; j < row_num; ++j) {
+      if (NEUG_UNLIKELY(is_optional && !pk_col->has_value(j))) {
+        THROW_STORAGE_EXCEPTION("Null primary key at row " + std::to_string(j));
+      }
+      PK_T pk_val;
+      if (value_col) {
+        pk_val = value_col->data()[j];
+      } else if constexpr (std::is_same_v<PK_T, std::string_view>) {
+        if (str_col) {
+          pk_val = std::string_view(str_col->data()[j]);
+        } else {
+          pk_val = pk_col->get_elem(j).GetValue<std::string_view>();
+        }
+      } else {
+        pk_val = pk_col->get_elem(j).GetValue<PK_T>();
+      }
+      // Typed lookup + insert: avoids Value construction, GHash<Value> type
+      // switch, and the redundant second get_index in
+      // insert_vertex_pk_internal.
+      if (NEUG_UNLIKELY(indexer_->get_index_typed<PK_T>(pk_val, vids[j]))) {
         if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
           vids[j] = std::numeric_limits<vid_t>::max();
         } else {
@@ -291,7 +312,8 @@ class VertexTable {
         }
         continue;
       }
-      vids[j] = insert_vertex_pk(oid, 0, is_string);
+      vids[j] = indexer_->insert_absent_typed<PK_T>(pk_val, is_string);
+      v_ts_->InsertVertex(vids[j], 0);
     }
     return vids;
   }

@@ -346,9 +346,64 @@ class LFIndexer {
   size_t size() const { return num_elements_.load(); }
   DataTypeId get_type() const { return keys_->type(); }
 
+  // Value-based methods: thin wrappers that dispatch to typed fast-path.
+#define NEUG_DISPATCH_PK_TYPE(method, oid_expr, ...)                       \
+  switch (get_type()) {                                                    \
+  case DataTypeId::kInt64:                                                 \
+    return method<int64_t>(oid_expr.GetValue<int64_t>(), ##__VA_ARGS__);   \
+  case DataTypeId::kInt32:                                                 \
+    return method<int32_t>(oid_expr.GetValue<int32_t>(), ##__VA_ARGS__);   \
+  case DataTypeId::kUInt64:                                                \
+    return method<uint64_t>(oid_expr.GetValue<uint64_t>(), ##__VA_ARGS__); \
+  case DataTypeId::kUInt32:                                                \
+    return method<uint32_t>(oid_expr.GetValue<uint32_t>(), ##__VA_ARGS__); \
+  case DataTypeId::kVarchar:                                               \
+    return method<std::string_view>(oid_expr.GetValue<std::string_view>(), \
+                                    ##__VA_ARGS__);                        \
+  default:                                                                 \
+    THROW_NOT_SUPPORTED_EXCEPTION(                                         \
+        "Unsupported pk type: " +                                          \
+        std::to_string(static_cast<int>(get_type())));                     \
+  }
+
   INDEX_T insert(const Value& oid, bool insert_safe) {
     assert(oid.type().id() == get_type());
+    if (NEUG_UNLIKELY(oid.IsNull())) {
+      THROW_STORAGE_EXCEPTION("Null primary key is not allowed");
+    }
+    NEUG_DISPATCH_PK_TYPE(insert_absent_typed, oid, insert_safe);
+  }
 
+  INDEX_T get_index(const Value& oid) const {
+    assert(oid.type().id() == get_type());
+    if (oid.IsNull()) {
+      return sentinel;
+    }
+    NEUG_DISPATCH_PK_TYPE(get_index_typed, oid);
+  }
+
+  bool get_index(const Value& oid, INDEX_T& ret) const {
+    if (oid.type().id() != get_type() || oid.IsNull()) {
+      return false;
+    }
+    NEUG_DISPATCH_PK_TYPE(get_index_typed, oid, ret);
+  }
+
+  bool contains(const Value& oid) const {
+    assert(oid.type().id() == get_type());
+    if (oid.IsNull()) {
+      return false;
+    }
+    INDEX_T ret;
+    NEUG_DISPATCH_PK_TYPE(get_index_typed, oid, ret);
+  }
+
+#undef NEUG_DISPATCH_PK_TYPE
+
+  // Typed fast-path: caller must ensure KEY_T matches get_type().
+  // Precondition: key is known absent (caller checked via get_index_typed).
+  template <typename KEY_T>
+  INDEX_T insert_absent_typed(const KEY_T& oid, bool insert_safe) {
     if (insert_safe) {
       if (NEUG_UNLIKELY(num_elements_.load(std::memory_order_relaxed) >=
                         capacity())) {
@@ -363,11 +418,12 @@ class LFIndexer {
           "Reserved size is not enough: " + std::to_string(capacity()) +
           " vs " + std::to_string(ind));
     }
-    // may throw if insert_safe is false and reserved size is not enough
-    keys_->set_any(ind, oid, insert_safe);
+    auto* typed_keys = static_cast<TypedColumn<KEY_T>*>(keys_.get());
+    typed_keys->set_value(ind, oid, insert_safe);
     auto* indices_ptr = indices_->mutable_data();
+    GHash<KEY_T> typed_hasher;
     size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+        hash_policy_.index_for_hash(typed_hasher(oid), num_slots_minus_one_);
     while (true) {
       if (__sync_bool_compare_and_swap(&indices_ptr[index],
                                        LFIndexer<INDEX_T>::sentinel, ind)) {
@@ -378,39 +434,22 @@ class LFIndexer {
     return ind;
   }
 
-  INDEX_T get_index(const Value& oid) const {
-    assert(oid.type().id() == get_type());
-    auto* indices_ptr = indices_->data();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      INDEX_T ind = indices_ptr[index];
-      if (ind == LFIndexer<INDEX_T>::sentinel) {
-        VLOG(10) << "cannot find " << oid.to_string() << " in lf_indexer";
-        return ind;
-      } else if (keys_->get_any(ind) == oid) {
-        return ind;
-      } else {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      }
-    }
-  }
-
-  bool get_index(const Value& oid, INDEX_T& ret) const {
+  /// Typed lookup: returns true and sets ret if found.
+  template <typename KEY_T>
+  bool get_index_typed(const KEY_T& oid, INDEX_T& ret) const {
     if (indices_->size() == 0) {
       return false;
     }
-    if (oid.type().id() != get_type()) {
-      return false;
-    }
     auto* indices_ptr = indices_->data();
+    auto* typed_keys = static_cast<const TypedColumn<KEY_T>*>(keys_.get());
+    GHash<KEY_T> typed_hasher;
     size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+        hash_policy_.index_for_hash(typed_hasher(oid), num_slots_minus_one_);
     while (true) {
       INDEX_T ind = indices_ptr[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
         return false;
-      } else if (keys_->get_any(ind) == oid) {
+      } else if (typed_keys->get_view(ind) == oid) {
         ret = ind;
         return true;
       } else {
@@ -420,17 +459,21 @@ class LFIndexer {
     return false;
   }
 
-  bool contains(const Value& oid) const {
-    assert(oid.type().id() == get_type());
+  /// Typed lookup: returns the index directly (sentinel if not found).
+  template <typename KEY_T>
+  INDEX_T get_index_typed(const KEY_T& oid) const {
     auto* indices_ptr = indices_->data();
+    auto* typed_keys = static_cast<const TypedColumn<KEY_T>*>(keys_.get());
+    GHash<KEY_T> typed_hasher;
     size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+        hash_policy_.index_for_hash(typed_hasher(oid), num_slots_minus_one_);
     while (true) {
       INDEX_T ind = indices_ptr[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
-        return false;
-      } else if (keys_->get_any(ind) == oid) {
-        return true;
+        VLOG(10) << "cannot find key in lf_indexer (typed path)";
+        return ind;
+      } else if (typed_keys->get_view(ind) == oid) {
+        return ind;
       } else {
         index = (index + 1) % (num_slots_minus_one_ + 1);
       }
