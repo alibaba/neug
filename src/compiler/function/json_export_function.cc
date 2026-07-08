@@ -19,9 +19,9 @@
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/writer.h>
+#include "neug/common/export/export_result.h"
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/value.h"
-#include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/utils/io/stream/output_stream.h"
 
 #include <string>
@@ -107,6 +107,49 @@ static neug::result<rapidjson::Value> valueToJsonValue(
     v.SetString(s.c_str(), static_cast<rapidjson::SizeType>(s.size()),
                 allocator);
     return v;
+  }
+  case DataTypeId::kList: {
+    rapidjson::Value arr(rapidjson::kArrayType);
+    const auto& children = ListValue::GetChildren(value);
+    for (const auto& child : children) {
+      auto child_json = valueToJsonValue(child, doc);
+      if (!child_json) {
+        return tl::make_unexpected(child_json.error());
+      }
+      arr.PushBack(std::move(*child_json), allocator);
+    }
+    return arr;
+  }
+  case DataTypeId::kArray: {
+    rapidjson::Value arr(rapidjson::kArrayType);
+    const auto& children = ArrayValue::GetChildren(value);
+    for (const auto& child : children) {
+      auto child_json = valueToJsonValue(child, doc);
+      if (!child_json) {
+        return tl::make_unexpected(child_json.error());
+      }
+      arr.PushBack(std::move(*child_json), allocator);
+    }
+    return arr;
+  }
+  case DataTypeId::kStruct: {
+    rapidjson::Value obj(rapidjson::kObjectType);
+    const auto& children = StructValue::GetChildren(value);
+    const auto& field_names = StructType::GetFieldNames(value.type());
+    for (size_t i = 0; i < children.size(); ++i) {
+      const auto field_name = i < field_names.size()
+                                  ? field_names[i]
+                                  : ("field_" + std::to_string(i));
+      rapidjson::Value key(field_name.c_str(),
+                           static_cast<rapidjson::SizeType>(field_name.size()),
+                           allocator);
+      auto child_json = valueToJsonValue(children[i], doc);
+      if (!child_json) {
+        return tl::make_unexpected(child_json.error());
+      }
+      obj.AddMember(key, std::move(*child_json), allocator);
+    }
+    return obj;
   }
   default: {
     const auto& s = value.to_string();
@@ -304,13 +347,10 @@ static execution::Context jsonExecFunc(
   }
   auto writer = std::make_shared<neug::writer::JsonArrayExportWriter>(
       schema, entry_schema);
-  auto source_types = ctx.column_types();
-  auto chunks = neug::execution::Sink::materialize_for_export(ctx, graph);
-  for (const auto& chunk : chunks) {
-    auto status = writer->write(chunk, source_types);
-    if (!status.ok()) {
-      THROW_IO_EXCEPTION("Export failed: " + status.ToString());
-    }
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
+  if (!status.ok()) {
+    THROW_IO_EXCEPTION("Export failed: " + status.ToString());
   }
   ctx.clear();
   return ctx;
@@ -343,13 +383,10 @@ static execution::Context jsonLExecFunc(
   }
   auto writer =
       std::make_shared<neug::writer::JsonLExportWriter>(schema, entry_schema);
-  auto source_types = ctx.column_types();
-  auto chunks = neug::execution::Sink::materialize_for_export(ctx, graph);
-  for (const auto& chunk : chunks) {
-    auto status = writer->write(chunk, source_types);
-    if (!status.ok()) {
-      THROW_IO_EXCEPTION("Export failed: " + status.ToString());
-    }
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
+  if (!status.ok()) {
+    THROW_IO_EXCEPTION("Export failed: " + status.ToString());
   }
   ctx.clear();
   return ctx;

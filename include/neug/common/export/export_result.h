@@ -14,23 +14,27 @@
  */
 #pragma once
 
-#include "neug/generated/proto/response/response.pb.h"
-#include "neug/main/query_result.h"
+#include <vector>
+
+#include "neug/common/types.h"
+#include "neug/common/types/data_chunk.h"
+
 namespace neug {
 
-class Encoder;
 class StorageReadInterface;
 
 namespace execution {
-
 class Context;
+}
 
-class Sink {
- public:
-  static void sink_results(const Context& ctx,
-                           const StorageReadInterface& graph,
-                           neug::QueryResponse* response);
+struct ExportResult {
+  DataChunk chunk;
+  std::vector<DataType> source_types;
 };
 
-}  // namespace execution
+/// Materializes graph values for file export and merges Context chunks into a
+/// single DataChunk so writers can emit one complete output artifact.
+ExportResult materialize_result_for_export(const execution::Context& ctx,
+                                           const StorageReadInterface& graph);
+
 }  // namespace neug

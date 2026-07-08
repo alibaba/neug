@@ -22,6 +22,7 @@
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "neug/common/export/export_result.h"
 #include "neug/common/types/array_columns.h"
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/property_types.h"
@@ -692,25 +693,33 @@ std::shared_ptr<IContextColumn> materialize_column_for_export(
 
 }  // namespace
 
-std::vector<DataChunk> Sink::materialize_for_export(
-    const Context& ctx, const StorageReadInterface& graph) {
-  std::vector<DataChunk> result;
-  result.reserve(ctx.chunk_num());
-  for (size_t c = 0; c < ctx.chunk_num(); ++c) {
-    const auto& ctx_chunk = ctx.chunk(c);
-    DataChunk chunk;
-    int alias = 0;
-    for (size_t tag_id : ctx.tag_ids) {
-      auto col = ctx_chunk.get(tag_id);
+}  // namespace execution
+
+ExportResult materialize_result_for_export(const execution::Context& ctx,
+                                           const StorageReadInterface& graph) {
+  ExportResult result;
+  int alias = 0;
+  for (size_t tag_id : ctx.tag_ids) {
+    std::shared_ptr<IContextColumn> merged;
+    for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+      auto col = ctx.chunk(c).get(tag_id);
       if (col == nullptr) {
         continue;
       }
-      chunk.set(alias++, materialize_column_for_export(col, graph));
+      if (merged == nullptr) {
+        merged = col;
+      } else {
+        merged = merged->union_col(col);
+      }
     }
-    result.push_back(std::move(chunk));
+    if (merged == nullptr) {
+      continue;
+    }
+    result.source_types.push_back(merged->elem_type());
+    result.chunk.set(alias++,
+                     execution::materialize_column_for_export(merged, graph));
   }
   return result;
 }
 
-}  // namespace execution
 }  // namespace neug

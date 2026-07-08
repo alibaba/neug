@@ -29,12 +29,12 @@
 #include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
+#include "neug/common/export/export_result.h"
 #include "neug/common/types/array_columns.h"
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/utils/exception/exception.h"
 #include "parquet/arrow_fs_resolver.h"
 #include "parquet_options.h"
@@ -550,13 +550,10 @@ static execution::Context parquetExecFunc(
   auto writer = std::make_shared<neug::writer::ArrowParquetExportWriter>(
       schema, std::move(arrowFs), entry_schema);
 
-  auto source_types = ctx.column_types();
-  auto chunks = execution::Sink::materialize_for_export(ctx, graph);
-  for (const auto& chunk : chunks) {
-    auto status = writer->write(chunk, source_types);
-    if (!status.ok()) {
-      THROW_IO_EXCEPTION("Parquet export failed: " + status.ToString());
-    }
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
+  if (!status.ok()) {
+    THROW_IO_EXCEPTION("Parquet export failed: " + status.ToString());
   }
   LOG(INFO) << "[Parquet Export] Export completed successfully";
   ctx.clear();
