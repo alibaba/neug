@@ -20,9 +20,9 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include "neug/common/export/export_result.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/utils/io/write/writer.h"
 
 namespace neug {
@@ -63,16 +63,13 @@ execution::Context writeExecFunc(
   convertFileSchemaOptions(schema);
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, entry_schema);
-  auto source_types = ctx.column_types();
-  auto chunks = neug::execution::Sink::materialize_for_export(ctx, graph);
-  for (const auto& chunk : chunks) {
-    auto status = writer->write(chunk, source_types);
-    if (!status.ok()) {
-      if (status.error_code() == StatusCode::ERR_PERMISSION) {
-        THROW_PERMISSION_DENIED("Export failed: " + status.ToString());
-      }
-      THROW_IO_EXCEPTION("Export failed: " + status.ToString());
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
+  if (!status.ok()) {
+    if (status.error_code() == StatusCode::ERR_PERMISSION) {
+      THROW_PERMISSION_DENIED("Export failed: " + status.ToString());
     }
+    THROW_IO_EXCEPTION("Export failed: " + status.ToString());
   }
   ctx.clear();
   return ctx;

@@ -134,6 +134,11 @@ neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
     write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
     return neug::Status::OK();
   }
+  if (type_id == DataTypeId::kBoolean) {
+    const auto* str = value.GetValue<bool>() ? "true" : "false";
+    write(reinterpret_cast<const uint8_t*>(str), strlen(str));
+    return neug::Status::OK();
+  }
   const auto& str = value.to_string();
   write(reinterpret_cast<const uint8_t*>(str.c_str()), str.size());
   return neug::Status::OK();
