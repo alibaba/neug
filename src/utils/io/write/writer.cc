@@ -32,10 +32,12 @@ namespace writer {
 
 DataChunkCSVStringFormatBuffer::DataChunkCSVStringFormatBuffer(
     const DataChunk& chunk, const reader::FileSchema& schema,
-    const reader::EntrySchema& entry_schema)
+    const reader::EntrySchema& entry_schema,
+    const std::vector<DataType>& source_types)
     : chunk_(chunk),
       schema_(schema),
       entry_schema_(entry_schema),
+      source_types_(source_types),
       capacity_(DEFAULT_CAPACITY) {
   WriteOptions write_opts;
   size_t batch_size = write_opts.batch_rows.get(schema.options);
@@ -120,7 +122,7 @@ void DataChunkCSVStringFormatBuffer::write(const uint8_t* buffer,
 }
 
 neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
-    const Value& value, size_t row_idx) {
+    const Value& value, size_t row_idx, size_t col_idx) {
   if (value.IsNull()) {
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Value is invalid, rowIdx=" + std::to_string(row_idx));
@@ -128,6 +130,10 @@ neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
   const auto type_id = value.type().id();
   if (type_id == DataTypeId::kVarchar) {
     const auto& str = StringValue::Get(value);
+    if (shouldWriteRawString(col_idx)) {
+      write(reinterpret_cast<const uint8_t*>(str.c_str()), str.size());
+      return neug::Status::OK();
+    }
     write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
     char escape_chars[] = {escape_char_, quote_char_};
     writeWithEscapes(escape_chars, escape_char_, str);
@@ -142,6 +148,20 @@ neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
   const auto& str = value.to_string();
   write(reinterpret_cast<const uint8_t*>(str.c_str()), str.size());
   return neug::Status::OK();
+}
+
+bool DataChunkCSVStringFormatBuffer::shouldWriteRawString(size_t col_idx) const {
+  if (col_idx >= source_types_.size()) {
+    return false;
+  }
+  switch (source_types_[col_idx].id()) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return true;
+  default:
+    return false;
+  }
 }
 
 void DataChunkCSVStringFormatBuffer::addValue(size_t row_idx, size_t col_idx) {
@@ -165,7 +185,8 @@ void DataChunkCSVStringFormatBuffer::addValue(size_t row_idx, size_t col_idx) {
     write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
           strlen(DEFAULT_NULL_STR));
   } else {
-    auto str_result = formatValueToStr(column->get_elem(row_idx), row_idx);
+    auto str_result = formatValueToStr(column->get_elem(row_idx), row_idx,
+                                       col_idx);
     if (!str_result.ok()) {
       if (!ignore_errors_) {
         THROW_IO_EXCEPTION(
@@ -194,7 +215,7 @@ neug::Status DataChunkCSVStringFormatBuffer::flush(io::OutputStream& stream) {
 }
 
 neug::Status CsvQueryExportWriter::write(
-    const DataChunk& chunk, const std::vector<DataType>& /*source_types*/) {
+    const DataChunk& chunk, const std::vector<DataType>& source_types) {
   if (schema_.paths.empty()) {
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Schema paths is empty");
@@ -215,7 +236,8 @@ neug::Status CsvQueryExportWriter::write(
                         "Batch size should be positive");
   }
   auto csv_buffer =
-      DataChunkCSVStringFormatBuffer(chunk, schema_, *entry_schema_);
+      DataChunkCSVStringFormatBuffer(chunk, schema_, *entry_schema_,
+                                     source_types);
   csv_buffer.addHeader();
   for (size_t i = 0; i < chunk.row_num(); ++i) {
     for (size_t j = 0; j < chunk.col_num(); ++j) {
