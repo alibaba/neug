@@ -16,8 +16,8 @@
 
 #include "neug/compiler/function/show_loaded_extensions_function.h"
 #include <glog/logging.h>
+#include "neug/common/columns/value_columns.h"
 #include "neug/compiler/extension/extension_api.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/exception/exception.h"
 
@@ -45,8 +45,8 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
       const auto& ext_map =
           neug::extension::ExtensionAPI::getLoadedExtensions();
 
-      neug::execution::ValueColumnBuilder<std::string> name_builder;
-      neug::execution::ValueColumnBuilder<std::string> desc_builder;
+      neug::ValueColumnBuilder<std::string> name_builder;
+      neug::ValueColumnBuilder<std::string> desc_builder;
       name_builder.reserve(ext_map.size());
       desc_builder.reserve(ext_map.size());
 
@@ -58,7 +58,7 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
         desc_builder.push_back_opt(desc_view);
       }
 
-      neug::execution::DataChunk chunk;
+      neug::DataChunk chunk;
       chunk.set(0, name_builder.finish());
       chunk.set(1, desc_builder.finish());
       ctx.append_chunk(std::move(chunk));

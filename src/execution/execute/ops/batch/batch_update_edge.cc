@@ -14,8 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/columns/edge_columns.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/utils/pb_utils.h"

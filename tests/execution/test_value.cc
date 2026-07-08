@@ -14,7 +14,7 @@
  */
 #include <gtest/gtest.h>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 namespace neug {
 namespace execution {

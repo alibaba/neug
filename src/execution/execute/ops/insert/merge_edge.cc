@@ -21,11 +21,11 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/graph_types.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/graph_types.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/storages/csr/csr_view_utils.h"
@@ -158,7 +158,7 @@ EdgeRecord insert_and_return_edge_row(
                         std::to_string(dst_label) + ", got " +
                         std::to_string(v2.label_));
   }
-  std::vector<execution::Value> property_values(properties.size());
+  std::vector<Value> property_values(properties.size());
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
     Value value = prop_expr->Cast<RecordExprBase>().eval_record(chunk, row);

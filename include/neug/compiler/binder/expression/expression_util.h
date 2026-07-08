@@ -95,7 +95,7 @@ struct NEUG_API ExpressionUtil {
 
   static bool canEvaluateAsLiteral(const Expression& expr);
 
-  static common::Value evaluateAsLiteralValue(const Expression& expr);
+  static compiler_impl::Value evaluateAsLiteralValue(const Expression& expr);
 
   template <typename T>
   using validate_param_func = void(T);

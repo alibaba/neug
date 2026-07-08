@@ -54,9 +54,9 @@ bool parse_subgraph_entries(const ::physical::Subgraph& subgraph,
     }
 
     ParsedSubgraphEdgeEntry parsed_edge;
-    parsed_edge.triplet = execution::LabelTriplet(edge_entry.src_label_id(),
-                                                  edge_entry.dst_label_id(),
-                                                  edge_entry.edge_label_id());
+    parsed_edge.triplet =
+        LabelTriplet(edge_entry.src_label_id(), edge_entry.dst_label_id(),
+                     edge_entry.edge_label_id());
     if (edge_entry.has_predicate()) {
       parsed_edge.predicate = execution::parse_expression(
           edge_entry.predicate(), ctx_meta, execution::VarType::kEdge);
@@ -99,23 +99,23 @@ bool try_parse_source_vertex(const StorageReadInterface& graph,
   auto pk_type =
       std::get<0>(graph.schema().get_vertex_primary_key(vertex_label)[0]);
 
-  execution::Value oid;
+  Value oid;
   try {
     switch (pk_type.id()) {
     case DataTypeId::kInt32:
-      oid = execution::Value::INT32(std::stoi(source_str));
+      oid = Value::INT32(std::stoi(source_str));
       break;
     case DataTypeId::kInt64:
-      oid = execution::Value::INT64(std::atoll(source_str.c_str()));
+      oid = Value::INT64(std::atoll(source_str.c_str()));
       break;
     case DataTypeId::kUInt32:
-      oid = execution::Value::UINT32(std::stoul(source_str));
+      oid = Value::UINT32(std::stoul(source_str));
       break;
     case DataTypeId::kUInt64:
-      oid = execution::Value::UINT64(std::stoull(source_str));
+      oid = Value::UINT64(std::stoull(source_str));
       break;
     case DataTypeId::kVarchar:
-      oid = execution::Value::CreateValue(source_str);
+      oid = Value::CreateValue(source_str);
       break;
     default:
       LOG(ERROR) << "Unsupported primary key type for source vertex lookup.";

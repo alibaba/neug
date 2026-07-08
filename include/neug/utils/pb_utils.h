@@ -19,6 +19,7 @@
 #include <tuple>
 #include <vector>
 
+#include "neug/common/types/value.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -32,9 +33,6 @@ class Value;
 }  // namespace common
 
 namespace neug {
-namespace execution {
-class Value;
-}
 
 std::vector<std::string> parse_result_schema_column_names(
     const std::string& result_schema);
@@ -49,8 +47,7 @@ bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
-neug::result<std::vector<std::pair<std::string, execution::Value>>>
-property_defs_to_value(
+neug::result<std::vector<std::pair<std::string, Value>>> property_defs_to_value(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
 

@@ -27,8 +27,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "pattern_matching_value.h"
 
 namespace neug {
 namespace pattern_matching {
@@ -56,8 +56,8 @@ struct EdgeKeyHash {
   size_t operator()(const EdgeKey& k) const;
 };
 
-// Use Value from neug::execution
-using Value = neug::execution::Value;
+// Use Value from neug::
+using Value = neug::Value;
 
 enum class CompType {
   COMP_EQUAL,

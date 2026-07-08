@@ -40,7 +40,7 @@ Transaction::Transaction(TransactionType transactionType) noexcept
       clientContext{nullptr},
       forceCheckpoint{false},
       hasCatalogChanges{false} {
-  currentTS = common::Timestamp::getCurrentTimestamp().value;
+  currentTS = compiler_impl::Timestamp::getCurrentTimestamp().value;
 }
 
 Transaction::Transaction(TransactionType transactionType,
@@ -53,7 +53,7 @@ Transaction::Transaction(TransactionType transactionType,
       clientContext{nullptr},
       forceCheckpoint{false},
       hasCatalogChanges{false} {
-  currentTS = common::Timestamp::getCurrentTimestamp().value;
+  currentTS = compiler_impl::Timestamp::getCurrentTimestamp().value;
 }
 
 void Transaction::commit(storage::WAL* wal) {}

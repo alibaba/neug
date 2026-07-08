@@ -19,7 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/i_context_column.h"
 
 namespace neug {
 

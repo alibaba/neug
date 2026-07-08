@@ -20,14 +20,14 @@ const assert = require('assert').strict;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Database } = require('../lib');
 const {
+  Database,
   ERR_DATABASE_LOCKED,
   ERR_TX_STATE_CONFLICT,
   ERR_TYPE_CONVERSION,
   ERR_SCHEMA_MISMATCH,
   ERR_TX_TIMEOUT,
-} = require('../lib/error-codes');
+} = require('neug');
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrors Python tmp_path fixture)

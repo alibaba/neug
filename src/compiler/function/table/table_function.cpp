@@ -62,12 +62,12 @@ std::unique_ptr<TableFuncSharedState> TableFunction::initEmptySharedState(
 std::unique_ptr<TableFuncOutput> TableFunction::initSingleDataChunkScanOutput(
     const TableFuncInitOutputInput& input) {
   if (input.outColumnPositions.empty()) {
-    return std::make_unique<TableFuncOutput>(DataChunk{});
+    return std::make_unique<TableFuncOutput>(common::DataChunk{});
   }
   auto state =
       input.resultSet.getDataChunk(input.outColumnPositions[0].dataChunkPos)
           ->state;
-  auto dataChunk = DataChunk(input.outColumnPositions.size(), state);
+  auto dataChunk = common::DataChunk(input.outColumnPositions.size(), state);
   for (auto i = 0u; i < input.outColumnPositions.size(); ++i) {
     dataChunk.insert(
         i, input.resultSet.getValueVector(input.outColumnPositions[i]));

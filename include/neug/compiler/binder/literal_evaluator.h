@@ -33,7 +33,7 @@ class LiteralExpressionEvaluator : public ExpressionEvaluator {
 
  public:
   LiteralExpressionEvaluator(std::shared_ptr<binder::Expression> expression,
-                             common::Value value)
+                             compiler_impl::Value value)
       : ExpressionEvaluator{type_, std::move(expression),
                             true /* isResultFlat */},
         value{std::move(value)} {}
@@ -53,7 +53,7 @@ class LiteralExpressionEvaluator : public ExpressionEvaluator {
                            storage::MemoryManager* memoryManager) override;
 
  private:
-  common::Value value;
+  compiler_impl::Value value;
   std::shared_ptr<common::DataChunkState> flatState;
   std::shared_ptr<common::DataChunkState> unFlatState;
 };

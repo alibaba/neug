@@ -81,7 +81,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindSubqueryExpression(
   } break;
   case SubqueryType::EXISTS: {
     // Rewrite EXISTS subquery as COUNT(*) > 0
-    auto literalExpr = createLiteralExpression(Value(static_cast<int64_t>(0)));
+    auto literalExpr =
+        createLiteralExpression(compiler_impl::Value(static_cast<int64_t>(0)));
     projectionExpr =
         bindComparisonExpression(ExpressionType::GREATER_THAN,
                                  expression_vector{countStarExpr, literalExpr});

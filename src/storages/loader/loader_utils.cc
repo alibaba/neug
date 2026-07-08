@@ -23,13 +23,18 @@
 #include <cctype>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <ostream>
+#include <shared_mutex>
 #include <sstream>
+#include <string_view>
+#include <type_traits>
 #include <unordered_set>
 
 #include "csv.hpp"
-#include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/columns/columns_utils.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
@@ -155,36 +160,33 @@ std::string canonicalize_bool_token(
 }
 
 template <typename T>
-execution::Value parse_typed_value(const std::string& token) {
-  return execution::Value::CreateValue<T>(
-      execution::ValueConverter<T>::typed_from_string(token));
+Value parse_typed_value(const std::string& token) {
+  return Value::CreateValue<T>(ValueConverter<T>::typed_from_string(token));
 }
 
-execution::Value parse_date_value(const std::string& token) {
+Value parse_date_value(const std::string& token) {
   int64_t millis = 0;
   if (parse_timestamp_ms(token, &millis) ||
       parse_epoch_timestamp_ms(token, &millis)) {
     Date d;
     d.from_timestamp(millis);
-    return execution::Value::CreateValue<Date>(d);
+    return Value::CreateValue<Date>(d);
   }
-  return parse_typed_value<execution::date_t>(token);
+  return parse_typed_value<date_t>(token);
 }
 
-execution::Value parse_timestamp_value(const std::string& token) {
+Value parse_timestamp_value(const std::string& token) {
   int64_t millis = 0;
   if (parse_timestamp_ms(token, &millis) ||
       parse_epoch_timestamp_ms(token, &millis)) {
-    return execution::Value::CreateValue<execution::timestamp_ms_t>(
-        DateTime(millis));
+    return Value::CreateValue<timestamp_ms_t>(DateTime(millis));
   }
-  return parse_typed_value<execution::timestamp_ms_t>(token);
+  return parse_typed_value<timestamp_ms_t>(token);
 }
 
-execution::Value parse_value_by_type(
-    const std::string& token, const DataType& data_type,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values) {
+Value parse_value_by_type(const std::string& token, const DataType& data_type,
+                          const std::unordered_set<std::string>& true_values,
+                          const std::unordered_set<std::string>& false_values) {
   switch (data_type.id()) {
   case DataTypeId::kInt32:
     return parse_typed_value<int32_t>(token);
@@ -206,7 +208,7 @@ execution::Value parse_value_by_type(
   case DataTypeId::kTimestampMs:
     return parse_timestamp_value(token);
   case DataTypeId::kInterval:
-    return parse_typed_value<execution::interval_t>(token);
+    return parse_typed_value<interval_t>(token);
   case DataTypeId::kVarchar:
     return parse_typed_value<std::string>(token);
   default:
@@ -230,9 +232,8 @@ std::string unescape_token(const std::string& token, char escape_char) {
 }
 
 void append_csv_field_to_builder(
-    std::shared_ptr<execution::IContextColumnBuilder>& builder,
-    const DataType& data_type, csv::CSVField field,
-    const std::unordered_set<std::string>& null_values,
+    std::shared_ptr<IContextColumnBuilder>& builder, const DataType& data_type,
+    csv::CSVField field, const std::unordered_set<std::string>& null_values,
     const std::unordered_set<std::string>& true_values,
     const std::unordered_set<std::string>& false_values,
     const std::string& file_path, int64_t row_number,
@@ -290,15 +291,15 @@ struct CsvSupplierRuntime {
     reset_reader();
   }
 
-  std::shared_ptr<execution::DataChunk> get_next_chunk() {
+  std::shared_ptr<DataChunk> get_next_chunk() {
     if (!reader_) {
       return nullptr;
     }
 
-    std::vector<std::shared_ptr<execution::IContextColumnBuilder>> builders;
+    std::vector<std::shared_ptr<IContextColumnBuilder>> builders;
     builders.reserve(selected_column_types_.size());
     for (const auto& column_type : selected_column_types_) {
-      auto builder = execution::ColumnsUtils::create_builder(column_type);
+      auto builder = ColumnsUtils::create_builder(column_type);
       builder->reserve(chunk_size_);
       builders.emplace_back(std::move(builder));
     }
@@ -331,7 +332,7 @@ struct CsvSupplierRuntime {
       return nullptr;
     }
 
-    auto chunk = std::make_shared<execution::DataChunk>();
+    auto chunk = std::make_shared<DataChunk>();
     for (size_t column_index = 0; column_index < builders.size();
          ++column_index) {
       chunk->set(static_cast<int>(column_index),
@@ -709,7 +710,7 @@ CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
 
 CSVChunkSupplier::~CSVChunkSupplier() = default;
 
-std::shared_ptr<execution::DataChunk> CSVChunkSupplier::GetNextChunk() {
+std::shared_ptr<DataChunk> CSVChunkSupplier::GetNextChunk() {
   if (!runtime_) {
     THROW_IO_EXCEPTION("CSV runtime is null for file: " + file_path_);
   }
@@ -954,63 +955,86 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
   }
 }
 
-void set_properties_from_context_column(
-    neug::ColumnBase* col,
-    const std::shared_ptr<execution::IContextColumn>& ctx_col,
-    const std::vector<vid_t>& vids, std::shared_mutex& mutex) {
-  // Row-by-row via get_elem()
-  auto col_type = col->type();
-  for (size_t k = 0; k < vids.size(); ++k) {
-    if (vids[k] >= std::numeric_limits<vid_t>::max()) {
-      continue;
-    }
-    auto val = ctx_col->get_elem(k);
-    if (val.IsNull()) {
-      continue;
-    }
-    switch (col_type) {
-#define SET_TYPED_VALUE(enum_val, ctype)                  \
-  case DataTypeId::enum_val: {                            \
-    auto* typed = dynamic_cast<TypedColumn<ctype>*>(col); \
-    typed->set_value(vids[k], val.GetValue<ctype>());     \
-    break;                                                \
-  }
-      FOR_EACH_DATA_TYPE_PRIMITIVE(SET_TYPED_VALUE)
-#undef SET_TYPED_VALUE
-    case DataTypeId::kDate: {
-      auto* typed = dynamic_cast<TypedColumn<Date>*>(col);
-      typed->set_value(vids[k], val.GetValue<Date>());
-      break;
-    }
-    case DataTypeId::kTimestampMs: {
-      auto* typed = dynamic_cast<TypedColumn<DateTime>*>(col);
-      typed->set_value(vids[k], val.GetValue<DateTime>());
-      break;
-    }
-    case DataTypeId::kInterval: {
-      auto* typed = dynamic_cast<TypedColumn<Interval>*>(col);
-      typed->set_value(vids[k], val.GetValue<Interval>());
-      break;
-    }
-    case DataTypeId::kVarchar: {
-      auto* typed = dynamic_cast<TypedColumn<std::string_view>*>(col);
-      auto s = val.GetValue<std::string>();
-      std::shared_lock<std::shared_mutex> lock(mutex);
+namespace {
+
+template <typename SRC_T, typename COL_T = SRC_T>
+void set_column_from_value_column(
+    ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
+    const std::vector<vid_t>& vids) {
+  auto* typed = dynamic_cast<TypedColumn<COL_T>*>(col);
+  CHECK(typed != nullptr)
+      << "Storage column type does not match expected type.";
+
+  auto value_col = std::dynamic_pointer_cast<ValueColumn<SRC_T>>(ctx_col);
+
+  if constexpr (std::is_same_v<COL_T, std::string_view>) {
+    auto write = [&](vid_t vid, const auto& s) {
       if (typed->available_space() <= s.size()) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> w_lock(mutex);
         typed->resize(typed->size());
-        w_lock.unlock();
-        lock.lock();
       }
-      typed->set_value(vids[k], std::string_view(s));
-      break;
+      typed->set_value(vid, std::string_view(s));
+    };
+    for (size_t k = 0; k < vids.size(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max())
+        continue;
+      if (value_col) {
+        write(vids[k], value_col->data()[k]);
+      } else {
+        auto val = ctx_col->get_elem(k);
+        if (!val.IsNull())
+          write(vids[k], val.GetValue<std::string>());
+      }
     }
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "set_properties_from_context_column: unsupported type " +
-          DataType(col_type).ToString());
+  } else {
+    for (size_t k = 0; k < vids.size(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max())
+        continue;
+      if (value_col) {
+        typed->set_value(vids[k], value_col->data()[k]);
+      } else {
+        auto val = ctx_col->get_elem(k);
+        if (!val.IsNull())
+          typed->set_value(vids[k], val.GetValue<COL_T>());
+      }
     }
+  }
+}
+
+}  // namespace
+
+void set_properties_from_context_column(
+    neug::ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
+    const std::vector<vid_t>& vids) {
+  auto col_type = col->type();
+  switch (col_type) {
+#define SET_TYPED_VALUE(enum_val, ctype)                     \
+  case DataTypeId::enum_val: {                               \
+    set_column_from_value_column<ctype>(col, ctx_col, vids); \
+    break;                                                   \
+  }
+    FOR_EACH_DATA_TYPE_PRIMITIVE(SET_TYPED_VALUE)
+#undef SET_TYPED_VALUE
+  case DataTypeId::kDate: {
+    set_column_from_value_column<Date>(col, ctx_col, vids);
+    break;
+  }
+  case DataTypeId::kTimestampMs: {
+    set_column_from_value_column<DateTime>(col, ctx_col, vids);
+    break;
+  }
+  case DataTypeId::kInterval: {
+    set_column_from_value_column<Interval>(col, ctx_col, vids);
+    break;
+  }
+  case DataTypeId::kVarchar: {
+    set_column_from_value_column<std::string, std::string_view>(col, ctx_col,
+                                                                vids);
+    break;
+  }
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "set_properties_from_context_column: unsupported type " +
+        DataType(col_type).ToString());
   }
 }
 

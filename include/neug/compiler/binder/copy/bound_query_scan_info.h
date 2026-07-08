@@ -28,10 +28,10 @@ namespace neug {
 namespace binder {
 
 struct BoundQueryScanSourceInfo {
-  common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<compiler_impl::Value> options;
 
   explicit BoundQueryScanSourceInfo(
-      common::case_insensitive_map_t<common::Value> options)
+      common::case_insensitive_map_t<compiler_impl::Value> options)
       : options{std::move(options)} {}
 };
 

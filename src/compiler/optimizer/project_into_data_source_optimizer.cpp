@@ -106,7 +106,7 @@ ProjectIntoDataSourceOptimizer::visitOperator(
       auto& options = scanBindData->fileScanInfo.options;
       if (visitOp->getOperatorType() != LogicalOperatorType::COPY_FROM) {
         options.insert_or_assign("BATCH_READ",
-                                 common::Value::createValue(false));
+                                 compiler_impl::Value::createValue(false));
       }
     }
   }

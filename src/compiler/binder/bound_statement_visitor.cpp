@@ -22,7 +22,6 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-#include "neug/compiler/binder/bound_explain.h"
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/copy/bound_copy_to.h"
 #include "neug/compiler/binder/query/bound_regular_query.h"
@@ -61,9 +60,6 @@ void BoundStatementVisitor::visit(const BoundStatement& statement) {
   } break;
   case StatementType::STANDALONE_CALL: {
     visitStandaloneCall(statement);
-  } break;
-  case StatementType::EXPLAIN: {
-    visitExplain(statement);
   } break;
   case StatementType::CREATE_MACRO: {
     visitCreateMacro(statement);
@@ -179,10 +175,6 @@ void BoundStatementVisitor::visitQueryPartUnsafe(
       visitProjectionBodyPredicate(queryPart.getProjectionBodyPredicate());
     }
   }
-}
-
-void BoundStatementVisitor::visitExplain(const BoundStatement& statement) {
-  visit(*(statement.constCast<BoundExplain>()).getStatementToExplain());
 }
 
 void BoundStatementVisitor::visitReadingClause(

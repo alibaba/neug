@@ -24,7 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/csv/csv_read_config.h"
@@ -70,7 +71,7 @@ CsvReadConfig build_csv_read_config(
 class IDataChunkSupplier {
  public:
   virtual ~IDataChunkSupplier() = default;
-  virtual std::shared_ptr<execution::DataChunk> GetNextChunk() = 0;
+  virtual std::shared_ptr<DataChunk> GetNextChunk() = 0;
   virtual int64_t RowNum() const = 0;
 };
 
@@ -81,7 +82,7 @@ class CSVChunkSupplier : public IDataChunkSupplier {
 
   ~CSVChunkSupplier() override;
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override;
+  std::shared_ptr<DataChunk> GetNextChunk() override;
 
   int64_t RowNum() const override { return row_num_; }
 
@@ -112,7 +113,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         CsvReadConfig& config);
 
 void set_properties_from_context_column(
-    ColumnBase* col, const std::shared_ptr<execution::IContextColumn>& ctx_col,
-    const std::vector<vid_t>& vids, std::shared_mutex& mutex);
+    ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
+    const std::vector<vid_t>& vids);
 
 }  // namespace neug

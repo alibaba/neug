@@ -30,7 +30,7 @@ namespace binder {
 
 class NEUG_API LiteralExpression final : public Expression {
  public:
-  LiteralExpression(common::Value value, const std::string& uniqueName)
+  LiteralExpression(compiler_impl::Value value, const std::string& uniqueName)
       : Expression{common::ExpressionType::LITERAL, value.getDataType().copy(),
                    uniqueName},
         value{std::move(value)} {}
@@ -39,7 +39,7 @@ class NEUG_API LiteralExpression final : public Expression {
 
   void cast(const common::DataType& type) override;
 
-  common::Value getValue() const { return value; }
+  compiler_impl::Value getValue() const { return value; }
 
   std::string toStringInternal() const override { return value.toString(); }
 
@@ -48,7 +48,7 @@ class NEUG_API LiteralExpression final : public Expression {
   }
 
  public:
-  common::Value value;
+  compiler_impl::Value value;
 };
 
 }  // namespace binder

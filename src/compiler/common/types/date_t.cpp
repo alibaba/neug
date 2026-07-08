@@ -31,7 +31,12 @@
 #include "re2/include/re2.h"
 
 namespace neug {
-namespace common {
+namespace compiler_impl {
+
+using common::DateToStringCast;
+using common::dtime_t;
+using common::stringFormat;
+using common::StringUtils;
 
 date_t::date_t() : days{0} {}
 
@@ -535,5 +540,5 @@ const regex::RE2& Date::regexPattern() {
   return retval;
 }
 
-}  // namespace common
+}  // namespace compiler_impl
 }  // namespace neug

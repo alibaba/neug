@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 
 namespace neug {
@@ -52,41 +52,39 @@ class SelectIdNeOpr : public IOperator {
                       ? params.at(param_name_).GetValue<int64_t>()
                       : 0;
 
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          auto col = chunk.get(tag_);
-          if ((!col->is_optional()) &&
-              col->column_type() == ContextColumnType::kVertex) {
-            auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-            auto labels = vertex_col->get_labels_set();
-            if (labels.size() == 1 &&
-                name == graph_interface.schema().get_vertex_primary_key_name(
-                            *labels.begin())) {
-              auto label = *labels.begin();
-              vid_t vid;
-              if (graph_interface.GetVertexIndex(
-                      label, execution::Value::INT64(oid), vid)) {
-                if (vertex_col->vertex_column_type() ==
-                    VertexColumnType::kSingle) {
-                  const SLVertexColumn& sl_vertex_col =
-                      *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
-                  return Select::select(
-                      std::move(chunk),
-                      [&sl_vertex_col, vid](const DataChunk&, size_t i) {
-                        return sl_vertex_col.get_vertex(i).vid_ != vid;
-                      });
-                } else {
-                  return Select::select(
-                      std::move(chunk),
-                      [&vertex_col, vid](const DataChunk&, size_t i) {
-                        return vertex_col->get_vertex(i).vid_ != vid;
-                      });
-                }
-              }
+    return ctx.apply_chunks([&](ContextChunk&& chunk)
+                                -> neug::result<ContextChunk> {
+      auto col = chunk.get(tag_);
+      if ((!col->is_optional()) &&
+          col->column_type() == ContextColumnType::kVertex) {
+        auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
+        auto labels = vertex_col->get_labels_set();
+        if (labels.size() == 1 &&
+            name == graph_interface.schema().get_vertex_primary_key_name(
+                        *labels.begin())) {
+          auto label = *labels.begin();
+          vid_t vid;
+          if (graph_interface.GetVertexIndex(label, Value::INT64(oid), vid)) {
+            if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
+              const SLVertexColumn& sl_vertex_col =
+                  *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
+              return Select::select(
+                  std::move(chunk),
+                  [&sl_vertex_col, vid](const DataChunk&, size_t i) {
+                    return sl_vertex_col.get_vertex(i).vid_ != vid;
+                  });
+            } else {
+              return Select::select(
+                  std::move(chunk),
+                  [&vertex_col, vid](const DataChunk&, size_t i) {
+                    return vertex_col->get_vertex(i).vid_ != vid;
+                  });
             }
           }
-          return Select::select(std::move(chunk), fallback_pred);
-        });
+        }
+      }
+      return Select::select(std::move(chunk), fallback_pred);
+    });
   }
 
  private:

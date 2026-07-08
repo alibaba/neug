@@ -17,11 +17,12 @@
 #include <map>
 #include <string>
 
+#include "neug/common/types/value.h"
+
 namespace neug {
 
 struct DataType;
 namespace execution {
-class Value;
 using ParamsMap = std::map<std::string, Value>;
 using ParamsMetaMap = std::map<std::string, DataType>;
 }  // namespace execution

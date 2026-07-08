@@ -96,8 +96,7 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
         RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                                   "Unexpected parameter: " + key));
       }
-      params_map.emplace(
-          key, execution::Value::FromJson(member.value, iter->second));
+      params_map.emplace(key, Value::FromJson(member.value, iter->second));
     }
   }
   if (need_exclusive_lock(access_mode_pipeline.first)) {

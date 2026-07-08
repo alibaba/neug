@@ -102,12 +102,12 @@ class Binder {
   std::unique_ptr<BoundStatement> bind(const parser::Statement& statement);
 
   void setInputParameters(
-      std::unordered_map<std::string, std::shared_ptr<common::Value>>
+      std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
           parameters) {
     expressionBinder.parameterMap = std::move(parameters);
   }
 
-  std::unordered_map<std::string, std::shared_ptr<common::Value>>
+  std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
   getParameterMap() {
     return expressionBinder.parameterMap;
   }
@@ -187,11 +187,13 @@ class Binder {
       catalog::RelTableCatalogEntry* relTableEntry);
   std::unique_ptr<BoundStatement> bindCopyNodeFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      const common::case_insensitive_map_t<compiler_impl::Value>&
+          boundCopyOptions,
       bool temporary = false);
   std::unique_ptr<BoundStatement> bindCopyRelFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      const common::case_insensitive_map_t<compiler_impl::Value>&
+          boundCopyOptions,
       bool temporary = false);
 
   std::unique_ptr<BoundStatement> bindCopyToClause(
@@ -230,7 +232,7 @@ class Binder {
       const std::vector<std::string>& columnNames,
       const std::vector<common::DataType>& columnTypes);
 
-  common::case_insensitive_map_t<common::Value> bindParsingOptions(
+  common::case_insensitive_map_t<compiler_impl::Value> bindParsingOptions(
       const parser::options_t& parsingOptions);
   common::FileTypeInfo bindFileTypeInfo(
       const std::vector<std::string>& filePaths) const;
@@ -269,10 +271,6 @@ class Binder {
 
   /*** bind extension ***/
   static std::unique_ptr<BoundStatement> bindExtension(
-      const parser::Statement& statement);
-
-  /*** bind explain ***/
-  std::unique_ptr<BoundStatement> bindExplain(
       const parser::Statement& statement);
 
   /*** bind reading clause ***/

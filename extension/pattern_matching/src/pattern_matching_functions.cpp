@@ -199,17 +199,17 @@ execution::Context build_exact_native_pattern_context(
     if (column.kind == PatternOutputKind::kVertex) {
       label_t label = spec.vertices[column.index].label;
       builder.vertex_builder =
-          std::make_unique<execution::MSVertexColumnBuilder>(label);
+          std::make_unique<neug::MSVertexColumnBuilder>(label);
       builder.vertex_builder->reserve(matches.size());
     } else {
       const auto& edge = spec.edges[column.index];
       label_t src_label = spec.vertices[edge.src].label;
       label_t dst_label = spec.vertices[edge.dst].label;
-      builder.edge_builder = std::make_unique<execution::MSEdgeColumnBuilder>();
+      builder.edge_builder = std::make_unique<neug::MSEdgeColumnBuilder>();
       builder.edge_builder->reserve(matches.size());
       builder.edge_builder->start_label_dir(
-          execution::LabelTriplet(src_label, dst_label, edge.label),
-          execution::Direction::kOut);
+          neug::LabelTriplet(src_label, dst_label, edge.label),
+          neug::Direction::kOut);
     }
     builders.push_back(std::move(builder));
   }
@@ -287,17 +287,17 @@ execution::Context build_sampled_native_pattern_context(
     if (column.kind == PatternOutputKind::kVertex) {
       label_t label = matcher.get_pattern_vertex_label(column.index);
       builder.vertex_builder =
-          std::make_unique<execution::MSVertexColumnBuilder>(label);
+          std::make_unique<neug::MSVertexColumnBuilder>(label);
       builder.vertex_builder->reserve(row_indices.size());
     } else {
       auto [src, dst, edge_label] = pattern_edges[column.index];
       label_t src_label = matcher.get_pattern_vertex_label(src);
       label_t dst_label = matcher.get_pattern_vertex_label(dst);
-      builder.edge_builder = std::make_unique<execution::MSEdgeColumnBuilder>();
+      builder.edge_builder = std::make_unique<neug::MSEdgeColumnBuilder>();
       builder.edge_builder->reserve(row_indices.size());
       builder.edge_builder->start_label_dir(
-          execution::LabelTriplet(src_label, dst_label, edge_label),
-          execution::Direction::kOut);
+          neug::LabelTriplet(src_label, dst_label, edge_label),
+          neug::Direction::kOut);
     }
     builders.push_back(std::move(builder));
   }
@@ -1116,7 +1116,7 @@ struct IntRepr {
   uint64_t magnitude = 0;
 };
 
-bool try_exact_int(const execution::Value& v, IntRepr* out) {
+bool try_exact_int(const neug::Value& v, IntRepr* out) {
   if (v.IsNull())
     return false;
   auto set_signed = [&](int64_t s) {
@@ -1172,8 +1172,8 @@ int compare_int_repr(const IntRepr& a, const IntRepr& b) {
 // double path imposes a deterministic total order on NaN (NaN sorts last) so it
 // remains a valid strict-weak-ordering comparator for std::sort/ORDER BY.
 // Returns false when either operand is non-numeric.
-bool compare_numeric_values(const execution::Value& a,
-                            const execution::Value& b, int* cmp) {
+bool compare_numeric_values(const neug::Value& a, const neug::Value& b,
+                            int* cmp) {
   IntRepr ia;
   IntRepr ib;
   if (try_exact_int(a, &ia) && try_exact_int(b, &ib)) {
@@ -1197,8 +1197,8 @@ bool compare_numeric_values(const execution::Value& a,
 
 }  // namespace
 
-bool compare_property_value(const execution::Value& actual, CompType op,
-                            const execution::Value& expected) {
+bool compare_property_value(const neug::Value& actual, CompType op,
+                            const neug::Value& expected) {
   if (actual.IsNull())
     return false;
   int cmp = 0;
@@ -1258,8 +1258,8 @@ bool compare_property_value(const execution::Value& actual, CompType op,
   }
 }
 
-int compare_execution_values(const std::optional<execution::Value>& lhs,
-                             const std::optional<execution::Value>& rhs) {
+int compare_execution_values(const std::optional<neug::Value>& lhs,
+                             const std::optional<neug::Value>& rhs) {
   const bool lhs_null = !lhs.has_value() || lhs->IsNull();
   const bool rhs_null = !rhs.has_value() || rhs->IsNull();
   if (lhs_null && rhs_null)
@@ -1357,8 +1357,7 @@ std::string fetch_and_write_exact_properties(
         if (it == all_names.end())
           continue;
         int prop_idx = static_cast<int>(std::distance(all_names.begin(), it));
-        execution::Value value =
-            graph.GetVertexProperty(label, local_vid, prop_idx);
+        neug::Value value = graph.GetVertexProperty(label, local_vid, prop_idx);
         if (!first_prop)
           ofs << ",";
         first_prop = false;
@@ -2136,7 +2135,7 @@ std::string SampledSubgraphMatcher::fetch_and_write_properties() {
       std::string json_val = "null";  // default to null if not found
       if (label == uv.label_id) {
         try {
-          execution::Value val = read_interface->GetVertexProperty(
+          neug::Value val = read_interface->GetVertexProperty(
               label, local_vid, uv.ordered_prop_indices[pi]);
           // Use value_to_json_string to preserve proper JSON types
           json_val = value_to_json_string(val);
@@ -2177,7 +2176,7 @@ std::string SampledSubgraphMatcher::fetch_and_write_properties() {
         for (auto it = view.get_edges(ue.src_vid).begin();
              it != view.get_edges(ue.src_vid).end(); ++it) {
           if (*it == ue.dst_vid) {
-            execution::Value val = accessor.get_data(it);
+            neug::Value val = accessor.get_data(it);
             // Use value_to_json_string to preserve proper JSON types
             json_val = value_to_json_string(val);
             break;
@@ -2240,14 +2239,14 @@ std::string escape_json_string(const std::string& s) {
   return escaped;
 }
 
-std::string value_to_json_string(const execution::Value& val) {
+std::string value_to_json_string(const neug::Value& val) {
   // Check if value is null/none
   if (val.IsNull()) {
     return "null";
   }
 
   // Get the type and handle accordingly
-  // Note: execution::Value uses DataTypeId, not LogicalTypeID
+  // Note: neug::Value uses DataTypeId, not LogicalTypeID
   DataTypeId type_id = val.type().id();
 
   switch (type_id) {
@@ -2415,23 +2414,23 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
       auto& cache = GraphDataCache::instance();
       auto& cached_data = cache.get_or_create(*read_interface);
 
-      execution::ValueColumnBuilder<std::string> status_builder;
+      neug::ValueColumnBuilder<std::string> status_builder;
       status_builder.push_back_opt(success ? std::string("success")
                                            : std::string("failed"));
 
-      execution::ValueColumnBuilder<int64_t> vertices_builder;
+      neug::ValueColumnBuilder<int64_t> vertices_builder;
       vertices_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetNumVertices()));
 
-      execution::ValueColumnBuilder<int64_t> edges_builder;
+      neug::ValueColumnBuilder<int64_t> edges_builder;
       edges_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetNumEdges()));
 
-      execution::ValueColumnBuilder<int64_t> max_degree_builder;
+      neug::ValueColumnBuilder<int64_t> max_degree_builder;
       max_degree_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetMaxDegree()));
 
-      execution::ValueColumnBuilder<int64_t> degeneracy_builder;
+      neug::ValueColumnBuilder<int64_t> degeneracy_builder;
       degeneracy_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetDegeneracy()));
 
@@ -2488,23 +2487,23 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
       auto& cache = GraphDataCache::instance();
       auto& cached_data = cache.get_or_create(*read_interface);
 
-      execution::ValueColumnBuilder<std::string> status_builder;
+      neug::ValueColumnBuilder<std::string> status_builder;
       status_builder.push_back_opt(success ? std::string("success")
                                            : std::string("failed"));
 
-      execution::ValueColumnBuilder<int64_t> vertices_builder;
+      neug::ValueColumnBuilder<int64_t> vertices_builder;
       vertices_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetNumVertices()));
 
-      execution::ValueColumnBuilder<int64_t> edges_builder;
+      neug::ValueColumnBuilder<int64_t> edges_builder;
       edges_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetNumEdges()));
 
-      execution::ValueColumnBuilder<int64_t> max_degree_builder;
+      neug::ValueColumnBuilder<int64_t> max_degree_builder;
       max_degree_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetMaxDegree()));
 
-      execution::ValueColumnBuilder<int64_t> degeneracy_builder;
+      neug::ValueColumnBuilder<int64_t> degeneracy_builder;
       degeneracy_builder.push_back_opt(
           static_cast<int64_t>(cached_data.data_meta->GetDegeneracy()));
 
@@ -2568,11 +2567,11 @@ function::function_set SaveSampledmatchCheckpointFunction::getFunctionSet() {
     bool success =
         save_graph_checkpoint(*read_interface, ckpt_input.checkpoint_dir);
 
-    execution::ValueColumnBuilder<std::string> status_builder;
+    neug::ValueColumnBuilder<std::string> status_builder;
     status_builder.push_back_opt(success ? std::string("success")
                                          : std::string("failed"));
 
-    execution::ValueColumnBuilder<std::string> dir_builder;
+    neug::ValueColumnBuilder<std::string> dir_builder;
     dir_builder.push_back_opt(std::string(ckpt_input.checkpoint_dir));
 
     LOG(INFO) << "[SAVE_SAMPLEDMATCH_CHECKPOINT] "
@@ -2585,7 +2584,7 @@ function::function_set SaveSampledmatchCheckpointFunction::getFunctionSet() {
   return func_set;
 }
 
-std::optional<execution::Value> resolve_exact_order_value(
+std::optional<neug::Value> resolve_exact_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec, const std::vector<MatchVertex>& match,
     const PatternOrderBySpec& order_by) {
@@ -2615,7 +2614,7 @@ std::optional<execution::Value> resolve_exact_order_value(
       static_cast<int>(match[edge.dst]), edge.label, order_by.property);
 }
 
-std::optional<execution::Value> resolve_sampled_order_value(
+std::optional<neug::Value> resolve_sampled_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const SampledSubgraphMatcher& matcher, const std::vector<int>& results,
     int pattern_vertex_count,
@@ -2921,7 +2920,7 @@ function::function_set GetVertexPropertyFunction::getFunctionSet() {
         ofs << ",";
         if (label == vertex_label_id && prop_indices[p] >= 0) {
           try {
-            execution::Value val = read_interface->GetVertexProperty(
+            neug::Value val = read_interface->GetVertexProperty(
                 label, local_vid, prop_indices[p]);
             // Quote and escape per RFC 4180 when the value contains a
             // comma or a quote; otherwise emit verbatim.
@@ -2950,7 +2949,7 @@ function::function_set GetVertexPropertyFunction::getFunctionSet() {
     ofs.close();
     LOG(INFO) << "[GET_VERTEX_PROPERTY] Results written to: " << output_file;
 
-    execution::ValueColumnBuilder<std::string> file_path_builder;
+    neug::ValueColumnBuilder<std::string> file_path_builder;
     file_path_builder.push_back_opt(std::string(output_file));
 
     LOG(INFO) << "[GET_VERTEX_PROPERTY] Returned file: " << output_file
@@ -3160,7 +3159,7 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
             for (auto it = view.get_edges(pe.src_vid).begin();
                  it != view.get_edges(pe.src_vid).end(); ++it) {
               if (*it == pe.dst_vid) {
-                execution::Value val = accessor.get_data(it);
+                neug::Value val = accessor.get_data(it);
                 std::string val_str = val.to_string();
                 // Quote and escape per RFC 4180 when needed.
                 if (val_str.find(',') != std::string::npos ||
@@ -3190,7 +3189,7 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
     ofs.close();
     LOG(INFO) << "[GET_EDGE_PROPERTY] Results written to: " << output_file;
 
-    execution::ValueColumnBuilder<std::string> file_path_builder;
+    neug::ValueColumnBuilder<std::string> file_path_builder;
     file_path_builder.push_back_opt(std::string(output_file));
 
     LOG(INFO) << "[GET_EDGE_PROPERTY] Returned file: " << output_file
@@ -3208,9 +3207,9 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
 // ---
 
 execution::Context make_single_chunk_context(
-    std::vector<std::shared_ptr<execution::IContextColumn>> columns) {
+    std::vector<std::shared_ptr<neug::IContextColumn>> columns) {
   execution::Context ctx;
-  execution::DataChunk chunk;
+  neug::DataChunk chunk;
   ctx.tag_ids.reserve(columns.size());
   for (size_t i = 0; i < columns.size(); ++i) {
     chunk.set(static_cast<int>(i), std::move(columns[i]));
@@ -3451,7 +3450,7 @@ std::vector<std::string> parse_required_props(const rapidjson::Value& obj) {
   return props;
 }
 
-bool is_numeric_value(const execution::Value& value, double* out) {
+bool is_numeric_value(const neug::Value& value, double* out) {
   if (value.IsNull())
     return false;
   try {
@@ -3501,8 +3500,7 @@ bool check_vertex_constraints(const StorageReadInterface& graph,
     if (it == prop_names.end())
       return false;
     int prop_idx = static_cast<int>(std::distance(prop_names.begin(), it));
-    execution::Value actual =
-        graph.GetVertexProperty(label, local_vid, prop_idx);
+    neug::Value actual = graph.GetVertexProperty(label, local_vid, prop_idx);
     if (!compare_property_value(actual, constraint._comp_type,
                                 constraint._value)) {
       return false;
@@ -3511,7 +3509,7 @@ bool check_vertex_constraints(const StorageReadInterface& graph,
   return true;
 }
 
-std::optional<execution::Value> get_directed_edge_property(
+std::optional<neug::Value> get_directed_edge_property(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label, int prop_idx) {
   auto [src_label, src_vid] = data_meta.ToLocalId(src_global);
@@ -3530,7 +3528,7 @@ std::optional<execution::Value> get_directed_edge_property(
   return std::nullopt;
 }
 
-std::optional<execution::Value> get_vertex_property_by_name(
+std::optional<neug::Value> get_vertex_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int global_id, label_t expected_label, const std::string& prop_name) {
   auto [label, local_vid] = data_meta.ToLocalId(global_id);
@@ -3548,7 +3546,7 @@ std::optional<execution::Value> get_vertex_property_by_name(
   } catch (...) { return std::nullopt; }
 }
 
-std::optional<execution::Value> get_edge_property_by_name(
+std::optional<neug::Value> get_edge_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label,
     const std::string& prop_name) {
@@ -3627,7 +3625,7 @@ bool find_directed_edge_data_ptr(const StorageReadInterface& graph,
 
 execution::Context make_native_pattern_context(
     std::vector<NativePatternColumnBuilder>& builders) {
-  std::vector<std::shared_ptr<execution::IContextColumn>> columns;
+  std::vector<std::shared_ptr<neug::IContextColumn>> columns;
   columns.reserve(builders.size());
   for (auto& builder : builders) {
     if (builder.column.kind == PatternOutputKind::kVertex) {

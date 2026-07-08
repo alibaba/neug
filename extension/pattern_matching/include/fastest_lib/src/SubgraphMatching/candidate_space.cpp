@@ -1052,7 +1052,7 @@ bool CandidateSpace::CheckEdgePropertyConstraints(
 }
 
 // 辅助函数：检查值是否满足约束条件
-// Note: neug::execution::Value only supports == operator, other comparisons not
+// Note: neug::Value only supports == operator, other comparisons not
 // yet implemented
 bool CandidateSpace::CheckValueConstraint(const Value& data_value,
                                           CompType comp_type,

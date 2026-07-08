@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -249,37 +249,37 @@ class ValueTest : public ::testing::Test {
 };
 
 TEST_F(ValueTest, DefaultConstructor) {
-  execution::Value v;
+  neug::Value v;
   EXPECT_TRUE(v.IsNull());
 }
 
 TEST_F(ValueTest, BoolValue) {
-  auto v1 = execution::Value::BOOLEAN(true);
+  auto v1 = neug::Value::BOOLEAN(true);
   EXPECT_EQ(v1.type().id(), DataTypeId::kBoolean);
   EXPECT_TRUE(v1.GetValue<bool>());
 
-  auto v2 = execution::Value::BOOLEAN(false);
+  auto v2 = neug::Value::BOOLEAN(false);
   EXPECT_FALSE(v2.GetValue<bool>());
 }
 
 TEST_F(ValueTest, IntegerValues) {
   {
-    auto v = execution::Value::INT32(42);
+    auto v = neug::Value::INT32(42);
     EXPECT_EQ(v.type().id(), DataTypeId::kInt32);
     EXPECT_EQ(v.GetValue<int32_t>(), 42);
   }
   {
-    auto v = execution::Value::UINT32(100U);
+    auto v = neug::Value::UINT32(100U);
     EXPECT_EQ(v.type().id(), DataTypeId::kUInt32);
     EXPECT_EQ(v.GetValue<uint32_t>(), 100U);
   }
   {
-    auto v = execution::Value::INT64(-1234567890123LL);
+    auto v = neug::Value::INT64(-1234567890123LL);
     EXPECT_EQ(v.type().id(), DataTypeId::kInt64);
     EXPECT_EQ(v.GetValue<int64_t>(), -1234567890123LL);
   }
   {
-    auto v = execution::Value::UINT64(9876543210ULL);
+    auto v = neug::Value::UINT64(9876543210ULL);
     EXPECT_EQ(v.type().id(), DataTypeId::kUInt64);
     EXPECT_EQ(v.GetValue<uint64_t>(), 9876543210ULL);
   }
@@ -287,12 +287,12 @@ TEST_F(ValueTest, IntegerValues) {
 
 TEST_F(ValueTest, FloatValues) {
   {
-    auto v = execution::Value::FLOAT(3.14f);
+    auto v = neug::Value::FLOAT(3.14f);
     EXPECT_EQ(v.type().id(), DataTypeId::kFloat);
     EXPECT_FLOAT_EQ(v.GetValue<float>(), 3.14f);
   }
   {
-    auto v = execution::Value::DOUBLE(2.718281828);
+    auto v = neug::Value::DOUBLE(2.718281828);
     EXPECT_EQ(v.type().id(), DataTypeId::kDouble);
     EXPECT_DOUBLE_EQ(v.GetValue<double>(), 2.718281828);
   }
@@ -300,14 +300,14 @@ TEST_F(ValueTest, FloatValues) {
 
 TEST_F(ValueTest, StringValue) {
   std::string str = "hello world";
-  auto v = execution::Value::STRING(str);
+  auto v = neug::Value::STRING(str);
   EXPECT_EQ(v.type().id(), DataTypeId::kVarchar);
   EXPECT_EQ(v.GetValue<std::string>(), str);
 }
 
 TEST_F(ValueTest, TemplateConstructor) {
-  auto v1 = execution::Value::INT32(100);
-  auto v2 = execution::Value::INT32(100);
+  auto v1 = neug::Value::INT32(100);
+  auto v2 = neug::Value::INT32(100);
 
   EXPECT_EQ(v1.type().id(), v2.type().id());
   EXPECT_EQ(v1.GetValue<int32_t>(), v2.GetValue<int32_t>());
@@ -315,18 +315,18 @@ TEST_F(ValueTest, TemplateConstructor) {
 
 TEST_F(ValueTest, GetStringValueUnified) {
   {
-    auto v = execution::Value::STRING(std::string("hello"));
+    auto v = neug::Value::STRING(std::string("hello"));
     EXPECT_EQ(v.GetValue<std::string>(), "hello");
   }
   {
-    auto v = execution::Value::STRING(std::string("world"));
+    auto v = neug::Value::STRING(std::string("world"));
     EXPECT_EQ(v.GetValue<std::string>(), "world");
   }
 }
 
 TEST_F(ValueTest, LessThan) {
-  auto v1 = execution::Value::INT32(10);
-  auto v2 = execution::Value::INT32(20);
+  auto v1 = neug::Value::INT32(10);
+  auto v2 = neug::Value::INT32(20);
   EXPECT_TRUE(v1 < v2);
   EXPECT_FALSE(v2 < v1);
 }
@@ -334,17 +334,17 @@ TEST_F(ValueTest, LessThan) {
 TEST_F(ValueTest, DateAndTimeValues) {
   Date d;
   d.from_u32(33189664);
-  auto v_date = execution::Value::DATE(d);
+  auto v_date = neug::Value::DATE(d);
   EXPECT_EQ(v_date.type().id(), DataTypeId::kDate);
   EXPECT_EQ(v_date.GetValue<Date>().to_u32(), 33189664U);
 
-  auto v_dt = execution::Value::TIMESTAMPMS(DateTime(int64_t{1763365457000}));
+  auto v_dt = neug::Value::TIMESTAMPMS(DateTime(int64_t{1763365457000}));
   EXPECT_EQ(v_dt.type().id(), DataTypeId::kTimestampMs);
   EXPECT_EQ(v_dt.GetValue<DateTime>().to_string(), "2025-11-17 07:44:17.000");
 
   Interval iv(
       std::string("4years3months2days20hours3minutes12seconds200milliseconds"));
-  auto v_iv = execution::Value::INTERVAL(iv);
+  auto v_iv = neug::Value::INTERVAL(iv);
   EXPECT_EQ(v_iv.type().id(), DataTypeId::kInterval);
   EXPECT_EQ(
       v_iv.GetValue<Interval>().to_string(),
@@ -352,19 +352,19 @@ TEST_F(ValueTest, DateAndTimeValues) {
 }
 
 TEST_F(ValueTest, AssignmentOperator) {
-  auto v1 = execution::Value::INT32(42);
+  auto v1 = neug::Value::INT32(42);
   auto v2 = v1;
 
   EXPECT_TRUE(v1 == v2);
 }
 
 TEST_F(ValueTest, EqualityOperator) {
-  auto v1 = execution::Value::INT32(42);
-  auto v2 = execution::Value::INT32(42);
-  auto v3 = execution::Value::INT32(43);
-  auto v4 = execution::Value::STRING(std::string("same"));
-  auto v5 = execution::Value::STRING(std::string("same"));
-  auto v6 = execution::Value::STRING(std::string("diff"));
+  auto v1 = neug::Value::INT32(42);
+  auto v2 = neug::Value::INT32(42);
+  auto v3 = neug::Value::INT32(43);
+  auto v4 = neug::Value::STRING(std::string("same"));
+  auto v5 = neug::Value::STRING(std::string("same"));
+  auto v6 = neug::Value::STRING(std::string("diff"));
 
   EXPECT_TRUE(v1 == v2);
   EXPECT_FALSE(v1 == v3);

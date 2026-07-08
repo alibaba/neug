@@ -19,7 +19,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/execution/expression/predicates.h"
@@ -31,8 +32,7 @@ namespace gds {
 class CDLP {
  public:
   CDLP(const StorageReadInterface& graph, label_t vertex_label,
-       const execution::LabelTriplet& edge_triplet, int max_iterations,
-       int concurrency);
+       const LabelTriplet& edge_triplet, int max_iterations, int concurrency);
 
   void compute();
   void sink(execution::Context& ctx, int32_t node_alias, int32_t label_alias);
@@ -49,7 +49,7 @@ class CDLP {
 
   const StorageReadInterface& graph_;
   label_t vertex_label_;
-  execution::LabelTriplet edge_triplet_;
+  LabelTriplet edge_triplet_;
   int max_iterations_;
   int concurrency_;
 

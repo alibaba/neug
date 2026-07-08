@@ -43,6 +43,11 @@
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
 
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
@@ -51,12 +56,10 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
+#include "pattern_matching_value.h"
 
 #include "fastest_lib/src/SubgraphCounting/cardinality_estimation.h"
 #include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
@@ -72,7 +75,7 @@ inline constexpr MatchVertex kInvalidMatchVertex =
     std::numeric_limits<MatchVertex>::max();
 
 execution::Context make_single_chunk_context(
-    std::vector<std::shared_ptr<execution::IContextColumn>> columns);
+    std::vector<std::shared_ptr<neug::IContextColumn>> columns);
 
 // ============================================================================
 // Helper functions for parsing pattern JSON
@@ -91,7 +94,7 @@ Value create_value_from_rapidjson(const rapidjson::Value& val);
 inline std::string escape_json_string(const std::string& s);
 
 /**
- * @brief Convert a neug::execution::Value to JSON format string (preserving
+ * @brief Convert a neug::Value to JSON format string (preserving
  * types)
  *
  * This function properly serializes different value types:
@@ -104,7 +107,7 @@ inline std::string escape_json_string(const std::string& s);
  * @param val The Value to serialize
  * @return JSON-formatted string representation
  */
-inline std::string value_to_json_string(const execution::Value& val);
+inline std::string value_to_json_string(const neug::Value& val);
 
 // Helper function to parse constraints from rapidjson
 std::vector<PropCons> parse_constraints(
@@ -572,30 +575,30 @@ std::vector<std::string> parse_required_props(const rapidjson::Value& obj);
 std::optional<ExactPatternSpec> parse_exact_pattern_json_file(
     const std::string& pattern_json_file, const Schema& schema);
 
-bool is_numeric_value(const execution::Value& value, double* out);
+bool is_numeric_value(const neug::Value& value, double* out);
 
-bool compare_property_value(const execution::Value& actual, CompType op,
-                            const execution::Value& expected);
+bool compare_property_value(const neug::Value& actual, CompType op,
+                            const neug::Value& expected);
 
 bool check_vertex_constraints(const StorageReadInterface& graph,
                               const DataGraphMeta& data_meta, int global_id,
                               const ExactPatternSpec::VertexSpec& spec);
 
-std::optional<execution::Value> get_directed_edge_property(
+std::optional<neug::Value> get_directed_edge_property(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label, int prop_idx);
 
-std::optional<execution::Value> get_vertex_property_by_name(
+std::optional<neug::Value> get_vertex_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int global_id, label_t expected_label, const std::string& prop_name);
 
-std::optional<execution::Value> get_edge_property_by_name(
+std::optional<neug::Value> get_edge_property_by_name(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     int src_global, int dst_global, label_t edge_label,
     const std::string& prop_name);
 
-int compare_execution_values(const std::optional<execution::Value>& lhs,
-                             const std::optional<execution::Value>& rhs);
+int compare_execution_values(const std::optional<neug::Value>& lhs,
+                             const std::optional<neug::Value>& rhs);
 
 template <class Rows>
 inline void apply_pattern_window(const PatternExecutionModifiers& modifiers,
@@ -622,7 +625,7 @@ bool check_edge_constraints(const StorageReadInterface& graph,
                             int dst_global,
                             const ExactPatternSpec::EdgeSpec& spec);
 
-inline std::optional<execution::Value> resolve_exact_order_value(
+inline std::optional<neug::Value> resolve_exact_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec, const std::vector<MatchVertex>& match,
     const PatternOrderBySpec& order_by);
@@ -648,8 +651,8 @@ bool find_directed_edge_data_ptr(const StorageReadInterface& graph,
 
 struct NativePatternColumnBuilder {
   PatternOutputColumn column;
-  std::unique_ptr<execution::MSVertexColumnBuilder> vertex_builder;
-  std::unique_ptr<execution::MSEdgeColumnBuilder> edge_builder;
+  std::unique_ptr<neug::MSVertexColumnBuilder> vertex_builder;
+  std::unique_ptr<neug::MSEdgeColumnBuilder> edge_builder;
 };
 
 execution::Context make_native_pattern_context(
@@ -660,7 +663,7 @@ execution::Context build_exact_native_pattern_context(
     const ExactPatternSpec& spec,
     const std::vector<std::vector<MatchVertex>>& matches);
 
-inline std::optional<execution::Value> resolve_sampled_order_value(
+inline std::optional<neug::Value> resolve_sampled_order_value(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const SampledSubgraphMatcher& matcher, const std::vector<int>& results,
     int pattern_vertex_count,

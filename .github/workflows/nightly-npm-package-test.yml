@@ -1,0 +1,81 @@
+name: Nightly NPM Package Test
+
+on:
+  schedule:
+    # Trigger at 22:00 CST (14:00 UTC) every day
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-npm-package-test.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-15
+        node-version: ["16", "20", "24"]
+        # skip Node.js 24 on ubuntu-latest, requires C++11
+        exclude:
+          - os: ubuntu-latest
+            node-version: "24"
+
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: tools/nodejs_bind/package-lock.json
+
+      - name: Install NeuG npm package
+        run: |
+          set -euo pipefail
+
+          TEST_WORKSPACE="${RUNNER_TEMP}/neug-npm-package-test"
+          rm -rf "${TEST_WORKSPACE}" && mkdir -p "${TEST_WORKSPACE}"
+
+          cp -R "${GITHUB_WORKSPACE}/tools/nodejs_bind/tests" "${TEST_WORKSPACE}/tests"
+
+          cd "${TEST_WORKSPACE}" && npm install neug@npm:@graphscope-neug/neug
+
+      - name: Prepare modern graph dataset
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+        run: |
+          set -euo pipefail
+
+          rm -rf /tmp/modern_graph
+
+          cd "${RUNNER_TEMP}/neug-npm-package-test"
+          node <<'JS'
+          const { prepareModernGraphDataset } = require('./tests/test-shim');
+          const { Database } = require('neug');
+
+          prepareModernGraphDataset(Database);
+          JS
+
+      - name: Run Node.js tests
+        run: |
+          cd "${RUNNER_TEMP}/neug-npm-package-test"
+          for f in tests/test_*.js; do
+            echo "Running $f"
+            node "$f"
+          done

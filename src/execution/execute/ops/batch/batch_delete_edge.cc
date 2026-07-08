@@ -14,7 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_delete_edge.h"
-#include "neug/execution/common/columns/edge_columns.h"
+#include "neug/common/columns/edge_columns.h"
 #include "neug/storages/csr/csr_view_utils.h"
 
 #include <string_view>

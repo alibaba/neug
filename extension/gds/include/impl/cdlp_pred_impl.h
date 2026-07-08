@@ -19,7 +19,8 @@
 #include <cstdint>
 #include <memory>
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -36,7 +37,7 @@ namespace gds {
 class CDLPPred {
  public:
   CDLPPred(const StorageReadInterface& graph, label_t vertex_label,
-           const execution::LabelTriplet& edge_triplet, int max_iterations,
+           const LabelTriplet& edge_triplet, int max_iterations,
            int concurrency, execution::ExprBase* vertex_pred,
            execution::ExprBase* edge_pred);
 
@@ -46,7 +47,7 @@ class CDLPPred {
  private:
   const StorageReadInterface& graph_;
   label_t vertex_label_;
-  execution::LabelTriplet edge_triplet_;
+  LabelTriplet edge_triplet_;
   int max_iterations_;
   int concurrency_;
   execution::ExprBase* vertex_pred_;

@@ -33,7 +33,7 @@ namespace function {
 
 namespace {
 
-static std::string extractOptionValue(const common::Value& val) {
+static std::string extractOptionValue(const compiler_impl::Value& val) {
   if (val.isNull()) {
     return "";
   }
@@ -61,7 +61,7 @@ static std::string extractOptionValue(const common::Value& val) {
 }
 
 static common::case_insensitive_map_t<std::string> extractStringOptions(
-    const common::Value& value) {
+    const compiler_impl::Value& value) {
   common::case_insensitive_map_t<std::string> out;
   const auto typeId = value.getDataType().id();
   if (typeId == common::DataTypeId::kStruct) {

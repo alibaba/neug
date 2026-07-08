@@ -1,7 +1,6 @@
 #include "neug/compiler/binder/bound_attach_database.h"
 #include "neug/compiler/binder/bound_create_macro.h"
 #include "neug/compiler/binder/bound_detach_database.h"
-#include "neug/compiler/binder/bound_explain.h"
 #include "neug/compiler/binder/bound_extension_statement.h"
 #include "neug/compiler/binder/bound_standalone_call.h"
 #include "neug/compiler/binder/bound_standalone_call_function.h"
@@ -20,7 +19,6 @@
 #include "neug/compiler/planner/operator/ddl/logical_create_type.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
 #include "neug/compiler/planner/operator/logical_create_macro.h"
-#include "neug/compiler/planner/operator/logical_explain.h"
 #include "neug/compiler/planner/operator/logical_standalone_call.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/logical_transaction.h"
@@ -116,19 +114,6 @@ void Planner::appendStandaloneCallFunction(const BoundStatement& statement,
       statement.constCast<BoundStandaloneCallFunction>();
   appendTableFunctionCall(standaloneCallFunctionClause.getTableScanInfo(),
                           plan);
-}
-
-void Planner::appendExplain(const BoundStatement& statement,
-                            LogicalPlan& plan) {
-  auto& explain = statement.constCast<BoundExplain>();
-  auto statementToExplain = explain.getStatementToExplain();
-  auto planToExplain = getBestPlan(*statementToExplain);
-  auto op = make_shared<LogicalExplain>(
-      planToExplain->getLastOperator(),
-      statement.getStatementResult()->getSingleColumnExpr(),
-      explain.getExplainType(),
-      explain.getStatementToExplain()->getStatementResult()->getColumns());
-  plan.setLastOperator(std::move(op));
 }
 
 void Planner::appendCreateMacro(const BoundStatement& statement,

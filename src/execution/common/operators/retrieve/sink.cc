@@ -15,15 +15,15 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
-#include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/path_columns.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/array_columns.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
 
 #include "neug/storages/graph/graph_interface.h"
 
@@ -446,11 +446,11 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     break;
   }
   case DataTypeId::kArray: {
-    // ArrayColumn stores elements flat: row i element j at
+    // ContextArrayColumn stores elements flat: row i element j at
     // datas_[i * array_size_ + j].  We serialize it as a list_array
     // with equal-length offsets, which is wire-compatible with the
     // existing list_array decoding on the client side.
-    auto casted = std::dynamic_pointer_cast<ArrayColumn>(col);
+    auto casted = std::dynamic_pointer_cast<ContextArrayColumn>(col);
     auto list_col = column->mutable_list_array();
     const auto& children = casted->data_column();
     add_column(children, graph, list_col->mutable_elements());

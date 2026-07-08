@@ -16,7 +16,7 @@
 
 'use strict';
 
-const { Database } = require('./lib');
+const { Database } = require('neug');
 
 // 1. Open an in-memory database in read-write mode
 const db = new Database({ databasePath: '', mode: 'w' });

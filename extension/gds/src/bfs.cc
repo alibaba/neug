@@ -97,7 +97,7 @@ std::unique_ptr<function::CallFuncInputBase> BFSFunction::bind(
 }
 
 execution::Context BFSFunction::exec(const function::CallFuncInputBase& input,
-                                     neug::IStorageInterface& g) {
+                                     IStorageInterface& g) {
   const auto& bfs_input = dynamic_cast<const BFSInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);

@@ -35,7 +35,7 @@ namespace binder {
 PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
     : columnDefinition{std::move(columnDefinition)} {
   defaultExpr = std::make_unique<ParsedLiteralExpression>(
-      Value::createNullValue(), "NULL");
+      compiler_impl::Value::createNullValue(), "NULL");
 }
 
 void PropertyDefinition::serialize(Serializer& serializer) const {

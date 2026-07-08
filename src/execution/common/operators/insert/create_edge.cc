@@ -14,11 +14,10 @@
  */
 
 #include "neug/execution/common/operators/insert/create_edge.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/edge_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -71,7 +70,7 @@ neug::result<ContextChunk> CreateEdge::insert_edge(
                             std::to_string(dst_label) + ", got " +
                             std::to_string(v2.label_));
       }
-      std::vector<execution::Value> property_values(properties.size());
+      std::vector<Value> property_values(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value =

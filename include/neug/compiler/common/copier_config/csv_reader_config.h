@@ -130,7 +130,7 @@ struct CSVReaderConfig {
   EXPLICIT_COPY_DEFAULT_MOVE(CSVReaderConfig);
 
   static CSVReaderConfig construct(
-      const case_insensitive_map_t<common::Value>& options);
+      const case_insensitive_map_t<compiler_impl::Value>& options);
 
  private:
   CSVReaderConfig(const CSVReaderConfig& other)

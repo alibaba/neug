@@ -43,24 +43,25 @@ std::shared_ptr<Expression> ExpressionBinder::bindLiteralExpression(
 }
 
 std::shared_ptr<Expression> ExpressionBinder::createLiteralExpression(
-    const Value& value) const {
+    const compiler_impl::Value& value) const {
   auto uniqueName = binder->getUniqueExpressionName(value.toString());
   return std::make_unique<LiteralExpression>(value, uniqueName);
 }
 
 std::shared_ptr<Expression> ExpressionBinder::createLiteralExpression(
     const std::string& strVal) const {
-  return createLiteralExpression(Value(strVal));
+  return createLiteralExpression(compiler_impl::Value(strVal));
 }
 
 std::shared_ptr<Expression> ExpressionBinder::createNullLiteralExpression()
     const {
   return make_shared<LiteralExpression>(
-      Value::createNullValue(), binder->getUniqueExpressionName("NULL"));
+      compiler_impl::Value::createNullValue(),
+      binder->getUniqueExpressionName("NULL"));
 }
 
 std::shared_ptr<Expression> ExpressionBinder::createNullLiteralExpression(
-    const Value& value) const {
+    const compiler_impl::Value& value) const {
   return make_shared<LiteralExpression>(
       value, binder->getUniqueExpressionName("NULL"));
 }

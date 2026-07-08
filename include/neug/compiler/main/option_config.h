@@ -34,8 +34,8 @@ class ClientContext;
 struct SystemConfig;
 
 typedef void (*set_context)(ClientContext* context,
-                            const common::Value& parameter);
-typedef common::Value (*get_setting)(const ClientContext* context);
+                            const compiler_impl::Value& parameter);
+typedef compiler_impl::Value (*get_setting)(const ClientContext* context);
 
 enum class OptionType : uint8_t { CONFIGURATION = 0, EXTENSION = 1 };
 
@@ -68,10 +68,10 @@ struct ConfigurationOption final : Option {
 };
 
 struct ExtensionOption final : Option {
-  common::Value defaultValue;
+  compiler_impl::Value defaultValue;
 
   ExtensionOption(std::string name, common::DataTypeId parameterType,
-                  common::Value defaultValue, bool isConfidential)
+                  compiler_impl::Value defaultValue, bool isConfidential)
       : Option{std::move(name), parameterType, OptionType::EXTENSION,
                isConfidential},
         defaultValue{std::move(defaultValue)} {}
