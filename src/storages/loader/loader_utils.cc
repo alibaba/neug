@@ -269,7 +269,7 @@ void append_csv_field_to_builder(
 
 struct CsvSupplierRuntime {
   explicit CsvSupplierRuntime(const std::string& file_path,
-                              const CsvReadConfig& config)
+                              const CsvReadConfig& config, bool count_rows)
       : file_path_(file_path),
         csv_format_(build_csv_format(config)),
         selected_column_names_(resolve_selected_column_names(config)),
@@ -287,7 +287,7 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = count_rows();
+    row_num_ = count_rows ? count_file_rows() : -1;
     reset_reader();
   }
 
@@ -364,7 +364,7 @@ struct CsvSupplierRuntime {
     }
   }
 
-  int64_t count_rows() const {
+  int64_t count_file_rows() const {
     try {
       csv::CSVReader counter(file_path_, csv_format_);
       skip_rows(counter);
@@ -701,9 +701,10 @@ std::vector<std::string> columnMappingsToSelectedCols(
 }
 
 CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
-                                   CsvReadConfig config)
+                                   CsvReadConfig config, bool count_rows)
     : file_path_(file_path) {
-  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config);
+  runtime_ =
+      std::make_unique<CsvSupplierRuntime>(file_path, config, count_rows);
   row_num_ = runtime_->row_num();
   VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path_;
 }

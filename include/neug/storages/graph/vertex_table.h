@@ -290,8 +290,8 @@ class VertexTable {
   template <typename PK_T>
   void insert_vertices_impl(std::shared_ptr<IDataChunkSupplier> supplier) {
     auto row_nums = supplier->RowNum();
-    if (row_nums <= 0) {
-      LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
+    if (row_nums < 0) {
+      VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
       row_nums = 0;
     }
     size_t new_size = indexer_->size() + row_nums;

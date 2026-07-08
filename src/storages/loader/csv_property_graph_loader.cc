@@ -38,7 +38,8 @@ CSVPropertyGraphLoader::createVertexChunkSupplier(
   fillVertexReaderMeta(v_label, v_label_name, v_file, loading_config,
                        vertex_property_names, vertex_property_types,
                        pk_type.id(), pk_name, pk_ind, config);
-  return std::make_shared<CSVChunkSupplier>(v_file, std::move(config));
+  return std::make_shared<CSVChunkSupplier>(v_file, std::move(config),
+                                            /*count_rows=*/true);
 }
 
 std::shared_ptr<IDataChunkSupplier>
@@ -59,7 +60,8 @@ CSVPropertyGraphLoader::createEdgeChunkSupplier(
                      schema_.get_edge_label_name(e_label_id), e_file,
                      loading_config_, edge_property_names, edge_property_types,
                      src_pk_type.id(), dst_pk_type.id(), config);
-  return std::make_shared<CSVChunkSupplier>(e_file, std::move(config));
+  return std::make_shared<CSVChunkSupplier>(e_file, std::move(config),
+                                            /*count_rows=*/false);
 }
 
 const bool CSVPropertyGraphLoader::registered_ =
