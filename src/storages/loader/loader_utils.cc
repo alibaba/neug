@@ -189,87 +189,6 @@ bool parse_bool_value(std::string_view token,
   THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + std::string(token));
 }
 
-template <typename T>
-Value parse_typed_value_sv(std::string_view token) {
-  if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-    T value{};
-    auto [ptr, ec] =
-        std::from_chars(token.data(), token.data() + token.size(), value);
-    if (ec != std::errc() || ptr != token.data() + token.size()) {
-      THROW_CONVERSION_EXCEPTION("Failed to parse numeric value: " +
-                                 std::string(token));
-    }
-    return Value::CreateValue<T>(value);
-  } else if constexpr (std::is_floating_point_v<T>) {
-    T value{};
-    auto result = kuzu_fast_float::from_chars(
-        token.data(), token.data() + token.size(), value);
-    if (result.ec != std::errc() || result.ptr != token.data() + token.size()) {
-      THROW_CONVERSION_EXCEPTION("Failed to parse floating value: " +
-                                 std::string(token));
-    }
-    return Value::CreateValue<T>(value);
-  } else if constexpr (std::is_same_v<T, std::string>) {
-    return Value::CreateValue<std::string>(std::string(token));
-  } else {
-    return Value::CreateValue<T>(T(std::string(token)));
-  }
-}
-
-Value parse_date_value_sv(std::string_view token) {
-  int64_t millis = 0;
-  if (parse_timestamp_ms_sv(token, &millis) ||
-      parse_epoch_timestamp_ms_sv(token, &millis)) {
-    Date d;
-    d.from_timestamp(millis);
-    return Value::CreateValue<Date>(d);
-  }
-  return parse_typed_value_sv<date_t>(token);
-}
-
-Value parse_timestamp_value_sv(std::string_view token) {
-  int64_t millis = 0;
-  if (parse_timestamp_ms_sv(token, &millis) ||
-      parse_epoch_timestamp_ms_sv(token, &millis)) {
-    return Value::CreateValue<timestamp_ms_t>(DateTime(millis));
-  }
-  return parse_typed_value_sv<timestamp_ms_t>(token);
-}
-
-Value parse_value_by_type_sv(
-    std::string_view token, const DataType& data_type,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values) {
-  switch (data_type.id()) {
-  case DataTypeId::kInt32:
-    return parse_typed_value_sv<int32_t>(token);
-  case DataTypeId::kInt64:
-    return parse_typed_value_sv<int64_t>(token);
-  case DataTypeId::kUInt32:
-    return parse_typed_value_sv<uint32_t>(token);
-  case DataTypeId::kUInt64:
-    return parse_typed_value_sv<uint64_t>(token);
-  case DataTypeId::kFloat:
-    return parse_typed_value_sv<float>(token);
-  case DataTypeId::kDouble:
-    return parse_typed_value_sv<double>(token);
-  case DataTypeId::kBoolean:
-    return Value::CreateValue<bool>(
-        parse_bool_value(token, true_values, false_values));
-  case DataTypeId::kDate:
-    return parse_date_value_sv(token);
-  case DataTypeId::kTimestampMs:
-    return parse_timestamp_value_sv(token);
-  case DataTypeId::kInterval:
-    return parse_typed_value_sv<interval_t>(token);
-  case DataTypeId::kVarchar:
-    return parse_typed_value_sv<std::string>(token);
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
-                                  data_type.ToString());
-  }
-}
-
 std::string unescape_token_sv(std::string_view token, char escape_char) {
   std::string res;
   res.reserve(token.size());
@@ -284,44 +203,139 @@ std::string unescape_token_sv(std::string_view token, char escape_char) {
   return res;
 }
 
-void append_csv_field_to_builder(
-    std::shared_ptr<IContextColumnBuilder>& builder, const DataType& data_type,
-    csv::CSVField field, const std::unordered_set<std::string>& null_values,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values,
-    const std::string& file_path, int64_t row_number,
-    const std::string& column_name, bool escaping, char escape_char) {
+// Fast path: CSV field → parse_direct<T> → push_back_opt
+// Bypasses Value object creation and virtual dispatch (push_back_elem).
+// FieldAppender resolves the concrete builder type once per column per chunk.
+
+/// Parse a string_view directly to type T, without wrapping in Value.
+template <typename T>
+T parse_direct(std::string_view token,
+               const std::unordered_set<std::string>& true_values,
+               const std::unordered_set<std::string>& false_values) {
+  if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+    T value{};
+    auto [ptr, ec] =
+        std::from_chars(token.data(), token.data() + token.size(), value);
+    if (ec != std::errc() || ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse numeric value: " +
+                                 std::string(token));
+    }
+    return value;
+  } else if constexpr (std::is_floating_point_v<T>) {
+    T value{};
+    auto result = kuzu_fast_float::from_chars(
+        token.data(), token.data() + token.size(), value);
+    if (result.ec != std::errc() || result.ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse floating value: " +
+                                 std::string(token));
+    }
+    return value;
+  } else if constexpr (std::is_same_v<T, bool>) {
+    return parse_bool_value(token, true_values, false_values);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return std::string(token);
+  } else if constexpr (std::is_same_v<T, Date>) {
+    int64_t millis = 0;
+    if (parse_timestamp_ms_sv(token, &millis) ||
+        parse_epoch_timestamp_ms_sv(token, &millis)) {
+      Date d;
+      d.from_timestamp(millis);
+      return d;
+    }
+    return Date(std::string(token));
+  } else if constexpr (std::is_same_v<T, DateTime>) {
+    int64_t millis = 0;
+    if (parse_timestamp_ms_sv(token, &millis) ||
+        parse_epoch_timestamp_ms_sv(token, &millis)) {
+      return DateTime(millis);
+    }
+    return DateTime(std::string(token));
+  } else {
+    // Interval and any other types: construct from string.
+    return T(std::string(token));
+  }
+}
+
+/// Shared parsing context (constant across all columns in a chunk).
+struct CsvParseCtx {
+  const std::unordered_set<std::string>& null_values;
+  const std::unordered_set<std::string>& true_values;
+  const std::unordered_set<std::string>& false_values;
+  const std::string& file_path;
+  bool escaping;
+  char escape_char;
+};
+
+/// Type-erased field appender (32 bytes — fits one cache line).
+///
+/// Holds a function pointer to a template instantiation that knows the
+/// concrete ValueColumnBuilder<T> type.  The function pointer is resolved
+/// once per column (in make_appender), then called per-field without
+/// virtual dispatch or Value creation.
+///
+/// column_name and type are only dereferenced in the error path.
+struct FieldAppender {
+  void* builder;
+  const std::string* column_name;
+  const DataType* type;
+  void (*fn)(const FieldAppender&, csv::CSVField, const CsvParseCtx&, int64_t);
+
+  inline void append(csv::CSVField field, const CsvParseCtx& ctx,
+                     int64_t row_number) const {
+    fn(*this, field, ctx, row_number);
+  }
+};
+
+/// Template implementation: parse field → T → push_back_opt.
+template <typename T>
+void append_typed_impl(const FieldAppender& app, csv::CSVField field,
+                       const CsvParseCtx& ctx, int64_t row_number) {
+  auto* builder = static_cast<ValueColumnBuilder<T>*>(app.builder);
+
   if (field.is_null()) {
     builder->push_back_null();
     return;
   }
 
-  // Zero-copy: get string_view directly from the CSV field without heap
-  // allocation.
   std::string_view token_sv = static_cast<csv::string_view>(field);
 
-  if (contains_sv(null_values, token_sv)) {
+  if (contains_sv(ctx.null_values, token_sv)) {
     builder->push_back_null();
     return;
   }
 
   try {
-    if (escaping) {
-      // Only allocate a string when escaping is actually needed (rare path).
-      auto unescaped = unescape_token_sv(token_sv, escape_char);
-      builder->push_back_elem(parse_value_by_type_sv(
-          unescaped, data_type, true_values, false_values));
+    if (ctx.escaping) {
+      auto unescaped = unescape_token_sv(token_sv, ctx.escape_char);
+      builder->push_back_opt(
+          parse_direct<T>(unescaped, ctx.true_values, ctx.false_values));
     } else {
-      // Common path: parse directly from string_view, no heap allocation.
-      builder->push_back_elem(parse_value_by_type_sv(
-          token_sv, data_type, true_values, false_values));
+      builder->push_back_opt(
+          parse_direct<T>(token_sv, ctx.true_values, ctx.false_values));
     }
   } catch (const std::exception& error) {
     THROW_CONVERSION_EXCEPTION(
-        "Failed to parse CSV field, file=" + file_path +
-        ", row=" + std::to_string(row_number) + ", column=" + column_name +
-        ", type=" + data_type.ToString() + ", value='" + std::string(token_sv) +
+        "Failed to parse CSV field, file=" + ctx.file_path +
+        ", row=" + std::to_string(row_number) + ", column=" + *app.column_name +
+        ", type=" + app.type->ToString() + ", value='" + std::string(token_sv) +
         "', reason=" + error.what());
+  }
+}
+
+/// Create a FieldAppender for the given data type.
+FieldAppender make_appender(const DataType& type, void* builder,
+                            const std::string* column_name) {
+  switch (type.id()) {
+#define MAKE_APPENDER(enum_val, cpp_type) \
+  case DataTypeId::enum_val:              \
+    return {builder, column_name, &type, &append_typed_impl<cpp_type>};
+    FOR_EACH_DATA_TYPE(MAKE_APPENDER)
+#undef MAKE_APPENDER
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported data type for CSV field appender: " +
+        std::to_string(static_cast<int>(type.id())));
+    return {};
   }
 }
 
@@ -637,6 +651,18 @@ struct CsvSupplierRuntime {
       builders.emplace_back(std::move(builder));
     }
 
+    // Pre-resolve typed appenders for each column (once per chunk).
+    // This eliminates per-field Value creation and virtual dispatch.
+    CsvParseCtx ctx{null_values_, true_values_, false_values_,
+                    file_path_,   escaping_,    escape_char_};
+    std::vector<FieldAppender> appenders;
+    appenders.reserve(builders.size());
+    for (size_t i = 0; i < builders.size(); ++i) {
+      appenders.push_back(make_appender(selected_column_types_[i],
+                                        builders[i].get(),
+                                        &selected_column_names_[i]));
+    }
+
     csv::CSVRow row;
     size_t output_rows = 0;
     while (output_rows < chunk_size_ && reader_->read_row(row)) {
@@ -652,11 +678,8 @@ struct CsvSupplierRuntime {
           builders[column_index]->push_back_null();
           continue;
         }
-        append_csv_field_to_builder(
-            builders[column_index], selected_column_types_[column_index],
-            row[physical_index], null_values_, true_values_, false_values_,
-            file_path_, current_row_number_,
-            selected_column_names_[column_index], escaping_, escape_char_);
+        appenders[column_index].append(row[physical_index], ctx,
+                                       current_row_number_);
       }
       output_rows += 1;
     }
