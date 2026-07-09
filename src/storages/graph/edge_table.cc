@@ -208,17 +208,19 @@ static void parse_endpoint_column_typed(
     }
     PK_T pk_val;
     if (value_col) {
-      pk_val = value_col->data()[i];
+      pk_val = value_col->get_value(i);
     } else if constexpr (std::is_same_v<PK_T, std::string_view>) {
       if (str_col) {
-        pk_val = std::string_view(str_col->data()[i]);
+        pk_val = std::string_view(str_col->get_value(i));
       } else {
         pk_val = col->get_elem(i).GetValue<std::string_view>();
       }
     } else {
       pk_val = col->get_elem(i).GetValue<PK_T>();
     }
-    lids.push_back(indexer.get_index_typed<PK_T>(pk_val));
+    lids.push_back(
+        id_indexer_impl::BulkLoadAccessor<vid_t>::template get_index<PK_T>(
+            indexer, pk_val));
   }
 }
 
@@ -295,7 +297,7 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-/// Type-erased inserter: writes ValueColumn<T>::data()[src_idx] to
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
 /// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
 struct TypedColumnInserter {
   const IContextColumn* src;
@@ -316,7 +318,7 @@ void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
                        size_t src_idx, bool /*insert_safe*/) {
   auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
   auto vc = static_cast<const ValueColumn<T>*>(ins.src);
-  typed_dst->set_value(dst_idx, vc->data()[src_idx]);
+  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
 }
 
 /// Varchar: source is ValueColumn<std::string>, dest is
@@ -327,7 +329,7 @@ void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
   auto* typed_dst = static_cast<TypedColumn<std::string_view>*>(ins.dst);
   auto vc = static_cast<const ValueColumn<std::string>*>(ins.src);
   typed_dst->set_any(dst_idx,
-                     Value::CreateValue<std::string>(vc->data()[src_idx]),
+                     Value::CreateValue<std::string>(vc->get_value(src_idx)),
                      insert_safe);
 }
 

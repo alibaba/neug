@@ -472,8 +472,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       THROW_RUNTIME_ERROR("Index out of range");
     } else {
       THROW_STORAGE_EXCEPTION(
-          "Not enough space in buffer for new value, and insert_safe is "
-          "false. "
+          "Not enough space in buffer for new value, and insert_safe is false. "
           "Current buffer size: " +
           std::to_string(data_buffer_->GetDataSize()) +
           ", current position: " + std::to_string(pos_.load()) +
