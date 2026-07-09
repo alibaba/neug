@@ -91,8 +91,8 @@ std::unique_ptr<function::CallFuncInputBase> LouvainFunction::bind(
   input->threshold = get_option_value<double>(options, "threshold", 1e-7);
   input->concurrency = get_option_value<int32_t>(
       options, "concurrency", std::thread::hardware_concurrency());
-  input->initial_community_property = get_option_value<std::string>(
-      options, "initial_community_property", "");
+  input->initial_community_property =
+      get_option_value<std::string>(options, "initial_community_property", "");
 
   input->node_alias = -1;
   input->community_alias = -1;
