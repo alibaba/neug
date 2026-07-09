@@ -59,8 +59,8 @@ class ValueColumn : public IContextColumn {
   // returns a proxy reference, not a real bool&.  Returning const T&
   // would bind to a temporary, producing a dangling reference.
   // For bool, return by value instead.
-  inline std::conditional_t<std::is_same_v<T, bool>, T, const T&>
-  get_value(size_t idx) const {
+  inline std::conditional_t<std::is_same_v<T, bool>, T, const T&> get_value(
+      size_t idx) const {
     return data_[idx];
   }
 
