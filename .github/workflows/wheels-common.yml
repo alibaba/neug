@@ -122,6 +122,7 @@ jobs:
         }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      CIBW_ENVIRONMENT: "NEUG_COMMIT_SHA=${{ github.sha }}"
     steps:
       - name: checkout
         id: checkout
@@ -165,7 +166,7 @@ jobs:
 
       - name: Upload wheel artifacts
         if: ${{
-              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
               (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
@@ -173,28 +174,6 @@ jobs:
           name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-linux-x86_64-{0}', github.sha) || format('wheels-linux-x86_64-{0}', github.run_id) }}
           path: ./wheelhouse/*.whl
           if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: ${{
-              (
-                inputs.mode == 'release' &&
-                (
-                  (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
-                  (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-                )
-              ) ||
-              (
-                inputs.mode == 'nightly' &&
-                inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
-              )
-            }}
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true
 
       - name: Clean all installed python packages
         run: |
@@ -260,6 +239,7 @@ jobs:
         }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      CIBW_ENVIRONMENT: "NEUG_COMMIT_SHA=${{ github.sha }}"
     steps:
       - name: checkout
         id: checkout
@@ -304,7 +284,7 @@ jobs:
 
       - name: Upload wheel artifacts
         if: ${{
-              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
               (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
@@ -312,28 +292,6 @@ jobs:
           name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-linux-arm64-{0}', github.sha) || format('wheels-linux-arm64-{0}', github.run_id) }}
           path: ./wheelhouse/*.whl
           if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: ${{
-              (
-                inputs.mode == 'release' &&
-                (
-                  (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
-                  (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-                )
-              ) ||
-              (
-                inputs.mode == 'nightly' &&
-                inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
-              )
-            }}
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true
 
       - name: Clean all installed python packages
         run: |
@@ -385,6 +343,7 @@ jobs:
     if: inputs.enable_macos_x86
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      CIBW_ENVIRONMENT: "NEUG_COMMIT_SHA=${{ github.sha }}"
     steps:
       - name: checkout
         id: checkout
@@ -518,6 +477,7 @@ jobs:
         }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      CIBW_ENVIRONMENT: "NEUG_COMMIT_SHA=${{ github.sha }}"
     steps:
       - name: checkout
         id: checkout
@@ -586,7 +546,7 @@ jobs:
 
       - name: Upload wheel artifacts
         if: ${{
-              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
               (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
@@ -594,28 +554,6 @@ jobs:
           name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-macos-arm64-{0}', github.sha) || format('wheels-macos-arm64-{0}', github.run_id) }}
           path: ./wheelhouse/*.whl
           if-no-files-found: error
-
-      # - name: Publish distribution to PyPI
-      #   uses: pypa/gh-action-pypi-publish@v1.4.2
-      #   if: ${{
-      #         (
-      #           inputs.mode == 'release' &&
-      #           (
-      #             (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
-      #             (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-      #           )
-      #         ) ||
-      #         (
-      #           inputs.mode == 'nightly' &&
-      #           inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
-      #         )
-      #       }}
-      #   with:
-      #     user: __token__
-      #     password: ${{ secrets.PYPI_PASSWORD }}
-      #     packages_dir: wheelhouse/
-      #     verbose: true
-      #     skip_existing: true
 
       - name: Clean all installed python packages
         run: |
@@ -724,3 +662,46 @@ jobs:
           echo "Installing $TARGET"
           python -m pip install "$TARGET"
           python tools/python_bind/example/complex_test.py
+
+  publish_to_pypi:
+    name: Publish wheels to PyPI
+    needs:
+      - build_wheels_linux_x86_64
+      - build_wheels_linux_arm64
+      - build_wheels_macos_aarch64
+    runs-on: ubuntu-latest
+    if: ${{
+          inputs.mode == 'release' &&
+          github.repository == 'alibaba/neug' &&
+          (
+            inputs.caller_event_name == 'workflow_dispatch' ||
+            inputs.caller_event_name == 'release'
+          )
+        }}
+    steps:
+      - name: Download Linux x86_64 wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Download Linux arm64 wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-arm64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Download macOS arm64 wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-arm64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true

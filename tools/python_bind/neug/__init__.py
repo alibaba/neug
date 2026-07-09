@@ -27,6 +27,11 @@ from packaging.version import Version
 import neug
 from neug.version import __version__
 
+try:
+    from neug._commit import __commit__  # noqa: F401
+except ImportError:
+    __commit__ = "unknown"  # type: ignore[assignment]
+
 logger = logging.getLogger("neug")
 
 _PROTOBUF_VERSION_OVERRIDE_ENV = "NEUG_EXPECTED_PROTOBUF_VERSION"
