@@ -47,7 +47,7 @@ from neug.database import Database
 def load_sample_data(conn):
     """Create and populate a simple graph with person and software nodes using CSV COPY."""
     import tempfile
-    
+
     # Create schema
     conn.execute(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
