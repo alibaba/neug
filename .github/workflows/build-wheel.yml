@@ -9,6 +9,9 @@ on:
         description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
         required: false
         default: ''
+  release:
+    types:
+      - created
   push:
     branches:
       - main

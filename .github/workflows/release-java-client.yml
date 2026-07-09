@@ -1,0 +1,67 @@
+name: Release Java Client
+
+on:
+  release:
+    types:
+      - created
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tools/java_driver/**'
+      - '.github/workflows/release-java-client.yml'
+      - 'proto/response.proto'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  release-java-client:
+    name: Build and Publish Java SDK
+    runs-on: ubuntu-22.04
+    if: github.repository == 'alibaba/neug'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Build and Test Java SDK
+        working-directory: tools/java_driver
+        run: mvn -B test
+
+      - name: Remove SNAPSHOT from version
+        working-directory: tools/java_driver
+        run: mvn -B versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+
+      - name: Publish to Maven Central
+        if: github.event_name != 'pull_request'
+        working-directory: tools/java_driver
+        run: mvn -B deploy -DskipTests
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish to Maven Central (dry-run)
+        if: github.event_name == 'pull_request'
+        working-directory: tools/java_driver
+        run: |
+          mvn -B deploy -DskipTests \
+              -Dgpg.skip=true \
+              -DskipPublishing=true \
+              -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging
