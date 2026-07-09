@@ -76,9 +76,15 @@ class IDataChunkSupplier {
 };
 
 /// csv-parser based supplier. Reads CSV in chunks and yields ValueColumns.
+///
+/// count_rows is a constructor parameter (not a CsvReadConfig field) because
+/// it is an internal optimization decision — not a user-facing CSV option.
+/// Placing it in CsvReadConfig would expose it via CsvOptionsBuilder to
+/// COPY FROM syntax (e.g. "COPY ... (count_rows=true)"), which is undesirable.
 class CSVChunkSupplier : public IDataChunkSupplier {
  public:
-  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config);
+  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config,
+                   bool count_rows = false);
 
   ~CSVChunkSupplier() override;
 

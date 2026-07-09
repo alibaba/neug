@@ -38,7 +38,8 @@ CSVPropertyGraphLoader::createVertexChunkSupplier(
   fillVertexReaderMeta(v_label, v_label_name, v_file, loading_config,
                        vertex_property_names, vertex_property_types,
                        pk_type.id(), pk_name, pk_ind, config);
-  return std::make_shared<CSVChunkSupplier>(v_file, std::move(config));
+  return std::make_shared<CSVChunkSupplier>(v_file, std::move(config),
+                                             /*count_rows=*/true);
 }
 
 std::shared_ptr<IDataChunkSupplier>
