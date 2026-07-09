@@ -612,7 +612,7 @@ class CsvRowCountCounter {
 
 struct CsvSupplierRuntime {
   explicit CsvSupplierRuntime(const std::string& file_path,
-                              const CsvReadConfig& config, bool count_rows)
+                              const CsvReadConfig& config)
       : file_path_(file_path),
         csv_format_(build_csv_format(config)),
         selected_column_names_(resolve_selected_column_names(config)),
@@ -630,13 +630,9 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = count_rows
-                   ? CsvRowCountCounter(file_path_, config.quoting,
-                                        config.quote_char,
-                                        config.double_quote,
-                                        config.delimiter)
-                         .count()
-                   : -1;
+    row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
+                                  config.double_quote, config.delimiter)
+                   .count();
     reset_reader();
   }
 
@@ -1040,12 +1036,11 @@ std::vector<std::string> columnMappingsToSelectedCols(
 }
 
 CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
-                                   CsvReadConfig config, bool count_rows)
+                                   CsvReadConfig config)
     : file_path_(file_path) {
-  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config,
-                                                   count_rows);
+  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config);
   row_num_ = runtime_->row_num();
-  VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path;
+  VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path_;
 }
 
 CSVChunkSupplier::~CSVChunkSupplier() = default;
