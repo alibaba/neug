@@ -194,9 +194,9 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     auto update_txn = GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(update_txn);
     GS_AUTO(ctx, ExecutePipelineInTransaction(
-                     pipeline_cache_, GraphStats(update_txn.graph()), query,
-                     mode, db_config_, param_json_obj, timer.get(),
-                     result_schema, update_txn, gui));
+                     pipeline_cache_, update_txn.statistic(), query, mode,
+                     db_config_, param_json_obj, timer.get(), result_schema,
+                     update_txn, gui));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {
