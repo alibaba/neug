@@ -59,7 +59,7 @@ class ExplainTest : public GOptTest {
       THROW_RUNTIME_ERROR(schemaResult.error().ToString());
     }
     currentSchema = std::move(schemaResult).value();
-    storage::GraphStats stats;
+    GraphStats stats;
 #ifdef NEUG_BUILD_TEST
     stats.LoadFromJson(currentSchema, statsData);
 #endif

@@ -134,7 +134,7 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
   return localDatabase->extensionManager->getExtensionOption(optionName);
 }
 
-std::shared_ptr<storage::GraphStats> ClientContext::getGraphStats() const {
+std::shared_ptr<GraphStats> ClientContext::getGraphStats() const {
   return localDatabase->getGraphStats();
 }
 

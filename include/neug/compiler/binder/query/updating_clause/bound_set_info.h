@@ -23,22 +23,23 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
-#include "neug/compiler/common/enums/table_type.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
 
 struct BoundSetPropertyInfo {
-  TableType tableType;
+  SchemaEntryType entryType;
   std::shared_ptr<Expression> pattern;
   std::shared_ptr<Expression> column;
   std::shared_ptr<Expression> columnData;
   bool updatePk = false;
 
-  BoundSetPropertyInfo(TableType tableType, std::shared_ptr<Expression> pattern,
+  BoundSetPropertyInfo(SchemaEntryType tableType,
+                       std::shared_ptr<Expression> pattern,
                        std::shared_ptr<Expression> column,
                        std::shared_ptr<Expression> columnData)
-      : tableType{tableType},
+      : entryType{tableType},
         pattern{std::move(pattern)},
         column{std::move(column)},
         columnData{std::move(columnData)} {}
@@ -46,7 +47,7 @@ struct BoundSetPropertyInfo {
 
  private:
   BoundSetPropertyInfo(const BoundSetPropertyInfo& other)
-      : tableType{other.tableType},
+      : entryType{other.entryType},
         pattern{other.pattern},
         column{other.column},
         columnData{other.columnData},

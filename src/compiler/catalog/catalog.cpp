@@ -92,7 +92,7 @@ bool Catalog::containsTable(const Transaction* transaction,
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
     if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->getEntryID()) &&
+        schema->is_vertex_label_valid(entry->get_entry_id()) &&
         nameEquals(entry->label_name, tableName)) {
       return true;
     }
@@ -120,7 +120,7 @@ bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
     return true;
   }
   for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-    if (edgeSchema->getEntryID() == tableID ||
+    if (edgeSchema->get_entry_id() == tableID ||
         edgeSchema->getLabelId() == tableID) {
       return true;
     }
@@ -137,7 +137,7 @@ const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
   if (schema != nullptr) {
     const EdgeSchema* labelMatch = nullptr;
     for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-      if (edgeSchema->getEntryID() == tableID) {
+      if (edgeSchema->get_entry_id() == tableID) {
         return edgeSchema.get();
       }
       if (edgeSchema->getLabelId() == tableID) {
@@ -164,7 +164,7 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
     VertexSchema* vertexResult = nullptr;
     for (auto& entry : schema->get_all_vertex_schemas()) {
       if (entry == nullptr ||
-          !schema->is_vertex_label_valid(entry->getEntryID()) ||
+          !schema->is_vertex_label_valid(entry->get_entry_id()) ||
           !nameEquals(entry->label_name, tableName)) {
         continue;
       }
@@ -211,7 +211,7 @@ std::vector<VertexSchema*> Catalog::getNodeTableEntries(
   }
   for (auto& entry : schema->get_all_vertex_schemas()) {
     if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->getEntryID())) {
+        schema->is_vertex_label_valid(entry->get_entry_id())) {
       result.push_back(entry.get());
     }
   }
@@ -233,9 +233,9 @@ std::vector<EdgeSchema*> Catalog::getRelTableEntries(
   }
   std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
     return std::tie(lhs->edge_label_id, lhs->src_label_id, lhs->dst_label_id,
-                    lhs->table_id) < std::tie(rhs->edge_label_id,
+                    lhs->entry_id) < std::tie(rhs->edge_label_id,
                                               rhs->src_label_id,
-                                              rhs->dst_label_id, rhs->table_id);
+                                              rhs->dst_label_id, rhs->entry_id);
   });
   return result;
 }
@@ -286,9 +286,9 @@ std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
   }
   std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
     return std::tie(lhs->edge_label_id, lhs->src_label_id, lhs->dst_label_id,
-                    lhs->table_id) < std::tie(rhs->edge_label_id,
+                    lhs->entry_id) < std::tie(rhs->edge_label_id,
                                               rhs->src_label_id,
-                                              rhs->dst_label_id, rhs->table_id);
+                                              rhs->dst_label_id, rhs->entry_id);
   });
   if (result.empty()) {
     THROW_SCHEMA_MISMATCH(

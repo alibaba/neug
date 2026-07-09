@@ -52,7 +52,7 @@ static std::shared_ptr<LogicalOperator> appendAccumulate(
 static table_id_vector_t getTableIDs(const std::vector<SchemaEntry*>& entries) {
   table_id_vector_t result;
   for (auto& entry : entries) {
-    result.push_back(entry->getEntryID());
+    result.push_back(entry->get_entry_id());
   }
   return result;
 }

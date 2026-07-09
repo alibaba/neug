@@ -113,12 +113,12 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Primary key scan is only supported for node "
           "tables, but got: " +
-          tableEntry->getLabel());
+          tableEntry->get_label());
     }
     auto pkName = nodeTableEntry->getPrimaryKeyName();
     if (pkName.empty()) {
       THROW_EXCEPTION_WITH_FILE_LINE("Node table " +
-                                     nodeTableEntry->getLabel() +
+                                     nodeTableEntry->get_label() +
                                      " does not have a primary key.");
     }
     return PrimaryKey{pkName, pkExtraInfo};

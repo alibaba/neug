@@ -172,7 +172,7 @@ static std::vector<std::string> getPropertyNames(
   std::vector<std::string> result;
   common::case_insensitve_set_t propertyNamesSet;
   for (auto& entry : entries) {
-    for (auto& property : entry->getProperties()) {
+    for (auto& property : entry->get_properties()) {
       if (propertyNamesSet.contains(property.getName())) {
         continue;
       }
@@ -191,19 +191,19 @@ static std::unique_ptr<Expression> createPropertyExpression(
   std::vector<DataType> dataTypes;
   for (auto& entry : entries) {
     bool exists = false;
-    if (entry->containsProperty(propertyName)) {
+    if (entry->contains_property(propertyName)) {
       exists = true;
-      dataTypes.push_back(entry->getProperty(propertyName).getType().copy());
+      dataTypes.push_back(entry->get_property(propertyName).getType().copy());
     }
     // Bind isPrimaryKey
     auto isPrimaryKey = false;
-    if (entry->getEntryType() == TableType::NODE) {
+    if (entry->get_entry_type() == SchemaEntryType::NODE) {
       auto nodeEntry = dynamic_cast<const VertexSchema*>(entry);
       NEUG_ASSERT(nodeEntry != nullptr);
       isPrimaryKey = nodeEntry->getPrimaryKeyName() == propertyName;
     }
     auto info = SingleLabelPropertyInfo(exists, isPrimaryKey);
-    infos.insert({entry->getEntryID(), std::move(info)});
+    infos.insert({entry->get_entry_id(), std::move(info)});
   }
   // Validate property under the same name has the same type.
   NEUG_ASSERT(!dataTypes.empty());
@@ -439,7 +439,7 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
   schema_entry_set_t entrySet;
   auto getMutableTableEntry = [&](common::table_id_t tableID) {
     auto* entry = catalog->getTableCatalogEntry(transaction, tableID);
-    return catalog->getTableCatalogEntry(transaction, entry->getLabel());
+    return catalog->getTableCatalogEntry(transaction, entry->get_label());
   };
   for (auto entry : entries) {
     auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
@@ -773,11 +773,11 @@ static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
               auto* rhsEdge = dynamic_cast<const EdgeSchema*>(b);
               if (lhsEdge != nullptr && rhsEdge != nullptr) {
                 return std::tie(lhsEdge->edge_label_id, lhsEdge->src_label_id,
-                                lhsEdge->dst_label_id, lhsEdge->table_id) <
+                                lhsEdge->dst_label_id, lhsEdge->entry_id) <
                        std::tie(rhsEdge->edge_label_id, rhsEdge->src_label_id,
-                                rhsEdge->dst_label_id, rhsEdge->table_id);
+                                rhsEdge->dst_label_id, rhsEdge->entry_id);
               }
-              return a->getEntryID() < b->getEntryID();
+              return a->get_entry_id() < b->get_entry_id();
             });
   return entries;
 }
@@ -795,9 +795,9 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
   } else {
     for (auto& name : tableNames) {
       auto entry = bindNodeTableEntry(name);
-      if (entry->getEntryType() != TableType::NODE) {
+      if (entry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_BINDER_EXCEPTION(stringFormat(
-            "Cannot bind {} as a node pattern label.", entry->getLabel()));
+            "Cannot bind {} as a node pattern label.", entry->get_label()));
       }
       entrySet.insert(entry);
     }
@@ -835,10 +835,10 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
       } else if (catalog->containsTable(transaction, name)) {
         auto entry =
             catalog->getTableCatalogEntry(transaction, name, useInternal);
-        if (entry->getEntryType() != TableType::REL) {
+        if (entry->get_entry_type() != SchemaEntryType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
-                           entry->getLabel()));
+                           entry->get_label()));
         }
         entrySet.insert(entry);
       } else {

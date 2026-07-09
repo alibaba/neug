@@ -44,7 +44,7 @@ class LogicalCopyFrom final : public LogicalOperator {
         outExprs{std::move(outExprs)} {}
 
   std::string getExpressionsForPrinting() const override {
-    std::string result = info.tableEntry->getLabel() + "\nColumns: ";
+    std::string result = info.tableEntry->get_label() + "\nColumns: ";
     for (auto& expr : info.columnExprs) {
       result += expr->toString() + ", ";
     }
@@ -63,7 +63,7 @@ class LogicalCopyFrom final : public LogicalOperator {
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalCopyFromPrintInfo>(
-        info.tableEntry->getLabel());
+        info.tableEntry->get_label());
   }
 
   std::unique_ptr<LogicalOperator> copy() override {

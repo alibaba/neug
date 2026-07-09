@@ -46,8 +46,8 @@ void CardinalityEstimator::addNodeIDDomAndStats(
   auto key = nodeID.getUniqueName();
   cardinality_t numNodes = 0u;
   for (auto tableID : tableIDs) {
-    auto tableCard =
-        context->getGraphStats()->getTableCardinality(tableID, TableType::NODE);
+    auto tableCard = context->getGraphStats()->getTableCardinality(
+        tableID, SchemaEntryType::NODE);
     numNodes += tableCard;
     if (!nodeTableStats.contains(tableID)) {
       std::vector<common::DataType> types;
@@ -248,8 +248,8 @@ uint64_t CardinalityEstimator::getNumRels(
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
-    numRels +=
-        context->getGraphStats()->getTableCardinality(tableID, TableType::REL);
+    numRels += context->getGraphStats()->getTableCardinality(
+        tableID, SchemaEntryType::REL);
   }
   return atLeastOne(numRels);
 }

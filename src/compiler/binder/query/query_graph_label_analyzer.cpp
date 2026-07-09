@@ -77,8 +77,8 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           candidates.insert(dstTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(srcEntry->getLabel());
-          candidateNamesSet.insert(dstEntry->getLabel());
+          candidateNamesSet.insert(srcEntry->get_label());
+          candidateNamesSet.insert(dstEntry->get_label());
         }
       }
     } else {
@@ -88,7 +88,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto srcTableID = relEntry->getSrcTableID();
           candidates.insert(srcTableID);
           auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
-          candidateNamesSet.insert(srcEntry->getLabel());
+          candidateNamesSet.insert(srcEntry->get_label());
         }
       } else if (isDstConnect) {
         for (auto entry : queryRel->getEntries()) {
@@ -96,7 +96,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto dstTableID = relEntry->getDstTableID();
           candidates.insert(dstTableID);
           auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
-          candidateNamesSet.insert(dstEntry->getLabel());
+          candidateNamesSet.insert(dstEntry->get_label());
         }
       }
     }
@@ -105,7 +105,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
     }
     std::vector<SchemaEntry*> prunedEntries;
     for (auto entry : node.getEntries()) {
-      if (!candidates.contains(entry->getEntryID())) {
+      if (!candidates.contains(entry->get_entry_id())) {
         continue;
       }
       prunedEntries.push_back(entry);
@@ -136,10 +136,10 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
     table_id_set_t srcBoundTableIDSet;
     table_id_set_t dstBoundTableIDSet;
     for (auto entry : rel.getSrcNode()->getEntries()) {
-      srcBoundTableIDSet.insert(entry->getEntryID());
+      srcBoundTableIDSet.insert(entry->get_entry_id());
     }
     for (auto entry : rel.getDstNode()->getEntries()) {
-      dstBoundTableIDSet.insert(entry->getEntryID());
+      dstBoundTableIDSet.insert(entry->get_entry_id());
     }
     for (auto& entry : rel.getEntries()) {
       auto* relEntry = getRelSchema(entry);

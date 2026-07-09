@@ -22,7 +22,6 @@
 #include <vector>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -73,7 +72,7 @@ class GPhysicalAnalyzer {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Primary key scan is only supported for node "
             "tables, but got: " +
-            tableEntry->getLabel());
+            tableEntry->get_label());
       }
       result.insert(nodeTableEntry->getPrimaryKeyName());
     }
@@ -145,7 +144,7 @@ class GPhysicalAnalyzer {
                planner::LogicalOperatorType::INSERT) {
       auto& insert = child->cast<planner::LogicalInsert>();
       auto& infos = insert.getInfos();
-      if (!infos.empty() && infos[0].tableType == TableType::NODE) {
+      if (!infos.empty() && infos[0].entryType == SchemaEntryType::NODE) {
         auto gAliasNames = insert.getGAliasNames();
         for (auto& gAliasName : gAliasNames) {
           result.push_back(gAliasName.uniqueName);
@@ -171,10 +170,10 @@ class GPhysicalAnalyzer {
       auto& infos = insertOp->getInfos();
       if (!infos.empty()) {
         // we assume that all info have the same table type
-        auto tableType = infos[0].tableType;
-        if (tableType == TableType::NODE) {
+        auto tableType = infos[0].entryType;
+        if (tableType == SchemaEntryType::NODE) {
           flag.insert = true;
-        } else if (tableType == TableType::REL) {
+        } else if (tableType == SchemaEntryType::REL) {
           if (insertOp->getChildren().empty()) {
             flag.insert = true;
           } else {

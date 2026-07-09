@@ -39,15 +39,15 @@ class GraphStats;
 class NEUG_API Table {
  public:
   Table(const SchemaEntry* tableEntry, const GraphStats* storageManager)
-      : tableType{tableEntry->getEntryType()},
-        tableID{tableEntry->getEntryID()},
-        tableName{const_cast<SchemaEntry*>(tableEntry)->getLabel()} {}
+      : tableType{tableEntry->get_entry_type()},
+        tableID{tableEntry->get_entry_id()},
+        tableName{const_cast<SchemaEntry*>(tableEntry)->get_label()} {}
 
   Table(const SchemaEntry* tableEntry, const GraphStats* storageManager,
         MemoryManager* memoryManager);
   virtual ~Table() = default;
 
-  TableType getTableType() const { return tableType; }
+  SchemaEntryType getTableType() const { return tableType; }
   common::table_id_t getTableID() const { return tableID; }
   std::string getTableName() const { return tableName; }
 
@@ -71,7 +71,7 @@ class NEUG_API Table {
 
  protected:
  protected:
-  TableType tableType;
+  SchemaEntryType tableType;
   common::table_id_t tableID;
   std::string tableName;
   bool enableCompression;

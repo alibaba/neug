@@ -52,7 +52,7 @@ static std::vector<column_id_t> getColumnIDs(
     const expression_vector& propertyExprs, const TableCatalogEntry& relEntry,
     const std::vector<column_id_t>& propertyColumnIDs) {}
 
-static expression_vector getProperties(std::shared_ptr<Expression> expr) {
+static expression_vector get_properties(std::shared_ptr<Expression> expr) {
   if (expr == nullptr) {
     return expression_vector{};
   }
@@ -191,7 +191,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
     const std::vector<std::string>& propertyNames)
     : context{context},
       numRows{context.getGraphStats()->getTableCardinality(
-          tableEntry->getTableID(), TableType::NODE)},
+          tableEntry->getTableID(), SchemaEntryType::NODE)},
       numNodesScanned{0},
       currentOffset{0},
       endOffsetExclusive{0} {}

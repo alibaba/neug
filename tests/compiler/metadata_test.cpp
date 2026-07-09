@@ -73,7 +73,7 @@ TEST_F(MetaDataTest, GStorageManager) {
   auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
   ASSERT_TRUE(schemaResult) << schemaResult.error().ToString();
   auto schema = std::move(schemaResult).value();
-  storage::GraphStats stats;
+  GraphStats stats;
   database = database->clone(&schema, stats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   auto& catalog = *ctx->getCatalog();
@@ -104,7 +104,7 @@ TEST_F(MetaDataTest, CheckStats) {
   auto beforeSchemaResult = Schema::LoadFromYamlNode(YAML::Load(beforeSchema));
   ASSERT_TRUE(beforeSchemaResult) << beforeSchemaResult.error().ToString();
   auto beforeSchemaObj = std::move(beforeSchemaResult).value();
-  storage::GraphStats beforeGraphStats;
+  GraphStats beforeGraphStats;
   database = database->clone(&beforeSchemaObj, beforeGraphStats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);
@@ -129,7 +129,7 @@ TEST_F(MetaDataTest, CheckStats) {
   ASSERT_EQ(getTableCard(ctx.get(), "knows_v2_person_person_v2"), 1);
 
   // check the statistics after schema and stats are updated
-  storage::GraphStats afterGraphStats;
+  GraphStats afterGraphStats;
   database = database->clone(&afterSchemaObj, afterGraphStats);
   ctx = std::make_unique<main::ClientContext>(database.get());
   ASSERT_EQ(getTableCard(ctx.get(), "person"), 1);

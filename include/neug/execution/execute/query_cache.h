@@ -57,7 +57,7 @@ class GlobalQueryCache {
 
   uint64_t version() const { return version_.load(); }
 
-  result<std::shared_ptr<CacheValue>> Get(const storage::GraphStats& stats,
+  result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
@@ -119,7 +119,7 @@ class LocalQueryCache {
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
       : global_cache_(global_cache), version_(global_cache_->version()) {}
   ~LocalQueryCache() = default;
-  result<std::shared_ptr<CacheValue>> Get(const storage::GraphStats& stats,
+  result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
     if (version_ != global_cache_->version()) {
       cache_.clear();

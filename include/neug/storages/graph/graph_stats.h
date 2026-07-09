@@ -36,8 +36,6 @@ namespace catalog {
 class CatalogEntry;
 }
 
-namespace storage {
-
 // Statistics access interface used by the compiler layer. It reads
 // cardinalities directly from a PropertyGraph when estimating table sizes.
 class GraphStats {
@@ -52,12 +50,13 @@ class GraphStats {
 #endif
 
   uint64_t getTable(uint64_t tableID) const;
-  uint64_t getTable(uint64_t tableID, TableType tableType) const;
+  uint64_t getTable(uint64_t tableID, SchemaEntryType tableType) const;
   uint64_t getTable(SchemaEntry* tableEntry) const;
   uint64_t getTableCardinality(uint64_t tableID) const {
     return getTable(tableID);
   }
-  uint64_t getTableCardinality(uint64_t tableID, TableType tableType) const {
+  uint64_t getTableCardinality(uint64_t tableID,
+                               SchemaEntryType tableType) const {
     return getTable(tableID, tableType);
   }
   uint64_t getTableCardinality(SchemaEntry* tableEntry) const {
@@ -71,5 +70,4 @@ class GraphStats {
 #endif
 };
 
-}  // namespace storage
 }  // namespace neug

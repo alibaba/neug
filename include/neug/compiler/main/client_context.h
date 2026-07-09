@@ -117,7 +117,7 @@ class NEUG_API ClientContext {
   const main::ExtensionOption* getExtensionOption(std::string optionName) const;
 
   MetadataManager* getMetadataManager() const { return localDatabase; }
-  std::shared_ptr<storage::GraphStats> getGraphStats() const;
+  std::shared_ptr<GraphStats> getGraphStats() const;
   storage::MemoryManager* getMemoryManager() const;
   extension::ExtensionManager* getExtensionManager() const;
   catalog::Catalog* getCatalog() const;

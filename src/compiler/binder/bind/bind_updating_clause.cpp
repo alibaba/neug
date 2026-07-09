@@ -131,8 +131,8 @@ void validateMergeClause(const BoundMergeClause& boundMerge) {
         "unsupported.");
   }
   auto& insertInfo = insertInfos[0];
-  if (insertInfo.tableType != TableType::NODE &&
-      insertInfo.tableType != TableType::REL) {
+  if (insertInfo.tableType != SchemaEntryType::NODE &&
+      insertInfo.tableType != SchemaEntryType::REL) {
     THROW_BINDER_EXCEPTION(
         "Invalid table type " +
         std::to_string(static_cast<uint8_t>(insertInfo.tableType)) +
@@ -237,16 +237,16 @@ void Binder::bindInsertNode(std::shared_ptr<NodeExpression> node,
                            " with multiple node labels is not supported.");
   }
   auto entry = node->getSingleEntry();
-  NEUG_ASSERT(entry->getEntryType() == TableType::NODE);
-  auto insertInfo = BoundInsertInfo(TableType::NODE, node);
+  NEUG_ASSERT(entry->get_entry_type() == SchemaEntryType::NODE);
+  auto insertInfo = BoundInsertInfo(SchemaEntryType::NODE, node);
   for (auto& expr : node->getPropertyExprs()) {
     auto propertyExpr = expr->constPtrCast<PropertyExpression>();
-    if (propertyExpr->hasProperty(entry->getEntryID())) {
+    if (propertyExpr->hasProperty(entry->get_entry_id())) {
       insertInfo.columnExprs.push_back(expr);
     }
   }
   insertInfo.columnDataExprs = bindInsertColumnDataExprs(
-      node->getPropertyDataExprRef(), entry->getProperties());
+      node->getPropertyDataExprRef(), entry->get_properties());
   auto nodeEntry = dynamic_cast<VertexSchema*>(entry);
   NEUG_ASSERT(nodeEntry != nullptr);
   validatePrimaryKeyExistence(nodeEntry, *node);
@@ -258,7 +258,7 @@ static SchemaEntry* tryPruneMultiLabeled(const RelExpression& rel,
                                          table_id_t dstTableID) {
   std::vector<SchemaEntry*> candidates;
   for (auto& entry : rel.getEntries()) {
-    NEUG_ASSERT(entry->getEntryType() == TableType::REL);
+    NEUG_ASSERT(entry->get_entry_type() == SchemaEntryType::REL);
     auto* relEntry = dynamic_cast<EdgeSchema*>(entry);
     NEUG_ASSERT(relEntry != nullptr);
     if (relEntry->getSrcTableID() == srcTableID &&
@@ -294,8 +294,8 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
   if (!rel->isMultiLabeled()) {
     entry = rel->getSingleEntry();
   } else {
-    auto srcTableID = rel->getSrcNode()->getSingleEntry()->getEntryID();
-    auto dstTableID = rel->getDstNode()->getSingleEntry()->getEntryID();
+    auto srcTableID = rel->getSrcNode()->getSingleEntry()->get_entry_id();
+    auto dstTableID = rel->getDstNode()->getSingleEntry()->get_entry_id();
     entry = tryPruneMultiLabeled(*rel, srcTableID, dstTableID);
     // LCOV_EXCL_START
     if (entry == nullptr) {
@@ -306,14 +306,14 @@ void Binder::bindInsertRel(std::shared_ptr<RelExpression> rel,
     // LCOV_EXCL_STOP
   }
   rel->setEntries(std::vector<SchemaEntry*>{entry});
-  auto insertInfo = BoundInsertInfo(TableType::REL, rel);
+  auto insertInfo = BoundInsertInfo(SchemaEntryType::REL, rel);
   // Because we might prune entries, some property exprs may belong to pruned
   // entry
-  for (auto& p : entry->getProperties()) {
+  for (auto& p : entry->get_properties()) {
     insertInfo.columnExprs.push_back(rel->getPropertyExpression(p.getName()));
   }
   insertInfo.columnDataExprs = bindInsertColumnDataExprs(
-      rel->getPropertyDataExprRef(), entry->getProperties());
+      rel->getPropertyDataExprRef(), entry->get_properties());
   infos.push_back(std::move(insertInfo));
 }
 
@@ -362,17 +362,17 @@ BoundSetPropertyInfo Binder::bindSetPropertyInfo(
   auto boundColumn = boundSetItem.first;
   auto boundColumnData = boundSetItem.second;
   if (isNode) {
-    auto info = BoundSetPropertyInfo(TableType::NODE, expr, boundColumn,
+    auto info = BoundSetPropertyInfo(SchemaEntryType::NODE, expr, boundColumn,
                                      boundColumnData);
     auto& property = boundSetItem.first->constCast<PropertyExpression>();
     for (auto entry : nodeOrRel.getEntries()) {
-      if (property.isPrimaryKey(entry->getEntryID())) {
+      if (property.isPrimaryKey(entry->get_entry_id())) {
         info.updatePk = true;
       }
     }
     return info;
   }
-  return BoundSetPropertyInfo(TableType::REL, expr, boundColumn,
+  return BoundSetPropertyInfo(SchemaEntryType::REL, expr, boundColumn,
                               boundColumnData);
 }
 
@@ -395,7 +395,7 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindDeleteClause(
         expressionBinder.bindExpression(*deleteClause.getExpression(i));
     if (ExpressionUtil::isNodePattern(*pattern)) {
       auto deleteNodeInfo =
-          BoundDeleteInfo(deleteType, TableType::NODE, pattern);
+          BoundDeleteInfo(deleteType, SchemaEntryType::NODE, pattern);
       boundDeleteClause->addInfo(std::move(deleteNodeInfo));
     } else if (ExpressionUtil::isRelPattern(*pattern)) {
       // LCOV_EXCL_START
@@ -407,7 +407,8 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindDeleteClause(
       if (rel->getDirectionType() == RelDirectionType::BOTH) {
         THROW_BINDER_EXCEPTION("Delete undirected rel is not supported.");
       }
-      auto deleteRel = BoundDeleteInfo(deleteType, TableType::REL, pattern);
+      auto deleteRel =
+          BoundDeleteInfo(deleteType, SchemaEntryType::REL, pattern);
       boundDeleteClause->addInfo(std::move(deleteRel));
     } else {
       THROW_BINDER_EXCEPTION(

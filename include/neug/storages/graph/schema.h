@@ -27,7 +27,6 @@
 #include <utility>
 #include <vector>
 #include "neug/common/types/value.h"
-#include "neug/storages/graph/table_type.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
@@ -45,38 +44,51 @@ namespace neug {
 class PropertyGraph;
 class Schema;
 
+// Schema entry category exposed to the compiler layer for distinguishing node,
+// relationship, and non-graph table metadata.
+enum class SchemaEntryType : uint8_t {
+  UNKNOWN = 0,
+  NODE = 1,
+  REL = 2,
+  FOREIGN = 5,
+};
+
+struct SchemaEntryTypeUtils {
+  static std::string toString(SchemaEntryType entryType);
+};
+
 // Compatibility interface used by the compiler layer to access graph schema
 // metadata with minimal changes to compiler-side catalog calls.
 class SchemaEntry {
  public:
   virtual ~SchemaEntry() = default;
 
-  virtual uint64_t getEntryID() const = 0;
+  virtual uint64_t get_entry_id() const = 0;
 
-  virtual bool isParent(uint64_t /*tableID*/) const { return false; };
+  virtual bool is_parent(uint64_t /*tableID*/) const { return false; };
 
-  virtual TableType getEntryType() const = 0;
+  virtual SchemaEntryType get_entry_type() const = 0;
 
-  virtual uint32_t getMaxColumnID() const = 0;
+  virtual uint32_t get_max_column_id() const = 0;
 
-  virtual std::vector<PropertyDefinition> getProperties() const = 0;
+  virtual std::vector<PropertyDefinition> get_properties() const = 0;
 
-  virtual uint32_t getNumProperties() const = 0;
+  virtual uint32_t get_num_properties() const = 0;
 
-  virtual bool containsProperty(const std::string& propertyName) const = 0;
+  virtual bool contains_property(const std::string& propertyName) const = 0;
 
-  virtual uint32_t getPropertyID(const std::string& propertyName) const = 0;
+  virtual uint32_t get_property_id(const std::string& propertyName) const = 0;
 
-  virtual PropertyDefinition getProperty(
+  virtual PropertyDefinition get_property(
       const std::string& propertyName) const = 0;
 
-  virtual const PropertyDefinition getProperty(uint32_t idx) const = 0;
+  virtual const PropertyDefinition get_property(uint32_t idx) const = 0;
 
-  virtual uint32_t getColumnID(const std::string& propertyName) const;
+  virtual uint32_t get_column_id(const std::string& propertyName) const;
 
-  virtual uint32_t getColumnID(uint32_t idx) const { return idx; };
+  virtual uint32_t get_column_id(uint32_t idx) const { return idx; };
 
-  virtual std::string getLabel() const = 0;
+  virtual std::string get_label() const = 0;
 };
 class LabelIndexer {
  public:
@@ -208,17 +220,19 @@ struct VertexSchema : public SchemaEntry {
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
-  uint64_t getEntryID() const override { return label_id; }
-  TableType getEntryType() const override { return TableType::NODE; }
-  uint32_t getMaxColumnID() const override;
-  std::vector<PropertyDefinition> getProperties() const override;
-  uint32_t getNumProperties() const override;
-  bool containsProperty(const std::string& propertyName) const override;
-  uint32_t getPropertyID(const std::string& propertyName) const override;
-  PropertyDefinition getProperty(
+  uint64_t get_entry_id() const override { return label_id; }
+  SchemaEntryType get_entry_type() const override {
+    return SchemaEntryType::NODE;
+  }
+  uint32_t get_max_column_id() const override;
+  std::vector<PropertyDefinition> get_properties() const override;
+  uint32_t get_num_properties() const override;
+  bool contains_property(const std::string& propertyName) const override;
+  uint32_t get_property_id(const std::string& propertyName) const override;
+  PropertyDefinition get_property(
       const std::string& propertyName) const override;
-  const PropertyDefinition getProperty(uint32_t idx) const override;
-  std::string getLabel() const override;
+  const PropertyDefinition get_property(uint32_t idx) const override;
+  std::string get_label() const override;
 
   uint32_t getPrimaryKeyID() const;
   std::string getPrimaryKeyName() const;
@@ -358,20 +372,22 @@ struct EdgeSchema : public SchemaEntry {
     return default_property_values;
   }
 
-  uint64_t getEntryID() const override { return table_id; }
-  bool isParent(uint64_t tableID) const override {
+  uint64_t get_entry_id() const override { return entry_id; }
+  bool is_parent(uint64_t tableID) const override {
     return src_label_id == tableID || dst_label_id == tableID;
   }
-  TableType getEntryType() const override { return TableType::REL; }
-  uint32_t getMaxColumnID() const override;
-  std::vector<PropertyDefinition> getProperties() const override;
-  uint32_t getNumProperties() const override;
-  bool containsProperty(const std::string& propertyName) const override;
-  uint32_t getPropertyID(const std::string& propertyName) const override;
-  PropertyDefinition getProperty(
+  SchemaEntryType get_entry_type() const override {
+    return SchemaEntryType::REL;
+  }
+  uint32_t get_max_column_id() const override;
+  std::vector<PropertyDefinition> get_properties() const override;
+  uint32_t get_num_properties() const override;
+  bool contains_property(const std::string& propertyName) const override;
+  uint32_t get_property_id(const std::string& propertyName) const override;
+  PropertyDefinition get_property(
       const std::string& propertyName) const override;
-  const PropertyDefinition getProperty(uint32_t idx) const override;
-  std::string getLabel() const override;
+  const PropertyDefinition get_property(uint32_t idx) const override;
+  std::string get_label() const override;
 
   uint64_t getSrcTableID() const { return src_label_id; }
   uint64_t getDstTableID() const { return dst_label_id; }
@@ -379,7 +395,7 @@ struct EdgeSchema : public SchemaEntry {
   const std::string& getEdgeLabelName() const { return edge_label_name; }
 
   std::string src_label_name, dst_label_name, edge_label_name;
-  uint64_t table_id = UINT64_MAX;
+  uint64_t entry_id = UINT64_MAX;
   label_t src_label_id = std::numeric_limits<label_t>::max();
   label_t dst_label_id = std::numeric_limits<label_t>::max();
   label_t edge_label_id = std::numeric_limits<label_t>::max();

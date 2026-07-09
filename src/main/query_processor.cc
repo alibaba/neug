@@ -43,7 +43,7 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
   auto access_mode = user_access_mode.empty()
                          ? planner_->analyzeMode(query_string)
                          : ParseAccessMode(user_access_mode);
-  storage::GraphStats stats(pg);
+  GraphStats stats(pg);
   GS_AUTO(cache_value, global_query_cache_->Get(stats, query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;

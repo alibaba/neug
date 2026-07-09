@@ -198,8 +198,8 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  storage::GraphStats statistic() const {
-    return storage::GraphStats(*guard_.get().mutable_graph());
+  GraphStats statistic() const {
+    return GraphStats(*guard_.get().mutable_graph());
   }
 
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;

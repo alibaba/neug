@@ -66,9 +66,9 @@ struct GNodeType {
     labelIds.reserve(nodeTables.size());
     for (const auto& nodeTable : nodeTables) {
       if (std::find(labelIds.begin(), labelIds.end(),
-                    nodeTable->getEntryID()) == labelIds.end()) {
+                    nodeTable->get_entry_id()) == labelIds.end()) {
         labelIds.emplace_back(
-            nodeTable->getEntryID());  // avoid duplicate label ids
+            nodeTable->get_entry_id());  // avoid duplicate label ids
       }
     }
     return labelIds;
@@ -97,7 +97,7 @@ struct GNodeType {
     YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
     for (auto& nodeTable : nodeTables) {
       YAML::Node label;
-      label["id"] = nodeTable->getEntryID();
+      label["id"] = nodeTable->get_entry_id();
       label["name"] = nodeTable->label_name;
       YAML::Node labelNode;
       labelNode["label"] = label;
@@ -182,18 +182,18 @@ struct GRelType {
       label["name"] = relTable->getEdgeLabelName();
       auto srcEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getSrcTableID());
-      if (srcEntry->getEntryType() != TableType::NODE) {
+      if (srcEntry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("src table is not a node table");
       }
       auto dstEntry = catalog->getTableCatalogEntry(&transaction,
                                                     relTable->getDstTableID());
-      if (dstEntry->getEntryType() != TableType::NODE) {
+      if (dstEntry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_EXCEPTION_WITH_FILE_LINE("dst table is not a node table");
       }
-      label["src_id"] = srcEntry->getEntryID();
-      label["src_name"] = srcEntry->getLabel();
-      label["dst_id"] = dstEntry->getEntryID();
-      label["dst_name"] = dstEntry->getLabel();
+      label["src_id"] = srcEntry->get_entry_id();
+      label["src_name"] = srcEntry->get_label();
+      label["dst_id"] = dstEntry->get_entry_id();
+      label["dst_name"] = dstEntry->get_label();
       YAML::Node labelNode;
       labelNode["label"] = label;
       labels.push_back(labelNode);

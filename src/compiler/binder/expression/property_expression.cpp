@@ -40,7 +40,7 @@ std::unique_ptr<PropertyExpression> PropertyExpression::construct(
   // Assign an invalid property id for virtual property.
   common::table_id_map_t<SingleLabelPropertyInfo> infos;
   for (auto& entry : patternExpr.getEntries()) {
-    infos.insert({entry->getEntryID(),
+    infos.insert({entry->get_entry_id(),
                   SingleLabelPropertyInfo(false /* exists */,
                                           false /* isPrimaryKey */)});
   }
@@ -71,10 +71,10 @@ bool PropertyExpression::hasProperty(common::table_id_t tableID) const {
 }
 
 column_id_t PropertyExpression::getColumnID(const SchemaEntry& entry) const {
-  if (!hasProperty(entry.getEntryID())) {
+  if (!hasProperty(entry.get_entry_id())) {
     return INVALID_COLUMN_ID;
   }
-  return entry.getColumnID(propertyName);
+  return entry.get_column_id(propertyName);
 }
 
 }  // namespace binder

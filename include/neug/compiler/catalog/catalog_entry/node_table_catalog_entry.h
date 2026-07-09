@@ -43,7 +43,9 @@ class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
         primaryKeyName{std::move(primaryKeyName)} {}
 
   bool isParent(common::table_id_t /*tableID*/) override { return false; }
-  TableType getTableType() const override { return TableType::NODE; }
+  SchemaEntryType getTableType() const override {
+    return SchemaEntryType::NODE;
+  }
 
   std::string getPrimaryKeyName() const { return primaryKeyName; }
   common::property_id_t getPrimaryKeyID() const {

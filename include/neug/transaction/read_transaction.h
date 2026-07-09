@@ -97,8 +97,8 @@ class ReadTransaction {
 
   const GraphView& view() const { return guard_.get().view(); }
 
-  storage::GraphStats statistic() const {
-    return storage::GraphStats(*guard_.get().mutable_graph());
+  GraphStats statistic() const {
+    return GraphStats(*guard_.get().mutable_graph());
   }
 
   const Schema& schema() const;

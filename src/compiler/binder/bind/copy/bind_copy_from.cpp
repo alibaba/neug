@@ -264,13 +264,13 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
         stringFormat("REL GROUP {} does not exist.", tableName));
   } else if (catalog->containsTable(transaction, tableName)) {
     auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
-    switch (tableEntry->getEntryType()) {
-    case TableType::NODE: {
+    switch (tableEntry->get_entry_type()) {
+    case SchemaEntryType::NODE: {
       auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
       NEUG_ASSERT(nodeTableEntry != nullptr);
       return bindCopyNodeFrom(statement, nodeTableEntry);
     }
-    case TableType::REL: {
+    case SchemaEntryType::REL: {
       auto relTableEntry = dynamic_cast<EdgeSchema*>(tableEntry);
       NEUG_ASSERT(relTableEntry != nullptr);
       return bindCopyRelFrom(statement, relTableEntry);
@@ -475,8 +475,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
   expression_vector warningDataExprs;
   auto offset = createInvisibleVariable(
       std::string(InternalKeyword::ROW_OFFSET), DataType(DataTypeId::kInt64));
-  auto srcTableID = srcNode->getEntryID();
-  auto dstTableID = dstNode->getEntryID();
+  auto srcTableID = srcNode->get_entry_id();
+  auto dstTableID = dstNode->get_entry_id();
 
   auto srcOffset = createVariable(std::string(InternalKeyword::SRC_OFFSET),
                                   DataType(DataTypeId::kInt64));
@@ -539,7 +539,7 @@ static void bindExpectedColumns(const SchemaEntry* tableEntry,
                                 const CopyFromColumnInfo& info,
                                 std::vector<std::string>& columnNames,
                                 std::vector<DataType>& columnTypes) {
-  for (auto& property : tableEntry->getProperties()) {
+  for (auto& property : tableEntry->get_properties()) {
     if (skipPropertyInSchema(property)) {
       continue;
     }
@@ -575,9 +575,9 @@ void bindExpectedRelColumns(const EdgeSchema* relTableEntry,
   columnNames.push_back("from");
   columnNames.push_back("to");
   auto srcPKColumnType =
-      srcTable->getProperty(srcTable->getPrimaryKeyName()).getType().copy();
+      srcTable->get_property(srcTable->getPrimaryKeyName()).getType().copy();
   auto dstPKColumnType =
-      dstTable->getProperty(dstTable->getPrimaryKeyName()).getType().copy();
+      dstTable->get_property(dstTable->getPrimaryKeyName()).getType().copy();
   columnTypes.push_back(std::move(srcPKColumnType));
   columnTypes.push_back(std::move(dstPKColumnType));
   bindExpectedColumns(relTableEntry, info, columnNames, columnTypes);

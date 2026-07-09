@@ -45,7 +45,7 @@ class IGraphPlanner {
    */
   virtual result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
       const std::string& query, const Schema* schema,
-      const storage::GraphStats& stats) = 0;
+      const GraphStats& stats) = 0;
 
   // Attempts to infer the execution access mode from the given query.
   // The current implementation relies on static analysis of the query string

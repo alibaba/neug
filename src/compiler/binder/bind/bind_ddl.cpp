@@ -235,9 +235,9 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
 }
 
 void Binder::validateNodeTableType(SchemaEntry* entry) {
-  if (entry->getEntryType() != TableType::NODE) {
+  if (entry->get_entry_type() != SchemaEntryType::NODE) {
     THROW_BINDER_EXCEPTION(
-        stringFormat("{} is not of type NODE.", entry->getLabel()));
+        stringFormat("{} is not of type NODE.", entry->get_label()));
   }
 }
 
@@ -251,9 +251,9 @@ void Binder::validateTableExistence(const main::ClientContext& context,
 
 void Binder::validateColumnExistence(SchemaEntry* entry,
                                      const std::string& columnName) {
-  if (!entry->containsProperty(columnName)) {
+  if (!entry->contains_property(columnName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Column {} does not exist in table {}.",
-                                        columnName, entry->getLabel()));
+                                        columnName, entry->get_label()));
   }
 }
 
@@ -295,7 +295,7 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
   auto storageDirection = getStorageDirection(boundOptions);
   auto boundExtraInfo = std::make_unique<BoundExtraCreateRelTableInfo>(
       srcMultiplicity, dstMultiplicity, storageDirection,
-      srcEntry->getEntryID(), dstEntry->getEntryID(),
+      srcEntry->get_entry_id(), dstEntry->get_entry_id(),
       std::move(propertyDefinitions));
   boundExtraInfo->options = std::move(boundOptions);
   return BoundCreateTableInfo(

@@ -22,4 +22,4 @@
 
 #pragma once
 
-#include "neug/storages/graph/table_type.h"
+#include "neug/storages/graph/schema.h"

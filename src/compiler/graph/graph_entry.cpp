@@ -67,7 +67,7 @@ GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
 std::vector<table_id_t> GraphEntry::getNodeTableIDs() const {
   std::vector<table_id_t> result;
   for (auto& info : nodeInfos) {
-    result.push_back(info.entry->getEntryID());
+    result.push_back(info.entry->get_entry_id());
   }
   return result;
 }
@@ -75,7 +75,7 @@ std::vector<table_id_t> GraphEntry::getNodeTableIDs() const {
 std::vector<table_id_t> GraphEntry::getRelTableIDs() const {
   std::vector<table_id_t> result;
   for (auto& info : relInfos) {
-    result.push_back(info.entry->getEntryID());
+    result.push_back(info.entry->get_entry_id());
   }
   return result;
 }
@@ -99,7 +99,7 @@ std::vector<SchemaEntry*> GraphEntry::getRelEntries() const {
 const BoundGraphEntryTableInfo& GraphEntry::getRelInfo(
     table_id_t tableID) const {
   for (auto& info : relInfos) {
-    if (info.entry->getEntryID() == tableID) {
+    if (info.entry->get_entry_id() == tableID) {
       return info;
     }
   }
@@ -145,10 +145,10 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
   auto catalog = context.getCatalog();
   auto transaction = context.getTransaction();
   auto nodeEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (nodeEntry->getEntryType() != TableType::NODE) {
+  if (nodeEntry->get_entry_type() != SchemaEntryType::NODE) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a NODE table.", tableName));
   }
-  auto nodeLabel = nodeEntry->getLabel();
+  auto nodeLabel = nodeEntry->get_label();
   if (!predicate.empty()) {
     auto cypher =
         stringFormat("MATCH (n:`{}`) RETURN n, {}", nodeLabel, predicate);
@@ -177,10 +177,10 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
         RelGroupCatalogEntry::getChildTableName(edgeLabel, srcLabel, dstLabel);
   }
   auto* relEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (!relEntry || relEntry->getEntryType() != TableType::REL) {
+  if (!relEntry || relEntry->get_entry_type() != SchemaEntryType::REL) {
     THROW_BINDER_EXCEPTION(stringFormat("{} is not a REL table.", tableName));
   }
-  auto relLabel = relEntry->getLabel();
+  auto relLabel = relEntry->get_label();
   if (!predicate.empty()) {
     auto cypher =
         stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}", relLabel, predicate);
@@ -226,7 +226,7 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
   for (auto id : connectedNodeTableIDSet) {
     if (!projectedNodeIDSet.contains(id)) {
       auto entryName =
-          catalog->getTableCatalogEntry(transaction, id)->getLabel();
+          catalog->getTableCatalogEntry(transaction, id)->get_label();
       THROW_BINDER_EXCEPTION(stringFormat(
           "{} is connected to {} but not projected.", entryName, relName));
     }
@@ -236,12 +236,12 @@ static void validateNodeProjected(const table_id_set_t& connectedNodeTableIDSet,
 static void validateRelSrcDstNodeAreProjected(
     SchemaEntry& entry, const table_id_set_t& projectedNodeIDSet,
     Catalog* catalog, transaction::Transaction* transaction) {
-  if (entry.getEntryType() != TableType::REL) {
+  if (entry.get_entry_type() != SchemaEntryType::REL) {
     THROW_BINDER_EXCEPTION(
-        stringFormat("{} is not a rel table entry.", entry.getLabel()));
+        stringFormat("{} is not a rel table entry.", entry.get_label()));
   }
   auto& relEntry = static_cast<EdgeSchema&>(entry);
-  auto relName = relEntry.getLabel();
+  auto relName = relEntry.get_label();
   validateNodeProjected({relEntry.getSrcTableID()}, projectedNodeIDSet, relName,
                         catalog, transaction);
   validateNodeProjected({relEntry.getDstTableID()}, projectedNodeIDSet, relName,
@@ -309,7 +309,7 @@ GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);
       renameVar.visit(boundInfo.predicate);
     }
-    projectedNodeTableIDSet.insert(boundInfo.entry->getEntryID());
+    projectedNodeTableIDSet.insert(boundInfo.entry->get_entry_id());
     result.nodeInfos.push_back(std::move(boundInfo));
   }
   for (auto& relInfo : entry.relInfos) {

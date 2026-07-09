@@ -34,7 +34,7 @@ namespace binder {
 table_id_vector_t NodeOrRelExpression::getTableIDs() const {
   table_id_vector_t result;
   for (auto& entry : entries) {
-    result.push_back(entry->getEntryID());
+    result.push_back(entry->get_entry_id());
   }
   return result;
 }
@@ -42,7 +42,7 @@ table_id_vector_t NodeOrRelExpression::getTableIDs() const {
 table_id_set_t NodeOrRelExpression::getTableIDsSet() const {
   table_id_set_t result;
   for (auto& entry : entries) {
-    result.insert(entry->getEntryID());
+    result.insert(entry->get_entry_id());
   }
   return result;
 }
@@ -51,7 +51,7 @@ void NodeOrRelExpression::addEntries(
     const std::vector<SchemaEntry*>& entries_) {
   auto tableIDsSet = getTableIDsSet();
   for (auto& entry : entries_) {
-    if (!tableIDsSet.contains(entry->getEntryID())) {
+    if (!tableIDsSet.contains(entry->get_entry_id())) {
       entries.push_back(entry);
     }
   }

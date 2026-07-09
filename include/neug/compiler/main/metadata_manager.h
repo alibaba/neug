@@ -43,6 +43,7 @@ namespace catalog {
 class CatalogEntry;
 }
 
+class GraphStats;
 class Schema;
 
 namespace function {
@@ -55,7 +56,6 @@ class ExtensionManager;
 }  // namespace extension
 
 namespace storage {
-class GraphStats;
 class StorageExtension;
 }  // namespace storage
 
@@ -89,10 +89,10 @@ class MetadataManager {
 
   NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
-  std::unique_ptr<MetadataManager> clone(
-      const Schema* schema, const storage::GraphStats& stats) const;
+  std::unique_ptr<MetadataManager> clone(const Schema* schema,
+                                         const GraphStats& stats) const;
 
-  std::shared_ptr<storage::GraphStats> getGraphStats() const;
+  std::shared_ptr<GraphStats> getGraphStats() const;
 
   graph::GraphEntrySet& getGraphEntrySetUnsafe();
 
@@ -100,14 +100,14 @@ class MetadataManager {
 
  private:
   MetadataManager(std::unique_ptr<catalog::Catalog> catalog,
-                  storage::GraphStats statsManager,
+                  GraphStats statsManager,
                   std::shared_ptr<storage::MemoryManager> memoryManager,
                   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
                   std::shared_ptr<extension::ExtensionManager> extensionManager,
                   std::shared_ptr<graph::GraphEntrySet> graphEntrySet);
 
   std::unique_ptr<catalog::Catalog> catalog;
-  storage::GraphStats statsManager;
+  GraphStats statsManager;
   std::shared_ptr<storage::MemoryManager> memoryManager;
   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs;
   std::shared_ptr<extension::ExtensionManager> extensionManager;

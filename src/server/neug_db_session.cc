@@ -123,11 +123,11 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
 
 template <typename Transaction>
 inline neug::result<execution::Context> ExecutePipelineInTransaction(
-    execution::LocalQueryCache& pipeline_cache,
-    const storage::GraphStats& stats, const std::string& query, AccessMode mode,
-    const NeugDBConfig& db_config, const rapidjson::Document& param_json_obj,
-    execution::OprTimer* timer, neug::MetaDatas& result_schema,
-    Transaction& txn, IStorageInterface& storage_interface) {
+    execution::LocalQueryCache& pipeline_cache, const GraphStats& stats,
+    const std::string& query, AccessMode mode, const NeugDBConfig& db_config,
+    const rapidjson::Document& param_json_obj, execution::OprTimer* timer,
+    neug::MetaDatas& result_schema, Transaction& txn,
+    IStorageInterface& storage_interface) {
   GS_AUTO(cache_value, pipeline_cache.Get(stats, query));
   assert(cache_value != nullptr);
   RETURN_STATUS_ERROR_IF_NOT_OK(
@@ -194,8 +194,8 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     auto update_txn = GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(update_txn);
     GS_AUTO(ctx, ExecutePipelineInTransaction(
-                     pipeline_cache_, storage::GraphStats(update_txn.graph()),
-                     query, mode, db_config_, param_json_obj, timer.get(),
+                     pipeline_cache_, GraphStats(update_txn.graph()), query,
+                     mode, db_config_, param_json_obj, timer.get(),
                      result_schema, update_txn, gui));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);

@@ -21,7 +21,6 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace storage {
 
 namespace {
 uint64_t atLeastOne(uint64_t cardinality) {
@@ -57,7 +56,7 @@ void GraphStats::LoadFromJson(const Schema& schema,
             schema.get_vertex_label_id(vertex_stat["type_name"].GetString());
         auto vertex_schema = schema.get_vertex_schema(label_id);
         if (vertex_schema) {
-          table_cardinalities_[vertex_schema->getEntryID()] =
+          table_cardinalities_[vertex_schema->get_entry_id()] =
               vertex_stat["count"].GetUint64();
         }
       } catch (const std::exception&) { continue; }
@@ -95,7 +94,7 @@ void GraphStats::LoadFromJson(const Schema& schema,
           auto edge_schema =
               schema.get_edge_schema(src_label, dst_label, edge_label);
           if (edge_schema) {
-            table_cardinalities_[edge_schema->getEntryID()] =
+            table_cardinalities_[edge_schema->get_entry_id()] =
                 pair_stat["count"].GetUint64();
           }
         } catch (const std::exception&) { continue; }
@@ -116,12 +115,13 @@ uint64_t GraphStats::getTable(uint64_t tableID) const {
     return 1;
   }
   if (graph_->schema().is_vertex_label_valid(tableID)) {
-    return getTable(tableID, TableType::NODE);
+    return getTable(tableID, SchemaEntryType::NODE);
   }
-  return getTable(tableID, TableType::REL);
+  return getTable(tableID, SchemaEntryType::REL);
 }
 
-uint64_t GraphStats::getTable(uint64_t tableID, TableType tableType) const {
+uint64_t GraphStats::getTable(uint64_t tableID,
+                              SchemaEntryType tableType) const {
 #ifdef NEUG_BUILD_TEST
   if (auto it = table_cardinalities_.find(tableID);
       it != table_cardinalities_.end()) {
@@ -131,7 +131,7 @@ uint64_t GraphStats::getTable(uint64_t tableID, TableType tableType) const {
   if (graph_ == nullptr) {
     return 1;
   }
-  if (tableType == TableType::NODE) {
+  if (tableType == SchemaEntryType::NODE) {
     if (!graph_->schema().is_vertex_label_valid(tableID)) {
       return 1;
     }
@@ -147,7 +147,7 @@ uint64_t GraphStats::getTable(uint64_t tableID, TableType tableType) const {
         }
         auto edgeSchema =
             graph_->schema().get_edge_schema(src_label, dst_label, edge_label);
-        if (edgeSchema && edgeSchema->getEntryID() == tableID) {
+        if (edgeSchema && edgeSchema->get_entry_id() == tableID) {
           return atLeastOne(graph_->EdgeNum(src_label, edge_label, dst_label));
         }
       }
@@ -161,7 +161,7 @@ uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
     return 1;
   }
 #ifdef NEUG_BUILD_TEST
-  if (auto it = table_cardinalities_.find(tableEntry->getEntryID());
+  if (auto it = table_cardinalities_.find(tableEntry->get_entry_id());
       it != table_cardinalities_.end()) {
     return atLeastOne(it->second);
   }
@@ -169,8 +169,8 @@ uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
   if (graph_ == nullptr) {
     return 1;
   }
-  if (tableEntry->getEntryType() == TableType::NODE) {
-    return getTable(tableEntry->getEntryID(), TableType::NODE);
+  if (tableEntry->get_entry_type() == SchemaEntryType::NODE) {
+    return getTable(tableEntry->get_entry_id(), SchemaEntryType::NODE);
   }
 
   auto* edgeSchema = dynamic_cast<EdgeSchema*>(tableEntry);
@@ -187,5 +187,4 @@ uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
                                     edgeSchema->getDstTableID()));
 }
 
-}  // namespace storage
 }  // namespace neug

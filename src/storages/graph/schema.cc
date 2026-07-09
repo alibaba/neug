@@ -126,8 +126,8 @@ uint32_t GetPropertyID(const std::vector<PropertyDefinition>& properties,
 }
 }  // namespace
 
-uint32_t SchemaEntry::getColumnID(const std::string& propertyName) const {
-  return getPropertyID(propertyName);
+uint32_t SchemaEntry::get_column_id(const std::string& propertyName) const {
+  return get_property_id(propertyName);
 }
 
 std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
@@ -418,44 +418,44 @@ bool VertexSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
-uint32_t VertexSchema::getMaxColumnID() const {
+uint32_t VertexSchema::get_max_column_id() const {
   auto properties = GetVertexSchemaProperties(*this);
   return properties.empty() ? 0 : properties.size() - 1;
 }
 
-std::vector<PropertyDefinition> VertexSchema::getProperties() const {
+std::vector<PropertyDefinition> VertexSchema::get_properties() const {
   return GetVertexSchemaProperties(*this);
 }
 
-uint32_t VertexSchema::getNumProperties() const {
+uint32_t VertexSchema::get_num_properties() const {
   return GetVertexSchemaProperties(*this).size();
 }
 
-bool VertexSchema::containsProperty(const std::string& propertyName) const {
+bool VertexSchema::contains_property(const std::string& propertyName) const {
   auto properties = GetVertexSchemaProperties(*this);
   return std::any_of(
       properties.begin(), properties.end(),
       [&](const auto& property) { return property.getName() == propertyName; });
 }
 
-uint32_t VertexSchema::getPropertyID(const std::string& propertyName) const {
+uint32_t VertexSchema::get_property_id(const std::string& propertyName) const {
   return GetPropertyID(GetVertexSchemaProperties(*this), propertyName);
 }
 
-PropertyDefinition VertexSchema::getProperty(
+PropertyDefinition VertexSchema::get_property(
     const std::string& propertyName) const {
   auto properties = GetVertexSchemaProperties(*this);
   return properties.at(GetPropertyID(properties, propertyName));
 }
 
-const PropertyDefinition VertexSchema::getProperty(uint32_t idx) const {
+const PropertyDefinition VertexSchema::get_property(uint32_t idx) const {
   return GetVertexSchemaProperties(*this).at(idx);
 }
 
-std::string VertexSchema::getLabel() const { return label_name; }
+std::string VertexSchema::get_label() const { return label_name; }
 
 uint32_t VertexSchema::getPrimaryKeyID() const {
-  return getPropertyID(getPrimaryKeyName());
+  return get_property_id(getPrimaryKeyName());
 }
 
 std::string VertexSchema::getPrimaryKeyName() const {
@@ -597,41 +597,41 @@ bool EdgeSchema::has_property_internal(const std::string& prop) const {
   return false;
 }
 
-uint32_t EdgeSchema::getMaxColumnID() const {
+uint32_t EdgeSchema::get_max_column_id() const {
   auto properties = GetEdgeSchemaProperties(*this);
   return properties.empty() ? 0 : properties.size() - 1;
 }
 
-std::vector<PropertyDefinition> EdgeSchema::getProperties() const {
+std::vector<PropertyDefinition> EdgeSchema::get_properties() const {
   return GetEdgeSchemaProperties(*this);
 }
 
-uint32_t EdgeSchema::getNumProperties() const {
+uint32_t EdgeSchema::get_num_properties() const {
   return GetEdgeSchemaProperties(*this).size();
 }
 
-bool EdgeSchema::containsProperty(const std::string& propertyName) const {
+bool EdgeSchema::contains_property(const std::string& propertyName) const {
   auto properties = GetEdgeSchemaProperties(*this);
   return std::any_of(
       properties.begin(), properties.end(),
       [&](const auto& property) { return property.getName() == propertyName; });
 }
 
-uint32_t EdgeSchema::getPropertyID(const std::string& propertyName) const {
+uint32_t EdgeSchema::get_property_id(const std::string& propertyName) const {
   return GetPropertyID(GetEdgeSchemaProperties(*this), propertyName);
 }
 
-PropertyDefinition EdgeSchema::getProperty(
+PropertyDefinition EdgeSchema::get_property(
     const std::string& propertyName) const {
   auto properties = GetEdgeSchemaProperties(*this);
   return properties.at(GetPropertyID(properties, propertyName));
 }
 
-const PropertyDefinition EdgeSchema::getProperty(uint32_t idx) const {
+const PropertyDefinition EdgeSchema::get_property(uint32_t idx) const {
   return GetEdgeSchemaProperties(*this).at(idx);
 }
 
-std::string EdgeSchema::getLabel() const { return edge_label_name; }
+std::string EdgeSchema::get_label() const { return edge_label_name; }
 
 Schema::Schema() = default;
 Schema::~Schema() = default;
@@ -693,7 +693,7 @@ void Schema::AddEdgeLabel(
                     src_label, dst_label, edge_label, sort_key_for_nbr,
                     description, ie_mutable, oe_mutable, oe, ie, properties,
                     prop_names, default_property_values));
-  e_schemas_.at(label_id)->table_id = label_id;
+  e_schemas_.at(label_id)->entry_id = label_id;
   e_schemas_.at(label_id)->src_label_id = src_label_id;
   e_schemas_.at(label_id)->dst_label_id = dst_label_id;
   e_schemas_.at(label_id)->edge_label_id = edge_label_id;

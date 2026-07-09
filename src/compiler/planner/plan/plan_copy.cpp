@@ -63,12 +63,12 @@ std::unique_ptr<LogicalPlan> Planner::planCopyFrom(
   auto& copyFrom = statement.constCast<BoundCopyFrom>();
   auto outExprs = statement.getStatementResult()->getColumns();
   auto copyFromInfo = copyFrom.getInfo();
-  auto tableType = copyFromInfo->tableEntry->getEntryType();
+  auto tableType = copyFromInfo->tableEntry->get_entry_type();
   switch (tableType) {
-  case TableType::NODE: {
+  case SchemaEntryType::NODE: {
     return planCopyNodeFrom(copyFromInfo, outExprs);
   }
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     return planCopyRelFrom(copyFromInfo, outExprs);
   }
   default:

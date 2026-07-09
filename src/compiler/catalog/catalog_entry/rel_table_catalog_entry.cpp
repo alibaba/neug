@@ -153,8 +153,8 @@ std::string RelTableCatalogEntry::toCypher(const ToCypherInfo& info) const {
   auto transaction = clientContext->getTransaction();
   auto srcEntry = catalog->getTableCatalogEntry(transaction, srcTableID);
   auto dstEntry = catalog->getTableCatalogEntry(transaction, dstTableID);
-  auto srcTableName = srcEntry->getLabel();
-  auto dstTableName = dstEntry->getLabel();
+  auto srcTableName = srcEntry->get_label();
+  auto dstTableName = dstEntry->get_label();
   std::string tableInfo =
       stringFormat("CREATE REL TABLE `{}` (FROM `{}` TO `{}`, ", getName(),
                    srcTableName, dstTableName);

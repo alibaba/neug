@@ -34,7 +34,7 @@ class GOptPlanner : public neug::IGraphPlanner {
 
   virtual result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
       const std::string& query, const Schema* schema,
-      const storage::GraphStats& stats) override;
+      const GraphStats& stats) override;
 
   AccessMode analyzeMode(const std::string& query) const override;
 

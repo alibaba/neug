@@ -37,7 +37,6 @@
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/enums/path_semantic.h"
 #include "neug/compiler/common/enums/query_rel_type.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/gds/gds_algo_function.h"
@@ -1240,7 +1239,7 @@ void GQueryConvertor::convertGDSFunction(
   auto* sub = gdsPB->mutable_sub_graph();
   for (auto& info : gdsData.graphEntry.nodeInfos) {
     auto* v = sub->add_vertex_entries();
-    v->set_label_id(static_cast<int32_t>(info.entry->getEntryID()));
+    v->set_label_id(static_cast<int32_t>(info.entry->get_entry_id()));
     if (info.predicate != nullptr) {
       auto pred = exprConvertor->convert(*info.predicate, {});
       v->set_allocated_predicate(pred.release());
@@ -1426,19 +1425,19 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
     }
   }
 
-  switch (tableEntry->getEntryType()) {
-  case TableType::NODE: {
+  switch (tableEntry->get_entry_type()) {
+  case SchemaEntryType::NODE: {
     convertBatchInsertVertex(info, columnExprs, columnIdMap, plan);
     break;
   }
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     convertBatchInsertEdge(info, columnExprs, columnIdMap, plan);
     break;
   }
   default: {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported table type for COPY FROM: " +
-        std::to_string(static_cast<int>(tableEntry->getEntryType())));
+        std::to_string(static_cast<int>(tableEntry->get_entry_type())));
   }
   }
 }
@@ -1493,17 +1492,18 @@ void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Insert info should not be empty");
   }
-  TableType tableType = infos[0].tableType;
+  SchemaEntryType tableType = infos[0].entryType;
   for (auto& info : infos) {
-    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
+    if (info.entryType != SchemaEntryType::NODE &&
+        info.entryType != SchemaEntryType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Insert: " +
-                                     static_cast<uint8_t>(info.tableType));
+                                     static_cast<uint8_t>(info.entryType));
     }
-    if (info.tableType != tableType) {
+    if (info.entryType != tableType) {
       THROW_EXCEPTION_WITH_FILE_LINE("tableType of Insert is not consistent");
     }
   }
-  if (tableType == TableType::NODE) {
+  if (tableType == SchemaEntryType::NODE) {
     convertInsertVertex(insert, plan);
   } else {  // REL
     convertInsertEdge(insert, plan);
@@ -1935,18 +1935,19 @@ void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("SetProperty info should not be empty");
   }
-  TableType tableType = infos[0].tableType;
+  SchemaEntryType tableType = infos[0].entryType;
   for (auto& info : infos) {
-    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
+    if (info.entryType != SchemaEntryType::NODE &&
+        info.entryType != SchemaEntryType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for SetProperty: " +
-                                     static_cast<uint8_t>(info.tableType));
+                                     static_cast<uint8_t>(info.entryType));
     }
-    if (info.tableType != tableType) {
+    if (info.entryType != tableType) {
       THROW_EXCEPTION_WITH_FILE_LINE(
           "tableType of SetProperty is not consistent");
     }
   }
-  if (tableType == TableType::NODE) {
+  if (tableType == SchemaEntryType::NODE) {
     convertSetVertexProperty(set, plan);
   } else {  // REL
     convertSetEdgeProperty(set, plan);
@@ -1959,17 +1960,18 @@ void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Delete info should not be empty");
   }
-  TableType tableType = infos[0].tableType;
+  SchemaEntryType tableType = infos[0].entryType;
   for (auto& info : infos) {
-    if (info.tableType != TableType::NODE && info.tableType != TableType::REL) {
+    if (info.entryType != SchemaEntryType::NODE &&
+        info.entryType != SchemaEntryType::REL) {
       THROW_EXCEPTION_WITH_FILE_LINE("Invalid tableType for Delete: " +
-                                     static_cast<uint8_t>(info.tableType));
+                                     static_cast<uint8_t>(info.entryType));
     }
-    if (info.tableType != tableType) {
+    if (info.entryType != tableType) {
       THROW_EXCEPTION_WITH_FILE_LINE("tableType of Delete is not consistent");
     }
   }
-  if (tableType == TableType::NODE) {
+  if (tableType == SchemaEntryType::NODE) {
     convertDeleteVertex(deleteOp, plan);
   } else {  // REL
     convertDeleteEdge(deleteOp, plan);
@@ -2011,14 +2013,15 @@ void GQueryConvertor::convertDeleteEdge(const planner::LogicalDelete& deleteOp,
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
-TableType GQueryConvertor::getTableType(const planner::LogicalInsert& insert) {
+SchemaEntryType GQueryConvertor::getTableType(
+    const planner::LogicalInsert& insert) {
   auto& infos = insert.getInfos();
   if (infos.empty()) {
-    return TableType::UNKNOWN;
+    return SchemaEntryType::UNKNOWN;
   }
-  auto firstType = infos[0].tableType;
+  auto firstType = infos[0].entryType;
   for (auto& info : infos) {
-    if (info.tableType != firstType) {
+    if (info.entryType != firstType) {
       THROW_EXCEPTION_WITH_FILE_LINE("Insert table type is not consistent");
     }
   }
@@ -2145,13 +2148,13 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   auto nodeTable = dynamic_cast<const VertexSchema*>(table);
   if (!nodeTable) {
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
-                                   table->getLabel());
+                                   table->get_label());
   }
   std::string pk = nodeTable->getPrimaryKeyName();
   if (pk.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Source vertex table does not have a primary key: " +
-        nodeTable->getLabel());
+        nodeTable->get_label());
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(
@@ -2176,7 +2179,7 @@ std::unique_ptr<::common::NameOrId> convertVertexType(
       THROW_EXCEPTION_WITH_FILE_LINE(
           "cannot convert batch insert vertex without node table entry");
     }
-    labelPB->set_id(tableEntry->getEntryID());
+    labelPB->set_id(tableEntry->get_entry_id());
   }
   return labelPB;
 }

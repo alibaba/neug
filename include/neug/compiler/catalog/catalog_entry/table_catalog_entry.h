@@ -28,9 +28,9 @@
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/catalog/property_definition_collection.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/table/table_function.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
@@ -58,7 +58,7 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
       const binder::BoundAlterInfo& alterInfo) const;
 
   virtual bool isParent(common::table_id_t /*tableID*/) { return false; };
-  virtual TableType getTableType() const = 0;
+  virtual SchemaEntryType getTableType() const = 0;
 
   std::string getComment() const { return comment; }
   void setComment(std::string newComment) { comment = std::move(newComment); }

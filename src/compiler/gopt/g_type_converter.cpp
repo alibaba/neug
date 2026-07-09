@@ -416,7 +416,7 @@ GPhysicalTypeConverter::convertNodeTable(const VertexSchema* nodeTable) {
   auto result = std::make_unique<::common::GraphDataType::GraphElementType>();
   auto labelType =
       std::make_unique<::common::GraphDataType::GraphElementLabel>();
-  labelType->set_label(nodeTable->getEntryID());
+  labelType->set_label(nodeTable->get_entry_id());
   result->set_allocated_label(labelType.release());
   // todo: set properties
   return result;

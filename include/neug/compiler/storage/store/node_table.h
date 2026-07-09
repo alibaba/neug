@@ -25,10 +25,10 @@
 #include <cstdint>
 
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/stats/table_stats.h"
 #include "neug/compiler/storage/store/table.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace evaluator {
