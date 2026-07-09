@@ -55,9 +55,7 @@ def load_sample_data(conn):
     conn.execute(
         "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, PRIMARY KEY(id));"
     )
-    conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"
-    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE REL TABLE created(FROM person TO software, weight DOUBLE);")
 
     # Create temporary directory for CSV files
@@ -70,14 +68,14 @@ def load_sample_data(conn):
             f.write("2|vadas|27\n")
             f.write("3|josh|32\n")
             f.write("4|peter|35\n")
-        
+
         # Create software.csv
         software_csv = os.path.join(tmpdir, "software.csv")
         with open(software_csv, "w") as f:
             f.write("id|name|lang\n")
             f.write("10|lop|java\n")
             f.write("11|ripple|java\n")
-        
+
         # Create knows.csv
         knows_csv = os.path.join(tmpdir, "knows.csv")
         with open(knows_csv, "w") as f:
@@ -86,7 +84,7 @@ def load_sample_data(conn):
             f.write("1|3|1.0\n")
             f.write("2|3|0.7\n")
             f.write("3|4|0.4\n")
-        
+
         # Create created.csv
         created_csv = os.path.join(tmpdir, "created.csv")
         with open(created_csv, "w") as f:
@@ -94,12 +92,14 @@ def load_sample_data(conn):
             f.write("1|10|0.4\n")
             f.write("4|10|0.6\n")
             f.write("1|11|1.0\n")
-        
+
         # Load data using COPY
         conn.execute(f'COPY person FROM "{person_csv}"')
         conn.execute(f'COPY software FROM "{software_csv}"')
         conn.execute(f'COPY knows FROM "{knows_csv}" (from="person", to="person")')
-        conn.execute(f'COPY created FROM "{created_csv}" (from="person", to="software")')
+        conn.execute(
+            f'COPY created FROM "{created_csv}" (from="person", to="software")'
+        )
 
     print("✓ Sample data loaded successfully")
 
@@ -267,16 +267,13 @@ def example_dict_interface(conn):
         for op in metrics["operators"]:
             parent_id = op["parent_id"]
             parent_str = (
-                f" (parent: {parent_id})"
-                if parent_id != -1
-                else " (root operator)"
+                f" (parent: {parent_id})" if parent_id != -1 else " (root operator)"
             )
             print(f"  [{op['operator_id']}] {op['operator_name']}{parent_str}")
-            print(
-                f"       Time: {op['elapsed_ms']:.3f} ms, Rows: {op['output_rows']}"
-            )
+            print(f"       Time: {op['elapsed_ms']:.3f} ms, Rows: {op['output_rows']}")
             if op["child_ids"]:
                 print(f"       Children: {op['child_ids']}")
+
 
 def main():
     # Use provided db_dir from command line, or default to /tmp/neug_profile_example_db

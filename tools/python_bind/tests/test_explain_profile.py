@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 def load_sample_data(conn):
     """
     Create and populate a simple graph with person and software nodes.
-    
+
     Args:
         conn: A connection object (either AP or TP mode) to execute queries.
     """
@@ -60,9 +60,7 @@ def load_sample_data(conn):
     conn.execute(
         "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, PRIMARY KEY(id));"
     )
-    conn.execute(
-        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"
-    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
     conn.execute("CREATE REL TABLE created(FROM person TO software, weight DOUBLE);")
 
     # Insert person data
@@ -111,18 +109,18 @@ def load_sample_data(conn):
 def ap_mode_db(tmp_path_factory):
     """
     Fixture for AP mode (embedded, local).
-    
+
     Yields:
         conn: A connection object for executing queries in AP mode.
     """
     db_dir = str(tmp_path_factory.mktemp("test_explain_profile_ap"))
     db = Database(db_dir, "w")
     conn = db.connect()
-    
+
     load_sample_data(conn)
-    
+
     yield conn
-    
+
     conn.close()
     db.close()
 
@@ -131,7 +129,7 @@ def ap_mode_db(tmp_path_factory):
 def tp_mode_db(tmp_path_factory):
     """
     Fixture for TP mode (remote HTTP service).
-    
+
     Yields:
         endpoint: The HTTP endpoint URI of the service.
     """
@@ -140,13 +138,13 @@ def tp_mode_db(tmp_path_factory):
     conn = db.connect()
     load_sample_data(conn)
     conn.close()
-    
+
     # Start the service
     endpoint = db.serve(10030, "localhost", False)
     time.sleep(1)
-    
+
     yield endpoint
-    
+
     db.stop_serving()
     db.close()
 
@@ -164,7 +162,7 @@ class TestAPModeProfile:
         conn = ap_mode_db
         query = "PROFILE MATCH (p:person) RETURN p.name, p.age"
         result = conn.execute(query)
-        
+
         # Verify query results
         rows = list(result)
         assert len(rows) == 4, "Expected 4 person records"
@@ -172,10 +170,10 @@ class TestAPModeProfile:
         assert len(col_names) == 2
         assert "name" in col_names[0]
         assert "age" in col_names[1]
-        
+
         # Verify profile result exists
         assert result.has_profile_result(), "PROFILE result should be present"
-        
+
         # Verify metrics dict
         metrics = result.get_profile_metrics()
         assert "total_elapsed_ms" in metrics
@@ -183,7 +181,7 @@ class TestAPModeProfile:
         assert "operators" in metrics
         assert metrics["total_output_rows"] == 4
         assert len(metrics["operators"]) > 0
-        
+
         # Verify text output
         text_output = result.get_profile_text()
         assert isinstance(text_output, str)
@@ -195,34 +193,36 @@ class TestAPModeProfile:
         conn = ap_mode_db
         query = "PROFILE MATCH (p1:person), (p2:person) WHERE p1.id < p2.id RETURN p1.name, p2.name"
         result = conn.execute(query)
-        
+
         # Verify query results
         rows = list(result)
         assert len(rows) == 6, "Expected 6 cross-product pairs (4 choose 2)"
-        
+
         # Verify profile result
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 6
-        
-        logger.info(f"Join profile: {metrics['total_elapsed_ms']:.3f} ms, {metrics['total_output_rows']} rows")
+
+        logger.info(
+            f"Join profile: {metrics['total_elapsed_ms']:.3f} ms, {metrics['total_output_rows']} rows"
+        )
 
     def test_profile_with_aggregation(self, ap_mode_db):
         """Test PROFILE with aggregation."""
         conn = ap_mode_db
         query = "PROFILE MATCH (p:person) RETURN COUNT(*) as person_count"
         result = conn.execute(query)
-        
+
         # Verify query results
         rows = list(result)
         assert len(rows) == 1
         assert rows[0][0] == 4
-        
+
         # Verify profile result
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 1
-        
+
         logger.info(f"Aggregation profile: {metrics['total_elapsed_ms']:.3f} ms")
 
     def test_profile_with_edge_traversal(self, ap_mode_db):
@@ -230,16 +230,16 @@ class TestAPModeProfile:
         conn = ap_mode_db
         query = "PROFILE MATCH (p:person)-[e:knows]->(q:person) RETURN p.name, q.name"
         result = conn.execute(query)
-        
+
         # Verify query results
         rows = list(result)
         assert len(rows) == 4, "Expected 4 knows relationships"
-        
+
         # Verify profile result
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 4
-        
+
         logger.info(f"Edge traversal profile: {metrics['total_elapsed_ms']:.3f} ms")
 
     def test_profile_metrics_structure(self, ap_mode_db):
@@ -247,16 +247,16 @@ class TestAPModeProfile:
         conn = ap_mode_db
         query = "PROFILE MATCH (p:person) RETURN p.id LIMIT 2"
         result = conn.execute(query)
-        
+
         list(result)  # Consume result
-        
+
         metrics = result.get_profile_metrics()
-        
+
         # Check top-level keys
         assert "total_elapsed_ms" in metrics
         assert "total_output_rows" in metrics
         assert "operators" in metrics
-        
+
         # Check operator structure
         assert len(metrics["operators"]) > 0
         for op in metrics["operators"]:
@@ -266,7 +266,7 @@ class TestAPModeProfile:
             assert "output_rows" in op
             assert "parent_id" in op
             assert "child_ids" in op
-            
+
             logger.info(
                 f"Operator {op['operator_id']}: {op['operator_name']} "
                 f"({op['elapsed_ms']:.3f} ms, {op['output_rows']} rows)"
@@ -281,17 +281,17 @@ class TestAPModeExplain:
         conn = ap_mode_db
         query = "EXPLAIN MATCH (p:person)-[e:knows]->(q:person) RETURN p.name, q.name"
         result = conn.execute(query)
-        
+
         # EXPLAIN should return 0 rows
         rows = list(result)
         assert len(rows) == 0, "EXPLAIN should return 0 data rows"
-        
+
         # But should have profile result (the plan)
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 0
         assert len(metrics["operators"]) > 0
-        
+
         logger.info(f"Explain plan has {len(metrics['operators'])} operators")
 
     def test_explain_complex_query(self, ap_mode_db):
@@ -303,16 +303,16 @@ class TestAPModeExplain:
             "RETURN p.name, s.name"
         )
         result = conn.execute(query)
-        
+
         # EXPLAIN returns no rows
         rows = list(result)
         assert len(rows) == 0
-        
+
         # But plan is visible
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert len(metrics["operators"]) > 0
-        
+
         text_output = result.get_profile_text()
         assert len(text_output) > 0
         logger.info(f"Complex plan:\n{text_output}")
@@ -322,18 +322,18 @@ class TestAPModeExplain:
         conn = ap_mode_db
         query = "EXPLAIN MATCH (p:person) RETURN p.id"
         result = conn.execute(query)
-        
+
         list(result)  # Consume result
-        
+
         text_output = result.get_profile_text()
-        
+
         # Should be non-empty string
         assert isinstance(text_output, str)
         assert len(text_output) > 0
-        
+
         # Should contain box-drawing characters or ASCII formatting
         assert any(char in text_output for char in ["─", "│", "┌", "└", "+", "|", "-"])
-        
+
         logger.info(f"Text output:\n{text_output}")
 
 
@@ -345,10 +345,10 @@ class TestAPModeNormalExecution:
         conn = ap_mode_db
         query = "MATCH (p:person) RETURN p.name"
         result = conn.execute(query)
-        
+
         rows = list(result)
         assert len(rows) == 4
-        
+
         # Normal execution should not have profile result
         assert not result.has_profile_result()
 
@@ -367,7 +367,7 @@ class TestTPModeProfile:
         session = Session.open(endpoint)
         query = "PROFILE MATCH (p:person) RETURN p.name, p.age"
         result = session.execute(query)
-        
+
         # Verify query results
         rows = list(result)
         assert len(rows) == 4, "Expected 4 person records"
@@ -375,10 +375,10 @@ class TestTPModeProfile:
         assert len(col_names) == 2
         assert "name" in col_names[0]
         assert "age" in col_names[1]
-        
+
         # Verify profile result exists
         assert result.has_profile_result(), "PROFILE result should be present"
-        
+
         # Verify metrics dict
         metrics = result.get_profile_metrics()
         assert "total_elapsed_ms" in metrics
@@ -386,13 +386,13 @@ class TestTPModeProfile:
         assert "operators" in metrics
         assert metrics["total_output_rows"] == 4
         assert len(metrics["operators"]) > 0
-        
+
         # Verify text output
         text_output = result.get_profile_text()
         assert isinstance(text_output, str)
         assert len(text_output) > 0
         logger.info(f"TP Profile output:\n{text_output}")
-        
+
         session.close()
 
     def test_profile_with_join(self, tp_mode_db):
@@ -401,16 +401,16 @@ class TestTPModeProfile:
         session = Session.open(endpoint)
         query = "PROFILE MATCH (p1:person), (p2:person) WHERE p1.id < p2.id RETURN p1.name, p2.name"
         result = session.execute(query)
-        
+
         rows = list(result)
         assert len(rows) == 6
-        
+
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 6
-        
+
         logger.info(f"TP Join profile: {metrics['total_elapsed_ms']:.3f} ms")
-        
+
         session.close()
 
     def test_profile_with_edge_traversal(self, tp_mode_db):
@@ -419,16 +419,16 @@ class TestTPModeProfile:
         session = Session.open(endpoint)
         query = "PROFILE MATCH (p:person)-[e:knows]->(q:person) RETURN p.name, q.name"
         result = session.execute(query)
-        
+
         rows = list(result)
         assert len(rows) == 4
-        
+
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 4
-        
+
         logger.info(f"TP Edge traversal profile: {metrics['total_elapsed_ms']:.3f} ms")
-        
+
         session.close()
 
 
@@ -441,19 +441,19 @@ class TestTPModeExplain:
         session = Session.open(endpoint)
         query = "EXPLAIN MATCH (p:person)-[e:knows]->(q:person) RETURN p.name, q.name"
         result = session.execute(query)
-        
+
         # EXPLAIN should return 0 rows
         rows = list(result)
         assert len(rows) == 0, "EXPLAIN should return 0 data rows"
-        
+
         # But should have profile result (the plan)
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert metrics["total_output_rows"] == 0
         assert len(metrics["operators"]) > 0
-        
+
         logger.info(f"TP Explain plan has {len(metrics['operators'])} operators")
-        
+
         session.close()
 
     def test_explain_complex_query(self, tp_mode_db):
@@ -466,18 +466,18 @@ class TestTPModeExplain:
             "RETURN p.name, s.name"
         )
         result = session.execute(query)
-        
+
         rows = list(result)
         assert len(rows) == 0
-        
+
         assert result.has_profile_result()
         metrics = result.get_profile_metrics()
         assert len(metrics["operators"]) > 0
-        
+
         text_output = result.get_profile_text()
         assert len(text_output) > 0
         logger.info(f"TP Complex plan:\n{text_output}")
-        
+
         session.close()
 
 
@@ -490,13 +490,13 @@ class TestTPModeNormalExecution:
         session = Session.open(endpoint)
         query = "MATCH (p:person) RETURN p.name"
         result = session.execute(query)
-        
+
         rows = list(result)
         assert len(rows) == 4
-        
+
         # Normal execution should not have profile result
         assert not result.has_profile_result()
-        
+
         session.close()
 
 
@@ -511,12 +511,12 @@ class TestAPTPConsistency:
     def test_profile_result_count_consistency(self, ap_mode_db, tp_mode_db):
         """Verify AP and TP produce same row count for PROFILE."""
         query = "PROFILE MATCH (p:person) RETURN p.id"
-        
+
         # AP mode
         result_ap = ap_mode_db.execute(query)
         rows_ap = list(result_ap)
         metrics_ap = result_ap.get_profile_metrics()
-        
+
         # TP mode
         endpoint = tp_mode_db
         session = Session.open(endpoint)
@@ -524,11 +524,11 @@ class TestAPTPConsistency:
         rows_tp = list(result_tp)
         metrics_tp = result_tp.get_profile_metrics()
         session.close()
-        
+
         # Both should return 4 rows
         assert len(rows_ap) == len(rows_tp) == 4
         assert metrics_ap["total_output_rows"] == metrics_tp["total_output_rows"] == 4
-        
+
         logger.info(
             f"AP: {metrics_ap['total_output_rows']} rows, "
             f"TP: {metrics_tp['total_output_rows']} rows - CONSISTENT"
@@ -537,12 +537,12 @@ class TestAPTPConsistency:
     def test_explain_plan_consistency(self, ap_mode_db, tp_mode_db):
         """Verify AP and TP produce same plan structure for EXPLAIN."""
         query = "EXPLAIN MATCH (p:person)-[e:knows]->(q:person) RETURN p.name"
-        
+
         # AP mode
         result_ap = ap_mode_db.execute(query)
         list(result_ap)
         metrics_ap = result_ap.get_profile_metrics()
-        
+
         # TP mode
         endpoint = tp_mode_db
         session = Session.open(endpoint)
@@ -550,11 +550,11 @@ class TestAPTPConsistency:
         list(result_tp)
         metrics_tp = result_tp.get_profile_metrics()
         session.close()
-        
+
         # Both should have same number of operators in plan
         assert len(metrics_ap["operators"]) == len(metrics_tp["operators"])
         assert metrics_ap["total_output_rows"] == metrics_tp["total_output_rows"] == 0
-        
+
         logger.info(
             f"AP plan: {len(metrics_ap['operators'])} operators, "
             f"TP plan: {len(metrics_tp['operators'])} operators - CONSISTENT"
@@ -563,13 +563,13 @@ class TestAPTPConsistency:
     def test_profile_operator_names_consistency(self, ap_mode_db, tp_mode_db):
         """Verify AP and TP produce same operator names."""
         query = "PROFILE MATCH (p:person) RETURN p.name"
-        
+
         # AP mode
         result_ap = ap_mode_db.execute(query)
         list(result_ap)
         metrics_ap = result_ap.get_profile_metrics()
         ops_ap = [op["operator_name"] for op in metrics_ap["operators"]]
-        
+
         # TP mode
         endpoint = tp_mode_db
         session = Session.open(endpoint)
@@ -578,8 +578,8 @@ class TestAPTPConsistency:
         metrics_tp = result_tp.get_profile_metrics()
         ops_tp = [op["operator_name"] for op in metrics_tp["operators"]]
         session.close()
-        
+
         # Operator sequence should match
         assert ops_ap == ops_tp
-        
+
         logger.info(f"Operators: {' -> '.join(ops_ap)} - CONSISTENT")
