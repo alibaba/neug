@@ -18,8 +18,8 @@
 #include <string_view>
 
 #include "neug/common/types.h"
+#include "neug/common/types/property_types.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 
@@ -31,7 +31,7 @@ namespace neug {
  * NEUG_REGISTER_TEMPLATE_MODULE.  Add a specialization here whenever a new
  * leaf storage type is introduced.  Types listed below correspond to the
  * registrations in:
- *   - src/utils/property/column.cc        (TypedColumn<T>)
+ *   - src/storages/property/column.cc        (TypedColumn<T>)
  *   - src/storages/csr/mutable_csr.cc     (MutableCsr<T>, SingleMutableCsr<T>,
  *                                          EmptyCsr<T>)
  *   - src/storages/csr/immutable_csr.cc   (ImmutableCsr<T>,

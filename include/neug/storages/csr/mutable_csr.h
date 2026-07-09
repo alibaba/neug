@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
@@ -38,7 +39,6 @@
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/module/type_name.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
 namespace neug {

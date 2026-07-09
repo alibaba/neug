@@ -24,7 +24,7 @@
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/utils/property/column.h"
+#include "neug/storages/property/column.h"
 #include "neug/utils/result.h"
 
 namespace neug {

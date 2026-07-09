@@ -14,12 +14,12 @@
  */
 #pragma once
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/i_fragment_loader.h"
 #include "neug/storages/loader/loading_config.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

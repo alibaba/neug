@@ -30,7 +30,6 @@
 
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/types/value.h"
-#include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
@@ -277,8 +276,8 @@ JsonReader::JsonReader(std::shared_ptr<ReadSharedState> sharedState,
 
 JsonReader::~JsonReader() = default;
 
-void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                      execution::Context& ctx) {
+std::vector<DataChunk> JsonReader::read(
+    std::shared_ptr<ReadLocalState> /*localState*/) {
   if (!sharedState_ || !optionsBuilder_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("JsonReader state or builder is null");
   }
@@ -320,15 +319,14 @@ void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   }
 
   if (use_batch_read && !sharedState_->skipRows) {
-    batch_read(suppliers, ctx);
-  } else {
-    full_read(suppliers, ctx, config);
+    return batch_read(suppliers);
   }
+  return full_read(suppliers, config);
 }
 
-void JsonReader::full_read(
+std::vector<DataChunk> JsonReader::full_read(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output, const JsonReadConfig& output_config) {
+    const JsonReadConfig& output_config) {
   auto merged = read_all_chunks(suppliers);
 
   int expected_cols = sharedState_->columnNum();
@@ -347,19 +345,20 @@ void JsonReader::full_read(
                                  sharedState_->projectColumns.empty()
                                      ? output_config.include_columns
                                      : sharedState_->projectColumns);
-  output.clear();
-  output.append_chunk(std::move(projected));
+  std::vector<DataChunk> output;
+  output.push_back(std::move(projected));
+  return output;
 }
 
-void JsonReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
+std::vector<DataChunk> JsonReader::batch_read(
+    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
+  std::vector<DataChunk> output;
   for (const auto& supplier : suppliers) {
     while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
+      output.push_back(std::move(*chunk));
     }
   }
+  return output;
 }
 
 result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {

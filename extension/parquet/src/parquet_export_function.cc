@@ -23,22 +23,25 @@
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <parquet/properties.h>
-#include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
 #include <algorithm>
+#include <cstring>
 
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/export/export_result.h"
+#include "neug/common/types/array_columns.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/property_types.h"
+#include "neug/common/types/value.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/write/writer.h"
-#include "neug/utils/property/types.h"
 #include "parquet/arrow_fs_resolver.h"
 #include "parquet_options.h"
 
 namespace neug {
 namespace writer {
 
-// Parse writer options and build WriterProperties
 static std::shared_ptr<::parquet::WriterProperties> buildWriterProperties(
     const common::case_insensitive_map_t<std::string>& options) {
   reader::ParquetExportOptions export_options;
@@ -95,362 +98,432 @@ static std::shared_ptr<::parquet::WriterProperties> buildWriterProperties(
   return builder.build();
 }
 
-// Infer Arrow type from protobuf Array structure
-static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
-    const Array& proto_array) {
-  if (proto_array.has_int32_array()) {
-    return arrow::int32();
-  } else if (proto_array.has_int64_array()) {
-    return arrow::int64();
-  } else if (proto_array.has_uint32_array()) {
-    return arrow::uint32();
-  } else if (proto_array.has_uint64_array()) {
-    return arrow::uint64();
-  } else if (proto_array.has_float_array()) {
-    return arrow::float32();
-  } else if (proto_array.has_double_array()) {
-    return arrow::float64();
-  } else if (proto_array.has_bool_array()) {
+static std::shared_ptr<arrow::DataType> inferArrowTypeFromDataType(
+    const DataType& type) {
+  switch (type.id()) {
+  case DataTypeId::kBoolean:
     return arrow::boolean();
-  } else if (proto_array.has_string_array()) {
+  case DataTypeId::kInt32:
+    return arrow::int32();
+  case DataTypeId::kInt64:
+    return arrow::int64();
+  case DataTypeId::kUInt32:
+    return arrow::uint32();
+  case DataTypeId::kUInt64:
+    return arrow::uint64();
+  case DataTypeId::kFloat:
+    return arrow::float32();
+  case DataTypeId::kDouble:
+    return arrow::float64();
+  case DataTypeId::kVarchar:
     return arrow::large_utf8();
-  } else if (proto_array.has_date_array()) {
+  case DataTypeId::kDate:
     return arrow::date64();
-  } else if (proto_array.has_timestamp_array()) {
+  case DataTypeId::kTimestampMs:
     return arrow::timestamp(arrow::TimeUnit::MICRO, "UTC");
-  } else if (proto_array.has_list_array()) {
-    // Recursively infer element type
-    const auto& list_arr = proto_array.list_array();
-    if (list_arr.has_elements()) {
-      auto element_type = inferArrowTypeFromArray(list_arr.elements());
-      return arrow::list(element_type);
-    }
-    return arrow::list(arrow::large_utf8());  // Default to string list
-  } else if (proto_array.has_struct_array()) {
-    // Struct type: infer types from each field
-    const auto& struct_arr = proto_array.struct_array();
+  case DataTypeId::kInterval:
+    return arrow::large_utf8();
+  case DataTypeId::kList:
+    return arrow::list(
+        inferArrowTypeFromDataType(ListType::GetChildType(type)));
+  case DataTypeId::kArray:
+    return arrow::list(
+        inferArrowTypeFromDataType(ArrayType::GetChildType(type)));
+  case DataTypeId::kStruct: {
     std::vector<std::shared_ptr<arrow::Field>> fields;
-    for (int i = 0; i < struct_arr.fields_size(); ++i) {
-      auto field_type = inferArrowTypeFromArray(struct_arr.fields(i));
-      fields.push_back(arrow::field("field_" + std::to_string(i), field_type));
+    const auto& child_types = StructType::GetChildTypes(type);
+    const auto& field_names = StructType::GetFieldNames(type);
+    for (size_t i = 0; i < child_types.size(); ++i) {
+      const auto& name = i < field_names.size()
+                             ? field_names[i]
+                             : ("field_" + std::to_string(i));
+      fields.push_back(
+          arrow::field(name, inferArrowTypeFromDataType(child_types[i])));
     }
     return arrow::struct_(fields);
-  } else if (proto_array.has_vertex_array() || proto_array.has_edge_array() ||
-             proto_array.has_path_array()) {
-    // Vertex/Edge/Path are exported as JSON strings (not StructArray)
-    return arrow::large_utf8();
-  } else if (proto_array.has_interval_array()) {
-    // Interval type: convert to string for Parquet compatibility
-    return arrow::large_utf8();
-  } else {
-    LOG(WARNING) << "Unknown protobuf array type, defaulting to large_utf8";
+  }
+  default:
+    LOG(WARNING) << "Unknown DataType for Parquet export, defaulting to "
+                    "large_utf8: "
+                 << type.ToString();
     return arrow::large_utf8();
   }
 }
 
-// Macro for primitive array conversion (proto-type based dispatch)
-#define TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(PROTO_FIELD, BUILDER_TYPE,         \
-                                            VALUES_FIELD)                      \
-  {                                                                            \
-    auto& arr = proto_array.PROTO_FIELD();                                     \
-    BUILDER_TYPE builder(pool);                                                \
-    for (int i = 0; i < arr.values_size(); ++i) {                              \
-      if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) { \
-        auto status = builder.Append(arr.VALUES_FIELD(i));                     \
-        if (!status.ok()) {                                                    \
-          THROW_RUNTIME_ERROR("Failed to append value: " + status.ToString()); \
-        }                                                                      \
-      } else {                                                                 \
-        auto status = builder.AppendNull();                                    \
-        if (!status.ok()) {                                                    \
-          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());  \
-        }                                                                      \
-      }                                                                        \
-    }                                                                          \
-    std::shared_ptr<arrow::Array> result;                                      \
-    auto status = builder.Finish(&result);                                     \
-    if (!status.ok()) {                                                        \
-      THROW_RUNTIME_ERROR("Failed to finish array: " + status.ToString());     \
-    }                                                                          \
-    return result;                                                             \
+template <typename T, typename Builder>
+static std::shared_ptr<arrow::Array> buildPrimitiveArray(
+    const std::shared_ptr<IContextColumn>& col) {
+  auto typed = std::dynamic_pointer_cast<ValueColumn<T>>(col);
+  if (!typed) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Expected ValueColumn for type " +
+                                     col->column_info());
+  }
+  arrow::MemoryPool* pool = arrow::default_memory_pool();
+  Builder builder(pool);
+  for (size_t i = 0; i < typed->size(); ++i) {
+    if (col->is_optional() && !col->has_value(i)) {
+      auto status = builder.AppendNull();
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+      }
+    } else {
+      auto status = builder.Append(typed->get_value(i));
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append value: " + status.ToString());
+      }
+    }
+  }
+  std::shared_ptr<arrow::Array> result;
+  auto status = builder.Finish(&result);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to finish array: " + status.ToString());
+  }
+  return result;
+}
+
+static std::shared_ptr<arrow::Buffer> boolVectorToArrowBitmap(
+    const vector_t<bool>& validity, size_t length) {
+  if (validity.empty()) {
+    return nullptr;
+  }
+  auto buffer_result =
+      arrow::AllocateBuffer(static_cast<int64_t>((length + 7) / 8));
+  if (!buffer_result.ok()) {
+    THROW_RUNTIME_ERROR("Failed to allocate validity buffer: " +
+                        buffer_result.status().ToString());
+  }
+  auto buffer = std::move(buffer_result.ValueOrDie());
+  memset(buffer->mutable_data(), 0, static_cast<size_t>(buffer->size()));
+  for (size_t i = 0; i < length; ++i) {
+    if (validity[i]) {
+      buffer->mutable_data()[i / 8] |= static_cast<uint8_t>(1U << (i % 8));
+    }
+  }
+  return buffer;
+}
+
+static std::shared_ptr<arrow::Array> contextColumnToArrowArray(
+    const std::shared_ptr<IContextColumn>& col,
+    const std::shared_ptr<arrow::DataType>& arrow_type) {
+  if (!col || col->size() == 0) {
+    return arrow::MakeArrayOfNull(arrow_type, 0).ValueOrDie();
   }
 
-// Convert protobuf Array to Arrow Array
-static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
-    const Array& proto_array,
-    const std::shared_ptr<arrow::DataType>& arrow_type, int row_count) {
-  arrow::MemoryPool* pool = arrow::default_memory_pool();
-
-  // First, dispatch based on proto array type
-  if (proto_array.has_int32_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(int32_array, arrow::Int32Builder,
-                                        values)
-  } else if (proto_array.has_int64_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(int64_array, arrow::Int64Builder,
-                                        values)
-  } else if (proto_array.has_uint32_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(uint32_array, arrow::UInt32Builder,
-                                        values)
-  } else if (proto_array.has_uint64_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(uint64_array, arrow::UInt64Builder,
-                                        values)
-  } else if (proto_array.has_float_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(float_array, arrow::FloatBuilder,
-                                        values)
-  } else if (proto_array.has_double_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(double_array, arrow::DoubleBuilder,
-                                        values)
-  } else if (proto_array.has_bool_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(bool_array, arrow::BooleanBuilder,
-                                        values)
-  } else if (proto_array.has_string_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(string_array, arrow::LargeStringBuilder,
-                                        values)
-  } else if (proto_array.has_date_array()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(date_array, arrow::Date64Builder,
-                                        values)
-  } else if (proto_array.has_interval_array()) {
-    // Interval: convert to string for Parquet compatibility
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(interval_array,
-                                        arrow::LargeStringBuilder, values)
-  } else if (proto_array.has_timestamp_array()) {
-    auto& arr = proto_array.timestamp_array();
-    arrow::TimestampBuilder builder(
-        arrow::timestamp(arrow::TimeUnit::MICRO, "UTC"), pool);
-    for (int i = 0; i < arr.values_size(); ++i) {
-      if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) {
-        auto status = builder.Append(arr.values(i));
-        if (!status.ok()) {
-          THROW_RUNTIME_ERROR("Failed to append timestamp value: " +
-                              status.ToString());
-        }
-      } else {
+  switch (col->elem_type().id()) {
+  case DataTypeId::kBoolean:
+    return buildPrimitiveArray<bool, arrow::BooleanBuilder>(col);
+  case DataTypeId::kInt32:
+    return buildPrimitiveArray<int32_t, arrow::Int32Builder>(col);
+  case DataTypeId::kInt64:
+    return buildPrimitiveArray<int64_t, arrow::Int64Builder>(col);
+  case DataTypeId::kUInt32:
+    return buildPrimitiveArray<uint32_t, arrow::UInt32Builder>(col);
+  case DataTypeId::kUInt64:
+    return buildPrimitiveArray<uint64_t, arrow::UInt64Builder>(col);
+  case DataTypeId::kFloat:
+    return buildPrimitiveArray<float, arrow::FloatBuilder>(col);
+  case DataTypeId::kDouble:
+    return buildPrimitiveArray<double, arrow::DoubleBuilder>(col);
+  case DataTypeId::kVarchar:
+    return buildPrimitiveArray<std::string, arrow::LargeStringBuilder>(col);
+  case DataTypeId::kDate: {
+    auto typed = std::dynamic_pointer_cast<ValueColumn<Date>>(col);
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected ValueColumn<Date>");
+    }
+    arrow::Date64Builder builder(arrow::default_memory_pool());
+    for (size_t i = 0; i < typed->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
         auto status = builder.AppendNull();
         if (!status.ok()) {
           THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
         }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish timestamp array: " +
-                          status.ToString());
-    }
-    return result;
-  } else if (proto_array.has_list_array()) {
-    // Handle List type - build native Arrow ListArray
-    const auto& list_arr = proto_array.list_array();
-    auto list_type = std::static_pointer_cast<arrow::ListType>(arrow_type);
-    auto element_type = list_type->value_type();
-
-    // Recursively convert all elements
-    auto elements_array =
-        protoArrayToArrowArray(list_arr.elements(), element_type, 0);
-
-    // Build offsets buffer
-    int64_t num_rows = list_arr.offsets_size() - 1;
-
-    // Create offsets buffer - copy data to avoid dangling pointer when protobuf
-    // is destroyed
-    int64_t offsets_byte_size = list_arr.offsets_size() * sizeof(int32_t);
-    auto offsets_buffer_result = arrow::AllocateBuffer(offsets_byte_size);
-    if (!offsets_buffer_result.ok()) {
-      THROW_RUNTIME_ERROR("Failed to allocate offsets buffer: " +
-                          offsets_buffer_result.status().ToString());
-    }
-    std::shared_ptr<arrow::Buffer> offsets_buffer =
-        std::move(offsets_buffer_result.ValueOrDie());
-    memcpy(offsets_buffer->mutable_data(), list_arr.offsets().data(),
-           offsets_byte_size);
-
-    // If all values are valid (no nulls), we can safely omit validity buffer
-    std::shared_ptr<arrow::Buffer> validity_buffer = nullptr;
-
-    // Create ListArray directly
-    auto list_array = std::make_shared<arrow::ListArray>(
-        arrow_type, num_rows, offsets_buffer, elements_array, validity_buffer);
-
-    return list_array;
-  } else if (proto_array.has_struct_array()) {
-    // Handle StructArray
-    const auto& struct_arr = proto_array.struct_array();
-    auto struct_type = std::static_pointer_cast<arrow::StructType>(arrow_type);
-
-    // Recursively convert each field
-    std::vector<std::shared_ptr<arrow::Array>> field_arrays;
-    for (int i = 0; i < struct_arr.fields_size(); ++i) {
-      auto field_type = struct_type->field(i)->type();
-      auto field_array =
-          protoArrayToArrowArray(struct_arr.fields(i), field_type, row_count);
-      field_arrays.push_back(field_array);
-    }
-
-    // Build validity buffer - copy data to avoid dangling pointer when protobuf
-    // is destroyed
-    auto null_bitmap = struct_arr.validity();
-    std::shared_ptr<arrow::Buffer> validity_buffer;
-    if (!null_bitmap.empty()) {
-      auto buffer_result = arrow::AllocateBuffer(null_bitmap.size());
-      if (!buffer_result.ok()) {
-        THROW_RUNTIME_ERROR("Failed to allocate validity buffer: " +
-                            buffer_result.status().ToString());
-      }
-      validity_buffer = std::move(buffer_result.ValueOrDie());
-      memcpy(validity_buffer->mutable_data(), null_bitmap.data(),
-             null_bitmap.size());
-    }
-
-    // Create StructArray - num_rows should match the field arrays' length
-    int64_t num_rows = field_arrays.empty() ? 0 : field_arrays[0]->length();
-
-    auto struct_array = std::make_shared<arrow::StructArray>(
-        struct_type, num_rows, field_arrays, validity_buffer);
-
-    return struct_array;
-  } else if (proto_array.has_vertex_array() || proto_array.has_edge_array() ||
-             proto_array.has_path_array()) {
-    // Vertex/Edge/Path are stored as JSON strings in protobuf.
-    // We export them directly as JSON strings (not StructArray).
-    //
-    // NOTE: Why not convert to StructArray?
-    // Parquet StructArray has columnar advantages (compression, predicate
-    // pushdown, etc.), but requires ALL rows to have the SAME schema.
-    // Mixed-type vertices/edges have different properties, causing schema
-    // conflicts and sparse data.
-
-    // Extract JSON strings from the appropriate field
-    arrow::LargeStringBuilder builder(pool);
-
-    auto append_json_strings = [&](const auto& arr) {
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append JSON string: " +
-                                status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
+      } else {
+        auto status = builder.Append(typed->get_value(i).to_timestamp());
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append date: " + status.ToString());
         }
       }
-    };
-
-    if (proto_array.has_vertex_array()) {
-      append_json_strings(proto_array.vertex_array());
-    } else if (proto_array.has_edge_array()) {
-      append_json_strings(proto_array.edge_array());
-    } else {
-      append_json_strings(proto_array.path_array());
     }
-
     std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish JSON string array: " +
-                          status.ToString());
+    auto finish_status = builder.Finish(&result);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish date array: " +
+                          finish_status.ToString());
     }
     return result;
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Unsupported protobuf array type for conversion");
+  }
+  case DataTypeId::kTimestampMs: {
+    auto typed = std::dynamic_pointer_cast<ValueColumn<DateTime>>(col);
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected ValueColumn<DateTime>");
+    }
+    arrow::TimestampBuilder builder(
+        arrow::timestamp(arrow::TimeUnit::MICRO, "UTC"),
+        arrow::default_memory_pool());
+    for (size_t i = 0; i < typed->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        auto status = builder.AppendNull();
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+        }
+      } else {
+        auto status = builder.Append(typed->get_value(i).milli_second * 1000);
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append timestamp: " +
+                              status.ToString());
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto finish_status = builder.Finish(&result);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish timestamp array: " +
+                          finish_status.ToString());
+    }
+    return result;
+  }
+  case DataTypeId::kInterval: {
+    auto typed = std::dynamic_pointer_cast<ValueColumn<Interval>>(col);
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected ValueColumn<Interval>");
+    }
+    arrow::LargeStringBuilder builder(arrow::default_memory_pool());
+    for (size_t i = 0; i < typed->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        auto status = builder.AppendNull();
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+        }
+      } else {
+        auto status = builder.Append(typed->get_value(i).to_string());
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append interval: " +
+                              status.ToString());
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto finish_status = builder.Finish(&result);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish interval array: " +
+                          finish_status.ToString());
+    }
+    return result;
+  }
+  case DataTypeId::kList: {
+    auto list_col = std::dynamic_pointer_cast<ListColumn>(col);
+    if (!list_col) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected ListColumn");
+    }
+    auto reordered_list =
+        std::dynamic_pointer_cast<ListColumn>(list_col->reorder());
+    auto list_type = std::static_pointer_cast<arrow::ListType>(arrow_type);
+    auto elements_array = contextColumnToArrowArray(
+        reordered_list->data_column(), list_type->value_type());
+
+    arrow::Int32Builder offsets_builder(arrow::default_memory_pool());
+    const auto& items = reordered_list->items();
+    for (const auto& item : items) {
+      auto status = offsets_builder.Append(static_cast<int32_t>(item.offset));
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append list offset: " +
+                            status.ToString());
+      }
+    }
+    if (!items.empty()) {
+      const auto& last = items.back();
+      auto status = offsets_builder.Append(
+          static_cast<int32_t>(last.offset + last.length));
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append list offset: " +
+                            status.ToString());
+      }
+    } else {
+      auto status = offsets_builder.Append(0);
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append list offset: " +
+                            status.ToString());
+      }
+    }
+    std::shared_ptr<arrow::Array> offsets_array;
+    auto finish_status = offsets_builder.Finish(&offsets_array);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish list offsets: " +
+                          finish_status.ToString());
+    }
+    return std::make_shared<arrow::ListArray>(
+        list_type, static_cast<int64_t>(items.size()),
+        offsets_array->data()->buffers[1], elements_array, nullptr);
+  }
+  case DataTypeId::kArray: {
+    auto array_col = std::dynamic_pointer_cast<ContextArrayColumn>(col);
+    if (!array_col) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected ContextArrayColumn");
+    }
+    auto list_type = std::static_pointer_cast<arrow::ListType>(arrow_type);
+    auto elements_array = contextColumnToArrowArray(array_col->data_column(),
+                                                    list_type->value_type());
+    const auto array_size = array_col->array_size();
+    const auto num_rows = array_col->size();
+
+    arrow::Int32Builder offsets_builder(arrow::default_memory_pool());
+    for (size_t i = 0; i < num_rows; ++i) {
+      auto status =
+          offsets_builder.Append(static_cast<int32_t>(i * array_size));
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append array offset: " +
+                            status.ToString());
+      }
+    }
+    auto last_status =
+        offsets_builder.Append(static_cast<int32_t>(num_rows * array_size));
+    if (!last_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to append array offset: " +
+                          last_status.ToString());
+    }
+    std::shared_ptr<arrow::Array> offsets_array;
+    auto finish_status = offsets_builder.Finish(&offsets_array);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish array offsets: " +
+                          finish_status.ToString());
+    }
+    return std::make_shared<arrow::ListArray>(
+        list_type, static_cast<int64_t>(num_rows),
+        offsets_array->data()->buffers[1], elements_array, nullptr);
+  }
+  case DataTypeId::kStruct: {
+    auto struct_col = std::dynamic_pointer_cast<StructColumn>(col);
+    if (!struct_col) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected StructColumn");
+    }
+    auto struct_type = std::static_pointer_cast<arrow::StructType>(arrow_type);
+    std::vector<std::shared_ptr<arrow::Array>> field_arrays;
+    const auto& children = struct_col->children();
+    for (size_t i = 0; i < children.size(); ++i) {
+      field_arrays.push_back(contextColumnToArrowArray(
+          children[i], struct_type->field(static_cast<int>(i))->type()));
+    }
+    std::shared_ptr<arrow::Buffer> validity_buffer = nullptr;
+    if (struct_col->is_optional()) {
+      validity_buffer =
+          boolVectorToArrowBitmap(struct_col->validity_bitmap(), col->size());
+    }
+    return std::make_shared<arrow::StructArray>(
+        struct_type, static_cast<int64_t>(col->size()), field_arrays,
+        validity_buffer);
+  }
+  default: {
+    arrow::LargeStringBuilder builder(arrow::default_memory_pool());
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        auto status = builder.AppendNull();
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+        }
+      } else {
+        auto status = builder.Append(col->get_elem(i).to_string());
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append string: " + status.ToString());
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto finish_status = builder.Finish(&result);
+    if (!finish_status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish string array: " +
+                          finish_status.ToString());
+    }
+    return result;
+  }
   }
 }
 
-neug::Status ArrowParquetExportWriter::writeTable(const QueryResponse* table) {
-  if (!table || table->row_count() == 0) {
+static neug::Status writeArrowTable(
+    const std::shared_ptr<arrow::Schema>& arrow_schema,
+    const std::vector<std::shared_ptr<arrow::Array>>& arrays,
+    const reader::FileSchema& schema,
+    const std::shared_ptr<arrow::fs::FileSystem>& file_system) {
+  auto result = file_system->OpenOutputStream(schema.paths[0]);
+  if (!result.ok()) {
+    return neug::Status(
+        neug::StatusCode::ERR_IO_ERROR,
+        "Failed to open output file: " + result.status().ToString());
+  }
+  auto outfile = result.ValueOrDie();
+
+  auto properties = buildWriterProperties(schema.options);
+  auto writer_result = ::parquet::arrow::FileWriter::Open(
+      *arrow_schema, arrow::default_memory_pool(), outfile, properties);
+  if (!writer_result.ok()) {
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                        "Failed to create Parquet writer: " +
+                            writer_result.status().ToString());
+  }
+  auto writer = std::move(writer_result.ValueOrDie());
+
+  auto arrow_table = arrow::Table::Make(arrow_schema, arrays);
+  auto write_status = writer->WriteTable(*arrow_table, arrow_table->num_rows());
+  if (!write_status.ok()) {
+    return neug::Status(
+        neug::StatusCode::ERR_IO_ERROR,
+        "Failed to write Parquet table: " + write_status.ToString());
+  }
+
+  auto close_status = writer->Close();
+  if (!close_status.ok()) {
+    return neug::Status(
+        neug::StatusCode::ERR_IO_ERROR,
+        "Failed to close Parquet writer: " + close_status.ToString());
+  }
+
+  auto outfile_close_status = outfile->Close();
+  if (!outfile_close_status.ok()) {
+    return neug::Status(
+        neug::StatusCode::ERR_IO_ERROR,
+        "Failed to close output stream: " + outfile_close_status.ToString());
+  }
+  return neug::Status::OK();
+}
+
+neug::Status ArrowParquetExportWriter::write(
+    const DataChunk& chunk, const std::vector<DataType>& /*source_types*/) {
+  if (chunk.row_num() == 0) {
     return neug::Status::OK();
+  }
+  if (!entry_schema_) {
+    return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                        "entry_schema is null");
   }
 
   try {
-    // 1. Create Arrow schema from QueryResponse (infer types from protobuf
-    // arrays)
     std::vector<std::shared_ptr<arrow::Field>> fields;
-    int num_columns = table->arrays_size();
-
-    for (int i = 0; i < num_columns; ++i) {
-      // Get column name from QueryResponse schema or entry_schema_
-      std::string column_name;
-      if (i < table->schema().name_size()) {
-        column_name = table->schema().name(i);
-      } else if (entry_schema_ &&
-                 i < static_cast<int>(entry_schema_->columnNames.size())) {
-        column_name = entry_schema_->columnNames[i];
-      } else {
-        column_name = "col_" + std::to_string(i);
+    fields.reserve(chunk.col_num());
+    for (size_t i = 0; i < chunk.col_num(); ++i) {
+      if (chunk.columns[i] == nullptr) {
+        continue;
       }
-
-      // Infer Arrow type from protobuf array structure
-      const auto& proto_array = table->arrays(i);
-      auto arrow_type = inferArrowTypeFromArray(proto_array);
-
-      fields.push_back(arrow::field(column_name, arrow_type));
+      std::string column_name = i < entry_schema_->columnNames.size()
+                                    ? entry_schema_->columnNames[i]
+                                    : ("col_" + std::to_string(i));
+      fields.push_back(arrow::field(
+          column_name,
+          inferArrowTypeFromDataType(chunk.columns[i]->elem_type())));
     }
 
     auto arrow_schema = arrow::schema(fields);
-
-    // 2. Open output file
-    auto result = fileSystem_->OpenOutputStream(schema_.paths[0]);
-    if (!result.ok()) {
-      return neug::Status(
-          neug::StatusCode::ERR_IO_ERROR,
-          "Failed to open output file: " + result.status().ToString());
-    }
-    auto outfile = result.ValueOrDie();
-
-    // 3. Create Parquet writer with options
-    auto properties = buildWriterProperties(schema_.options);
-
-    auto writer_result = ::parquet::arrow::FileWriter::Open(
-        *arrow_schema, arrow::default_memory_pool(), outfile, properties);
-    if (!writer_result.ok()) {
-      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
-                          "Failed to create Parquet writer: " +
-                              writer_result.status().ToString());
-    }
-    auto writer = std::move(writer_result.ValueOrDie());
-
-    // 4. Convert protobuf Arrays to Arrow Arrays
     std::vector<std::shared_ptr<arrow::Array>> arrays;
-    for (int i = 0; i < num_columns; ++i) {
-      const auto& proto_array = table->arrays(i);
-      auto arrow_type = arrow_schema->field(i)->type();
-      auto arrow_array =
-          protoArrayToArrowArray(proto_array, arrow_type, table->row_count());
-      arrays.push_back(arrow_array);
+    arrays.reserve(fields.size());
+    for (size_t i = 0; i < chunk.col_num(); ++i) {
+      if (chunk.columns[i] == nullptr) {
+        continue;
+      }
+      arrays.push_back(contextColumnToArrowArray(
+          chunk.columns[i],
+          arrow_schema->field(static_cast<int>(arrays.size()))->type()));
     }
 
-    // 5. Create Arrow Table and write
-    auto arrow_table = arrow::Table::Make(arrow_schema, arrays);
-
-    auto write_status =
-        writer->WriteTable(*arrow_table, arrow_table->num_rows());
-    if (!write_status.ok()) {
-      return neug::Status(
-          neug::StatusCode::ERR_IO_ERROR,
-          "Failed to write Parquet table: " + write_status.ToString());
-    }
-
-    // 6. Close writer to flush and write footer
-    auto close_status = writer->Close();
-    if (!close_status.ok()) {
-      return neug::Status(
-          neug::StatusCode::ERR_IO_ERROR,
-          "Failed to close Parquet writer: " + close_status.ToString());
-    }
-
-    // 7. Close output stream
-    auto outfile_close_status = outfile->Close();
-    if (!outfile_close_status.ok()) {
-      return neug::Status(
-          neug::StatusCode::ERR_IO_ERROR,
-          "Failed to close output stream: " + outfile_close_status.ToString());
-    }
-
-    return neug::Status::OK();
+    return writeArrowTable(arrow_schema, arrays, schema_, fileSystem_);
   } catch (const std::exception& e) {
     return neug::Status(
         neug::StatusCode::ERR_IO_ERROR,
@@ -462,7 +535,6 @@ neug::Status ArrowParquetExportWriter::writeTable(const QueryResponse* table) {
 
 namespace function {
 
-// Export function execution
 static execution::Context parquetExecFunc(
     neug::execution::Context& ctx, reader::FileSchema& schema,
     const std::shared_ptr<reader::EntrySchema>& entry_schema,
@@ -478,7 +550,8 @@ static execution::Context parquetExecFunc(
   auto writer = std::make_shared<neug::writer::ArrowParquetExportWriter>(
       schema, std::move(arrowFs), entry_schema);
 
-  auto status = writer->write(ctx, graph);
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Parquet export failed: " + status.ToString());
   }
@@ -487,7 +560,6 @@ static execution::Context parquetExecFunc(
   return ctx;
 }
 
-// Bind function
 static std::unique_ptr<ExportFuncBindData> bindFunc(
     ExportFuncBindInput& bindInput) {
   return std::make_unique<ExportFuncBindData>(

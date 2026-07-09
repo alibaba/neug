@@ -35,9 +35,9 @@
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
+#include "neug/storages/property/column.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/column.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {

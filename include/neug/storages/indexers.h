@@ -14,9 +14,9 @@ limitations under the License.
 */
 #pragma once
 
-#include "neug/utils/id_indexer.h"
+#include "neug/storages/id_indexer.h"
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 

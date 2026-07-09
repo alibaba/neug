@@ -29,11 +29,11 @@
 #include <stdexcept>
 #include <type_traits>
 #include "neug/common/extra_type_info.h"
+#include "neug/common/types/property_types.h"
+#include "neug/storages/id_indexer.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/id_indexer.h"
 #include "neug/utils/pb_utils.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"

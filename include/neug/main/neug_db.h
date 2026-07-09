@@ -22,6 +22,7 @@
 #include <string>
 #include <thread>
 
+#include "neug/common/types/property_types.h"
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
@@ -36,7 +37,6 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/utils/property/types.h"
 #include "neug/version.h"
 
 #define STRINGIFY(x) #x

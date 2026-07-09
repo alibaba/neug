@@ -21,13 +21,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/config.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/module/module.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/property/column.h"
 
 namespace neug {
 

@@ -124,7 +124,7 @@ TEST_F(JsonTest, TestJsonArray) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);

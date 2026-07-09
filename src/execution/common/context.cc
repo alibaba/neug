@@ -54,6 +54,13 @@ void Context::append_chunk(ContextChunk&& chunk) {
   chunks_.push_back(std::move(chunk));
 }
 
+void Context::append_chunks(std::vector<DataChunk>&& chunks) {
+  chunks_.reserve(chunks_.size() + chunks.size());
+  for (auto& chunk : chunks) {
+    append_chunk(std::move(chunk));
+  }
+}
+
 void Context::flatten() {
   if (chunks_.size() <= 1) {
     return;
@@ -84,6 +91,21 @@ size_t Context::row_num() const {
     total += cc.row_num();
   }
   return total;
+}
+
+std::vector<DataType> Context::column_types() const {
+  std::vector<DataType> types;
+  types.reserve(tag_ids.size());
+  for (size_t tag_id : tag_ids) {
+    for (size_t c = 0; c < chunks_.size(); ++c) {
+      auto col = chunks_[c].get(tag_id);
+      if (col != nullptr) {
+        types.push_back(col->elem_type());
+        break;
+      }
+    }
+  }
+  return types;
 }
 
 }  // namespace execution

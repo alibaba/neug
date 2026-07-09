@@ -18,8 +18,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class InArchive;

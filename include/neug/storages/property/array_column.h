@@ -20,7 +20,7 @@
 #include "neug/common/extra_type_info.h"
 #include "neug/common/types.h"
 #include "neug/common/types/value.h"
-#include "neug/utils/property/column.h"
+#include "neug/storages/property/column.h"
 
 namespace neug {
 

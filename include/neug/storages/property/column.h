@@ -31,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/config.h"
 #include "neug/storages/checkpoint.h"
@@ -43,7 +44,6 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
 #include <glog/logging.h>

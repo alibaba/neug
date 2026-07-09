@@ -21,13 +21,13 @@
 #include <string>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
-#include "neug/utils/property/types.h"
 #include "unittest/utils.h"
 
 #include <glog/logging.h>

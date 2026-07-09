@@ -21,8 +21,8 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
+#include "neug/storages/property/column.h"
+#include "neug/storages/property/table.h"
 #include "unittest/utils.h"
 
 static const std::vector<bool> bool_data = {1, 0, 0, 1, 1, 0, 1, 0, 1, 1};

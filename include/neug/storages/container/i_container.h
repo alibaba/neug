@@ -18,8 +18,8 @@
 #include <memory>
 #include <string>
 
+#include "neug/common/types/property_types.h"
 #include "neug/config.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 #include <algorithm>
 #include <cctype>
@@ -30,8 +30,6 @@
 #include <regex>
 
 #include "date/date.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 

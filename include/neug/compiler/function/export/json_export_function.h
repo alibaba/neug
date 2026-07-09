@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <vector>
-
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/utils/io/write/writer.h"
 #include "neug/utils/result.h"
@@ -27,37 +25,6 @@ namespace neug {
 namespace writer {
 
 static constexpr const char* DEFAULT_JSON_NEWLINE = "\n";
-class JsonArrayStringFormatBuffer : public StringFormatBuffer {
- public:
-  JsonArrayStringFormatBuffer(const neug::QueryResponse* response,
-                              const reader::FileSchema& schema,
-                              const reader::EntrySchema& entry_schema);
-  ~JsonArrayStringFormatBuffer() = default;
-  void addValue(int rowIdx, int colIdx) override;
-  neug::Status flush(io::OutputStream& stream) override;
-
- private:
-  const reader::EntrySchema& entry_schema_;
-  rapidjson::Value current_line_;
-  rapidjson::Value buffer_;
-  rapidjson::Document document_;
-};
-
-class JsonLStringFormatBuffer : public StringFormatBuffer {
- public:
-  JsonLStringFormatBuffer(const neug::QueryResponse* response,
-                          const reader::FileSchema& schema,
-                          const reader::EntrySchema& entry_schema);
-  ~JsonLStringFormatBuffer() = default;
-  void addValue(int rowIdx, int colIdx) override;
-  neug::Status flush(io::OutputStream& stream) override;
-
- private:
-  const reader::EntrySchema& entry_schema_;
-  rapidjson::Value current_line_;
-  std::vector<rapidjson::Value> buffer_;
-  rapidjson::Document document_;
-};
 
 class JsonArrayExportWriter : public QueryExportWriter {
  public:
@@ -67,7 +34,8 @@ class JsonArrayExportWriter : public QueryExportWriter {
       : QueryExportWriter(schema, std::move(entry_schema)) {}
   ~JsonArrayExportWriter() override = default;
 
-  neug::Status writeTable(const QueryResponse* table) override;
+  neug::Status write(const DataChunk& chunk,
+                     const std::vector<DataType>& source_types = {}) override;
 };
 
 class JsonLExportWriter : public QueryExportWriter {
@@ -78,7 +46,8 @@ class JsonLExportWriter : public QueryExportWriter {
       : QueryExportWriter(schema, std::move(entry_schema)) {}
   ~JsonLExportWriter() override = default;
 
-  neug::Status writeTable(const QueryResponse* table) override;
+  neug::Status write(const DataChunk& chunk,
+                     const std::vector<DataType>& source_types = {}) override;
 };
 }  // namespace writer
 

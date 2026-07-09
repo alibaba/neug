@@ -37,6 +37,7 @@
 #include "../../extension/parquet/include/parquet_export_function.h"
 #include "../../extension/parquet/include/parquet_options.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "parquet_export_test_utils.h"
 
 namespace neug {
 namespace test {
@@ -454,7 +455,7 @@ TEST_F(ParquetTest, TestTypeMapping_StringToLargeUtf8) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Verify string column type
   auto col1 = ctx.chunk(0).columns()[1];
@@ -506,7 +507,7 @@ TEST_F(ParquetTest, TestTypeMapping_PreserveNumericTypes) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 4);
   EXPECT_EQ(ctx.row_num(), 1);
@@ -578,7 +579,7 @@ TEST_F(ParquetTest, TestIntegration_ColumnPruning) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Verify extension translates projectColumns to Arrow projection
   // Should have 3 columns (id, score, grade - "name" is excluded)
@@ -649,7 +650,7 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Verify extension translates Neug filter to Arrow filter
   EXPECT_EQ(ctx.col_num(), 2);
@@ -682,7 +683,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_GT(ctx.chunk_num(), 0);  // batch mode: data materialized into chunks
   EXPECT_GT(ctx.col_num(), 0) << "Extension should materialize data into "
@@ -697,7 +698,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   auto reader2 = createParquetReader(sharedState2);
   auto localState2 = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx2;
-  reader2->read(localState2, ctx2);
+  ctx2.append_chunks(reader2->read(localState2));
 
   auto col0_2 = ctx2.chunk(0).columns()[0];
   EXPECT_EQ(col0_2->column_type(), ContextColumnType::kValue)
@@ -762,7 +763,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Arrow scanner applies filter in both batch and full modes
   EXPECT_EQ(ctx.col_num(), 2);
@@ -846,7 +847,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Arrow scanner applies both filter and projection in batch mode
   EXPECT_EQ(ctx.col_num(), 2)
@@ -932,7 +933,7 @@ TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   // Verify extension correctly combines filter and projection
   EXPECT_EQ(ctx.col_num(), 3)
@@ -992,7 +993,7 @@ TEST_F(ParquetTest, TestMultiFile_ExplicitPaths) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 1);
   EXPECT_EQ(ctx.row_num(), 30) << "Extension should correctly read and "
@@ -1055,7 +1056,7 @@ TEST_F(ParquetTest, TestParquetExportWriter) {
                                           entry_schema);
 
   // Write the response
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet: " << status.ToString();
 
   // Verify file was created
@@ -1070,7 +1071,7 @@ TEST_F(ParquetTest, TestParquetExportWriter) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -1116,7 +1117,7 @@ TEST_F(ParquetTest, TestParquetExportWithNulls) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with nulls: "
                            << status.ToString();
 
@@ -1130,7 +1131,7 @@ TEST_F(ParquetTest, TestParquetExportWithNulls) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 2);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -1202,7 +1203,7 @@ TEST_F(ParquetTest, TestParquetExportMultipleTypes) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with multiple types: "
                            << status.ToString();
 
@@ -1247,7 +1248,7 @@ TEST_F(ParquetTest, TestParquetExportLargeDataset) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write large Parquet: "
                            << status.ToString();
 
@@ -1300,7 +1301,7 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   writer::ArrowParquetExportWriter writer_zstd(file_schema_zstd, file_system,
                                                entry_schema);
 
-  auto status = writer_zstd.writeTable(&response);
+  auto status = writer_zstd.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write ZSTD Parquet: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path_zstd));
@@ -1316,7 +1317,7 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   writer::ArrowParquetExportWriter writer_none(file_schema_none, file_system,
                                                entry_schema);
 
-  status = writer_none.writeTable(&response);
+  status = writer_none.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write uncompressed Parquet: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path_none));
@@ -1335,7 +1336,7 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   auto reader_zstd = createParquetReader(sharedState_zstd);
   auto localState_zstd = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx_zstd;
-  reader_zstd->read(localState_zstd, ctx_zstd);
+  ctx_zstd.append_chunks(reader_zstd->read(localState_zstd));
   EXPECT_EQ(ctx_zstd.row_num(), 100);
 
   auto sharedState_none = createSharedState(
@@ -1345,7 +1346,7 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   auto reader_none = createParquetReader(sharedState_none);
   auto localState_none = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx_none;
-  reader_none->read(localState_none, ctx_none);
+  ctx_none.append_chunks(reader_none->read(localState_none));
   EXPECT_EQ(ctx_none.row_num(), 100);
 }
 
@@ -1379,7 +1380,7 @@ TEST_F(ParquetTest, TestParquetExportWithUnsupportedCompression) {
                                           entry_schema);
 
   // Should fail due to unsupported codec
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   EXPECT_FALSE(status.ok())
       << "Expected failure for unsupported codec, but got OK";
 }
@@ -1415,7 +1416,7 @@ TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with row_group_size: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1428,7 +1429,7 @@ TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
   EXPECT_EQ(ctx.row_num(), 100);
 }
 
@@ -1485,7 +1486,7 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   writer::ArrowParquetExportWriter writer_dict(file_schema_dict, file_system,
                                                entry_schema);
 
-  auto status = writer_dict.writeTable(&response);
+  auto status = writer_dict.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok())
       << "Failed to write Parquet with dictionary encoding: "
       << status.ToString();
@@ -1503,7 +1504,7 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   writer::ArrowParquetExportWriter writer_nodict(file_schema_nodict,
                                                  file_system, entry_schema);
 
-  status = writer_nodict.writeTable(&response);
+  status = writer_nodict.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok())
       << "Failed to write Parquet without dictionary encoding: "
       << status.ToString();
@@ -1526,7 +1527,7 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   auto reader_dict = createParquetReader(sharedState_dict);
   auto localState_dict = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx_dict;
-  reader_dict->read(localState_dict, ctx_dict);
+  ctx_dict.append_chunks(reader_dict->read(localState_dict));
   EXPECT_EQ(ctx_dict.row_num(), num_rows);
 
   auto sharedState_nodict = createSharedState(
@@ -1536,7 +1537,7 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   auto reader_nodict = createParquetReader(sharedState_nodict);
   auto localState_nodict = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx_nodict;
-  reader_nodict->read(localState_nodict, ctx_nodict);
+  ctx_nodict.append_chunks(reader_nodict->read(localState_nodict));
   EXPECT_EQ(ctx_nodict.row_num(), num_rows);
 }
 
@@ -1594,7 +1595,7 @@ TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with date/timestamp: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1608,7 +1609,7 @@ TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
   auto reader = createParquetReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
   EXPECT_EQ(ctx.row_num(), num_rows);
 }
 
@@ -1670,7 +1671,7 @@ TEST_F(ParquetTest, TestParquetExportWithListType) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with list type: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1746,7 +1747,7 @@ TEST_F(ParquetTest, TestParquetExportWithListOfStrings) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with list<string>: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1814,7 +1815,7 @@ TEST_F(ParquetTest, TestParquetExportWithStructType) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with struct type: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1869,7 +1870,7 @@ TEST_F(ParquetTest, TestParquetExportWithVertexType) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with vertex type: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1924,7 +1925,7 @@ TEST_F(ParquetTest, TestParquetExportWithEdgeType) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with edge type: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -1976,7 +1977,7 @@ TEST_F(ParquetTest, TestParquetExportWithPathType) {
   writer::ArrowParquetExportWriter writer(file_schema, file_system,
                                           entry_schema);
 
-  auto status = writer.writeTable(&response);
+  auto status = writer.write(queryResponseToDataChunk(response));
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with path type: "
                            << status.ToString();
   ASSERT_TRUE(std::filesystem::exists(export_path));
@@ -2005,7 +2006,7 @@ TEST_F(ParquetTest, TestParquetNonExistentColumnThrows) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  EXPECT_THROW(reader->read(localState, ctx),
+  EXPECT_THROW(ctx.append_chunks(reader->read(localState)),
                exception::SchemaMismatchException);
 }
 

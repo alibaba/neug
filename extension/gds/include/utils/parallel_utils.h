@@ -21,8 +21,8 @@
 #include <thread>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace gds {

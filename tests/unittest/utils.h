@@ -26,19 +26,19 @@
 
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/data_chunk.h"
+#include "neug/common/types/property_types.h"
 #include "neug/main/connection.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/id_indexer.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module/type_name.h"
-#include "neug/utils/id_indexer.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/property/column.h"
+#include "neug/storages/property/table.h"
 
 class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
  public:

@@ -15,12 +15,14 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/scanner.h>
 #include <arrow/filesystem/filesystem.h>
 #include <arrow/type.h>
 
+#include "neug/common/types/data_chunk.h"
 #include "neug/utils/io/reader.h"
 #include "parquet/arrow_options.h"
 
@@ -47,8 +49,8 @@ class Reader {
         fileSystem(std::move(fileSystem)) {}
   virtual ~Reader() = default;
 
-  virtual void read(std::shared_ptr<ReadLocalState> localState,
-                    execution::Context& ctx) = 0;
+  virtual std::vector<DataChunk> read(
+      std::shared_ptr<ReadLocalState> localState) = 0;
 
  protected:
   std::shared_ptr<ReadSharedState> sharedState;
@@ -72,18 +74,18 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
         datasetBuilder(std::move(datasetBuilder)) {}
   ~ArrowReader() override = default;
 
-  void read(std::shared_ptr<ReadLocalState> localState,
-            execution::Context& ctx) override;
+  std::vector<DataChunk> read(
+      std::shared_ptr<ReadLocalState> localState) override;
 
   arrow::Result<std::shared_ptr<arrow::Schema>> inferSchema();
 
  protected:
   std::shared_ptr<arrow::dataset::Scanner> createScanner(
       std::shared_ptr<arrow::fs::FileSystem> fs);
-  void full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                 execution::Context& output);
-  void batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                  execution::Context& output);
+  std::vector<DataChunk> full_read(
+      std::shared_ptr<arrow::dataset::Scanner> scanner);
+  std::vector<DataChunk> batch_read(
+      std::shared_ptr<arrow::dataset::Scanner> scanner);
 
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
   std::shared_ptr<DatasetBuilder> datasetBuilder;

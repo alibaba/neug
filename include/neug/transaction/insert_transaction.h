@@ -23,12 +23,12 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
 namespace neug {

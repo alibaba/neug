@@ -34,13 +34,13 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
+#include "neug/common/types/default_value.h"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/bolt_utils.h"
-#include "neug/utils/property/default_value.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

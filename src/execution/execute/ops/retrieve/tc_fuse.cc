@@ -14,6 +14,7 @@
  */
 
 #include "neug/common/types/graph_types.h"
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 #include "neug/execution/execute/operator.h"
@@ -21,7 +22,6 @@
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace execution {
