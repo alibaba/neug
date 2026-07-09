@@ -115,6 +115,18 @@ def example_profile_single_scan(conn):
 
     result = conn.execute(query)
 
+    # Print query results
+    print("--- Query Results ---")
+    rows = list(result)  # Consume all rows
+    if rows:
+        print(f"Columns: {result.column_names()}")
+        for i, row in enumerate(rows, 1):
+            print(f"  Row {i}: {row}")
+        print(f"Total rows returned: {len(rows)}\n")
+    else:
+        print("✗ No results returned\n")
+
+    # Print profile information
     if result.has_profile_result():
         print("--- Formatted Text Output (suitable for CLI) ---")
         print(result.get_profile_text())
@@ -144,6 +156,17 @@ def example_profile_with_join(conn):
 
     result = conn.execute(query)
 
+    # Print query results
+    print("--- Query Results (first 5 rows) ---")
+    rows = list(result)
+    print(f"Columns: {result.column_names()}")
+    for i, row in enumerate(rows[:5], 1):
+        print(f"  Row {i}: {row}")
+    if len(rows) > 5:
+        print(f"  ... ({len(rows) - 5} more rows)")
+    print(f"Total rows returned: {len(rows)}\n")
+
+    # Print profile information
     if result.has_profile_result():
         print("--- Formatted Text Output ---")
         print(result.get_profile_text())
@@ -166,6 +189,15 @@ def example_profile_with_aggregation(conn):
 
     result = conn.execute(query)
 
+    # Print query results
+    print("--- Query Results ---")
+    rows = list(result)
+    print(f"Columns: {result.column_names()}")
+    for i, row in enumerate(rows, 1):
+        print(f"  Row {i}: {row}")
+    print()
+
+    # Print profile information
     if result.has_profile_result():
         print("--- Formatted Text Output ---")
         print(result.get_profile_text())
@@ -186,6 +218,11 @@ def example_explain_mode(conn):
     print(f"\nQuery: {query}\n")
 
     result = conn.execute(query)
+
+    # Note: EXPLAIN mode doesn't execute, so no query results
+    rows = list(result)
+    print(f"--- Query Results ---")
+    print(f"Rows returned: {len(rows)} (EXPLAIN mode doesn't execute)\n")
 
     if result.has_profile_result():
         print("--- Execution Plan (no execution) ---")
@@ -211,6 +248,14 @@ def example_dict_interface(conn):
 
     result = conn.execute(query)
 
+    # Print query results
+    print("--- Query Results ---")
+    rows = list(result)
+    print(f"Columns: {result.column_names()}")
+    for i, row in enumerate(rows, 1):
+        print(f"  Row {i}: {row}")
+    print()
+
     if result.has_profile_result():
         metrics = result.get_profile_metrics()
 
@@ -232,7 +277,6 @@ def example_dict_interface(conn):
             )
             if op["child_ids"]:
                 print(f"       Children: {op['child_ids']}")
-
 
 def main():
     # Use provided db_dir from command line, or default to /tmp/neug_profile_example_db

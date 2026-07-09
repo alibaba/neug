@@ -153,7 +153,8 @@ result<QueryResult> QueryProcessor::execute_internal(
 
   if (explain_mode == physical::ExplainMode::PROFILE) {
     if (timer_ptr) {
-      auto profile_result = execution::OprTimerToProfileResult(timer_ptr.get());
+      auto profile_result =
+          execution::OprTimer::ToProfileResult(timer_ptr.get());
       response->set_allocated_profile_result(
           google::protobuf::Arena::CreateMessage<neug::ProfileResult>(&arena));
       *response->mutable_profile_result() = profile_result;
@@ -222,7 +223,7 @@ result<QueryResult> QueryProcessor::execute_explain_mode(
   // 2. build ProfileResult from the explain tree
   if (tree_result.value()) {
     auto profile_result =
-        execution::OprTimerToProfileResult(tree_result.value().get());
+        execution::OprTimer::ToProfileResult(tree_result.value().get());
     response->set_allocated_profile_result(
         google::protobuf::Arena::CreateMessage<neug::ProfileResult>(&arena));
     *response->mutable_profile_result() = profile_result;

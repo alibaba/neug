@@ -213,6 +213,11 @@ TEST_F(ExplainProfileTest, ProfileModeWithAggregation) {
     const auto& response = result.value().response();
     EXPECT_TRUE(response.has_profile_result())
         << "PROFILE mode with aggregation should generate ProfileResult";
+
+    // Print profile_result_text() for inspection
+    std::cout << "\n=== PROFILE OUTPUT ===\n"
+              << result.value().profile_result_text() << "=== END PROFILE ===\n"
+              << std::endl;
   }
   conn->Close();
   db.Close();
@@ -245,6 +250,12 @@ TEST_F(ExplainProfileTest, ExplainModeSingleScan) {
           << "EXPLAIN mode should have 0 elapsed time (no execution)";
       EXPECT_EQ(profile.total_output_rows(), 0)
           << "EXPLAIN mode should have 0 output rows (no execution)";
+
+      // Print profile_result_text() for inspection
+      std::cout << "\n=== PROFILE OUTPUT ===\n"
+                << result.value().profile_result_text()
+                << "=== END PROFILE ===\n"
+                << std::endl;
     }
   }
   conn->Close();
@@ -277,6 +288,12 @@ TEST_F(ExplainProfileTest, ExplainModeWithJoin) {
           << "EXPLAIN should not execute, so elapsed time is 0";
       EXPECT_EQ(profile.total_output_rows(), 0)
           << "EXPLAIN should not execute, so no output rows";
+
+      // Print profile_result_text() for inspection
+      std::cout << "\n=== PROFILE OUTPUT ===\n"
+                << result.value().profile_result_text()
+                << "=== END PROFILE ===\n"
+                << std::endl;
     }
   }
   conn->Close();
@@ -310,6 +327,12 @@ TEST_F(ExplainProfileTest, ProfileResultFieldsPresent) {
         (void) op.elapsed_ms();
         (void) op.output_rows();
       }
+
+      // Print profile_result_text() for inspection
+      std::cout << "\n=== PROFILE OUTPUT ===\n"
+                << result.value().profile_result_text()
+                << "=== END PROFILE ===\n"
+                << std::endl;
     }
   }
   conn->Close();
@@ -335,6 +358,12 @@ TEST_F(ExplainProfileTest, ProfileResultMetricsAccumulate) {
           << "ProfileResult total_output_rows should be >= returned rows";
       EXPECT_GT(profile.total_elapsed_ms(), 0)
           << "PROFILE execution should have non-zero elapsed time";
+
+      // Print profile_result_text() for inspection
+      std::cout << "\n=== PROFILE OUTPUT ===\n"
+                << result.value().profile_result_text()
+                << "=== END PROFILE ===\n"
+                << std::endl;
     }
   }
   conn->Close();
