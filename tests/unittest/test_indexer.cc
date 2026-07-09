@@ -189,6 +189,9 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   LFIndexer<uint32_t> empty_indexer;
   OpenIndexerLegacy(empty_indexer, *ckp, int64_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
+  EXPECT_EQ((id_indexer_impl::BulkLoadAccessor<uint32_t>::get_index<int64_t>(
+                empty_indexer, 42)),
+            std::numeric_limits<uint32_t>::max());
   CheckpointManifest empty_dump = DumpIndexerLegacy(empty_indexer, *ckp);
   EXPECT_TRUE(empty_dump.has_module(kIndexerIndices));
   empty_indexer.Close();

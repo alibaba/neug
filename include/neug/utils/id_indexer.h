@@ -319,10 +319,10 @@ class LFIndexer {
     }
     // Dispatch to typed rehash — avoids Value construction.
     switch (get_type()) {
-#define CASE_REHASH(enum_val, type)                                      \
-  case DataTypeId::enum_val:                                             \
-    id_indexer_impl::BulkLoadAccessor<INDEX_T>::template rehash<type>(   \
-        *this, size);                                                    \
+#define CASE_REHASH(enum_val, type)                                          \
+  case DataTypeId::enum_val:                                                 \
+    id_indexer_impl::BulkLoadAccessor<INDEX_T>::template rehash<type>(*this, \
+                                                                      size); \
     return;
       CASE_REHASH(kInt64, int64_t)
       CASE_REHASH(kInt32, int32_t)
@@ -345,32 +345,28 @@ class LFIndexer {
   // Value-based methods: dispatch to id_indexer_impl::BulkLoadAccessor
   // typed static methods, which access LFIndexer's private members via
   // friendship.
-#define NEUG_DISPATCH_PK_TYPE(method, oid_expr, ...)                         \
-  switch (get_type()) {                                                       \
-  case DataTypeId::kInt64:                                                    \
-    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::                       \
-        template method<int64_t>(*this, oid_expr.GetValue<int64_t>(),         \
-                               ##__VA_ARGS__);                                \
-  case DataTypeId::kInt32:                                                    \
-    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::                       \
-        template method<int32_t>(*this, oid_expr.GetValue<int32_t>(),         \
-                               ##__VA_ARGS__);                                \
-  case DataTypeId::kUInt64:                                                   \
-    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::                       \
-        template method<uint64_t>(*this, oid_expr.GetValue<uint64_t>(),       \
-                               ##__VA_ARGS__);                                \
-  case DataTypeId::kUInt32:                                                   \
-    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::                       \
-        template method<uint32_t>(*this, oid_expr.GetValue<uint32_t>(),        \
-                               ##__VA_ARGS__);                                \
-  case DataTypeId::kVarchar:                                                  \
-    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::                       \
-        template method<std::string_view>(                                     \
-            *this, oid_expr.GetValue<std::string_view>(), ##__VA_ARGS__);     \
-  default:                                                                    \
-    THROW_NOT_SUPPORTED_EXCEPTION(                                            \
-        "Unsupported pk type: " +                                             \
-        std::to_string(static_cast<int>(get_type())));                        \
+#define NEUG_DISPATCH_PK_TYPE(method, oid_expr, ...)                    \
+  switch (get_type()) {                                                 \
+  case DataTypeId::kInt64:                                              \
+    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::template method< \
+        int64_t>(*this, oid_expr.GetValue<int64_t>(), ##__VA_ARGS__);   \
+  case DataTypeId::kInt32:                                              \
+    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::template method< \
+        int32_t>(*this, oid_expr.GetValue<int32_t>(), ##__VA_ARGS__);   \
+  case DataTypeId::kUInt64:                                             \
+    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::template method< \
+        uint64_t>(*this, oid_expr.GetValue<uint64_t>(), ##__VA_ARGS__); \
+  case DataTypeId::kUInt32:                                             \
+    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::template method< \
+        uint32_t>(*this, oid_expr.GetValue<uint32_t>(), ##__VA_ARGS__); \
+  case DataTypeId::kVarchar:                                            \
+    return id_indexer_impl::BulkLoadAccessor<INDEX_T>::template method< \
+        std::string_view>(*this, oid_expr.GetValue<std::string_view>(), \
+                          ##__VA_ARGS__);                               \
+  default:                                                              \
+    THROW_NOT_SUPPORTED_EXCEPTION(                                      \
+        "Unsupported pk type: " +                                       \
+        std::to_string(static_cast<int>(get_type())));                  \
   }
 
   INDEX_T insert(const Value& oid, bool insert_safe) {
@@ -442,8 +438,8 @@ class BulkLoadAccessor {
   /// Precondition: key is known absent (caller checked via get_index).
   /// Caller must ensure KEY_T matches indexer.get_type().
   template <typename KEY_T>
-  static INDEX_T insert_absent(LFIndexer<INDEX_T>& indexer,
-                               const KEY_T& oid, bool insert_safe) {
+  static INDEX_T insert_absent(LFIndexer<INDEX_T>& indexer, const KEY_T& oid,
+                               bool insert_safe) {
     if (insert_safe) {
       if (NEUG_UNLIKELY(indexer.num_elements_.load(std::memory_order_relaxed) >=
                         indexer.capacity())) {
@@ -456,8 +452,8 @@ class BulkLoadAccessor {
     if (!insert_safe &&
         NEUG_UNLIKELY(static_cast<size_t>(ind) >= indexer.capacity())) {
       THROW_INTERNAL_EXCEPTION(
-          "Reserved size is not enough: " +
-          std::to_string(indexer.capacity()) + " vs " + std::to_string(ind));
+          "Reserved size is not enough: " + std::to_string(indexer.capacity()) +
+          " vs " + std::to_string(ind));
     }
     auto* typed_keys = static_cast<TypedColumn<KEY_T>*>(indexer.keys_.get());
     typed_keys->set_value(ind, oid, insert_safe);
@@ -477,8 +473,8 @@ class BulkLoadAccessor {
 
   /// Typed lookup: returns true and sets ret if found.
   template <typename KEY_T>
-  static bool get_index(const LFIndexer<INDEX_T>& indexer,
-                        const KEY_T& oid, INDEX_T& ret) {
+  static bool get_index(const LFIndexer<INDEX_T>& indexer, const KEY_T& oid,
+                        INDEX_T& ret) {
     if (indexer.indices_->size() == 0) {
       return false;
     }
@@ -505,6 +501,9 @@ class BulkLoadAccessor {
   template <typename KEY_T>
   static INDEX_T get_index(const LFIndexer<INDEX_T>& indexer,
                            const KEY_T& oid) {
+    if (indexer.indices_->size() == 0) {
+      return LFIndexer<INDEX_T>::sentinel;
+    }
     auto* indices_ptr = indexer.indices_->data();
     auto* typed_keys =
         static_cast<const TypedColumn<KEY_T>*>(indexer.keys_.get());
