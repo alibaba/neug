@@ -30,7 +30,7 @@
 #include "neug/compiler/common/enums/rel_multiplicity.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
-#include "neug/execution/common/property_definition.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace common {

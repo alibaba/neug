@@ -44,9 +44,9 @@
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/compiler/parser/scan_source.h"
-#include "neug/execution/common/property_definition.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/default_value.h"
+#include "neug/utils/property/property_definition.h"
 
 using namespace neug::binder;
 using namespace neug::catalog;

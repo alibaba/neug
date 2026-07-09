@@ -26,7 +26,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/config.h"
-#include "neug/execution/common/property_definition.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace catalog {

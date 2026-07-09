@@ -34,11 +34,11 @@
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/config.h"
-#include "neug/execution/common/property_definition.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace gopt {

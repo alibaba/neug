@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "neug/execution/common/property_definition.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace binder {
