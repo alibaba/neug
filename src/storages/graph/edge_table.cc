@@ -213,11 +213,9 @@ void insert_edges_bundled_typed_impl(
   for (auto& col : data_cols) {
     auto value_col = std::dynamic_pointer_cast<ValueColumn<EDATA_T>>(col);
     if (value_col) {
-      // Null entries already have T() in data_, so no validity check needed.
-      const auto& data = value_col->data();
-      for (size_t i = 0; i < data.size(); ++i) {
+      for (size_t i = 0; i < value_col->size(); ++i) {
         if (valid_flags[cur_index++]) {
-          edge_data.push_back(data[i]);
+          edge_data.push_back(value_col->get_value(i));
         }
       }
     } else {
