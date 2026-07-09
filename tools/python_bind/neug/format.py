@@ -51,13 +51,11 @@ def parse_and_format_results(pyquery_result: QueryResult, max_rows=20):
         rows.append(["..."] * len(rows[0]))
 
     # Print query results (if any)
-    if rows:
+    if headers and rows:
         print_results_as_table(headers, rows)
-    elif headers:
-        # Has column headers but no rows (e.g., EXPLAIN mode)
-        print(f"No results (total records: 0)")
-    
-    # Always check and print PROFILE/EXPLAIN information
+    else:
+        print(f"No results (total records: {total_records})")
+
     if pyquery_result.has_profile_result():
         print("\n")  # Blank line separator
         profile_text = pyquery_result.get_profile_text()

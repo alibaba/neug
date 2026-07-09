@@ -124,19 +124,49 @@ template <typename Transaction>
 inline neug::result<execution::Context> ExecutePipelineInTransaction(
     execution::LocalQueryCache& pipeline_cache, const Schema& schema,
     const std::string& query, AccessMode mode, const NeugDBConfig& db_config,
-    const rapidjson::Document& param_json_obj, execution::OprTimer* timer,
-    neug::MetaDatas& result_schema, Transaction& txn,
-    IStorageInterface& storage_interface) {
+    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema,
+    Transaction& txn, IStorageInterface& storage_interface,
+    neug::QueryResponse* response) {
   GS_AUTO(cache_value, pipeline_cache.Get(schema, query));
   assert(cache_value != nullptr);
   RETURN_STATUS_ERROR_IF_NOT_OK(
       validate_flags(mode, cache_value->flags, db_config));
 
+  result_schema = cache_value->result_schema;
   auto params_map =
       ParamsParser::ParseFromJsonObj(cache_value->params_type, param_json_obj);
+  const auto explain_mode = cache_value->explain_mode;
+
+  // ================ EXPLAIN MODE =================
+  // Build the operator tree only; the query is not executed.
+  if (explain_mode == physical::ExplainMode::EXPLAIN) {
+    auto tree_result =
+        cache_value->pipeline.explain_tree(storage_interface, params_map);
+    if (!tree_result) {
+      txn.Abort();
+      RETURN_ERROR(tree_result.error());
+    }
+    if (tree_result.value()) {
+      *response->mutable_profile_result() =
+          execution::OprTimer::ToProfileResult(tree_result.value().get());
+    }
+    response->set_row_count(0);
+    if (!txn.Commit()) {
+      LOG(ERROR) << "transaction commit failed.";
+      RETURN_ERROR(neug::Status::InternalError("Transaction commit failed."));
+    }
+    // Empty context: no data rows are produced for EXPLAIN.
+    return execution::Context();
+  }
+
+  // ================ NORMAL / PROFILE EXECUTION =================
+  std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
+  if (explain_mode == physical::ExplainMode::PROFILE) {
+    timer_ptr = std::make_unique<execution::OprTimer>();
+  }
+
   auto ctx_res = cache_value->pipeline.Execute(
-      storage_interface, execution::Context(), params_map, timer);
-  result_schema = cache_value->result_schema;
+      storage_interface, execution::Context(), params_map, timer_ptr.get());
   if (!ctx_res) {
     txn.Abort();
     RETURN_ERROR(ctx_res.error());
@@ -144,6 +174,11 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
   if (!txn.Commit()) {
     LOG(ERROR) << "transaction commit failed.";
     RETURN_ERROR(neug::Status::InternalError("Transaction commit failed."));
+  }
+
+  if (explain_mode == physical::ExplainMode::PROFILE && timer_ptr) {
+    *response->mutable_profile_result() =
+        execution::OprTimer::ToProfileResult(timer_ptr.get());
   }
   return ctx_res;
 }
@@ -163,8 +198,6 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     mode = planner_->analyzeMode(query);
   }
 
-  // Acquire different transaction on provided access_mode.;
-  std::unique_ptr<neug::execution::OprTimer> timer = nullptr;
   google::protobuf::Arena arena;
   // Create a QueryResponse message on the arena to hold the results.
   neug::QueryResponse* response =
@@ -177,7 +210,7 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     GS_AUTO(ctx,
             ExecutePipelineInTransaction(
                 pipeline_cache_, read_txn.schema(), query, mode, db_config_,
-                param_json_obj, timer.get(), result_schema, read_txn, gri));
+                param_json_obj, result_schema, read_txn, gri, response));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gri, response);
   } else if (mode == AccessMode::kInsert) {
@@ -186,7 +219,11 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     GS_AUTO(ctx,
             ExecutePipelineInTransaction(
                 pipeline_cache_, insert_txn.schema(), query, mode, db_config_,
-                param_json_obj, timer.get(), result_schema, insert_txn, gii));
+                param_json_obj, result_schema, insert_txn, gii, response));
+    // Insert-only mode produces no data rows; the insert storage interface is
+    // not a StorageReadInterface, so results are not sinked. Any
+    // PROFILE/EXPLAIN metrics are attached to the response inside
+    // ExecutePipelineInTransaction.
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
@@ -195,7 +232,7 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     GS_AUTO(ctx,
             ExecutePipelineInTransaction(
                 pipeline_cache_, update_txn.schema(), query, mode, db_config_,
-                param_json_obj, timer.get(), result_schema, update_txn, gui));
+                param_json_obj, result_schema, update_txn, gui, response));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {
