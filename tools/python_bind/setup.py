@@ -111,7 +111,25 @@ class CMakeBuild(build_ext):
     libneug.{dylib,so*} into extdir so the wheel ships them together.
     """
 
+    def _write_commit_info(self) -> None:
+        commit = os.environ.get("NEUG_COMMIT_SHA", "")
+        if not commit:
+            try:
+                commit = subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo_root,
+                    text=True,
+                ).strip()
+            except Exception:
+                commit = "unknown"
+
+        commit_file = Path(base_dir) / "neug" / "_commit.py"
+        commit_file.write_text(f'__commit__ = "{commit}"\n', encoding="utf-8")
+        print(f"[CMakeBuild] wrote commit info ({commit}) -> {commit_file}")
+
     def build_extension(self, ext: CMakeExtension) -> None:
+        self._write_commit_info()
+
         build_dir = Path(
             os.environ.get("NEUG_BUILD_DIR", Path(repo_root) / "build")
         ).resolve()
