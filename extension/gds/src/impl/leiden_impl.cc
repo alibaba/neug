@@ -21,13 +21,13 @@
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 namespace neug { namespace gds { namespace community {
 Leiden::Leiden(
     const StorageReadInterface& graph, std::vector<label_t> vertex_labels,
-    std::vector<execution::LabelTriplet> edge_triplets, double resolution,
+    std::vector<LabelTriplet> edge_triplets, double resolution,
     double threshold, int concurrency,
     const std::string& initial_community_property)
     : graph_(graph), vertex_labels_(std::move(vertex_labels)),
@@ -549,8 +549,8 @@ void Leiden::sink(execution::Context& ctx, int node_alias, int community_alias) 
   for (size_t li = 0; li < vertex_labels_.size(); ++li) {
     label_t label = vertex_labels_[li]; size_t base = label_base_offsets_[li];
     const auto& vertex_set = graph_.GetVertexSet(label);
-    execution::MSVertexColumnBuilder builder(label);
-    execution::ValueColumnBuilder<int64_t> community_builder;
+    MSVertexColumnBuilder builder(label);
+    ValueColumnBuilder<int64_t> community_builder;
     size_t count = 0; for (const auto& v : vertex_set) { (void)v; count++; }
     builder.reserve(count); community_builder.reserve(count);
     for (const auto& v : vertex_set) {

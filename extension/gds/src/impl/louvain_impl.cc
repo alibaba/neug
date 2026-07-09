@@ -20,13 +20,13 @@
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "utils/parallel_utils.h"
 namespace neug { namespace gds { namespace community {
 Louvain::Louvain(
     const StorageReadInterface& graph, std::vector<label_t> vertex_labels,
-    std::vector<execution::LabelTriplet> edge_triplets, double resolution,
+    std::vector<LabelTriplet> edge_triplets, double resolution,
     double threshold, int concurrency, const std::string& initial_community_property)
     : graph_(graph), vertex_labels_(std::move(vertex_labels)),
       edge_triplets_(std::move(edge_triplets)), resolution_(resolution),
@@ -269,7 +269,7 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias)
     for (uint32_t gid : valid_vertices_) { uint32_t c = community_[gid]; if (cr.find(c) == cr.end()) cr[c] = ni++; }
   }
   for (size_t li = 0; li < vertex_labels_.size(); ++li) { label_t label = vertex_labels_[li]; size_t base = label_base_offsets_[li]; const auto& vs = graph_.GetVertexSet(label);
-    execution::MSVertexColumnBuilder b(label); execution::ValueColumnBuilder<int64_t> cb; size_t cnt = 0; for (const auto& v : vs) { (void)v; cnt++; } b.reserve(cnt); cb.reserve(cnt);
+    MSVertexColumnBuilder b(label); ValueColumnBuilder<int64_t> cb; size_t cnt = 0; for (const auto& v : vs) { (void)v; cnt++; } b.reserve(cnt); cb.reserve(cnt);
     for (const auto& v : vs) { uint32_t gid = static_cast<uint32_t>(base+v); b.push_back_opt(v); cb.push_back_opt(static_cast<int64_t>(cr[community_[gid]])); }
     execution::ContextChunk chunk; chunk.set(node_alias, b.finish()); chunk.set(community_alias, cb.finish()); ctx.append_chunk(std::move(chunk)); }
 }

@@ -19,8 +19,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 namespace neug {
@@ -29,7 +29,7 @@ namespace community {
 class Louvain {
  public:
   Louvain(const StorageReadInterface& graph, std::vector<label_t> vertex_labels,
-          std::vector<execution::LabelTriplet> edge_triplets, double resolution,
+          std::vector<LabelTriplet> edge_triplets, double resolution,
           double threshold, int concurrency,
           const std::string& initial_community_property = "");
   void compute();
@@ -38,7 +38,7 @@ class Louvain {
  private:
   const StorageReadInterface& graph_;
   std::vector<label_t> vertex_labels_;
-  std::vector<execution::LabelTriplet> edge_triplets_;
+  std::vector<LabelTriplet> edge_triplets_;
   double resolution_;
   double threshold_;
   int concurrency_;

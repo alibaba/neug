@@ -63,7 +63,7 @@ struct LouvainInput : public function::CallFuncInputBase {
   }
 
   std::vector<label_t> vertex_labels;
-  std::vector<execution::LabelTriplet> edge_triplets;
+  std::vector<LabelTriplet> edge_triplets;
   double resolution = 1.0;
   bool directed = false;
   double threshold = 1e-7;
