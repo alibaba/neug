@@ -53,7 +53,7 @@ class ValueColumn : public IContextColumn {
     return Value::CreateValue<T>(data_[idx]);
   }
 
-  inline T get_value(size_t idx) const { return data_[idx]; }
+  inline const T& get_value(size_t idx) const { return data_[idx]; }
 
   const vector_t<T>& data() const { return data_; }
   const vector_t<bool>& validity_bitmap() const { return valid_; }

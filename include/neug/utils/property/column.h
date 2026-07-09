@@ -134,10 +134,11 @@ class TypedColumn : public ColumnBase {
 
   void set_any(size_t index, const Value& value, bool insert_safe) override {
     if (value.IsNull()) {
-      set_value(index, T(), insert_safe);
+      set_value(index, T());
       return;
     }
-    set_value(index, value.GetValue<T>(), insert_safe);
+    // allow resize is ignored for fixed-length types
+    set_value(index, value.GetValue<T>());
   }
 
   inline T get_view(size_t index) const {
