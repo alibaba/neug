@@ -36,10 +36,9 @@ namespace community {
 /// for incremental/warm-start community detection.
 class Leiden {
  public:
-  Leiden(const StorageReadInterface& graph,
-         std::vector<label_t> vertex_labels,
-         std::vector<execution::LabelTriplet> edge_triplets,
-         double resolution, double threshold, int concurrency,
+  Leiden(const StorageReadInterface& graph, std::vector<label_t> vertex_labels,
+         std::vector<execution::LabelTriplet> edge_triplets, double resolution,
+         double threshold, int concurrency,
          const std::string& initial_community_property = "");
 
   void compute();

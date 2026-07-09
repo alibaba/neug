@@ -1479,13 +1479,14 @@ def test_leiden_incremental_data_changed(tmp_path):
         conn.execute("LOAD gds;")
         conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
         conn.execute(
-            "CALL project_graph('g', ['person'], "
-            "{'[person, knows, person]': ''});"
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
         )
-        rows_r1 = list(conn.execute(
-            "CALL leiden('g', {concurrency: 1}) "
-            "YIELD node, community RETURN node.id, community;"
-        ))
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
         r1_map = {row[0]: row[1] for row in rows_r1}
         for node_id, comm in r1_map.items():
             conn.execute(
@@ -1493,21 +1494,23 @@ def test_leiden_incremental_data_changed(tmp_path):
                 f"SET n.leiden_comm = {comm};"
             )
         conn.execute(
-            "MATCH (a:person {id: 0}), (b:person {id: 3}) "
-            "CREATE (a)-[:knows]->(b);"
+            "MATCH (a:person {id: 0}), (b:person {id: 3}) " "CREATE (a)-[:knows]->(b);"
         )
         conn.execute("CALL drop_projected_graph('g');")
         conn.execute(
-            "CALL project_graph('g', ['person'], "
-            "{'[person, knows, person]': ''});"
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
         )
-        rows_r2 = list(conn.execute(
-            "CALL leiden('g', "
-            "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
-            "YIELD node, community RETURN node.id, community;"
-        ))
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
         r2_map = {row[0]: row[1] for row in rows_r2}
-        unchanged = sum(1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid])
+        unchanged = sum(
+            1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid]
+        )
         assert unchanged > 0, (
             f"Majority-vote should preserve some community IDs.\n"
             f"r1: {r1_map}\nr2: {r2_map}"
@@ -1531,10 +1534,12 @@ def test_leiden_warmstart_multi_edge(tmp_path):
             "CALL project_graph('g', ['person'], "
             "{'[person, knows, person]': '', '[person, meets, person]': ''});"
         )
-        rows_r1 = list(conn.execute(
-            "CALL leiden('g', {concurrency: 1}) "
-            "YIELD node, community RETURN node.id, community;"
-        ))
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
         r1_map = {row[0]: row[1] for row in rows_r1}
         for node_id, comm in r1_map.items():
             conn.execute(
@@ -1546,15 +1551,19 @@ def test_leiden_warmstart_multi_edge(tmp_path):
             "CALL project_graph('g', ['person'], "
             "{'[person, knows, person]': '', '[person, meets, person]': ''});"
         )
-        rows_r2 = list(conn.execute(
-            "CALL leiden('g', "
-            "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
-            "YIELD node, community RETURN node.id, community;"
-        ))
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
         r2_map = {row[0]: row[1] for row in rows_r2}
         # Leiden is heuristic; warm-start preserves most (but not necessarily all)
         # community assignments when data is unchanged.
-        unchanged = sum(1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid])
+        unchanged = sum(
+            1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid]
+        )
         total = len(r1_map)
         assert unchanged >= total * 0.8, (
             f"Warm-start should preserve most community assignments.\n"
