@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <type_traits>
+
 #include "neug/common/columns/columns_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
@@ -53,7 +55,14 @@ class ValueColumn : public IContextColumn {
     return Value::CreateValue<T>(data_[idx]);
   }
 
-  inline const T& get_value(size_t idx) const { return data_[idx]; }
+  // std::vector<bool> is a bit-packed specialization whose operator[]
+  // returns a proxy reference, not a real bool&.  Returning const T&
+  // would bind to a temporary, producing a dangling reference.
+  // For bool, return by value instead.
+  inline std::conditional_t<std::is_same_v<T, bool>, T, const T&>
+  get_value(size_t idx) const {
+    return data_[idx];
+  }
 
   const vector_t<T>& data() const { return data_; }
   const vector_t<bool>& validity_bitmap() const { return valid_; }
