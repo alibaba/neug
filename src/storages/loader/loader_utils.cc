@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstring>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -492,7 +493,13 @@ class CsvRowCountCounter {
     if (start >= end)
       return end;
     std::ifstream file(file_path_, std::ios::binary);
+    if (!file.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for counting: " + file_path_);
+    }
     file.seekg(static_cast<std::streamoff>(start));
+    if (!file) {
+      THROW_IO_EXCEPTION("Failed to seek file for counting: " + file_path_);
+    }
     constexpr size_t kScanBuf = 4096;
     char buf[kScanBuf];
     size_t pos = start;
