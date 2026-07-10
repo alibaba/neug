@@ -47,21 +47,61 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
-  auto pk_type_id = pk_type_.id();
-  if (pk_type_id == DataTypeId::kInt64) {
-    insert_vertices_impl<int64_t>(supplier);
-  } else if (pk_type_id == DataTypeId::kInt32) {
-    insert_vertices_impl<int32_t>(supplier);
-  } else if (pk_type_id == DataTypeId::kUInt32) {
-    insert_vertices_impl<uint32_t>(supplier);
-  } else if (pk_type_id == DataTypeId::kUInt64) {
-    insert_vertices_impl<uint64_t>(supplier);
-  } else if (pk_type_id == DataTypeId::kVarchar) {
-    insert_vertices_impl<std::string_view>(supplier);
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported primary key type for vertex, type: " +
-        pk_type_.ToString() + ", label: " + vertex_schema_->label_name);
+  auto row_nums = supplier->RowNum();
+  if (row_nums < 0) {
+    VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
+    row_nums = 0;
+  }
+  size_t new_size = indexer_->size() + row_nums;
+  if (new_size > indexer_->capacity()) {
+    size_t cap = indexer_->capacity();
+    while (new_size >= cap) {
+      cap = cap < 4096 ? 4096 : cap + cap / 4;
+    }
+    EnsureCapacity(cap);
+  }
+  while (true) {
+    auto chunk = supplier->GetNextChunk();
+    if (chunk == nullptr) {
+      break;
+    }
+    auto& columns = chunk->columns;
+    const auto& property_names = vertex_schema_->property_names;
+    CHECK(columns.size() == property_names.size() + 1)
+        << "Number of columns in the chunk (" << columns.size()
+        << ") does not match the number of properties ("
+        << property_names.size() + 1 << ").";
+    auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
+    auto pk_col = columns[ind];
+
+    // Build a list of property columns excluding the PK column.
+    std::vector<std::shared_ptr<IContextColumn>> prop_cols;
+    prop_cols.reserve(columns.size() - 1);
+    for (size_t i = 0; i < columns.size(); ++i) {
+      if (static_cast<int>(i) != ind) {
+        prop_cols.push_back(columns[i]);
+      }
+    }
+
+    // Capacity check for actual batch size.
+    size_t chunk_rows = chunk->row_num();
+    size_t new_size = indexer_->size() + chunk_rows;
+    if (new_size > indexer_->capacity()) {
+      size_t cap = indexer_->capacity();
+      while (new_size >= cap) {
+        cap = cap < 4096 ? 4096 : cap + cap / 4;
+      }
+      EnsureCapacity(cap);
+    }
+
+    auto vids = insert_primary_keys(pk_col);
+
+    for (size_t i = 0; i < prop_cols.size(); ++i) {
+      auto col = table_->get_column_by_id(i);
+      set_properties_from_context_column(col, prop_cols[i], vids);
+    }
+    VLOG(10) << "Inserted " << chunk_rows
+             << " vertices, current vertex num: " << VertexNum();
   }
 }
 

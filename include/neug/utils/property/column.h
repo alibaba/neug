@@ -414,6 +414,18 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
   }
 
+  void resize(size_t size, size_t data_size) {
+    size_t item_bytes = size * sizeof(string_item);
+    if (item_bytes > items_buffer_->GetDataSize()) {
+      items_buffer_->Resize(item_bytes);
+    }
+    size_t data_bytes = pos_.load() + data_size;
+    if (data_bytes > data_buffer_->GetDataSize()) {
+      data_buffer_->Resize(data_bytes);
+    }
+    size_ = std::max(size_, size);
+  }
+
   void resize(size_t size, const Value& default_value) override {
     if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");

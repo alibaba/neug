@@ -189,8 +189,7 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   LFIndexer<uint32_t> empty_indexer;
   OpenIndexerLegacy(empty_indexer, *ckp, int64_type, CheckpointManifest(),
                     MemoryLevel::kInMemory);
-  EXPECT_EQ((id_indexer_impl::BulkLoadAccessor<uint32_t>::get_index<int64_t>(
-                empty_indexer, 42)),
+  EXPECT_EQ(empty_indexer.get_index(neug::Value::INT64(42)),
             std::numeric_limits<uint32_t>::max());
   CheckpointManifest empty_dump = DumpIndexerLegacy(empty_indexer, *ckp);
   EXPECT_TRUE(empty_dump.has_module(kIndexerIndices));
@@ -558,6 +557,11 @@ TEST_F(LFIndexerTest, VarcharStringOverflow) {
                neug::exception::StorageException);
 
   indexer.Close();
+}
+
+TEST_F(LFIndexerTest, RejectsUnsupportedPrimaryKeyType) {
+  EXPECT_THROW((LFIndexer<uint32_t>(DataType(DataTypeId::kDouble))),
+               neug::exception::NotSupportedException);
 }
 
 }  // namespace neug

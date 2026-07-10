@@ -182,68 +182,6 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   }
 }
 
-template <typename PK_T>
-static void parse_endpoint_column_typed(
-    const IndexerType& indexer, const std::shared_ptr<IContextColumn>& col,
-    std::vector<vid_t>& lids) {
-  auto value_col = std::dynamic_pointer_cast<ValueColumn<PK_T>>(col);
-  // For string PK, CSV parser may produce ValueColumn<std::string>
-  // instead of ValueColumn<std::string_view>; handle both by converting
-  // to string_view for typed lookup. Hoist cast outside loop to avoid
-  // per-element RTTI overhead.
-  std::shared_ptr<ValueColumn<std::string>> str_col;
-  if constexpr (std::is_same_v<PK_T, std::string_view>) {
-    if (!value_col) {
-      str_col = std::dynamic_pointer_cast<ValueColumn<std::string>>(col);
-    }
-  }
-  // Check optionality once; skip per-element has_value() for non-optional
-  // columns to avoid virtual dispatch in the inner loop.
-  bool is_optional = col->is_optional();
-  for (size_t i = 0; i < col->size(); ++i) {
-    // Null endpoint: output vid_t::max() for filterInvalidEdges to filter.
-    if (is_optional && NEUG_UNLIKELY(!col->has_value(i))) {
-      lids.push_back(std::numeric_limits<vid_t>::max());
-      continue;
-    }
-    PK_T pk_val;
-    if (value_col) {
-      pk_val = value_col->get_value(i);
-    } else if constexpr (std::is_same_v<PK_T, std::string_view>) {
-      if (str_col) {
-        pk_val = std::string_view(str_col->get_value(i));
-      } else {
-        pk_val = col->get_elem(i).GetValue<std::string_view>();
-      }
-    } else {
-      pk_val = col->get_elem(i).GetValue<PK_T>();
-    }
-    lids.push_back(
-        id_indexer_impl::BulkLoadAccessor<vid_t>::template get_index<PK_T>(
-            indexer, pk_val));
-  }
-}
-
-static void parse_endpoint_column(const IndexerType& indexer,
-                                  const std::shared_ptr<IContextColumn>& col,
-                                  std::vector<vid_t>& lids) {
-  switch (indexer.get_type()) {
-#define DISPATCH(enum_val, type) \
-  case DataTypeId::enum_val:     \
-    return parse_endpoint_column_typed<type>(indexer, col, lids);
-    DISPATCH(kInt64, int64_t)
-    DISPATCH(kInt32, int32_t)
-    DISPATCH(kUInt32, uint32_t)
-    DISPATCH(kUInt64, uint64_t)
-    DISPATCH(kVarchar, std::string_view)
-#undef DISPATCH
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported pk type for edge endpoint: " +
-        std::to_string(static_cast<int>(indexer.get_type())));
-  }
-}
-
 void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
                              TypedCsrBase<EmptyType>* in_csr,
                              const std::vector<vid_t>& src_lid,
@@ -848,8 +786,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     auto src_col = chunk->get(0);
     auto dst_col = chunk->get(1);
-    parse_endpoint_column(src_indexer, src_col, src_lid);
-    parse_endpoint_column(dst_indexer, dst_col, dst_lid);
+    src_indexer.get_index(*src_col, src_lid);
+    dst_indexer.get_index(*dst_col, dst_lid);
     if (chunk->col_num() > 2) {
       if (meta_->is_bundled()) {
         // Bundled: only one property column (index 2).
