@@ -293,6 +293,10 @@ bool default_expression_to_value(const DataType& type,
     return false;
   }
 
+  if (out_value.type().id() == DataTypeId::kNull) {
+    out_value = get_default_value(type);
+    return true;
+  }
   if (out_value.type() != type) {
     LOG(ERROR) << "Default expression type mismatch, expected "
                << type.ToString() << ", got " << out_value.type().ToString()

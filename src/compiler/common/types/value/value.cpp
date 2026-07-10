@@ -152,7 +152,7 @@ Value Value::createDefaultValue(const DataType& dataType) {
     return Value((uint8_t) 0);
   // INT128 removed — no engine equivalent
   case DataTypeId::kBoolean:
-    return Value(true);
+    return Value(false);
   case DataTypeId::kDouble:
     return Value((double) 0);
   case DataTypeId::kDate:
@@ -498,6 +498,12 @@ void Value::copyValueFrom(const Value& other) {
     for (auto& child : other.children) {
       children.push_back(child->copy());
     }
+  } break;
+  case PhysicalTypeID::ANY: {
+    NEUG_ASSERT(dataType.id() == DataTypeId::kUnknown ||
+                dataType.id() == DataTypeId::kNull ||
+                dataType.id() == DataTypeId::kInvalid ||
+                dataType.id() == DataTypeId::kEmpty);
   } break;
   default:
     NEUG_UNREACHABLE;

@@ -32,6 +32,7 @@
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -95,6 +96,10 @@ class ReadTransaction {
   void Abort();
 
   const GraphView& view() const { return guard_.get().view(); }
+
+  GraphStats statistic() const {
+    return GraphStats(*guard_.get().mutable_graph());
+  }
 
   const Schema& schema() const;
 

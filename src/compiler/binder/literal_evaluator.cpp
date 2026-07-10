@@ -33,7 +33,7 @@ namespace evaluator {
 
 void LiteralExpressionEvaluator::evaluate() {}
 
-void LiteralExpressionEvaluator::evaluate(sel_t count) {
+void LiteralExpressionEvaluator::evaluate(common::sel_t count) {
   unFlatState->getSelVectorUnsafe().setSelSize(count);
   resultVector->setState(unFlatState);
   for (auto i = 1ul; i < count; i++) {

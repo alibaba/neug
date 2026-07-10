@@ -17,11 +17,11 @@ struct LogicalPartitioningInfo {
 };
 
 struct LogicalPartitionerInfo {
-  catalog::TableCatalogEntry* tableEntry;
+  SchemaEntry* tableEntry;
   std::shared_ptr<binder::Expression> offset;
   std::vector<LogicalPartitioningInfo> partitioningInfos;
 
-  LogicalPartitionerInfo(catalog::TableCatalogEntry* tableEntry,
+  LogicalPartitionerInfo(SchemaEntry* tableEntry,
                          std::shared_ptr<binder::Expression> offset)
       : tableEntry{tableEntry}, offset{std::move(offset)} {}
   LogicalPartitionerInfo(const LogicalPartitionerInfo& other)

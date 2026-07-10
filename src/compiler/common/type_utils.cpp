@@ -27,6 +27,18 @@
 namespace neug {
 namespace common {
 
+namespace {
+int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t val) {
+  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
+  if (val.value > kLikelyMicrosThreshold ||
+      val.value < -kLikelyMicrosThreshold) {
+    return compiler_impl::Timestamp::getEpochMilliSeconds(
+        compiler_impl::timestamp_t(val.value));
+  }
+  return val.value;
+}
+}  // namespace
+
 std::string TypeUtils::entryToString(const DataType& dataType,
                                      const uint8_t* value,
                                      ValueVector* vector) {

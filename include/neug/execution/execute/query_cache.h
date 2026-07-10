@@ -19,6 +19,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/access_mode.h"
 
 namespace neug {
@@ -56,7 +57,7 @@ class GlobalQueryCache {
 
   uint64_t version() const { return version_.load(); }
 
-  result<std::shared_ptr<CacheValue>> Get(const Schema& schema,
+  result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
@@ -65,7 +66,8 @@ class GlobalQueryCache {
         return iter->second;
       }
     }
-    GS_AUTO(plan_result, planner_->compilePlan(query));
+    const auto& schema = stats.schema();
+    GS_AUTO(plan_result, planner_->compilePlan(query, &schema, stats));
     ContextMeta ctx_meta;
     GS_AUTO(pipeline_result_pair, PlanParser::get().parse_execute_pipeline(
                                       schema, ctx_meta, plan_result.first));
@@ -95,16 +97,10 @@ class GlobalQueryCache {
     }
   }
 
-  void clear(const YAML::Node& schema, const std::string& statistics = "") {
+  void clear() {
     std::unique_lock<std::shared_mutex> write_lock(mutex_);
     version_.fetch_add(1);
     cache_.clear();
-    if (!schema.IsNull()) {
-      planner_->update_meta(schema);
-    }
-    if (!statistics.empty()) {
-      planner_->update_statistics(statistics);
-    }
   }
 
  private:
@@ -123,7 +119,7 @@ class LocalQueryCache {
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
       : global_cache_(global_cache), version_(global_cache_->version()) {}
   ~LocalQueryCache() = default;
-  result<std::shared_ptr<CacheValue>> Get(const Schema& schema,
+  result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
     if (version_ != global_cache_->version()) {
       cache_.clear();
@@ -133,14 +129,13 @@ class LocalQueryCache {
     if (iter != cache_.end()) {
       return iter->second;
     }
-    GS_AUTO(cache_value_res, global_cache_->Get(schema, query));
+    GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
     cache_.emplace(query, cache_value_res);
     return cache_.at(query);
   }
 
-  void clearGlobalCache(const YAML::Node& schema,
-                        const std::string& statistics = "") {
-    global_cache_->clear(schema, statistics);
+  void clearGlobalCache() {
+    global_cache_->clear();
     version_ = global_cache_->version();
     cache_.clear();
   }

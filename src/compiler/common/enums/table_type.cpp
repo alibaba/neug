@@ -20,25 +20,24 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "neug/compiler/common/enums/table_type.h"
+#include "neug/storages/graph/schema.h"
 
 #include "neug/compiler/common/assert.h"
 
 namespace neug {
-namespace common {
 
-std::string TableTypeUtils::toString(TableType tableType) {
+std::string SchemaEntryTypeUtils::toString(SchemaEntryType tableType) {
   switch (tableType) {
-  case TableType::UNKNOWN: {
+  case SchemaEntryType::UNKNOWN: {
     return "UNKNOWN";
   }
-  case TableType::NODE: {
+  case SchemaEntryType::NODE: {
     return "NODE";
   }
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     return "REL";
   }
-  case TableType::FOREIGN: {
+  case SchemaEntryType::FOREIGN: {
     return "ATTACHED";
   }
   default:
@@ -46,5 +45,4 @@ std::string TableTypeUtils::toString(TableType tableType) {
   }
 }
 
-}  // namespace common
 }  // namespace neug
