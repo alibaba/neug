@@ -34,6 +34,9 @@ class Pipeline {
   neug::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
                                 const ParamsMap& params, OprTimer* timer);
 
+  neug::result<std::unique_ptr<OprTimer>> explain_tree(IStorageInterface& graph,
+                                                       const ParamsMap& params);
+
  private:
   std::vector<std::unique_ptr<IOperator>> operators_;
 };

@@ -15,11 +15,14 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "neug/generated/proto/response/response.pb.h"
 
 namespace neug {
 
@@ -84,6 +87,9 @@ class OprTimer {
 
   OprTimer& operator+=(const OprTimer& other);
 
+  // Convert OprTimer tree to ProfileResult protobuf message
+  static ProfileResult ToProfileResult(OprTimer* root);
+
   double elapsed() const {
     double time = time_;
     auto next = next_.get();
@@ -95,6 +101,17 @@ class OprTimer {
   }
 
  private:
+  size_t get_children_count() const { return children_.size(); }
+
+  OprTimer* get_child(size_t index) const {
+    if (index < children_.size()) {
+      return children_[index].get();
+    }
+    return nullptr;
+  }
+
+  uint64_t get_num_tuples() const { return numTuples_; }
+
   std::vector<std::unique_ptr<OprTimer>> children_;
   std::unique_ptr<OprTimer> next_;
   std::string name_;
