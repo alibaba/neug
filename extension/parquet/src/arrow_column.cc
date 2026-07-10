@@ -16,12 +16,142 @@
 #include "parquet/arrow_column.h"
 
 #include <arrow/array/array_binary.h>
+#include <arrow/array/array_nested.h>
 #include <arrow/type.h>
 
+#include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/value_columns.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
+
+static DataType arrow_type_to_neug_type(const arrow::DataType& type) {
+  switch (type.id()) {
+  case arrow::Type::BOOL:
+    return DataType::BOOLEAN;
+  case arrow::Type::INT32:
+    return DataType::INT32;
+  case arrow::Type::INT64:
+    return DataType::INT64;
+  case arrow::Type::UINT32:
+    return DataType::UINT32;
+  case arrow::Type::UINT64:
+    return DataType::UINT64;
+  case arrow::Type::FLOAT:
+    return DataType::FLOAT;
+  case arrow::Type::DOUBLE:
+    return DataType::DOUBLE;
+  case arrow::Type::STRING:
+  case arrow::Type::LARGE_STRING:
+    return DataType::VARCHAR;
+  case arrow::Type::DATE32:
+  case arrow::Type::DATE64:
+    return DataType::DATE;
+  case arrow::Type::TIMESTAMP:
+    return DataType::TIMESTAMP_MS;
+  case arrow::Type::FIXED_SIZE_LIST: {
+    const auto& array_type = static_cast<const arrow::FixedSizeListType&>(type);
+    return DataType::Array(arrow_type_to_neug_type(*array_type.value_type()),
+                           array_type.list_size());
+  }
+  case arrow::Type::LIST:
+  case arrow::Type::LARGE_LIST:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Parquet LIST is not supported as ARRAY. Specify a fixed-size Arrow "
+        "list / NeuG ARRAY type instead.");
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " + type.ToString());
+  }
+}
+
+static Value arrow_value_at(const arrow::Array& array, int64_t index,
+                            const DataType& type) {
+  if (array.IsNull(index)) {
+    return Value(type);
+  }
+  switch (array.type_id()) {
+  case arrow::Type::BOOL:
+    return Value::BOOLEAN(
+        static_cast<const arrow::BooleanArray&>(array).Value(index));
+  case arrow::Type::INT32:
+    return Value::INT32(
+        static_cast<const arrow::Int32Array&>(array).Value(index));
+  case arrow::Type::INT64:
+    return Value::INT64(
+        static_cast<const arrow::Int64Array&>(array).Value(index));
+  case arrow::Type::UINT32:
+    return Value::UINT32(
+        static_cast<const arrow::UInt32Array&>(array).Value(index));
+  case arrow::Type::UINT64:
+    return Value::UINT64(
+        static_cast<const arrow::UInt64Array&>(array).Value(index));
+  case arrow::Type::FLOAT:
+    return Value::FLOAT(
+        static_cast<const arrow::FloatArray&>(array).Value(index));
+  case arrow::Type::DOUBLE:
+    return Value::DOUBLE(
+        static_cast<const arrow::DoubleArray&>(array).Value(index));
+  case arrow::Type::STRING:
+    return Value::STRING(std::string(
+        static_cast<const arrow::StringArray&>(array).GetView(index)));
+  case arrow::Type::LARGE_STRING:
+    return Value::STRING(std::string(
+        static_cast<const arrow::LargeStringArray&>(array).GetView(index)));
+  case arrow::Type::DATE32: {
+    Date date;
+    date.from_num_days(
+        static_cast<const arrow::Date32Array&>(array).Value(index));
+    return Value::DATE(date);
+  }
+  case arrow::Type::DATE64:
+    return Value::DATE(
+        Date(static_cast<const arrow::Date64Array&>(array).Value(index)));
+  case arrow::Type::TIMESTAMP:
+    return Value::TIMESTAMPMS(DateTime(
+        static_cast<const arrow::TimestampArray&>(array).Value(index)));
+  case arrow::Type::FIXED_SIZE_LIST: {
+    const auto& list = static_cast<const arrow::FixedSizeListArray&>(array);
+    const auto& array_type =
+        static_cast<const arrow::FixedSizeListType&>(*array.type());
+    const auto child_type = ArrayType::GetChildType(type);
+    std::vector<Value> values;
+    values.reserve(array_type.list_size());
+    const auto offset = list.value_offset(index);
+    for (int32_t i = 0; i < array_type.list_size(); ++i) {
+      values.push_back(arrow_value_at(*list.values(), offset + i, child_type));
+    }
+    return Value::ARRAY(type, std::move(values));
+  }
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
+                                  array.type()->ToString());
+  }
+}
+
+static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
+    const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
+  const auto type = arrow_type_to_neug_type(*arrays.front()->type());
+  auto builder = ColumnsUtils::create_builder(type);
+  size_t size = 0;
+  for (const auto& array : arrays) {
+    size += array->length();
+  }
+  builder->reserve(size);
+  for (const auto& array : arrays) {
+    if (!array->type()->Equals(*arrays.front()->type())) {
+      THROW_SCHEMA_MISMATCH("Parquet ARRAY chunks have different types");
+    }
+    for (int64_t i = 0; i < array->length(); ++i) {
+      if (array->IsNull(i)) {
+        THROW_NOT_SUPPORTED_EXCEPTION(
+            "Null Parquet ARRAY values are not supported");
+      }
+      builder->push_back_elem(arrow_value_at(*array, i, type));
+    }
+  }
+  return builder->finish();
+}
 
 /// Convert numeric arrow arrays directly to ValueColumn<CppT>.
 template <typename ArrowArrayT, typename CppT>
@@ -144,6 +274,13 @@ std::shared_ptr<IContextColumn> arrow_arrays_to_value_column(
     return convert_date64_arrays(arrays);
   case arrow::Type::TIMESTAMP:
     return convert_timestamp_arrays(arrays);
+  case arrow::Type::FIXED_SIZE_LIST:
+    return convert_fixed_size_list_arrays(arrays);
+  case arrow::Type::LIST:
+  case arrow::Type::LARGE_LIST:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Parquet LIST columns are not supported; use a fixed-size ARRAY "
+        "type such as FLOAT[3]");
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());

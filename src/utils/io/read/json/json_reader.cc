@@ -148,6 +148,26 @@ Value parse_json_value(const rapidjson::Value& value,
       return Value::STRING(value.GetString());
     }
     return Value::STRING(rapidjson_stringify(value));
+  case DataTypeId::kArray: {
+    if (!value.IsArray()) {
+      THROW_CONVERSION_EXCEPTION("Expected JSON array for ARRAY type: " +
+                                 data_type.ToString());
+    }
+    const auto expected_size = ArrayType::GetNumElements(data_type);
+    if (value.Size() != expected_size) {
+      THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
+                                 data_type.ToString() + ": expected " +
+                                 std::to_string(expected_size) + ", got " +
+                                 std::to_string(value.Size()));
+    }
+    const auto& child_type = ArrayType::GetChildType(data_type);
+    std::vector<Value> values;
+    values.reserve(value.Size());
+    for (const auto& item : value.GetArray()) {
+      values.push_back(parse_json_value(item, child_type));
+    }
+    return Value::ARRAY(data_type, std::move(values));
+  }
   default:
     if (value.IsString()) {
       return Value::STRING(value.GetString());

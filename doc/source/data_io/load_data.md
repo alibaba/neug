@@ -46,7 +46,23 @@ LOAD FROM "person.csv" (delim=',', header=true)
 RETURN name, age;
 ```
 
-> **Array limitation:** `LOAD FROM` CSV currently does not parse CSV fields into fixed-size `ARRAY` values. A quoted field such as `"[1,2,3]"` is read as a `STRING`, and casting CSV columns to `INT64[3]`/other fixed-size array targets inside `LOAD FROM` is not supported yet.
+Since NeuG v0.1.3, `LOAD FROM` supports reading `ARRAY` data from CSV, JSON,
+and Parquet files. NeuG does not implicitly convert input values to `ARRAY`;
+explicitly cast the column to a fixed-size `ARRAY` type in the `RETURN`
+clause.
+
+For example, given a `person_array.csv` file with an array column:
+
+```csv
+id,name,address
+1,Alice,"[Beijing,Hangzhou,Shanghai]"
+2,Bob,"[London,Paris,Berlin]"
+```
+
+```cypher
+LOAD FROM "person_array.csv" (delim=',')
+RETURN id, name, CAST(address, 'STRING[3]') AS addresses;
+```
 
 ### JSON / JSONL
 

@@ -240,7 +240,25 @@ The following options control how CSV files are parsed during `COPY FROM`. These
 | `quoting`  | bool | `true` | Whether to enable quote processing            |
 | `escaping` | bool | `true` | Whether to enable escape character processing |
 
-> **Array limitation:** `COPY FROM` CSV currently does not auto-detect or directly materialize fixed-size `ARRAY` columns from bracketed CSV fields such as `"[1,2,3]"`. Use Cypher literals/parameters for array properties, or a typed non-CSV ingestion path when available.
+Since NeuG v0.1.3, `COPY FROM` supports loading `ARRAY` data from CSV,
+JSON, and Parquet files. NeuG does not implicitly convert input values to
+`ARRAY`; use `LOAD FROM` and explicitly cast the column to a fixed-size
+`ARRAY` type.
+
+For example, given a `person_array.csv` file with an array column:
+
+```csv
+id,name,address
+1,Alice,"[Beijing,Hangzhou,Shanghai]"
+2,Bob,"[London,Paris,Berlin]"
+```
+
+```cypher
+COPY Person FROM (
+    LOAD FROM "person_array.csv" (delim=',')
+    RETURN id, name, CAST(address, 'STRING[3]') AS addresses
+);
+```
 
 ### JSON/JSONL
 

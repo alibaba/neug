@@ -75,6 +75,16 @@ class JsonTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createInt64ArrayType(
+      uint32_t fixed_length) {
+    auto type = std::make_shared<::common::DataType>();
+    auto* array = type->mutable_array();
+    array->set_fixed_length(fixed_length);
+    array->mutable_component_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_SIGNED_INT64);
+    return type;
+  }
+
   std::shared_ptr<reader::ReadSharedState> createSharedState(
       const std::string& jsonFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
@@ -138,6 +148,32 @@ TEST_F(JsonTest, TestJsonArray) {
   ASSERT_EQ(col2->column_type(), ContextColumnType::kValue);
   EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
   EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
+}
+
+TEST_F(JsonTest, TestJsonArrayColumn) {
+  createJsonFile("test_json_array_column.json",
+                 "[{\"id\": 1, \"readings\": [1, 2, 3]}, "
+                 "{\"id\": 2, \"readings\": [4, 5, 6]}]");
+  auto sharedState = createSharedState(
+      "test_json_array_column.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto readings_col = ctx.chunk(0).columns()[1];
+  ASSERT_EQ(readings_col->column_type(), execution::ContextColumnType::kValue);
+  auto first = readings_col->get_elem(0);
+  const auto& first_values = execution::ArrayValue::GetChildren(first);
+  ASSERT_EQ(first_values.size(), 3);
+  EXPECT_EQ(first_values[0].GetValue<int64_t>(), 1);
+  EXPECT_EQ(first_values[1].GetValue<int64_t>(), 2);
+  EXPECT_EQ(first_values[2].GetValue<int64_t>(), 3);
 }
 
 }  // namespace test
