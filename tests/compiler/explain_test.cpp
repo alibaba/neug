@@ -54,9 +54,19 @@ class ExplainTest : public GOptTest {
   // Helper: prepare query with schema, return prepared statement
   std::shared_ptr<main::PreparedStatement> prepareWithSchema(
       const std::string& query) {
-    database->updateSchema(schemaData);
-    database->updateStats(statsData);
-    return ctx->prepare(query);
+    auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
+    if (!schemaResult) {
+      THROW_RUNTIME_ERROR(schemaResult.error().ToString());
+    }
+    currentSchema = std::move(schemaResult).value();
+    GraphStats stats;
+#ifdef NEUG_BUILD_TEST
+    stats.LoadFromJson(currentSchema, statsData);
+#endif
+    currentQueryDatabase = database->clone(&currentSchema, stats);
+    auto queryContext =
+        std::make_unique<main::ClientContext>(currentQueryDatabase.get());
+    return queryContext->prepare(query);
   }
 
   // Helper: convert logical plan to physical with explicit explainMode
@@ -64,7 +74,7 @@ class ExplainTest : public GOptTest {
       const planner::LogicalPlan& logicalPlan,
       common::ExplainType explainMode) {
     auto aliasManager = std::make_shared<gopt::GAliasManager>(logicalPlan);
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
     return converter.convert(logicalPlan, false, explainMode);
   }
 };
@@ -188,9 +198,7 @@ TEST_F(ExplainTest, AllExplainModes) {
   };
 
   for (const auto& [query, expectedMode] : cases) {
-    database->updateSchema(schemaData);
-    database->updateStats(statsData);
-    auto statement = ctx->prepare(query);
+    auto statement = prepareWithSchema(query);
     ASSERT_NE(statement, nullptr) << "Failed to prepare: " << query;
     EXPECT_EQ(statement->getExplainMode(), expectedMode)
         << "Wrong explainMode for: " << query;

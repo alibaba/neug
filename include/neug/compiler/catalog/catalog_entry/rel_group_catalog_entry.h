@@ -54,7 +54,7 @@ class RelGroupCatalogEntry final : public CatalogEntry {
       common::transaction_t timestamp,
       const binder::BoundAlterInfo& alterInfo) const;
 
-  bool isParent(common::table_id_t tableID) const;
+  bool is_parent(common::table_id_t tableID) const;
 
   //===--------------------------------------------------------------------===//
   // serialization & deserialization

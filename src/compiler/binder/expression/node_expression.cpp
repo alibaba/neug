@@ -25,14 +25,14 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
 
 NodeExpression::~NodeExpression() = default;
 
-void NodeExpression::setEntries(
-    std::vector<catalog::TableCatalogEntry*> entries_) {
+void NodeExpression::setEntries(std::vector<SchemaEntry*> entries_) {
   entries = std::move(entries_);
   auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
   auto nodeTypeInfo = dynamic_cast<common::GNodeTypeInfo*>(extraTypeInfo);
@@ -40,9 +40,9 @@ void NodeExpression::setEntries(
     return;
   }
   // update node labels using new entries
-  std::vector<catalog::NodeTableCatalogEntry*> nodeEntries;
+  std::vector<VertexSchema*> nodeEntries;
   for (auto entry : entries) {
-    nodeEntries.emplace_back(entry->ptrCast<catalog::NodeTableCatalogEntry>());
+    nodeEntries.emplace_back(dynamic_cast<VertexSchema*>(entry));
   }
   auto nodeType = nodeTypeInfo->getNodeType();
   if (nodeType) {

@@ -34,6 +34,7 @@
 #include "neug/compiler/parser/statement.h"
 #include "neug/compiler/processor/warning_context.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "prepared_statement.h"
 
 namespace neug {
@@ -95,6 +96,7 @@ class NEUG_API ClientContext {
 
  public:
   explicit ClientContext(MetadataManager* database);
+
   ~ClientContext();
 
   // Client config
@@ -115,7 +117,7 @@ class NEUG_API ClientContext {
   const main::ExtensionOption* getExtensionOption(std::string optionName) const;
 
   MetadataManager* getMetadataManager() const { return localDatabase; }
-  std::shared_ptr<storage::StatsManager> getStatsManager() const;
+  std::shared_ptr<GraphStats> getGraphStats() const;
   storage::MemoryManager* getMemoryManager() const;
   extension::ExtensionManager* getExtensionManager() const;
   catalog::Catalog* getCatalog() const;

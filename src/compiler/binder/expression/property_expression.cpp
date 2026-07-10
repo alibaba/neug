@@ -23,7 +23,7 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::common;
 using namespace neug::catalog;
@@ -40,7 +40,7 @@ std::unique_ptr<PropertyExpression> PropertyExpression::construct(
   // Assign an invalid property id for virtual property.
   common::table_id_map_t<SingleLabelPropertyInfo> infos;
   for (auto& entry : patternExpr.getEntries()) {
-    infos.insert({entry->getTableID(),
+    infos.insert({entry->get_entry_id(),
                   SingleLabelPropertyInfo(false /* exists */,
                                           false /* isPrimaryKey */)});
   }
@@ -70,12 +70,11 @@ bool PropertyExpression::hasProperty(common::table_id_t tableID) const {
   return infos.at(tableID).exists;
 }
 
-column_id_t PropertyExpression::getColumnID(
-    const TableCatalogEntry& entry) const {
-  if (!hasProperty(entry.getTableID())) {
+column_id_t PropertyExpression::getColumnID(const SchemaEntry& entry) const {
+  if (!hasProperty(entry.get_entry_id())) {
     return INVALID_COLUMN_ID;
   }
-  return entry.getColumnID(propertyName);
+  return entry.get_column_id(propertyName);
 }
 
 }  // namespace binder

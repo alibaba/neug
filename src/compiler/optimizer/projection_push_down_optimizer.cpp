@@ -193,17 +193,17 @@ void ProjectionPushDownOptimizer::visitDelete(LogicalOperator* op) {
   auto& delete_ = op->constCast<LogicalDelete>();
   auto& infos = delete_.getInfos();
   NEUG_ASSERT(!infos.empty());
-  switch (infos[0].tableType) {
-  case TableType::NODE: {
+  switch (infos[0].entryType) {
+  case SchemaEntryType::NODE: {
     for (auto& info : infos) {
       auto& node = info.pattern->constCast<NodeExpression>();
       collectExpressionsInUse(node.getInternalID());
       for (auto entry : node.getEntries()) {
-        collectExpressionsInUse(node.getPrimaryKey(entry->getTableID()));
+        collectExpressionsInUse(node.getPrimaryKey(entry->get_entry_id()));
       }
     }
   } break;
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     for (auto& info : infos) {
       auto& rel = info.pattern->constCast<RelExpression>();
       collectExpressionsInUse(rel.getSrcNode()->getInternalID());
@@ -301,15 +301,15 @@ void ProjectionPushDownOptimizer::visitTableFunctionCall(LogicalOperator* op) {
 
 void ProjectionPushDownOptimizer::visitSetInfo(
     const binder::BoundSetPropertyInfo& info) {
-  switch (info.tableType) {
-  case TableType::NODE: {
+  switch (info.entryType) {
+  case SchemaEntryType::NODE: {
     auto& node = info.pattern->constCast<NodeExpression>();
     collectExpressionsInUse(node.getInternalID());
     if (info.updatePk) {
       collectExpressionsInUse(info.column);
     }
   } break;
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     auto& rel = info.pattern->constCast<RelExpression>();
     collectExpressionsInUse(rel.getSrcNode()->getInternalID());
     collectExpressionsInUse(rel.getDstNode()->getInternalID());
@@ -323,7 +323,7 @@ void ProjectionPushDownOptimizer::visitSetInfo(
 
 void ProjectionPushDownOptimizer::visitInsertInfo(
     const LogicalInsertInfo& info) {
-  if (info.tableType == common::TableType::REL) {
+  if (info.entryType == SchemaEntryType::REL) {
     auto& rel = info.pattern->constCast<RelExpression>();
     collectExpressionsInUse(rel.getSrcNode()->getInternalID());
     collectExpressionsInUse(rel.getDstNode()->getInternalID());

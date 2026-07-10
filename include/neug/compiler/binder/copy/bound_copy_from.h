@@ -32,6 +32,7 @@
 #include "neug/compiler/common/enums/column_evaluate_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
@@ -51,7 +52,7 @@ struct ExtraBoundCopyFromInfo {
 // for parsed CREATE TABLE).
 struct NEUG_API DDLTableInfo {
   virtual ~DDLTableInfo() = default;
-  virtual catalog::TableCatalogEntry* getTableEntry() const = 0;
+  virtual SchemaEntry* getTableEntry() const = 0;
   virtual binder::BoundCreateTableInfo getCreateInfo() const = 0;
 };
 
@@ -65,11 +66,12 @@ struct NEUG_API DDLVertexInfo : public DDLTableInfo {
   // return vertex label name
   std::string getVertexLabelName();
 
-  catalog::TableCatalogEntry* getTableEntry() const override;
+  SchemaEntry* getTableEntry() const override;
   binder::BoundCreateTableInfo getCreateInfo() const override;
 
  private:
   std::unique_ptr<catalog::NodeTableCatalogEntry> nodeTableEntry;
+  std::unique_ptr<VertexSchema> schemaEntry;
   binder::BoundCreateTableInfo createTableInfo;
 };
 
@@ -83,19 +85,20 @@ struct NEUG_API DDLEdgeInfo : public DDLTableInfo {
   std::string getSrcLabelName();
   std::string getDstLabelName();
 
-  catalog::TableCatalogEntry* getTableEntry() const override;
+  SchemaEntry* getTableEntry() const override;
   binder::BoundCreateTableInfo getCreateInfo() const override;
 
  private:
   std::string srcLabelName_;
   std::string dstLabelName_;
   std::unique_ptr<catalog::GRelTableCatalogEntry> relTableEntry;
+  std::unique_ptr<EdgeSchema> schemaEntry;
   binder::BoundCreateTableInfo createTableInfo;
 };
 
 struct NEUG_API BoundCopyFromInfo {
   // Table entry to copy into.
-  catalog::TableCatalogEntry* tableEntry;
+  SchemaEntry* tableEntry;
   // Data source.
   std::unique_ptr<BoundBaseScanSource> source;
   // Row offset.
@@ -106,7 +109,7 @@ struct NEUG_API BoundCopyFromInfo {
   // extra table info to create vertex or edge type from inferred results
   std::shared_ptr<DDLTableInfo> ddlTableInfo;
 
-  BoundCopyFromInfo(catalog::TableCatalogEntry* tableEntry,
+  BoundCopyFromInfo(SchemaEntry* tableEntry,
                     std::unique_ptr<BoundBaseScanSource> source,
                     std::shared_ptr<Expression> offset,
                     expression_vector columnExprs,

@@ -18,7 +18,6 @@
 #include <vector>
 
 #include <span>
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/stats/table_stats.h"
 #include "neug/compiler/storage/store/node_table.h"
@@ -30,9 +29,8 @@ class GNodeTable : public NodeTable {
   common::row_idx_t numRows;
 
  public:
-  GNodeTable(const catalog::NodeTableCatalogEntry* tableEntry,
-             StatsManager* storageManager, MemoryManager* memoryManager,
-             common::row_idx_t numRows)
+  GNodeTable(const VertexSchema* tableEntry, GraphStats* storageManager,
+             MemoryManager* memoryManager, common::row_idx_t numRows)
       : NodeTable{storageManager, tableEntry}, numRows{numRows} {}
 
   ~GNodeTable() override = default;

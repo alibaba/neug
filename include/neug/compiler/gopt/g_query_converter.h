@@ -24,7 +24,6 @@
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
@@ -63,6 +62,7 @@
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace gopt {
@@ -191,7 +191,7 @@ class GQueryConvertor {
       const std::vector<planner::join_condition_t>& joinConditions,
       std::vector<std::shared_ptr<binder::Expression>>& leftKeys,
       std::vector<std::shared_ptr<binder::Expression>>& rightKeys);
-  common::TableType getTableType(const planner::LogicalInsert& insert);
+  SchemaEntryType getTableType(const planner::LogicalInsert& insert);
 
   void setMetaData(::physical::PhysicalOpr* physicalOpr,
                    const planner::LogicalOperator& op,

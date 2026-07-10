@@ -304,9 +304,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid planner kind: " +
                                      config_.planner_kind);
   }
-  planner_->update_meta(schema().to_yaml().value());
-  planner_->update_statistics(graph().get_statistics_json());
-  LOG(INFO) << "Finish initializing planner with schema and statistics";
+  LOG(INFO) << "Finish initializing planner";
 
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 

@@ -74,7 +74,7 @@ class GResultSchema {
         GNodeType nodeType{*nodeExpr};
         return nodeType.toYAML();
       } else {
-        GNodeType emptyNode({});
+        GNodeType emptyNode;
         return emptyNode.toYAML();
       }
     } else if (type.id() == common::DataTypeId::kEdge) {
@@ -83,7 +83,7 @@ class GResultSchema {
         GRelType relType{*relExpr};
         return relType.toYAML(catalog);
       } else {
-        GRelType emptyRel({});
+        GRelType emptyRel;
         return emptyRel.toYAML(catalog);
       }
     } else {

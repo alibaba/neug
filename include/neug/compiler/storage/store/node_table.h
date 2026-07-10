@@ -25,10 +25,10 @@
 #include <cstdint>
 
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/stats/table_stats.h"
 #include "neug/compiler/storage/store/table.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace evaluator {
@@ -46,18 +46,18 @@ class Transaction;
 namespace storage {
 class NodeTable;
 
-class StatsManager;
+class GraphStats;
 
 class NEUG_API NodeTable : public Table {
  public:
   NodeTable() = delete;
-  NodeTable(const StatsManager* storageManager,
-            const catalog::NodeTableCatalogEntry* nodeTableEntry)
+  NodeTable(const GraphStats* storageManager,
+            const VertexSchema* nodeTableEntry)
       : Table(nodeTableEntry, storageManager) {}
-  NodeTable(const StatsManager* storageManager,
-            const catalog::NodeTableCatalogEntry* nodeTableEntry,
-            MemoryManager* memoryManager, common::VirtualFileSystem* vfs,
-            main::ClientContext* context, common::Deserializer* deSer = nullptr)
+  NodeTable(const GraphStats* storageManager,
+            const VertexSchema* nodeTableEntry, MemoryManager* memoryManager,
+            common::VirtualFileSystem* vfs, main::ClientContext* context,
+            common::Deserializer* deSer = nullptr)
       : Table(nodeTableEntry, storageManager, memoryManager) {}
 
   ~NodeTable() = default;

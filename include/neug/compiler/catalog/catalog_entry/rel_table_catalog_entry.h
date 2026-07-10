@@ -71,9 +71,7 @@ class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
       const Catalog* catalog,
       const transaction::Transaction* transaction) const;
 
-  common::TableType getTableType() const override {
-    return common::TableType::REL;
-  }
+  SchemaEntryType getTableType() const override { return SchemaEntryType::REL; }
   common::table_id_t getSrcTableID() const { return srcTableID; }
   common::table_id_t getDstTableID() const { return dstTableID; }
   bool isSingleMultiplicity(common::RelDataDirection direction) const;

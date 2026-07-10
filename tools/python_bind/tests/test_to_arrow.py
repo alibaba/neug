@@ -290,7 +290,7 @@ def test_to_arrow_null_handling(tmp_path):
     assert table.column("id").to_pylist() == [1, 2, 3]
     assert table.column("val").to_pylist() == [100, 0, 300]
     assert table.column("label").to_pylist() == ["a", "", "c"]
-    assert table.column("flag").to_pylist() == [True, True, False]
+    assert table.column("flag").to_pylist() == [True, False, False]
     scores = table.column("score").to_pylist()
     assert (
         abs(scores[0] - 1.5) < 1e-10

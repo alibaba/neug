@@ -32,7 +32,7 @@
 #include <unistd.h>
 #endif
 
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 
 using namespace neug::catalog;
 using namespace neug::common;
@@ -43,19 +43,39 @@ namespace neug {
 namespace main {
 
 MetadataManager::MetadataManager() {
-  this->vfs = std::make_unique<neug::fsys::FileSystemRegistry>();
-  this->extensionManager = std::make_unique<extension::ExtensionManager>();
-  this->memoryManager = std::make_unique<neug::storage::MemoryManager>();
+  this->vfs = std::make_shared<neug::fsys::FileSystemRegistry>();
+  this->extensionManager = std::make_shared<extension::ExtensionManager>();
+  this->memoryManager = std::make_shared<neug::storage::MemoryManager>();
   // the catalog is initialized only once and is empty before data loading
   this->catalog = std::make_unique<neug::catalog::GCatalog>();
-  std::string emptyStats = "";
-  auto statsManager = std::make_shared<neug::storage::StatsManager>(
-      emptyStats, this, *this->memoryManager);
-  this->statsManager = std::move(statsManager);
-  this->graphEntrySet = std::make_unique<graph::GraphEntrySet>();
+  this->statsManager = neug::GraphStats();
+  this->graphEntrySet = std::make_shared<graph::GraphEntrySet>();
 }
 
 MetadataManager::~MetadataManager() = default;
+
+MetadataManager::MetadataManager(
+    std::unique_ptr<catalog::Catalog> catalog, GraphStats statsManager,
+    std::shared_ptr<storage::MemoryManager> memoryManager,
+    std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
+    std::shared_ptr<extension::ExtensionManager> extensionManager,
+    std::shared_ptr<graph::GraphEntrySet> graphEntrySet)
+    : catalog{std::move(catalog)},
+      statsManager{std::move(statsManager)},
+      memoryManager{std::move(memoryManager)},
+      vfs{std::move(vfs)},
+      extensionManager{std::move(extensionManager)},
+      graphEntrySet{std::move(graphEntrySet)} {}
+
+std::unique_ptr<MetadataManager> MetadataManager::clone(
+    const Schema* schema, const GraphStats& stats) const {
+  if (!catalog) {
+    THROW_CATALOG_EXCEPTION("Catalog is not set");
+  }
+  return std::unique_ptr<MetadataManager>(
+      new MetadataManager(catalog->clone(schema), stats, memoryManager, vfs,
+                          extensionManager, graphEntrySet));
+}
 
 graph::GraphEntrySet& MetadataManager::getGraphEntrySetUnsafe() {
   return *graphEntrySet;
@@ -65,50 +85,8 @@ const graph::GraphEntrySet& MetadataManager::getGraphEntrySet() const {
   return *graphEntrySet;
 }
 
-std::shared_ptr<storage::StatsManager> MetadataManager::getStatsManager()
-    const {
-  // spin until we own the lock
-  while (statsManagerLock.test_and_set(std::memory_order_acquire)) {}
-  std::shared_ptr<storage::StatsManager> copy = statsManager;
-  statsManagerLock.clear(std::memory_order_release);
-  return copy;
-}
-
-void MetadataManager::updateSchema(const std::filesystem::path& schemaPath) {
-  if (!this->catalog) {
-    THROW_CATALOG_EXCEPTION("Catalog is not set");
-  }
-  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schemaPath);
-}
-
-void MetadataManager::updateSchema(const std::string& schema) {
-  if (!this->catalog) {
-    THROW_CATALOG_EXCEPTION("Catalog is not set");
-  }
-  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schema);
-}
-
-void MetadataManager::updateSchema(const YAML::Node& schema) {
-  if (!this->catalog) {
-    THROW_CATALOG_EXCEPTION("Catalog is not set");
-  }
-  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schema);
-}
-
-void MetadataManager::updateStats(const std::filesystem::path& statsPath) {
-  auto newManager = std::make_shared<neug::storage::StatsManager>(
-      statsPath, this, *this->memoryManager);
-  while (this->statsManagerLock.test_and_set(std::memory_order_acquire)) {}
-  this->statsManager = std::move(newManager);
-  this->statsManagerLock.clear(std::memory_order_release);
-}
-
-void MetadataManager::updateStats(const std::string& stats) {
-  auto newManager = std::make_shared<neug::storage::StatsManager>(
-      stats, this, *this->memoryManager);
-  while (this->statsManagerLock.test_and_set(std::memory_order_acquire)) {}
-  this->statsManager = std::move(newManager);
-  this->statsManagerLock.clear(std::memory_order_release);
+std::shared_ptr<GraphStats> MetadataManager::getGraphStats() const {
+  return std::make_shared<GraphStats>(statsManager);
 }
 
 }  // namespace main

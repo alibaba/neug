@@ -6,7 +6,6 @@ add_library(neug_compiler_main
         plan_printer.cpp
         prepared_statement.cpp
         query_summary.cpp
-        storage_manager.cpp
         settings.cpp)
 add_dependencies(neug_compiler_main neug_proto)
 
