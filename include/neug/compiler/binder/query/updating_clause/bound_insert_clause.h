@@ -38,22 +38,22 @@ class BoundInsertClause final : public BoundUpdatingClause {
 
   bool hasNodeInfo() const {
     return hasInfo([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == SchemaEntryType::NODE;
     });
   }
   std::vector<const BoundInsertInfo*> getNodeInfos() const {
     return getInfos([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.tableType == SchemaEntryType::NODE;
     });
   }
   bool hasRelInfo() const {
     return hasInfo([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == SchemaEntryType::REL;
     });
   }
   std::vector<const BoundInsertInfo*> getRelInfos() const {
     return getInfos([](const BoundInsertInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.tableType == SchemaEntryType::REL;
     });
   }
 

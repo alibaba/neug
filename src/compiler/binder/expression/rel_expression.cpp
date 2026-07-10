@@ -22,13 +22,11 @@
 
 #include "neug/compiler/binder/expression/rel_expression.h"
 
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/gopt/g_graph_type.h"
-#include "neug/compiler/gopt/g_rel_table_entry.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -66,15 +64,19 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
     const {
   std::vector<ExtendDirection> ret;
   for (const auto direction : {ExtendDirection::FWD, ExtendDirection::BWD}) {
-    const bool addDirection = std::all_of(
-        entries.begin(), entries.end(),
-        [direction](const catalog::TableCatalogEntry* tableEntry) {
-          const auto* relTableEntry =
-              tableEntry->constPtrCast<catalog::RelTableCatalogEntry>();
-          return common::containsValue(
-              relTableEntry->getRelDataDirections(),
-              ExtendDirectionUtil::getRelDataDirection(direction));
-        });
+    const bool addDirection =
+        std::all_of(entries.begin(), entries.end(),
+                    [direction](const SchemaEntry* tableEntry) {
+                      const auto* relTableEntry =
+                          dynamic_cast<const EdgeSchema*>(tableEntry);
+                      NEUG_ASSERT(relTableEntry != nullptr);
+                      const bool hasDirection =
+                          (direction == ExtendDirection::FWD &&
+                           relTableEntry->oe_strategy != EdgeStrategy::kNone) ||
+                          (direction == ExtendDirection::BWD &&
+                           relTableEntry->ie_strategy != EdgeStrategy::kNone);
+                      return hasDirection;
+                    });
     if (addDirection) {
       ret.push_back(direction);
     }
@@ -92,8 +94,7 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
   return ret;
 }
 
-void RelExpression::setEntries(
-    std::vector<catalog::TableCatalogEntry*> entries_) {
+void RelExpression::setEntries(std::vector<SchemaEntry*> entries_) {
   entries = std::move(entries_);
   auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
   auto relTypeInfo = dynamic_cast<common::GRelTypeInfo*>(extraTypeInfo);
@@ -101,9 +102,9 @@ void RelExpression::setEntries(
     return;
   }
   // update rel labels using new entries
-  std::vector<catalog::GRelTableCatalogEntry*> relEntries;
+  std::vector<EdgeSchema*> relEntries;
   for (auto& entry : entries) {
-    relEntries.emplace_back(entry->ptrCast<catalog::GRelTableCatalogEntry>());
+    relEntries.emplace_back(dynamic_cast<EdgeSchema*>(entry));
   }
   auto relType = relTypeInfo->getRelType();
   if (relType) {

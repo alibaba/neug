@@ -22,6 +22,7 @@ add_library(compiler_common
         string_utils.cpp
         system_message.cpp
         type_utils.cpp
+        value_converter.cpp
         utils.cpp
         windows_utils.cpp)
 add_dependencies(compiler_common neug_proto)

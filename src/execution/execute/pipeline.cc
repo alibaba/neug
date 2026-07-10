@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 #include <exception>
 #include <ostream>
+#include <sstream>
 
 #include "neug/execution/common/context.h"
 #include "neug/utils/likely.h"
@@ -70,6 +71,40 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
     }
   }
   return ctx;
+}
+
+neug::result<std::unique_ptr<OprTimer>> Pipeline::explain_tree(
+    IStorageInterface& graph, const ParamsMap& params) {
+  std::unique_ptr<OprTimer> root = nullptr;
+  OprTimer* current = nullptr;
+
+  for (size_t i = 0; i < operators_.size(); ++i) {
+    auto timer_node = std::make_unique<OprTimer>();
+    timer_node->set_name(operators_[i]->get_operator_name());
+
+    // Add current timer_node to the linked list
+    if (!root) {
+      root = std::move(timer_node);
+      current = root.get();
+    } else {
+      auto next = std::move(timer_node);
+      current->set_next(std::move(next));
+      current = current->next();
+    }
+  }
+
+  // process children for each operator
+  if (root) {
+    OprTimer* op_timer = root.get();
+    for (size_t i = 0; i < operators_.size(); ++i) {
+      if (op_timer) {
+        operators_[i]->build_explain_children(op_timer, params, graph);
+        op_timer = op_timer->next();
+      }
+    }
+  }
+
+  return root;
 }
 
 }  // namespace execution

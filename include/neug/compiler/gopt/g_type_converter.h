@@ -18,11 +18,11 @@
 #include <google/protobuf/wrappers.pb.h>
 #include <memory>
 #include <unordered_set>
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace gopt {
@@ -56,9 +56,9 @@ class GPhysicalTypeConverter {
 
  private:
   std::unique_ptr<::common::GraphDataType::GraphElementType> convertNodeTable(
-      catalog::NodeTableCatalogEntry* nodeTable);
+      const VertexSchema* nodeTable);
   std::unique_ptr<::common::GraphDataType::GraphElementType> convertRelTable(
-      catalog::GRelTableCatalogEntry* relTable);
+      const EdgeSchema* relTable);
 };
 
 class GLogicalTypeConverter {

@@ -4,6 +4,7 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace planner {
@@ -82,12 +83,11 @@ gopt::GAliasName LogicalScanNodeTable::getGAliasName() const {
 std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
-  std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
+  std::vector<const VertexSchema*> nodeTables;
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
-    auto nodeTableEntry =
-        dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
                                      std::to_string(tableId) +
@@ -100,7 +100,7 @@ std::unique_ptr<gopt::GNodeType> LogicalScanNodeTable::getNodeType(
 
 std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
     catalog::Catalog* catalog) const {
-  if (auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(getExtraInfo())) {
+  if (auto pkExtraInfo = getPrimaryKeyScanInfo()) {
     auto tableIds = getTableIDs();
     if (tableIds.empty()) {
       THROW_EXCEPTION_WITH_FILE_LINE(
@@ -108,17 +108,17 @@ std::optional<PrimaryKey> LogicalScanNodeTable::getPrimaryKey(
     }
     auto tableEntry = catalog->getTableCatalogEntry(
         &neug::Constants::DEFAULT_TRANSACTION, tableIds.at(0));
-    auto nodeTableEntry =
-        dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Primary key scan is only supported for node "
           "tables, but got: " +
-          tableEntry->getName());
+          tableEntry->get_label());
     }
     auto pkName = nodeTableEntry->getPrimaryKeyName();
     if (pkName.empty()) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Node table " + nodeTableEntry->getName() +
+      THROW_EXCEPTION_WITH_FILE_LINE("Node table " +
+                                     nodeTableEntry->get_label() +
                                      " does not have a primary key.");
     }
     return PrimaryKey{pkName, pkExtraInfo};

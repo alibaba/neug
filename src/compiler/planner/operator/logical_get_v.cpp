@@ -15,6 +15,7 @@
 
 #include "neug/compiler/planner/operator/logical_get_v.h"
 #include "neug/compiler/common/constants.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -70,12 +71,11 @@ gopt::GAliasName LogicalGetV::getGAliasName() const {
 std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
-  std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
+  std::vector<const VertexSchema*> nodeTables;
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
-    auto nodeTableEntry =
-        dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+    auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
                                      std::to_string(tableId) +

@@ -18,6 +18,9 @@
 #include <glog/logging.h>
 #include <stdint.h>
 #include <cstring>
+#include <functional>
+#include <iomanip>
+#include <map>
 #include <memory>
 #include <ostream>
 #include <sstream>
@@ -510,6 +513,224 @@ std::string QueryResult::GetString(const std::string& column_name) const {
 
 bool QueryResult::GetBool(const std::string& column_name) const {
   return GetBool(GetColumnIndex(column_name));
+}
+
+// ---------------------------------------------------------------------------
+// PROFILE/EXPLAIN Methods Implementation
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// ProfileBox stores formatted operator information for rendering
+class ProfileBox {
+ public:
+  ProfileBox(const std::string& op_name, double elapsed_ms,
+             uint64_t output_rows)
+      : op_name_(op_name), elapsed_ms_(elapsed_ms), output_rows_(output_rows) {}
+
+  const std::string& get_op_name() const { return op_name_; }
+  double get_elapsed_ms() const { return elapsed_ms_; }
+  uint64_t get_output_rows() const { return output_rows_; }
+
+ private:
+  std::string op_name_;
+  double elapsed_ms_;
+  uint64_t output_rows_;
+};
+
+// Helper function to generate horizontal lines
+std::string genHorizLine(uint32_t len) {
+  std::string result;
+  for (uint32_t i = 0; i < len; ++i) {
+    result += "─";
+  }
+  return result;
+}
+
+// ProfileTree manages rendering with Unicode box-drawing
+// Implements tree-based layout with visual indentation
+class ProfileTree {
+ public:
+  explicit ProfileTree(const neug::ProfileResult& profile)
+      : profile_(profile), op_profile_box_width_(0) {
+    // Calculate box width based on longest operator name and metrics
+    calculate_box_width();
+  }
+
+  std::string render() const {
+    if (profile_.operators_size() == 0) {
+      return "";
+    }
+
+    std::ostringstream oss;
+
+    // Header
+    oss << "\n╔════════════════════════════════════════╗\n";
+    oss << "║         PROFILE REPORT                 ║\n";
+    oss << "╚════════════════════════════════════════╝\n";
+    oss << "Total output tuples: " << profile_.total_output_rows() << "\n";
+    oss << "Total elapsed time: " << std::fixed << std::setprecision(3)
+        << profile_.total_elapsed_ms() / 1000.0 << " s\n\n";
+
+    // Build operator map for quick lookup
+    std::map<int64_t, const neug::ProfileResult_OperatorMetrics*> op_map;
+    for (const auto& op : profile_.operators()) {
+      op_map[op.operator_id()] = &op;
+    }
+
+    // Find root operators (those without parents)
+    std::vector<const neug::ProfileResult_OperatorMetrics*> roots;
+    for (const auto& op : profile_.operators()) {
+      if (op.parent_id() == -1 || !op_map.count(op.parent_id())) {
+        roots.push_back(&op);
+      }
+    }
+
+    // Render each root and its subtree
+    for (const auto* root : roots) {
+      render_operator_box(*root, op_map, oss, 0, "");
+    }
+
+    return oss.str();
+  }
+
+ private:
+  // Calculate the unified box width based on content
+  void calculate_box_width() {
+    const uint32_t INDENT_WIDTH = 1;
+    const uint32_t BOX_FRAME_WIDTH = 1;
+    const uint32_t MIN_BOX_WIDTH = 37;  // Minimum content width
+
+    uint32_t max_field_width = 0;
+
+    // Scan all operators to find longest name and metrics string
+    for (const auto& op : profile_.operators()) {
+      // Operator name width
+      max_field_width = std::max(
+          max_field_width, static_cast<uint32_t>(op.operator_name().length()));
+
+      // Metrics string width: "time: X.XXXs | rows: YYYY tuples"
+      std::ostringstream metrics_oss;
+      double elapsed_sec = op.elapsed_ms() / 1000.0;
+      if (elapsed_sec < 10.0) {
+        metrics_oss << "time: " << std::fixed << std::setprecision(3)
+                    << elapsed_sec;
+      } else {
+        metrics_oss << "time: " << std::fixed << std::setprecision(2)
+                    << elapsed_sec;
+      }
+      metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
+                  << " tuples";
+      max_field_width = std::max(
+          max_field_width, static_cast<uint32_t>(metrics_oss.str().length()));
+    }
+
+    // Ensure minimum width
+    max_field_width = std::max(max_field_width, MIN_BOX_WIDTH);
+
+    // Box width = content + left/right indent + left/right frames
+    op_profile_box_width_ =
+        max_field_width + 2 * (INDENT_WIDTH + BOX_FRAME_WIDTH);
+  }
+
+  // Render operator tree with depth tracking for indentation
+  void render_operator_box(
+      const neug::ProfileResult_OperatorMetrics& op,
+      const std::map<int64_t, const neug::ProfileResult_OperatorMetrics*>&
+          op_map,
+      std::ostringstream& oss, int depth, const std::string& prefix) const {
+    // available = the text centering space between the two │ borders minus
+    // left/right indent This follows Ladybug's formula: opProfileBoxWidth - (1
+    // + INDENT_WIDTH) * 2
+    const uint32_t INDENT_WIDTH = 1;
+    const uint32_t border_inner =
+        op_profile_box_width_ - 2;  // length of ─ between └ and ┘
+    const uint32_t available = op_profile_box_width_ - (1 + INDENT_WIDTH) * 2;
+    std::string indent = prefix;
+
+    // Top border
+    oss << indent << "┌" << genHorizLine(border_inner) << "┐\n";
+
+    // Operator name (centered)
+    std::string op_name = op.operator_name();
+    uint32_t left_pad = (available - op_name.length()) / 2;
+    uint32_t right_pad = available - op_name.length() - left_pad;
+    oss << indent << "│" << std::string(INDENT_WIDTH + left_pad, ' ') << op_name
+        << std::string(INDENT_WIDTH + right_pad, ' ') << "│\n";
+
+    // Separator line
+    oss << indent << "├" << genHorizLine(border_inner) << "┤\n";
+
+    // Metrics line with fixed-width formatting (ASCII only for correct
+    // alignment)
+    std::ostringstream metrics_oss;
+    double elapsed_sec = op.elapsed_ms() / 1000.0;
+    if (elapsed_sec < 10.0) {
+      metrics_oss << "time: " << std::fixed << std::setprecision(3)
+                  << elapsed_sec;
+    } else {
+      metrics_oss << "time: " << std::fixed << std::setprecision(2)
+                  << elapsed_sec;
+    }
+    // Right-align output rows to 5 digits
+    metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
+                << " tuples";
+    std::string metrics = metrics_oss.str();
+    left_pad = (available - metrics.length()) / 2;
+    right_pad = available - metrics.length() - left_pad;
+    oss << indent << "│" << std::string(INDENT_WIDTH + left_pad, ' ') << metrics
+        << std::string(INDENT_WIDTH + right_pad, ' ') << "│\n";
+
+    // Bottom border - simplified, no connection indicators
+    oss << indent << "└" << genHorizLine(border_inner) << "┘\n";
+
+    // Render children
+    std::vector<const neug::ProfileResult_OperatorMetrics*> children;
+    for (int64_t child_id : op.child_ids()) {
+      if (op_map.count(child_id)) {
+        children.push_back(op_map.at(child_id));
+      }
+    }
+
+    if (children.size() == 1) {
+      // Single child - simple vertical connection
+      render_operator_box(*children[0], op_map, oss, depth + 1, prefix);
+    } else if (children.size() > 1) {
+      // Multiple children - render each with indentation
+      for (size_t i = 0; i < children.size(); ++i) {
+        if (i < children.size() - 1) {
+          oss << prefix << "├─ child " << i << "\n";
+          std::string child_prefix = prefix + "│    ";
+          render_operator_box(*children[i], op_map, oss, depth + 1,
+                              child_prefix);
+        } else {
+          oss << prefix << "└─ child " << i << "\n";
+          std::string child_prefix = prefix + "     ";
+          render_operator_box(*children[i], op_map, oss, depth + 1,
+                              child_prefix);
+        }
+      }
+    }
+  }
+
+  const neug::ProfileResult& profile_;
+  uint32_t op_profile_box_width_;
+};
+
+}  // anonymous namespace
+
+bool QueryResult::has_profile_result() const {
+  return response_->has_profile_result();
+}
+
+std::string QueryResult::profile_result_text() const {
+  if (!response_->has_profile_result()) {
+    return "";
+  }
+
+  const auto& profile = response_->profile_result();
+  ProfileTree tree(profile);
+  return tree.render();
 }
 
 }  // namespace neug

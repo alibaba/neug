@@ -146,6 +146,62 @@ class QueryResult(object):
         """
         return self._result.get_bolt_response()
 
+    def has_profile_result(self) -> bool:
+        """
+        Check if profile result is available.
+
+        Returns
+        -------
+        bool
+            True if the query was executed in PROFILE or EXPLAIN mode,
+            False for normal queries.
+        """
+        return self._result.has_profile_result()
+
+    def get_profile_text(self) -> str:
+        """
+        Get human-readable PROFILE/EXPLAIN text output.
+
+        Suitable for CLI output and debugging. Returns empty string if
+        no profile result is available.
+
+        Returns
+        -------
+        str
+            Formatted execution tree with operator timings and row counts.
+            Returns empty string if no profile result available.
+        """
+        if not self.has_profile_result():
+            return ""
+        return self._result.get_profile_text()
+
+    def get_profile_metrics(self) -> dict:
+        """
+        Get detailed profile metrics for all operators.
+
+        Returns complete execution plan metrics including timing and output
+        information for each operator in the query execution tree.
+
+        Returns
+        -------
+        dict
+            Complete profile data with keys:
+            - 'total_elapsed_ms' (float): Total execution time in milliseconds
+            - 'total_output_rows' (int): Total output rows from query
+            - 'operators' (list): List of operator metrics, each dict contains:
+                - 'operator_id' (int): Unique operator identifier
+                - 'parent_id' (int): Parent operator id (-1 for root)
+                - 'operator_name' (str): Human-readable operator name
+                - 'elapsed_ms' (float): Execution time in milliseconds
+                - 'output_rows' (int): Number of output tuples
+                - 'child_ids' (list): IDs of child operators
+
+            Returns empty dict if no profile result available.
+        """
+        if not self.has_profile_result():
+            return {}
+        return self._result.get_profile_metrics()
+
     def to_arrow(self):
         """
         Convert the result to an Arrow table.

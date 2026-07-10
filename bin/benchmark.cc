@@ -20,14 +20,15 @@
 
 #include <glog/logging.h>
 
+#include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
-#include "neug/common/types/value.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/encoder.h"
 #include "neug/utils/exception/exception.h"
 
@@ -53,28 +54,23 @@ neug::execution::ParamsMap deserialize_string_kv_map(
       auto type = meta_map.at(iter.first);
       switch (type.id()) {
       case neug::DataTypeId::kInt32: {
-        map.emplace(iter.first,
-                    neug::Value::INT32(std::stoi(iter.second)));
+        map.emplace(iter.first, neug::Value::INT32(std::stoi(iter.second)));
         break;
       }
       case neug::DataTypeId::kInt64: {
-        map.emplace(iter.first,
-                    neug::Value::INT64(std::stoll(iter.second)));
+        map.emplace(iter.first, neug::Value::INT64(std::stoll(iter.second)));
         break;
       }
       case neug::DataTypeId::kUInt32: {
-        map.emplace(iter.first,
-                    neug::Value::UINT32(std::stoul(iter.second)));
+        map.emplace(iter.first, neug::Value::UINT32(std::stoul(iter.second)));
         break;
       }
       case neug::DataTypeId::kUInt64: {
-        map.emplace(iter.first,
-                    neug::Value::UINT64(std::stoull(iter.second)));
+        map.emplace(iter.first, neug::Value::UINT64(std::stoull(iter.second)));
         break;
       }
       case neug::DataTypeId::kBoolean: {
-        map.emplace(iter.first,
-                    neug::Value::BOOLEAN(iter.second == "true"));
+        map.emplace(iter.first, neug::Value::BOOLEAN(iter.second == "true"));
         break;
       }
       case neug::DataTypeId::kVarchar: {
@@ -87,8 +83,9 @@ neug::execution::ParamsMap deserialize_string_kv_map(
         break;
       }
       case neug::DataTypeId::kDate: {
-        map.emplace(iter.first, neug::Value::DATE(neug::Date(
-                                    int64_t(std::stoll(iter.second)))));
+        map.emplace(
+            iter.first,
+            neug::Value::DATE(neug::Date(int64_t(std::stoll(iter.second)))));
         break;
       default:
         LOG(WARNING) << "Unsupported parameter type for key: " << iter.first
@@ -285,7 +282,9 @@ int main(int argc, char** argv) {
               << ", repeat: " << query_num;
 
     auto query_str = parse_query(unit.query_pb_path);
-    const auto res = compiler->compilePlan(query_str);
+    auto stats = txn.statistic();
+    const auto res =
+        compiler->compilePlan(query_str, &txn.view().schema(), stats);
     if (!res) {
       LOG(ERROR) << "Failed to compile plan: " << res.error().ToString();
       continue;

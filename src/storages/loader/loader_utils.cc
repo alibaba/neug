@@ -17,10 +17,15 @@
 
 #include <glog/logging.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <sys/statvfs.h>
 
+#include <fast_float.h>
 #include <algorithm>
 #include <cctype>
+#include <charconv>
+#include <cstring>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -28,8 +33,11 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string_view>
+#include <system_error>
+#include <thread>
 #include <type_traits>
 #include <unordered_set>
+#include <vector>
 
 #include "csv.hpp"
 #include "neug/common/columns/columns_utils.h"
@@ -130,82 +138,144 @@ std::vector<DataType> resolve_selected_column_types(
   return selected_column_types;
 }
 
-bool parse_timestamp_ms(const std::string& token, int64_t* out_ms) {
+bool parse_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
   return utils::parse_timestamp_ms(token.data(), token.size(), out_ms);
 }
 
-bool parse_epoch_timestamp_ms(const std::string& token, int64_t* out_ms) {
+bool parse_epoch_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
   return utils::parse_epoch_timestamp_ms(token.data(), token.size(), out_ms);
 }
 
-std::string canonicalize_bool_token(
-    const std::string& token,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values) {
-  if (token == "1" || token == "0") {
-    return token;
+bool contains_sv(const std::unordered_set<std::string>& set,
+                 std::string_view sv) {
+  for (const auto& v : set) {
+    if (v.size() == sv.size() &&
+        std::memcmp(v.data(), sv.data(), sv.size()) == 0) {
+      return true;
+    }
   }
-  if (true_values.contains(token)) {
-    return "true";
-  }
-  if (false_values.contains(token)) {
-    return "false";
-  }
-
-  auto lowered = to_lower_copy(token);
-  if (lowered == "true" || lowered == "false") {
-    return lowered;
-  }
-  THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + token);
+  return false;
 }
 
+bool parse_bool_value(std::string_view token,
+                      const std::unordered_set<std::string>& true_values,
+                      const std::unordered_set<std::string>& false_values) {
+  if (token == "1" || token == "true" || token == "True" || token == "TRUE") {
+    return true;
+  }
+  if (token == "0" || token == "false" || token == "False" ||
+      token == "FALSE") {
+    return false;
+  }
+  if (contains_sv(true_values, token)) {
+    return true;
+  }
+  if (contains_sv(false_values, token)) {
+    return false;
+  }
+  auto matches_ci = [](std::string_view a, std::string_view b) {
+    if (a.size() != b.size())
+      return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+      if (std::tolower(static_cast<unsigned char>(a[i])) !=
+          std::tolower(static_cast<unsigned char>(b[i])))
+        return false;
+    }
+    return true;
+  };
+  if (matches_ci(token, "true"))
+    return true;
+  if (matches_ci(token, "false"))
+    return false;
+  THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + std::string(token));
+}
+
+std::string unescape_token_sv(std::string_view token, char escape_char) {
+  std::string res;
+  res.reserve(token.size());
+  for (size_t i = 0; i < token.size(); ++i) {
+    if (token[i] == escape_char && i + 1 < token.size()) {
+      res.push_back(token[i + 1]);
+      ++i;
+    } else {
+      res.push_back(token[i]);
+    }
+  }
+  return res;
+}
+
+// Fast path: CSV field → parse_direct<T> → push_back_opt
+// Bypasses Value object creation and virtual dispatch (push_back_elem).
+// FieldAppender resolves the concrete builder type once per column per chunk.
+
+/// Parse a string_view directly to type T, without wrapping in Value.
 template <typename T>
-Value parse_typed_value(const std::string& token) {
-  return Value::CreateValue<T>(ValueConverter<T>::typed_from_string(token));
-}
-
-Value parse_date_value(const std::string& token) {
-  int64_t millis = 0;
-  if (parse_timestamp_ms(token, &millis) ||
-      parse_epoch_timestamp_ms(token, &millis)) {
-    Date d;
-    d.from_timestamp(millis);
-    return Value::CreateValue<Date>(d);
+T parse_direct(std::string_view token,
+               const std::unordered_set<std::string>& true_values,
+               const std::unordered_set<std::string>& false_values) {
+  if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+    T value{};
+    auto [ptr, ec] =
+        std::from_chars(token.data(), token.data() + token.size(), value);
+    if (ec != std::errc() || ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse numeric value: " +
+                                 std::string(token));
+    }
+    return value;
+  } else if constexpr (std::is_floating_point_v<T>) {
+    T value{};
+    auto result = kuzu_fast_float::from_chars(
+        token.data(), token.data() + token.size(), value);
+    if (result.ec != std::errc() || result.ptr != token.data() + token.size()) {
+      THROW_CONVERSION_EXCEPTION("Failed to parse floating value: " +
+                                 std::string(token));
+    }
+    return value;
+  } else if constexpr (std::is_same_v<T, bool>) {
+    return parse_bool_value(token, true_values, false_values);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return std::string(token);
+  } else if constexpr (std::is_same_v<T, Date>) {
+    int64_t millis = 0;
+    if (parse_timestamp_ms_sv(token, &millis) ||
+        parse_epoch_timestamp_ms_sv(token, &millis)) {
+      Date d;
+      d.from_timestamp(millis);
+      return d;
+    }
+    return Date(std::string(token));
+  } else if constexpr (std::is_same_v<T, DateTime>) {
+    int64_t millis = 0;
+    if (parse_timestamp_ms_sv(token, &millis) ||
+        parse_epoch_timestamp_ms_sv(token, &millis)) {
+      return DateTime(millis);
+    }
+    return DateTime(std::string(token));
+  } else {
+    // Interval and any other types: construct from string.
+    return T(std::string(token));
   }
-  return parse_typed_value<date_t>(token);
 }
 
-Value parse_timestamp_value(const std::string& token) {
-  int64_t millis = 0;
-  if (parse_timestamp_ms(token, &millis) ||
-      parse_epoch_timestamp_ms(token, &millis)) {
-    return Value::CreateValue<timestamp_ms_t>(DateTime(millis));
-  }
-  return parse_typed_value<timestamp_ms_t>(token);
-}
-
-std::string trim_token(const std::string& token) {
+std::string trim_array_token(std::string_view token) {
   size_t begin = 0;
   while (begin < token.size() &&
          std::isspace(static_cast<unsigned char>(token[begin]))) {
     ++begin;
   }
-
   size_t end = token.size();
   while (end > begin &&
          std::isspace(static_cast<unsigned char>(token[end - 1]))) {
     --end;
   }
-
-  return token.substr(begin, end - begin);
+  return std::string(token.substr(begin, end - begin));
 }
 
-std::string unquote_array_string_token(const std::string& token) {
-  auto trimmed = trim_token(token);
+std::string unquote_array_string_token(std::string_view token) {
+  auto trimmed = trim_array_token(token);
   if (trimmed.size() < 2) {
     return trimmed;
   }
-
   auto quote = trimmed.front();
   if ((quote != '\'' && quote != '"') || trimmed.back() != quote) {
     return trimmed;
@@ -215,18 +285,17 @@ std::string unquote_array_string_token(const std::string& token) {
   unquoted.reserve(trimmed.size() - 2);
   for (size_t i = 1; i + 1 < trimmed.size(); ++i) {
     if (trimmed[i] == '\\' && i + 1 < trimmed.size() - 1) {
-      unquoted.push_back(trimmed[i + 1]);
-      ++i;
-      continue;
+      unquoted.push_back(trimmed[++i]);
+    } else {
+      unquoted.push_back(trimmed[i]);
     }
-    unquoted.push_back(trimmed[i]);
   }
   return unquoted;
 }
 
-std::vector<std::string> split_array_elements(const std::string& input) {
+std::vector<std::string> split_array_elements(std::string_view input) {
   std::vector<std::string> elements;
-  auto trimmed = trim_token(input);
+  auto trimmed = trim_array_token(input);
   if (trimmed.empty()) {
     return elements;
   }
@@ -247,151 +316,487 @@ std::vector<std::string> split_array_elements(const std::string& input) {
       }
       continue;
     }
-
     if (c == '\'' || c == '"') {
       quote = c;
-      continue;
-    }
-    if (c == '[') {
+    } else if (c == '[') {
       ++depth;
-      continue;
-    }
-    if (c == ']') {
+    } else if (c == ']') {
       if (depth == 0) {
-        THROW_CONVERSION_EXCEPTION("Unexpected ']' in array value: " + input);
+        THROW_CONVERSION_EXCEPTION("Unexpected ']' in array value: " +
+                                   std::string(input));
       }
       --depth;
-      continue;
-    }
-    if (c == ',' && depth == 0) {
-      elements.push_back(
-          trim_token(trimmed.substr(element_start, i - element_start)));
+    } else if (c == ',' && depth == 0) {
+      elements.push_back(trim_array_token(
+          std::string_view(trimmed).substr(element_start, i - element_start)));
       element_start = i + 1;
     }
   }
-
   if (quote != '\0') {
     THROW_CONVERSION_EXCEPTION("Unterminated quoted string in array value: " +
-                               input);
+                               std::string(input));
   }
   if (depth != 0) {
-    THROW_CONVERSION_EXCEPTION("Unbalanced brackets in array value: " + input);
+    THROW_CONVERSION_EXCEPTION("Unbalanced brackets in array value: " +
+                               std::string(input));
   }
-
-  elements.push_back(trim_token(trimmed.substr(element_start)));
+  elements.push_back(
+      trim_array_token(std::string_view(trimmed).substr(element_start)));
   return elements;
 }
 
-Value parse_value_by_type(const std::string& token, const DataType& data_type,
+Value parse_array_element(std::string_view token, const DataType& data_type,
                           const std::unordered_set<std::string>& true_values,
                           const std::unordered_set<std::string>& false_values) {
   switch (data_type.id()) {
   case DataTypeId::kInt32:
-    return parse_typed_value<int32_t>(token);
+    return Value::INT32(
+        parse_direct<int32_t>(token, true_values, false_values));
   case DataTypeId::kInt64:
-    return parse_typed_value<int64_t>(token);
+    return Value::INT64(
+        parse_direct<int64_t>(token, true_values, false_values));
   case DataTypeId::kUInt32:
-    return parse_typed_value<uint32_t>(token);
+    return Value::UINT32(
+        parse_direct<uint32_t>(token, true_values, false_values));
   case DataTypeId::kUInt64:
-    return parse_typed_value<uint64_t>(token);
+    return Value::UINT64(
+        parse_direct<uint64_t>(token, true_values, false_values));
   case DataTypeId::kFloat:
-    return parse_typed_value<float>(token);
+    return Value::FLOAT(parse_direct<float>(token, true_values, false_values));
   case DataTypeId::kDouble:
-    return parse_typed_value<double>(token);
+    return Value::DOUBLE(
+        parse_direct<double>(token, true_values, false_values));
   case DataTypeId::kBoolean:
-    return parse_typed_value<bool>(
-        canonicalize_bool_token(token, true_values, false_values));
+    return Value::BOOLEAN(parse_direct<bool>(token, true_values, false_values));
   case DataTypeId::kDate:
-    return parse_date_value(token);
+    return Value::DATE(parse_direct<Date>(token, true_values, false_values));
   case DataTypeId::kTimestampMs:
-    return parse_timestamp_value(token);
+    return Value::TIMESTAMPMS(
+        parse_direct<DateTime>(token, true_values, false_values));
   case DataTypeId::kInterval:
-    return parse_typed_value<interval_t>(token);
+    return Value::INTERVAL(
+        parse_direct<Interval>(token, true_values, false_values));
   case DataTypeId::kVarchar:
-    return parse_typed_value<std::string>(token);
+    return Value::STRING(unquote_array_string_token(token));
   case DataTypeId::kArray: {
-    auto trimmed_token = trim_token(token);
-    if (trimmed_token.size() < 2 || trimmed_token.front() != '[' ||
-        trimmed_token.back() != ']') {
+    auto trimmed = trim_array_token(token);
+    if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
       THROW_CONVERSION_EXCEPTION("Expected array value for type " +
-                                 data_type.ToString() + ": " + token);
+                                 data_type.ToString() + ": " + trimmed);
     }
-
     const auto& child_type = ArrayType::GetChildType(data_type);
-    auto expected_size = ArrayType::GetNumElements(data_type);
-    auto inner = trimmed_token.substr(1, trimmed_token.size() - 2);
-    auto element_tokens = split_array_elements(inner);
-    if (element_tokens.size() != expected_size) {
+    const auto expected_size = ArrayType::GetNumElements(data_type);
+    auto elements = split_array_elements(
+        std::string_view(trimmed).substr(1, trimmed.size() - 2));
+    if (elements.size() != expected_size) {
       THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
                                  data_type.ToString() + ": expected " +
                                  std::to_string(expected_size) + ", got " +
-                                 std::to_string(element_tokens.size()));
+                                 std::to_string(elements.size()));
     }
-
     std::vector<Value> values;
-    values.reserve(element_tokens.size());
-    for (const auto& element_token : element_tokens) {
-      auto token_to_parse = child_type.id() == DataTypeId::kVarchar
-                                ? unquote_array_string_token(element_token)
-                                : element_token;
-      values.push_back(parse_value_by_type(token_to_parse, child_type,
-                                           true_values, false_values));
+    values.reserve(elements.size());
+    for (const auto& element : elements) {
+      values.push_back(
+          parse_array_element(element, child_type, true_values, false_values));
     }
     return Value::ARRAY(data_type, std::move(values));
   }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported ARRAY element type: " +
                                   data_type.ToString());
   }
 }
 
-std::string unescape_token(const std::string& token, char escape_char) {
-  std::string res;
-  res.reserve(token.size());
-  for (size_t i = 0; i < token.size(); ++i) {
-    if (token[i] == escape_char && i + 1 < token.size()) {
-      res.push_back(token[i + 1]);
-      ++i;
-    } else {
-      res.push_back(token[i]);
-    }
-  }
-  return res;
-}
+/// Shared parsing context (constant across all columns in a chunk).
+struct CsvParseCtx {
+  const std::unordered_set<std::string>& null_values;
+  const std::unordered_set<std::string>& true_values;
+  const std::unordered_set<std::string>& false_values;
+  const std::string& file_path;
+  bool escaping;
+  char escape_char;
+};
 
-void append_csv_field_to_builder(
-    std::shared_ptr<IContextColumnBuilder>& builder, const DataType& data_type,
-    csv::CSVField field, const std::unordered_set<std::string>& null_values,
-    const std::unordered_set<std::string>& true_values,
-    const std::unordered_set<std::string>& false_values,
-    const std::string& file_path, int64_t row_number,
-    const std::string& column_name, bool escaping, char escape_char) {
+/// Type-erased field appender (32 bytes — fits one cache line).
+///
+/// Holds a function pointer to a template instantiation that knows the
+/// concrete ValueColumnBuilder<T> type.  The function pointer is resolved
+/// once per column (in make_appender), then called per-field without
+/// virtual dispatch or Value creation.
+///
+/// column_name and type are only dereferenced in the error path.
+struct FieldAppender {
+  void* builder;
+  const std::string* column_name;
+  const DataType* type;
+  void (*fn)(const FieldAppender&, csv::CSVField, const CsvParseCtx&, int64_t);
+
+  inline void append(csv::CSVField field, const CsvParseCtx& ctx,
+                     int64_t row_number) const {
+    fn(*this, field, ctx, row_number);
+  }
+};
+
+/// Template implementation: parse field → T → push_back_opt.
+template <typename T>
+void append_typed_impl(const FieldAppender& app, csv::CSVField field,
+                       const CsvParseCtx& ctx, int64_t row_number) {
+  auto* builder = static_cast<ValueColumnBuilder<T>*>(app.builder);
+
   if (field.is_null()) {
     builder->push_back_null();
     return;
   }
 
-  auto token = field.get<std::string>();
-  if (null_values.contains(token)) {
+  std::string_view token_sv = static_cast<csv::string_view>(field);
+
+  if (contains_sv(ctx.null_values, token_sv)) {
     builder->push_back_null();
     return;
   }
 
-  if (escaping) {
-    token = unescape_token(token, escape_char);
-  }
-
   try {
-    builder->push_back_elem(
-        parse_value_by_type(token, data_type, true_values, false_values));
+    if (ctx.escaping) {
+      auto unescaped = unescape_token_sv(token_sv, ctx.escape_char);
+      builder->push_back_opt(
+          parse_direct<T>(unescaped, ctx.true_values, ctx.false_values));
+    } else {
+      builder->push_back_opt(
+          parse_direct<T>(token_sv, ctx.true_values, ctx.false_values));
+    }
   } catch (const std::exception& error) {
-    THROW_CONVERSION_EXCEPTION("Failed to parse CSV field, file=" + file_path +
-                               ", row=" + std::to_string(row_number) +
-                               ", column=" + column_name +
-                               ", type=" + data_type.ToString() + ", value='" +
-                               token + "', reason=" + error.what());
+    THROW_CONVERSION_EXCEPTION(
+        "Failed to parse CSV field, file=" + ctx.file_path +
+        ", row=" + std::to_string(row_number) + ", column=" + *app.column_name +
+        ", type=" + app.type->ToString() + ", value='" + std::string(token_sv) +
+        "', reason=" + error.what());
   }
 }
+
+void append_array_impl(const FieldAppender& app, csv::CSVField field,
+                       const CsvParseCtx& ctx, int64_t row_number) {
+  auto* builder = static_cast<IContextColumnBuilder*>(app.builder);
+  if (field.is_null()) {
+    builder->push_back_null();
+    return;
+  }
+  std::string_view token = static_cast<csv::string_view>(field);
+  if (contains_sv(ctx.null_values, token)) {
+    builder->push_back_null();
+    return;
+  }
+  try {
+    if (ctx.escaping) {
+      auto unescaped = unescape_token_sv(token, ctx.escape_char);
+      builder->push_back_elem(parse_array_element(
+          unescaped, *app.type, ctx.true_values, ctx.false_values));
+    } else {
+      builder->push_back_elem(parse_array_element(
+          token, *app.type, ctx.true_values, ctx.false_values));
+    }
+  } catch (const std::exception& error) {
+    THROW_CONVERSION_EXCEPTION(
+        "Failed to parse CSV field, file=" + ctx.file_path +
+        ", row=" + std::to_string(row_number) + ", column=" + *app.column_name +
+        ", type=" + app.type->ToString() + ", value='" + std::string(token) +
+        "', reason=" + error.what());
+  }
+}
+
+/// Create a FieldAppender for the given data type.
+FieldAppender make_appender(const DataType& type, void* builder,
+                            const std::string* column_name) {
+  switch (type.id()) {
+  case DataTypeId::kArray:
+    return {builder, column_name, &type, &append_array_impl};
+#define MAKE_APPENDER(enum_val, cpp_type) \
+  case DataTypeId::enum_val:              \
+    return {builder, column_name, &type, &append_typed_impl<cpp_type>};
+    FOR_EACH_DATA_TYPE(MAKE_APPENDER)
+#undef MAKE_APPENDER
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported data type in CSV parser: " +
+                                  type.ToString() + " is not supported");
+  }
+}
+
+/// Quote-tracking state machine for counting CSV row boundaries.
+/// One instance tracks a single speculative execution path (in or out
+/// of quotes at chunk start).  Config is set once in init(); step()
+/// processes one byte using the stored config.
+struct RowCounterState {
+  bool in_quotes = false;
+  bool has_content = false;
+  bool pending_quote = false;
+  int64_t count = 0;
+  // Config (constant throughout the scan, set in init()).
+  bool quoting = false;
+  char quote_char = '"';
+  bool double_quote = true;
+  char delimiter = ',';
+  // State: whether the next character starts a new field.
+  // Only at field start can a quote_char open a quoted field.
+  bool at_field_start = true;
+
+  void init(bool start_in_quotes, bool q, char qc, bool dq, char delim) {
+    in_quotes = start_in_quotes;
+    has_content = start_in_quotes;  // in quotes → has content
+    pending_quote = false;
+    count = 0;
+    quoting = q;
+    quote_char = qc;
+    double_quote = dq;
+    delimiter = delim;
+    at_field_start = !start_in_quotes;  // outside → field start; inside → not
+  }
+
+  /// Advance the state machine by one byte.
+  void step(char c) {
+    if (in_quotes) {
+      has_content = true;
+      if (pending_quote) {
+        if (double_quote && c == quote_char) {
+          // "" — escaped quote, stay in quotes.
+          pending_quote = false;
+          return;
+        }
+        // Quote ended; fall through to unquoted context.
+        in_quotes = false;
+        pending_quote = false;
+      }
+      if (in_quotes) {
+        if (c == quote_char) {
+          if (double_quote)
+            pending_quote = true;
+          else
+            in_quotes = false;
+        }
+        return;
+      }
+      // Quote just closed — not at field start.
+      at_field_start = false;
+    }
+    // Unquoted context.
+    // Only treat quote_char as opening quote at field start, matching
+    // csv-parser semantics where a bare quote inside an unquoted field
+    // is a literal character.
+    if (quoting && at_field_start && c == quote_char) {
+      in_quotes = true;
+      has_content = true;
+      at_field_start = false;
+    } else if (c == '\n' || c == '\r') {
+      // Treat both \n (LF) and \r (CR) as row terminators.
+      // For CRLF, \r counts the row and clears has_content,
+      // so the following \n is a no-op (no double-count).
+      if (has_content)
+        ++count;
+      has_content = false;
+      at_field_start = true;  // new row = new field
+    } else if (c == delimiter) {
+      at_field_start = true;  // next char starts a new field
+    } else {
+      has_content = true;
+      at_field_start = false;
+    }
+  }
+};
+
+/// Fast CSV row counter: scans raw bytes to count row boundaries
+/// without parsing fields.  Uses a quote-tracking state machine;
+/// parallelizes via speculative dual-state-machine scan for large files.
+class CsvRowCountCounter {
+ public:
+  // rows_to_skip is intentionally NOT a parameter: the counter counts
+  // all non-empty rows.  The reader's skip_rows() handles skipping
+  // separately, and RowNum() is only a pre-allocation hint, so a slight
+  // overcount (by at most skip_rows, typically 1 for header) is safe.
+  CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
+                     bool double_quote, char delimiter)
+      : file_path_(std::move(file_path)),
+        quoting_(quoting),
+        quote_char_(quote_char),
+        double_quote_(double_quote),
+        delimiter_(delimiter) {}
+
+  int64_t count() const {
+    struct stat st;
+    if (stat(file_path_.c_str(), &st) != 0) {
+      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
+    }
+    auto file_size = static_cast<size_t>(st.st_size);
+    if (file_size == 0)
+      return 0;
+
+    constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
+    unsigned num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0)
+      num_threads = 1;
+    if (file_size < kMinChunkSize * num_threads) {
+      num_threads =
+          std::max(1u, static_cast<unsigned>(file_size / kMinChunkSize));
+    }
+    if (num_threads <= 1)
+      return count_single(file_size);
+    return count_parallel(file_size, num_threads);
+  }
+
+ private:
+  struct ChunkResult {
+    RowCounterState outside;  // assumed start outside quotes
+    RowCounterState inside;   // assumed start inside quotes
+  };
+
+  /// Read [start, end) from the file in 1 MB buffers, calling \p fn
+  /// for each buffer.  Shared by count_single() and scan_chunk().
+  template <typename Fn>
+  void scan_range(size_t start, size_t end, Fn&& fn) const {
+    std::ifstream file(file_path_, std::ios::binary);
+    if (!file.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for counting: " + file_path_);
+    }
+    file.seekg(static_cast<std::streamoff>(start));
+    constexpr size_t kBufSize = 1 << 20;  // 1 MB
+    std::vector<char> buffer(kBufSize);
+    size_t pos = start;
+    while (pos < end) {
+      size_t to_read = std::min(kBufSize, end - pos);
+      file.read(buffer.data(), to_read);
+      auto bytes_read = static_cast<size_t>(file.gcount());
+      if (bytes_read == 0)
+        break;
+      fn(buffer.data(), bytes_read);
+      pos += bytes_read;
+    }
+  }
+
+  /// Find byte offset after the first row terminator (\n or \r) at or
+  /// after \p start.  Used for newline-aligned chunk boundaries.
+  size_t align_to_newline(size_t start, size_t end) const {
+    if (start >= end)
+      return end;
+    std::ifstream file(file_path_, std::ios::binary);
+    if (!file.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for counting: " + file_path_);
+    }
+    file.seekg(static_cast<std::streamoff>(start));
+    if (!file) {
+      THROW_IO_EXCEPTION("Failed to seek file for counting: " + file_path_);
+    }
+    constexpr size_t kScanBuf = 4096;
+    char buf[kScanBuf];
+    size_t pos = start;
+    while (pos < end) {
+      size_t to_read = std::min(kScanBuf, end - pos);
+      file.read(buf, to_read);
+      auto n = static_cast<size_t>(file.gcount());
+      if (n == 0)
+        break;
+      for (size_t i = 0; i < n; ++i) {
+        if (buf[i] == '\n' || buf[i] == '\r')
+          return pos + i + 1;
+      }
+      pos += n;
+    }
+    return end;
+  }
+
+  /// Scan a byte range with dual state machines (single pass).
+  /// When quoting is disabled, only one state machine is run and the
+  /// other is copied — both produce identical results.
+  ChunkResult scan_chunk(size_t start, size_t end) const {
+    ChunkResult res;
+    res.outside.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    res.inside.init(true, quoting_, quote_char_, double_quote_, delimiter_);
+    if (quoting_) {
+      scan_range(start, end, [&](const char* data, size_t n) {
+        for (size_t i = 0; i < n; ++i) {
+          char c = data[i];
+          res.outside.step(c);
+          res.inside.step(c);
+        }
+      });
+    } else {
+      // quoting=false: both state machines produce identical results.
+      // Only run one to halve the CPU work.
+      scan_range(start, end, [&](const char* data, size_t n) {
+        for (size_t i = 0; i < n; ++i) {
+          res.outside.step(data[i]);
+        }
+      });
+      res.inside = res.outside;
+    }
+    return res;
+  }
+
+  /// Single-threaded scan.
+  int64_t count_single(size_t file_size) const {
+    RowCounterState state;
+    state.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    scan_range(0, file_size, [&](const char* data, size_t n) {
+      for (size_t i = 0; i < n; ++i) {
+        state.step(data[i]);
+      }
+    });
+    int64_t total = state.count;
+    if (state.has_content)
+      ++total;  // last row without trailing newline
+    return total;
+  }
+
+  /// Parallel scan with speculative dual state machines.
+  int64_t count_parallel(size_t file_size, unsigned num_threads) const {
+    // Compute newline-aligned chunk boundaries.
+    size_t approx_chunk = file_size / num_threads;
+    std::vector<size_t> bounds;
+    bounds.push_back(0);
+    for (unsigned i = 1; i < num_threads; ++i) {
+      size_t actual = align_to_newline(i * approx_chunk, file_size);
+      if (actual <= bounds.back() || actual >= file_size)
+        break;
+      bounds.push_back(actual);
+    }
+    bounds.push_back(file_size);
+    unsigned actual_threads = static_cast<unsigned>(bounds.size() - 1);
+
+    // Parallel scan: each thread scans its chunk with dual state machines.
+    std::vector<ChunkResult> results(actual_threads);
+    std::vector<std::thread> threads;
+    for (unsigned i = 0; i < actual_threads; ++i) {
+      threads.emplace_back([this, &results, i, &bounds]() {
+        results[i] = scan_chunk(bounds[i], bounds[i + 1]);
+      });
+    }
+    for (auto& t : threads)
+      t.join();
+
+    // Sequential resolution: chain quote state across chunks.
+    int64_t total = 0;
+    bool in_quotes = false;  // chunk 0 starts outside quotes
+    const RowCounterState* last_selected = nullptr;
+    for (unsigned i = 0; i < actual_threads; ++i) {
+      const RowCounterState& s =
+          in_quotes ? results[i].inside : results[i].outside;
+      total += s.count;
+      in_quotes = s.in_quotes;
+      last_selected = &s;
+    }
+
+    // Handle last row without trailing newline.
+    // Use the actually-selected variant for the last chunk, not the
+    // ending in_quotes state (which may differ from the start assumption).
+    if (last_selected && last_selected->has_content)
+      ++total;
+
+    return total;
+  }
+
+  std::string file_path_;
+  bool quoting_;
+  char quote_char_;
+  bool double_quote_;
+  char delimiter_;
+};
 
 }  // namespace
 
@@ -415,7 +820,9 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = count_rows();
+    row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
+                                  config.double_quote, config.delimiter)
+                   .count();
     reset_reader();
   }
 
@@ -430,6 +837,18 @@ struct CsvSupplierRuntime {
       auto builder = ColumnsUtils::create_builder(column_type);
       builder->reserve(chunk_size_);
       builders.emplace_back(std::move(builder));
+    }
+
+    // Pre-resolve typed appenders for each column (once per chunk).
+    // This eliminates per-field Value creation and virtual dispatch.
+    CsvParseCtx ctx{null_values_, true_values_, false_values_,
+                    file_path_,   escaping_,    escape_char_};
+    std::vector<FieldAppender> appenders;
+    appenders.reserve(builders.size());
+    for (size_t i = 0; i < builders.size(); ++i) {
+      appenders.push_back(make_appender(selected_column_types_[i],
+                                        builders[i].get(),
+                                        &selected_column_names_[i]));
     }
 
     csv::CSVRow row;
@@ -447,11 +866,8 @@ struct CsvSupplierRuntime {
           builders[column_index]->push_back_null();
           continue;
         }
-        append_csv_field_to_builder(
-            builders[column_index], selected_column_types_[column_index],
-            row[physical_index], null_values_, true_values_, false_values_,
-            file_path_, current_row_number_,
-            selected_column_names_[column_index], escaping_, escape_char_);
+        appenders[column_index].append(row[physical_index], ctx,
+                                       current_row_number_);
       }
       output_rows += 1;
     }
@@ -489,25 +905,6 @@ struct CsvSupplierRuntime {
       if (!reader.read_row(skipped_row)) {
         break;
       }
-    }
-  }
-
-  int64_t count_rows() const {
-    try {
-      csv::CSVReader counter(file_path_, csv_format_);
-      skip_rows(counter);
-      int64_t count = 0;
-      csv::CSVRow row;
-      while (counter.read_row(row)) {
-        if (row.empty()) {
-          continue;
-        }
-        count += 1;
-      }
-      return count;
-    } catch (const std::exception& error) {
-      THROW_IO_EXCEPTION("Failed to count rows for file: " + file_path_ +
-                         ", reason=" + error.what());
     }
   }
 
@@ -849,8 +1246,9 @@ void fillVertexReaderMeta(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
     const LoadingConfig& loading_config,
     const std::vector<std::string>& vertex_property_names,
-    const std::vector<DataType>& vertex_edge_property_types, DataType pk_type,
-    const std::string& pk_name, size_t pk_ind, CsvReadConfig& config) {
+    const std::vector<DataTypeId>& vertex_edge_property_types,
+    DataTypeId pk_type, const std::string& pk_name, size_t pk_ind,
+    CsvReadConfig& config) {
   CHECK(vertex_edge_property_types.size() == vertex_property_names.size());
   put_boolean_option(config);
 
@@ -931,9 +1329,9 @@ void fillVertexReaderMeta(
     }
     VLOG(10) << "vertex_label: " << v_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type.ToString()
-             << " ind: " << ind;
-    config.column_types.insert({included_col_names[ind], property_type});
+             << " property_type: " << property_type << " ind: " << ind;
+    config.column_types.insert(
+        {included_col_names[ind], DataType(property_type)});
   }
   {
     size_t ind = mapped_property_names.size();
@@ -949,7 +1347,7 @@ void fillVertexReaderMeta(
           " does not exist in the vertex column mapping, please "
           "check your configuration");
     }
-    config.column_types.insert({included_col_names[ind], pk_type});
+    config.column_types.insert({included_col_names[ind], DataType(pk_type)});
   }
 }
 
@@ -958,8 +1356,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<DataType>& edge_property_types,
-                        DataType src_pk_type, DataType dst_pk_type,
+                        const std::vector<DataTypeId>& edge_property_types,
+                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
                         CsvReadConfig& config) {
   CHECK(edge_property_types.size() == edge_property_names.size());
   put_boolean_option(config);
@@ -1056,9 +1454,9 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
     }
     VLOG(10) << "edge_label: " << edge_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type.ToString()
-             << " ind: " << ind;
-    config.column_types.insert({included_col_names[ind + 2], property_type});
+             << " property_type: " << property_type << " ind: " << ind;
+    config.column_types.insert(
+        {included_col_names[ind + 2], DataType(property_type)});
   }
   {
     auto src_dst_cols =
@@ -1070,8 +1468,10 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
           src_col_ind < static_cast<int64_t>(config.column_names.size()));
     CHECK(dst_col_ind >= 0 &&
           dst_col_ind < static_cast<int64_t>(config.column_names.size()));
-    config.column_types.insert({config.column_names[src_col_ind], src_pk_type});
-    config.column_types.insert({config.column_names[dst_col_ind], dst_pk_type});
+    config.column_types.insert(
+        {config.column_names[src_col_ind], DataType(src_pk_type)});
+    config.column_types.insert(
+        {config.column_names[dst_col_ind], DataType(dst_pk_type)});
 
     VLOG(10) << "Column types: ";
     for (const auto& iter : config.column_types) {
@@ -1154,18 +1554,6 @@ void set_properties_from_context_column(
   case DataTypeId::kVarchar: {
     set_column_from_value_column<std::string, std::string_view>(col, ctx_col,
                                                                 vids);
-    break;
-  }
-  case DataTypeId::kArray: {
-    for (size_t k = 0; k < vids.size(); ++k) {
-      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
-        continue;
-      }
-      auto val = ctx_col->get_elem(k);
-      if (!val.IsNull()) {
-        col->set_any(vids[k], val, true);
-      }
-    }
     break;
   }
   default:

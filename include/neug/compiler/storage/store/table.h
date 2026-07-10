@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/mask.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace evaluator {
@@ -35,20 +35,19 @@ class MemoryManager;
 class Table;
 
 class LocalTable;
-class StatsManager;
+class GraphStats;
 class NEUG_API Table {
  public:
-  Table(const catalog::TableCatalogEntry* tableEntry,
-        const StatsManager* storageManager)
-      : tableType{tableEntry->getTableType()},
-        tableID{tableEntry->getTableID()},
-        tableName{tableEntry->getName()} {}
+  Table(const SchemaEntry* tableEntry, const GraphStats* storageManager)
+      : tableType{tableEntry->get_entry_type()},
+        tableID{tableEntry->get_entry_id()},
+        tableName{const_cast<SchemaEntry*>(tableEntry)->get_label()} {}
 
-  Table(const catalog::TableCatalogEntry* tableEntry,
-        const StatsManager* storageManager, MemoryManager* memoryManager);
+  Table(const SchemaEntry* tableEntry, const GraphStats* storageManager,
+        MemoryManager* memoryManager);
   virtual ~Table() = default;
 
-  common::TableType getTableType() const { return tableType; }
+  SchemaEntryType getTableType() const { return tableType; }
   common::table_id_t getTableID() const { return tableID; }
   std::string getTableName() const { return tableName; }
 
@@ -72,7 +71,7 @@ class NEUG_API Table {
 
  protected:
  protected:
-  common::TableType tableType;
+  SchemaEntryType tableType;
   common::table_id_t tableID;
   std::string tableName;
   bool enableCompression;

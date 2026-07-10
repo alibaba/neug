@@ -1,15 +1,15 @@
 #pragma once
 
 #include "neug/compiler/common/enums/conflict_action.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace planner {
 
 struct LogicalInsertInfo {
-  common::TableType tableType;
+  SchemaEntryType entryType;
   // including alias and the node or rel expression which defines the query
   // pattern.
   std::shared_ptr<binder::Expression> pattern;
@@ -18,12 +18,12 @@ struct LogicalInsertInfo {
   std::vector<bool> isReturnColumnExprs;
   common::ConflictAction conflictAction;
 
-  LogicalInsertInfo(common::TableType tableType,
+  LogicalInsertInfo(SchemaEntryType entryType,
                     std::shared_ptr<binder::Expression> pattern,
                     binder::expression_vector columnExprs,
                     binder::expression_vector columnDataExprs,
                     common::ConflictAction conflictAction)
-      : tableType{tableType},
+      : entryType{entryType},
         pattern{std::move(pattern)},
         columnExprs{std::move(columnExprs)},
         columnDataExprs{std::move(columnDataExprs)},
@@ -32,7 +32,7 @@ struct LogicalInsertInfo {
 
  private:
   LogicalInsertInfo(const LogicalInsertInfo& other)
-      : tableType{other.tableType},
+      : entryType{other.entryType},
         pattern{other.pattern},
         columnExprs{other.columnExprs},
         columnDataExprs{other.columnDataExprs},

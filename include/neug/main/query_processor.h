@@ -81,6 +81,13 @@ class QueryProcessor {
       AccessMode access_mode, const execution::ParamsMap& parameters = {},
       int32_t num_threads = 0);
 
+  result<QueryResult> execute_explain_mode(
+      const std::string& query_string,
+      std::shared_ptr<execution::CacheValue> cache_value,
+      const execution::ParamsMap& parameters, IStorageInterface& graph,
+      AccessMode access_mode, const PropertyGraph& pg,
+      google::protobuf::Arena& arena);
+
   bool need_exclusive_lock(AccessMode access_mode);
 
   void update_compiler_meta_if_needed(const PropertyGraph& pg,
