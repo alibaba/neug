@@ -122,7 +122,25 @@ result<QueryResult> QueryProcessor::execute_internal(
   auto& slot = guard.get();
   auto& pg = *slot.mutable_graph();
   StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_);
+
+  google::protobuf::Arena arena;
+  neug::QueryResponse* response =
+      google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
+
+  auto explain_mode = cache_value->explain_mode;
+
+  // ================ EXPLAIN MODE =================
+  if (explain_mode == physical::ExplainMode::EXPLAIN) {
+    return execute_explain_mode(query_string, cache_value, parameters, graph,
+                                access_mode, pg, arena);
+  }
+
+  // ================ NORMAL/PROFILE EXECUTION =================
   std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
+  if (explain_mode == physical::ExplainMode::PROFILE) {
+    timer_ptr = std::make_unique<execution::OprTimer>();
+  }
+
   auto ctx_res = cache_value->pipeline.Execute(graph, execution::Context(),
                                                parameters, timer_ptr.get());
   if (!ctx_res) {
@@ -132,11 +150,19 @@ result<QueryResult> QueryProcessor::execute_internal(
     RETURN_ERROR(ctx_res.error());
   }
 
-  google::protobuf::Arena arena;
-  neug::QueryResponse* response =
-      google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
   neug::execution::Sink::sink_results(ctx_res.value(), graph, response);
   response->mutable_schema()->CopyFrom(cache_value->result_schema);
+
+  if (explain_mode == physical::ExplainMode::PROFILE) {
+    if (timer_ptr) {
+      auto profile_result =
+          execution::OprTimer::ToProfileResult(timer_ptr.get());
+      response->set_allocated_profile_result(
+          google::protobuf::Arena::CreateMessage<neug::ProfileResult>(&arena));
+      *response->mutable_profile_result() = profile_result;
+    }
+  }
+
   QueryResult ret = QueryResult::From(response->SerializeAsString());
 
   update_compiler_meta_if_needed(pg, cache_value->flags, access_mode);
@@ -172,6 +198,42 @@ void QueryProcessor::clear_cache() {
   physical::ExecutionFlag flags;
   flags.set_create_temp_table(true);
   update_compiler_meta_if_needed(pg, flags, AccessMode::kSchema);
+}
+
+result<QueryResult> QueryProcessor::execute_explain_mode(
+    const std::string& query_string,
+    std::shared_ptr<execution::CacheValue> cache_value,
+    const execution::ParamsMap& parameters, IStorageInterface& graph,
+    AccessMode access_mode, const PropertyGraph& pg,
+    google::protobuf::Arena& arena) {
+  // 1. build explain tree, does not execute the query
+  auto tree_result = cache_value->pipeline.explain_tree(graph, parameters);
+
+  if (!tree_result) {
+    LOG(ERROR) << "Error in building explain tree for query: " << query_string
+               << ", error: " << tree_result.error().error_message();
+    RETURN_ERROR(tree_result.error());
+  }
+
+  neug::QueryResponse* response =
+      google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
+
+  // 2. build ProfileResult from the explain tree
+  if (tree_result.value()) {
+    auto profile_result =
+        execution::OprTimer::ToProfileResult(tree_result.value().get());
+    response->set_allocated_profile_result(
+        google::protobuf::Arena::CreateMessage<neug::ProfileResult>(&arena));
+    *response->mutable_profile_result() = profile_result;
+  }
+
+  // 3. fill in schema (even if there are no data rows)
+  response->set_row_count(0);
+  response->mutable_schema()->CopyFrom(cache_value->result_schema);
+
+  QueryResult ret = QueryResult::From(response->SerializeAsString());
+  update_compiler_meta_if_needed(pg, cache_value->flags, access_mode);
+  return ret;
 }
 
 }  // namespace neug
