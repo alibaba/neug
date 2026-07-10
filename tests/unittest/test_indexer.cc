@@ -224,9 +224,9 @@ TEST_F(LFIndexerTest, BatchVarcharLookupAndInsertUseStringColumn) {
   // Varchar batches can also arrive as string_view columns. Keep the backing
   // strings alive while the context column is consumed by the indexer.
   std::vector<std::string> backing = {"alice", "carol", "alice"};
-  ValueColumnBuilder<std::string_view> view_builder;
+  ValueColumnBuilder<std::string> view_builder;
   for (const auto& value : backing) {
-    view_builder.push_back_opt(std::string_view(value));
+    view_builder.push_back_opt(value);
   }
   auto view_keys = view_builder.finish();
   vids.clear();

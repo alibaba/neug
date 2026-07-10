@@ -363,12 +363,6 @@ struct ValueConverter<std::string> {
 };
 
 template <>
-struct ValueConverter<std::string_view> {
-  static DataType type() { return DataType(DataTypeId::kVarchar); }
-  static std::string name() { return "string_view"; }
-};
-
-template <>
 struct ValueConverter<double> {
   static DataType type() { return DataType(DataTypeId::kDouble); }
   static std::string name() { return "double"; }

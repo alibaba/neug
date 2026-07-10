@@ -386,8 +386,8 @@ class LFIndexer {
           "Primary key column type does not match indexer type");
     }
     switch (get_type()) {
-#define TYPE_DISPATCHER(enum_val, type)                              \
-  case DataTypeId::enum_val:                                         \
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
     return get_or_insert_typed_column<type>(keys, results, inserted);
       TYPE_DISPATCHER(kInt64, int64_t)
       TYPE_DISPATCHER(kInt32, int32_t)
