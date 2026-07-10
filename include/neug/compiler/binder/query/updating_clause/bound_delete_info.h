@@ -24,21 +24,20 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/delete_type.h"
-#include "neug/compiler/common/enums/table_type.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
 
 struct BoundDeleteInfo {
   common::DeleteNodeType deleteType;
-  common::TableType tableType;
+  SchemaEntryType entryType;
   std::shared_ptr<Expression> pattern;
 
-  BoundDeleteInfo(common::DeleteNodeType deleteType,
-                  common::TableType tableType,
+  BoundDeleteInfo(common::DeleteNodeType deleteType, SchemaEntryType tableType,
                   std::shared_ptr<Expression> pattern)
       : deleteType{deleteType},
-        tableType{tableType},
+        entryType{tableType},
         pattern{std::move(pattern)} {}
   EXPLICIT_COPY_DEFAULT_MOVE(BoundDeleteInfo);
 
@@ -47,7 +46,7 @@ struct BoundDeleteInfo {
  private:
   BoundDeleteInfo(const BoundDeleteInfo& other)
       : deleteType{other.deleteType},
-        tableType{other.tableType},
+        entryType{other.entryType},
         pattern{other.pattern} {}
 };
 

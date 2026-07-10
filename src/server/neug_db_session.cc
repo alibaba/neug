@@ -42,6 +42,7 @@
 #include "neug/main/query_request.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
@@ -122,12 +123,12 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
 
 template <typename Transaction>
 inline neug::result<execution::Context> ExecutePipelineInTransaction(
-    execution::LocalQueryCache& pipeline_cache, const Schema& schema,
+    execution::LocalQueryCache& pipeline_cache, const GraphStats& stats,
     const std::string& query, AccessMode mode, const NeugDBConfig& db_config,
-    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema,
+    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema, 
     Transaction& txn, IStorageInterface& storage_interface,
     neug::QueryResponse* response) {
-  GS_AUTO(cache_value, pipeline_cache.Get(schema, query));
+  GS_AUTO(cache_value, pipeline_cache.Get(stats, query));
   assert(cache_value != nullptr);
   RETURN_STATUS_ERROR_IF_NOT_OK(
       validate_flags(mode, cache_value->flags, db_config));
@@ -209,30 +210,26 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     neug::StorageReadInterface gri(read_txn.view(), read_txn.timestamp());
     GS_AUTO(ctx,
             ExecutePipelineInTransaction(
-                pipeline_cache_, read_txn.schema(), query, mode, db_config_,
+                pipeline_cache_, read_txn.statistic(), query, mode, db_config_,
                 param_json_obj, result_schema, read_txn, gri, response));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gri, response);
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
-    GS_AUTO(ctx,
-            ExecutePipelineInTransaction(
-                pipeline_cache_, insert_txn.schema(), query, mode, db_config_,
-                param_json_obj, result_schema, insert_txn, gii, response));
-    // Insert-only mode produces no data rows; the insert storage interface is
-    // not a StorageReadInterface, so results are not sinked. Any
-    // PROFILE/EXPLAIN metrics are attached to the response inside
-    // ExecutePipelineInTransaction.
+    GS_AUTO(ctx, ExecutePipelineInTransaction(
+                     pipeline_cache_, insert_txn.statistic(), query, mode,
+                     db_config_, param_json_obj, result_schema,
+                     insert_txn, gii, response));
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
     auto update_txn = GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(update_txn);
-    GS_AUTO(ctx,
-            ExecutePipelineInTransaction(
-                pipeline_cache_, update_txn.schema(), query, mode, db_config_,
-                param_json_obj, result_schema, update_txn, gui, response));
+    GS_AUTO(ctx, ExecutePipelineInTransaction(
+                     pipeline_cache_, update_txn.statistic(), query, mode,
+                     db_config_, param_json_obj, result_schema,
+                     update_txn, gui, response));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {

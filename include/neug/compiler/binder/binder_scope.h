@@ -54,14 +54,13 @@ class BinderScope {
                          std::shared_ptr<Expression> expression);
 
   void memorizeTableEntries(const std::string& name,
-                            std::vector<catalog::TableCatalogEntry*> entries) {
+                            std::vector<SchemaEntry*> entries) {
     memorizedNodeNameToEntries.insert({name, entries});
   }
   bool hasMemorizedTableIDs(const std::string& name) const {
     return memorizedNodeNameToEntries.contains(name);
   }
-  std::vector<catalog::TableCatalogEntry*> getMemorizedTableEntries(
-      const std::string& name) {
+  std::vector<SchemaEntry*> getMemorizedTableEntries(const std::string& name) {
     NEUG_ASSERT(memorizedNodeNameToEntries.contains(name));
     return memorizedNodeNameToEntries.at(name);
   }
@@ -104,7 +103,7 @@ class BinderScope {
   // information. E.g. MATCH (a:person) WITH collect(a) AS list_a UNWIND list_a
   // AS new_a MATCH (new_a)-[]->() It will be more performant if we can retain
   // the information that new_a has label person.
-  common::case_insensitive_map_t<std::vector<catalog::TableCatalogEntry*>>
+  common::case_insensitive_map_t<std::vector<SchemaEntry*>>
       memorizedNodeNameToEntries;
   // A node pattern may not always be bound as a node expression, e.g. in the
   // above query, (new_a) is bound as a variable rather than node expression.

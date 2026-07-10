@@ -1,8 +1,7 @@
 add_library(
         neug_binder_ddl
         OBJECT
-        bound_alter_info.cpp
-        property_definition.cpp)
+        bound_alter_info.cpp)
 add_dependencies(neug_binder_ddl neug_proto)
 
 set(ALL_OBJECT_FILES

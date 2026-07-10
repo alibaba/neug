@@ -16,8 +16,13 @@ enum class LogicalScanNodeTableType : uint8_t {
   PRIMARY_KEY_SCAN = 1,
 };
 
+enum class ExtraScanNodeTableInfoType : uint8_t {
+  PRIMARY_KEY_SCAN = 0,
+};
+
 struct ExtraScanNodeTableInfo {
   virtual ~ExtraScanNodeTableInfo() = default;
+  virtual ExtraScanNodeTableInfoType getType() const = 0;
   virtual std::unique_ptr<ExtraScanNodeTableInfo> copy() const = 0;
 
   template <class TARGET>
@@ -31,6 +36,10 @@ struct PrimaryKeyScanInfo final : ExtraScanNodeTableInfo {
 
   explicit PrimaryKeyScanInfo(std::shared_ptr<binder::Expression> key)
       : key{std::move(key)} {}
+
+  ExtraScanNodeTableInfoType getType() const override {
+    return ExtraScanNodeTableInfoType::PRIMARY_KEY_SCAN;
+  }
 
   std::unique_ptr<ExtraScanNodeTableInfo> copy() const override {
     return std::make_unique<PrimaryKeyScanInfo>(key);
@@ -97,12 +106,9 @@ class LogicalScanNodeTable final : public LogicalOperator {
   std::string getExpressionsForPrinting() const override {
     auto message =
         nodeID->toString() + " " + binder::ExpressionUtil::toString(properties);
-    auto extraInfo = getExtraInfo();
-    if (extraInfo != nullptr) {
-      auto pkExtraInfo = dynamic_cast<PrimaryKeyScanInfo*>(extraInfo);
-      if (pkExtraInfo != nullptr) {
-        message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
-      }
+    auto pkExtraInfo = getPrimaryKeyScanInfo();
+    if (pkExtraInfo != nullptr) {
+      message += " PK_SCAN(" + pkExtraInfo->key->toString() + ")";
     }
     message += ("Type: " + nodeID->getDataType().ToString());
     if (predicates != nullptr) {
@@ -143,6 +149,15 @@ class LogicalScanNodeTable final : public LogicalOperator {
   }
 
   ExtraScanNodeTableInfo* getExtraInfo() const { return extraInfo.get(); }
+
+  PrimaryKeyScanInfo* getPrimaryKeyScanInfo() const {
+    auto info = getExtraInfo();
+    if (info == nullptr ||
+        info->getType() != ExtraScanNodeTableInfoType::PRIMARY_KEY_SCAN) {
+      return nullptr;
+    }
+    return static_cast<PrimaryKeyScanInfo*>(info);
+  }
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalScanNodeTablePrintInfo>(nodeID, properties);

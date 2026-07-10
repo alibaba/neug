@@ -21,7 +21,6 @@
 #include <ostream>
 #include <string>
 #include <vector>
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -37,6 +36,7 @@
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
@@ -269,8 +269,14 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const binder::PropertyDefinition& propertyDef) {
-  return convert(*propertyDef.boundExpr, {});
+    const PropertyDefinition& propertyDef) {
+  const auto& defaultValue = propertyDef.getDefaultValue();
+  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    return convertValue(
+        compiler_impl::Value::createNullValue(defaultValue.type()));
+  }
+  return convertValue(
+      common::convertToCompilerValue(defaultValue, defaultValue.type()));
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(
@@ -336,7 +342,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
     case common::DataTypeId::kTimestampMs: {
       auto datetime = std::make_unique<::common::ToDatetime>();
       datetime->set_datetime_str(compiler_impl::Timestamp::toString(
-          value.getValue<compiler_impl::timestamp_t>()));
+          compiler_impl::Timestamp::fromEpochMilliSeconds(
+              common::normalizeTimestampMillis(
+                  value.getValue<compiler_impl::timestamp_ms_t>()))));
       oprPB->set_allocated_to_datetime(datetime.release());
       break;
     }

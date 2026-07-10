@@ -122,6 +122,7 @@ class ValueColumnBuilder : public IContextColumnBuilder {
   }
 
   inline void push_back_opt(const T& val) { data_.push_back(val); }
+  inline void push_back_opt(T&& val) { data_.push_back(std::move(val)); }
   inline void push_back_null() override {
     if (valid_.empty()) {
       valid_.reserve(data_.capacity());

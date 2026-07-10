@@ -16,13 +16,22 @@
 
 #pragma once
 
-#include "neug/utils/property/property_definition.h"
+#include <cstdint>
+
+#include "neug/common/types/value.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/common/types/value/value.h"
 
 namespace neug {
-namespace binder {
+namespace common {
 
-using ::neug::ColumnDefinition;
-using ::neug::PropertyDefinition;
+::neug::Value convertToExecutionValue(const compiler_impl::Value& value,
+                                      const DataType& type);
 
-}  // namespace binder
+compiler_impl::Value convertToCompilerValue(const ::neug::Value& value,
+                                            const DataType& type);
+
+int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t value);
+
+}  // namespace common
 }  // namespace neug

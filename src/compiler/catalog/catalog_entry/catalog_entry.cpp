@@ -23,7 +23,6 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 
 #include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
@@ -65,9 +64,6 @@ std::unique_ptr<CatalogEntry> CatalogEntry::deserialize(
   case CatalogEntryType::NODE_TABLE_ENTRY:
   case CatalogEntryType::REL_TABLE_ENTRY: {
     entry = TableCatalogEntry::deserialize(deserializer, type);
-  } break;
-  case CatalogEntryType::REL_GROUP_ENTRY: {
-    entry = RelGroupCatalogEntry::deserialize(deserializer);
   } break;
   case CatalogEntryType::SCALAR_MACRO_ENTRY: {
     entry = ScalarMacroCatalogEntry::deserialize(deserializer);

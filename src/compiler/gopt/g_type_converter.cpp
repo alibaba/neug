@@ -25,18 +25,17 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_graph_type.h"
-#include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -231,7 +230,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected NodeType for NODE type, "
                    << "but got: " << type.ToString()
                    << " , return NODE type with empty label";
-      return convertNodeType(gopt::GNodeType({}));
+      return convertNodeType(gopt::GNodeType());
     }
     break;
   }
@@ -243,7 +242,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected RelType for REL type, "
                    << "but got: " << type.ToString()
                    << " , return REL type with empty label";
-      return convertRelType(gopt::GRelType({}));
+      return convertRelType(gopt::GRelType());
     }
     break;
   }
@@ -252,7 +251,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected StructType for RECURSIVE_REL type, "
                    << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
     auto fieldIdx =
         common::StructType::GetFieldIdx(type, common::InternalKeyword::RELS);
@@ -260,7 +259,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
       LOG(WARNING) << "Expected RELS field for RECURSIVE_REL type, "
                    << "but got: " << type.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
 
     const auto& relsType = common::StructType::GetChildType(type, fieldIdx);
@@ -274,7 +273,7 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
                      << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
+        return convertPathType(gopt::GRelType());
       }
     } else if (common::getPhysicalType(relsType.id()) ==
                common::PhysicalTypeID::ARRAY) {
@@ -286,13 +285,13 @@ GPhysicalTypeConverter::convertLogicalType(const neug::DataType& type) {
         LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
                      << "but got: " << childType.ToString()
                      << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
+        return convertPathType(gopt::GRelType());
       }
     } else {
       LOG(WARNING) << "Expected ListType or ArrayType for RECURSIVE_REL type, "
                    << "but got: " << relsType.ToString()
                    << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
+      return convertPathType(gopt::GRelType());
     }
     break;
   }
@@ -413,20 +412,18 @@ GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
 }
 
 std::unique_ptr<::common::GraphDataType::GraphElementType>
-GPhysicalTypeConverter::convertNodeTable(
-    catalog::NodeTableCatalogEntry* nodeTable) {
+GPhysicalTypeConverter::convertNodeTable(const VertexSchema* nodeTable) {
   auto result = std::make_unique<::common::GraphDataType::GraphElementType>();
   auto labelType =
       std::make_unique<::common::GraphDataType::GraphElementLabel>();
-  labelType->set_label(nodeTable->getTableID());
+  labelType->set_label(nodeTable->get_entry_id());
   result->set_allocated_label(labelType.release());
   // todo: set properties
   return result;
 }
 
 std::unique_ptr<::common::GraphDataType::GraphElementType>
-GPhysicalTypeConverter::convertRelTable(
-    catalog::GRelTableCatalogEntry* relTable) {
+GPhysicalTypeConverter::convertRelTable(const EdgeSchema* relTable) {
   auto result = std::make_unique<::common::GraphDataType::GraphElementType>();
   auto labelType =
       std::make_unique<::common::GraphDataType::GraphElementLabel>();

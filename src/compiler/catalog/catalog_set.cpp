@@ -22,10 +22,7 @@
 
 #include "neug/compiler/catalog/catalog_set.h"
 
-#include "neug/compiler/binder/ddl/bound_alter_info.h"
 #include "neug/compiler/catalog/catalog_entry/dummy_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/string_format.h"
@@ -192,78 +189,6 @@ CatalogEntry* CatalogSet::dropEntryNoLock(const Transaction* transaction,
   const auto tombstonePtr = tombstone.get();
   emplaceNoLock(std::move(tombstone));
   return tombstonePtr->getPrev();
-}
-
-void CatalogSet::alterTableEntry(Transaction* transaction,
-                                 const binder::BoundAlterInfo& alterInfo) {
-  std::unique_lock lck{mtx};
-  // LCOV_EXCL_START
-  validateExistNoLock(transaction, alterInfo.tableName);
-  // LCOV_EXCL_STOP
-  auto entry = getEntryNoLock(transaction, alterInfo.tableName);
-  NEUG_ASSERT(entry->getType() == CatalogEntryType::NODE_TABLE_ENTRY ||
-              entry->getType() == CatalogEntryType::REL_TABLE_ENTRY);
-  const auto tableEntry = entry->ptrCast<TableCatalogEntry>();
-  auto newEntry = tableEntry->alter(transaction->getID(), alterInfo);
-  switch (alterInfo.alterType) {
-  case AlterType::RENAME: {
-    // We treat rename table as drop and create.
-    dropEntryNoLock(transaction, alterInfo.tableName, entry->getOID());
-    auto createdEntry = createEntryNoLock(transaction, std::move(newEntry));
-    if (transaction->shouldAppendToUndoBuffer()) {
-      transaction->pushAlterCatalogEntry(*this, *entry, alterInfo);
-      transaction->pushCreateDropCatalogEntry(
-          *this, *createdEntry, isInternal(), true /* skipLoggingToWAL */);
-    }
-  } break;
-  case AlterType::COMMENT:
-  case AlterType::ADD_PROPERTY:
-  case AlterType::DROP_PROPERTY:
-  case AlterType::RENAME_PROPERTY: {
-    emplaceNoLock(std::move(newEntry));
-    if (transaction->shouldAppendToUndoBuffer()) {
-      transaction->pushAlterCatalogEntry(*this, *entry, alterInfo);
-    }
-  } break;
-  default: {
-    NEUG_UNREACHABLE;
-  }
-  }
-}
-
-void CatalogSet::alterRelGroupEntry(Transaction* transaction,
-                                    const binder::BoundAlterInfo& alterInfo) {
-  std::unique_lock lck{mtx};
-  // LCOV_EXCL_START
-  validateExistNoLock(transaction, alterInfo.tableName);
-  // LCOV_EXCL_STOP
-  auto entry = getEntryNoLock(transaction, alterInfo.tableName);
-  NEUG_ASSERT(entry->getType() == CatalogEntryType::REL_GROUP_ENTRY);
-  auto* relGroupEntry = entry->ptrCast<RelGroupCatalogEntry>();
-  auto newEntry = relGroupEntry->alter(transaction->getID(), alterInfo);
-  switch (alterInfo.alterType) {
-  case AlterType::RENAME: {
-    // We treat rename rel group as drop and create.
-    dropEntryNoLock(transaction, alterInfo.tableName, entry->getOID());
-    auto createdEntry = createEntryNoLock(transaction, std::move(newEntry));
-    NEUG_ASSERT(entry);
-    if (transaction->shouldAppendToUndoBuffer()) {
-      transaction->pushAlterCatalogEntry(*this, *entry, alterInfo);
-      transaction->pushCreateDropCatalogEntry(
-          *this, *createdEntry, isInternal(), true /* skipLoggingToWAL */);
-    }
-  } break;
-  case AlterType::COMMENT: {
-    emplaceNoLock(std::move(newEntry));
-    if (transaction->shouldAppendToUndoBuffer()) {
-      transaction->pushAlterCatalogEntry(*this, *entry, alterInfo);
-    }
-  } break;
-  default: {
-    // We only need to handle rename and comment at the rel group level. Other
-    // alter types are handled in each child rel table.
-  }
-  }
 }
 
 CatalogEntrySet CatalogSet::getEntries(const Transaction* transaction) {

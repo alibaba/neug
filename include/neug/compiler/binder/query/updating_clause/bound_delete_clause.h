@@ -36,22 +36,22 @@ class BoundDeleteClause final : public BoundUpdatingClause {
 
   bool hasNodeInfo() const {
     return hasInfo([](const BoundDeleteInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.entryType == SchemaEntryType::NODE;
     });
   }
   std::vector<BoundDeleteInfo> getNodeInfos() const {
     return getInfos([](const BoundDeleteInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.entryType == SchemaEntryType::NODE;
     });
   }
   bool hasRelInfo() const {
     return hasInfo([](const BoundDeleteInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.entryType == SchemaEntryType::REL;
     });
   }
   std::vector<BoundDeleteInfo> getRelInfos() const {
     return getInfos([](const BoundDeleteInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.entryType == SchemaEntryType::REL;
     });
   }
 

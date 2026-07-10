@@ -553,9 +553,17 @@ struct convert<neug::DataType> {
     if (config["primitive_type"]) {
       property_type = neug::config_parsing::StringToPrimitivePropertyType(
           config["primitive_type"].as<std::string>());
+      if (property_type == neug::DataTypeId::kVarchar) {
+        property_type = neug::DataType::Varchar();
+      }
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
-        if (config["string"]["var_char"]) {
+        if (config["string"]["varchar"]) {
+          property_type = neug::DataType(
+              neug::DataTypeId::kVarchar,
+              std::make_shared<neug::StringTypeInfo>(
+                  config["string"]["varchar"]["max_length"].as<size_t>()));
+        } else if (config["string"]["var_char"]) {
           property_type = neug::DataType(
               neug::DataTypeId::kVarchar,
               std::make_shared<neug::StringTypeInfo>(
@@ -580,6 +588,8 @@ struct convert<neug::DataType> {
         property_type = neug::DataTypeId::kInterval;
       } else if (temporal["timestamp"]) {
         property_type = neug::DataTypeId::kTimestampMs;
+      } else if (temporal["date32"]) {
+        property_type = neug::DataTypeId::kDate;
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
@@ -593,7 +603,17 @@ struct convert<neug::DataType> {
         return false;
       }
       uint64_t max_length = array_node["max_length"].as<uint64_t>();
+      CHECK(max_length > 0) << "Array max_length must be greater than 0";
       property_type = neug::DataType::Array(child_type, max_length);
+    } else if (config["list"]) {
+      auto list_node = config["list"];
+      neug::DataType child_type;
+      if (!list_node["component_type"] ||
+          !decode(list_node["component_type"], child_type)) {
+        LOG(ERROR) << "Failed to parse array component_type";
+        return false;
+      }
+      property_type = neug::DataType::List(child_type);
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {

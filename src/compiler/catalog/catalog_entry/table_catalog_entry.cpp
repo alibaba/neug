@@ -130,15 +130,6 @@ void TableCatalogEntry::renameProperty(const std::string& propertyName,
 
 std::string TableCatalogEntry::getLabel(
     const Catalog* catalog, const transaction::Transaction* transaction) {
-  if (type == CatalogEntryType::NODE_TABLE_ENTRY) {
-    return name;
-  }
-  NEUG_ASSERT(type == CatalogEntryType::REL_TABLE_ENTRY);
-  for (auto& relGroup : catalog->getRelGroupEntries(transaction)) {
-    if (relGroup->isParent(getTableID())) {
-      return relGroup->getName();
-    }
-  }
   return name;
 }
 
@@ -146,8 +137,6 @@ void TableCatalogEntry::serialize(Serializer& serializer) const {
   CatalogEntry::serialize(serializer);
   serializer.writeDebuggingInfo("comment");
   serializer.write(comment);
-  serializer.writeDebuggingInfo("properties");
-  propertyCollection.serialize(serializer);
 }
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
@@ -156,9 +145,6 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
   std::string comment;
   deserializer.validateDebuggingInfo(debuggingInfo, "comment");
   deserializer.deserializeValue(comment);
-  deserializer.validateDebuggingInfo(debuggingInfo, "properties");
-  auto propertyCollection =
-      PropertyDefinitionCollection::deserialize(deserializer);
   std::unique_ptr<TableCatalogEntry> result;
   switch (type) {
   case CatalogEntryType::NODE_TABLE_ENTRY:
@@ -171,7 +157,6 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::deserialize(
     NEUG_UNREACHABLE;
   }
   result->comment = std::move(comment);
-  result->propertyCollection = std::move(propertyCollection);
   return result;
 }
 

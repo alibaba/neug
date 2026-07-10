@@ -21,6 +21,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
+#include "neug/compiler/transaction/transaction.h"
 
 namespace neug {
 namespace extension {

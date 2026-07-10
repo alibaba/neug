@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::catalog;
@@ -34,7 +34,7 @@ namespace binder {
 table_id_vector_t NodeOrRelExpression::getTableIDs() const {
   table_id_vector_t result;
   for (auto& entry : entries) {
-    result.push_back(entry->getTableID());
+    result.push_back(entry->get_entry_id());
   }
   return result;
 }
@@ -42,22 +42,22 @@ table_id_vector_t NodeOrRelExpression::getTableIDs() const {
 table_id_set_t NodeOrRelExpression::getTableIDsSet() const {
   table_id_set_t result;
   for (auto& entry : entries) {
-    result.insert(entry->getTableID());
+    result.insert(entry->get_entry_id());
   }
   return result;
 }
 
 void NodeOrRelExpression::addEntries(
-    const std::vector<TableCatalogEntry*>& entries_) {
+    const std::vector<SchemaEntry*>& entries_) {
   auto tableIDsSet = getTableIDsSet();
   for (auto& entry : entries_) {
-    if (!tableIDsSet.contains(entry->getTableID())) {
+    if (!tableIDsSet.contains(entry->get_entry_id())) {
       entries.push_back(entry);
     }
   }
 }
 
-TableCatalogEntry* NodeOrRelExpression::getSingleEntry() const {
+SchemaEntry* NodeOrRelExpression::getSingleEntry() const {
   // LCOV_EXCL_START
   if (entries.empty()) {
     THROW_RUNTIME_ERROR(

@@ -18,12 +18,12 @@ f_group_pos_set LogicalSetProperty::getGroupsPosToFlatten(uint32_t idx) const {
   f_group_pos_set result;
   auto childSchema = children[0]->getSchema();
   auto& info = infos[idx];
-  switch (getTableType()) {
-  case TableType::NODE: {
+  switch (getEntryType()) {
+  case SchemaEntryType::NODE: {
     auto node = info.pattern->constPtrCast<NodeExpression>();
     result.insert(childSchema->getGroupPos(*node->getInternalID()));
   } break;
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     auto rel = info.pattern->constPtrCast<RelExpression>();
     result.insert(
         childSchema->getGroupPos(*rel->getSrcNode()->getInternalID()));
@@ -51,9 +51,9 @@ std::string LogicalSetProperty::getExpressionsForPrinting() const {
   return result;
 }
 
-common::TableType LogicalSetProperty::getTableType() const {
+SchemaEntryType LogicalSetProperty::getEntryType() const {
   NEUG_ASSERT(!infos.empty());
-  return infos[0].tableType;
+  return infos[0].entryType;
 }
 
 }  // namespace planner
