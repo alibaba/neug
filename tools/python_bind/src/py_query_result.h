@@ -61,6 +61,21 @@ class PyQueryResult {
   std::string get_bolt_response() const;
 
   /**
+   * @brief Check if profile result is available.
+   */
+  bool has_profile_result() const;
+
+  /**
+   * @brief Get human-readable PROFILE/EXPLAIN text.
+   */
+  std::string get_profile_text() const;
+
+  /**
+   * @brief Get detailed profile metrics for all operators.
+   */
+  pybind11::dict get_profile_metrics() const;
+
+  /**
    * @brief Convert the query result to a pyarrow.Table via Arrow C Data
    * Interface.
    *

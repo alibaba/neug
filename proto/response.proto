@@ -135,9 +135,25 @@ message Array {
   }
 }
 
+message ProfileResult {
+  message OperatorMetrics {
+    int64 operator_id = 1;
+    int64 parent_id = 2;
+    string operator_name = 3;
+    double elapsed_ms = 4;
+    uint64 output_rows = 5;
+    repeated int64 child_ids = 6;
+  }
+
+  double total_elapsed_ms = 1;
+  uint64 total_output_rows = 2;
+  repeated OperatorMetrics operators = 3;
+}
+
 message QueryResponse {
   int32 row_count = 1;
   MetaDatas schema = 2;
   repeated Array arrays = 3;
+  ProfileResult profile_result = 4;
 };
 

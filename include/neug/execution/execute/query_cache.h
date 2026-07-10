@@ -30,14 +30,17 @@ struct CacheValue {
   ParamsMetaMap params_type;
   neug::MetaDatas result_schema;
   physical::ExecutionFlag flags;
+  physical::ExplainMode explain_mode = physical::ExplainMode::NONE;
 
   CacheValue(Pipeline pipeline, ParamsMetaMap params_type,
              const neug::MetaDatas& result_schema,
-             physical::ExecutionFlag flags)
+             physical::ExecutionFlag flags,
+             physical::ExplainMode explain_mode = physical::ExplainMode::NONE)
       : pipeline(std::move(pipeline)),
         params_type(std::move(params_type)),
         result_schema(result_schema),
-        flags(flags) {}
+        flags(flags),
+        explain_mode(explain_mode) {}
 };
 
 /**
@@ -83,16 +86,17 @@ class GlobalQueryCache {
 
     auto params_type =
         execution::PlanParser::parse_params_type(plan_result.first);
+    auto explain_mode = plan_result.first.explain_mode();
     {
       std::unique_lock<std::shared_mutex> write_lock(mutex_);
       auto iter = cache_.find(query);
       if (iter != cache_.end()) {
         return iter->second;
       }
-      cache_.emplace(query,
-                     std::make_shared<CacheValue>(std::move(pipeline_result),
-                                                  std::move(params_type), sch,
-                                                  plan_result.first.flag()));
+      cache_.emplace(
+          query, std::make_shared<CacheValue>(
+                     std::move(pipeline_result), std::move(params_type), sch,
+                     plan_result.first.flag(), explain_mode));
       return cache_.at(query);
     }
   }
