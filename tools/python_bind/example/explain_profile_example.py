@@ -221,7 +221,7 @@ def example_explain_mode(conn):
 
     # Note: EXPLAIN mode doesn't execute, so no query results
     rows = list(result)
-    print(f"--- Query Results ---")
+    print("--- Query Results ---")
     print(f"Rows returned: {len(rows)} (EXPLAIN mode doesn't execute)\n")
 
     if result.has_profile_result():
