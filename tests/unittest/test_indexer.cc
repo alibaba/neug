@@ -135,6 +135,109 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   indexer.Close();
 }
 
+TEST_F(LFIndexerTest, RejectsMismatchedPrimaryKeyTypeOnInsert) {
+  CheckpointManager ws;
+  ws.Open(test_dir_);
+  auto ckp = make_checkpoint(ws);
+
+  LFIndexer<uint32_t> indexer;
+  OpenIndexerLegacy(indexer, *ckp, DataType(DataTypeId::kInt64),
+                    CheckpointManifest(), MemoryLevel::kInMemory);
+  indexer.reserve(1);
+
+  EXPECT_THROW(indexer.insert(neug::Value::INT32(7), false),
+               neug::exception::StorageException);
+  indexer.Close();
+}
+
+TEST_F(LFIndexerTest, BatchInt64LookupAndInsertHandleNullsAndDuplicates) {
+  CheckpointManager ws;
+  ws.Open(test_dir_);
+  auto ckp = make_checkpoint(ws);
+
+  LFIndexer<uint32_t> indexer;
+  OpenIndexerLegacy(indexer, *ckp, DataType(DataTypeId::kInt64),
+                    CheckpointManifest(), MemoryLevel::kInMemory);
+  ValueColumnBuilder<int64_t> insert_builder;
+  insert_builder.push_back_opt(7);
+  insert_builder.push_back_opt(11);
+  insert_builder.push_back_opt(7);
+  auto insert_keys = insert_builder.finish();
+
+  std::vector<uint32_t> vids;
+  std::vector<uint8_t> inserted;
+  indexer.get_or_insert(*insert_keys, vids, inserted);
+  EXPECT_EQ(vids, (std::vector<uint32_t>{0, 1, 0}));
+  EXPECT_EQ(inserted, (std::vector<uint8_t>{1, 1, 0}));
+
+  ValueColumnBuilder<int64_t> lookup_builder;
+  lookup_builder.push_back_opt(11);
+  lookup_builder.push_back_opt(99);
+  auto lookup_keys = lookup_builder.finish();
+  vids.clear();
+  indexer.get_index(*lookup_keys, vids);
+  EXPECT_EQ(vids,
+            (std::vector<uint32_t>{1, std::numeric_limits<uint32_t>::max()}));
+
+  ValueColumnBuilder<int64_t> optional_builder(true);
+  optional_builder.push_back_opt(7);
+  optional_builder.push_back_null();
+  auto optional_keys = optional_builder.finish();
+  vids.clear();
+  indexer.get_index(*optional_keys, vids);
+  EXPECT_EQ(vids,
+            (std::vector<uint32_t>{0, std::numeric_limits<uint32_t>::max()}));
+
+  vids.clear();
+  inserted.clear();
+  EXPECT_THROW(indexer.get_or_insert(*optional_keys, vids, inserted),
+               neug::exception::StorageException);
+  indexer.Close();
+}
+
+TEST_F(LFIndexerTest, BatchVarcharLookupAndInsertUseStringColumn) {
+  CheckpointManager ws;
+  ws.Open(test_dir_);
+  auto ckp = make_checkpoint(ws);
+
+  auto type_info = std::make_shared<StringTypeInfo>(64);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  LFIndexer<uint32_t> indexer;
+  OpenIndexerLegacy(indexer, *ckp, string_type, CheckpointManifest(),
+                    MemoryLevel::kInMemory);
+  ValueColumnBuilder<std::string> builder;
+  builder.push_back_opt("alice");
+  builder.push_back_opt("bob");
+  builder.push_back_opt("alice");
+  auto keys = builder.finish();
+
+  std::vector<uint32_t> vids;
+  std::vector<uint8_t> inserted;
+  indexer.get_or_insert(*keys, vids, inserted);
+  EXPECT_EQ(vids, (std::vector<uint32_t>{0, 1, 0}));
+  EXPECT_EQ(inserted, (std::vector<uint8_t>{1, 1, 0}));
+
+  vids.clear();
+  indexer.get_index(*keys, vids);
+  EXPECT_EQ(vids, (std::vector<uint32_t>{0, 1, 0}));
+
+  // Varchar batches can also arrive as string_view columns. Keep the backing
+  // strings alive while the context column is consumed by the indexer.
+  std::vector<std::string> backing = {"alice", "carol", "alice"};
+  ValueColumnBuilder<std::string_view> view_builder;
+  for (const auto& value : backing) {
+    view_builder.push_back_opt(std::string_view(value));
+  }
+  auto view_keys = view_builder.finish();
+  vids.clear();
+  inserted.clear();
+  indexer.get_or_insert(*view_keys, vids, inserted);
+  EXPECT_EQ(vids, (std::vector<uint32_t>{0, 2, 0}));
+  EXPECT_EQ(inserted, (std::vector<uint8_t>{0, 1, 0}));
+
+  indexer.Close();
+}
+
 TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   CheckpointManager ws;
   ws.Open(test_dir_);

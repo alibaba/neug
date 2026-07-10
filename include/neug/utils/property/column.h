@@ -461,8 +461,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
               << " exceeds the maximum length: " << width_ << ", cut off.";
       copied_val = truncate_utf8(copied_val, width_);
     }
-    if (idx < size_ &&
-        pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
+    }
+    if (pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
       // NOTE: Even if idx has been set before, we always append the new value
       // to the end of buffer_. The previous value is not reclaimed, and should
       // be handled by garbage collection or compaction.
@@ -472,7 +474,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
       auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
       memcpy(raw_data + offset, copied_val.data(), copied_val.size());
     } else {
-      THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
+      std::stringstream ss;
+      ss << "Not enough space in buffer for new value. "
+         << "Current buffer size: " << data_buffer_->GetDataSize()
+         << ", current position: " << pos_.load()
+         << ", new value size: " << copied_val.size();
+      THROW_STORAGE_EXCEPTION(ss.str());
     }
   }
 

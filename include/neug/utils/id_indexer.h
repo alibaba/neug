@@ -309,9 +309,11 @@ class LFIndexer {
   DataTypeId get_type() const { return keys_->type(); }
 
   INDEX_T insert(const Value& oid, bool insert_safe) {
-    assert(oid.type().id() == get_type());
     if (NEUG_UNLIKELY(oid.IsNull())) {
       THROW_STORAGE_EXCEPTION("Null primary key is not allowed");
+    }
+    if (NEUG_UNLIKELY(oid.type().id() != get_type())) {
+      THROW_STORAGE_EXCEPTION("Primary key type does not match indexer type");
     }
     switch (get_type()) {
 #define TYPE_DISPATCHER(enum_val, type) \
@@ -378,7 +380,7 @@ class LFIndexer {
   }
 
   void get_or_insert(const IContextColumn& keys, std::vector<INDEX_T>& results,
-                     std::vector<uint8_t>& inserted, bool insert_safe) {
+                     std::vector<uint8_t>& inserted) {
     if (keys.elem_type().id() != get_type()) {
       THROW_STORAGE_EXCEPTION(
           "Primary key column type does not match indexer type");
@@ -386,8 +388,7 @@ class LFIndexer {
     switch (get_type()) {
 #define TYPE_DISPATCHER(enum_val, type)                              \
   case DataTypeId::enum_val:                                         \
-    return get_or_insert_typed_column<type>(keys, results, inserted, \
-                                            insert_safe);
+    return get_or_insert_typed_column<type>(keys, results, inserted);
       TYPE_DISPATCHER(kInt64, int64_t)
       TYPE_DISPATCHER(kInt32, int32_t)
       TYPE_DISPATCHER(kUInt64, uint64_t)
@@ -564,10 +565,7 @@ class LFIndexer {
     THROW_STORAGE_EXCEPTION("Null primary key at row " + std::to_string(row));
   }
 
-  void reserve_insert_capacity(size_t key_count, bool insert_safe) {
-    if (!insert_safe) {
-      return;
-    }
+  void reserve_insert_capacity(size_t key_count) {
     size_t new_size = size() + key_count;
     if (new_size > capacity()) {
       size_t cap = capacity();
@@ -663,13 +661,12 @@ class LFIndexer {
   template <typename KEY_T>
   void get_or_insert_typed_column(const IContextColumn& keys,
                                   std::vector<INDEX_T>& results,
-                                  std::vector<uint8_t>& inserted,
-                                  bool insert_safe) {
+                                  std::vector<uint8_t>& inserted) {
     TypedKeyColumnAccessor<KEY_T> accessor(keys);
     size_t row_num = accessor.size();
     results.reserve(results.size() + row_num);
     inserted.reserve(inserted.size() + row_num);
-    reserve_insert_capacity(row_num, insert_safe);
+    reserve_insert_capacity(row_num);
     reserve_varchar_key_data<KEY_T>(accessor);
     accessor.for_each_key(
         [&](size_t, const KEY_T& key) {

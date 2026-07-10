@@ -271,7 +271,7 @@ class VertexTable {
       const std::shared_ptr<IContextColumn>& pk_col) {
     std::vector<vid_t> vids;
     std::vector<uint8_t> inserted;
-    indexer_->get_or_insert(*pk_col, vids, inserted, false);
+    indexer_->get_or_insert(*pk_col, vids, inserted);
 
     for (size_t j = 0; j < vids.size(); ++j) {
       if (inserted[j]) {

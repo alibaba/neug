@@ -70,7 +70,7 @@ inline int32_t days_from_civil(int32_t y, uint32_t m, uint32_t d) noexcept {
 
 /// Fast date validation — replaces date::year_month_day::ok().
 inline bool is_valid_date(int year, int month, int day) {
-  if (NEUG_UNLIKELY(year < 1 || year > 9999))
+  if (NEUG_UNLIKELY(year < 0 || year > 9999))
     return false;
   if (NEUG_UNLIKELY(month < 1 || month > 12))
     return false;
