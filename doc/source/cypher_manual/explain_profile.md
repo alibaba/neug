@@ -1,6 +1,11 @@
 # Performance Debugging with EXPLAIN and PROFILE
 
-NeuG provides powerful built-in tools for query performance analysis and debugging: **EXPLAIN** and **PROFILE** modes. These features allow you to understand query execution plans and measure per-operator performance metrics without leaving your client.
+EXPLAIN and PROFILE are Cypher query execution directives that allow you to inspect query execution plans and collect performance metrics during query execution.
+
+## Quick Reference
+
+- **EXPLAIN**: View the execution plan without executing the query
+- **PROFILE**: Execute the query and collect per-operator timing and row count statistics
 
 ## Overview
 
