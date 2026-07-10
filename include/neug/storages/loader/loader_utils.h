@@ -73,23 +73,97 @@ class IDataChunkSupplier {
   virtual ~IDataChunkSupplier() = default;
   virtual std::shared_ptr<DataChunk> GetNextChunk() = 0;
   virtual int64_t RowNum() const = 0;
+
+  /// Whether GetNextChunk() may be called concurrently by several consumers.
+  virtual bool SupportsConcurrentGetNext() const { return false; }
+
+  /// Stops any background producers and wakes blocked GetNextChunk() calls.
+  virtual void Cancel() {}
+};
+
+struct ChunkSourceOptions {
+  bool parallel_enabled = false;
+  int32_t producer_count = 1;
+  size_t queue_capacity = 2;
+  bool preserve_order = true;
+
+  /// Zero-based columns in the source's logical output to materialize. An
+  /// empty list means all columns. Sources must preserve the requested order.
+  std::vector<int32_t> projected_columns;
+};
+
+/// A repeatable source of data chunks.
+///
+/// Keeping source setup separate from the supplier cursor lets storage consume
+/// the input directly without making execution::Context stateful or lazy.
+class IDataChunkSource {
+ public:
+  virtual ~IDataChunkSource() = default;
+
+  /// Opens a new supplier positioned at the beginning of the source.
+  virtual std::shared_ptr<IDataChunkSupplier> Open() const = 0;
+
+  /// Opens a supplier with execution-specific concurrency settings. Sources
+  /// that do not implement parsing-time projection receive a generic
+  /// projection wrapper around Open().
+  virtual std::shared_ptr<IDataChunkSupplier> Open(
+      const ChunkSourceOptions& options) const;
+
+  /// Whether Open() can be called more than once with identical contents.
+  virtual bool rewindable() const = 0;
+
+  /// Returns the source size when cheaply known, otherwise -1.
+  virtual int64_t EstimatedBytes() const { return -1; }
+
+  /// Whether the source options permit parallel parsing and consumption.
+  virtual bool ParallelEnabled() const { return true; }
+};
+
+inline constexpr int64_t kUnknownRowNum = -1;
+
+enum class CsvRowCountMode {
+  kCountOnOpen,
+  kUnknown,
 };
 
 /// csv-parser based supplier. Reads CSV in chunks and yields ValueColumns.
 class CSVChunkSupplier : public IDataChunkSupplier {
  public:
-  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config);
+  CSVChunkSupplier(
+      const std::string& file_path, CsvReadConfig config,
+      CsvRowCountMode row_count_mode = CsvRowCountMode::kCountOnOpen);
 
   ~CSVChunkSupplier() override;
 
   std::shared_ptr<DataChunk> GetNextChunk() override;
 
-  int64_t RowNum() const override { return row_num_; }
+  int64_t RowNum() const override;
 
  private:
-  int64_t row_num_ = 0;
   std::string file_path_;
   std::unique_ptr<CsvSupplierRuntime> runtime_;
+};
+
+struct CsvPartitionPlanCache;
+
+/// Reopens the public CSV parser for each pass. Parallel suppliers share a
+/// cached record-aligned partition plan so repeated passes do not repeat the
+/// raw row-count scan.
+class CSVChunkSource final : public IDataChunkSource {
+ public:
+  CSVChunkSource(std::vector<std::string> file_paths, CsvReadConfig config);
+
+  std::shared_ptr<IDataChunkSupplier> Open() const override;
+  std::shared_ptr<IDataChunkSupplier> Open(
+      const ChunkSourceOptions& options) const override;
+  bool rewindable() const override { return true; }
+  int64_t EstimatedBytes() const override;
+  bool ParallelEnabled() const override { return config_.use_threads; }
+
+ private:
+  std::vector<std::string> file_paths_;
+  CsvReadConfig config_;
+  std::shared_ptr<CsvPartitionPlanCache> partition_plan_cache_;
 };
 
 using CSVStreamChunkSupplier = CSVChunkSupplier;

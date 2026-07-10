@@ -15,6 +15,8 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include <chrono>
+
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
@@ -47,21 +49,66 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  const bool profile_stages = VLOG_IS_ON(1);
+  const auto total_start = std::chrono::steady_clock::now();
+  int64_t row_num_time_ns = 0;
+  int64_t reserve_time_ns = 0;
+  int64_t get_chunk_time_ns = 0;
+  int64_t pk_time_ns = 0;
+  int64_t property_time_ns = 0;
+  size_t chunk_count = 0;
+  size_t loaded_rows = 0;
+  auto reserve_checkpoint_headroom = [this](size_t required_size) {
+    const size_t headroom = required_size / 4;
+    if (headroom > std::numeric_limits<size_t>::max() - required_size) {
+      THROW_RUNTIME_ERROR("Vertex capacity overflow");
+    }
+    const size_t required_capacity = required_size + headroom;
+    if (required_capacity > indexer_->capacity()) {
+      EnsureCapacity(required_capacity);
+    }
+  };
+
+  const auto row_num_start = profile_stages
+                                 ? std::chrono::steady_clock::now()
+                                 : std::chrono::steady_clock::time_point{};
   auto row_nums = supplier->RowNum();
+  if (profile_stages) {
+    row_num_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - row_num_start)
+                          .count();
+  }
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
     row_nums = 0;
   }
-  size_t new_size = indexer_->size() + row_nums;
-  if (new_size > indexer_->capacity()) {
-    size_t cap = indexer_->capacity();
-    while (new_size >= cap) {
-      cap = cap < 4096 ? 4096 : cap + cap / 4;
-    }
-    EnsureCapacity(cap);
+  if (static_cast<uint64_t>(row_nums) > std::numeric_limits<size_t>::max()) {
+    THROW_RUNTIME_ERROR("Vertex row count exceeds addressable capacity");
+  }
+  const auto row_count = static_cast<size_t>(row_nums);
+  if (row_count > std::numeric_limits<size_t>::max() - indexer_->size()) {
+    THROW_RUNTIME_ERROR("Vertex row count overflow");
+  }
+  const auto pre_reserve_start = profile_stages
+                                     ? std::chrono::steady_clock::now()
+                                     : std::chrono::steady_clock::time_point{};
+  reserve_checkpoint_headroom(indexer_->size() + row_count);
+  if (profile_stages) {
+    reserve_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           std::chrono::steady_clock::now() - pre_reserve_start)
+                           .count();
   }
   while (true) {
+    const auto get_chunk_start = profile_stages
+                                     ? std::chrono::steady_clock::now()
+                                     : std::chrono::steady_clock::time_point{};
     auto chunk = supplier->GetNextChunk();
+    if (profile_stages) {
+      get_chunk_time_ns +=
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - get_chunk_start)
+              .count();
+    }
     if (chunk == nullptr) {
       break;
     }
@@ -85,24 +132,100 @@ void VertexTable::insert_vertices(
 
     // Capacity check for actual batch size.
     size_t chunk_rows = chunk->row_num();
+    if (chunk_rows > std::numeric_limits<size_t>::max() - indexer_->size()) {
+      THROW_RUNTIME_ERROR("Vertex row count overflow");
+    }
     size_t new_size = indexer_->size() + chunk_rows;
-    if (new_size > indexer_->capacity()) {
-      size_t cap = indexer_->capacity();
-      while (new_size >= cap) {
-        cap = cap < 4096 ? 4096 : cap + cap / 4;
-      }
-      EnsureCapacity(cap);
+    const auto chunk_reserve_start =
+        profile_stages ? std::chrono::steady_clock::now()
+                       : std::chrono::steady_clock::time_point{};
+    reserve_checkpoint_headroom(new_size);
+    if (profile_stages) {
+      reserve_time_ns +=
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - chunk_reserve_start)
+              .count();
     }
 
+    const auto pk_start = profile_stages
+                              ? std::chrono::steady_clock::now()
+                              : std::chrono::steady_clock::time_point{};
     auto vids = insert_primary_keys(pk_col);
+    if (profile_stages) {
+      pk_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now() - pk_start)
+                        .count();
+    }
 
+    const auto property_start = profile_stages
+                                    ? std::chrono::steady_clock::now()
+                                    : std::chrono::steady_clock::time_point{};
     for (size_t i = 0; i < prop_cols.size(); ++i) {
       auto col = table_->get_column_by_id(i);
       set_properties_from_context_column(col, prop_cols[i], vids);
     }
+    if (profile_stages) {
+      property_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              std::chrono::steady_clock::now() - property_start)
+                              .count();
+      ++chunk_count;
+      loaded_rows += chunk_rows;
+    }
     VLOG(10) << "Inserted " << chunk_rows
              << " vertices, current vertex num: " << VertexNum();
   }
+  if (profile_stages) {
+    const auto total_time_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - total_start)
+            .count();
+    VLOG(1) << "Vertex load stages: rows=" << loaded_rows
+            << ", chunks=" << chunk_count
+            << ", total_ms=" << total_time_ns / 1000000
+            << ", row_num_ms=" << row_num_time_ns / 1000000
+            << ", reserve_ms=" << reserve_time_ns / 1000000
+            << ", get_chunk_ms=" << get_chunk_time_ns / 1000000
+            << ", insert_pk_ms=" << pk_time_ns / 1000000
+            << ", set_properties_ms=" << property_time_ns / 1000000;
+  }
+}
+
+void VertexTable::BatchBuildVertices(std::shared_ptr<IDataChunkSource> source) {
+  if (!source) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "BatchBuildVertices requires a non-null data source");
+  }
+  CHECK(source->rewindable());
+  CHECK(CanBatchBuild())
+      << "Bulk vertex build requires an empty destination table";
+
+  auto supplier = source->Open();
+  if (!supplier) {
+    THROW_INTERNAL_EXCEPTION("Data source returned a null supplier");
+  }
+  const auto row_num = supplier->RowNum();
+
+  VertexTable staged(vertex_schema_);
+  staged.Init(ckp_, memory_level_);
+  if (row_num >= 0) {
+    if (static_cast<uint64_t>(row_num) > std::numeric_limits<size_t>::max()) {
+      THROW_RUNTIME_ERROR("Vertex row count exceeds addressable capacity");
+    }
+    const auto row_count = static_cast<size_t>(row_num);
+    // Keep the same headroom that PropertyGraph::DisassembleTo requires before
+    // writing a checkpoint. This avoids a second resize after the bulk build.
+    const size_t checkpoint_headroom = row_count / 4;
+    if (checkpoint_headroom > std::numeric_limits<size_t>::max() - row_count) {
+      THROW_RUNTIME_ERROR("Vertex bulk load capacity overflow");
+    }
+    staged.EnsureCapacity(row_count + checkpoint_headroom);
+    staged.insert_vertices_preallocated(std::move(supplier));
+  } else {
+    // Unknown-cardinality suppliers still stream once and grow only when an
+    // actual chunk proves that more capacity is needed.
+    staged.insert_vertices(std::move(supplier));
+  }
+  Swap(staged);
 }
 
 void VertexTable::Close() {

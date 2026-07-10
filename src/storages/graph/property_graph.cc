@@ -141,6 +141,23 @@ Status PropertyGraph::BatchAddVertices(
   return neug::Status::OK();
 }
 
+bool PropertyGraph::CanBatchBuildVertices(label_t v_label) const {
+  return vertex_label_check(v_label).ok() &&
+         vertex_tables_[v_label].CanBatchBuild();
+}
+
+Status PropertyGraph::BatchBuildVertices(
+    label_t v_label, std::shared_ptr<IDataChunkSource> source) {
+  RETURN_IF_NOT_OK(vertex_label_check(v_label));
+  if (!source || !source->rewindable() || !CanBatchBuildVertices(v_label)) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Bulk vertex build requires an empty label and a "
+                  "repeatable source.");
+  }
+  vertex_tables_[v_label].BatchBuildVertices(std::move(source));
+  return neug::Status::OK();
+}
+
 Status PropertyGraph::BatchAddEdges(
     label_t src_v_label, label_t dst_v_label, label_t e_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
@@ -150,6 +167,34 @@ Status PropertyGraph::BatchAddEdges(
   edge_tables_.at(index).BatchAddEdges(
       vertex_tables_.at(src_v_label).get_indexer(),
       vertex_tables_.at(dst_v_label).get_indexer(), supplier);
+  return neug::Status::OK();
+}
+
+bool PropertyGraph::CanBatchBuildEdges(label_t src_v_label, label_t dst_v_label,
+                                       label_t e_label) const {
+  if (!edge_triplet_check(src_v_label, dst_v_label, e_label).ok()) {
+    return false;
+  }
+  const auto index =
+      schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
+  auto it = edge_tables_.find(index);
+  return it != edge_tables_.end() && it->second.CanBatchBuild();
+}
+
+Status PropertyGraph::BatchBuildEdges(
+    label_t src_v_label, label_t dst_v_label, label_t e_label,
+    std::shared_ptr<IDataChunkSource> source) {
+  RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
+  if (!source || !source->rewindable() ||
+      !CanBatchBuildEdges(src_v_label, dst_v_label, e_label)) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Bulk edge build requires an empty bundled edge table and "
+                  "a repeatable source.");
+  }
+  auto index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
+  edge_tables_.at(index).BatchBuildEdges(
+      vertex_tables_.at(src_v_label).get_indexer(),
+      vertex_tables_.at(dst_v_label).get_indexer(), std::move(source));
   return neug::Status::OK();
 }
 

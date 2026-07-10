@@ -32,6 +32,7 @@ class RepeatedPtrField;
 
 namespace neug {
 class IDataChunkSupplier;
+class IDataChunkSource;
 class Schema;
 class StorageReadInterface;
 namespace execution {
@@ -64,6 +65,15 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+
+std::shared_ptr<IDataChunkSource> create_data_chunk_source(
+    std::shared_ptr<IDataChunkSource> source,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+
+/// Selects staged bulk builders only for sources large enough to amortize their
+/// two bounded parsing passes. Set NEUG_COPY_BULK_BUILD=true/false to force a
+/// decision while benchmarking or rolling back.
+bool should_use_copy_bulk_build(const IDataChunkSource& source);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 

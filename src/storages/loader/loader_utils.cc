@@ -22,20 +22,28 @@
 
 #include <fast_float.h>
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cctype>
 #include <charconv>
+#include <chrono>
 #include <cstring>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <shared_mutex>
 #include <sstream>
+#include <streambuf>
 #include <string_view>
 #include <system_error>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -43,12 +51,45 @@
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
+#include "neug/storages/loader/chunk_pipeline_utils.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
+
+struct CsvPartitionRange {
+  size_t start = 0;
+  size_t end = 0;
+  int64_t start_row = 0;
+};
+
+struct CsvRangeTask {
+  std::string file_path;
+  CsvPartitionRange range;
+  int64_t skip_rows = 0;
+};
+
+struct CsvPartitionPlan {
+  int64_t row_count = 0;
+  std::vector<CsvRangeTask> tasks;
+};
+
+struct CsvPartitionPlanCache {
+  std::shared_ptr<const CsvPartitionPlan> GetOrCreate(
+      const std::vector<std::string>& file_paths, const CsvReadConfig& config,
+      int32_t producer_count);
+
+ private:
+  struct Entry {
+    std::once_flag once;
+    std::shared_ptr<const CsvPartitionPlan> plan;
+  };
+
+  std::mutex mutex;
+  std::unordered_map<int32_t, std::shared_ptr<Entry>> entries;
+};
 
 namespace {
 
@@ -80,6 +121,7 @@ csv::CSVFormat build_csv_format(const CsvReadConfig& config) {
   csv_format.variable_columns(csv::VariableColumnPolicy::KEEP);
   csv_format.no_header();
   csv_format.column_names(config.column_names);
+  csv_format.threading(config.use_threads);
   return csv_format;
 }
 
@@ -416,6 +458,11 @@ struct RowCounterState {
 /// Fast CSV row counter: scans raw bytes to count row boundaries
 /// without parsing fields.  Uses a quote-tracking state machine;
 /// parallelizes via speculative dual-state-machine scan for large files.
+struct CsvScanResult {
+  int64_t row_count = 0;
+  std::vector<CsvPartitionRange> ranges;
+};
+
 class CsvRowCountCounter {
  public:
   // rows_to_skip is intentionally NOT a parameter: the counter counts
@@ -423,12 +470,18 @@ class CsvRowCountCounter {
   // separately, and RowNum() is only a pre-allocation hint, so a slight
   // overcount (by at most skip_rows, typically 1 for header) is safe.
   CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
-                     bool double_quote, char delimiter)
+                     bool /*double_quote*/, char delimiter,
+                     bool use_threads = true)
       : file_path_(std::move(file_path)),
         quoting_(quoting),
         quote_char_(quote_char),
-        double_quote_(double_quote),
-        delimiter_(delimiter) {}
+        // csv::CSVReader always uses RFC-style doubled quotes and exposes no
+        // switch for disabling that behavior. Partition planning must follow
+        // the parser's actual DFA even when the legacy DOUBLE_QUOTE option is
+        // false, otherwise a range can start in the middle of a record.
+        double_quote_(true),
+        delimiter_(delimiter),
+        use_threads_(use_threads) {}
 
   int64_t count() const {
     struct stat st;
@@ -440,7 +493,8 @@ class CsvRowCountCounter {
       return 0;
 
     constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
-    unsigned num_threads = std::thread::hardware_concurrency();
+    unsigned num_threads =
+        use_threads_ ? std::thread::hardware_concurrency() : 1;
     if (num_threads == 0)
       num_threads = 1;
     if (file_size < kMinChunkSize * num_threads) {
@@ -450,6 +504,49 @@ class CsvRowCountCounter {
     if (num_threads <= 1)
       return count_single(file_size);
     return count_parallel(file_size, num_threads);
+  }
+
+  CsvScanResult ScanWithRanges(int32_t requested_partitions,
+                               int32_t scan_threads) const {
+    struct stat st;
+    if (stat(file_path_.c_str(), &st) != 0) {
+      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
+    }
+    const auto file_size = static_cast<size_t>(st.st_size);
+    CsvScanResult result;
+    if (file_size == 0) {
+      return result;
+    }
+    const auto target_partitions = static_cast<size_t>(std::max<int64_t>(
+        1, std::min<int64_t>(requested_partitions,
+                             static_cast<int64_t>(file_size))));
+    const auto workers = static_cast<unsigned>(std::max<int64_t>(
+        1, std::min<int64_t>(scan_threads, static_cast<int64_t>(file_size))));
+    if (workers == 1) {
+      result.row_count = count_single(file_size);
+      result.ranges.push_back({0, file_size, 0});
+      return result;
+    }
+    result = scan_parallel(file_size, workers, true);
+    if (result.ranges.size() <= target_partitions) {
+      return result;
+    }
+
+    // The scan may use all hardware workers even when the parser only needs P
+    // producer ranges. Merge adjacent record-aligned scan ranges so planning
+    // parallelism and producer parallelism remain independent.
+    std::vector<CsvPartitionRange> merged;
+    merged.reserve(target_partitions);
+    const auto scanned_ranges = result.ranges.size();
+    for (size_t partition = 0; partition < target_partitions; ++partition) {
+      const auto begin = partition * scanned_ranges / target_partitions;
+      const auto end = (partition + 1) * scanned_ranges / target_partitions;
+      CHECK_LT(begin, end);
+      merged.push_back({result.ranges[begin].start, result.ranges[end - 1].end,
+                        result.ranges[begin].start_row});
+    }
+    result.ranges = std::move(merged);
+    return result;
   }
 
  private:
@@ -504,8 +601,22 @@ class CsvRowCountCounter {
       if (n == 0)
         break;
       for (size_t i = 0; i < n; ++i) {
-        if (buf[i] == '\n' || buf[i] == '\r')
+        if (buf[i] == '\n') {
           return pos + i + 1;
+        }
+        if (buf[i] == '\r') {
+          const auto boundary = pos + i + 1;
+          if (i + 1 < n && buf[i + 1] == '\n') {
+            return boundary + 1;
+          }
+          // file.read() has already advanced beyond this buffer. When CR is
+          // its last byte, inspect the next byte so a CRLF pair never gets
+          // split across two parser ranges.
+          if (i + 1 == n && boundary < end && file.peek() == '\n') {
+            return boundary + 1;
+          }
+          return boundary;
+        }
       }
       pos += n;
     }
@@ -557,6 +668,45 @@ class CsvRowCountCounter {
 
   /// Parallel scan with speculative dual state machines.
   int64_t count_parallel(size_t file_size, unsigned num_threads) const {
+    return scan_parallel(file_size, num_threads, false).row_count;
+  }
+
+  CsvPartitionRange find_record_boundary(size_t start, size_t end,
+                                         int64_t start_row) const {
+    RowCounterState state;
+    state.init(true, quoting_, quote_char_, double_quote_, delimiter_);
+    size_t boundary = end;
+    bool found = false;
+    size_t position = start;
+    scan_range(start, end, [&](const char* data, size_t n) {
+      if (found) {
+        position += n;
+        return;
+      }
+      for (size_t i = 0; i < n; ++i) {
+        const auto before = state.count;
+        const char c = data[i];
+        state.step(c);
+        if (state.count != before) {
+          boundary = position + i + 1;
+          found = true;
+          break;
+        }
+      }
+      position += n;
+    });
+    if (found && boundary < end) {
+      std::ifstream file(file_path_, std::ios::binary);
+      file.seekg(static_cast<std::streamoff>(boundary));
+      if (file && file.peek() == '\n') {
+        ++boundary;
+      }
+    }
+    return {boundary, end, start_row + state.count};
+  }
+
+  CsvScanResult scan_parallel(size_t file_size, unsigned num_threads,
+                              bool build_ranges) const {
     // Compute newline-aligned chunk boundaries.
     size_t approx_chunk = file_size / num_threads;
     std::vector<size_t> bounds;
@@ -572,20 +722,36 @@ class CsvRowCountCounter {
 
     // Parallel scan: each thread scans its chunk with dual state machines.
     std::vector<ChunkResult> results(actual_threads);
+    std::vector<std::exception_ptr> errors(actual_threads);
     std::vector<std::thread> threads;
-    for (unsigned i = 0; i < actual_threads; ++i) {
-      threads.emplace_back([this, &results, i, &bounds]() {
-        results[i] = scan_chunk(bounds[i], bounds[i + 1]);
+    threads.reserve(actual_threads > 0 ? actual_threads - 1 : 0);
+    for (unsigned i = 1; i < actual_threads; ++i) {
+      threads.emplace_back([this, &results, &errors, i, &bounds]() {
+        try {
+          results[i] = scan_chunk(bounds[i], bounds[i + 1]);
+        } catch (...) { errors[i] = std::current_exception(); }
       });
     }
+    try {
+      results[0] = scan_chunk(bounds[0], bounds[1]);
+    } catch (...) { errors[0] = std::current_exception(); }
     for (auto& t : threads)
       t.join();
+    for (const auto& error : errors) {
+      if (error) {
+        std::rethrow_exception(error);
+      }
+    }
 
     // Sequential resolution: chain quote state across chunks.
     int64_t total = 0;
     bool in_quotes = false;  // chunk 0 starts outside quotes
     const RowCounterState* last_selected = nullptr;
+    std::vector<bool> starts_inside(actual_threads, false);
+    std::vector<int64_t> rows_before(actual_threads, 0);
     for (unsigned i = 0; i < actual_threads; ++i) {
+      starts_inside[i] = in_quotes;
+      rows_before[i] = total;
       const RowCounterState& s =
           in_quotes ? results[i].inside : results[i].outside;
       total += s.count;
@@ -599,7 +765,30 @@ class CsvRowCountCounter {
     if (last_selected && last_selected->has_content)
       ++total;
 
-    return total;
+    CsvScanResult output;
+    output.row_count = total;
+    if (!build_ranges) {
+      return output;
+    }
+
+    std::vector<std::pair<size_t, int64_t>> safe_bounds;
+    safe_bounds.emplace_back(0, 0);
+    for (unsigned i = 1; i < actual_threads; ++i) {
+      CsvPartitionRange safe{bounds[i], file_size, rows_before[i]};
+      if (starts_inside[i]) {
+        safe = find_record_boundary(bounds[i], file_size, rows_before[i]);
+      }
+      if (safe.start > safe_bounds.back().first && safe.start < file_size) {
+        safe_bounds.emplace_back(safe.start, safe.start_row);
+      }
+    }
+    safe_bounds.emplace_back(file_size, total);
+    output.ranges.reserve(safe_bounds.size() - 1);
+    for (size_t i = 0; i + 1 < safe_bounds.size(); ++i) {
+      output.ranges.push_back({safe_bounds[i].first, safe_bounds[i + 1].first,
+                               safe_bounds[i].second});
+    }
+    return output;
   }
 
   std::string file_path_;
@@ -607,13 +796,273 @@ class CsvRowCountCounter {
   char quote_char_;
   bool double_quote_;
   char delimiter_;
+  bool use_threads_;
+};
+
+class BoundedFileStreamBuf final : public std::streambuf {
+ public:
+  BoundedFileStreamBuf(const std::string& file_path, size_t start, size_t end)
+      : file_(file_path, std::ios::binary), remaining_(end - start) {
+    if (!file_.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open CSV range: " + file_path);
+    }
+    file_.seekg(static_cast<std::streamoff>(start));
+    if (!file_) {
+      THROW_IO_EXCEPTION("Failed to seek CSV range: " + file_path);
+    }
+    setg(buffer_.data(), buffer_.data(), buffer_.data());
+  }
+
+ protected:
+  int_type underflow() override {
+    if (gptr() < egptr()) {
+      return traits_type::to_int_type(*gptr());
+    }
+    if (remaining_ == 0) {
+      return traits_type::eof();
+    }
+    const auto requested = std::min(remaining_, buffer_.size());
+    file_.read(buffer_.data(), static_cast<std::streamsize>(requested));
+    const auto read = static_cast<size_t>(file_.gcount());
+    if (read == 0) {
+      remaining_ = 0;
+      return traits_type::eof();
+    }
+    remaining_ -= read;
+    setg(buffer_.data(), buffer_.data(), buffer_.data() + read);
+    return traits_type::to_int_type(*gptr());
+  }
+
+ private:
+  std::ifstream file_;
+  size_t remaining_;
+  std::array<char, 1 << 20> buffer_{};
+};
+
+class BoundedFileStream final : public std::istream {
+ public:
+  BoundedFileStream(const std::string& file_path, size_t start, size_t end)
+      : std::istream(nullptr), buffer_(file_path, start, end) {
+    rdbuf(&buffer_);
+  }
+
+ private:
+  BoundedFileStreamBuf buffer_;
 };
 
 }  // namespace
 
+std::shared_ptr<const CsvPartitionPlan> CsvPartitionPlanCache::GetOrCreate(
+    const std::vector<std::string>& file_paths, const CsvReadConfig& config,
+    int32_t producer_count) {
+  producer_count =
+      std::clamp<int32_t>(producer_count, 1, hardware_worker_count());
+  std::shared_ptr<Entry> entry;
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto& cached = entries[producer_count];
+    if (!cached) {
+      cached = std::make_shared<Entry>();
+    }
+    entry = cached;
+  }
+
+  std::call_once(entry->once, [&] {
+    auto plan = std::make_shared<CsvPartitionPlan>();
+
+    // producer_count is a budget for the complete COPY, not for every input
+    // file. Give every non-empty file one range, then split the currently
+    // largest range until the global producer budget is reached.
+    std::vector<uintmax_t> file_sizes(file_paths.size(), 0);
+    std::vector<int32_t> range_counts(file_paths.size(), 0);
+    size_t non_empty_files = 0;
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      std::error_code error;
+      file_sizes[i] = std::filesystem::file_size(file_paths[i], error);
+      if (error) {
+        THROW_IO_EXCEPTION("Failed to get file size: " + file_paths[i]);
+      }
+      if (file_sizes[i] > 0) {
+        range_counts[i] = 1;
+        ++non_empty_files;
+      }
+    }
+
+    size_t assigned_ranges = non_empty_files;
+    const size_t target_ranges =
+        std::max(non_empty_files, static_cast<size_t>(producer_count));
+    while (assigned_ranges < target_ranges) {
+      size_t best = file_paths.size();
+      long double best_range_bytes = -1;
+      for (size_t i = 0; i < file_paths.size(); ++i) {
+        if (range_counts[i] <= 0 ||
+            static_cast<uintmax_t>(range_counts[i]) >= file_sizes[i]) {
+          continue;
+        }
+        const auto range_bytes =
+            static_cast<long double>(file_sizes[i]) / range_counts[i];
+        if (range_bytes > best_range_bytes) {
+          best = i;
+          best_range_bytes = range_bytes;
+        }
+      }
+      if (best == file_paths.size()) {
+        break;
+      }
+      ++range_counts[best];
+      ++assigned_ranges;
+    }
+
+    // Row counting/planning is a separate phase, so it can use the complete
+    // hardware budget. When there are many input files, H workers scan files
+    // concurrently. With fewer files, the same H budget is divided among
+    // intra-file speculative scans. scan_parallel() uses its caller for one
+    // byte range, therefore the number of active scanners never exceeds H.
+    const auto scan_budget = hardware_worker_count();
+    std::vector<int32_t> scan_threads(file_paths.size(), 0);
+    if (non_empty_files < static_cast<size_t>(scan_budget)) {
+      size_t assigned_scanners = 0;
+      for (size_t i = 0; i < file_paths.size(); ++i) {
+        if (file_sizes[i] == 0) {
+          continue;
+        }
+        scan_threads[i] = std::max<int32_t>(1, range_counts[i]);
+        assigned_scanners += static_cast<size_t>(scan_threads[i]);
+      }
+      CHECK_LE(assigned_scanners, static_cast<size_t>(scan_budget));
+      while (assigned_scanners < static_cast<size_t>(scan_budget)) {
+        size_t best = file_paths.size();
+        long double best_scanner_bytes = -1;
+        for (size_t i = 0; i < file_paths.size(); ++i) {
+          if (scan_threads[i] <= 0 ||
+              static_cast<uintmax_t>(scan_threads[i]) >= file_sizes[i]) {
+            continue;
+          }
+          const auto scanner_bytes =
+              static_cast<long double>(file_sizes[i]) / scan_threads[i];
+          if (scanner_bytes > best_scanner_bytes) {
+            best = i;
+            best_scanner_bytes = scanner_bytes;
+          }
+        }
+        if (best == file_paths.size()) {
+          break;
+        }
+        ++scan_threads[best];
+        ++assigned_scanners;
+      }
+    } else {
+      for (size_t i = 0; i < file_paths.size(); ++i) {
+        scan_threads[i] = file_sizes[i] == 0 ? 0 : 1;
+      }
+    }
+
+    std::vector<CsvScanResult> scans(file_paths.size());
+    std::atomic<size_t> next_file{0};
+    std::atomic<bool> scan_cancelled{false};
+    std::mutex scan_error_mutex;
+    std::exception_ptr scan_error;
+    auto capture_scan_error = [&](std::exception_ptr error) {
+      bool expected = false;
+      if (scan_cancelled.compare_exchange_strong(expected, true,
+                                                 std::memory_order_acq_rel)) {
+        std::lock_guard<std::mutex> lock(scan_error_mutex);
+        scan_error = std::move(error);
+      }
+    };
+    auto scan_file = [&](size_t file_index) {
+      if (file_sizes[file_index] == 0) {
+        return;
+      }
+      scans[file_index] =
+          CsvRowCountCounter(file_paths[file_index], config.quoting,
+                             config.quote_char, config.double_quote,
+                             config.delimiter, config.use_threads)
+              .ScanWithRanges(std::max<int32_t>(1, range_counts[file_index]),
+                              std::max<int32_t>(1, scan_threads[file_index]));
+    };
+
+    std::vector<std::thread> planners;
+    if (non_empty_files >= static_cast<size_t>(scan_budget)) {
+      planners.reserve(static_cast<size_t>(scan_budget));
+      for (int32_t worker = 0; worker < scan_budget; ++worker) {
+        planners.emplace_back([&] {
+          try {
+            while (!scan_cancelled.load(std::memory_order_acquire)) {
+              const auto file_index =
+                  next_file.fetch_add(1, std::memory_order_relaxed);
+              if (file_index >= file_paths.size()) {
+                break;
+              }
+              scan_file(file_index);
+            }
+          } catch (...) { capture_scan_error(std::current_exception()); }
+        });
+      }
+    } else {
+      planners.reserve(non_empty_files);
+      for (size_t i = 0; i < file_paths.size(); ++i) {
+        if (file_sizes[i] == 0) {
+          continue;
+        }
+        planners.emplace_back([&, i] {
+          try {
+            if (!scan_cancelled.load(std::memory_order_acquire)) {
+              scan_file(i);
+            }
+          } catch (...) { capture_scan_error(std::current_exception()); }
+        });
+      }
+    }
+    for (auto& planner : planners) {
+      planner.join();
+    }
+    if (scan_error) {
+      std::rethrow_exception(scan_error);
+    }
+
+    int64_t total = 0;
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      const auto& scan = scans[i];
+      if (scan.row_count < 0 ||
+          scan.row_count > std::numeric_limits<int64_t>::max() - total) {
+        total = kUnknownRowNum;
+      } else if (total != kUnknownRowNum) {
+        total += scan.row_count;
+      }
+
+      // SKIP is scoped per input file. Distribute it over record-aligned
+      // ranges so a short first range cannot leak rows that still need to be
+      // skipped into a later producer.
+      int64_t remaining_skip = std::max<int64_t>(0, config.skip_rows);
+      for (size_t range_index = 0; range_index < scan.ranges.size();
+           ++range_index) {
+        const auto& range = scan.ranges[range_index];
+        const auto range_end_row = range_index + 1 < scan.ranges.size()
+                                       ? scan.ranges[range_index + 1].start_row
+                                       : scan.row_count;
+        CHECK_GE(range_end_row, range.start_row);
+        const auto range_rows = range_end_row - range.start_row;
+        const auto range_skip = std::min(remaining_skip, range_rows);
+        remaining_skip -= range_skip;
+        plan->tasks.push_back({file_paths[i], range, range_skip});
+      }
+    }
+    plan->row_count = total;
+    VLOG(1) << "CSV partition plan: files=" << file_paths.size()
+            << ", ranges=" << plan->tasks.size()
+            << ", producers=" << producer_count
+            << ", scan_budget=" << scan_budget << ", rows=" << total;
+    entry->plan = std::move(plan);
+  });
+  return entry->plan;
+}
+
 struct CsvSupplierRuntime {
-  explicit CsvSupplierRuntime(const std::string& file_path,
-                              const CsvReadConfig& config)
+  explicit CsvSupplierRuntime(
+      const std::string& file_path, const CsvReadConfig& config,
+      CsvRowCountMode row_count_mode,
+      std::optional<CsvPartitionRange> range = std::nullopt)
       : file_path_(file_path),
         csv_format_(build_csv_format(config)),
         selected_column_names_(resolve_selected_column_names(config)),
@@ -627,13 +1076,24 @@ struct CsvSupplierRuntime {
         rows_to_skip_(std::max<int64_t>(0, config.skip_rows)),
         chunk_size_(resolve_chunk_size(config)),
         escaping_(config.escaping),
-        escape_char_(config.escape_char) {
+        escape_char_(config.escape_char),
+        quoting_(config.quoting),
+        quote_char_(config.quote_char),
+        double_quote_(config.double_quote),
+        delimiter_(config.delimiter),
+        use_threads_(config.use_threads),
+        range_(std::move(range)) {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
-                                  config.double_quote, config.delimiter)
-                   .count();
+    if (row_count_mode == CsvRowCountMode::kCountOnOpen) {
+      row_num_ = CsvRowCountCounter(file_path, quoting_, quote_char_,
+                                    double_quote_, delimiter_, use_threads_)
+                     .count();
+    }
+    if (range_) {
+      csv_format_.threading(false);
+    }
     reset_reader();
   }
 
@@ -696,14 +1156,27 @@ struct CsvSupplierRuntime {
     return chunk;
   }
 
-  int64_t row_num() const { return row_num_; }
+  int64_t row_num() const {
+    if (row_num_ == kUnknownRowNum) {
+      row_num_ = CsvRowCountCounter(file_path_, quoting_, quote_char_,
+                                    double_quote_, delimiter_, use_threads_)
+                     .count();
+    }
+    return row_num_;
+  }
 
  private:
   void reset_reader() {
     try {
-      reader_ = std::make_unique<csv::CSVReader>(file_path_, csv_format_);
+      if (range_) {
+        range_stream_ = std::make_unique<BoundedFileStream>(
+            file_path_, range_->start, range_->end);
+        reader_ = std::make_unique<csv::CSVReader>(*range_stream_, csv_format_);
+      } else {
+        reader_ = std::make_unique<csv::CSVReader>(file_path_, csv_format_);
+      }
       skip_rows(*reader_);
-      current_row_number_ = rows_to_skip_;
+      current_row_number_ = (range_ ? range_->start_row : 0) + rows_to_skip_;
     } catch (const std::exception& error) {
       THROW_IO_EXCEPTION("Failed to initialize CSV reader for file: " +
                          file_path_ + ", reason=" + error.what());
@@ -732,8 +1205,15 @@ struct CsvSupplierRuntime {
   size_t chunk_size_ = kDefaultCsvChunkRows;
   bool escaping_ = false;
   char escape_char_ = '\\';
-  int64_t row_num_ = 0;
+  bool quoting_ = false;
+  char quote_char_ = '"';
+  bool double_quote_ = true;
+  char delimiter_ = ',';
+  bool use_threads_ = true;
+  std::optional<CsvPartitionRange> range_;
+  mutable int64_t row_num_ = kUnknownRowNum;
   int64_t current_row_number_ = 0;
+  std::unique_ptr<BoundedFileStream> range_stream_;
   std::unique_ptr<csv::CSVReader> reader_;
 };
 
@@ -1003,6 +1483,12 @@ CsvReadConfig build_csv_read_config(
     config.double_quote = (value == "true" || value == "1" || value == "TRUE");
   }
 
+  if (csv_options.count("PARALLEL")) {
+    const auto value = to_lower_copy(csv_options.at("PARALLEL"));
+    config.use_threads =
+        !(value == "0" || value == "false" || value == "off" || value == "no");
+  }
+
   bool header_row = true;
   if (csv_options.count("HEADER")) {
     auto val = to_lower_copy(csv_options.at("HEADER"));
@@ -1037,10 +1523,11 @@ std::vector<std::string> columnMappingsToSelectedCols(
 }
 
 CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
-                                   CsvReadConfig config)
+                                   CsvReadConfig config,
+                                   CsvRowCountMode row_count_mode)
     : file_path_(file_path) {
-  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config);
-  row_num_ = runtime_->row_num();
+  runtime_ =
+      std::make_unique<CsvSupplierRuntime>(file_path, config, row_count_mode);
   VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path_;
 }
 
@@ -1051,6 +1538,358 @@ std::shared_ptr<DataChunk> CSVChunkSupplier::GetNextChunk() {
     THROW_IO_EXCEPTION("CSV runtime is null for file: " + file_path_);
   }
   return runtime_->get_next_chunk();
+}
+
+int64_t CSVChunkSupplier::RowNum() const {
+  if (!runtime_) {
+    return kUnknownRowNum;
+  }
+  return runtime_->row_num();
+}
+
+namespace {
+
+class ColumnProjectingChunkSupplier final : public IDataChunkSupplier {
+ public:
+  ColumnProjectingChunkSupplier(std::shared_ptr<IDataChunkSupplier> input,
+                                std::vector<int32_t> columns)
+      : input_(std::move(input)), columns_(std::move(columns)) {
+    CHECK(input_ != nullptr);
+  }
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    auto input = input_->GetNextChunk();
+    if (!input) {
+      return nullptr;
+    }
+    auto output = std::make_shared<DataChunk>();
+    for (size_t output_index = 0; output_index < columns_.size();
+         ++output_index) {
+      const auto input_index = columns_[output_index];
+      if (input_index < 0 ||
+          static_cast<size_t>(input_index) >= input->col_num()) {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "Chunk projection index is out of range: " +
+            std::to_string(input_index));
+      }
+      output->set(static_cast<int>(output_index), input->get(input_index));
+    }
+    return output;
+  }
+
+  int64_t RowNum() const override { return input_->RowNum(); }
+
+  bool SupportsConcurrentGetNext() const override {
+    return input_->SupportsConcurrentGetNext();
+  }
+
+  void Cancel() override { input_->Cancel(); }
+
+ private:
+  std::shared_ptr<IDataChunkSupplier> input_;
+  std::vector<int32_t> columns_;
+};
+
+CsvReadConfig project_csv_config(const CsvReadConfig& config,
+                                 const std::vector<int32_t>& columns) {
+  if (columns.empty()) {
+    return config;
+  }
+  CsvReadConfig projected = config;
+  const auto input_columns = resolve_selected_column_names(config);
+  projected.include_columns.clear();
+  projected.include_columns.reserve(columns.size());
+  for (const auto column : columns) {
+    if (column < 0 || static_cast<size_t>(column) >= input_columns.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "CSV projection index is out of range: " + std::to_string(column));
+    }
+    projected.include_columns.push_back(
+        input_columns[static_cast<size_t>(column)]);
+  }
+  return projected;
+}
+
+class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
+ public:
+  PartitionedCsvChunkSupplier(std::vector<std::string> file_paths,
+                              CsvReadConfig config,
+                              const ChunkSourceOptions& options,
+                              std::shared_ptr<CsvPartitionPlanCache> plan_cache)
+      : file_paths_(std::move(file_paths)),
+        config_(std::move(config)),
+        producer_count_(std::clamp<int32_t>(options.producer_count, 1,
+                                            hardware_worker_count())),
+        plan_cache_(std::move(plan_cache)),
+        queue_(options.queue_capacity) {}
+
+  ~PartitionedCsvChunkSupplier() override {
+    Cancel();
+    JoinWorkers();
+  }
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    EnsureScanned();
+    StartWorkers();
+    std::shared_ptr<DataChunk> chunk;
+    if (queue_.Pop(chunk)) {
+      return chunk;
+    }
+    RethrowError();
+    return nullptr;
+  }
+
+  int64_t RowNum() const override {
+    const_cast<PartitionedCsvChunkSupplier*>(this)->EnsureScanned();
+    return plan_->row_count;
+  }
+
+  bool SupportsConcurrentGetNext() const override { return true; }
+
+  void Cancel() override {
+    stop_.store(true, std::memory_order_release);
+    queue_.Close();
+  }
+
+ private:
+  void EnsureScanned() {
+    std::call_once(scan_once_, [&] {
+      CHECK(plan_cache_ != nullptr);
+      plan_ = plan_cache_->GetOrCreate(file_paths_, config_, producer_count_);
+      CHECK(plan_ != nullptr);
+    });
+  }
+
+  void StartWorkers() {
+    std::call_once(workers_once_, [&] {
+      if (plan_->tasks.empty()) {
+        queue_.Close();
+        return;
+      }
+      const auto workers = std::min<int32_t>(
+          producer_count_, static_cast<int32_t>(plan_->tasks.size()));
+      active_workers_.store(workers, std::memory_order_relaxed);
+      workers_.reserve(static_cast<size_t>(workers));
+      for (int32_t worker = 0; worker < workers; ++worker) {
+        workers_.emplace_back([this] { WorkerMain(); });
+      }
+    });
+  }
+
+  void WorkerMain() {
+    const bool profile_stages = VLOG_IS_ON(1);
+    try {
+      while (!stop_.load(std::memory_order_acquire)) {
+        const auto task_index =
+            next_task_.fetch_add(1, std::memory_order_relaxed);
+        if (task_index >= plan_->tasks.size()) {
+          break;
+        }
+        const auto& task = plan_->tasks[task_index];
+        CsvReadConfig range_config = config_;
+        range_config.skip_rows = task.skip_rows;
+        range_config.use_threads = false;
+        const auto open_start = profile_stages
+                                    ? std::chrono::steady_clock::now()
+                                    : std::chrono::steady_clock::time_point{};
+        CsvSupplierRuntime runtime(task.file_path, range_config,
+                                   CsvRowCountMode::kUnknown, task.range);
+        if (profile_stages) {
+          parse_time_ns_.fetch_add(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(
+                  std::chrono::steady_clock::now() - open_start)
+                  .count(),
+              std::memory_order_relaxed);
+        }
+        while (!stop_.load(std::memory_order_acquire)) {
+          const auto parse_start =
+              profile_stages ? std::chrono::steady_clock::now()
+                             : std::chrono::steady_clock::time_point{};
+          auto chunk = runtime.get_next_chunk();
+          if (profile_stages) {
+            parse_time_ns_.fetch_add(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - parse_start)
+                    .count(),
+                std::memory_order_relaxed);
+          }
+          if (!chunk || !queue_.Push(std::move(chunk))) {
+            break;
+          }
+        }
+      }
+    } catch (...) { SetError(std::current_exception()); }
+    if (active_workers_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      VLOG(1) << "Partitioned CSV producers: parse_worker_ms="
+              << parse_time_ns_.load(std::memory_order_relaxed) / 1000000;
+      queue_.Close();
+    }
+  }
+
+  void SetError(std::exception_ptr error) {
+    bool expected = false;
+    if (has_error_.compare_exchange_strong(expected, true,
+                                           std::memory_order_acq_rel)) {
+      {
+        std::lock_guard<std::mutex> lock(error_mutex_);
+        first_error_ = std::move(error);
+      }
+      Cancel();
+    }
+  }
+
+  void RethrowError() const {
+    if (!has_error_.load(std::memory_order_acquire)) {
+      return;
+    }
+    std::exception_ptr error;
+    {
+      std::lock_guard<std::mutex> lock(error_mutex_);
+      error = first_error_;
+    }
+    if (error) {
+      std::rethrow_exception(error);
+    }
+  }
+
+  void JoinWorkers() {
+    for (auto& worker : workers_) {
+      if (worker.joinable()) {
+        worker.join();
+      }
+    }
+  }
+
+  std::vector<std::string> file_paths_;
+  CsvReadConfig config_;
+  int32_t producer_count_;
+  std::shared_ptr<CsvPartitionPlanCache> plan_cache_;
+  std::shared_ptr<const CsvPartitionPlan> plan_;
+  chunk_pipeline_detail::BoundedQueue<std::shared_ptr<DataChunk>> queue_;
+  std::once_flag scan_once_;
+  std::once_flag workers_once_;
+  std::vector<std::thread> workers_;
+  std::atomic<size_t> next_task_{0};
+  std::atomic<int32_t> active_workers_{0};
+  std::atomic<bool> stop_{false};
+  std::atomic<bool> has_error_{false};
+  std::atomic<int64_t> parse_time_ns_{0};
+  mutable std::mutex error_mutex_;
+  std::exception_ptr first_error_;
+};
+
+class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
+ public:
+  ChainedCsvChunkSupplier(std::vector<std::string> file_paths,
+                          CsvReadConfig config)
+      : file_paths_(std::move(file_paths)), config_(std::move(config)) {}
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    while (next_file_ < file_paths_.size()) {
+      if (!current_) {
+        current_ = std::make_shared<CSVChunkSupplier>(
+            file_paths_[next_file_], config_, CsvRowCountMode::kUnknown);
+      }
+      auto chunk = current_->GetNextChunk();
+      if (chunk) {
+        return chunk;
+      }
+      current_.reset();
+      ++next_file_;
+    }
+    return nullptr;
+  }
+
+  int64_t RowNum() const override {
+    if (row_num_ != kUnknownRowNum) {
+      return row_num_;
+    }
+    int64_t total = 0;
+    for (const auto& file_path : file_paths_) {
+      auto supplier = std::make_shared<CSVChunkSupplier>(
+          file_path, config_, CsvRowCountMode::kUnknown);
+      auto rows = supplier->RowNum();
+      if (rows < 0 || rows > std::numeric_limits<int64_t>::max() - total) {
+        return kUnknownRowNum;
+      }
+      total += rows;
+    }
+    row_num_ = total;
+    return row_num_;
+  }
+
+ private:
+  std::vector<std::string> file_paths_;
+  CsvReadConfig config_;
+  std::shared_ptr<CSVChunkSupplier> current_;
+  size_t next_file_ = 0;
+  mutable int64_t row_num_ = kUnknownRowNum;
+};
+
+}  // namespace
+
+std::shared_ptr<IDataChunkSupplier> IDataChunkSource::Open(
+    const ChunkSourceOptions& options) const {
+  auto supplier = Open();
+  if (!supplier || options.projected_columns.empty()) {
+    return supplier;
+  }
+  return std::make_shared<ColumnProjectingChunkSupplier>(
+      std::move(supplier), options.projected_columns);
+}
+
+CSVChunkSource::CSVChunkSource(std::vector<std::string> file_paths,
+                               CsvReadConfig config)
+    : file_paths_(std::move(file_paths)),
+      config_(std::move(config)),
+      partition_plan_cache_(std::make_shared<CsvPartitionPlanCache>()) {}
+
+std::shared_ptr<IDataChunkSupplier> CSVChunkSource::Open() const {
+  if (file_paths_.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("CSV chunk source has no input paths");
+  }
+  if (file_paths_.size() == 1) {
+    return std::make_shared<CSVChunkSupplier>(file_paths_.front(), config_,
+                                              CsvRowCountMode::kUnknown);
+  }
+  return std::make_shared<ChainedCsvChunkSupplier>(file_paths_, config_);
+}
+
+std::shared_ptr<IDataChunkSupplier> CSVChunkSource::Open(
+    const ChunkSourceOptions& options) const {
+  if (file_paths_.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("CSV chunk source has no input paths");
+  }
+  auto open_config = project_csv_config(config_, options.projected_columns);
+  if (open_config.use_threads && options.parallel_enabled &&
+      !options.preserve_order) {
+    return std::make_shared<PartitionedCsvChunkSupplier>(
+        file_paths_, std::move(open_config), options, partition_plan_cache_);
+  }
+
+  CsvReadConfig serial_config = std::move(open_config);
+  serial_config.use_threads = false;
+  if (file_paths_.size() == 1) {
+    return std::make_shared<CSVChunkSupplier>(file_paths_.front(),
+                                              std::move(serial_config),
+                                              CsvRowCountMode::kUnknown);
+  }
+  return std::make_shared<ChainedCsvChunkSupplier>(file_paths_,
+                                                   std::move(serial_config));
+}
+
+int64_t CSVChunkSource::EstimatedBytes() const {
+  int64_t total = 0;
+  for (const auto& file_path : file_paths_) {
+    std::error_code error;
+    auto size = std::filesystem::file_size(file_path, error);
+    if (error || size > static_cast<uintmax_t>(
+                            std::numeric_limits<int64_t>::max() - total)) {
+      return -1;
+    }
+    total += static_cast<int64_t>(size);
+  }
+  return total;
 }
 
 void fillVertexReaderMeta(

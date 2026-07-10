@@ -27,6 +27,7 @@
 namespace neug {
 
 class IDataChunkSupplier;
+class IDataChunkSource;
 
 namespace execution {
 class Context;
@@ -42,6 +43,10 @@ class CsvReader {
 
   void read(std::shared_ptr<ReadLocalState> localState,
             execution::Context& ctx);
+
+  /// Creates a repeatable CSV source for direct COPY FROM bulk loading.
+  /// Returns nullptr when the read needs a row filter and must materialize.
+  std::shared_ptr<IDataChunkSource> createChunkSource();
 
   result<std::shared_ptr<EntrySchema>> inferSchema();
 

@@ -22,7 +22,10 @@
 #include <rapidjson/writer.h>
 
 #include <stddef.h>
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <ostream>
 #include <stdexcept>
 #include <tuple>
@@ -316,6 +319,108 @@ class MultiChunkSupplier : public IDataChunkSupplier {
   size_t index_;
 };
 
+class ProjectingChunkSupplier final : public IDataChunkSupplier {
+ public:
+  ProjectingChunkSupplier(std::shared_ptr<IDataChunkSupplier> input,
+                          std::vector<int32_t> aliases)
+      : input_(std::move(input)), aliases_(std::move(aliases)) {}
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    auto input = input_->GetNextChunk();
+    if (!input) {
+      return nullptr;
+    }
+    auto output = std::make_shared<DataChunk>();
+    for (size_t index = 0; index < aliases_.size(); ++index) {
+      auto column = input->get(aliases_[index]);
+      if (!column) {
+        THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                                 std::to_string(aliases_[index]));
+      }
+      output->set(static_cast<int>(index), std::move(column));
+    }
+    return output;
+  }
+
+  int64_t RowNum() const override { return input_->RowNum(); }
+
+  bool SupportsConcurrentGetNext() const override {
+    return input_->SupportsConcurrentGetNext();
+  }
+
+  void Cancel() override { input_->Cancel(); }
+
+ private:
+  std::shared_ptr<IDataChunkSupplier> input_;
+  std::vector<int32_t> aliases_;
+};
+
+class ProjectingChunkSource final : public IDataChunkSource {
+ public:
+  ProjectingChunkSource(std::shared_ptr<IDataChunkSource> input,
+                        std::vector<int32_t> aliases)
+      : input_(std::move(input)), aliases_(std::move(aliases)) {}
+
+  std::shared_ptr<IDataChunkSupplier> Open() const override {
+    auto supplier = input_->Open();
+    if (!supplier) {
+      return nullptr;
+    }
+    return std::make_shared<ProjectingChunkSupplier>(std::move(supplier),
+                                                     aliases_);
+  }
+
+  std::shared_ptr<IDataChunkSupplier> Open(
+      const ChunkSourceOptions& options) const override {
+    if (!options.projected_columns.empty()) {
+      ChunkSourceOptions input_options = options;
+      input_options.projected_columns.clear();
+      input_options.projected_columns.reserve(options.projected_columns.size());
+      for (const auto output_column : options.projected_columns) {
+        if (output_column < 0 ||
+            static_cast<size_t>(output_column) >= aliases_.size()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "Projected source column is out of range: " +
+              std::to_string(output_column));
+        }
+        input_options.projected_columns.push_back(
+            aliases_[static_cast<size_t>(output_column)]);
+      }
+      // IDataChunkSource::Open(options) guarantees that projected columns are
+      // returned in the requested order. CSV sources push this into typed
+      // parsing; other repeatable sources receive the generic wrapper.
+      return input_->Open(input_options);
+    }
+
+    auto supplier = input_->Open(options);
+    if (!supplier) {
+      return nullptr;
+    }
+    return std::make_shared<ProjectingChunkSupplier>(std::move(supplier),
+                                                     aliases_);
+  }
+
+  bool rewindable() const override { return input_->rewindable(); }
+
+  int64_t EstimatedBytes() const override { return input_->EstimatedBytes(); }
+
+  bool ParallelEnabled() const override { return input_->ParallelEnabled(); }
+
+ private:
+  std::shared_ptr<IDataChunkSource> input_;
+  std::vector<int32_t> aliases_;
+};
+
+std::vector<int32_t> property_mapping_aliases(
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  std::vector<int32_t> aliases;
+  aliases.reserve(prop_mappings.size());
+  for (const auto& mapping : prop_mappings) {
+    aliases.push_back(mapping.first);
+  }
+  return aliases;
+}
+
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
@@ -336,6 +441,35 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     projected_chunks.push_back(std::move(out_chunk));
   }
   return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+}
+
+std::shared_ptr<IDataChunkSource> create_data_chunk_source(
+    std::shared_ptr<IDataChunkSource> source,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  if (!source) {
+    return nullptr;
+  }
+  return std::make_shared<ProjectingChunkSource>(
+      std::move(source), property_mapping_aliases(prop_mappings));
+}
+
+bool should_use_copy_bulk_build(const IDataChunkSource& source) {
+  const char* configured = std::getenv("NEUG_COPY_BULK_BUILD");
+  if (configured != nullptr) {
+    std::string value(configured);
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return std::tolower(ch); });
+    if (value == "0" || value == "false" || value == "off" || value == "no") {
+      return false;
+    }
+    if (value == "1" || value == "true" || value == "on" || value == "yes") {
+      return source.rewindable();
+    }
+    LOG(WARNING) << "Ignore invalid NEUG_COPY_BULK_BUILD=" << configured;
+  }
+
+  constexpr int64_t kMinBulkBuildBytes = 256LL * 1024 * 1024;
+  return source.rewindable() && source.EstimatedBytes() >= kMinBulkBuildBytes;
 }
 
 std::vector<std::string> match_files_with_pattern(

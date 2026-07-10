@@ -41,6 +41,7 @@ class CheckpointManifest;
 class PropertyGraph;
 
 class IDataChunkSupplier;
+class IDataChunkSource;
 
 class EdgeTable {
  public:
@@ -134,6 +135,22 @@ class EdgeTable {
   void BatchAddEdges(const IndexerType& src_indexer,
                      const IndexerType& dst_indexer,
                      std::shared_ptr<IDataChunkSupplier> supplier);
+
+  bool CanBatchBuild() const {
+    if (!meta_ || !meta_->is_bundled() || EdgeNum() != 0) {
+      return false;
+    }
+    // The staged writer handles mutable CSR layouts and the no-adjacency
+    // layout. Immutable CSR keeps its established incremental path.
+    return (meta_->oe_strategy == EdgeStrategy::kNone || meta_->oe_mutable) &&
+           (meta_->ie_strategy == EdgeStrategy::kNone || meta_->ie_mutable);
+  }
+
+  /// Builds a fresh bundled edge table from a repeatable source and swaps it
+  /// into place only after both passes succeed.
+  void BatchBuildEdges(const IndexerType& src_indexer,
+                       const IndexerType& dst_indexer,
+                       std::shared_ptr<IDataChunkSource> source);
 
   // Add edges in batch to the edge table.
   void BatchAddEdges(const std::vector<vid_t>& src_lid_list,

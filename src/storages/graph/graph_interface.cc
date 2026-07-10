@@ -120,11 +120,43 @@ Status StorageAPUpdateInterface::BatchAddVertices(
   return graph_.BatchAddVertices(v_label_id, std::move(supplier));
 }
 
+bool StorageAPUpdateInterface::CanBatchBuildVertices(label_t v_label_id) const {
+  return graph_.CanBatchBuildVertices(v_label_id);
+}
+
+Status StorageAPUpdateInterface::BatchBuildVertices(
+    label_t v_label_id, std::shared_ptr<IDataChunkSource> source) {
+  auto status = graph_.BatchBuildVertices(v_label_id, std::move(source));
+  if (status.ok()) {
+    // The staged table swap replaces raw pointers cached by GraphView.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
+}
+
 Status StorageAPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
   return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                               std::move(supplier));
+}
+
+bool StorageAPUpdateInterface::CanBatchBuildEdges(label_t src_label,
+                                                  label_t dst_label,
+                                                  label_t edge_label) const {
+  return graph_.CanBatchBuildEdges(src_label, dst_label, edge_label);
+}
+
+Status StorageAPUpdateInterface::BatchBuildEdges(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    std::shared_ptr<IDataChunkSource> source) {
+  auto status = graph_.BatchBuildEdges(src_label, dst_label, edge_label,
+                                       std::move(source));
+  if (status.ok()) {
+    // The staged CSR swap replaces raw pointers cached by GraphView.
+    mut_view_.Rebuild(graph_);
+  }
+  return status;
 }
 
 Status StorageAPUpdateInterface::BatchDeleteVertices(

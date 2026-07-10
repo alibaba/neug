@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <sys/stat.h>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -550,6 +551,74 @@ class MutableCsrTest : public ::testing::Test {
   CheckpointManager checkpoint_mgr_;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
+
+TEST(MutableCsrBulkBuildAccessTest, ReservesTwentyPercentPerVertex) {
+  auto test_dir = make_unique_test_dir("mutable_csr_bulk_build");
+  CheckpointManager workspace;
+  workspace.Open(test_dir.string());
+  auto ckp = make_checkpoint(workspace);
+  MutableCsr<int32_t> csr;
+  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+
+  MutableCsrBulkBuildAccess<int32_t> writer(csr);
+  writer.PrepareBuild(3);
+  std::vector<std::thread> counters;
+  for (int thread = 0; thread < 4; ++thread) {
+    counters.emplace_back([&writer] { writer.CountConcurrent(0, 5); });
+  }
+  for (auto& counter : counters) {
+    counter.join();
+  }
+  writer.CountConcurrent(1, 2);
+  writer.AllocateFromCounts();
+
+  EXPECT_EQ(writer.ExpectedDegree(0), 20);
+  EXPECT_EQ(writer.ExpectedDegree(1), 2);
+  EXPECT_EQ(writer.ExpectedDegree(2), 0);
+  EXPECT_EQ(writer.ReservedCapacityForVertex(0), 24);
+  EXPECT_EQ(writer.ReservedCapacityForVertex(1), 3);
+  EXPECT_EQ(writer.ReservedCapacityForVertex(2), 0);
+
+  std::vector<std::thread> fillers;
+  for (int thread = 0; thread < 4; ++thread) {
+    fillers.emplace_back([&writer] {
+      const auto begin = writer.ReserveConcurrent(0, 5);
+      for (int slot = begin; slot < begin + 5; ++slot) {
+        writer.PutAt(0, slot, static_cast<vid_t>(slot), slot, 0);
+      }
+    });
+  }
+  for (auto& filler : fillers) {
+    filler.join();
+  }
+  for (int i = 0; i < 2; ++i) {
+    writer.PutSerial(1, static_cast<vid_t>(i), i, 0);
+  }
+  writer.Finish();
+  EXPECT_EQ(csr.edge_num(), 22);
+  auto built_edges = csr.get_generic_view(0).get_edges(0);
+  std::vector<vid_t> built_neighbors;
+  for (auto it = built_edges.begin(); it != built_edges.end(); ++it) {
+    built_neighbors.push_back(*it);
+  }
+  ASSERT_EQ(built_neighbors.size(), 20);
+  std::sort(built_neighbors.begin(), built_neighbors.end());
+  for (int i = 0; i < 20; ++i) {
+    EXPECT_EQ(built_neighbors[static_cast<size_t>(i)], static_cast<vid_t>(i));
+  }
+
+  auto before = csr.get_generic_view(0).get_edges(0).start_ptr;
+  Allocator allocator(MemoryLevel::kInMemory, "");
+  for (int i = 20; i < 24; ++i) {
+    csr.put_edge(0, static_cast<vid_t>(i), i, 0, allocator);
+  }
+  auto after = csr.get_generic_view(0).get_edges(0).start_ptr;
+  EXPECT_EQ(after, before);
+  EXPECT_EQ(csr.edge_num(), 26);
+
+  workspace.Close();
+  std::filesystem::remove_all(test_dir);
+}
 
 TYPED_TEST(MutableCsrTest, TestCsrType) {
   MutableCsr<TypeParam> mutable_csr;

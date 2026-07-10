@@ -31,6 +31,7 @@ struct CsvReadConfig {
   bool double_quote = true;
   bool escaping = false;
   char escape_char = '\\';
+  bool use_threads = true;
 
   int64_t skip_rows = 0;
   int64_t chunk_size = 4096;

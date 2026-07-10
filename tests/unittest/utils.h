@@ -18,8 +18,10 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -69,6 +71,42 @@ class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
 
  private:
   std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
+};
+
+class GeneratedChunkSource final : public neug::IDataChunkSource {
+ public:
+  explicit GeneratedChunkSource(
+      std::vector<std::shared_ptr<neug::DataChunk>> chunks,
+      int64_t estimated_bytes = -1)
+      : chunks_(std::move(chunks)), estimated_bytes_(estimated_bytes) {}
+
+  std::shared_ptr<neug::IDataChunkSupplier> Open() const override {
+    ++open_count_;
+    return std::make_shared<GeneratedChunkSupplier>(
+        std::vector<std::shared_ptr<neug::DataChunk>>(chunks_));
+  }
+
+  std::shared_ptr<neug::IDataChunkSupplier> Open(
+      const neug::ChunkSourceOptions& options) const override {
+    opened_projections_.push_back(options.projected_columns);
+    return neug::IDataChunkSource::Open(options);
+  }
+
+  bool rewindable() const override { return true; }
+
+  int64_t EstimatedBytes() const override { return estimated_bytes_; }
+
+  size_t OpenCount() const { return open_count_; }
+
+  const std::vector<std::vector<int32_t>>& OpenedProjections() const {
+    return opened_projections_;
+  }
+
+ private:
+  std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
+  int64_t estimated_bytes_;
+  mutable size_t open_count_ = 0;
+  mutable std::vector<std::vector<int32_t>> opened_projections_;
 };
 
 template <typename T>
