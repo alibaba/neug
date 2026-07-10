@@ -125,7 +125,7 @@ template <typename Transaction>
 inline neug::result<execution::Context> ExecutePipelineInTransaction(
     execution::LocalQueryCache& pipeline_cache, const GraphStats& stats,
     const std::string& query, AccessMode mode, const NeugDBConfig& db_config,
-    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema, 
+    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema,
     Transaction& txn, IStorageInterface& storage_interface,
     neug::QueryResponse* response) {
   GS_AUTO(cache_value, pipeline_cache.Get(stats, query));
@@ -219,8 +219,8 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     neug::StorageTPInsertInterface gii(insert_txn);
     GS_AUTO(ctx, ExecutePipelineInTransaction(
                      pipeline_cache_, insert_txn.statistic(), query, mode,
-                     db_config_, param_json_obj, result_schema,
-                     insert_txn, gii, response));
+                     db_config_, param_json_obj, result_schema, insert_txn, gii,
+                     response));
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
@@ -228,8 +228,8 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     neug::StorageTPUpdateInterface gui(update_txn);
     GS_AUTO(ctx, ExecutePipelineInTransaction(
                      pipeline_cache_, update_txn.statistic(), query, mode,
-                     db_config_, param_json_obj, result_schema,
-                     update_txn, gui, response));
+                     db_config_, param_json_obj, result_schema, update_txn, gui,
+                     response));
     response->mutable_schema()->CopyFrom(result_schema);
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {
