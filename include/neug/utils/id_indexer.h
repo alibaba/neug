@@ -462,47 +462,34 @@ class LFIndexer {
 
   template <typename KEY_T>
   struct TypedKeyColumnAccessor {
+    using value_col_type =
+        std::conditional_t<std::is_same_v<KEY_T, std::string_view>, std::string,
+                           KEY_T>;
     explicit TypedKeyColumnAccessor(const IContextColumn& keys)
-        : keys_(keys),
-          row_num_(keys.size()),
-          is_optional_(keys.is_optional()),
-          typed_col_(dynamic_cast<const ValueColumn<KEY_T>*>(&keys)),
-          string_col_(nullptr) {
-      if constexpr (std::is_same_v<KEY_T, std::string_view>) {
-        if (typed_col_ == nullptr) {
-          string_col_ = dynamic_cast<const ValueColumn<std::string>*>(&keys);
-        }
+        : row_num_(keys.size()) {
+      if (keys.is_optional()) {
+        THROW_NOT_SUPPORTED_EXCEPTION("Optional primary key is not supported");
+      }
+      typed_col_ = dynamic_cast<const ValueColumn<value_col_type>*>(&keys);
+      if (typed_col_ == nullptr) {
+        THROW_STORAGE_EXCEPTION("Unsupported primary key type or column type");
       }
     }
 
     size_t size() const { return row_num_; }
 
-    template <typename VISITOR, typename NULL_HANDLER>
-    void for_each_key(VISITOR&& visitor, NULL_HANDLER&& on_null) const {
-      if (typed_col_ != nullptr) {
-        for_each_value_column(*typed_col_, std::forward<VISITOR>(visitor),
-                              std::forward<NULL_HANDLER>(on_null));
-        return;
+    template <typename VISITOR>
+    void for_each_key(VISITOR&& visitor) const {
+      for (size_t row = 0; row < row_num_; ++row) {
+        visit_key(visitor, row, typed_col_->get_value(row));
       }
 
-      if constexpr (std::is_same_v<KEY_T, std::string_view>) {
-        if (string_col_ != nullptr) {
-          for_each_value_column(*string_col_, std::forward<VISITOR>(visitor),
-                                std::forward<NULL_HANDLER>(on_null));
-          return;
-        }
-      }
-
-      for_each_context_column(std::forward<VISITOR>(visitor),
-                              std::forward<NULL_HANDLER>(on_null));
+      return;
     }
 
    private:
-    const IContextColumn& keys_;
     size_t row_num_;
-    bool is_optional_;
-    const ValueColumn<KEY_T>* typed_col_;
-    const ValueColumn<std::string>* string_col_;
+    const ValueColumn<value_col_type>* typed_col_;
 
     template <typename VALUE_T, typename VISITOR>
     static void visit_key(VISITOR& visitor, size_t row, const VALUE_T& value) {
@@ -511,52 +498,6 @@ class LFIndexer {
         visitor(row, std::string_view(value));
       } else {
         visitor(row, value);
-      }
-    }
-
-    bool is_null(size_t row) const {
-      return is_optional_ && !keys_.has_value(row);
-    }
-
-    template <typename COLUMN_T, typename VISITOR, typename NULL_HANDLER>
-    void for_each_value_column(const ValueColumn<COLUMN_T>& column,
-                               VISITOR&& visitor,
-                               NULL_HANDLER&& on_null) const {
-      if (!column.is_optional()) {
-        for (size_t row = 0; row < row_num_; ++row) {
-          visit_key(visitor, row, column.get_value(row));
-        }
-        return;
-      }
-
-      const auto& valid = column.validity_bitmap();
-      for (size_t row = 0; row < row_num_; ++row) {
-        if (NEUG_UNLIKELY(!valid[row])) {
-          on_null(row);
-          continue;
-        }
-        visit_key(visitor, row, column.get_value(row));
-      }
-    }
-
-    template <typename VISITOR, typename NULL_HANDLER>
-    void for_each_context_column(VISITOR&& visitor,
-                                 NULL_HANDLER&& on_null) const {
-      for (size_t row = 0; row < row_num_; ++row) {
-        if (NEUG_UNLIKELY(is_null(row))) {
-          on_null(row);
-          continue;
-        }
-        auto key = keys_.get_elem(row);
-        if (NEUG_UNLIKELY(key.IsNull())) {
-          on_null(row);
-          continue;
-        }
-        if constexpr (std::is_same_v<KEY_T, std::string_view>) {
-          visitor(row, key.template GetValue<std::string_view>());
-        } else {
-          visitor(row, key.template GetValue<KEY_T>());
-        }
       }
     }
   };
@@ -581,8 +522,7 @@ class LFIndexer {
     if constexpr (std::is_same_v<KEY_T, std::string_view>) {
       size_t total_bytes = 0;
       accessor.for_each_key(
-          [&](size_t, std::string_view key) { total_bytes += key.size(); },
-          [](size_t row) { throw_null_primary_key(row); });
+          [&](size_t, std::string_view key) { total_bytes += key.size(); });
       reserve_string_data<KEY_T>(capacity(), total_bytes);
     }
   }
@@ -650,12 +590,10 @@ class LFIndexer {
     TypedKeyColumnAccessor<KEY_T> accessor(keys);
     size_t row_num = accessor.size();
     results.reserve(results.size() + row_num);
-    accessor.for_each_key(
-        [&](size_t, const KEY_T& key) {
-          INDEX_T ret;
-          results.push_back(get_index_typed<KEY_T>(key, ret) ? ret : sentinel);
-        },
-        [&](size_t) { results.push_back(sentinel); });
+    accessor.for_each_key([&](size_t, const KEY_T& key) {
+      INDEX_T ret;
+      results.push_back(get_index_typed<KEY_T>(key, ret) ? ret : sentinel);
+    });
   }
 
   template <typename KEY_T>
@@ -668,18 +606,16 @@ class LFIndexer {
     inserted.reserve(inserted.size() + row_num);
     reserve_insert_capacity(row_num);
     reserve_varchar_key_data<KEY_T>(accessor);
-    accessor.for_each_key(
-        [&](size_t, const KEY_T& key) {
-          INDEX_T ret;
-          if (get_index_typed<KEY_T>(key, ret)) {
-            results.push_back(ret);
-            inserted.push_back(0);
-          } else {
-            results.push_back(insert_absent_typed<KEY_T>(key, false));
-            inserted.push_back(1);
-          }
-        },
-        [](size_t row) { throw_null_primary_key(row); });
+    accessor.for_each_key([&](size_t, const KEY_T& key) {
+      INDEX_T ret;
+      if (get_index_typed<KEY_T>(key, ret)) {
+        results.push_back(ret);
+        inserted.push_back(0);
+      } else {
+        results.push_back(insert_absent_typed<KEY_T>(key, false));
+        inserted.push_back(1);
+      }
+    });
   }
 
   template <typename KEY_T>

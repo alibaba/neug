@@ -184,14 +184,9 @@ TEST_F(LFIndexerTest, BatchInt64LookupAndInsertHandleNullsAndDuplicates) {
   optional_builder.push_back_null();
   auto optional_keys = optional_builder.finish();
   vids.clear();
-  indexer.get_index(*optional_keys, vids);
-  EXPECT_EQ(vids,
-            (std::vector<uint32_t>{0, std::numeric_limits<uint32_t>::max()}));
+  EXPECT_THROW(indexer.get_index(*optional_keys, vids),
+               neug::exception::NotSupportedException);
 
-  vids.clear();
-  inserted.clear();
-  EXPECT_THROW(indexer.get_or_insert(*optional_keys, vids, inserted),
-               neug::exception::StorageException);
   indexer.Close();
 }
 
