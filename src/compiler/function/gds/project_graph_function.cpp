@@ -228,7 +228,8 @@ function_set ProjectGraphFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
+                      neug::IStorageInterface& /*graph*/,
+                      const execution::ParamsMap& /*params*/) {
     return execution::Context{};
   };
 
@@ -253,7 +254,8 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
+                      neug::IStorageInterface& /*graph*/,
+                      const execution::ParamsMap& /*params*/) {
     return execution::Context{};
   };
 
@@ -277,7 +279,8 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& /*input*/,
-                          neug::IStorageInterface& /*graph*/) {
+                          neug::IStorageInterface& /*graph*/,
+                          const execution::ParamsMap& /*params*/) {
     neug::execution::Context out;
     neug::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
@@ -332,7 +335,8 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& /*graph*/) {
+                          neug::IStorageInterface& /*graph*/,
+                          const execution::ParamsMap& /*params*/) {
     neug::execution::Context out;
     neug::ValueColumnBuilder<std::string> name_builder;
     neug::ValueColumnBuilder<std::string> predicate_builder;

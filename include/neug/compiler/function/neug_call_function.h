@@ -20,6 +20,7 @@
 #include "neug/common/types.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -41,7 +42,8 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
 using call_exec_func_t = std::function<execution::Context(
-    const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
+    const CallFuncInputBase& input, neug::IStorageInterface& graph,
+    const execution::ParamsMap& params)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::DataType>>;

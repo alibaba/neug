@@ -96,7 +96,8 @@ std::unique_ptr<function::CallFuncInputBase> LCCFunction::bind(
 }
 
 execution::Context LCCFunction::exec(const function::CallFuncInputBase& input,
-                                     IStorageInterface& g) {
+                                     IStorageInterface& g,
+                                     const execution::ParamsMap& /*params*/) {
   const auto& lcc_input = dynamic_cast<const LCCInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 

@@ -93,7 +93,8 @@ std::unique_ptr<function::CallFuncInputBase> KCoreFunction::bind(
 }
 
 execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
-                                       IStorageInterface& g) {
+                                       IStorageInterface& g,
+                                       const execution::ParamsMap& /*params*/) {
   const auto& kcore_input = dynamic_cast<const KCoreInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);

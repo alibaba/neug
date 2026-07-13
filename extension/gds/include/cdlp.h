@@ -28,7 +28,8 @@ struct NEUG_API CDLPFunction {
       const Schema& schema, const execution::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);
   static execution::Context exec(const function::CallFuncInputBase& input,
-                                 IStorageInterface& graph);
+                                 IStorageInterface& graph,
+                                 const execution::ParamsMap& params);
 
   static function::function_set getFunctionSet();
 };

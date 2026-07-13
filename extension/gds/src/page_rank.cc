@@ -91,7 +91,8 @@ std::unique_ptr<function::CallFuncInputBase> PageRankFunction::bind(
 }
 
 execution::Context PageRankFunction::exec(
-    const function::CallFuncInputBase& input, IStorageInterface& g) {
+    const function::CallFuncInputBase& input, IStorageInterface& g,
+    const execution::ParamsMap& /*params*/) {
   const auto& func_input = dynamic_cast<const PageRankInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
   execution::Context ret;

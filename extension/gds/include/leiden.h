@@ -30,7 +30,8 @@ struct NEUG_API LeidenFunction {
       const ::physical::PhysicalPlan& plan, int op_idx);
 
   static execution::Context exec(const function::CallFuncInputBase& input_base,
-                                 IStorageInterface& g);
+                                 IStorageInterface& g,
+                                 const execution::ParamsMap& params);
 
   static function::function_set getFunctionSet();
 };

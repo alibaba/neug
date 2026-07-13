@@ -83,7 +83,8 @@ std::unique_ptr<function::CallFuncInputBase> WCCFunction::bind(
 }
 
 execution::Context WCCFunction::exec(
-    const function::CallFuncInputBase& input_base, IStorageInterface& g) {
+    const function::CallFuncInputBase& input_base, IStorageInterface& g,
+    const execution::ParamsMap& /*params*/) {
   const auto& input = dynamic_cast<const WCCInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
