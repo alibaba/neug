@@ -1,4 +1,4 @@
-name: Build Extensions
+name: Release Extensions
 
 on:
   release:
@@ -297,6 +297,3 @@ jobs:
             /tmp/extension_packages/*.sha256
           retention-days: 1
           if-no-files-found: warn
-
-
-
