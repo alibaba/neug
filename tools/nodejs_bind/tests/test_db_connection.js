@@ -179,8 +179,22 @@ test('test_access_mode', () => {
   const db = new Database({ databasePath: dbDir, mode: 'w' });
   const connRw = db.connect();
 
-  const supportedAccessModes = ['read', 'r', 'insert', 'i', 'update', 'u'];
-  for (const mode of supportedAccessModes) {
+  // Explicit read rejects writes; a read query is allowed.
+  for (const mode of ['read', 'r']) {
+    connRw.execute('MATCH (n) RETURN count(n);', mode);
+    assert.throws(
+      () => {
+        connRw.execute(
+          `CREATE NODE TABLE test_table_${mode}(id INT64, PRIMARY KEY(id));`,
+          mode
+        );
+      },
+      (err) =>
+        err.message.includes('Read-only mode does not support write operations')
+    );
+  }
+
+  for (const mode of ['insert', 'i', 'update', 'u']) {
     connRw.execute(
       `CREATE NODE TABLE test_table_${mode}(id INT64, PRIMARY KEY(id));`,
       mode
