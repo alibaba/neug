@@ -218,7 +218,8 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   const auto& vertex_type_name = config.GetVertexLabel();
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
                          primary_keys, Schema::MAX_VNUM, description,
-                         default_property_values, config.IsTemporary());
+                         default_property_values, config.IsTemporary(),
+                         config.GetNamespace());
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
   fresh_vt.Init(ckp_, memory_level_);
@@ -284,6 +285,13 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
                   "Persistent edge cannot reference temporary vertex. Edge [" +
                       edge_type_name + "] must be temporary.");
   }
+  const auto& namespace_name = config.GetNamespace();
+  if (schema_.get_vertex_schema(src_lid)->namespace_name != namespace_name ||
+      schema_.get_vertex_schema(dst_lid)->namespace_name != namespace_name) {
+    return Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Edge namespace must match its source and destination vertices.");
+  }
   std::vector<std::string> property_names;
   std::vector<DataType> property_types;
   std::vector<Value> default_property_values;
@@ -302,7 +310,8 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
                        property_types, property_names, oe_strategy, ie_strategy,
                        oe_mutable, ie_mutable, sort_key_for_nbr, description,
-                       default_property_values, config.IsTemporary());
+                       default_property_values, config.IsTemporary(),
+                       config.GetNamespace());
   edge_label_total_count_ = schema_.edge_label_frontier();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);

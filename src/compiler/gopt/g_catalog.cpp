@@ -29,6 +29,11 @@ namespace catalog {
 GCatalog::GCatalog() : Catalog() { registerBuiltInFunctions(); }
 
 std::unique_ptr<Catalog> GCatalog::clone(const Schema* schema) const {
+  SchemaView schema_view(schema, "default");
+  return clone(&schema_view);
+}
+
+std::unique_ptr<Catalog> GCatalog::clone(const SchemaView* schema) const {
   auto cloned = std::make_unique<GCatalog>(*this);
   cloned->setSchema(schema);
   return cloned;

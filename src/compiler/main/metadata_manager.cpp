@@ -68,7 +68,7 @@ MetadataManager::MetadataManager(
       graphEntrySet{std::move(graphEntrySet)} {}
 
 std::unique_ptr<MetadataManager> MetadataManager::clone(
-    const Schema* schema, const GraphStats& stats) const {
+    const SchemaView* schema, const GraphStats& stats) const {
   if (!catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
@@ -83,6 +83,16 @@ graph::GraphEntrySet& MetadataManager::getGraphEntrySetUnsafe() {
 
 const graph::GraphEntrySet& MetadataManager::getGraphEntrySet() const {
   return *graphEntrySet;
+}
+
+std::unique_ptr<MetadataManager> MetadataManager::clone(
+    const Schema* schema, const GraphStats& stats) const {
+  if (!catalog) {
+    THROW_CATALOG_EXCEPTION("Catalog is not set");
+  }
+  return std::unique_ptr<MetadataManager>(
+      new MetadataManager(catalog->clone(schema), stats, memoryManager, vfs,
+                          extensionManager, graphEntrySet));
 }
 
 std::shared_ptr<GraphStats> MetadataManager::getGraphStats() const {

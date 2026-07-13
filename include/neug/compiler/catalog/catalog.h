@@ -23,12 +23,13 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_set.h"
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/function/function.h"
-#include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/schema_view.h"
 
 namespace neug::main {
 struct DBConfig;
@@ -167,14 +168,15 @@ class NEUG_API Catalog {
   }
 
   virtual std::unique_ptr<Catalog> clone(const Schema* schema) const;
+  virtual std::unique_ptr<Catalog> clone(const SchemaView* schema) const;
 
  private:
   void initCatalogSets();
 
  protected:
-  void setSchema(const Schema* schema);
+  void setSchema(const SchemaView* schema);
 
-  const Schema* schema;
+  std::optional<SchemaView> schema;
 
  private:
   std::shared_ptr<CatalogSet> sequences;

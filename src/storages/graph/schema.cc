@@ -651,7 +651,8 @@ void Schema::AddVertexLabel(
     const std::vector<std::string>& property_names,
     const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
     size_t max_vnum, const std::string& description,
-    const std::vector<Value>& default_property_values, bool temporary) {
+    const std::vector<Value>& default_property_values, bool temporary,
+    const std::string& namespace_name) {
   label_t v_label_id = vertex_label_to_index(label);
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
@@ -667,9 +668,10 @@ void Schema::AddVertexLabel(
       default_property_values, description, max_vnum);
   v_schemas_[v_label_id]->label_id = v_label_id;
   v_schemas_[v_label_id]->temporary = temporary;
+  v_schemas_[v_label_id]->namespace_name = namespace_name;
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
            << ", prop size: " << v_schemas_[v_label_id]->property_names.size()
-           << ", temporary: " << temporary;
+           << ", temporary: " << temporary << ", namespace: " << namespace_name;
 }
 
 void Schema::AddEdgeLabel(
@@ -678,7 +680,8 @@ void Schema::AddEdgeLabel(
     const std::vector<std::string>& prop_names, EdgeStrategy oe,
     EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
     std::optional<std::string> sort_key_for_nbr, const std::string& description,
-    const std::vector<Value>& default_property_values, bool temporary) {
+    const std::vector<Value>& default_property_values, bool temporary,
+    const std::string& namespace_name) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
@@ -705,9 +708,10 @@ void Schema::AddEdgeLabel(
     elabel_triplet_tomb_.reset(label_id);
   }
   e_schemas_[label_id]->temporary = temporary;
+  e_schemas_[label_id]->namespace_name = namespace_name;
   VLOG(10) << "Add edge label: " << edge_label << ", id: " << (int) label_id
            << ", prop size: " << e_schemas_[label_id]->property_names.size()
-           << ", temporary: " << temporary;
+           << ", temporary: " << temporary << ", namespace: " << namespace_name;
 }
 
 bool Schema::is_vertex_label_temporary(label_t label) const {
@@ -1454,9 +1458,13 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
   std::vector<DataType> property_types;
   std::vector<std::string> property_names;
   std::string description;  // default is empty string
+  std::string namespace_name = "default";
 
   if (node["description"]) {
     description = node["description"].as<std::string>();
+  }
+  if (node["namespace"]) {
+    namespace_name = node["namespace"].as<std::string>();
   }
 
   if (node["nullable"]) {
@@ -1526,7 +1534,8 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
   }
 
   schema.AddVertexLabel(label_name, property_types, property_names,
-                        primary_keys, max_num, description);
+                        primary_keys, max_num, description, {}, false,
+                        namespace_name);
   // check the type_id equals to storage's label_id
   int32_t type_id;
   if (!get_scalar(node, "type_id", type_id)) {
@@ -1567,11 +1576,15 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
   std::vector<DataType> property_types;
   std::vector<std::string> prop_names;
   std::string description;  // default is empty string
+  std::string namespace_name = "default";
   RETURN_IF_NOT_OK(parse_edge_properties(node["properties"], edge_label_name,
                                          property_types, prop_names));
 
   if (node["description"]) {
     description = node["description"].as<std::string>();
+  }
+  if (node["namespace"]) {
+    namespace_name = node["namespace"].as<std::string>();
   }
   if (node["nullable"]) {
     LOG(ERROR) << "nullable is not supported yet";
@@ -1754,7 +1767,8 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
              << " properties";
     schema.AddEdgeLabel(src_label_name, dst_label_name, edge_label_name,
                         property_types, prop_names, cur_oe, cur_ie, oe_mutable,
-                        ie_mutable, sort_key_for_nbr, description);
+                        ie_mutable, sort_key_for_nbr, description, {}, false,
+                        namespace_name);
   }
 
   // check the type_id equals to storage's label_id
@@ -1850,6 +1864,7 @@ bool dump_vertices_schema(const Schema& schema, YAML::Node& node) {
     YAML::Node cur_node(YAML::NodeType::Map);
     cur_node["type_name"] = schema.get_vertex_label_name(v_label);
     cur_node["description"] = schema.get_vertex_description(v_label);
+    cur_node["namespace"] = schema.get_vertex_schema(v_label)->namespace_name;
     cur_node["type_id"] = std::to_string(v_label);
     cur_node["properties"] = YAML::Node(YAML::NodeType::Sequence);
     auto properties = schema.get_vertex_properties(v_label);
@@ -1897,6 +1912,10 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
         if (schema.is_edge_triplet_valid(src_v, dst_v, e_label)) {
+          if (!cur_node["namespace"]) {
+            cur_node["namespace"] =
+                schema.get_edge_schema(src_v, dst_v, e_label)->namespace_name;
+          }
           if (!properties_set) {
             auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
             auto property_names =
@@ -2597,7 +2616,8 @@ InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.label_name << v_schema.property_types
           << v_schema.property_names << v_schema.primary_keys
           << v_schema.default_property_values << v_schema.description
-          << v_schema.max_num << v_schema.vprop_soft_deleted;
+          << v_schema.max_num << v_schema.vprop_soft_deleted
+          << v_schema.namespace_name;
   return archive;
 }
 
@@ -2605,7 +2625,8 @@ OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
   archive >> v_schema.label_name >> v_schema.property_types >>
       v_schema.property_names >> v_schema.primary_keys >>
       v_schema.default_property_values >> v_schema.description >>
-      v_schema.max_num >> v_schema.vprop_soft_deleted;
+      v_schema.max_num >> v_schema.vprop_soft_deleted >>
+      v_schema.namespace_name;
   return archive;
 }
 
@@ -2615,7 +2636,7 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
           << e_schema.ie_mutable << e_schema.oe_mutable << e_schema.ie_strategy
           << e_schema.oe_strategy << e_schema.properties
           << e_schema.property_names << e_schema.default_property_values
-          << e_schema.eprop_soft_deleted;
+          << e_schema.eprop_soft_deleted << e_schema.namespace_name;
   if (e_schema.sort_key_for_nbr.has_value()) {
     archive << static_cast<uint8_t>(1) << e_schema.sort_key_for_nbr.value();
   } else {
@@ -2629,7 +2650,8 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
       e_schema.edge_label_name >> e_schema.description >> e_schema.ie_mutable >>
       e_schema.oe_mutable >> e_schema.ie_strategy >> e_schema.oe_strategy >>
       e_schema.properties >> e_schema.property_names >>
-      e_schema.default_property_values >> e_schema.eprop_soft_deleted;
+      e_schema.default_property_values >> e_schema.eprop_soft_deleted >>
+      e_schema.namespace_name;
   uint8_t has_sort_key_for_nbr;
   archive >> has_sort_key_for_nbr;
   if (has_sort_key_for_nbr) {
