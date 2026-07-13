@@ -27,6 +27,7 @@
 #include <string_view>
 #include <utility>
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
@@ -181,16 +182,6 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   }
 }
 
-static void parse_endpoint_column(const IndexerType& indexer,
-                                  const std::shared_ptr<IContextColumn>& col,
-                                  std::vector<vid_t>& lids) {
-  for (size_t i = 0; i < col->size(); ++i) {
-    auto val = col->get_elem(i);
-    auto vid = indexer.get_index(val);
-    lids.push_back(vid);
-  }
-}
-
 void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
                              TypedCsrBase<EmptyType>* in_csr,
                              const std::vector<vid_t>& src_lid,
@@ -210,10 +201,20 @@ void insert_edges_bundled_typed_impl(
   edge_data.reserve(src_lid.size());
   size_t cur_index = 0;
   for (auto& col : data_cols) {
-    for (size_t i = 0; i < col->size(); ++i) {
-      if (valid_flags[cur_index++]) {
-        auto val = col->get_elem(i);
-        edge_data.push_back(val.template GetValue<EDATA_T>());
+    auto value_col = std::dynamic_pointer_cast<ValueColumn<EDATA_T>>(col);
+    if (value_col) {
+      for (size_t i = 0; i < value_col->size(); ++i) {
+        if (valid_flags[cur_index++]) {
+          edge_data.push_back(value_col->get_value(i));
+        }
+      }
+    } else {
+      // Fallback: virtual dispatch path (non-ValueColumn, rare).
+      for (size_t i = 0; i < col->size(); ++i) {
+        if (valid_flags[cur_index++]) {
+          auto val = col->get_elem(i);
+          edge_data.push_back(val.template GetValue<EDATA_T>());
+        }
       }
     }
   }
@@ -234,15 +235,58 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-static std::vector<Value> get_row_from_data_chunks(
-    const std::vector<std::shared_ptr<IContextColumn>>& prop_cols,
-    size_t row_idx) {
-  std::vector<Value> row;
-  row.reserve(prop_cols.size());
-  for (auto& col : prop_cols) {
-    row.push_back(col->get_elem(row_idx));
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
+/// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
+struct TypedColumnInserter {
+  const IContextColumn* src;
+  ColumnBase* dst;
+  void (*fn)(const TypedColumnInserter&, size_t dst_idx, size_t src_idx,
+             bool insert_safe);
+
+  inline void insert(size_t dst_idx, size_t src_idx, bool insert_safe) const {
+    fn(*this, dst_idx, src_idx, insert_safe);
   }
-  return row;
+};
+
+/// Fixed-length types: direct set_value, no Value, no virtual dispatch.
+/// Null entries already have T() in data_, so set_value writes the same
+/// default that set_any would write for null.
+template <typename T>
+void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                       size_t src_idx, bool /*insert_safe*/) {
+  auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
+  auto vc = static_cast<const ValueColumn<T>*>(ins.src);
+  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
+}
+
+/// Varchar: source is ValueColumn<std::string>, dest is
+/// TypedColumn<std::string_view>. Needs set_any for buffer resize, but skips
+/// get_elem() virtual dispatch.
+void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                         size_t src_idx, bool insert_safe) {
+  auto* typed_dst = static_cast<TypedColumn<std::string_view>*>(ins.dst);
+  auto vc = static_cast<const ValueColumn<std::string>*>(ins.src);
+  typed_dst->set_any(dst_idx,
+                     Value::CreateValue<std::string>(vc->get_value(src_idx)),
+                     insert_safe);
+}
+
+TypedColumnInserter make_inserter(const DataType& type,
+                                  const IContextColumn* src, ColumnBase* dst) {
+  switch (type.id()) {
+#define MAKE_INSERTER(enum_val, cpp_type) \
+  case DataTypeId::enum_val:              \
+    return {src, dst, &insert_typed_impl<cpp_type>};
+    FOR_EACH_DATA_TYPE_NO_STRING(MAKE_INSERTER)
+#undef MAKE_INSERTER
+  case DataTypeId::kVarchar:
+    return {src, dst, &insert_varchar_impl};
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported data type for column inserter: " +
+        std::to_string(static_cast<int>(type.id())));
+    return {};
+  }
 }
 
 void batch_add_unbundled_edges_impl(
@@ -266,13 +310,30 @@ void batch_add_unbundled_edges_impl(
       if (c)
         prop_cols.push_back(c);
     }
+    // Pre-resolve typed inserters for each column (once per chunk).
+    std::vector<TypedColumnInserter> inserters;
+    inserters.reserve(prop_cols.size());
+    for (size_t j = 0; j < prop_cols.size(); ++j) {
+      inserters.push_back(make_inserter(prop_types[j], prop_cols[j].get(),
+                                        table_->get_column_by_id(j)));
+    }
+    // Pre-compute valid rows: column-major loop needs branch-free inner loop.
+    std::vector<size_t> valid_rows;
+    valid_rows.reserve(num_rows);
     for (size_t i = 0; i < num_rows; ++i) {
       assert(cur_index < valid_flags.size());
       if (valid_flags[cur_index++]) {
-        auto row = get_row_from_data_chunks(prop_cols, i);
-        table_->insert(offset++, row, true);
+        valid_rows.push_back(i);
       }
     }
+    // Column-major: same fn pointer per inner iteration (BTB-friendly),
+    // sequential dst writes (cache-friendly), no branch.
+    for (auto& ins : inserters) {
+      for (size_t k = 0; k < valid_rows.size(); ++k) {
+        ins.insert(offset + k, valid_rows[k], true);
+      }
+    }
+    offset += valid_rows.size();
   }
 }
 
@@ -708,6 +769,12 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   in_csr_->resize(dst_indexer.size());
   out_csr_->resize(src_indexer.size());
   std::vector<vid_t> src_lid, dst_lid;
+  // Pre-reserve capacity to reduce vector reallocation on large graphs.
+  auto total_rows = supplier->RowNum();
+  if (total_rows > 0) {
+    src_lid.reserve(total_rows);
+    dst_lid.reserve(total_rows);
+  }
   // Collect per-property columns across chunks (for bundled: single column;
   // for unbundled: full property DataChunks).
   std::vector<std::shared_ptr<IContextColumn>> bundled_data_cols;
@@ -719,8 +786,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     auto src_col = chunk->get(0);
     auto dst_col = chunk->get(1);
-    parse_endpoint_column(src_indexer, src_col, src_lid);
-    parse_endpoint_column(dst_indexer, dst_col, dst_lid);
+    src_indexer.get_index(*src_col, src_lid);
+    dst_indexer.get_index(*dst_col, dst_lid);
     if (chunk->col_num() > 2) {
       if (meta_->is_bundled()) {
         // Bundled: only one property column (index 2).

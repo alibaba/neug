@@ -25,6 +25,8 @@ def parse_and_format_results(pyquery_result: QueryResult, max_rows=20):
     """
     Parse and format the QueryResult structure for printing.
 
+    Automatically detects and prints PROFILE/EXPLAIN information if available.
+
     Parameters
     ----------
     pyquery_result : QueryResult
@@ -48,7 +50,17 @@ def parse_and_format_results(pyquery_result: QueryResult, max_rows=20):
     if total_records > max_rows and rows:
         rows.append(["..."] * len(rows[0]))
 
-    print_results_as_table(headers, rows)
+    # Print query results (if any)
+    if headers and rows:
+        print_results_as_table(headers, rows)
+    else:
+        print(f"No results (total records: {total_records})")
+
+    if pyquery_result.has_profile_result():
+        print("\n")  # Blank line separator
+        profile_text = pyquery_result.get_profile_text()
+        if profile_text:
+            print(profile_text)
 
 
 def parse_entry(entry):

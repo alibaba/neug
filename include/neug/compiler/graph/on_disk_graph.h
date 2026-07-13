@@ -98,7 +98,7 @@ class OnDiskGraphVertexScanState final : public VertexScanState {
 
  private:
   const main::ClientContext& context;
-  const storage::NodeTable& nodeTable;
+  common::cardinality_t numRows;
 
   common::DataChunk propertyVectors;
   std::unique_ptr<common::ValueVector> nodeIDVector;

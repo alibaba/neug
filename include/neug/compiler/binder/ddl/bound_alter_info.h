@@ -22,10 +22,10 @@
 
 #pragma once
 
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/alter_type.h"
 #include "neug/compiler/common/enums/conflict_action.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace binder {

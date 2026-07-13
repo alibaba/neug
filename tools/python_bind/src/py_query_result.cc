@@ -614,6 +614,31 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "Get the query result in Bolt response format.\n\n"
            "Returns:\n"
            "    str: Query result in Bolt response format.")
+      .def("has_profile_result", &PyQueryResult::has_profile_result,
+           "Check if profile result is available.\n\n"
+           "Returns:\n"
+           "    bool: True if PROFILE or EXPLAIN mode was used, False for "
+           "normal queries.")
+      .def("get_profile_text", &PyQueryResult::get_profile_text,
+           "Get human-readable PROFILE/EXPLAIN text output.\n\n"
+           "Suitable for CLI output and debugging. Returns empty string if "
+           "no profile result is available.\n\n"
+           "Returns:\n"
+           "    str: Formatted execution tree with operator timings and row "
+           "counts.\n\n")
+      .def("get_profile_metrics", &PyQueryResult::get_profile_metrics,
+           "Get detailed profile metrics for all operators.\n\n"
+           "Returns:\n"
+           "    dict: Complete profile data with keys:\n"
+           "        'total_elapsed_ms' (float): Total execution time in ms\n"
+           "        'total_output_rows' (int): Total output rows\n"
+           "        'operators' (list): List of operator dicts, each with:\n"
+           "            - operator_id (int)\n"
+           "            - parent_id (int)\n"
+           "            - operator_name (str)\n"
+           "            - elapsed_ms (float)\n"
+           "            - output_rows (int)\n"
+           "            - child_ids (list of int)\n\n")
       .def("to_arrow", &PyQueryResult::to_arrow,
            "Convert the query result to a pyarrow.Table.\n\n"
            "Uses the Arrow C Data Interface to transfer data from Neug's\n"
@@ -688,6 +713,52 @@ const std::string& PyQueryResult::status_message() const {
 
 std::string PyQueryResult::get_bolt_response() const {
   return results_to_bolt_response(query_result_.response(), column_names());
+}
+
+bool PyQueryResult::has_profile_result() const {
+  return query_result_.has_profile_result();
+}
+
+std::string PyQueryResult::get_profile_text() const {
+  return query_result_.profile_result_text();
+}
+
+pybind11::dict PyQueryResult::get_profile_metrics() const {
+  pybind11::dict result;
+
+  if (!query_result_.has_profile_result()) {
+    return result;
+  }
+
+  const auto& profile_result = query_result_.response().profile_result();
+
+  // Add aggregate metrics
+  result["total_elapsed_ms"] = profile_result.total_elapsed_ms();
+  result["total_output_rows"] =
+      static_cast<int64_t>(profile_result.total_output_rows());
+
+  // Convert operators to list of dicts
+  pybind11::list operators_list;
+  for (const auto& op : profile_result.operators()) {
+    pybind11::dict op_dict;
+    op_dict["operator_id"] = op.operator_id();
+    op_dict["parent_id"] = op.parent_id();
+    op_dict["operator_name"] = op.operator_name();
+    op_dict["elapsed_ms"] = op.elapsed_ms();
+    op_dict["output_rows"] = static_cast<int64_t>(op.output_rows());
+
+    // Convert child_ids repeated field to list
+    pybind11::list child_ids;
+    for (int64_t child_id : op.child_ids()) {
+      child_ids.append(child_id);
+    }
+    op_dict["child_ids"] = child_ids;
+
+    operators_list.append(op_dict);
+  }
+  result["operators"] = operators_list;
+
+  return result;
 }
 
 pybind11::object PyQueryResult::to_arrow() const {

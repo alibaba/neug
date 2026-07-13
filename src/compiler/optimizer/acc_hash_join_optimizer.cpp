@@ -22,7 +22,6 @@
 
 #include "neug/compiler/optimizer/acc_hash_join_optimizer.h"
 
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/optimizer/logical_operator_collector.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_accumulate.h"
@@ -31,6 +30,7 @@
 #include "neug/compiler/planner/operator/logical_path_property_probe.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
+#include "neug/storages/graph/schema.h"
 
 using namespace neug::common;
 using namespace neug::binder;
@@ -49,11 +49,10 @@ static std::shared_ptr<LogicalOperator> appendAccumulate(
   return accumulate;
 }
 
-static table_id_vector_t getTableIDs(
-    const std::vector<catalog::TableCatalogEntry*>& entries) {
+static table_id_vector_t getTableIDs(const std::vector<SchemaEntry*>& entries) {
   table_id_vector_t result;
   for (auto& entry : entries) {
-    result.push_back(entry->getTableID());
+    result.push_back(entry->get_entry_id());
   }
   return result;
 }

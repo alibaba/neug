@@ -64,7 +64,7 @@ std::unique_ptr<RelGroupCatalogEntry> RelGroupCatalogEntry::alter(
   return newEntry;
 }
 
-bool RelGroupCatalogEntry::isParent(table_id_t tableID) const {
+bool RelGroupCatalogEntry::is_parent(table_id_t tableID) const {
   const auto it =
       find_if(relTableIDs.begin(), relTableIDs.end(),
               [&](table_id_t relTableID) { return relTableID == tableID; });

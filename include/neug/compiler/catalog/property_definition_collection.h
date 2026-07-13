@@ -22,8 +22,11 @@
 
 #pragma once
 
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/common/copy_constructors.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/config.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace catalog {
@@ -41,25 +44,20 @@ class NEUG_API PropertyDefinitionCollection {
     return nameToPropertyIDMap.contains(name);
   }
 
-  std::vector<binder::PropertyDefinition> getDefinitions() const;
-  const binder::PropertyDefinition& getDefinition(
-      const std::string& name) const;
-  const binder::PropertyDefinition& getDefinition(common::idx_t idx) const;
+  std::vector<PropertyDefinition> getDefinitions() const;
+  const PropertyDefinition& getDefinition(const std::string& name) const;
+  const PropertyDefinition& getDefinition(common::idx_t idx) const;
   common::column_id_t getMaxColumnID() const;
   common::column_id_t getColumnID(const std::string& name) const;
   common::column_id_t getColumnID(common::property_id_t propertyID) const;
   common::property_id_t getPropertyID(const std::string& name) const;
   void vacuumColumnIDs(common::column_id_t nextColumnID);
 
-  void add(const binder::PropertyDefinition& definition);
+  void add(const PropertyDefinition& definition);
   void drop(const std::string& name);
   void rename(const std::string& name, const std::string& newName);
 
   std::string toCypher() const;
-
-  void serialize(common::Serializer& serializer) const;
-  static PropertyDefinitionCollection deserialize(
-      common::Deserializer& deserializer);
 
  private:
   PropertyDefinitionCollection(const PropertyDefinitionCollection& other)
@@ -72,7 +70,7 @@ class NEUG_API PropertyDefinitionCollection {
  private:
   common::column_id_t nextColumnID;
   common::property_id_t nextPropertyID;
-  std::map<common::property_id_t, binder::PropertyDefinition> definitions;
+  std::map<common::property_id_t, PropertyDefinition> definitions;
   std::unordered_map<common::property_id_t, common::column_id_t> columnIDs;
   common::case_insensitive_map_t<common::property_id_t> nameToPropertyIDMap;
 };

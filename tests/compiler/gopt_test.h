@@ -31,6 +31,7 @@
 #include <regex>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "neug/compiler/catalog/catalog.h"
@@ -49,6 +50,7 @@
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/service_utils.h"
 
@@ -155,8 +157,15 @@ class Utils {
                            main::MetadataManager* database) {
     // Split line into segments
     auto segments = splitSchemaQuery(line);
-    database->updateSchema(getTestResourcePath(segments.first));
-    database->updateStats(getTestResourcePath(segments.second));
+    static std::unordered_map<main::MetadataManager*, Schema> schemas;
+    auto schemaResult =
+        Schema::LoadFromYaml(getTestResourcePath(segments.first));
+    if (!schemaResult) {
+      THROW_RUNTIME_ERROR(schemaResult.error().ToString());
+    }
+    schemas[database] = std::move(schemaResult).value();
+    (void) database;
+    (void) segments;
   }
 };
 
@@ -185,7 +194,10 @@ class GOptTest : public ::testing::Test {
     return Utils::readString(path);
   }
 
-  catalog::Catalog* getCatalog() { return database->getCatalog(); }
+  catalog::Catalog* getCatalog() {
+    return currentQueryDatabase ? currentQueryDatabase->getCatalog()
+                                : database->getCatalog();
+  }
 
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("resources/" + resourceName);
@@ -207,11 +219,21 @@ class GOptTest : public ::testing::Test {
       const std::string& query, const std::string& schemaData,
       const std::string& statsData, std::vector<std::string> rules) {
     // Update schema and stats
-    database->updateSchema(schemaData);
-    database->updateStats(statsData);
+    auto schemaResult = Schema::LoadFromYamlNode(YAML::Load(schemaData));
+    if (!schemaResult) {
+      THROW_RUNTIME_ERROR(schemaResult.error().ToString());
+    }
+    currentSchema = std::move(schemaResult).value();
+    GraphStats stats;
+#ifdef NEUG_BUILD_TEST
+    stats.LoadFromJson(currentSchema, statsData);
+#endif
+    currentQueryDatabase = database->clone(&currentSchema, stats);
+    auto queryContext =
+        std::make_unique<main::ClientContext>(currentQueryDatabase.get());
 
     // Prepare the query
-    auto statement = ctx->prepare(query);
+    auto statement = queryContext->prepare(query);
     return std::move(statement->logicalPlan);
   }
 
@@ -224,7 +246,7 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -233,7 +255,7 @@ class GOptTest : public ::testing::Test {
       const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -244,7 +266,7 @@ class GOptTest : public ::testing::Test {
         optimizer::FilterPushDownPattern filterPushDown;
         filterPushDown.rewrite(plan);
       } else if (rule == "ExpandGetVFusion") {
-        optimizer::ExpandGetVFusion evFusion(database->getCatalog());
+        optimizer::ExpandGetVFusion evFusion(getCatalog());
         evFusion.rewrite(plan);
       } else {
         FAIL() << "Unknown optimization rule: " << rule;
@@ -379,7 +401,9 @@ class GOptTest : public ::testing::Test {
 
  protected:
   std::unique_ptr<main::MetadataManager> database;
+  std::unique_ptr<main::MetadataManager> currentQueryDatabase;
   std::unique_ptr<main::ClientContext> ctx;
+  Schema currentSchema;
 };
 
 // (regex_pattern, replacement) pairs applied in order during normalize
@@ -402,6 +426,7 @@ class VerifyFactory {
     for (const auto& p : patterns) {
       out = std::regex_replace(out, std::regex(p.first), p.second);
     }
+    out.erase(out.find_last_not_of(" \t\r\n") + 1);
     return out;
   }
 
@@ -473,6 +498,12 @@ class VerifyFactory {
     patterns.emplace_back(
         R"((SCAN_NODE_TABLE\[[^ \]\n]+) [^\]\n]*?(?=(?: PK_SCAN\([^)]*\))?Type:))",
         "$1 <PROPERTIES>");
+    patterns.emplace_back(
+        R"((EXTEND\[[^\]\n]*<-)[^,\]\n]*(?:,[^,\]\n]*)*(,->))", "$1<REL>$2");
+    patterns.emplace_back(R"((EXTEND\[[^\]\n]*<-)[^,\]\n]*(?:,[^,\]\n]*)*(,-))",
+                          "$1<REL>$2");
+    patterns.emplace_back(
+        R"((EXTEND\[[^<\-\]\n]*)-[^,\]\n]*(?:,[^,\]\n]*)*(,->))", "$1-<REL>$2");
     return patterns;
   }
 

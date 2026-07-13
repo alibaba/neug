@@ -9,9 +9,9 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#include "neug/compiler/storage/stats_manager.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
+#include "neug/storages/graph/graph_stats.h"
 
 using namespace neug::binder;
 using namespace neug::common;
@@ -46,12 +46,13 @@ void CardinalityEstimator::addNodeIDDomAndStats(
   auto key = nodeID.getUniqueName();
   cardinality_t numNodes = 0u;
   for (auto tableID : tableIDs) {
-    auto stats = context->getStatsManager()
-                     ->getTable(tableID)
-                     ->cast<storage::NodeTable>()
-                     .getStats(transaction);
-    numNodes += stats.getTableCard();
+    auto tableCard = context->getGraphStats()->getTableCardinality(
+        tableID, SchemaEntryType::NODE);
+    numNodes += tableCard;
     if (!nodeTableStats.contains(tableID)) {
+      std::vector<common::DataType> types;
+      auto stats = storage::TableStats{std::span<common::DataType>(types)};
+      stats.incrementCardinality(tableCard);
       nodeTableStats.insert({tableID, std::move(stats)});
     }
   }
@@ -247,8 +248,8 @@ uint64_t CardinalityEstimator::getNumRels(
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
-    numRels += context->getStatsManager()->getTable(tableID)->getNumTotalRows(
-        transaction);
+    numRels += context->getGraphStats()->getTableCardinality(
+        tableID, SchemaEntryType::REL);
   }
   return atLeastOne(numRels);
 }

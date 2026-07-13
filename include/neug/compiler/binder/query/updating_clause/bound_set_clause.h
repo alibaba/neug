@@ -37,22 +37,22 @@ class BoundSetClause final : public BoundUpdatingClause {
 
   bool hasNodeInfo() const {
     return hasInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.entryType == SchemaEntryType::NODE;
     });
   }
   std::vector<BoundSetPropertyInfo> getNodeInfos() const {
     return getInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::NODE;
+      return info.entryType == SchemaEntryType::NODE;
     });
   }
   bool hasRelInfo() const {
     return hasInfo([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.entryType == SchemaEntryType::REL;
     });
   }
   std::vector<BoundSetPropertyInfo> getRelInfos() const {
     return getInfos([](const BoundSetPropertyInfo& info) {
-      return info.tableType == common::TableType::REL;
+      return info.entryType == SchemaEntryType::REL;
     });
   }
 

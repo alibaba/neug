@@ -40,7 +40,7 @@
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)
@@ -134,8 +134,8 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
   return localDatabase->extensionManager->getExtensionOption(optionName);
 }
 
-std::shared_ptr<storage::StatsManager> ClientContext::getStatsManager() const {
-  return localDatabase->getStatsManager();
+std::shared_ptr<GraphStats> ClientContext::getGraphStats() const {
+  return localDatabase->getGraphStats();
 }
 
 storage::MemoryManager* ClientContext::getMemoryManager() const {

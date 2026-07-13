@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
@@ -100,7 +101,8 @@ class VertexTable {
 
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
       : ckp_(nullptr),
-        indexer_(std::make_unique<IndexerType>()),
+        indexer_(std::make_unique<IndexerType>(
+            std::get<0>(vertex_schema->primary_keys[0]))),
         table_(std::make_unique<Table>()),
         pk_type_(std::get<0>(vertex_schema->primary_keys[0])),
         vertex_schema_(vertex_schema),
@@ -264,87 +266,25 @@ class VertexTable {
 
  private:
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);
-  template <typename PK_T>
+
   std::vector<vid_t> insert_primary_keys(
       const std::shared_ptr<IContextColumn>& pk_col) {
-    size_t row_num = pk_col->size();
     std::vector<vid_t> vids;
-    vids.resize(row_num);
-    for (size_t j = 0; j < row_num; ++j) {
-      auto oid = pk_col->get_elem(j);
-      if (NEUG_UNLIKELY(indexer_->get_index(oid, vids[j]))) {
-        if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
-          vids[j] = std::numeric_limits<vid_t>::max();
-        } else {
-          v_ts_->InsertVertex(vids[j], 0);
-        }
+    std::vector<uint8_t> inserted;
+    indexer_->get_or_insert(*pk_col, vids, inserted);
+
+    for (size_t j = 0; j < vids.size(); ++j) {
+      if (inserted[j]) {
+        v_ts_->InsertVertex(vids[j], 0);
         continue;
       }
-      bool is_string = std::is_same_v<PK_T, std::string_view> ||
-                       std::is_same_v<PK_T, std::string>;
-      vids[j] = insert_vertex_pk(oid, 0, is_string);
+      if (NEUG_UNLIKELY(v_ts_->IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+        vids[j] = std::numeric_limits<vid_t>::max();
+      } else {
+        v_ts_->InsertVertex(vids[j], 0);
+      }
     }
     return vids;
-  }
-
-  template <typename PK_T>
-  void insert_vertices_impl(std::shared_ptr<IDataChunkSupplier> supplier) {
-    auto row_nums = supplier->RowNum();
-    if (row_nums <= 0) {
-      LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
-      row_nums = 0;
-    }
-    size_t new_size = indexer_->size() + row_nums;
-    if (new_size > indexer_->capacity()) {
-      size_t cap = indexer_->capacity();
-      while (new_size >= cap) {
-        cap = cap < 4096 ? 4096 : cap + cap / 4;
-      }
-      EnsureCapacity(cap);
-    }
-    while (true) {
-      auto chunk = supplier->GetNextChunk();
-      if (chunk == nullptr) {
-        break;
-      }
-      auto& columns = chunk->columns;
-      const auto& property_names = vertex_schema_->property_names;
-      CHECK(columns.size() == property_names.size() + 1)
-          << "Number of columns in the chunk (" << columns.size()
-          << ") does not match the number of properties ("
-          << property_names.size() + 1 << ").";
-      auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
-      auto pk_col = columns[ind];
-
-      // Build a list of property columns excluding the PK column.
-      std::vector<std::shared_ptr<IContextColumn>> prop_cols;
-      prop_cols.reserve(columns.size() - 1);
-      for (size_t i = 0; i < columns.size(); ++i) {
-        if (static_cast<int>(i) != ind) {
-          prop_cols.push_back(columns[i]);
-        }
-      }
-
-      // Capacity check for actual batch size.
-      size_t chunk_rows = chunk->row_num();
-      size_t new_size = indexer_->size() + chunk_rows;
-      if (new_size > indexer_->capacity()) {
-        size_t cap = indexer_->capacity();
-        while (new_size >= cap) {
-          cap = cap < 4096 ? 4096 : cap + cap / 4;
-        }
-        EnsureCapacity(cap);
-      }
-
-      auto vids = insert_primary_keys<PK_T>(pk_col);
-
-      for (size_t i = 0; i < prop_cols.size(); ++i) {
-        auto col = table_->get_column_by_id(i);
-        set_properties_from_context_column(col, prop_cols[i], vids);
-      }
-      VLOG(10) << "Inserted " << chunk_rows
-               << " vertices, current vertex num: " << VertexNum();
-    }
   }
 
   std::shared_ptr<Checkpoint> ckp_;

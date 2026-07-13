@@ -24,7 +24,6 @@
 
 #include "neug/compiler/common/system_config.h"
 
-using namespace neug::parser;
 using namespace neug::common;
 using namespace neug::catalog;
 

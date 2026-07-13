@@ -22,7 +22,6 @@
 #include <vector>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -36,6 +35,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace gopt {
@@ -67,13 +67,12 @@ class GPhysicalAnalyzer {
     for (auto& tableId : tableIds) {
       auto tableEntry = catalog->getTableCatalogEntry(
           &neug::Constants::DEFAULT_TRANSACTION, tableId);
-      auto nodeTableEntry =
-          dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+      auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
       if (!nodeTableEntry) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Primary key scan is only supported for node "
             "tables, but got: " +
-            tableEntry->getName());
+            tableEntry->get_label());
       }
       result.insert(nodeTableEntry->getPrimaryKeyName());
     }
@@ -136,19 +135,16 @@ class GPhysicalAnalyzer {
                          std::vector<std::string>& result) {
     if (child->getOperatorType() ==
         planner::LogicalOperatorType::SCAN_NODE_TABLE) {
-      auto scan = child->cast<planner::LogicalScanNodeTable>();
-      auto extraInfo = scan.getExtraInfo();
-      if (extraInfo) {
-        auto pkInfo = dynamic_cast<planner::PrimaryKeyScanInfo*>(extraInfo);
-        if (pkInfo) {
-          result.push_back(scan.getAliasName());
-        }
+      auto& scan = child->cast<planner::LogicalScanNodeTable>();
+      auto pkInfo = scan.getPrimaryKeyScanInfo();
+      if (pkInfo != nullptr) {
+        result.push_back(scan.getAliasName());
       }
     } else if (child->getOperatorType() ==
                planner::LogicalOperatorType::INSERT) {
       auto& insert = child->cast<planner::LogicalInsert>();
       auto& infos = insert.getInfos();
-      if (!infos.empty() && infos[0].tableType == common::TableType::NODE) {
+      if (!infos.empty() && infos[0].entryType == SchemaEntryType::NODE) {
         auto gAliasNames = insert.getGAliasNames();
         for (auto& gAliasName : gAliasNames) {
           result.push_back(gAliasName.uniqueName);
@@ -174,10 +170,10 @@ class GPhysicalAnalyzer {
       auto& infos = insertOp->getInfos();
       if (!infos.empty()) {
         // we assume that all info have the same table type
-        auto tableType = infos[0].tableType;
-        if (tableType == common::TableType::NODE) {
+        auto tableType = infos[0].entryType;
+        if (tableType == SchemaEntryType::NODE) {
           flag.insert = true;
-        } else if (tableType == common::TableType::REL) {
+        } else if (tableType == SchemaEntryType::REL) {
           if (insertOp->getChildren().empty()) {
             flag.insert = true;
           } else {

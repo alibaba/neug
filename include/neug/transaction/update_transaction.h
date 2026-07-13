@@ -29,6 +29,7 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/property_graph_cow_state.h"
@@ -110,9 +111,9 @@ class UpdateTransaction {
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
 
-  PropertyGraph& graph() const { return *cow_graph_; }
-
   const GraphView& view() const { return view_; }
+
+  GraphStats statistic() const { return GraphStats(*cow_graph_); }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }

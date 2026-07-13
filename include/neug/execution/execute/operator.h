@@ -37,6 +37,10 @@ class IOperator {
   virtual neug::result<Context> Eval(IStorageInterface& graph,
                                      const ParamsMap& params, Context&& ctx,
                                      OprTimer* timer) = 0;
+
+  virtual void build_explain_children(OprTimer* parent_timer,
+                                      const ParamsMap& params,
+                                      IStorageInterface& graph) {}
 };
 
 using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;
