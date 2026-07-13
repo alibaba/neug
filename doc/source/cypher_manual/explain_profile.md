@@ -42,25 +42,62 @@ Then in the interactive shell:
 
 ```sql
 -- Create schema
-CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));
-CREATE NODE TABLE software(id INT64, title STRING, lang STRING, PRIMARY KEY(id));
-CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);
-CREATE REL TABLE created(FROM person TO software, weight DOUBLE, since INT64);
+CREATE NODE TABLE person(
+    id INT64,
+    firstName STRING,
+    lastName STRING,
+    gender STRING,
+    birthday DATE,
+    creationDate TIMESTAMP,
+    locationIP STRING,
+    browserUsed STRING,
+    PRIMARY KEY(id)
+);
+
+CREATE NODE TABLE place(
+    id INT64,
+    name STRING,
+    url STRING,
+    type STRING,
+    PRIMARY KEY(id)
+);
+
+CREATE NODE TABLE organisation(
+    id INT64,
+    type STRING,
+    name STRING,
+    url STRING,
+    PRIMARY KEY(id)
+);
+
+CREATE REL TABLE workAt(
+    FROM person TO organisation,
+    workFrom INT32
+);
+
+CREATE REL TABLE isLocatedIn(
+    FROM person TO place
+);
+
+CREATE REL TABLE organisationIsLocatedIn(
+    FROM organisation TO place
+);
 
 -- Load data
-COPY person FROM '${NEUG_ROOT}/example_dataset/modern_graph/person.csv';
-COPY software FROM '${NEUG_ROOT}/example_dataset/modern_graph/software.csv';
-COPY knows FROM '${NEUG_ROOT}/example_dataset/modern_graph/person_knows_person.csv' (from="person", to="person");
-COPY created FROM '${NEUG_ROOT}/example_dataset/modern_graph/person_created_software.csv' (from="person", to="software");
+COPY person FROM '/{neug_dir}/example_dataset/ldbc/person_0_0.csv' (delim='|', header=true);
+COPY place FROM '/{neug_dir}/example_dataset/ldbc/place_0_0.csv' (delim='|', header=true);
+COPY organisation FROM '/{neug_dir}/example_dataset/ldbc/organisation_0_0.csv' (delim='|', header=true);
+COPY workAt FROM '/{neug_dir}/example_dataset/ldbc/person_workAt_organisation_0_0.csv' (from="person", to="organisation", delim='|', header=true);
+COPY isLocatedIn FROM '/{neug_dir}/example_dataset/ldbc/person_isLocatedIn_place_0_0.csv' (from="person", to="place", delim='|', header=true);
 ```
 
 ### EXPLAIN Example
 
 #### Simple Node Scan
-```sql
-neug > EXPLAIN MATCH (n:person) RETURN n.name;
-
+```
+neug > EXPLAIN MATCH (p:person) RETURN p.firstName, p.lastName;
 No results (total records: 0)
+
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
@@ -85,10 +122,51 @@ Total elapsed time: 0.000 s
 └───────────────────────────────────────┘
 ```
 
-#### Multi-hop Traversal
-```sql
-neug > EXPLAIN MATCH (n:person)-[e1:knows]->(m:person), (m)-[e2:created]->(s:software) RETURN n.name, s.title;
+#### Edge Traversal
 
+```
+neug > EXPLAIN MATCH (p:person)-[w:workAt]->(o:organisation) RETURN p.firstName, p.lastName, o.name, w.workFrom;
+No results (total records: 0)
+
+
+╔════════════════════════════════════════╗
+║         PROFILE REPORT                 ║
+╚════════════════════════════════════════╝
+Total output tuples: 0
+Total elapsed time: 0.000 s
+
+┌───────────────────────────────────────┐
+│           ScanWithGPredOpr            │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│            EdgeExpandEOpr             │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│           GetVFromEdgesOpr            │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│              ProjectOpr               │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│                SinkOpr                │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+```
+
+#### Multi-hop Traversal
+
+```
+neug > EXPLAIN MATCH (p:person)-[w:workAt]->(o:organisation)-[ol:organisationIsLocatedIn]->(pl:place)
+         RETURN p.firstName, p.lastName, o.name, pl.name;
 No results (total records: 0)
 
 ╔════════════════════════════════════════╗
@@ -131,10 +209,12 @@ Total elapsed time: 0.000 s
 
 #### Example with Join
 
-```sql
-neug > EXPLAIN MATCH (p1:person), (p2:person) WHERE p1.id < p2.id RETURN p1.name, p2.name;
-
+```
+neug > EXPLAIN MATCH (p1:person), (p2:person)
+         WHERE p1.id < p2.id
+         RETURN p1.firstName, p1.lastName, p2.firstName, p2.lastName LIMIT 10;
 No results (total records: 0)
+
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
@@ -170,18 +250,28 @@ Total elapsed time: 0.000 s
 │   time: 0.000s | rows:     0 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
+│               LimitOpr                │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
 │                SinkOpr                │
 ├───────────────────────────────────────┤
 │   time: 0.000s | rows:     0 tuples   │
 └───────────────────────────────────────┘
 ```
 
-Example with Aggregation
+#### Example with Aggregation
 
-```sql
-neug > EXPLAIN MATCH (n:person) RETURN COUNT(*) as person_count;
-
+```
+neug > EXPLAIN MATCH (p:person)-[w:workAt]->(o:organisation)
+         RETURN o.name,
+                COUNT(p.id) as emp_count,
+                MIN(p.id) as min_emp_id,
+                MAX(p.id) as max_emp_id,
+                AVG(p.id) as avg_emp_id;
 No results (total records: 0)
+
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
@@ -191,6 +281,16 @@ Total elapsed time: 0.000 s
 
 ┌───────────────────────────────────────┐
 │           ScanWithGPredOpr            │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│            EdgeExpandVOpr             │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:     0 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│              ProjectOpr               │
 ├───────────────────────────────────────┤
 │   time: 0.000s | rows:     0 tuples   │
 └───────────────────────────────────────┘
@@ -215,192 +315,299 @@ Total elapsed time: 0.000 s
 
 #### Simple Node Scan
 
-```sql
-neug > PROFILE MATCH (n:person) RETURN n.name;
-+-------------+
-| _0_n.name   |
-+=============+
-| marko       |
-+-------------+
-| vadas       |
-+-------------+
-| josh        |
-+-------------+
-| peter       |
-+-------------+
+```
+neug > PROFILE MATCH (p:person) RETURN p.firstName, p.lastName;
++------------------+-----------------+
+| _0_p.firstName   | _0_p.lastName   |
++==================+=================+
+| Mahinda          | Perera          |
++------------------+-----------------+
+| Eli              | Peretz          |
++------------------+-----------------+
+| Joseph           | Anderson        |
++------------------+-----------------+
+| Yacine           | Abdelli         |
++------------------+-----------------+
+| Jose             | Alonso          |
++------------------+-----------------+
+| ...              | ...             |
++------------------+-----------------+
 
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
 ╚════════════════════════════════════════╝
-Total output tuples: 4
-Total elapsed time: 0.000 s
+Total output tuples: 903
+Total elapsed time: 0.001 s
 
 ┌───────────────────────────────────────┐
 │           ScanWithGPredOpr            │
 ├───────────────────────────────────────┤
-│   time: 0.001s | rows:     4 tuples   │
+│   time: 0.001s | rows:   903 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │              ProjectOpr               │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     4 tuples   │
+│   time: 0.000s | rows:   903 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │                SinkOpr                │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     4 tuples   │
+│   time: 0.000s | rows:   903 tuples   │
+└───────────────────────────────────────┘
+```
+
+### Simple Edge Traversal 
+
+```
+neug > PROFILE MATCH (p:person)-[w:workAt]->(o:organisation) RETURN p.firstName, p.lastName, o.name, w.workFrom;
++------------------+-----------------+---------------------------------------+-----------------+
+| _0_p.firstName   | _0_p.lastName   | _2_o.name                             | _4_w.workFrom   |
++==================+=================+=======================================+=================+
+| Mahinda          | Perera          | SriLankan_Airlines                    | 2013            |
++------------------+-----------------+---------------------------------------+-----------------+
+| Mahinda          | Perera          | Aero_Lanka                            | 2013            |
++------------------+-----------------+---------------------------------------+-----------------+
+| Mahinda          | Perera          | Deccan_Lanka                          | 2013            |
++------------------+-----------------+---------------------------------------+-----------------+
+| Eli              | Peretz          | Atlas_Blue                            | 2007            |
++------------------+-----------------+---------------------------------------+-----------------+
+| Eli              | Peretz          | Jet4you                               | 2007            |
++------------------+-----------------+---------------------------------------+-----------------+
+| ...              | ...             | ...                                   | ...             |
++------------------+-----------------+---------------------------------------+-----------------+
+
+
+╔════════════════════════════════════════╗
+║         PROFILE REPORT                 ║
+╚════════════════════════════════════════╝
+Total output tuples: 1953
+Total elapsed time: 0.002 s
+
+┌───────────────────────────────────────┐
+│           ScanWithGPredOpr            │
+├───────────────────────────────────────┤
+│   time: 0.001s | rows:   903 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│            EdgeExpandEOpr             │
+├───────────────────────────────────────┤
+│   time: 0.001s | rows:  1953 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│           GetVFromEdgesOpr            │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:  1953 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│              ProjectOpr               │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:  1953 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│                SinkOpr                │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ```
 
 #### Multi-hop Traversal
 
-```sql
-neug > PROFILE MATCH (n:person)-[e1:knows]->(m:person), (m)-[e2:created]->(s:software) RETURN n.name, m.name, s.title;
-+-------------+-------------+--------------+
-| _0_n.name   | _2_m.name   | _6_s.title   |
-+=============+=============+==============+
-| marko       | josh        | lop          |
-+-------------+-------------+--------------+
-| marko       | josh        | ripple       |
-+-------------+-------------+--------------+
+```
+neug > PROFILE MATCH (p:person)-[w:workAt]->(o:organisation)-[ol:organisationIsLocatedIn]->(pl:place)
+         RETURN p.firstName, p.lastName, o.name, pl.name;
++------------------+-----------------+---------------------------------------+---------------+
+| _0_p.firstName   | _0_p.lastName   | _2_o.name                             | _6_pl.name    |
++==================+=================+=======================================+===============+
+| Mahinda          | Perera          | SriLankan_Airlines                    | Sri_Lanka     |
++------------------+-----------------+---------------------------------------+---------------+
+| Mahinda          | Perera          | Aero_Lanka                            | Sri_Lanka     |
++------------------+-----------------+---------------------------------------+---------------+
+| Mahinda          | Perera          | Deccan_Lanka                          | Sri_Lanka     |
++------------------+-----------------+---------------------------------------+---------------+
+| Eli              | Peretz          | Atlas_Blue                            | Morocco       |
++------------------+-----------------+---------------------------------------+---------------+
+| Eli              | Peretz          | Jet4you                               | Morocco       |
++------------------+-----------------+---------------------------------------+---------------+
+| ...              | ...             | ...                                   | ...           |
++------------------+-----------------+---------------------------------------+---------------+
 
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
 ╚════════════════════════════════════════╝
-Total output tuples: 2
-Total elapsed time: 0.000 s
+Total output tuples: 1953
+Total elapsed time: 0.002 s
 
 ┌───────────────────────────────────────┐
 │           ScanWithGPredOpr            │
 ├───────────────────────────────────────┤
-│   time: 0.003s | rows:     4 tuples   │
+│   time: 0.001s | rows:   903 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │            EdgeExpandEOpr             │
 ├───────────────────────────────────────┤
-│   time: 0.002s | rows:     2 tuples   │
+│   time: 0.001s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │           GetVFromEdgesOpr            │
 ├───────────────────────────────────────┤
-│   time: 0.001s | rows:     2 tuples   │
+│   time: 0.000s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │            EdgeExpandVOpr             │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     2 tuples   │
+│   time: 0.000s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │              ProjectOpr               │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     2 tuples   │
+│   time: 0.000s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │                SinkOpr                │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     2 tuples   │
+│   time: 0.000s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ```
 
 #### Example with Join
 
-```sql
-neug > PROFILE MATCH (p1:person), (p2:person) WHERE p1.id < p2.id RETURN p1.name, p2.name;
-+--------------+--------------+
-| _0_p1.name   | _2_p2.name   |
-+==============+==============+
-| marko        | vadas        |
-+--------------+--------------+
-| marko        | josh         |
-+--------------+--------------+
-| marko        | peter        |
-+--------------+--------------+
-| vadas        | josh         |
-+--------------+--------------+
-| vadas        | peter        |
-+--------------+--------------+
-| josh         | peter        |
-+--------------+--------------+
+```
+neug > PROFILE MATCH (p1:person), (p2:person)
+         WHERE p1.id < p2.id
+         RETURN p1.firstName, p1.lastName, p2.firstName, p2.lastName LIMIT 10;
++-------------------+------------------+-------------------+------------------+
+| _0_p1.firstName   | _0_p1.lastName   | _2_p2.firstName   | _2_p2.lastName   |
++===================+==================+===================+==================+
+| Mahinda           | Perera           | Eli               | Peretz           |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Joseph            | Anderson         |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Yacine            | Abdelli          |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Jose              | Alonso           |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Steve             | Moore            |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | John              | Rao              |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Jun               | Wang             |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | A. C.             | Bos              |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Karim             | Akhmadiyeva      |
++-------------------+------------------+-------------------+------------------+
+| Mahinda           | Perera           | Hermann           | Becker           |
++-------------------+------------------+-------------------+------------------+
 
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
 ╚════════════════════════════════════════╝
-Total output tuples: 6
-Total elapsed time: 0.000 s
+Total output tuples: 10
+Total elapsed time: 0.134 s
 
 ┌───────────────────────────────────────┐
 │                JoinOpr                │
 ├───────────────────────────────────────┤
-│   time: 0.003s | rows:    16 tuples   │
+│  time: 0.062s | rows: 815409 tuples   │
 └───────────────────────────────────────┘
 ├─ child 0
 │    ┌───────────────────────────────────────┐
 │    │           ScanWithGPredOpr            │
 │    ├───────────────────────────────────────┤
-│    │   time: 0.003s | rows:     4 tuples   │
+│    │   time: 0.000s | rows:   903 tuples   │
 │    └───────────────────────────────────────┘
 └─ child 1
      ┌───────────────────────────────────────┐
      │           ScanWithGPredOpr            │
      ├───────────────────────────────────────┤
-     │   time: 0.002s | rows:     4 tuples   │
+     │   time: 0.000s | rows:   903 tuples   │
      └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │               SelectOpr               │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     6 tuples   │
+│  time: 0.055s | rows: 407253 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │              ProjectOpr               │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     6 tuples   │
+│  time: 0.015s | rows: 407253 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│               LimitOpr                │
+├───────────────────────────────────────┤
+│   time: 0.002s | rows:    10 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │                SinkOpr                │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     6 tuples   │
+│   time: 0.000s | rows:    10 tuples   │
 └───────────────────────────────────────┘
 ```
 
 #### Example with Aggregation
 
-```sql
-neug > PROFILE MATCH (n:person) RETURN COUNT(*) as person_count;
-+----------------+
-|   person_count |
-+================+
-|              4 |
-+----------------+
+```
+neug > PROFILE MATCH (p:person)-[w:workAt]->(o:organisation)
+         RETURN o.name,
+                COUNT(p.id) as emp_count,
+                MIN(p.id) as min_emp_id,
+                MAX(p.id) as max_emp_id,
+                AVG(p.id) as avg_emp_id;
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| _2_o.name                             | emp_count   | min_emp_id     | max_emp_id     | avg_emp_id         |
++=======================================+=============+================+================+====================+
+| SriLankan_Airlines                    | 2           | 933            | 19791209300504 | 9895604650718.5    |
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| Aero_Lanka                            | 4           | 933            | 28587302322689 | 13743895347790.0   |
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| Deccan_Lanka                          | 2           | 933            | 15393162788911 | 7696581394922.0    |
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| Atlas_Blue                            | 5           | 6597069767117  | 19791209300562 | 12754334882790.2   |
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| Jet4you                               | 2           | 6597069767117  | 15393162789162 | 10995116278139.5   |
++---------------------------------------+-------------+----------------+----------------+--------------------+
+| ...                                   | ...         | ...            | ...            | ...                |
++---------------------------------------+-------------+----------------+----------------+--------------------+
 
 
 ╔════════════════════════════════════════╗
 ║         PROFILE REPORT                 ║
 ╚════════════════════════════════════════╝
-Total output tuples: 1
-Total elapsed time: 0.000 s
+Total output tuples: 793
+Total elapsed time: 0.006 s
 
 ┌───────────────────────────────────────┐
 │           ScanWithGPredOpr            │
 ├───────────────────────────────────────┤
-│   time: 0.003s | rows:     4 tuples   │
+│   time: 0.002s | rows:   903 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
-│              GroupByOpr               │
+│            EdgeExpandVOpr             │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     1 tuples   │
+│   time: 0.002s | rows:  1953 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │              ProjectOpr               │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     1 tuples   │
+│   time: 0.001s | rows:  1953 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│              GroupByOpr               │
+├───────────────────────────────────────┤
+│   time: 0.001s | rows:   793 tuples   │
+└───────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│              ProjectOpr               │
+├───────────────────────────────────────┤
+│   time: 0.000s | rows:   793 tuples   │
 └───────────────────────────────────────┘
 ┌───────────────────────────────────────┐
 │                SinkOpr                │
 ├───────────────────────────────────────┤
-│   time: 0.000s | rows:     1 tuples   │
+│   time: 0.000s | rows:   793 tuples   │
 └───────────────────────────────────────┘
 ```
 
