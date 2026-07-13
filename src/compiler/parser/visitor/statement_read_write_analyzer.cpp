@@ -31,7 +31,6 @@
 #include "neug/compiler/parser/query/reading_clause/reading_clause.h"
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
 #include "neug/compiler/parser/standalone_call_function.h"
-#include "neug/compiler/transaction/transaction.h"
 
 namespace neug {
 namespace parser {
@@ -50,8 +49,9 @@ bool isCallFunctionReadOnly(main::ClientContext* context,
   auto funcName = functionExpression->constCast<ParsedFunctionExpression>()
                       .getFunctionName();
   auto* catalog = context->getCatalog();
-  auto* transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog->containsFunction(transaction, funcName)) {
+  auto* transaction = context->getTransaction();
+  if (transaction == nullptr ||
+      !catalog->containsFunction(transaction, funcName)) {
     // Unknown CALL — treat as non-read-only to be safe.
     return false;
   }
@@ -59,14 +59,21 @@ bool isCallFunctionReadOnly(main::ClientContext* context,
   if (entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY &&
       entry->getType() !=
           catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {
-    return true;
+    // Non-table callables are not classified here; be conservative.
+    return false;
   }
   auto& funcSet =
       entry->constPtrCast<catalog::FunctionCatalogEntry>()->getFunctionSet();
   if (funcSet.empty()) {
     return false;
   }
-  return funcSet[0]->isReadOnly;
+  // Only treat as read-only when every overload is read-only.
+  for (const auto& func : funcSet) {
+    if (!func->isReadOnly) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace

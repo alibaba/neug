@@ -48,7 +48,7 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
   assert(cache_value);
   const auto& flags = cache_value->flags;
   // Explicit access_mode=read accepts read-only CALL (no procedure_call flag).
-  // Unspecified mode keeps analyzeMode's update classification for CALL.
+  // Unspecified mode: token-based analyzeMode still classifies CALL as update.
   if ((is_read_only_ || access_mode == AccessMode::kRead) &&
       !IsReadOnlyExecutionFlag(flags)) {
     RETURN_ERROR(

@@ -184,12 +184,13 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     RETURN_ERROR(parse_res);
   }
   if (mode == AccessMode::kUnKnown) {
-    // Unspecified access_mode: CALL is classified as update by analyzeMode.
+    // Token-based analyzeMode still treats "call" as update. Read-only CALL is
+    // only accepted on the read path when access_mode=read is set explicitly.
     mode = planner_->analyzeMode(query);
   }
-  // Explicit access_mode=read is allowed for read-only CALL/GDS: analyzer sets
-  // flag.read (not procedure_call) when Function::isReadOnly is true, so
-  // validate_flags() accepts them on the read path.
+  // Explicit access_mode=read: GPhysicalAnalyzer sets flag.read (not
+  // procedure_call) when Function::isReadOnly is true, so validate_flags()
+  // accepts those plans on the read path.
 
   google::protobuf::Arena arena;
   // Create a QueryResponse message on the arena to hold the results.
