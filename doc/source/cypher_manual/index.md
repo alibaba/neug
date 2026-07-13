@@ -181,7 +181,7 @@ Loading external data as **temporary graphs** via `LOAD AS` is currently under d
 
 ### Performance Debugging (EXPLAIN & PROFILE)
 
-NeuG provides EXPLAIN and PROFILE directives to help you understand and optimize query execution:
+NeuG provides EXPLAIN and PROFILE keywords to help you understand and optimize query execution:
 
 * **EXPLAIN**: View the execution plan without running the query. Useful for understanding how NeuG will execute your query and identifying potential optimization opportunities.
 
