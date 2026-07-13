@@ -37,7 +37,7 @@ namespace parser {
 
 namespace {
 
-bool is_call_function_read_only(main::ClientContext* context,
+bool isCallFunctionReadOnly(main::ClientContext* context,
                                 const ParsedExpression* functionExpression) {
   if (context == nullptr || functionExpression == nullptr) {
     return false;
@@ -81,7 +81,7 @@ bool is_call_function_read_only(main::ClientContext* context,
 void StatementReadWriteAnalyzer::visitStandaloneCallFunction(
     const Statement& statement) {
   auto& call = statement.constCast<StandaloneCallFunction>();
-  if (!is_call_function_read_only(context, call.getFunctionExpression())) {
+  if (!isCallFunctionReadOnly(context, call.getFunctionExpression())) {
     readOnly = false;
   }
 }
@@ -89,7 +89,7 @@ void StatementReadWriteAnalyzer::visitStandaloneCallFunction(
 void StatementReadWriteAnalyzer::visitInQueryCall(
     const ReadingClause* readingClause) {
   auto& call = readingClause->constCast<InQueryCallClause>();
-  if (!is_call_function_read_only(context, call.getFunctionExpression())) {
+  if (!isCallFunctionReadOnly(context, call.getFunctionExpression())) {
     readOnly = false;
   }
   if (readingClause->hasWherePredicate() &&
