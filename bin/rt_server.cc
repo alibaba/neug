@@ -89,9 +89,6 @@ int main(int argc, char** argv) {
   service_config.host_str =
       vm.count("host") ? vm["host"].as<std::string>() : "127.0.0.1";
   service_config.query_port = http_port;
-  if (memory_level == neug::MemoryLevel::kHugePagePreferred) {
-    service_config.auto_compaction = true;
-  }
   neug::NeugDBService service(db, service_config);
 
   service.run_and_wait_for_exit();
