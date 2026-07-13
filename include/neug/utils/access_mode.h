@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
@@ -59,6 +60,18 @@ inline std::string AccessModeToString(AccessMode mode) {
   default:
     return "unknown";
   }
+}
+
+inline bool IsReadOnlyExecutionFlag(const physical::ExecutionFlag& flags) {
+  return !(flags.insert() || flags.update() || flags.schema() ||
+           flags.batch() || flags.create_temp_table() || flags.checkpoint() ||
+           flags.procedure_call());
+}
+
+inline bool IsInsertOnlyExecutionFlag(const physical::ExecutionFlag& flags) {
+  return flags.insert() && !(flags.read() || flags.update() || flags.schema() ||
+                             flags.batch() || flags.create_temp_table() ||
+                             flags.checkpoint() || flags.procedure_call());
 }
 
 }  // namespace neug
