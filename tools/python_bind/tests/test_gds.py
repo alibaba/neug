@@ -946,8 +946,7 @@ def _batch_writeback(conn, prop_name, comm_map):
     if not comm_map:
         return
     when_clauses = " ".join(
-        f"WHEN n.id = {nid} THEN {comm}"
-        for nid, comm in comm_map.items()
+        f"WHEN n.id = {nid} THEN {comm}" for nid, comm in comm_map.items()
     )
     conn.execute(
         f"MATCH (n:person) "
@@ -1471,9 +1470,9 @@ def test_leiden_two_vertex_labels(tmp_path):
         # Vertex 0, 2, 8 all studyAt org 1 — at least two should share a community
         study_vertices = [0, 2, 8, 1]
         study_comms = [comm.get(v) for v in study_vertices if v in comm]
-        assert len(set(study_comms)) < len(study_comms), (
-            f"studyAt-connected vertices should share a community: {comm}"
-        )
+        assert len(set(study_comms)) < len(
+            study_comms
+        ), f"studyAt-connected vertices should share a community: {comm}"
 
 
 def test_louvain_two_vertex_labels(tmp_path):
@@ -1497,9 +1496,9 @@ def test_louvain_two_vertex_labels(tmp_path):
         # Vertex 0, 2, 8 all studyAt org 1 — at least two should share a community
         study_vertices = [0, 2, 8, 1]
         study_comms = [comm.get(v) for v in study_vertices if v in comm]
-        assert len(set(study_comms)) < len(study_comms), (
-            f"studyAt-connected vertices should share a community: {comm}"
-        )
+        assert len(set(study_comms)) < len(
+            study_comms
+        ), f"studyAt-connected vertices should share a community: {comm}"
 
 
 def test_leiden_incremental_data_changed(tmp_path):
@@ -1634,8 +1633,7 @@ def test_leiden_warmstart_stability_strict(tmp_path):
         conn.execute("LOAD gds;")
         conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
         conn.execute(
-            "CALL project_graph('g', ['person'], "
-            "{'[person, knows, person]': ''});"
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
         )
         rows_r1 = list(
             conn.execute(
@@ -1647,8 +1645,7 @@ def test_leiden_warmstart_stability_strict(tmp_path):
         _batch_writeback(conn, "leiden_comm", r1_map)
         conn.execute("CALL drop_projected_graph('g');")
         conn.execute(
-            "CALL project_graph('g', ['person'], "
-            "{'[person, knows, person]': ''});"
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
         )
         rows_r2 = list(
             conn.execute(
