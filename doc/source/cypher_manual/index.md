@@ -179,6 +179,16 @@ At present, NeuG fully supports loading external data as **temporary tables** vi
 You can refer to the [Load From](../data_io/load_data) for detailed usage and supported operations.
 Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidelines will be released in upcoming versions.
 
+### Performance Debugging (EXPLAIN & PROFILE)
+
+NeuG provides EXPLAIN and PROFILE directives to help you understand and optimize query execution:
+
+* **EXPLAIN**: View the execution plan without running the query. Useful for understanding how NeuG will execute your query and identifying potential optimization opportunities.
+
+* **PROFILE**: Execute the query and collect per-operator timing and row count statistics. Useful for identifying performance bottlenecks and understanding data distribution impact.
+
+Both directives provide detailed execution plans showing the operator tree structure and metrics. For detailed usage and examples, please refer to the [EXPLAIN & PROFILE section](explain_profile).
+
 ### Extension
 
 NeuG provides an Extension framework that enables dynamically adding new functionality without modifying the core engine code. Please refer to the [Extensions](../extensions/index) section for more details.
