@@ -38,7 +38,7 @@ namespace parser {
 namespace {
 
 bool isCallFunctionReadOnly(main::ClientContext* context,
-                                const ParsedExpression* functionExpression) {
+                            const ParsedExpression* functionExpression) {
   if (context == nullptr || functionExpression == nullptr) {
     return false;
   }
