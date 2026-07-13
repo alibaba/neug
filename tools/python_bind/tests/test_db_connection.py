@@ -328,9 +328,7 @@ def test_access_mode(tmp_path):
                 f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
                 access_mode=mode,
             )
-        assert "Read-only mode does not support write operations" in str(
-            excinfo.value
-        )
+        assert "Read-only mode does not support write operations" in str(excinfo.value)
     for mode in ["insert", "i", "update", "u"]:
         conn_rw.execute(
             f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
