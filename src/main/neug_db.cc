@@ -46,6 +46,18 @@
 
 namespace neug {
 
+namespace {
+
+void ThrowTPServiceModeConflict(int32_t state) {
+  if (state > 0) {
+    THROW_RUNTIME_ERROR(
+        "Cannot start TP service while embedded connections are active.");
+  }
+  THROW_RUNTIME_ERROR("Cannot start TP service while TP service is active.");
+}
+
+}  // namespace
+
 inline std::string allocator_prefix(const std::string& allocator_dir,
                                     int thread_id) {
   return (std::filesystem::path(allocator_dir) /
@@ -79,6 +91,7 @@ NeugDB::NeugDB()
     : last_compaction_ts_(0),
       last_ts_(0),
       closed_(true),
+      mode_state_(0),
       is_pure_memory_(false),
       max_thread_num_(1) {}
 
@@ -176,7 +189,17 @@ void NeugDB::Close() {
 }
 
 std::shared_ptr<Connection> NeugDB::Connect() {
-  return connection_manager_->CreateConnection();
+  if (IsClosed() || !connection_manager_) {
+    THROW_RUNTIME_ERROR("NeugDB instance is not open.");
+  }
+  registerAPConnection();
+  try {
+    return connection_manager_->CreateConnection(
+        [this]() { unregisterAPConnection(); });
+  } catch (...) {
+    unregisterAPConnection();
+    throw;
+  }
 }
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
@@ -184,6 +207,61 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
 }
 
 void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
+
+void NeugDB::ValidateCanStartTPService() const {
+  const auto state = mode_state_.load(std::memory_order_acquire);
+  if (state != 0) {
+    ThrowTPServiceModeConflict(state);
+  }
+}
+
+void NeugDB::registerTPService() {
+  int32_t expected = 0;
+  if (mode_state_.compare_exchange_strong(expected, -1,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire)) {
+    return;
+  }
+  ThrowTPServiceModeConflict(expected);
+}
+
+void NeugDB::unregisterTPService() noexcept {
+  int32_t expected = -1;
+  if (!mode_state_.compare_exchange_strong(expected, 0,
+                                           std::memory_order_acq_rel,
+                                           std::memory_order_acquire)) {
+    LOG(ERROR) << "Unexpected NeugDB mode state when unregistering TP service: "
+               << expected;
+  }
+}
+
+void NeugDB::registerAPConnection() {
+  auto state = mode_state_.load(std::memory_order_acquire);
+  while (true) {
+    if (state < 0) {
+      THROW_RUNTIME_ERROR(
+          "Cannot open embedded connection while TP service is active.");
+    }
+    if (mode_state_.compare_exchange_weak(state, state + 1,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire)) {
+      return;
+    }
+  }
+}
+
+void NeugDB::unregisterAPConnection() noexcept {
+  auto state = mode_state_.load(std::memory_order_acquire);
+  while (state > 0) {
+    if (mode_state_.compare_exchange_weak(state, state - 1,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire)) {
+      return;
+    }
+  }
+  LOG(ERROR) << "Unexpected NeugDB mode state when unregistering AP connection: "
+             << state;
+}
 
 void NeugDB::preprocessConfig() {
   if (config_.max_thread_num < 0) {

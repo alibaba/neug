@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -39,7 +40,8 @@ class ConnectionManager {
         config_(config) {}
   ~ConnectionManager() { Close(); }
 
-  std::shared_ptr<Connection> CreateConnection();
+  std::shared_ptr<Connection> CreateConnection(
+      std::function<void()> close_callback = {});
 
   /**
    * @brief Close all connections managed by the connection manager.

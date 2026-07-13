@@ -46,6 +46,7 @@ class NeugDBServiceTest : public ::testing::Test {
     // Load modern graph
     auto conn = db_->Connect();
     load_modern_graph(conn);
+    conn->Close();
 
     // Configure service
     config_.query_port = 19999;  // Use non-standard port to avoid conflicts
@@ -152,6 +153,35 @@ TEST_F(NeugDBServiceTest, ServiceThreadNumCannotExceedDatabaseMaxThreadNum) {
 
   EXPECT_THROW(neug::NeugDBService service(*db_, cfg),
                neug::exception::InvalidArgumentException);
+}
+
+TEST_F(NeugDBServiceTest, ServiceCreationRejectsActiveEmbeddedConnection) {
+  auto conn = db_->Connect();
+
+  EXPECT_THROW(neug::NeugDBService service(*db_, config_),
+               neug::exception::RuntimeError);
+
+  conn->Close();
+}
+
+TEST_F(NeugDBServiceTest, EmbeddedConnectionRejectedWhileServiceActive) {
+  {
+    neug::NeugDBService service(*db_, config_);
+
+    EXPECT_THROW({ auto conn = db_->Connect(); },
+                 neug::exception::RuntimeError);
+  }
+
+  auto conn = db_->Connect();
+  ASSERT_NE(conn, nullptr);
+  conn->Close();
+}
+
+TEST_F(NeugDBServiceTest, ClosedEmbeddedConnectionDoesNotBlockService) {
+  auto conn = db_->Connect();
+  conn->Close();
+
+  EXPECT_NO_THROW(neug::NeugDBService service(*db_, config_));
 }
 
 TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {
