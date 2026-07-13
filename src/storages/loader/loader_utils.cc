@@ -1246,9 +1246,8 @@ void fillVertexReaderMeta(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
     const LoadingConfig& loading_config,
     const std::vector<std::string>& vertex_property_names,
-    const std::vector<DataTypeId>& vertex_edge_property_types,
-    DataTypeId pk_type, const std::string& pk_name, size_t pk_ind,
-    CsvReadConfig& config) {
+    const std::vector<DataType>& vertex_edge_property_types, DataType pk_type,
+    const std::string& pk_name, size_t pk_ind, CsvReadConfig& config) {
   CHECK(vertex_edge_property_types.size() == vertex_property_names.size());
   put_boolean_option(config);
 
@@ -1329,9 +1328,9 @@ void fillVertexReaderMeta(
     }
     VLOG(10) << "vertex_label: " << v_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type << " ind: " << ind;
-    config.column_types.insert(
-        {included_col_names[ind], DataType(property_type)});
+             << " property_type: " << property_type.ToString()
+             << " ind: " << ind;
+    config.column_types.insert({included_col_names[ind], property_type});
   }
   {
     size_t ind = mapped_property_names.size();
@@ -1347,7 +1346,7 @@ void fillVertexReaderMeta(
           " does not exist in the vertex column mapping, please "
           "check your configuration");
     }
-    config.column_types.insert({included_col_names[ind], DataType(pk_type)});
+    config.column_types.insert({included_col_names[ind], pk_type});
   }
 }
 
@@ -1356,8 +1355,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<DataTypeId>& edge_property_types,
-                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
+                        const std::vector<DataType>& edge_property_types,
+                        DataType src_pk_type, DataType dst_pk_type,
                         CsvReadConfig& config) {
   CHECK(edge_property_types.size() == edge_property_names.size());
   put_boolean_option(config);
@@ -1454,9 +1453,9 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
     }
     VLOG(10) << "edge_label: " << edge_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type << " ind: " << ind;
-    config.column_types.insert(
-        {included_col_names[ind + 2], DataType(property_type)});
+             << " property_type: " << property_type.ToString()
+             << " ind: " << ind;
+    config.column_types.insert({included_col_names[ind + 2], property_type});
   }
   {
     auto src_dst_cols =
@@ -1468,10 +1467,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
           src_col_ind < static_cast<int64_t>(config.column_names.size()));
     CHECK(dst_col_ind >= 0 &&
           dst_col_ind < static_cast<int64_t>(config.column_names.size()));
-    config.column_types.insert(
-        {config.column_names[src_col_ind], DataType(src_pk_type)});
-    config.column_types.insert(
-        {config.column_names[dst_col_ind], DataType(dst_pk_type)});
+    config.column_types.insert({config.column_names[src_col_ind], src_pk_type});
+    config.column_types.insert({config.column_names[dst_col_ind], dst_pk_type});
 
     VLOG(10) << "Column types: ";
     for (const auto& iter : config.column_types) {
