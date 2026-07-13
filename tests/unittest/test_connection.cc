@@ -179,7 +179,7 @@ TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
       "read");
   ASSERT_FALSE(project_res);
   EXPECT_NE(project_res.error().ToString().find(
-                "Read-only mode does not support write operations"),
+                "Write queries are not supported in read-only mode"),
             std::string::npos)
       << project_res.error().ToString();
 }

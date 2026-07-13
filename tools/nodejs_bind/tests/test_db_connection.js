@@ -190,7 +190,7 @@ test('test_access_mode', () => {
         );
       },
       (err) =>
-        err.message.includes('Read-only mode does not support write operations')
+        err.message.includes('Write queries are not supported in read-only mode')
     );
   }
 

@@ -53,7 +53,7 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
       !IsReadOnlyExecutionFlag(flags)) {
     RETURN_ERROR(
         neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                     "Read-only mode does not support write operations."));
+                     "Write queries are not supported in read-only mode"));
   }
   return std::make_pair(access_mode, cache_value);
 }
