@@ -33,7 +33,7 @@ namespace neug {
 namespace function {
 
 AggregateFunction::AggregateFunction(const AggregateFunction& other)
-    : ScalarOrAggregateFunction{other.name, other.parameterTypeIDs,
+    : ScalarOrAggregateFunction{other.name, other.parameterTypes,
                                 other.returnTypeID, other.bindFunc} {
   isDistinct = other.isDistinct;
   initializeFunc = other.initializeFunc;

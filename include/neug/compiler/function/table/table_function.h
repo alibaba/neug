@@ -186,6 +186,8 @@ struct NEUG_API TableFunction : Function {
   table_func_infer_input_types inferInputTypes = nullptr;
 
   TableFunction() {}
+  TableFunction(std::string name, std::vector<common::DataType> inputTypes)
+      : Function{std::move(name), std::move(inputTypes)} {}
   TableFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
       : Function{std::move(name), std::move(inputTypes)} {}
   ~TableFunction() override;
@@ -194,7 +196,7 @@ struct NEUG_API TableFunction : Function {
   DEFAULT_BOTH_MOVE(TableFunction);
 
   std::string signatureToString() const override {
-    return common::LogicalTypeUtils::toString(parameterTypeIDs);
+    return common::LogicalTypeUtils::toString(parameterTypes);
   }
 
   std::unique_ptr<TableFunction> copy() const {

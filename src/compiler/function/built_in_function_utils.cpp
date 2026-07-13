@@ -343,10 +343,11 @@ Function* BuiltInFunctionsUtils::getBestMatch(
   for (auto& function : functionsToMatch) {
     auto currentCost = 0u;
     std::unordered_set<DataTypeId> distinctParameterTypes;
-    for (auto& parameterTypeID : function->parameterTypeIDs) {
-      if (parameterTypeID != DataTypeId::kVarchar) {
+    for (auto& parameterType : function->parameterTypes) {
+      if (parameterType.id() != DataTypeId::kVarchar) {
         currentCost++;
       }
+      auto parameterTypeID = parameterType.id();
       if (!distinctParameterTypes.contains(parameterTypeID)) {
         currentCost++;
         distinctParameterTypes.insert(parameterTypeID);
@@ -364,23 +365,24 @@ Function* BuiltInFunctionsUtils::getBestMatch(
 uint32_t BuiltInFunctionsUtils::getFunctionCost(
     const std::vector<DataType>& inputTypes, Function* function) {
   if (function->isVarLength) {
-    NEUG_ASSERT(function->parameterTypeIDs.size() == 1);
-    return matchVarLengthParameters(inputTypes, function->parameterTypeIDs[0]);
+    NEUG_ASSERT(function->parameterTypes.size() == 1);
+    return matchVarLengthParameters(inputTypes,
+                                    function->parameterTypes[0].id());
   }
-  return matchParameters(inputTypes, function->parameterTypeIDs);
+  return matchParameters(inputTypes, function->parameterTypes);
 }
 
 uint32_t BuiltInFunctionsUtils::getAggregateFunctionCost(
     const std::vector<DataType>& inputTypes, bool isDistinct,
     AggregateFunction* function) {
-  if (inputTypes.size() != function->parameterTypeIDs.size() ||
+  if (inputTypes.size() != function->parameterTypes.size() ||
       isDistinct != function->isDistinct) {
     return UINT32_MAX;
   }
   for (auto i = 0u; i < inputTypes.size(); ++i) {
-    if (function->parameterTypeIDs[i] == DataTypeId::kUnknown) {
+    if (function->parameterTypes[i].id() == DataTypeId::kUnknown) {
       continue;
-    } else if (inputTypes[i].id() != function->parameterTypeIDs[i]) {
+    } else if (inputTypes[i].id() != function->parameterTypes[i].id()) {
       return UINT32_MAX;
     }
   }
@@ -389,13 +391,13 @@ uint32_t BuiltInFunctionsUtils::getAggregateFunctionCost(
 
 uint32_t BuiltInFunctionsUtils::matchParameters(
     const std::vector<DataType>& inputTypes,
-    const std::vector<DataTypeId>& targetTypeIDs) {
-  if (inputTypes.size() != targetTypeIDs.size()) {
+    const std::vector<DataType>& targetTypes) {
+  if (inputTypes.size() != targetTypes.size()) {
     return UINT32_MAX;
   }
   auto cost = 0u;
   for (auto i = 0u; i < inputTypes.size(); ++i) {
-    auto castCost = getCastCost(inputTypes[i].id(), targetTypeIDs[i]);
+    auto castCost = getCastCost(inputTypes[i].id(), targetTypes[i].id());
     if (castCost == UNDEFINED_CAST_COST) {
       return UINT32_MAX;
     }
@@ -422,8 +424,8 @@ void BuiltInFunctionsUtils::validateSpecialCases(
     const std::vector<DataType>& inputTypes,
     const function::function_set& set) {
   if (name == AddFunction::name) {
-    auto targetType0 = candidateFunctions[0]->parameterTypeIDs[0];
-    auto targetType1 = candidateFunctions[0]->parameterTypeIDs[1];
+    auto targetType0 = candidateFunctions[0]->parameterTypes[0].id();
+    auto targetType1 = candidateFunctions[0]->parameterTypes[1].id();
     auto inputType0 = inputTypes[0].id();
     auto inputType1 = inputTypes[1].id();
     if ((inputType0 != DataTypeId::kVarchar ||
@@ -481,7 +483,7 @@ void validateNonEmptyCandidateFunctions(
   if (candidateFunctions.empty()) {
     std::string supportedInputsString;
     for (auto& function : set) {
-      if (function->parameterTypeIDs.empty()) {
+      if (function->parameterTypes.empty()) {
         continue;
       }
       supportedInputsString += function->signatureToString() + "\n";

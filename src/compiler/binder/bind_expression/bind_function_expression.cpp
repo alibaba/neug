@@ -164,10 +164,10 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
       }
     } else {
       for (auto i = 0u; i < children.size(); ++i) {
-        auto id = function->isVarLength ? function->parameterTypeIDs[0]
-                                        : function->parameterTypeIDs[i];
-        auto type = DataType(id);
-        childrenAfterCast.push_back(implicitCastIfNecessary(children[i], type));
+        auto type = function->isVarLength ? function->parameterTypes[0]
+                                          : function->parameterTypes[i];
+        childrenAfterCast.push_back(
+            implicitCastIfNecessary(children[i], type.copy()));
       }
     }
   }

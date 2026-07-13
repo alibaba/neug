@@ -98,7 +98,7 @@ class BuiltInFunctionsUtils {
       const std::vector<common::DataType>& inputTypes, Function* function);
   static uint32_t matchParameters(
       const std::vector<common::DataType>& inputTypes,
-      const std::vector<common::DataTypeId>& targetTypeIDs);
+      const std::vector<common::DataType>& targetTypes);
   static uint32_t matchVarLengthParameters(
       const std::vector<common::DataType>& inputTypes,
       common::DataTypeId targetTypeID);

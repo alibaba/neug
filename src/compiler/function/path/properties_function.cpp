@@ -60,8 +60,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   auto bindData =
       std::make_unique<PropertiesBindData>(std::move(returnType), fieldIdx);
   bindData->paramTypes.push_back(input.arguments[0]->getDataType().copy());
-  bindData->paramTypes.push_back(
-      DataType(input.definition->parameterTypeIDs[1]));
+  bindData->paramTypes.push_back(input.definition->parameterTypes[1].copy());
   return bindData;
 }
 

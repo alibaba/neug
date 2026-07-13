@@ -24,6 +24,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/function_signature_util.h"
 #include "neug/utils/api.h"
 
@@ -90,7 +91,7 @@ using scalar_bind_func = std::function<std::unique_ptr<FunctionBindData>(
 
 struct NEUG_API Function {
   std::string name;
-  std::vector<common::DataTypeId> parameterTypeIDs;
+  std::vector<common::DataType> parameterTypes;
   std::string signatureName;
   // Currently we only one variable-length function which is list creation. The
   // expectation is that all parameters must have the same type as
@@ -100,22 +101,29 @@ struct NEUG_API Function {
   bool isReadOnly = true;
 
   Function() : isVarLength{false}, isListLambda{false}, isReadOnly{true} {};
-  Function(std::string name, std::vector<common::DataTypeId> parameterTypeIDs)
+  Function(std::string name, std::vector<common::DataType> parameterTypes)
       : name{std::move(name)},
-        parameterTypeIDs{std::move(parameterTypeIDs)},
+        parameterTypes{std::move(parameterTypes)},
         isVarLength{false},
         isListLambda{false} {}
+  Function(std::string name, std::vector<common::DataTypeId> parameterTypeIDs)
+      : name{std::move(name)}, isVarLength{false}, isListLambda{false} {
+    parameterTypes.reserve(parameterTypeIDs.size());
+    for (auto id : parameterTypeIDs) {
+      parameterTypes.emplace_back(id);
+    }
+  }
   Function(const Function&) = default;
 
   virtual ~Function() = default;
 
   virtual std::string signatureToString() const {
-    return common::LogicalTypeUtils::toString(parameterTypeIDs);
+    return common::LogicalTypeUtils::toString(parameterTypes);
   }
 
   void computeSignature() {
     this->signatureName = FunctionSignatureUtil::getSignatureName(
-        this->name, this->parameterTypeIDs);
+        this->name, this->parameterTypes);
   }
 
   template <class TARGET>
@@ -133,6 +141,18 @@ struct ScalarOrAggregateFunction : Function {
   scalar_bind_func bindFunc = nullptr;
 
   ScalarOrAggregateFunction() : Function{} {}
+  ScalarOrAggregateFunction(std::string name,
+                            std::vector<common::DataType> parameterTypes,
+                            common::DataTypeId returnTypeID)
+      : Function{std::move(name), std::move(parameterTypes)},
+        returnTypeID{returnTypeID} {}
+  ScalarOrAggregateFunction(std::string name,
+                            std::vector<common::DataType> parameterTypes,
+                            common::DataTypeId returnTypeID,
+                            scalar_bind_func bindFunc)
+      : Function{std::move(name), std::move(parameterTypes)},
+        returnTypeID{returnTypeID},
+        bindFunc{std::move(bindFunc)} {}
   ScalarOrAggregateFunction(std::string name,
                             std::vector<common::DataTypeId> parameterTypeIDs,
                             common::DataTypeId returnTypeID)

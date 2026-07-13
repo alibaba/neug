@@ -134,12 +134,13 @@ execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set SSSPFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
-                                                 common::DataTypeId::kUnknown};
+  function::call_input_types input_types = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   function::call_output_columns output_columns = {
-      {"node", common::DataTypeId::kVertex},
-      {"distance", common::DataTypeId::kDouble},
-      {"path", common::DataTypeId::kPath}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"distance", common::DataType(common::DataTypeId::kDouble)},
+      {"path", common::DataType(common::DataTypeId::kPath)}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);
