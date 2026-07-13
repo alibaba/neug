@@ -167,9 +167,9 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   EXPECT_EQ(ctx.row_num(), 2);
 
   auto readings_col = ctx.chunk(0).columns()[1];
-  ASSERT_EQ(readings_col->column_type(), execution::ContextColumnType::kValue);
+  ASSERT_EQ(readings_col->column_type(), ContextColumnType::kValue);
   auto first = readings_col->get_elem(0);
-  const auto& first_values = execution::ArrayValue::GetChildren(first);
+  const auto& first_values = ArrayValue::GetChildren(first);
   ASSERT_EQ(first_values.size(), 3);
   EXPECT_EQ(first_values[0].GetValue<int64_t>(), 1);
   EXPECT_EQ(first_values[1].GetValue<int64_t>(), 2);
