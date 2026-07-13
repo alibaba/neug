@@ -81,7 +81,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
    * @param auto_compaction Enable background auto-compaction while
    * serving.
    * @return A string containing the URL of the server.
-   * @note This method will block until the server is stopped.
+   * @note When blocking is true, this method blocks until the server is
+   * stopped; otherwise it returns immediately after the server starts.
    */
   std::string serve(int port = 10000, const std::string& host = "localhost",
                     int32_t thread_num = 0, bool blocking = false,
