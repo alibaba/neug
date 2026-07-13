@@ -189,6 +189,25 @@ TEST_F(SchemaViewTest, GoptPlannerUsesDefaultNamespace) {
   EXPECT_FALSE(fts_result.has_value());
 }
 
+TEST_F(SchemaViewTest, HidesEdgesWhoseEndpointWasDeleted) {
+  CreateVertex("DefaultPerson", "default");
+  CreateSelfEdge("DefaultPerson", "DefaultKnows", "default");
+
+  const auto vertex_id = graph_->schema().get_vertex_label_id("DefaultPerson");
+  const auto edge_id = graph_->schema().get_edge_label_id("DefaultKnows");
+  ASSERT_TRUE(graph_interface_->DeleteVertexType("DefaultPerson").ok());
+
+  SchemaView view(graph_->schema(), "default");
+  EXPECT_TRUE(view.GetVertexSchemas().empty());
+  EXPECT_TRUE(view.GetEdgeSchemas().empty());
+  EXPECT_FALSE(view.ContainsEdgeLabel(edge_id));
+  EXPECT_FALSE(view.ContainsEdgeTriplet(vertex_id, vertex_id, edge_id));
+
+  auto edge_schema = view.GetEdgeSchema(vertex_id, vertex_id, edge_id);
+  ASSERT_FALSE(edge_schema);
+  EXPECT_EQ(edge_schema.error().error_code(), StatusCode::ERR_NOT_FOUND);
+}
+
 #ifdef BUILD_HTTP_SERVER
 TEST(StorageTPSchemaViewTest,
      StorageTPUpdateInterfaceIsolatesTypesByNamespaceAfterCommit) {

@@ -54,6 +54,8 @@ std::vector<std::shared_ptr<const EdgeSchema>> SchemaView::GetEdgeSchemas()
   std::vector<std::shared_ptr<const EdgeSchema>> result;
   for (const auto& [_, edge_schema] : schema_->get_all_edge_schemas()) {
     if (edge_schema != nullptr &&
+        schema_->is_vertex_label_valid(edge_schema->src_label_id) &&
+        schema_->is_vertex_label_valid(edge_schema->dst_label_id) &&
         schema_->is_edge_triplet_valid(edge_schema->src_label_id,
                                        edge_schema->dst_label_id,
                                        edge_schema->edge_label_id) &&
@@ -143,11 +145,15 @@ bool SchemaView::ContainsEdgeLabel(const std::string& label) const {
 bool SchemaView::ContainsEdgeTriplet(label_t src_label, label_t dst_label,
                                      label_t edge_label) const {
   EnsureSchema();
-  if (!schema_->is_edge_triplet_valid(src_label, dst_label, edge_label)) {
+  if (!schema_->is_vertex_label_valid(src_label) ||
+      !schema_->is_vertex_label_valid(dst_label) ||
+      !schema_->is_edge_label_valid(edge_label) ||
+      !schema_->is_edge_triplet_valid(src_label, dst_label, edge_label)) {
     return false;
   }
-  return IsEdgeInNamespace(
-      *schema_->get_edge_schema(src_label, dst_label, edge_label));
+  return IsVertexInNamespace(src_label) && IsVertexInNamespace(dst_label) &&
+         IsEdgeInNamespace(
+             *schema_->get_edge_schema(src_label, dst_label, edge_label));
 }
 
 bool SchemaView::ContainsEdgeTriplet(const std::string& src_label,
