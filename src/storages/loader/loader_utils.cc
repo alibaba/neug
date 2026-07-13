@@ -1547,6 +1547,18 @@ void set_properties_from_context_column(
                                                                 vids);
     break;
   }
+  case DataTypeId::kArray: {
+    for (size_t k = 0; k < vids.size(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+        continue;
+      }
+      auto value = ctx_col->get_elem(k);
+      if (!value.IsNull()) {
+        col->set_any(vids[k], value, true);
+      }
+    }
+    break;
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "set_properties_from_context_column: unsupported type " +
