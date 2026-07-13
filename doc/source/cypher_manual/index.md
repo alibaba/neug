@@ -181,13 +181,13 @@ Loading external data as **temporary graphs** via `LOAD AS` is currently under d
 
 ### Performance Debugging (EXPLAIN & PROFILE)
 
-NeuG provides EXPLAIN and PROFILE keywords to help you understand and optimize query execution:
+NeuG provides EXPLAIN and PROFILE commands to help you understand and optimize query execution:
 
 * **EXPLAIN**: View the execution plan without running the query. Useful for understanding how NeuG will execute your query and identifying potential optimization opportunities.
 
 * **PROFILE**: Execute the query and collect per-operator timing and row count statistics. Useful for identifying performance bottlenecks and understanding data distribution impact.
 
-Both directives provide detailed execution plans showing the operator tree structure and metrics. For detailed usage and examples, please refer to the [EXPLAIN & PROFILE section](explain_profile).
+Both commands provide detailed execution plans showing the operator tree structure and metrics. For detailed usage and examples, please refer to the [EXPLAIN & PROFILE section](explain_profile).
 
 ### Extension
 
