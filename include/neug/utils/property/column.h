@@ -413,6 +413,18 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
   }
 
+  void resize(size_t size, size_t data_size) {
+    size_t item_bytes = size * sizeof(string_item);
+    if (item_bytes > items_buffer_->GetDataSize()) {
+      items_buffer_->Resize(item_bytes);
+    }
+    size_t data_bytes = pos_.load() + data_size;
+    if (data_bytes > data_buffer_->GetDataSize()) {
+      data_buffer_->Resize(data_bytes);
+    }
+    size_ = std::max(size_, size);
+  }
+
   void resize(size_t size, const Value& default_value) override {
     if (default_value.type().id() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
@@ -449,8 +461,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
               << " exceeds the maximum length: " << width_ << ", cut off.";
       copied_val = truncate_utf8(copied_val, width_);
     }
-    if (idx < size_ &&
-        pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
+    }
+    if (pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
       // NOTE: Even if idx has been set before, we always append the new value
       // to the end of buffer_. The previous value is not reclaimed, and should
       // be handled by garbage collection or compaction.
@@ -460,7 +474,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
       auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
       memcpy(raw_data + offset, copied_val.data(), copied_val.size());
     } else {
-      THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
+      std::stringstream ss;
+      ss << "Not enough space in buffer for new value. "
+         << "Current buffer size: " << data_buffer_->GetDataSize()
+         << ", current position: " << pos_.load()
+         << ", new value size: " << copied_val.size();
+      THROW_STORAGE_EXCEPTION(ss.str());
     }
   }
 
