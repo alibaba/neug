@@ -182,16 +182,6 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   }
 }
 
-static void parse_endpoint_column(const IndexerType& indexer,
-                                  const std::shared_ptr<IContextColumn>& col,
-                                  std::vector<vid_t>& lids) {
-  for (size_t i = 0; i < col->size(); ++i) {
-    auto val = col->get_elem(i);
-    auto vid = indexer.get_index(val);
-    lids.push_back(vid);
-  }
-}
-
 void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
                              TypedCsrBase<EmptyType>* in_csr,
                              const std::vector<vid_t>& src_lid,
@@ -245,7 +235,7 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-/// Type-erased inserter: writes ValueColumn<T>::data()[src_idx] to
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
 /// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
 struct TypedColumnInserter {
   const IContextColumn* src;
@@ -266,7 +256,7 @@ void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
                        size_t src_idx, bool /*insert_safe*/) {
   auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
   auto vc = static_cast<const ValueColumn<T>*>(ins.src);
-  typed_dst->set_value(dst_idx, vc->data()[src_idx]);
+  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
 }
 
 /// Varchar: source is ValueColumn<std::string>, dest is
@@ -277,7 +267,7 @@ void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
   auto* typed_dst = static_cast<TypedColumn<std::string_view>*>(ins.dst);
   auto vc = static_cast<const ValueColumn<std::string>*>(ins.src);
   typed_dst->set_any(dst_idx,
-                     Value::CreateValue<std::string>(vc->data()[src_idx]),
+                     Value::CreateValue<std::string>(vc->get_value(src_idx)),
                      insert_safe);
 }
 
@@ -779,6 +769,12 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   in_csr_->resize(dst_indexer.size());
   out_csr_->resize(src_indexer.size());
   std::vector<vid_t> src_lid, dst_lid;
+  // Pre-reserve capacity to reduce vector reallocation on large graphs.
+  auto total_rows = supplier->RowNum();
+  if (total_rows > 0) {
+    src_lid.reserve(total_rows);
+    dst_lid.reserve(total_rows);
+  }
   // Collect per-property columns across chunks (for bundled: single column;
   // for unbundled: full property DataChunks).
   std::vector<std::shared_ptr<IContextColumn>> bundled_data_cols;
@@ -790,8 +786,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     auto src_col = chunk->get(0);
     auto dst_col = chunk->get(1);
-    parse_endpoint_column(src_indexer, src_col, src_lid);
-    parse_endpoint_column(dst_indexer, dst_col, dst_lid);
+    src_indexer.get_index(*src_col, src_lid);
+    dst_indexer.get_index(*dst_col, dst_lid);
     if (chunk->col_num() > 2) {
       if (meta_->is_bundled()) {
         // Bundled: only one property column (index 2).

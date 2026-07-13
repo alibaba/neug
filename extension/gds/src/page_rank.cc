@@ -125,14 +125,15 @@ function::function_set PageRankFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
-                                                common::DataTypeId::kUnknown};
+  function::call_input_types inputTypes = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   // two output columns:
   // 1. node type
   // 2. page rank value in double
   function::call_output_columns outputColumns = {
-      {"node", common::DataTypeId::kVertex},
-      {"rank", common::DataTypeId::kDouble}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"rank", common::DataType(common::DataTypeId::kDouble)}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;

@@ -138,14 +138,6 @@ std::vector<DataType> resolve_selected_column_types(
   return selected_column_types;
 }
 
-bool parse_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
-  return utils::parse_timestamp_ms(token.data(), token.size(), out_ms);
-}
-
-bool parse_epoch_timestamp_ms_sv(std::string_view token, int64_t* out_ms) {
-  return utils::parse_epoch_timestamp_ms(token.data(), token.size(), out_ms);
-}
-
 bool contains_sv(const std::unordered_set<std::string>& set,
                  std::string_view sv) {
   for (const auto& v : set) {
@@ -237,8 +229,10 @@ T parse_direct(std::string_view token,
     return std::string(token);
   } else if constexpr (std::is_same_v<T, Date>) {
     int64_t millis = 0;
-    if (parse_timestamp_ms_sv(token, &millis) ||
-        parse_epoch_timestamp_ms_sv(token, &millis)) {
+    // Direct call to inline functions — enables full inlining of
+    // timestamp parsing logic (no indirection through wrapper functions).
+    if (utils::parse_timestamp_ms(token.data(), token.size(), &millis) ||
+        utils::parse_epoch_timestamp_ms(token.data(), token.size(), &millis)) {
       Date d;
       d.from_timestamp(millis);
       return d;
@@ -246,8 +240,8 @@ T parse_direct(std::string_view token,
     return Date(std::string(token));
   } else if constexpr (std::is_same_v<T, DateTime>) {
     int64_t millis = 0;
-    if (parse_timestamp_ms_sv(token, &millis) ||
-        parse_epoch_timestamp_ms_sv(token, &millis)) {
+    if (utils::parse_timestamp_ms(token.data(), token.size(), &millis) ||
+        utils::parse_epoch_timestamp_ms(token.data(), token.size(), &millis)) {
       return DateTime(millis);
     }
     return DateTime(std::string(token));

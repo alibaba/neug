@@ -73,7 +73,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   NEUG_ASSERT(input.arguments.size() == 1);
   auto aggFuncDefinition =
       reinterpret_cast<AggregateFunction*>(input.definition);
-  aggFuncDefinition->parameterTypeIDs[0] = input.arguments[0]->dataType.id();
+  aggFuncDefinition->parameterTypes[0] = input.arguments[0]->dataType.copy();
   auto returnType = DataType::List(input.arguments[0]->dataType.copy());
   return std::make_unique<FunctionBindData>(std::move(returnType));
 }

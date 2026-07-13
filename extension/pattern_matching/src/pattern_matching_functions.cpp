@@ -2376,16 +2376,16 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
   function::function_set func_set;
 
   function::call_output_columns output_cols{
-      {"status", common::DataTypeId::kVarchar},
-      {"num_vertices", common::DataTypeId::kInt64},
-      {"num_edges", common::DataTypeId::kInt64},
-      {"max_degree", common::DataTypeId::kInt64},
-      {"degeneracy", common::DataTypeId::kInt64}};
+      {"status", common::DataType(common::DataTypeId::kVarchar)},
+      {"num_vertices", common::DataType(common::DataTypeId::kInt64)},
+      {"num_edges", common::DataType(common::DataTypeId::kInt64)},
+      {"max_degree", common::DataType(common::DataTypeId::kInt64)},
+      {"degeneracy", common::DataType(common::DataTypeId::kInt64)}};
 
   // Overload 1: CALL INITIALIZE() — no checkpoint
   {
     auto func = std::make_unique<function::NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{},
+        name, function::call_input_types{},
         function::call_output_columns(output_cols));
 
     func->bindFunc =
@@ -2449,7 +2449,9 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
   // checkpoint first
   {
     auto func = std::make_unique<function::NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
+        name,
+        function::call_input_types{
+            common::DataType(common::DataTypeId::kVarchar)},
         function::call_output_columns(output_cols));
 
     func->bindFunc =
@@ -2523,11 +2525,13 @@ function::function_set SaveSampledmatchCheckpointFunction::getFunctionSet() {
   function::function_set func_set;
 
   function::call_output_columns output_cols{
-      {"status", common::DataTypeId::kVarchar},
-      {"checkpoint_dir", common::DataTypeId::kVarchar}};
+      {"status", common::DataType(common::DataTypeId::kVarchar)},
+      {"checkpoint_dir", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
-      name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
+      name,
+      function::call_input_types{
+          common::DataType(common::DataTypeId::kVarchar)},
       std::move(output_cols));
 
   func->bindFunc =
@@ -2655,7 +2659,8 @@ function::function_set PatternMatchFunction::getFunctionSet() {
   // ---- Overload 1: PATTERN_MATCH(cypher) -> exact, enumerate all ----
   {
     auto func = std::make_unique<function::NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar});
+        name, function::call_input_types{
+                  common::DataType(common::DataTypeId::kVarchar)});
 
     auto* table_func = static_cast<function::TableFunction*>(func.get());
     table_func->bindFunc = [](main::ClientContext* /*client_context*/,
@@ -2697,9 +2702,10 @@ function::function_set PatternMatchFunction::getFunctionSet() {
   //   is_sampled = true  -> sampled (FaSTest) with sample size `size`
   {
     auto func = std::make_unique<function::NeugCallFunction>(
-        name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                              common::DataTypeId::kInt64,
-                                              common::DataTypeId::kBoolean});
+        name, function::call_input_types{
+                  common::DataType(common::DataTypeId::kVarchar),
+                  common::DataType(common::DataTypeId::kInt64),
+                  common::DataType(common::DataTypeId::kBoolean)});
 
     auto* table_func = static_cast<function::TableFunction*>(func.get());
     table_func->bindFunc = [](main::ClientContext* /*client_context*/,
@@ -2779,15 +2785,14 @@ function::function_set GetVertexPropertyFunction::getFunctionSet() {
 
   // Output schema: single string column carrying the generated file path.
   function::call_output_columns output_cols{
-      {"result_file", common::DataTypeId::kVarchar}};
+      {"result_file", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
       name,
-      std::vector<common::DataTypeId>{
-          common::DataTypeId::kVarchar,  // vertex_ids as JSON array string
-          common::DataTypeId::kVarchar,  // vertex_label
-          common::DataTypeId::kVarchar   // property_names as JSON array string
-      },
+      function::call_input_types{
+          common::DataType(common::DataTypeId::kVarchar),
+          common::DataType(common::DataTypeId::kVarchar),
+          common::DataType(common::DataTypeId::kVarchar)},
       std::move(output_cols));
 
   func->bindFunc =
@@ -2963,15 +2968,14 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
 
   // Output schema: single string column carrying the generated file path.
   function::call_output_columns output_cols{
-      {"result_file", common::DataTypeId::kVarchar}};
+      {"result_file", common::DataType(common::DataTypeId::kVarchar)}};
 
   auto func = std::make_unique<function::NeugCallFunction>(
       name,
-      std::vector<common::DataTypeId>{
-          common::DataTypeId::kVarchar,  // edge_keys as JSON array string
-          common::DataTypeId::kVarchar,  // edge_label
-          common::DataTypeId::kVarchar   // property_names as JSON array string
-      },
+      function::call_input_types{
+          common::DataType(common::DataTypeId::kVarchar),
+          common::DataType(common::DataTypeId::kVarchar),
+          common::DataType(common::DataTypeId::kVarchar)},
       std::move(output_cols));
 
   func->bindFunc =

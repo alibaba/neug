@@ -248,6 +248,12 @@ TEST_F(DatetimeParserTest, Timestamp_YYYYMMDD) {
   EXPECT_EQ(result, 1672531200LL * 1000);
 }
 
+TEST_F(DatetimeParserTest, Timestamp_AllowsYearZero) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "0000-02-29", 10, neug::utils::TimestampUnit::kMilli, &result));
+}
+
 TEST_F(DatetimeParserTest, Timestamp_WithTime) {
   int64_t result = 0;
   EXPECT_TRUE(neug::utils::parse_timestamp(

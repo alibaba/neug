@@ -58,7 +58,7 @@ NEUG_API std::unique_ptr<TableFuncBindData> bindGDSFunction(
 // [`NeugCallFunction`] specialization for graph algorithms: wires
 // [`TableFunction::bindFunc`] to [`bindGDSFunction`].
 struct NEUG_API GDSAlgoFunction : public NeugCallFunction {
-  GDSAlgoFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
+  GDSAlgoFunction(std::string name, call_input_types inputTypes,
                   call_output_columns outputColumns);
 };
 }  // namespace function
