@@ -144,7 +144,7 @@ size_t NeugDBService::getExecutedQueryNum() const {
 }
 
 void NeugDBService::startCompactThreadIfNeeded() {
-  if (db_config_.enable_auto_compaction) {
+  if (service_config_.auto_compaction) {
     if (compact_thread_running_) {
       compact_thread_running_ = false;
       compact_thread_.join();

@@ -40,6 +40,7 @@ namespace neug {
  * neug::ServiceConfig config;
  * config.query_port = 8080;       // Listen on port 8080
  * config.host_str = "0.0.0.0";    // Accept connections from any interface
+ * config.auto_compaction = true;
  *
  * neug::NeugDBService service(db, config);
  * service.Start();
@@ -63,6 +64,8 @@ struct ServiceConfig {
   /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all
   /// interfaces)
   std::string host_str;
+  /// Enable background auto-compaction thread while serving
+  bool auto_compaction;
 
   /**
    * @brief Constructs ServiceConfig with default values.
@@ -71,11 +74,13 @@ struct ServiceConfig {
    * - query_port: 10000
    * - thread_num: 0 (auto-select from database max_thread_num)
    * - host_str: "127.0.0.1" (localhost only)
+   * - auto_compaction: true
    */
   ServiceConfig()
       : query_port(DEFAULT_QUERY_PORT),
         thread_num(DEFAULT_THREAD_NUM),
-        host_str("127.0.0.1") {}
+        host_str("127.0.0.1"),
+        auto_compaction(true) {}
 };
 
 class IServiceManager {

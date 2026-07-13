@@ -74,9 +74,6 @@ int main(int argc, char** argv) {
   neug::NeugDB db;
   neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
-  if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
-    config.enable_auto_compaction = true;
-  }
   db.Open(config);
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -92,6 +89,9 @@ int main(int argc, char** argv) {
   service_config.host_str =
       vm.count("host") ? vm["host"].as<std::string>() : "127.0.0.1";
   service_config.query_port = http_port;
+  if (memory_level == neug::MemoryLevel::kHugePagePreferred) {
+    service_config.auto_compaction = true;
+  }
   neug::NeugDBService service(db, service_config);
 
   service.run_and_wait_for_exit();
