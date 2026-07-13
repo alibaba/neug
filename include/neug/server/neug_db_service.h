@@ -230,7 +230,7 @@ class NeugDBService {
 
  private:
   NeugDBService() = delete;
-  void startCompactThreadIfNeeded();
+  void startCompactThread();
   void stopCompactThread();
 
   /**

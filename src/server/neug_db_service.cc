@@ -99,7 +99,7 @@ void NeugDBService::run_and_wait_for_exit() {
   if (!hdl_mgr_) {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
-  startCompactThreadIfNeeded();
+  startCompactThread();
   running_.store(true, std::memory_order_relaxed);
   try {
     hdl_mgr_->RunAndWaitForExit();
@@ -134,7 +134,7 @@ std::string NeugDBService::Start() {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
   if (hdl_mgr_) {
-    startCompactThreadIfNeeded();
+    startCompactThread();
     try {
       auto ret = hdl_mgr_->Start();
       running_.store(true, std::memory_order_relaxed);
@@ -161,7 +161,7 @@ void NeugDBService::stopCompactThread() {
   compact_thread_.join();
 }
 
-void NeugDBService::startCompactThreadIfNeeded() {
+void NeugDBService::startCompactThread() {
   if (!service_config_.auto_compaction) {
     return;
   }
