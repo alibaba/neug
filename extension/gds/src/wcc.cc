@@ -108,14 +108,15 @@ function::function_set WCCFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
-                                                common::DataTypeId::kUnknown};
+  function::call_input_types inputTypes = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   // two output columns:
   // 1. node type
   // 2. label id in int64
   function::call_output_columns outputColumns = {
-      {"node", common::DataTypeId::kVertex},
-      {"comp", common::DataTypeId::kInt64}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"comp", common::DataType(common::DataTypeId::kInt64)}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;
