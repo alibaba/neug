@@ -32,6 +32,8 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
@@ -46,6 +48,8 @@ limitations under the License.
 #include "neug/utils/string_view_vector.h"
 
 namespace neug {
+
+class VertexTable;
 
 namespace id_indexer_impl {
 
@@ -167,55 +171,31 @@ struct GHash<int64_t> {
   }
 };
 
-template <>
-struct GHash<Value> {
-  size_t operator()(const Value& val) const {
-    if (val.IsNull()) {
-      return 0;
-    }
-    switch (val.type().id()) {
-#define TYPE_DISPATCHER(enum_val, type)         \
-  case DataTypeId::enum_val: {                  \
-    return GHash<type>()(val.GetValue<type>()); \
-  }
-      TYPE_DISPATCHER(kInt64, int64_t)
-      TYPE_DISPATCHER(kInt32, int32_t)
-      TYPE_DISPATCHER(kUInt64, uint64_t)
-      TYPE_DISPATCHER(kUInt32, uint32_t)
-      TYPE_DISPATCHER(kVarchar, std::string)
-#undef TYPE_DISPATCHER
-    default: {
-      THROW_NOT_IMPLEMENTED_EXCEPTION(
-          "Hash function not implemented for type: " +
-          std::to_string(static_cast<int>(val.type().id())));
-    }
-    }
-  }
-};
 template <typename INDEX_T>
 class LFIndexer {
-  static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-
  public:
+  static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
   explicit LFIndexer(DataType pk_type = DataTypeId::kUnknown)
       : indices_(nullptr),
         num_elements_(0),
         num_slots_minus_one_(0),
         keys_(nullptr),
-        pk_type_(pk_type),
-        hasher_() {}
+        pk_type_(pk_type) {
+    if (pk_type_.id() != DataTypeId::kUnknown) {
+      ensure_supported_primary_key_type(pk_type_.id());
+    }
+  }
   LFIndexer(LFIndexer&& rhs)
       : indices_(std::move(rhs.indices_)),
         num_elements_(rhs.num_elements_.load()),
         num_slots_minus_one_(rhs.num_slots_minus_one_),
         keys_(std::move(rhs.keys_)),
-        pk_type_(rhs.pk_type_),
-        hasher_(rhs.hasher_) {
+        pk_type_(rhs.pk_type_) {
     hash_policy_.set_mod_function_by_index(
         rhs.hash_policy_.get_mod_function_index());
   }
 
-  ~LFIndexer() {}
+  ~LFIndexer() = default;
 
   void SetKeys(std::unique_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
 
@@ -242,6 +222,7 @@ class LFIndexer {
             MemoryLevel level, std::unique_ptr<ColumnBase> keys,
             std::unique_ptr<TypedColumn<INDEX_T>> indices) {
     keys_ = std::move(keys);
+    ensure_supported_primary_key_type(keys_->type());
     indices_ = std::move(indices);
     auto parse = [](const ModuleDescriptor& d, const char* key) -> size_t {
       auto val = d.get(key);
@@ -290,10 +271,9 @@ class LFIndexer {
     std::swap(keys_, other.keys_);
     std::swap(pk_type_, other.pk_type_);
     hash_policy_.swap(other.hash_policy_);
-    std::swap(hasher_, other.hasher_);
   }
 
-  std::unique_ptr<LFIndexer<INDEX_T>> Clone();
+  std::unique_ptr<LFIndexer<INDEX_T>> Clone() const;
 
   // DeepCopy: 递归深拷贝 keys_ 和 indices_ Column
   void Detach(Checkpoint& ckp, MemoryLevel level);
@@ -308,36 +288,18 @@ class LFIndexer {
     if (size == indices_->size()) {
       return;
     }
-
-    size_t num_elements = num_elements_.load();
-    Bitset oid_set;
-    oid_set.resize(num_elements);
-    for (INDEX_T idx = 0; idx < num_elements; ++idx) {
-      if (contains(keys_->get_any(idx))) {
-        oid_set.set(idx);
-      }
-    }
-    auto new_prime_index = hash_policy_.next_size_over(size);
-    hash_policy_.commit(new_prime_index);
-    indices_->resize(size);
-    auto* indices_ptr = indices_->mutable_data();
-    for (size_t k = 0; k != size; ++k) {
-      indices_ptr[k] = LFIndexer<INDEX_T>::sentinel;
-    }
-    num_slots_minus_one_ = size - 1;
-    for (INDEX_T idx = 0; idx < num_elements; ++idx) {
-      const auto& oid = keys_->get_any(idx);
-      if (oid_set.get(idx)) {
-        size_t index =
-            hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-        while (true) {
-          if (indices_ptr[index] == LFIndexer<INDEX_T>::sentinel) {
-            indices_ptr[index] = idx;
-            break;
-          }
-          index = (index + 1) % (num_slots_minus_one_ + 1);
-        }
-      }
+    switch (get_type()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return rehash_typed<type>(size);
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
+#undef TYPE_DISPATCHER
+    default:
+      throw_unsupported_primary_key_type(get_type());
     }
   }
 
@@ -347,94 +309,104 @@ class LFIndexer {
   DataTypeId get_type() const { return keys_->type(); }
 
   INDEX_T insert(const Value& oid, bool insert_safe) {
-    assert(oid.type().id() == get_type());
-
-    if (insert_safe) {
-      if (NEUG_UNLIKELY(num_elements_.load(std::memory_order_relaxed) >=
-                        capacity())) {
-        size_t cap = capacity();
-        reserve(cap + (cap >> 2));
-      }
+    if (NEUG_UNLIKELY(oid.IsNull())) {
+      THROW_STORAGE_EXCEPTION("Null primary key is not allowed");
     }
-    INDEX_T ind = static_cast<INDEX_T>(
-        num_elements_.fetch_add(1, std::memory_order_acq_rel));
-    if (!insert_safe && NEUG_UNLIKELY(static_cast<size_t>(ind) >= capacity())) {
-      THROW_INTERNAL_EXCEPTION(
-          "Reserved size is not enough: " + std::to_string(capacity()) +
-          " vs " + std::to_string(ind));
+    if (NEUG_UNLIKELY(oid.type().id() != get_type())) {
+      THROW_STORAGE_EXCEPTION("Primary key type does not match indexer type");
     }
-    // may throw if insert_safe is false and reserved size is not enough
-    keys_->set_any(ind, oid, insert_safe);
-    auto* indices_ptr = indices_->mutable_data();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      if (__sync_bool_compare_and_swap(&indices_ptr[index],
-                                       LFIndexer<INDEX_T>::sentinel, ind)) {
-        break;
-      }
-      index = (index + 1) % (num_slots_minus_one_ + 1);
+    switch (get_type()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return insert_absent_typed<type>(oid.GetValue<type>(), insert_safe);
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
+#undef TYPE_DISPATCHER
+    default:
+      throw_unsupported_primary_key_type(get_type());
     }
-    return ind;
   }
 
   INDEX_T get_index(const Value& oid) const {
     assert(oid.type().id() == get_type());
-    auto* indices_ptr = indices_->data();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      INDEX_T ind = indices_ptr[index];
-      if (ind == LFIndexer<INDEX_T>::sentinel) {
-        VLOG(10) << "cannot find " << oid.to_string() << " in lf_indexer";
-        return ind;
-      } else if (keys_->get_any(ind) == oid) {
-        return ind;
-      } else {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      }
+    if (oid.IsNull()) {
+      return sentinel;
     }
+    INDEX_T ret;
+    return get_index(oid, ret) ? ret : sentinel;
   }
 
   bool get_index(const Value& oid, INDEX_T& ret) const {
-    if (indices_->size() == 0) {
+    if (oid.type().id() != get_type() || oid.IsNull()) {
       return false;
     }
-    if (oid.type().id() != get_type()) {
-      return false;
+    switch (get_type()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return get_index_typed<type>(oid.GetValue<type>(), ret);
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
+#undef TYPE_DISPATCHER
+    default:
+      throw_unsupported_primary_key_type(get_type());
     }
-    auto* indices_ptr = indices_->data();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      INDEX_T ind = indices_ptr[index];
-      if (ind == LFIndexer<INDEX_T>::sentinel) {
-        return false;
-      } else if (keys_->get_any(ind) == oid) {
-        ret = ind;
-        return true;
-      } else {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      }
+  }
+
+  void get_index(const IContextColumn& keys,
+                 std::vector<INDEX_T>& results) const {
+    if (keys.elem_type().id() != get_type()) {
+      THROW_STORAGE_EXCEPTION(
+          "Primary key column type does not match indexer type");
     }
-    return false;
+    switch (get_type()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return get_index_typed_column<type>(keys, results);
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
+#undef TYPE_DISPATCHER
+    default:
+      throw_unsupported_primary_key_type(get_type());
+    }
+  }
+
+  void get_or_insert(const IContextColumn& keys, std::vector<INDEX_T>& results,
+                     std::vector<uint8_t>& inserted) {
+    if (keys.elem_type().id() != get_type()) {
+      THROW_STORAGE_EXCEPTION(
+          "Primary key column type does not match indexer type");
+    }
+    switch (get_type()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return get_or_insert_typed_column<type>(keys, results, inserted);
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
+#undef TYPE_DISPATCHER
+    default:
+      throw_unsupported_primary_key_type(get_type());
+    }
   }
 
   bool contains(const Value& oid) const {
     assert(oid.type().id() == get_type());
-    auto* indices_ptr = indices_->data();
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      INDEX_T ind = indices_ptr[index];
-      if (ind == LFIndexer<INDEX_T>::sentinel) {
-        return false;
-      } else if (keys_->get_any(ind) == oid) {
-        return true;
-      } else {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      }
+    if (oid.IsNull()) {
+      return false;
     }
+    INDEX_T ret;
+    return get_index(oid, ret);
   }
 
   Value get_key(const INDEX_T& index) const { return keys_->get_any(index); }
@@ -447,7 +419,7 @@ class LFIndexer {
   // get keys
   const ColumnBase& get_keys() const { return *keys_; }
 
- private:
+ protected:
   std::unique_ptr<TypedColumn<INDEX_T>> indices_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
@@ -457,7 +429,233 @@ class LFIndexer {
   DataType pk_type_;
 
   ska::ska::prime_number_hash_policy hash_policy_;
-  GHash<Value> hasher_;
+
+  [[noreturn]] static void throw_unsupported_primary_key_type(DataTypeId type) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported primary key type for LFIndexer: " +
+        std::to_string(static_cast<int>(type)));
+  }
+
+  static void ensure_supported_primary_key_type(DataTypeId type) {
+    switch (type) {
+    case DataTypeId::kInt64:
+    case DataTypeId::kInt32:
+    case DataTypeId::kUInt64:
+    case DataTypeId::kUInt32:
+    case DataTypeId::kVarchar:
+      return;
+    default:
+      throw_unsupported_primary_key_type(type);
+    }
+  }
+
+  void insert_index(INDEX_T ind, size_t hash) {
+    auto* indices_ptr = indices_->mutable_data();
+    size_t index = hash_policy_.index_for_hash(hash, num_slots_minus_one_);
+    while (true) {
+      if (__sync_bool_compare_and_swap(&indices_ptr[index], sentinel, ind)) {
+        break;
+      }
+      index = (index + 1) % (num_slots_minus_one_ + 1);
+    }
+  }
+
+  template <typename KEY_T>
+  struct TypedKeyColumnAccessor {
+    using value_col_type =
+        std::conditional_t<std::is_same_v<KEY_T, std::string_view>, std::string,
+                           KEY_T>;
+    explicit TypedKeyColumnAccessor(const IContextColumn& keys)
+        : row_num_(keys.size()) {
+      if (keys.is_optional()) {
+        THROW_NOT_SUPPORTED_EXCEPTION("Optional primary key is not supported");
+      }
+      typed_col_ = dynamic_cast<const ValueColumn<value_col_type>*>(&keys);
+      if (typed_col_ == nullptr) {
+        THROW_STORAGE_EXCEPTION("Unsupported primary key type or column type");
+      }
+    }
+
+    size_t size() const { return row_num_; }
+
+    template <typename VISITOR>
+    void for_each_key(VISITOR&& visitor) const {
+      for (size_t row = 0; row < row_num_; ++row) {
+        visit_key(visitor, row, typed_col_->get_value(row));
+      }
+
+      return;
+    }
+
+   private:
+    size_t row_num_;
+    const ValueColumn<value_col_type>* typed_col_;
+
+    template <typename VALUE_T, typename VISITOR>
+    static void visit_key(VISITOR& visitor, size_t row, const VALUE_T& value) {
+      if constexpr (std::is_same_v<KEY_T, std::string_view> &&
+                    std::is_same_v<VALUE_T, std::string>) {
+        visitor(row, std::string_view(value));
+      } else {
+        visitor(row, value);
+      }
+    }
+  };
+
+  [[noreturn]] static void throw_null_primary_key(size_t row) {
+    THROW_STORAGE_EXCEPTION("Null primary key at row " + std::to_string(row));
+  }
+
+  void reserve_insert_capacity(size_t key_count) {
+    size_t new_size = size() + key_count;
+    if (new_size > capacity()) {
+      size_t cap = capacity();
+      while (new_size >= cap) {
+        cap = cap < 4096 ? 4096 : cap + cap / 4;
+      }
+      reserve(cap);
+    }
+  }
+
+  template <typename KEY_T>
+  void reserve_varchar_key_data(const TypedKeyColumnAccessor<KEY_T>& accessor) {
+    if constexpr (std::is_same_v<KEY_T, std::string_view>) {
+      size_t total_bytes = 0;
+      accessor.for_each_key(
+          [&](size_t, std::string_view key) { total_bytes += key.size(); });
+      reserve_string_data<KEY_T>(capacity(), total_bytes);
+    }
+  }
+
+  template <typename KEY_T>
+  INDEX_T insert_absent_typed(const KEY_T& oid, bool insert_safe) {
+    if (insert_safe) {
+      if (NEUG_UNLIKELY(num_elements_.load(std::memory_order_relaxed) >=
+                        capacity())) {
+        size_t cap = capacity();
+        reserve(cap + (cap >> 2));
+      }
+      if constexpr (std::is_same_v<KEY_T, std::string_view>) {
+        reserve_string_data<KEY_T>(capacity(), oid.size());
+      }
+    }
+    INDEX_T ind = static_cast<INDEX_T>(
+        num_elements_.fetch_add(1, std::memory_order_acq_rel));
+    if (!insert_safe && NEUG_UNLIKELY(static_cast<size_t>(ind) >= capacity())) {
+      THROW_INTERNAL_EXCEPTION(
+          "Reserved size is not enough: " + std::to_string(capacity()) +
+          " vs " + std::to_string(ind));
+    }
+    auto* typed_keys = static_cast<TypedColumn<KEY_T>*>(keys_.get());
+    typed_keys->set_value(ind, oid);
+    insert_index(ind, GHash<KEY_T>()(oid));
+    return ind;
+  }
+
+  template <typename KEY_T>
+  bool get_index_typed(const KEY_T& oid, INDEX_T& ret) const {
+    if (indices_->size() == 0) {
+      return false;
+    }
+    auto* indices_ptr = indices_->data();
+    auto* typed_keys = static_cast<const TypedColumn<KEY_T>*>(keys_.get());
+    size_t index =
+        hash_policy_.index_for_hash(GHash<KEY_T>()(oid), num_slots_minus_one_);
+    while (true) {
+      INDEX_T ind = indices_ptr[index];
+      if (ind == sentinel) {
+        return false;
+      } else if (typed_keys->get_view(ind) == oid) {
+        ret = ind;
+        return true;
+      } else {
+        index = (index + 1) % (num_slots_minus_one_ + 1);
+      }
+    }
+  }
+
+  template <typename KEY_T>
+  INDEX_T get_index_typed(const KEY_T& oid) const {
+    INDEX_T ret;
+    if (!get_index_typed(oid, ret)) {
+      VLOG(10) << "cannot find key in lf_indexer (typed path)";
+      return sentinel;
+    }
+    return ret;
+  }
+
+  template <typename KEY_T>
+  void get_index_typed_column(const IContextColumn& keys,
+                              std::vector<INDEX_T>& results) const {
+    TypedKeyColumnAccessor<KEY_T> accessor(keys);
+    size_t row_num = accessor.size();
+    results.reserve(results.size() + row_num);
+    accessor.for_each_key([&](size_t, const KEY_T& key) {
+      INDEX_T ret;
+      results.push_back(get_index_typed<KEY_T>(key, ret) ? ret : sentinel);
+    });
+  }
+
+  template <typename KEY_T>
+  void get_or_insert_typed_column(const IContextColumn& keys,
+                                  std::vector<INDEX_T>& results,
+                                  std::vector<uint8_t>& inserted) {
+    TypedKeyColumnAccessor<KEY_T> accessor(keys);
+    size_t row_num = accessor.size();
+    results.reserve(results.size() + row_num);
+    inserted.reserve(inserted.size() + row_num);
+    reserve_insert_capacity(row_num);
+    reserve_varchar_key_data<KEY_T>(accessor);
+    accessor.for_each_key([&](size_t, const KEY_T& key) {
+      INDEX_T ret;
+      if (get_index_typed<KEY_T>(key, ret)) {
+        results.push_back(ret);
+        inserted.push_back(0);
+      } else {
+        results.push_back(insert_absent_typed<KEY_T>(key, false));
+        inserted.push_back(1);
+      }
+    });
+  }
+
+  template <typename KEY_T>
+  requires std::is_same_v<KEY_T, std::string_view> void reserve_string_data(
+      size_t key_count, size_t total_bytes) {
+    auto* typed_keys = static_cast<TypedColumn<std::string_view>*>(keys_.get());
+    typed_keys->resize(key_count, total_bytes);
+  }
+
+  template <typename KEY_T>
+  void rehash_typed(size_t new_indices_size) {
+    auto* typed_keys = static_cast<const TypedColumn<KEY_T>*>(keys_.get());
+
+    size_t num_elements = num_elements_.load();
+    Bitset oid_set;
+    oid_set.resize(num_elements);
+    INDEX_T ret;
+    for (INDEX_T idx = 0; idx < num_elements; ++idx) {
+      if (get_index_typed(typed_keys->get_view(idx), ret)) {
+        oid_set.set(idx);
+      }
+    }
+
+    auto new_prime_index = hash_policy_.next_size_over(new_indices_size);
+    hash_policy_.commit(new_prime_index);
+    indices_->resize(new_indices_size);
+    auto* indices_ptr = indices_->mutable_data();
+    for (size_t k = 0; k != new_indices_size; ++k) {
+      indices_ptr[k] = sentinel;
+    }
+    num_slots_minus_one_ = new_indices_size - 1;
+
+    for (INDEX_T idx = 0; idx < num_elements; ++idx) {
+      if (oid_set.get(idx)) {
+        insert_index(idx, GHash<KEY_T>()(typed_keys->get_view(idx)));
+      }
+    }
+  }
+
+  friend class VertexTable;
 };
 
 template <typename INDEX_T>
@@ -926,7 +1124,7 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 };
 
 template <typename INDEX_T>
-std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Clone() {
+std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Clone() const {
   auto cow_clone = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
   // Zero-copy: share Column objects (which share IDataContainer)
   cow_clone->indices_ = std::unique_ptr<TypedColumn<INDEX_T>>(
@@ -936,7 +1134,6 @@ std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Clone() {
   cow_clone->num_elements_.store(num_elements_.load());
   cow_clone->num_slots_minus_one_ = num_slots_minus_one_;
   cow_clone->hash_policy_ = hash_policy_;
-  cow_clone->hasher_ = hasher_;
   return cow_clone;
 }
 

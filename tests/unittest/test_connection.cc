@@ -54,22 +54,23 @@ class ConnectionTest : public ::testing::Test {
 
   void atomicityInit(std::shared_ptr<Connection> conn) {
     EXPECT_TRUE(conn->Query(
-        "CREATE NODE TABLE PERSON (id INT64, id2 INT64, name STRING, "
+        "CREATE NODE TABLE PERSON2 (id INT64, id2 INT64, name STRING, "
         "emails STRING, PRIMARY KEY(id));"));
-    EXPECT_TRUE(conn->Query(
-        "CREATE REL TABLE KNOWS(FROM PERSON TO PERSON, since INT64);"));
+    EXPECT_TRUE(
+        conn->Query("CREATE REL TABLE atomic_knows(FROM PERSON2 TO PERSON2, "
+                    "since INT64);"));
 
     EXPECT_TRUE(
-        conn->Query("CREATE (u: PERSON { id: 1, id2: 1, name: 'Alice', emails: "
-                    "'alice@example.com' });"));
+        conn->Query("CREATE (u: PERSON2 { id: 1, id2: 1, name: 'Alice', "
+                    "emails: 'alice@example.com' });"));
     EXPECT_TRUE(
-        conn->Query("CREATE (u: PERSON { id: 2, id2: 1, name: 'Bob', emails: "
-                    "'bob@example.com;bobby@hotmail.com' });"));
+        conn->Query("CREATE (u: PERSON2 { id: 2, id2: 1, name: 'Bob', "
+                    "emails: 'bob@example.com;bobby@hotmail.com' });"));
   }
 
   std::pair<int64_t, int64_t> atomicityCheck(std::shared_ptr<Connection> conn) {
     std::vector<std::string> emails;
-    auto res = conn->Query("MATCH (n:PERSON) RETURN n.id2 ORDER BY n.id2;");
+    auto res = conn->Query("MATCH (n:PERSON2) RETURN n.id2 ORDER BY n.id2;");
     EXPECT_TRUE(res);
     size_t person_count = 0;
     int64_t id2_sum = 0;
@@ -173,9 +174,9 @@ TEST_F(ConnectionTest, TestParallelExecutionAtomicity) {
   atomicityInit(conn);
   auto committed = atomicityCheck(conn);
   std::vector<std::string> queries;
-  queries.push_back("MATCH (n:PERSON {id: 1}) set n.id2 = n.id2 + 1;");
+  queries.push_back("MATCH (n:PERSON2 {id: 1}) set n.id2 = n.id2 + 1;");
   queries.push_back(
-      "CREATE (n1:PERSON {id: $TXN_ID + 3, id2: 1, name: "
+      "CREATE (n1:PERSON2 {id: $TXN_ID + 3, id2: 1, name: "
       "'NewPerson$TXN_ID', emails: 'newperson$TXN_ID@example.com'});");
   int num_thread = 100;
   int success_count = parallel_execute(conn, queries, num_thread);
@@ -201,7 +202,8 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
   atomicityInit(conn);
 
   auto res = conn->Query(
-      "MATCH (n:PERSON {id: $person_id}) SET n.id2 = n.id2 + $increment;",
+      "MATCH (n:PERSON2 {id: $person_id}) SET n.id2 = n.id2 + "
+      "$increment;",
       "update",
       {{"person_id", neug::Value::INT64(1)},
        {"increment", neug::Value::INT64(5)}});

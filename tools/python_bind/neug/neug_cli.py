@@ -545,7 +545,7 @@ class NeugShell(cmd.Cmd):
         """Execute a Cypher query"""
         try:
             result = self.connection.execute(arg)
-            if result:
+            if result is not None:
                 parse_and_format_results(result, max_rows=self.max_rows)
         except Exception as e:
             print(e)

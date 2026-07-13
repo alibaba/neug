@@ -14,75 +14,15 @@
  * limitations under the License.
  */
 
-/**
- * This file is originally from the Kùzu project
- * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
- * Zhou Xiaoli in 2025 to support Neug-specific features.
- */
-
 #pragma once
 
-#include "neug/compiler/binder/expression/expression.h"
-#include "neug/compiler/common/types/types.h"
-#include "neug/compiler/parser/expression/parsed_expression.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace binder {
 
-struct NEUG_API ColumnDefinition {
-  std::string name;
-  common::DataType type;
-
-  ColumnDefinition() = default;
-  ColumnDefinition(std::string name, common::DataType type)
-      : name{std::move(name)}, type{std::move(type)} {}
-  EXPLICIT_COPY_DEFAULT_MOVE(ColumnDefinition);
-
- private:
-  ColumnDefinition(const ColumnDefinition& other)
-      : name{other.name}, type{other.type.copy()} {}
-};
-
-struct NEUG_API PropertyDefinition {
-  ColumnDefinition columnDefinition;
-  std::unique_ptr<parser::ParsedExpression> defaultExpr;
-  std::shared_ptr<binder::Expression> boundExpr;
-
-  PropertyDefinition() = default;
-
-  PropertyDefinition(ColumnDefinition columnDefinition,
-                     std::unique_ptr<parser::ParsedExpression> defaultExpr)
-      : columnDefinition{std::move(columnDefinition)},
-        defaultExpr{std::move(defaultExpr)} {}
-
-  PropertyDefinition(ColumnDefinition columnDefinition,
-                     std::unique_ptr<parser::ParsedExpression> defaultExpr,
-                     std::shared_ptr<binder::Expression> boundExpr)
-      : columnDefinition{std::move(columnDefinition)},
-        defaultExpr{std::move(defaultExpr)},
-        boundExpr{std::move(boundExpr)} {}
-
-  EXPLICIT_COPY_DEFAULT_MOVE(PropertyDefinition);
-
-  std::string getName() const { return columnDefinition.name; }
-  const common::DataType& getType() const { return columnDefinition.type; }
-  std::string getDefaultExpressionName() const {
-    return defaultExpr->getRawName();
-  }
-  void rename(const std::string& newName) { columnDefinition.name = newName; }
-
-  void serialize(common::Serializer& serializer) const;
-  static PropertyDefinition deserialize(common::Deserializer& deserializer);
-
- private:
-  PropertyDefinition(const PropertyDefinition& other)
-      : columnDefinition{other.columnDefinition.copy()},
-        defaultExpr{other.defaultExpr->copy()},
-        boundExpr{other.boundExpr} {}
-
- public:
-  explicit PropertyDefinition(ColumnDefinition columnDefinition);
-};
+using ::neug::ColumnDefinition;
+using ::neug::PropertyDefinition;
 
 }  // namespace binder
 }  // namespace neug

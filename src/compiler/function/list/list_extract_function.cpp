@@ -93,7 +93,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   const auto& resultType = getChildType(input.arguments[0]->dataType);
   std::vector<DataType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
-  paramTypes.push_back(DataType(input.definition->parameterTypeIDs[1]));
+  paramTypes.push_back(input.definition->parameterTypes[1].copy());
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             resultType.copy());
 }

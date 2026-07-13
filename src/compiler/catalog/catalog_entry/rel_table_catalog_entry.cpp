@@ -47,11 +47,6 @@ bool RelTableCatalogEntry::hasParentRelGroup(
 
 RelGroupCatalogEntry* RelTableCatalogEntry::getParentRelGroup(
     const Catalog* catalog, const transaction::Transaction* transaction) const {
-  for (auto& relGroup : catalog->getRelGroupEntries(transaction)) {
-    if (relGroup->isParent(getTableID())) {
-      return relGroup;
-    }
-  }
   return nullptr;
 }
 
@@ -156,10 +151,10 @@ std::string RelTableCatalogEntry::toCypher(const ToCypherInfo& info) const {
   std::stringstream ss;
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
-  auto srcTableName =
-      catalog->getTableCatalogEntry(transaction, srcTableID)->getName();
-  auto dstTableName =
-      catalog->getTableCatalogEntry(transaction, dstTableID)->getName();
+  auto srcEntry = catalog->getTableCatalogEntry(transaction, srcTableID);
+  auto dstEntry = catalog->getTableCatalogEntry(transaction, dstTableID);
+  auto srcTableName = srcEntry->get_label();
+  auto dstTableName = dstEntry->get_label();
   std::string tableInfo =
       stringFormat("CREATE REL TABLE `{}` (FROM `{}` TO `{}`, ", getName(),
                    srcTableName, dstTableName);

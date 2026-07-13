@@ -26,9 +26,7 @@
 #include "neug/compiler/common/constants.h"
 
 namespace neug {
-namespace catalog {
-class TableCatalogEntry;
-}
+class SchemaEntry;
 namespace binder {
 
 struct SingleLabelPropertyInfo {
@@ -96,8 +94,7 @@ class PropertyExpression final : public Expression {
   // If this property exists for given table.
   bool hasProperty(common::table_id_t tableID) const;
 
-  common::column_id_t getColumnID(
-      const catalog::TableCatalogEntry& entry) const;
+  common::column_id_t getColumnID(const SchemaEntry& entry) const;
   bool isSingleLabel() const { return infos.size() == 1; }
   common::table_id_t getSingleTableID() const { return infos.begin()->first; }
 

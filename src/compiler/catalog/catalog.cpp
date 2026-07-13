@@ -22,19 +22,15 @@
 
 #include "neug/compiler/catalog/catalog.h"
 
-#include "neug/compiler/binder/ddl/bound_create_sequence_info.h"
-#include "neug/compiler/binder/ddl/bound_create_table_info.h"
+#include <limits>
+
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/function_collection.h"
@@ -51,283 +47,254 @@ using namespace neug::transaction;
 namespace neug {
 namespace catalog {
 
-Catalog::Catalog() : version{0} { initCatalogSets(); }
+namespace {
+std::string getChildRelTableName(const EdgeSchema& edgeSchema) {
+  return edgeSchema.edge_label_name + "_" + edgeSchema.src_label_name + "_" +
+         edgeSchema.dst_label_name;
+}
+
+bool nameEquals(std::string_view lhs, std::string_view rhs) {
+  return common::StringUtils::caseInsensitiveEquals(lhs, rhs);
+}
+}  // namespace
+
+Catalog::Catalog() : schema{nullptr}, version{0} { initCatalogSets(); }
 
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
-    : version{0} {}
+    : schema{nullptr}, version{0} {}
+
+std::unique_ptr<Catalog> Catalog::clone(const Schema* schema) const {
+  auto cloned = std::make_unique<Catalog>(*this);
+  cloned->setSchema(schema);
+  return cloned;
+}
+
+void Catalog::setSchema(const Schema* schema) {
+  this->schema = schema;
+  incrementVersion();
+}
 
 void Catalog::initCatalogSets() {
-  tables = std::make_unique<CatalogSet>();
-  relGroups = std::make_unique<CatalogSet>();
-  sequences = std::make_unique<CatalogSet>();
-  functions = std::make_unique<CatalogSet>();
-  types = std::make_unique<CatalogSet>();
-  indexes = std::make_unique<CatalogSet>();
-  internalTables = std::make_unique<CatalogSet>(true /* isInternal */);
-  internalSequences = std::make_unique<CatalogSet>(true /* isInternal */);
-  internalFunctions = std::make_unique<CatalogSet>(true /* isInternal */);
+  sequences = std::make_shared<CatalogSet>();
+  functions = std::make_shared<CatalogSet>();
+  types = std::make_shared<CatalogSet>();
+  indexes = std::make_shared<CatalogSet>();
+  internalTables = std::make_shared<CatalogSet>(true /* isInternal */);
+  internalSequences = std::make_shared<CatalogSet>(true /* isInternal */);
+  internalFunctions = std::make_shared<CatalogSet>(true /* isInternal */);
 }
 
 bool Catalog::containsTable(const Transaction* transaction,
                             const std::string& tableName,
                             bool useInternal) const {
-  if (tables->containsEntry(transaction, tableName)) {
-    return true;
+  if (schema == nullptr) {
+    return false;
   }
-  if (useInternal) {
-    return internalTables->containsEntry(transaction, tableName);
+  for (auto& entry : schema->get_all_vertex_schemas()) {
+    if (entry != nullptr &&
+        schema->is_vertex_label_valid(entry->get_entry_id()) &&
+        nameEquals(entry->label_name, tableName)) {
+      return true;
+    }
+  }
+  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+      continue;
+    }
+    if (nameEquals(edgeSchema->edge_label_name, tableName) ||
+        nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
+      return true;
+    }
   }
   return false;
 }
 
 bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
                             bool useInternal) const {
-  if (tables->getEntryOfOID(transaction, tableID) != nullptr) {
+  if (schema == nullptr) {
+    return false;
+  }
+  if (tableID <= std::numeric_limits<label_t>::max() &&
+      schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
     return true;
   }
-  if (useInternal) {
-    return internalTables->getEntryOfOID(transaction, tableID) != nullptr;
+  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    if (edgeSchema->get_entry_id() == tableID ||
+        edgeSchema->getLabelId() == tableID) {
+      return true;
+    }
   }
   return false;
 }
 
-TableCatalogEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
+const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
                                                  table_id_t tableID) const {
-  auto result = tables->getEntryOfOID(transaction, tableID);
-  if (result == nullptr) {
-    result = internalTables->getEntryOfOID(transaction, tableID);
+  if (schema != nullptr && tableID <= std::numeric_limits<label_t>::max() &&
+      schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
+    return schema->get_vertex_schema(static_cast<label_t>(tableID)).get();
   }
-  if (result == nullptr) {
-    THROW_RUNTIME_ERROR(
-        stringFormat("Cannot find table catalog entry with id {}.",
-                     std::to_string(tableID)));
+  if (schema != nullptr) {
+    const EdgeSchema* labelMatch = nullptr;
+    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+      if (edgeSchema->get_entry_id() == tableID) {
+        return edgeSchema.get();
+      }
+      if (edgeSchema->getLabelId() == tableID) {
+        if (labelMatch != nullptr) {
+          THROW_SCHEMA_MISMATCH(
+              stringFormat("Edge label id {} maps to multiple edge schemas.",
+                           std::to_string(tableID)));
+        }
+        labelMatch = edgeSchema.get();
+      }
+    }
+    if (labelMatch != nullptr) {
+      return labelMatch;
+    }
   }
-  return result->ptrCast<TableCatalogEntry>();
+  THROW_SCHEMA_MISMATCH(stringFormat(
+      "Cannot find table catalog entry with id {}.", std::to_string(tableID)));
 }
 
-TableCatalogEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
-                                                 const std::string& tableName,
-                                                 bool useInternal) const {
-  CatalogEntry* result = nullptr;
-  if (!tables->containsEntry(transaction, tableName)) {
-    if (!useInternal) {
-      THROW_CATALOG_EXCEPTION(
-          stringFormat("{} does not exist in catalog.", tableName));
-    } else {
-      result = internalTables->getEntry(transaction, tableName);
-    }
-  } else {
-    result = tables->getEntry(transaction, tableName);
-  }
-  return result->ptrCast<TableCatalogEntry>();
-}
-
-std::vector<NodeTableCatalogEntry*> Catalog::getNodeTableEntries(
-    const Transaction* transaction, bool useInternal) const {
-  std::vector<NodeTableCatalogEntry*> result;
-  for (auto& [_, entry] : tables->getEntries(transaction)) {
-    if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
-      continue;
-    }
-    result.push_back(entry->ptrCast<NodeTableCatalogEntry>());
-  }
-  if (useInternal) {
-    for (auto& [_, entry] : internalTables->getEntries(transaction)) {
-      if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
+SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
+                                           const std::string& tableName,
+                                           bool useInternal) const {
+  if (schema != nullptr) {
+    VertexSchema* vertexResult = nullptr;
+    for (auto& entry : schema->get_all_vertex_schemas()) {
+      if (entry == nullptr ||
+          !schema->is_vertex_label_valid(entry->get_entry_id()) ||
+          !nameEquals(entry->label_name, tableName)) {
         continue;
       }
-      result.push_back(entry->ptrCast<NodeTableCatalogEntry>());
+      if (vertexResult != nullptr) {
+        THROW_SCHEMA_MISMATCH(stringFormat(
+            "{} maps to multiple vertex labels in catalog.", tableName));
+      }
+      vertexResult = entry.get();
+    }
+    if (vertexResult != nullptr) {
+      return vertexResult;
     }
   }
-  return result;
-}
-
-std::vector<RelTableCatalogEntry*> Catalog::getRelTableEntries(
-    const Transaction* transaction, bool useInternal) const {
-  std::vector<RelTableCatalogEntry*> result;
-  for (auto& [_, entry] : tables->getEntries(transaction)) {
-    if (entry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
-      continue;
-    }
-    result.push_back(entry->ptrCast<RelTableCatalogEntry>());
-  }
-  if (useInternal) {
-    for (auto& [_, entry] : internalTables->getEntries(transaction)) {
-      if (entry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
+  EdgeSchema* result = nullptr;
+  if (schema != nullptr) {
+    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
         continue;
       }
-      result.push_back(entry->ptrCast<RelTableCatalogEntry>());
+      if (!nameEquals(edgeSchema->edge_label_name, tableName) &&
+          !nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
+        continue;
+      }
+      if (result != nullptr) {
+        THROW_SCHEMA_MISMATCH(stringFormat(
+            "{} has multiple source/destination pairs in catalog.", tableName));
+      }
+      result = edgeSchema.get();
     }
+  }
+  if (result == nullptr) {
+    THROW_SCHEMA_MISMATCH(
+        stringFormat("{} does not exist in catalog.", tableName));
   }
   return result;
 }
 
-std::vector<TableCatalogEntry*> Catalog::getTableEntries(
+std::vector<VertexSchema*> Catalog::getNodeTableEntries(
     const Transaction* transaction, bool useInternal) const {
-  std::vector<TableCatalogEntry*> result;
-  for (auto& [_, entry] : tables->getEntries(transaction)) {
-    result.push_back(entry->ptrCast<TableCatalogEntry>());
+  std::vector<VertexSchema*> result;
+  if (schema == nullptr) {
+    return result;
   }
-  if (useInternal) {
-    for (auto& [_, entry] : internalTables->getEntries(transaction)) {
-      result.push_back(entry->ptrCast<RelTableCatalogEntry>());
+  for (auto& entry : schema->get_all_vertex_schemas()) {
+    if (entry != nullptr &&
+        schema->is_vertex_label_valid(entry->get_entry_id())) {
+      result.push_back(entry.get());
     }
   }
   return result;
 }
 
-void Catalog::dropTableEntryAndIndex(Transaction* transaction,
-                                     const std::string& name) {
-  auto tableID = getTableCatalogEntry(transaction, name)->getTableID();
-  dropAllIndexes(transaction, tableID);
-  dropTableEntry(transaction, tableID);
-}
-
-void Catalog::dropTableEntry(Transaction* transaction, table_id_t tableID) {
-  dropTableEntry(transaction, getTableCatalogEntry(transaction, tableID));
-}
-
-void Catalog::dropTableEntry(Transaction* transaction,
-                             const TableCatalogEntry* entry) {
-  dropSerialSequence(transaction, entry);
-  if (tables->containsEntry(transaction, entry->getName())) {
-    tables->dropEntry(transaction, entry->getName(), entry->getOID());
-  } else {
-    internalTables->dropEntry(transaction, entry->getName(), entry->getOID());
+std::vector<EdgeSchema*> Catalog::getRelTableEntries(
+    const Transaction* transaction, bool useInternal) const {
+  std::vector<EdgeSchema*> result;
+  if (schema == nullptr) {
+    return result;
   }
+  for (auto& [_, entry] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(entry->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(entry->getDstTableID())) {
+      continue;
+    }
+    result.push_back(entry.get());
+  }
+  std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
+    return std::tie(lhs->edge_label_id, lhs->src_label_id, lhs->dst_label_id,
+                    lhs->entry_id) < std::tie(rhs->edge_label_id,
+                                              rhs->src_label_id,
+                                              rhs->dst_label_id, rhs->entry_id);
+  });
+  return result;
 }
 
-void Catalog::alterRelGroupEntry(Transaction* transaction,
-                                 const BoundAlterInfo& info) {
-  relGroups->alterRelGroupEntry(transaction, info);
-}
-
-void Catalog::alterTableEntry(Transaction* transaction,
-                              const BoundAlterInfo& info) {
-  tables->alterTableEntry(transaction, info);
+std::vector<SchemaEntry*> Catalog::getTableEntries(
+    const Transaction* transaction, bool useInternal) const {
+  std::vector<SchemaEntry*> result;
+  for (auto* entry : getNodeTableEntries(transaction, useInternal)) {
+    result.push_back(entry);
+  }
+  for (auto* entry : getRelTableEntries(transaction, useInternal)) {
+    result.push_back(entry);
+  }
+  return result;
 }
 
 bool Catalog::containsRelGroup(const Transaction* transaction,
                                const std::string& name) const {
-  return relGroups->containsEntry(transaction, name);
-}
-
-RelGroupCatalogEntry* Catalog::getRelGroupEntry(const Transaction* transaction,
-                                                const std::string& name) const {
-  if (!containsRelGroup(transaction, name)) {
-    THROW_RUNTIME_ERROR(stringFormat("Cannot find rel group entry {}.", name));
+  if (schema == nullptr) {
+    return false;
   }
-  return relGroups->getEntry(transaction, name)
-      ->ptrCast<RelGroupCatalogEntry>();
-}
-
-std::vector<RelGroupCatalogEntry*> Catalog::getRelGroupEntries(
-    const Transaction* transaction) const {
-  std::vector<RelGroupCatalogEntry*> result;
-  for (auto& [_, entry] : relGroups->getEntries(transaction)) {
-    result.push_back(entry->ptrCast<RelGroupCatalogEntry>());
+  common::idx_t count = 0;
+  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+      continue;
+    }
+    if (nameEquals(edgeSchema->edge_label_name, name)) {
+      ++count;
+    }
   }
-  return result;
+  return count > 1;
 }
 
-void Catalog::dropRelGroupEntry(Transaction* transaction, oid_t id) {
-  dropRelGroupEntry(transaction, relGroups->getEntryOfOID(transaction, id)
-                                     ->ptrCast<RelGroupCatalogEntry>());
-}
-
-void Catalog::dropRelGroupEntry(Transaction* transaction,
-                                const RelGroupCatalogEntry* entry) {
-  for (auto& relTableID : entry->getRelTableIDs()) {
-    dropTableEntry(transaction, relTableID);
+std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
+    const Transaction* transaction, const std::string& name) const {
+  std::vector<EdgeSchema*> result;
+  if (schema != nullptr) {
+    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
+          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
+        continue;
+      }
+      if (nameEquals(edgeSchema->edge_label_name, name)) {
+        result.push_back(edgeSchema.get());
+      }
+    }
   }
-  relGroups->dropEntry(transaction, entry->getName(), entry->getOID());
-}
-
-CatalogEntry* Catalog::createRelGroupEntry(Transaction* transaction,
-                                           const BoundCreateTableInfo& info) {
-  const auto extraInfo =
-      info.extraInfo->ptrCast<BoundExtraCreateRelTableGroupInfo>();
-  std::vector<table_id_t> childrenTableIDs;
-  for (auto& childInfo : extraInfo->infos) {
-    NEUG_ASSERT(childInfo.hasParent);
-    auto childEntry = createRelTableEntry(transaction, childInfo);
-    childrenTableIDs.push_back(
-        childEntry->ptrCast<TableCatalogEntry>()->getTableID());
-  }
-  return createRelGroupEntry(transaction, info.tableName,
-                             std::move(childrenTableIDs));
-}
-
-CatalogEntry* Catalog::createRelGroupEntry(
-    Transaction* transaction, const std::string& entryName,
-    std::vector<table_id_t> childrenTableIDs) {
-  auto entry = std::make_unique<RelGroupCatalogEntry>(
-      entryName, std::move(childrenTableIDs));
-  relGroups->createEntry(transaction, std::move(entry));
-  return relGroups->getEntry(transaction, entryName);
-}
-
-bool Catalog::containsSequence(const Transaction* transaction,
-                               const std::string& name) const {
-  return sequences->containsEntry(transaction, name);
-}
-
-SequenceCatalogEntry* Catalog::getSequenceEntry(const Transaction* transaction,
-                                                const std::string& sequenceName,
-                                                bool useInternalSeq) const {
-  CatalogEntry* entry = nullptr;
-  if (!sequences->containsEntry(transaction, sequenceName) && useInternalSeq) {
-    entry = internalSequences->getEntry(transaction, sequenceName);
-  } else {
-    entry = sequences->getEntry(transaction, sequenceName);
-  }
-  NEUG_ASSERT(entry);
-  return entry->ptrCast<SequenceCatalogEntry>();
-}
-
-SequenceCatalogEntry* Catalog::getSequenceEntry(
-    const Transaction* transaction, sequence_id_t sequenceID) const {
-  auto entry = internalSequences->getEntryOfOID(transaction, sequenceID);
-  if (entry == nullptr) {
-    entry = sequences->getEntryOfOID(transaction, sequenceID);
-  }
-  NEUG_ASSERT(entry);
-  return entry->ptrCast<SequenceCatalogEntry>();
-}
-
-std::vector<SequenceCatalogEntry*> Catalog::getSequenceEntries(
-    const Transaction* transaction) const {
-  std::vector<SequenceCatalogEntry*> result;
-  for (auto& [_, entry] : sequences->getEntries(transaction)) {
-    result.push_back(entry->ptrCast<SequenceCatalogEntry>());
+  std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
+    return std::tie(lhs->edge_label_id, lhs->src_label_id, lhs->dst_label_id,
+                    lhs->entry_id) < std::tie(rhs->edge_label_id,
+                                              rhs->src_label_id,
+                                              rhs->dst_label_id, rhs->entry_id);
+  });
+  if (result.empty()) {
+    THROW_SCHEMA_MISMATCH(
+        stringFormat("Cannot find rel group entry {}.", name));
   }
   return result;
-}
-
-sequence_id_t Catalog::createSequence(Transaction* transaction,
-                                      const BoundCreateSequenceInfo& info) {
-  auto entry = std::make_unique<SequenceCatalogEntry>(info);
-  entry->setHasParent(info.hasParent);
-  if (info.isInternal) {
-    return internalSequences->createEntry(transaction, std::move(entry));
-  } else {
-    return sequences->createEntry(transaction, std::move(entry));
-  }
-}
-
-void Catalog::dropSequence(Transaction* transaction, const std::string& name) {
-  const auto entry = getSequenceEntry(transaction, name);
-  dropSequence(transaction, entry->getOID());
-}
-
-void Catalog::dropSequence(Transaction* transaction, sequence_id_t sequenceID) {
-  const auto sequenceEntry = getSequenceEntry(transaction, sequenceID);
-  CatalogSet* set = nullptr;
-  set = sequences->containsEntry(transaction, sequenceEntry->getName())
-            ? sequences.get()
-            : internalSequences.get();
-  set->dropEntry(transaction, sequenceEntry->getName(),
-                 sequenceEntry->getOID());
 }
 
 void Catalog::createType(Transaction* transaction, std::string name,
@@ -369,54 +336,6 @@ DataType Catalog::getType(const Transaction* transaction,
 bool Catalog::containsType(const Transaction* transaction,
                            const std::string& typeName) const {
   return types->containsEntry(transaction, typeName);
-}
-
-void Catalog::createIndex(
-    Transaction* transaction,
-    std::unique_ptr<IndexCatalogEntry> indexCatalogEntry) {
-  indexes->createEntry(transaction, std::move(indexCatalogEntry));
-}
-
-IndexCatalogEntry* Catalog::getIndex(const Transaction* transaction,
-                                     table_id_t tableID,
-                                     const std::string& indexName) const {
-  auto internalName =
-      IndexCatalogEntry::getInternalIndexName(tableID, indexName);
-  return indexes->getEntry(transaction, internalName)
-      ->ptrCast<IndexCatalogEntry>();
-}
-
-std::vector<IndexCatalogEntry*> Catalog::getIndexEntries(
-    const Transaction* transaction) const {
-  std::vector<IndexCatalogEntry*> result;
-  for (auto& [_, entry] : indexes->getEntries(transaction)) {
-    result.push_back(entry->ptrCast<IndexCatalogEntry>());
-  }
-  return result;
-}
-
-bool Catalog::containsIndex(const Transaction* transaction, table_id_t tableID,
-                            const std::string& indexName) const {
-  return indexes->containsEntry(
-      transaction, IndexCatalogEntry::getInternalIndexName(tableID, indexName));
-}
-
-void Catalog::dropAllIndexes(Transaction* transaction, table_id_t tableID) {
-  for (auto catalogEntry : indexes->getEntries(transaction)) {
-    auto& indexCatalogEntry =
-        catalogEntry.second->constCast<IndexCatalogEntry>();
-    if (indexCatalogEntry.getTableID() == tableID) {
-      indexes->dropEntry(transaction, catalogEntry.first,
-                         catalogEntry.second->getOID());
-    }
-  }
-}
-
-void Catalog::dropIndex(Transaction* transaction, table_id_t tableID,
-                        const std::string& indexName) const {
-  auto uniqueName = IndexCatalogEntry::getInternalIndexName(tableID, indexName);
-  const auto entry = indexes->getEntry(transaction, uniqueName);
-  indexes->dropEntry(transaction, uniqueName, entry->getOID());
 }
 
 bool Catalog::containsFunction(const Transaction* transaction,
@@ -476,109 +395,6 @@ std::vector<FunctionCatalogEntry*> Catalog::getFunctionEntries(
     result.push_back(entry->ptrCast<FunctionCatalogEntry>());
   }
   return result;
-}
-
-bool Catalog::containsMacro(const Transaction* transaction,
-                            const std::string& macroName) const {
-  return functions->containsEntry(transaction, macroName);
-}
-
-function::ScalarMacroFunction* Catalog::getScalarMacroFunction(
-    const Transaction* transaction, const std::string& name) const {
-  return functions->getEntry(transaction, name)
-      ->constCast<ScalarMacroCatalogEntry>()
-      .getMacroFunction();
-}
-
-void Catalog::addScalarMacroFunction(
-    Transaction* transaction, std::string name,
-    std::unique_ptr<function::ScalarMacroFunction> macro) {
-  auto entry = std::make_unique<ScalarMacroCatalogEntry>(std::move(name),
-                                                         std::move(macro));
-  functions->createEntry(transaction, std::move(entry));
-}
-
-std::vector<std::string> Catalog::getMacroNames(
-    const Transaction* transaction) const {
-  std::vector<std::string> macroNames;
-  for (auto& [_, function] : functions->getEntries(transaction)) {
-    if (function->getType() == CatalogEntryType::SCALAR_MACRO_ENTRY) {
-      macroNames.push_back(function->getName());
-    }
-  }
-  return macroNames;
-}
-
-void Catalog::checkpoint(const std::string& databasePath,
-                         VirtualFileSystem* fs) const {
-  NEUG_ASSERT(!databasePath.empty());
-  saveToFile(databasePath, fs, FileVersionType::WAL_VERSION);
-}
-
-void Catalog::saveToFile(const std::string& directory, VirtualFileSystem* fs,
-                         FileVersionType versionType) const {}
-
-void Catalog::readFromFile(const std::string& directory, VirtualFileSystem* fs,
-                           FileVersionType versionType,
-                           main::ClientContext* context) {}
-
-CatalogEntry* Catalog::createTableEntry(Transaction* transaction,
-                                        const BoundCreateTableInfo& info) {
-  switch (info.type) {
-  case CatalogEntryType::NODE_TABLE_ENTRY: {
-    return createNodeTableEntry(transaction, info);
-  }
-  case CatalogEntryType::REL_TABLE_ENTRY: {
-    return createRelTableEntry(transaction, info);
-  }
-  default:
-    NEUG_UNREACHABLE;
-  }
-}
-
-CatalogEntry* Catalog::createNodeTableEntry(Transaction* transaction,
-                                            const BoundCreateTableInfo& info) {
-  const auto extraInfo =
-      info.extraInfo->constPtrCast<BoundExtraCreateNodeTableInfo>();
-  auto entry = std::make_unique<NodeTableCatalogEntry>(
-      info.tableName, extraInfo->primaryKeyName);
-  for (auto& definition : extraInfo->propertyDefinitions) {
-    entry->addProperty(definition);
-  }
-  entry->setHasParent(info.hasParent);
-  createSerialSequence(transaction, entry.get(), info.isInternal);
-  auto catalogSet = info.isInternal ? internalTables.get() : tables.get();
-  catalogSet->createEntry(transaction, std::move(entry));
-  return catalogSet->getEntry(transaction, info.tableName);
-}
-
-CatalogEntry* Catalog::createRelTableEntry(Transaction* transaction,
-                                           const BoundCreateTableInfo& info) {
-  const auto extraInfo =
-      info.extraInfo.get()->constPtrCast<BoundExtraCreateRelTableInfo>();
-  auto entry = std::make_unique<RelTableCatalogEntry>(
-      info.tableName, extraInfo->srcMultiplicity, extraInfo->dstMultiplicity,
-      extraInfo->srcTableID, extraInfo->dstTableID,
-      extraInfo->storageDirection);
-  for (auto& definition : extraInfo->propertyDefinitions) {
-    entry->addProperty(definition);
-  }
-  entry->setHasParent(info.hasParent);
-  createSerialSequence(transaction, entry.get(), info.isInternal);
-  auto catalogSet = info.isInternal ? internalTables.get() : tables.get();
-  catalogSet->createEntry(transaction, std::move(entry));
-  return catalogSet->getEntry(transaction, info.tableName);
-}
-
-void Catalog::createSerialSequence(Transaction* transaction,
-                                   const TableCatalogEntry* entry,
-                                   bool isInternal) {
-  // No-op: SERIAL type has been removed.
-}
-
-void Catalog::dropSerialSequence(Transaction* transaction,
-                                 const TableCatalogEntry* entry) {
-  // No-op: SERIAL type has been removed.
 }
 
 }  // namespace catalog

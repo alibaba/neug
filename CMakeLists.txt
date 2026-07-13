@@ -359,6 +359,7 @@ build_abseil_as_third_party()
 
 if(BUILD_TEST)
     enable_testing()
+    add_compile_definitions(NEUG_BUILD_TEST)
     # Always use the bundled googletest to avoid discrepancies in system packages.
     add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
     add_library(neug::GTest INTERFACE IMPORTED)

@@ -16,7 +16,7 @@ static std::string relToString(const binder::RelExpression& rel) {
   } break;
   default:
     for (auto& entry : rel.getEntries()) {
-      result += entry->getName();
+      result += entry->get_label();
       result += ",";
     }
     break;

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <vector>
+#include "neug/common/types.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -43,7 +44,9 @@ using call_exec_func_t = std::function<execution::Context(
     const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
 
 using call_output_columns =
-    std::vector<std::pair<std::string, common::DataTypeId>>;
+    std::vector<std::pair<std::string, common::DataType>>;
+
+using call_input_types = std::vector<common::DataType>;
 
 struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
@@ -52,9 +55,9 @@ struct NeugCallFunction : public TableFunction {
 
   NeugCallFunction() = default;
 
-  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
+  NeugCallFunction(std::string name, call_input_types inputTypes)
       : TableFunction{std::move(name), std::move(inputTypes)} {}
-  NeugCallFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
+  NeugCallFunction(std::string name, call_input_types inputTypes,
                    call_output_columns outputColumns)
       : TableFunction{std::move(name), std::move(inputTypes)},
         outputColumns{std::move(outputColumns)} {}

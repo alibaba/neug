@@ -178,6 +178,19 @@ class QueryResult {
    */
   std::string Serialize() const;
 
+  /**
+   * @brief Check if profile result is available.
+   */
+  bool has_profile_result() const;
+
+  /**
+   * @brief Get human-readable PROFILE/EXPLAIN text output.
+   *
+   * Returns empty string if no profile_result available.
+   * Suitable for CLI output and debugging.
+   */
+  std::string profile_result_text() const;
+
  private:
   void ValidateCursorAccess(size_t column_index) const;
   size_t GetColumnIndex(const std::string& column_name) const;

@@ -98,14 +98,14 @@ BoundTableScanInfo Binder::bindTableFunc(
       tableFuncName, positionalParamTypes,
       entry->ptrCast<catalog::FunctionCatalogEntry>());
   auto callFunc = func->constPtrCast<NeugCallFunction>();
+  const auto& signatureParamTypes = callFunc->parameterTypes;
   std::vector<common::DataType> inputTypes;
-  // For functions which don't have nested type parameters, we can simply use
-  // the types declared in the function signature.
-  for (auto i = 0u; i < callFunc->parameterTypeIDs.size(); i++) {
-    inputTypes.push_back(common::DataType(callFunc->parameterTypeIDs[i]));
+  inputTypes.reserve(signatureParamTypes.size());
+  for (const auto& type : signatureParamTypes) {
+    inputTypes.push_back(type.copy());
   }
   for (auto i = 0u; i < positionalParams.size(); ++i) {
-    auto parameterTypeID = callFunc->parameterTypeIDs[i];
+    auto parameterTypeID = signatureParamTypes[i].id();
     if (positionalParams[i]->expressionType == ExpressionType::LITERAL &&
         parameterTypeID != DataTypeId::kUnknown) {
       positionalParams[i] = expressionBinder.implicitCastIfNecessary(
