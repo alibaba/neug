@@ -2397,8 +2397,9 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
     };
 
     func->execFunc = [](const function::CallFuncInputBase& input,
-                        IStorageInterface& graph, const execution::ParamsMap &
-                        /*params*/) -> execution::Context {
+                        IStorageInterface& graph,
+                        [[maybe_unused]] const execution::ParamsMap& params)
+        -> execution::Context {
       auto& init_input = static_cast<const InitializeGraphInput&>(input);
       LOG(INFO) << "[INITIALIZE] Executing graph initialization...";
 
@@ -2470,8 +2471,9 @@ function::function_set InitializeGraphFunction::getFunctionSet() {
     };
 
     func->execFunc = [](const function::CallFuncInputBase& input,
-                        IStorageInterface& graph, const execution::ParamsMap &
-                        /*params*/) -> execution::Context {
+                        IStorageInterface& graph,
+                        [[maybe_unused]] const execution::ParamsMap& params)
+        -> execution::Context {
       auto& init_input = static_cast<const InitializeGraphInput&>(input);
       LOG(INFO) << "[INITIALIZE] Executing with checkpoint_dir: "
                 << init_input.checkpoint_dir;
@@ -2553,8 +2555,9 @@ function::function_set SaveSampledmatchCheckpointFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const function::CallFuncInputBase& input,
-                      IStorageInterface& graph, const execution::ParamsMap &
-                      /*params*/) -> execution::Context {
+                      IStorageInterface& graph,
+                      [[maybe_unused]] const execution::ParamsMap& params)
+      -> execution::Context {
     auto& ckpt_input =
         static_cast<const SaveSampledmatchCheckpointInput&>(input);
     LOG(INFO) << "[SAVE_SAMPLEDMATCH_CHECKPOINT] Saving to: "
@@ -2692,8 +2695,9 @@ function::function_set PatternMatchFunction::getFunctionSet() {
     };
 
     func->execFunc = [](const function::CallFuncInputBase& input,
-                        IStorageInterface& graph, const execution::ParamsMap &
-                        /*params*/) -> execution::Context {
+                        IStorageInterface& graph,
+                        [[maybe_unused]] const execution::ParamsMap& params)
+        -> execution::Context {
       return execute_pattern_match_pipeline(
           static_cast<const PatternMatchInput&>(input), graph);
     };
@@ -2767,8 +2771,9 @@ function::function_set PatternMatchFunction::getFunctionSet() {
     };
 
     func->execFunc = [](const function::CallFuncInputBase& input,
-                        IStorageInterface& graph, const execution::ParamsMap &
-                        /*params*/) -> execution::Context {
+                        IStorageInterface& graph,
+                        [[maybe_unused]] const execution::ParamsMap& params)
+        -> execution::Context {
       // Dispatch on the bound input flavour: SampledMatchInput -> sampler,
       // PatternMatchInput -> exact (early-terminating) matcher.
       if (const auto* sampled =
@@ -2854,8 +2859,9 @@ function::function_set GetVertexPropertyFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const function::CallFuncInputBase& input,
-                      IStorageInterface& graph, const execution::ParamsMap &
-                      /*params*/) -> execution::Context {
+                      IStorageInterface& graph,
+                      [[maybe_unused]] const execution::ParamsMap& params)
+      -> execution::Context {
     auto& prop_input = static_cast<const GetVertexPropertyInput&>(input);
 
     auto* read_interface = dynamic_cast<StorageReadInterface*>(&graph);
@@ -3034,8 +3040,9 @@ function::function_set GetEdgePropertyFunction::getFunctionSet() {
   };
 
   func->execFunc = [](const function::CallFuncInputBase& input,
-                      IStorageInterface& graph, const execution::ParamsMap &
-                      /*params*/) -> execution::Context {
+                      IStorageInterface& graph,
+                      [[maybe_unused]] const execution::ParamsMap& params)
+      -> execution::Context {
     auto& prop_input = static_cast<const GetEdgePropertyInput&>(input);
 
     auto* read_interface = dynamic_cast<StorageReadInterface*>(&graph);
