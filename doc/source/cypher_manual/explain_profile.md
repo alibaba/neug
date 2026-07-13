@@ -1,6 +1,6 @@
 # Performance Debugging with EXPLAIN and PROFILE
 
-EXPLAIN and PROFILE are Cypher query execution directives that allow you to inspect query execution plans and collect performance metrics during query execution.
+EXPLAIN and PROFILE are Cypher query execution keywords that allow you to inspect query execution plans and collect performance metrics during query execution.
 
 ## Quick Reference
 
