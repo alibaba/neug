@@ -33,7 +33,8 @@ project (
 
 option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
-option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
+option(NEUG_PACKAGE_BUILD "Whether to build portable distributable artifacts" OFF)
+option(NEUG_NATIVE_ARCH "Whether to enable host-specific CPU tuning for local builds" OFF)
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
@@ -106,6 +107,8 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 
 include(CheckCXXCompilerFlag)
 include(cmake/neug_symbol_visibility.cmake)
+include(cmake/NeugNativeArch.cmake)
+neug_configure_native_arch()
 
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -185,11 +188,6 @@ int main() {
 
 if (HAVE_CHRONO_YMD)
     add_definitions(-DENABLE_CHRONO_YMD)
-endif()
-
-# -Wno-psabi for no warning about returning a pair in c++ function
-if (OPTIMIZE_FOR_HOST AND NOT APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
@@ -930,6 +928,7 @@ endif()
 
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
+neug_apply_native_arch_to_directory("${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_subdirectory(tools)
 if (BUILD_EXECUTABLES)
     add_subdirectory(bin)
