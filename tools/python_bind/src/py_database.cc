@@ -62,6 +62,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
       .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,
            pybind11::arg("host") = "localhost", pybind11::arg("thread_num") = 0,
            pybind11::arg("blocking") = false,
+           pybind11::arg("auto_compaction") = true,
            "Start the database server.\n\n"
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
@@ -70,6 +71,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "which means auto-select from database max_thread_num.\n"
            "    blocking (bool): Whether to block the function until the "
            "server shuts down.\n"
+           "    auto_compaction (bool): Enable background "
+           "auto-compaction while serving, default is True.\n"
            "Returns:\n"
            "    uri (str): A string containing the URL of the server.\n")
       .def("stop_serving", &PyDatabase::stop_serving,
@@ -86,7 +89,8 @@ PyConnection PyDatabase::connect() {
 }
 
 std::string PyDatabase::serve(int port, const std::string& host,
-                              int32_t thread_num, bool blocking) {
+                              int32_t thread_num, bool blocking,
+                              bool auto_compaction) {
 #ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
@@ -123,6 +127,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   config.query_port = port;
   config.host_str = host;
   config.thread_num = static_cast<uint32_t>(thread_num);
+  config.auto_compaction = auto_compaction;
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";

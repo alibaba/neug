@@ -105,11 +105,10 @@ NeugDB::~NeugDB() {
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
                   const DBMode mode, const std::string& planner_kind,
-                  bool enable_auto_compaction, bool checkpoint_on_close) {
+                  bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_thread_num);
   config.mode = mode;
   config.planner_kind = planner_kind;
-  config.enable_auto_compaction = enable_auto_compaction;
   config.checkpoint_on_close = checkpoint_on_close;
   return Open(config);
 }

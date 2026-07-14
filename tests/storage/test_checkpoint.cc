@@ -180,7 +180,6 @@ class CheckpointTestBase : public ::testing::Test {
     config.data_dir = data_dir;
     config.memory_level = kMemoryLevel;
     config.checkpoint_on_close = true;
-    config.enable_auto_compaction = false;
     return config;
   }
 
