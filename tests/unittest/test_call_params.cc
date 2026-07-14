@@ -29,11 +29,44 @@ namespace neug {
 namespace test {
 namespace {
 
-struct EchoParamFuncInput : public function::CallFuncInputBase {
-  // When set, resolve from ParamsMap at exec (Cypher $param → key "param").
+// Typed literal Value, or $param (ParamsMap key without '$').
+struct DeferredCallArg {
+  bool is_param = false;
   std::string param_name;
-  // Literal CALL argument when param_name is empty.
-  std::string literal;
+  Value literal;
+
+  static DeferredCallArg FromLiteral(Value value) {
+    DeferredCallArg arg;
+    arg.literal = std::move(value);
+    return arg;
+  }
+
+  static DeferredCallArg FromParam(std::string name) {
+    DeferredCallArg arg;
+    arg.is_param = true;
+    arg.param_name = std::move(name);
+    return arg;
+  }
+
+  Value resolve(const execution::ParamsMap& params) const {
+    if (!is_param) {
+      return literal;
+    }
+    auto it = params.find(param_name);
+    if (it == params.end()) {
+      return Value();
+    }
+    return it->second;
+  }
+};
+
+struct EchoParamFuncInput : public function::CallFuncInputBase {
+  DeferredCallArg arg;
+  Value value;
+
+  void evaluateParams(const execution::ParamsMap& params) override {
+    value = arg.resolve(params);
+  }
 };
 
 struct TestEchoParamFunction {
@@ -58,30 +91,25 @@ struct TestEchoParamFunction {
       }
       const auto& arg = procedure.query().arguments(0);
       if (!arg.param_name().empty()) {
-        input->param_name = arg.param_name();
-      } else if (arg.has_const_()) {
-        input->literal = arg.const_().str();
+        input->arg = DeferredCallArg::FromParam(arg.param_name());
+      } else if (arg.has_const_() && arg.const_().has_str()) {
+        input->arg =
+            DeferredCallArg::FromLiteral(Value::STRING(arg.const_().str()));
       }
       return input;
     };
 
     func->execFunc = [](const function::CallFuncInputBase& input_base,
-                        IStorageInterface&,
-                        const execution::ParamsMap& params) {
+                        IStorageInterface&) {
       const auto& input = static_cast<const EchoParamFuncInput&>(input_base);
-      std::string value = input.literal;
-      if (!input.param_name.empty()) {
-        auto it = params.find(input.param_name);
-        if (it != params.end()) {
-          value = it->second.GetValue<std::string>();
-        } else {
-          value.clear();
-        }
+      std::string out;
+      if (!input.value.IsNull()) {
+        out = input.value.GetValue<std::string>();
       }
 
       ValueColumnBuilder<std::string> builder;
       builder.reserve(1);
-      builder.push_back_opt(value);
+      builder.push_back_opt(out);
 
       execution::Context ctx;
       DataChunk chunk;

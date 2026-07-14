@@ -95,8 +95,7 @@ std::unique_ptr<function::CallFuncInputBase> LeidenFunction::bind(
 }
 
 execution::Context LeidenFunction::exec(
-    const function::CallFuncInputBase& input_base, IStorageInterface& g,
-    const execution::ParamsMap& /*params*/) {
+    const function::CallFuncInputBase& input_base, IStorageInterface& g) {
   const auto& input = dynamic_cast<const LeidenInput&>(input_base);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 

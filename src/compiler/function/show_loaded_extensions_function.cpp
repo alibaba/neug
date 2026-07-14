@@ -39,8 +39,7 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& graph,
-                          const execution::ParamsMap& /*params*/) {
+                          neug::IStorageInterface& graph) {
     try {
       neug::execution::Context ctx;
       const auto& ext_map =

@@ -30,8 +30,7 @@ struct NEUG_API LouvainFunction {
       const ::physical::PhysicalPlan& plan, int op_idx);
 
   static execution::Context exec(const function::CallFuncInputBase& input_base,
-                                 IStorageInterface& g,
-                                 const execution::ParamsMap& params);
+                                 IStorageInterface& g);
 
   static function::function_set getFunctionSet();
 };

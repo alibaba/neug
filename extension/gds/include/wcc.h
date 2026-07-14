@@ -24,8 +24,7 @@ namespace gds {
 struct NEUG_API WCCFunction {
   static constexpr const char* name = "wcc";
   static execution::Context exec(const function::CallFuncInputBase& input,
-                                 IStorageInterface& graph,
-                                 const execution::ParamsMap& params);
+                                 IStorageInterface& graph);
 
   static std::unique_ptr<function::CallFuncInputBase> bind(
       const Schema& schema, const execution::ContextMeta& ctx_meta,

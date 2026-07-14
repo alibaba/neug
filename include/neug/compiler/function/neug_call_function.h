@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * 	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,8 @@ class Context;
 namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
+  // Resolve deferred $param args against query ParamsMap before execFunc.
+  virtual void evaluateParams(const execution::ParamsMap& /*params*/) {}
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
@@ -42,8 +44,7 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
 using call_exec_func_t = std::function<execution::Context(
-    const CallFuncInputBase& input, neug::IStorageInterface& graph,
-    const execution::ParamsMap& params)>;
+    const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::DataType>>;

@@ -90,8 +90,7 @@ std::unique_ptr<function::CallFuncInputBase> CDLPFunction::bind(
 }
 
 execution::Context CDLPFunction::exec(const function::CallFuncInputBase& input,
-                                      IStorageInterface& g,
-                                      const execution::ParamsMap& /*params*/) {
+                                      IStorageInterface& g) {
   const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 

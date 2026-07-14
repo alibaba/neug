@@ -99,8 +99,7 @@ std::unique_ptr<function::CallFuncInputBase> SSSPFunction::bind(
 }
 
 execution::Context SSSPFunction::exec(const function::CallFuncInputBase& input,
-                                      IStorageInterface& g,
-                                      const execution::ParamsMap& /*params*/) {
+                                      IStorageInterface& g) {
   const auto& sssp_input = dynamic_cast<const SSSPInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
