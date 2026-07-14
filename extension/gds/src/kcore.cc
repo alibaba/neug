@@ -93,7 +93,7 @@ std::unique_ptr<function::CallFuncInputBase> KCoreFunction::bind(
 }
 
 execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
-                                       neug::IStorageInterface& g) {
+                                       IStorageInterface& g) {
   const auto& kcore_input = dynamic_cast<const KCoreInput&>(input);
 
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
@@ -117,11 +117,12 @@ execution::Context KCoreFunction::exec(const function::CallFuncInputBase& input,
 
 function::function_set KCoreFunction::getFunctionSet() {
   function::function_set func_set;
-  std::vector<common::DataTypeId> input_types = {common::DataTypeId::kVarchar,
-                                                 common::DataTypeId::kUnknown};
+  function::call_input_types input_types = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   function::call_output_columns output_columns = {
-      {"node", common::DataTypeId::kVertex},
-      {"core", common::DataTypeId::kInt64}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"core", common::DataType(common::DataTypeId::kInt64)}};
 
   auto function = std::make_unique<function::GDSAlgoFunction>(name, input_types,
                                                               output_columns);

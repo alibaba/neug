@@ -1,0 +1,257 @@
+name: Memory Leak Weekly
+
+on:
+  workflow_dispatch:
+    inputs:
+      outer_iters:
+        description: 'NEUG_LEAK_OUTER_ITERS for test_node_create'
+        required: false
+        default: '1000'
+      inner_rows:
+        description: 'NEUG_LEAK_INNER_ROWS for test_node_create'
+        required: false
+        default: '1000'
+      rss_iters:
+        description: '--iters for tests/memory_leak/test_memory_leak.py'
+        required: false
+        default: '2000'
+  schedule:
+    # UTC 19:00 Saturday = UTC+8 03:00 Sunday
+    - cron: '0 19 * * 6'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  memory-leak:
+    name: Build NeuG (RELEASE, no mimalloc) and run leak checks
+    # NOTE: temporarily removed `github.repository == 'alibaba/neug'` guard for debugging on forks.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    # NOTE: temporarily switched from self-hosted runner + private neug-dev image
+    # to github-hosted ubuntu-22.04 (no container) for fork debugging.
+    # Original config:
+    #   runs-on: [self-hosted, daily, linux, x64]
+    #   container:
+    #     image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
+    runs-on: ubuntu-22.04
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.2
+    timeout-minutes: 300
+    # In container mode GitHub Actions defaults `run:` shell to `sh -e {0}`
+    # (dash on debian-based images), which does NOT support `set -o pipefail`.
+    # Force bash so the same `set -o pipefail` snippets used elsewhere keep
+    # working and pipeline failures are not silently swallowed by `tee`.
+    defaults:
+      run:
+        shell: bash
+    env:
+      OUTER_ITERS: ${{ github.event.inputs.outer_iters || '10' }}
+      INNER_ROWS:  ${{ github.event.inputs.inner_rows  || '10' }}
+      RSS_ITERS:   ${{ github.event.inputs.rss_iters   || '20' }}
+      LOG_DIR: ${{ github.workspace }}/memory-leak-logs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Cache CCache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/neug-test.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ github.ref_name }}-
+            ${{ runner.os }}-ccache-main-
+            ${{ runner.os }}-ccache-
+
+      - name: Setup CCache
+        run: |
+          sudo apt-get update && sudo apt-get install -y ccache
+          mkdir -p ~/.cache/ccache
+          {
+            echo "CCACHE_DIR=$HOME/.cache/ccache"
+            echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+            echo "CCACHE_COMPRESS=true"
+            echo "CCACHE_COMPRESSLEVEL=6"
+            echo "CCACHE_MAXSIZE=5G"
+          } >> "$GITHUB_ENV"
+          ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+          ccache --set-config=compiler_check=content
+          ccache --set-config=compression=true
+          ccache --max-size=5G
+          ccache --zero-stats
+
+      - name: Increase the maximum number of opened files
+        run: |
+          ulimit -n 65535 || true
+          sudo chmod -R 777 /etc/security/* || true
+          echo "*   soft  nofile  1048576" | sudo tee -a /etc/security/limits.conf
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Prepare log dir
+        run: mkdir -p "$LOG_DIR"
+
+      - name: Build NeuG (RELEASE, BUILD_TEST=ON, WITH_MIMALLOC=OFF)
+        run: |
+          . /home/neug/.neug_env
+          cd ${GITHUB_WORKSPACE}/
+          echo "CCache stats before build"
+          ccache --show-stats
+          export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
+          export BUILD_TYPE=RELEASE
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+          export BUILD_EXECUTABLES=ON
+          export BUILD_HTTP_SERVER=ON
+          echo "Full mode: build executables and HTTP server"
+          export BUILD_TEST=ON
+          export USE_NINJA=OFF
+          export WITH_MIMALLOC=OFF
+          export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+          sudo mkdir -p /opt/neug-install
+          sudo chown -R $USER:$USER /opt/neug-install/
+          export CC="ccache gcc"
+          export CXX="ccache g++"
+          cd tools/python_bind
+          make clean
+          make requirements
+          make build
+          echo "CCache stats after build"
+          ccache --show-stats
+
+      - name: Verify memory-leak gtest binaries exist
+        run: |
+          set -e
+          BUILD_DIR="${GITHUB_WORKSPACE}/build"
+          ls -la "$BUILD_DIR/tests/memory_leak/" || true
+          test -x "$BUILD_DIR/tests/memory_leak/test_node_create"
+          test -x "$BUILD_DIR/tests/memory_leak/test_temporary_tables"
+          echo "[ok] both gtest binaries are built and executable."
+
+      # ----------------------------------------------------------------
+      # 1a) gtest -- test_node_create (long write-path soak)
+      # ----------------------------------------------------------------
+      - name: gtest -- test_node_create
+        env:
+          NEUG_RUN_MEMORY_LEAK_TESTS: '1'
+          NEUG_LEAK_OUTER_ITERS:      ${{ env.OUTER_ITERS }}
+          NEUG_LEAK_INNER_ROWS:       ${{ env.INNER_ROWS }}
+          NEUG_LEAK_CHECKPOINT_EVERY: '500'
+          GLOG_logtostderr:           '1'
+        run: |
+          set -o pipefail
+          ./build/tests/memory_leak/test_node_create \
+            --gtest_color=no \
+            2>&1 | tee "$LOG_DIR/test_node_create.log"
+
+      # ----------------------------------------------------------------
+      # 1b) gtest -- test_temporary_tables (scan / ddl / temp_insert)
+      # ----------------------------------------------------------------
+      - name: gtest -- test_temporary_tables
+        env:
+          NEUG_RUN_MEMORY_LEAK_TESTS: '1'
+          NEUG_LEAK_OUTER_ITERS:      ${{ env.OUTER_ITERS }}
+          NEUG_LEAK_INNER_ROWS:       ${{ env.INNER_ROWS }}
+          NEUG_LEAK_BULK_ROWS:        '100000'
+          NEUG_LEAK_SCAN_ITERS:       '200'
+          GLOG_logtostderr:           '1'
+        run: |
+          set -o pipefail
+          ./build/tests/memory_leak/test_temporary_tables \
+            --gtest_color=no \
+            2>&1 | tee "$LOG_DIR/test_temporary_tables.log"
+
+      # ----------------------------------------------------------------
+      # 2) Python-side RSS workload — reuse the same build above
+      # ----------------------------------------------------------------
+      - name: python3 tests/memory_leak/test_memory_leak.py
+        env:
+          # `tools/python_bind` makes `import neug` work; neug/__init__.py
+          # then auto-discovers the build/lib.* extdir produced by setup.py,
+          # so an explicit binary dir on PYTHONPATH is unnecessary.
+          PYTHONPATH: ${{ github.workspace }}/tools/python_bind
+        run: |
+          set -o pipefail
+          python3 tests/memory_leak/test_memory_leak.py \
+            --iters "$RSS_ITERS" --sample 100 \
+            --slope-threshold 0.5 --delta-threshold 5.0 \
+            --exit-on-leak \
+            2>&1 | tee "$LOG_DIR/test_memory_leak_py.log"
+
+      # ----------------------------------------------------------------
+      # 3) Always upload logs for postmortem
+      # ----------------------------------------------------------------
+      - name: Summarize verdicts
+        if: always()
+        run: |
+          echo '## Memory Leak Weekly Summary' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$LOG_DIR/test_node_create.log" ]; then
+            echo '### gtest test_node_create' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 "$LOG_DIR/test_node_create.log" >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f "$LOG_DIR/test_temporary_tables.log" ]; then
+            echo '### gtest test_temporary_tables' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 "$LOG_DIR/test_temporary_tables.log" >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f "$LOG_DIR/test_memory_leak_py.log" ]; then
+            echo '### tests/memory_leak/test_memory_leak.py' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 "$LOG_DIR/test_memory_leak_py.log" >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-memory-leak-test-${{ github.run_id }}
+          path: ${{ env.LOG_DIR }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ============================================================
+  # Job: send DingTalk notification for the weekly memory-leak run.
+  # Mirrors benchmark.yml's notify-benchmark-result style.
+  # Only runs on the canonical alibaba/neug repo to avoid fork noise.
+  # ============================================================
+  notify-memory-leak-result:
+    needs: [memory-leak]
+    if: always() && github.repository == 'alibaba/neug'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send DingTalk notification
+        env:
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+        run: |
+          if [ -z "$DINGTALK_TOKEN" ]; then
+            echo "DINGTALK_TOKEN not set, skipping notification."
+            exit 0
+          fi
+          WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+          STATUS="${{ needs.memory-leak.result }}"
+          if [[ "$STATUS" == "success" ]]; then
+            TITLE="[Weekly Report] NeuG Memory Leak Passed"
+          else
+            TITLE="[Weekly Report] NeuG Memory Leak Failed"
+          fi
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"title\": \"$TITLE\",
+                \"text\": \"## $TITLE\\n\\n- **memory-leak**: ${STATUS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              }
+            }"

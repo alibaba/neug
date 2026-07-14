@@ -31,7 +31,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
-#include "parquet/arrow_context_column.h"
+#include "parquet/arrow_column.h"
 #include "parquet/arrow_reader.h"
 
 #include "../../extension/parquet/include/parquet_export_function.h"
@@ -458,8 +458,8 @@ TEST_F(ParquetTest, TestTypeMapping_StringToLargeUtf8) {
 
   // Verify string column type
   auto col1 = ctx.chunk(0).columns()[1];
-  ASSERT_EQ(col1->column_type(), execution::ContextColumnType::kValue);
-  EXPECT_EQ(col1->elem_type().id(), neug::DataTypeId::kVarchar);
+  ASSERT_EQ(col1->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col1->elem_type().id(), DataTypeId::kVarchar);
 }
 
 TEST_F(ParquetTest, TestTypeMapping_PreserveNumericTypes) {
@@ -512,14 +512,10 @@ TEST_F(ParquetTest, TestTypeMapping_PreserveNumericTypes) {
   EXPECT_EQ(ctx.row_num(), 1);
 
   // Verify types are preserved correctly
-  EXPECT_EQ(ctx.chunk(0).columns()[0]->elem_type().id(),
-            neug::DataTypeId::kInt32);
-  EXPECT_EQ(ctx.chunk(0).columns()[1]->elem_type().id(),
-            neug::DataTypeId::kInt64);
-  EXPECT_EQ(ctx.chunk(0).columns()[2]->elem_type().id(),
-            neug::DataTypeId::kDouble);
-  EXPECT_EQ(ctx.chunk(0).columns()[3]->elem_type().id(),
-            neug::DataTypeId::kBoolean);
+  EXPECT_EQ(ctx.chunk(0).columns()[0]->elem_type().id(), DataTypeId::kInt32);
+  EXPECT_EQ(ctx.chunk(0).columns()[1]->elem_type().id(), DataTypeId::kInt64);
+  EXPECT_EQ(ctx.chunk(0).columns()[2]->elem_type().id(), DataTypeId::kDouble);
+  EXPECT_EQ(ctx.chunk(0).columns()[3]->elem_type().id(), DataTypeId::kBoolean);
 }
 
 // =============================================================================
@@ -704,7 +700,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   reader2->read(localState2, ctx2);
 
   auto col0_2 = ctx2.chunk(0).columns()[0];
-  EXPECT_EQ(col0_2->column_type(), execution::ContextColumnType::kValue)
+  EXPECT_EQ(col0_2->column_type(), ContextColumnType::kValue)
       << "Extension should use Value column type when batch_read=false";
 }
 
@@ -1010,7 +1006,7 @@ TEST_F(ParquetTest, TestMultiFile_ExplicitPaths) {
 
 TEST_F(ParquetTest, TestParquetExportWriter) {
   // Create a QueryResponse with test data
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(3);
 
   // Add schema
@@ -1055,8 +1051,8 @@ TEST_F(ParquetTest, TestParquetExportWriter) {
 
   // Create ArrowParquetExportWriter
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   // Write the response
   auto status = writer.writeTable(&response);
@@ -1082,7 +1078,7 @@ TEST_F(ParquetTest, TestParquetExportWriter) {
 
 TEST_F(ParquetTest, TestParquetExportWithNulls) {
   // Test export with NULL values
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(3);
 
   auto* schema = response.mutable_schema();
@@ -1117,8 +1113,8 @@ TEST_F(ParquetTest, TestParquetExportWithNulls) {
   file_schema.format = "parquet";
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with nulls: "
@@ -1142,7 +1138,7 @@ TEST_F(ParquetTest, TestParquetExportWithNulls) {
 
 TEST_F(ParquetTest, TestParquetExportMultipleTypes) {
   // Test export with various data types
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(2);
 
   auto* schema = response.mutable_schema();
@@ -1203,8 +1199,8 @@ TEST_F(ParquetTest, TestParquetExportMultipleTypes) {
   file_schema.format = "parquet";
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with multiple types: "
@@ -1215,7 +1211,7 @@ TEST_F(ParquetTest, TestParquetExportMultipleTypes) {
 
 TEST_F(ParquetTest, TestParquetExportLargeDataset) {
   // Test export with larger dataset to verify no OOM
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 10000;
   response.set_row_count(num_rows);
 
@@ -1248,8 +1244,8 @@ TEST_F(ParquetTest, TestParquetExportLargeDataset) {
   file_schema.format = "parquet";
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write large Parquet: "
@@ -1265,7 +1261,7 @@ TEST_F(ParquetTest, TestParquetExportLargeDataset) {
 
 TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   // Test export with different compression settings
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(100);
 
   auto* schema = response.mutable_schema();
@@ -1301,8 +1297,8 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   file_schema_zstd.options = {{"compression", "zstd"}};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer_zstd(file_schema_zstd,
-                                                     file_system, entry_schema);
+  writer::ArrowParquetExportWriter writer_zstd(file_schema_zstd, file_system,
+                                               entry_schema);
 
   auto status = writer_zstd.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write ZSTD Parquet: "
@@ -1317,8 +1313,8 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
   file_schema_none.format = "parquet";
   file_schema_none.options = {{"compression", "none"}};
 
-  neug::writer::ArrowParquetExportWriter writer_none(file_schema_none,
-                                                     file_system, entry_schema);
+  writer::ArrowParquetExportWriter writer_none(file_schema_none, file_system,
+                                               entry_schema);
 
   status = writer_none.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write uncompressed Parquet: "
@@ -1355,7 +1351,7 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
 
 TEST_F(ParquetTest, TestParquetExportWithUnsupportedCompression) {
   // Test that unsupported compression codecs produce a clear error
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(3);
 
   auto* schema = response.mutable_schema();
@@ -1379,8 +1375,8 @@ TEST_F(ParquetTest, TestParquetExportWithUnsupportedCompression) {
   file_schema.options = {{"compression", "lz4"}};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   // Should fail due to unsupported codec
   auto status = writer.writeTable(&response);
@@ -1390,7 +1386,7 @@ TEST_F(ParquetTest, TestParquetExportWithUnsupportedCompression) {
 
 TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
   // Test export with custom row group size
-  neug::QueryResponse response;
+  QueryResponse response;
   response.set_row_count(100);
 
   auto* schema = response.mutable_schema();
@@ -1416,8 +1412,8 @@ TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
       {"row_group_size", "5000"}};  // Use valid value >= 1024
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with row_group_size: "
@@ -1438,7 +1434,7 @@ TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
 
 TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   // Test export with dictionary encoding disabled
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows =
       10000;  // Larger dataset to show dictionary encoding benefits
   response.set_row_count(num_rows);
@@ -1486,8 +1482,8 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
                               {"compression", "none"}};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer_dict(file_schema_dict,
-                                                     file_system, entry_schema);
+  writer::ArrowParquetExportWriter writer_dict(file_schema_dict, file_system,
+                                               entry_schema);
 
   auto status = writer_dict.writeTable(&response);
   ASSERT_TRUE(status.ok())
@@ -1504,8 +1500,8 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
   file_schema_nodict.options = {{"dictionary_encoding", "false"},
                                 {"compression", "none"}};
 
-  neug::writer::ArrowParquetExportWriter writer_nodict(
-      file_schema_nodict, file_system, entry_schema);
+  writer::ArrowParquetExportWriter writer_nodict(file_schema_nodict,
+                                                 file_system, entry_schema);
 
   status = writer_nodict.writeTable(&response);
   ASSERT_TRUE(status.ok())
@@ -1546,7 +1542,7 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
 
 TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
   // Test export with date and timestamp types
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 100;
   response.set_row_count(num_rows);
 
@@ -1595,8 +1591,8 @@ TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
                                createTimestampType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with date/timestamp: "
@@ -1618,7 +1614,7 @@ TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
 
 TEST_F(ParquetTest, TestParquetExportWithListType) {
   // Test export with list/array type
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 10;
   response.set_row_count(num_rows);
 
@@ -1671,8 +1667,8 @@ TEST_F(ParquetTest, TestParquetExportWithListType) {
                                createStringType()};  // List<String>
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with list type: "
@@ -1685,7 +1681,7 @@ TEST_F(ParquetTest, TestParquetExportWithListType) {
 
 TEST_F(ParquetTest, TestParquetExportWithListOfStrings) {
   // Test export with list<string> type
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 5;
   response.set_row_count(num_rows);
 
@@ -1747,8 +1743,8 @@ TEST_F(ParquetTest, TestParquetExportWithListOfStrings) {
   entry_schema->columnTypes = {createStringType(), createStringType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with list<string>: "
@@ -1762,7 +1758,7 @@ TEST_F(ParquetTest, TestParquetExportWithListOfStrings) {
 
 TEST_F(ParquetTest, TestParquetExportWithStructType) {
   // Test export with struct type
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 5;
   response.set_row_count(num_rows);
 
@@ -1815,8 +1811,8 @@ TEST_F(ParquetTest, TestParquetExportWithStructType) {
   entry_schema->columnTypes = {createInt64Type(), createStringType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with struct type: "
@@ -1830,7 +1826,7 @@ TEST_F(ParquetTest, TestParquetExportWithStructType) {
 
 TEST_F(ParquetTest, TestParquetExportWithVertexType) {
   // Test export with vertex type (JSON string parsed to struct)
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 3;
   response.set_row_count(num_rows);
 
@@ -1870,8 +1866,8 @@ TEST_F(ParquetTest, TestParquetExportWithVertexType) {
   entry_schema->columnTypes = {createInt64Type(), createStringType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with vertex type: "
@@ -1885,7 +1881,7 @@ TEST_F(ParquetTest, TestParquetExportWithVertexType) {
 
 TEST_F(ParquetTest, TestParquetExportWithEdgeType) {
   // Test export with edge type (JSON string parsed to struct)
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 3;
   response.set_row_count(num_rows);
 
@@ -1925,8 +1921,8 @@ TEST_F(ParquetTest, TestParquetExportWithEdgeType) {
   entry_schema->columnTypes = {createInt64Type(), createStringType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with edge type: "
@@ -1940,7 +1936,7 @@ TEST_F(ParquetTest, TestParquetExportWithEdgeType) {
 
 TEST_F(ParquetTest, TestParquetExportWithPathType) {
   // Test export with path type (JSON string parsed to struct)
-  neug::QueryResponse response;
+  QueryResponse response;
   const int num_rows = 2;
   response.set_row_count(num_rows);
 
@@ -1977,8 +1973,8 @@ TEST_F(ParquetTest, TestParquetExportWithPathType) {
   entry_schema->columnTypes = {createInt64Type(), createStringType()};
 
   auto file_system = std::make_shared<arrow::fs::LocalFileSystem>();
-  neug::writer::ArrowParquetExportWriter writer(file_schema, file_system,
-                                                entry_schema);
+  writer::ArrowParquetExportWriter writer(file_schema, file_system,
+                                          entry_schema);
 
   auto status = writer.writeTable(&response);
   ASSERT_TRUE(status.ok()) << "Failed to write Parquet with path type: "

@@ -30,7 +30,7 @@ namespace regex {
 class RE2;
 }
 
-namespace common {
+namespace compiler_impl {
 
 struct timestamp_t;
 
@@ -143,5 +143,6 @@ class Date {
                                 int32_t& year_offset);
 };
 
-}  // namespace common
+}  // namespace compiler_impl
+
 }  // namespace neug

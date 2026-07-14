@@ -111,7 +111,25 @@ class CMakeBuild(build_ext):
     libneug.{dylib,so*} into extdir so the wheel ships them together.
     """
 
+    def _write_commit_info(self) -> None:
+        commit = os.environ.get("NEUG_COMMIT_SHA", "")
+        if not commit:
+            try:
+                commit = subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo_root,
+                    text=True,
+                ).strip()
+            except Exception:
+                commit = "unknown"
+
+        commit_file = Path(base_dir) / "neug" / "_commit.py"
+        commit_file.write_text(f'__commit__ = "{commit}"\n', encoding="utf-8")
+        print(f"[CMakeBuild] wrote commit info ({commit}) -> {commit_file}")
+
     def build_extension(self, ext: CMakeExtension) -> None:
+        self._write_commit_info()
+
         build_dir = Path(
             os.environ.get("NEUG_BUILD_DIR", Path(repo_root) / "build")
         ).resolve()
@@ -186,7 +204,6 @@ class CMakeBuild(build_ext):
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={build_type}",
             "-DBUILD_PYTHON=ON",
-            "-DOPTIMIZE_FOR_HOST=OFF",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
             *(
                 f"-D{name}={_on_off(name, default)}"
@@ -205,6 +222,11 @@ class CMakeBuild(build_ext):
             cmake_args.append(f"-DCMAKE_INSTALL_PREFIX={prefix}")
         if extra := os.environ.get("CMAKE_ARGS", "").split():
             cmake_args += extra
+
+        cmake_args += [
+            f"-DNEUG_PACKAGE_BUILD={_on_off('NEUG_PACKAGE_BUILD', 'ON')}",
+            f"-DNEUG_NATIVE_ARCH={_on_off('NEUG_NATIVE_ARCH', 'OFF')}",
+        ]
 
         cmake_generator = os.environ.get("CMAKE_GENERATOR", "")
         build_args: list[str] = []

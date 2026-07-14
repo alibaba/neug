@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"
 
 namespace neug {
@@ -33,9 +33,8 @@ constexpr int64_t kExcluded = std::numeric_limits<int64_t>::max();
 }  // namespace
 
 CDLPPred::CDLPPred(const StorageReadInterface& graph, label_t vertex_label,
-                   const execution::LabelTriplet& edge_triplet,
-                   int max_iterations, int concurrency,
-                   execution::ExprBase* vertex_pred,
+                   const LabelTriplet& edge_triplet, int max_iterations,
+                   int concurrency, execution::ExprBase* vertex_pred,
                    execution::ExprBase* edge_pred)
     : graph_(graph),
       vertex_label_(vertex_label),
@@ -148,8 +147,8 @@ void CDLPPred::compute() {
 
 void CDLPPred::sink(execution::Context& ctx, int32_t node_alias,
                     int32_t label_alias) {
-  execution::MSVertexColumnBuilder node_builder(vertex_label_);
-  execution::ValueColumnBuilder<int64_t> label_builder;
+  MSVertexColumnBuilder node_builder(vertex_label_);
+  ValueColumnBuilder<int64_t> label_builder;
   label_builder.reserve(vertices_.size());
 
   for (vid_t v : vertices_) {

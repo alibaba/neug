@@ -24,12 +24,13 @@
 
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/enums/conflict_action.h"
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/common/enums/rel_multiplicity.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
-#include "property_definition.h"
+#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace common {
@@ -132,7 +133,7 @@ struct BoundExtraCreateRelTableInfo final : BoundExtraCreateTableInfo {
   common::table_id_t dstTableID;
   std::string srcLabelName;
   std::string dstTableName;
-  common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<compiler_impl::Value> options;
 
   BoundExtraCreateRelTableInfo(common::table_id_t srcTableID,
                                common::table_id_t dstTableID,

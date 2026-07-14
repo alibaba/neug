@@ -37,6 +37,9 @@
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 
 namespace neug {
+struct VertexSchema;
+struct EdgeSchema;
+
 namespace parser {
 class ProjectionBody;
 class ReturnClause;
@@ -102,12 +105,12 @@ class Binder {
   std::unique_ptr<BoundStatement> bind(const parser::Statement& statement);
 
   void setInputParameters(
-      std::unordered_map<std::string, std::shared_ptr<common::Value>>
+      std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
           parameters) {
     expressionBinder.parameterMap = std::move(parameters);
   }
 
-  std::unordered_map<std::string, std::shared_ptr<common::Value>>
+  std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>
   getParameterMap() {
     return expressionBinder.parameterMap;
   }
@@ -180,18 +183,18 @@ class Binder {
   std::unique_ptr<BoundStatement> bindCopyFromClause(
       const parser::Statement& statement);
   std::unique_ptr<BoundStatement> bindCopyNodeFrom(
-      const parser::Statement& statement,
-      catalog::NodeTableCatalogEntry* nodeTableEntry);
+      const parser::Statement& statement, VertexSchema* nodeTableEntry);
   std::unique_ptr<BoundStatement> bindCopyRelFrom(
-      const parser::Statement& statement,
-      catalog::RelTableCatalogEntry* relTableEntry);
+      const parser::Statement& statement, EdgeSchema* relTableEntry);
   std::unique_ptr<BoundStatement> bindCopyNodeFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      const common::case_insensitive_map_t<compiler_impl::Value>&
+          boundCopyOptions,
       bool temporary = false);
   std::unique_ptr<BoundStatement> bindCopyRelFromNoSchema(
       const parser::Statement& statement,
-      const common::case_insensitive_map_t<common::Value>& boundCopyOptions,
+      const common::case_insensitive_map_t<compiler_impl::Value>&
+          boundCopyOptions,
       bool temporary = false);
 
   std::unique_ptr<BoundStatement> bindCopyToClause(
@@ -230,7 +233,7 @@ class Binder {
       const std::vector<std::string>& columnNames,
       const std::vector<common::DataType>& columnTypes);
 
-  common::case_insensitive_map_t<common::Value> bindParsingOptions(
+  common::case_insensitive_map_t<compiler_impl::Value> bindParsingOptions(
       const parser::options_t& parsingOptions);
   common::FileTypeInfo bindFileTypeInfo(
       const std::vector<std::string>& filePaths) const;
@@ -269,10 +272,6 @@ class Binder {
 
   /*** bind extension ***/
   static std::unique_ptr<BoundStatement> bindExtension(
-      const parser::Statement& statement);
-
-  /*** bind explain ***/
-  std::unique_ptr<BoundStatement> bindExplain(
       const parser::Statement& statement);
 
   /*** bind reading clause ***/
@@ -315,7 +314,7 @@ class Binder {
   expression_vector bindInsertColumnDataExprs(
       const common::case_insensitive_map_t<std::shared_ptr<Expression>>&
           propertyDataExprs,
-      const std::vector<PropertyDefinition>& propertyDefinitions);
+      const std::vector<neug::PropertyDefinition>& propertyDefinitions);
 
   BoundSetPropertyInfo bindSetPropertyInfo(
       const parser::ParsedExpression* column,
@@ -353,13 +352,12 @@ class Binder {
       const std::shared_ptr<NodeExpression>& leftNode,
       const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph);
   std::shared_ptr<RelExpression> createNonRecursiveQueryRel(
-      const std::string& parsedName,
-      const std::vector<catalog::TableCatalogEntry*>& entries,
+      const std::string& parsedName, const std::vector<SchemaEntry*>& entries,
       std::shared_ptr<NodeExpression> srcNode,
       std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType);
   std::shared_ptr<RelExpression> createRecursiveQueryRel(
       const parser::RelPattern& relPattern,
-      const std::vector<catalog::TableCatalogEntry*>& entries,
+      const std::vector<SchemaEntry*>& entries,
       std::shared_ptr<NodeExpression> srcNode,
       std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType);
   expression_vector bindRecursivePatternNodeProjectionList(
@@ -377,15 +375,14 @@ class Binder {
   std::shared_ptr<NodeExpression> createQueryNode(
       const parser::NodePattern& nodePattern);
   NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
-      const std::string& parsedName,
-      const std::vector<catalog::TableCatalogEntry*>& entries);
+      const std::string& parsedName, const std::vector<SchemaEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
 
   /*** bind table entries ***/
-  std::vector<catalog::TableCatalogEntry*> bindNodeTableEntries(
+  std::vector<SchemaEntry*> bindNodeTableEntries(
       const std::vector<std::string>& tableNames) const;
-  catalog::TableCatalogEntry* bindNodeTableEntry(const std::string& name) const;
-  std::vector<catalog::TableCatalogEntry*> bindRelTableEntries(
+  SchemaEntry* bindNodeTableEntry(const std::string& name) const;
+  std::vector<SchemaEntry*> bindRelTableEntries(
       const std::vector<std::string>& tableNames) const;
 
   /*** validations ***/
@@ -395,10 +392,9 @@ class Binder {
 
   NEUG_API static void validateTableExistence(
       const main::ClientContext& context, const std::string& tableName);
-  NEUG_API static void validateNodeTableType(
-      const catalog::TableCatalogEntry* entry);
-  NEUG_API static void validateColumnExistence(
-      const catalog::TableCatalogEntry* entry, const std::string& columnName);
+  NEUG_API static void validateNodeTableType(SchemaEntry* entry);
+  NEUG_API static void validateColumnExistence(SchemaEntry* entry,
+                                               const std::string& columnName);
 
   void validateNoIndexOnProperty(const std::string& tableName,
                                  const std::string& propertyName) const;

@@ -22,6 +22,11 @@
 
 namespace neug {
 
+namespace {
+constexpr auto kCompactInterval = std::chrono::seconds(30);
+constexpr size_t kCompactQueryThreshold = 100000;
+}  // namespace
+
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
@@ -57,10 +62,7 @@ void NeugDBService::init(const ServiceConfig& config) {
 }
 
 NeugDBService::~NeugDBService() {
-  if (compact_thread_running_) {
-    compact_thread_running_ = false;
-    compact_thread_.join();
-  }
+  stopCompactThread();
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
@@ -91,23 +93,23 @@ neug::result<std::string> NeugDBService::service_status() {
 }
 
 void NeugDBService::run_and_wait_for_exit() {
-  startCompactThreadIfNeeded();
   if (IsRunning()) {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
-  if (hdl_mgr_) {
-    running_.store(true, std::memory_order_relaxed);
-    try {
-      hdl_mgr_->RunAndWaitForExit();
-      running_.store(false, std::memory_order_relaxed);
-    } catch (...) {
-      running_.store(false, std::memory_order_relaxed);
-      throw;
-    }
-  } else {
+  if (!hdl_mgr_) {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
-  return;
+  startCompactThread();
+  running_.store(true, std::memory_order_relaxed);
+  try {
+    hdl_mgr_->RunAndWaitForExit();
+    running_.store(false, std::memory_order_relaxed);
+  } catch (...) {
+    running_.store(false, std::memory_order_relaxed);
+    stopCompactThread();
+    throw;
+  }
+  stopCompactThread();
 }
 
 void NeugDBService::Stop() {
@@ -119,6 +121,7 @@ void NeugDBService::Stop() {
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     running_.store(false, std::memory_order_relaxed);
+    stopCompactThread();
     return;
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
@@ -131,9 +134,15 @@ std::string NeugDBService::Start() {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
   if (hdl_mgr_) {
-    auto ret = hdl_mgr_->Start();
-    running_.store(true, std::memory_order_relaxed);
-    return ret;
+    startCompactThread();
+    try {
+      auto ret = hdl_mgr_->Start();
+      running_.store(true, std::memory_order_relaxed);
+      return ret;
+    } catch (...) {
+      stopCompactThread();
+      throw;
+    }
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
@@ -143,33 +152,58 @@ size_t NeugDBService::getExecutedQueryNum() const {
   return session_pool_->getExecutedQueryNum();
 }
 
-void NeugDBService::startCompactThreadIfNeeded() {
-  if (db_config_.enable_auto_compaction) {
-    if (compact_thread_running_) {
-      compact_thread_running_ = false;
-      compact_thread_.join();
-    }
-    compact_thread_running_ = true;
-    compact_thread_ = std::thread([&]() {
+void NeugDBService::stopCompactThread() {
+  compact_thread_running_.store(false, std::memory_order_relaxed);
+  compact_cv_.notify_all();
+  if (compact_thread_.joinable()) {
+    compact_thread_.join();
+  }
+}
+
+void NeugDBService::startCompactThread() {
+  if (!service_config_.auto_compaction) {
+    return;
+  }
+  stopCompactThread();
+  compact_thread_running_.store(true, std::memory_order_relaxed);
+  try {
+    compact_thread_ = std::thread([this]() {
       size_t last_compaction_at = 0;
-      while (compact_thread_running_) {
+      while (compact_thread_running_.load(std::memory_order_relaxed)) {
         size_t query_num_before = getExecutedQueryNum();
-        sleep(30);
-        if (!compact_thread_running_) {
+        {
+          std::unique_lock<std::mutex> lock(compact_mtx_);
+          if (compact_cv_.wait_for(lock, kCompactInterval, [this] {
+                return !compact_thread_running_.load(std::memory_order_relaxed);
+              })) {
+            break;
+          }
+        }
+        if (!compact_thread_running_.load(std::memory_order_relaxed)) {
           break;
         }
-        size_t query_num_after = getExecutedQueryNum();
-        if (query_num_before == query_num_after &&
-            (query_num_after > (last_compaction_at + 100000))) {
-          VLOG(10) << "Trigger auto compaction";
-          last_compaction_at = query_num_after;
-          auto session_guard = AcquireSession();
-          auto txn = session_guard->GetCompactTransaction();
-          txn.Commit();
-          VLOG(10) << "Finish compaction";
+        try {
+          size_t query_num_after = getExecutedQueryNum();
+          if (query_num_before == query_num_after &&
+              (query_num_after >
+               (last_compaction_at + kCompactQueryThreshold))) {
+            VLOG(10) << "Trigger auto compaction";
+            last_compaction_at = query_num_after;
+            auto session_guard = AcquireSession();
+            auto txn = session_guard->GetCompactTransaction();
+            txn.Commit();
+            VLOG(10) << "Finish compaction";
+          }
+        } catch (const std::exception& e) {
+          LOG(WARNING) << "Auto compaction failed: " << e.what();
+        } catch (...) {
+          LOG(WARNING) << "Auto compaction failed with unknown error";
         }
       }
     });
+  } catch (...) {
+    compact_thread_running_.store(false, std::memory_order_relaxed);
+    throw;
   }
 }
 

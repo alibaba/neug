@@ -55,7 +55,7 @@ struct FileScanInfo {
 
   FileTypeInfo fileTypeInfo;
   std::vector<std::string> filePaths;
-  case_insensitive_map_t<Value> options;
+  case_insensitive_map_t<compiler_impl::Value> options;
 
   FileScanInfo() : fileTypeInfo{FileType::UNKNOWN, ""} {}
   FileScanInfo(FileTypeInfo fileTypeInfo, std::vector<std::string> filePaths)

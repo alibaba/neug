@@ -22,18 +22,17 @@
 
 #include "neug/compiler/function/list/functions/list_extract_function.h"
 
-#include "neug/common/types.h"
+#include "neug/common/types/value.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/execution/common/types/value.h"
 
 using namespace neug::common;
 
 namespace neug {
 namespace function {
 
-static int checkAndGetIndex(const execution::Value& value) {
+static int checkAndGetIndex(const neug::Value& value) {
   switch (value.type().id()) {
   case neug::DataTypeId::kUInt32:
     return value.GetValue<uint32_t>();
@@ -51,7 +50,7 @@ static int checkAndGetIndex(const execution::Value& value) {
   }
 }
 
-static execution::Value execFunc(const std::vector<execution::Value>& args) {
+static neug::Value execFunc(const std::vector<neug::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): expect exactly 2 argument, got " +
@@ -61,11 +60,11 @@ static execution::Value execFunc(const std::vector<execution::Value>& args) {
   const auto& arg0 = args[0];
   switch (arg0.type().id()) {
   case neug::DataTypeId::kStruct:
-    return execution::StructValue::GetChildren(arg0).at(index);
+    return neug::StructValue::GetChildren(arg0).at(index);
   case neug::DataTypeId::kList:
-    return execution::ListValue::GetChildren(arg0).at(index);
+    return neug::ListValue::GetChildren(arg0).at(index);
   case neug::DataTypeId::kArray:
-    return execution::ArrayValue::GetChildren(arg0).at(index);
+    return neug::ArrayValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the first element should be a tuple or a "
@@ -94,7 +93,7 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   const auto& resultType = getChildType(input.arguments[0]->dataType);
   std::vector<DataType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
-  paramTypes.push_back(DataType(input.definition->parameterTypeIDs[1]));
+  paramTypes.push_back(input.definition->parameterTypes[1].copy());
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             resultType.copy());
 }

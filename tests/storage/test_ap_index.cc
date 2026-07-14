@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/data_chunk.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -43,10 +43,10 @@ namespace {
 class VectorChunkSupplier : public IDataChunkSupplier {
  public:
   explicit VectorChunkSupplier(
-      std::vector<std::shared_ptr<execution::DataChunk>> chunks)
+      std::vector<std::shared_ptr<DataChunk>> chunks)
       : chunks_(std::move(chunks)) {}
 
-  std::shared_ptr<execution::DataChunk> GetNextChunk() override {
+  std::shared_ptr<DataChunk> GetNextChunk() override {
     if (index_ >= chunks_.size()) {
       return nullptr;
     }
@@ -62,14 +62,14 @@ class VectorChunkSupplier : public IDataChunkSupplier {
   }
 
  private:
-  std::vector<std::shared_ptr<execution::DataChunk>> chunks_;
+  std::vector<std::shared_ptr<DataChunk>> chunks_;
   size_t index_{0};
 };
 
 template <typename T>
-std::shared_ptr<execution::IContextColumn> MakeValueColumn(
+std::shared_ptr<IContextColumn> MakeValueColumn(
     const std::vector<T>& values) {
-  execution::ValueColumnBuilder<T> builder;
+  ValueColumnBuilder<T> builder;
   builder.reserve(values.size());
   for (const auto& value : values) {
     builder.push_back_opt(value);
@@ -91,11 +91,11 @@ std::shared_ptr<IDataChunkSupplier> MakePersonSupplier(
     ages.push_back(row.age);
   }
 
-  auto chunk = std::make_shared<execution::DataChunk>();
+  auto chunk = std::make_shared<DataChunk>();
   chunk->set(0, MakeValueColumn(ids));
   chunk->set(1, MakeValueColumn(names));
   chunk->set(2, MakeValueColumn(ages));
-  std::vector<std::shared_ptr<execution::DataChunk>> chunks;
+  std::vector<std::shared_ptr<DataChunk>> chunks;
   chunks.push_back(std::move(chunk));
   return std::make_shared<VectorChunkSupplier>(std::move(chunks));
 }
@@ -153,9 +153,9 @@ class APIndexTest : public ::testing::Test {
     CreateVertexTypeParamBuilder builder;
     auto status = ap_->CreateVertexType(
         builder.VertexLabel("Person")
-            .AddProperty("id", execution::Value::INT64(0))
-            .AddProperty("name", execution::Value::STRING(""))
-            .AddProperty("age", execution::Value::INT32(0))
+            .AddProperty("id", Value::INT64(0))
+            .AddProperty("name", Value::STRING(""))
+            .AddProperty("age", Value::INT32(0))
             .AddPrimaryKeyName("id")
             .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
@@ -165,8 +165,8 @@ class APIndexTest : public ::testing::Test {
     CreateVertexTypeParamBuilder builder;
     auto status = ap_->CreateVertexType(
         builder.VertexLabel("Replacement")
-            .AddProperty("id", execution::Value::INT64(0))
-            .AddProperty("value", execution::Value::INT32(0))
+            .AddProperty("id", Value::INT64(0))
+            .AddProperty("value", Value::INT32(0))
             .AddPrimaryKeyName("id")
             .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
@@ -213,8 +213,8 @@ class APIndexTest : public ::testing::Test {
     auto label = graph_->schema().get_vertex_label_id("Person");
     vid_t vid = 0;
     auto status = ap_->AddVertex(
-        label, execution::Value::INT64(id),
-        {execution::Value::STRING(name), execution::Value::INT32(age)}, vid);
+        label, Value::INT64(id),
+        {Value::STRING(name), Value::INT32(age)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
     if (out) {
       *out = vid;
@@ -224,8 +224,8 @@ class APIndexTest : public ::testing::Test {
   void AddReplacement(int64_t id, int32_t value) {
     auto label = graph_->schema().get_vertex_label_id("Replacement");
     vid_t vid = 0;
-    auto status = ap_->AddVertex(label, execution::Value::INT64(id),
-                                 {execution::Value::INT32(value)}, vid);
+    auto status = ap_->AddVertex(label, Value::INT64(id),
+                                 {Value::INT32(value)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
@@ -301,7 +301,7 @@ TEST_F(APIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   AddVertexPropertiesParamBuilder add_builder;
   auto add_status = ap_->AddVertexProperties(
       add_builder.VertexLabel("Person")
-          .AddProperty("score", execution::Value::INT32(0))
+          .AddProperty("score", Value::INT32(0))
           .Build());
   ASSERT_TRUE(add_status.ok()) << add_status.ToString();
 
@@ -335,7 +335,7 @@ TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
   EXPECT_EQ(SearchPersonNames(30), (std::vector<std::string>{"Charlie"}));
 
   vid_t bob = 0;
-  ASSERT_TRUE(ap_->GetVertexIndex(label, execution::Value::INT64(2), bob));
+  ASSERT_TRUE(ap_->GetVertexIndex(label, Value::INT64(2), bob));
   auto schema = graph_->schema().get_vertex_schema(label);
   auto age_it = std::find(schema->property_names.begin(),
                           schema->property_names.end(), "age");
@@ -343,7 +343,7 @@ TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
   auto age_col =
       static_cast<int>(std::distance(schema->property_names.begin(), age_it));
   auto update_status = ap_->UpdateVertexProperty(label, bob, age_col,
-                                                 execution::Value::INT32(30));
+                                                 Value::INT32(30));
   ASSERT_TRUE(update_status.ok()) << update_status.ToString();
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{}));
   EXPECT_EQ(SearchPersonNames(30),

@@ -19,16 +19,16 @@
 #include <vector>
 
 #include "neug/common/types.h"
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/execution/common/context_chunk.h"
-#include "neug/execution/common/data_chunk.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 class StorageReadInterface;
 
 namespace execution {
-class IContextColumn;
 
 /**
  * @brief Context is a multi-chunk container passed between operators.

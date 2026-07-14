@@ -14,10 +14,9 @@
  */
 
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {

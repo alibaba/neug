@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/common/types/value.h"
 #include "neug/config.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
@@ -52,8 +52,7 @@ class CsrBatchTest : public ::testing::Test {
         actual;
     auto view = this->csr->get_generic_view(0);
     auto ed_accessor = neug::EdgeDataAccessor(
-        neug::execution::ValueConverter<typename T::data_t>::type().id(),
-        nullptr);
+        neug::ValueConverter<typename T::data_t>::type().id(), nullptr);
     for (neug::vid_t src = 0; src < this->csr->size(); ++src) {
       auto es = view.get_edges(src);
       for (auto it = es.begin(); it != es.end(); ++it) {

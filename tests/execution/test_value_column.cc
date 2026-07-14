@@ -15,10 +15,10 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "neug/execution/common/columns/array_columns.h"
-#include "neug/execution/common/columns/list_columns.h"
-#include "neug/execution/common/columns/struct_columns.h"
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/struct_columns.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/types/array_columns.h"
 
 namespace neug {
 namespace execution {
@@ -28,7 +28,7 @@ class ValueColumnTest : public ::testing::Test {};
 
 TEST_F(ValueColumnTest, ArrayColumnBuilderRejectsNonArrayLikeValue) {
   auto array_type = DataType::Array(DataType::INT32, 2);
-  ArrayColumnBuilder builder(array_type);
+  ContextArrayColumnBuilder builder(array_type);
 
   EXPECT_THROW({ builder.push_back_elem(Value::INT32(42)); },
                exception::InvalidArgumentException);

@@ -27,6 +27,7 @@
 #include <string_view>
 #include <utility>
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
@@ -75,7 +76,7 @@ void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
 void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
                                         const std::vector<vid_t>& dst_lid,
                                         DataTypeId property_type,
-                                        const execution::Value& default_value,
+                                        const Value& default_value,
                                         CsrBase* out_csr) {
   assert(src_lid.size() == dst_lid.size());
   switch (property_type) {
@@ -96,10 +97,11 @@ void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
   }
 }
 
-void batch_put_edges_to_bundled_csr(
-    const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
-    DataTypeId property_type, const std::vector<execution::Value>& edge_data,
-    CsrBase* out_csr) {
+void batch_put_edges_to_bundled_csr(const std::vector<vid_t>& src_lid,
+                                    const std::vector<vid_t>& dst_lid,
+                                    DataTypeId property_type,
+                                    const std::vector<Value>& edge_data,
+                                    CsrBase* out_csr) {
   switch (property_type) {
 #define TYPE_DISPATCHER(enum_val, type)                          \
   case DataTypeId::enum_val: {                                   \
@@ -180,17 +182,6 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   }
 }
 
-static void parse_endpoint_column(
-    const IndexerType& indexer,
-    const std::shared_ptr<execution::IContextColumn>& col,
-    std::vector<vid_t>& lids) {
-  for (size_t i = 0; i < col->size(); ++i) {
-    auto val = col->get_elem(i);
-    auto vid = indexer.get_index(val);
-    lids.push_back(vid);
-  }
-}
-
 void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
                              TypedCsrBase<EmptyType>* in_csr,
                              const std::vector<vid_t>& src_lid,
@@ -204,16 +195,26 @@ template <typename EDATA_T>
 void insert_edges_bundled_typed_impl(
     TypedCsrBase<EDATA_T>* out_csr, TypedCsrBase<EDATA_T>* in_csr,
     const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
-    const std::vector<std::shared_ptr<execution::IContextColumn>>& data_cols,
+    const std::vector<std::shared_ptr<IContextColumn>>& data_cols,
     const std::vector<bool>& valid_flags) {
   std::vector<EDATA_T> edge_data;
   edge_data.reserve(src_lid.size());
   size_t cur_index = 0;
   for (auto& col : data_cols) {
-    for (size_t i = 0; i < col->size(); ++i) {
-      if (valid_flags[cur_index++]) {
-        auto val = col->get_elem(i);
-        edge_data.push_back(val.template GetValue<EDATA_T>());
+    auto value_col = std::dynamic_pointer_cast<ValueColumn<EDATA_T>>(col);
+    if (value_col) {
+      for (size_t i = 0; i < value_col->size(); ++i) {
+        if (valid_flags[cur_index++]) {
+          edge_data.push_back(value_col->get_value(i));
+        }
+      }
+    } else {
+      // Fallback: virtual dispatch path (non-ValueColumn, rare).
+      for (size_t i = 0; i < col->size(); ++i) {
+        if (valid_flags[cur_index++]) {
+          auto val = col->get_elem(i);
+          edge_data.push_back(val.template GetValue<EDATA_T>());
+        }
       }
     }
   }
@@ -234,15 +235,58 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-static std::vector<execution::Value> get_row_from_data_chunks(
-    const std::vector<std::shared_ptr<execution::IContextColumn>>& prop_cols,
-    size_t row_idx) {
-  std::vector<execution::Value> row;
-  row.reserve(prop_cols.size());
-  for (auto& col : prop_cols) {
-    row.push_back(col->get_elem(row_idx));
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
+/// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
+struct TypedColumnInserter {
+  const IContextColumn* src;
+  ColumnBase* dst;
+  void (*fn)(const TypedColumnInserter&, size_t dst_idx, size_t src_idx,
+             bool insert_safe);
+
+  inline void insert(size_t dst_idx, size_t src_idx, bool insert_safe) const {
+    fn(*this, dst_idx, src_idx, insert_safe);
   }
-  return row;
+};
+
+/// Fixed-length types: direct set_value, no Value, no virtual dispatch.
+/// Null entries already have T() in data_, so set_value writes the same
+/// default that set_any would write for null.
+template <typename T>
+void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                       size_t src_idx, bool /*insert_safe*/) {
+  auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
+  auto vc = static_cast<const ValueColumn<T>*>(ins.src);
+  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
+}
+
+/// Varchar: source is ValueColumn<std::string>, dest is
+/// TypedColumn<std::string_view>. Needs set_any for buffer resize, but skips
+/// get_elem() virtual dispatch.
+void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                         size_t src_idx, bool insert_safe) {
+  auto* typed_dst = static_cast<TypedColumn<std::string_view>*>(ins.dst);
+  auto vc = static_cast<const ValueColumn<std::string>*>(ins.src);
+  typed_dst->set_any(dst_idx,
+                     Value::CreateValue<std::string>(vc->get_value(src_idx)),
+                     insert_safe);
+}
+
+TypedColumnInserter make_inserter(const DataType& type,
+                                  const IContextColumn* src, ColumnBase* dst) {
+  switch (type.id()) {
+#define MAKE_INSERTER(enum_val, cpp_type) \
+  case DataTypeId::enum_val:              \
+    return {src, dst, &insert_typed_impl<cpp_type>};
+    FOR_EACH_DATA_TYPE_NO_STRING(MAKE_INSERTER)
+#undef MAKE_INSERTER
+  case DataTypeId::kVarchar:
+    return {src, dst, &insert_varchar_impl};
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported data type for column inserter: " +
+        std::to_string(static_cast<int>(type.id())));
+    return {};
+  }
 }
 
 void batch_add_unbundled_edges_impl(
@@ -251,7 +295,7 @@ void batch_add_unbundled_edges_impl(
     TypedCsrBase<uint64_t>* in_csr, Table* table_,
     std::atomic<uint64_t>& table_idx_, std::atomic<uint64_t>& capacity_,
     const std::vector<DataType>& prop_types,
-    const std::vector<std::shared_ptr<execution::DataChunk>>& data_chunks,
+    const std::vector<std::shared_ptr<DataChunk>>& data_chunks,
     const std::vector<bool>& valid_flags) {
   size_t offset = table_idx_.fetch_add(src_lid_list.size());
   insert_edges_separated_impl(out_csr, in_csr, src_lid_list, dst_lid_list,
@@ -260,19 +304,36 @@ void batch_add_unbundled_edges_impl(
   for (auto& chunk : data_chunks) {
     size_t num_rows = chunk->row_num();
     // Build per-column accessors for this chunk.
-    std::vector<std::shared_ptr<execution::IContextColumn>> prop_cols;
+    std::vector<std::shared_ptr<IContextColumn>> prop_cols;
     prop_cols.reserve(chunk->col_num());
     for (auto& c : chunk->columns) {
       if (c)
         prop_cols.push_back(c);
     }
+    // Pre-resolve typed inserters for each column (once per chunk).
+    std::vector<TypedColumnInserter> inserters;
+    inserters.reserve(prop_cols.size());
+    for (size_t j = 0; j < prop_cols.size(); ++j) {
+      inserters.push_back(make_inserter(prop_types[j], prop_cols[j].get(),
+                                        table_->get_column_by_id(j)));
+    }
+    // Pre-compute valid rows: column-major loop needs branch-free inner loop.
+    std::vector<size_t> valid_rows;
+    valid_rows.reserve(num_rows);
     for (size_t i = 0; i < num_rows; ++i) {
       assert(cur_index < valid_flags.size());
       if (valid_flags[cur_index++]) {
-        auto row = get_row_from_data_chunks(prop_cols, i);
-        table_->insert(offset++, row, true);
+        valid_rows.push_back(i);
       }
     }
+    // Column-major: same fn pointer per inner iteration (BTB-friendly),
+    // sequential dst writes (cache-friendly), no branch.
+    for (auto& ins : inserters) {
+      for (size_t k = 0; k < valid_rows.size(); ++k) {
+        ins.insert(offset + k, valid_rows[k], true);
+      }
+    }
+    offset += valid_rows.size();
   }
 }
 
@@ -280,7 +341,7 @@ void batch_add_bundled_edges_impl(
     CsrBase* out_csr, CsrBase* in_csr, std::shared_ptr<const EdgeSchema> meta,
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
-    const std::vector<std::shared_ptr<execution::IContextColumn>>& data_cols,
+    const std::vector<std::shared_ptr<IContextColumn>>& data_cols,
     const std::vector<bool>& valid_flags) {
   const auto& prop_types = meta->properties;
   if (prop_types.empty() || prop_types[0].id() == DataTypeId::kEmpty) {
@@ -533,7 +594,7 @@ void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
 
 void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
                                    int32_t oe_offset, int32_t ie_offset,
-                                   int32_t col_id, const execution::Value& prop,
+                                   int32_t col_id, const Value& prop,
                                    timestamp_t ts) {
   auto accessor = get_edge_data_accessor(col_id);
   auto oe_edges = out_csr_->get_generic_view(ts).get_edges(src_lid);
@@ -628,10 +689,10 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
   return get_edge_data_accessor(static_cast<int>(prop_ind));
 }
 
-void EdgeTable::AddProperties(
-    Checkpoint& ckp, const std::vector<std::string>& prop_names,
-    const std::vector<DataType>& prop_types,
-    const std::vector<execution::Value>& default_values) {
+void EdgeTable::AddProperties(Checkpoint& ckp,
+                              const std::vector<std::string>& prop_names,
+                              const std::vector<DataType>& prop_types,
+                              const std::vector<Value>& default_values) {
   if (prop_names.empty()) {
     return;
   }
@@ -695,9 +756,8 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
 }
 
 std::pair<int32_t, const void*> EdgeTable::AddEdge(
-    vid_t src_lid, vid_t dst_lid,
-    const std::vector<execution::Value>& edge_data, timestamp_t ts,
-    Allocator& alloc, bool insert_safe) {
+    vid_t src_lid, vid_t dst_lid, const std::vector<Value>& edge_data,
+    timestamp_t ts, Allocator& alloc, bool insert_safe) {
   return internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, *table_.get(), table_idx_, *meta_, src_lid, dst_lid,
       edge_data, ts, alloc, insert_safe);
@@ -709,10 +769,16 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   in_csr_->resize(dst_indexer.size());
   out_csr_->resize(src_indexer.size());
   std::vector<vid_t> src_lid, dst_lid;
+  // Pre-reserve capacity to reduce vector reallocation on large graphs.
+  auto total_rows = supplier->RowNum();
+  if (total_rows > 0) {
+    src_lid.reserve(total_rows);
+    dst_lid.reserve(total_rows);
+  }
   // Collect per-property columns across chunks (for bundled: single column;
   // for unbundled: full property DataChunks).
-  std::vector<std::shared_ptr<execution::IContextColumn>> bundled_data_cols;
-  std::vector<std::shared_ptr<execution::DataChunk>> unbundled_data_chunks;
+  std::vector<std::shared_ptr<IContextColumn>> bundled_data_cols;
+  std::vector<std::shared_ptr<DataChunk>> unbundled_data_chunks;
   while (true) {
     auto chunk = supplier->GetNextChunk();
     if (chunk == nullptr) {
@@ -720,15 +786,15 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     auto src_col = chunk->get(0);
     auto dst_col = chunk->get(1);
-    parse_endpoint_column(src_indexer, src_col, src_lid);
-    parse_endpoint_column(dst_indexer, dst_col, dst_lid);
+    src_indexer.get_index(*src_col, src_lid);
+    dst_indexer.get_index(*dst_col, dst_lid);
     if (chunk->col_num() > 2) {
       if (meta_->is_bundled()) {
         // Bundled: only one property column (index 2).
         bundled_data_cols.push_back(chunk->get(2));
       } else {
         // Unbundled: collect remaining columns as a DataChunk.
-        auto prop_chunk = std::make_shared<execution::DataChunk>();
+        auto prop_chunk = std::make_shared<DataChunk>();
         for (size_t i = 2; i < chunk->col_num(); ++i) {
           auto c = chunk->get(static_cast<int>(i));
           if (c) {
@@ -765,7 +831,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
 void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
-    const std::vector<std::vector<execution::Value>>& edge_data_list) {
+    const std::vector<std::vector<Value>>& edge_data_list) {
   size_t new_size = table_idx_.load() + src_lid_list.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
@@ -775,7 +841,7 @@ void EdgeTable::BatchAddEdges(
     EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
-    std::vector<execution::Value> flat_edge_data;
+    std::vector<Value> flat_edge_data;
     assert(meta_->properties.size() == 1);
     if (meta_->properties[0] == DataTypeId::kEmpty) {
     } else {
@@ -803,17 +869,10 @@ void EdgeTable::BatchAddEdges(
   }
 }
 
-void EdgeTable::Compact(bool compact_csr,
-                        const std::optional<std::string>& sort_key_for_nbr,
+void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr,
                         timestamp_t ts) {
-  if (compact_csr) {
-    out_csr_->compact();
-    in_csr_->compact();
-  }
-  // must reset timestamp before sorting, otherwise the unsorted_since_ may not
-  // be properly setted
-  out_csr_->reset_timestamp();
-  in_csr_->reset_timestamp();
+  out_csr_->compact();
+  in_csr_->compact();
   if (sort_key_for_nbr.has_value()) {
     if (!meta_->is_bundled()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -879,7 +938,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(Checkpoint& ckp,
     auto row_id_col = dynamic_cast<ULongColumn*>(row_id_col_base.get());
     row_id_col->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = out_csr_->batch_export(row_id_col);
-    std::vector<execution::Value> remaining_data;
+    std::vector<Value> remaining_data;
     remaining_data.reserve(row_id_col->size());
     for (size_t i = 0; i < row_id_col->size(); ++i) {
       auto row_id = row_id_col->get_view(i);

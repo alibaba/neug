@@ -428,12 +428,19 @@ message ExecutionFlag {
   bool index = 9;
 }
 
+enum ExplainMode {
+  NONE = 0;
+  PROFILE = 1;
+  EXPLAIN = 2;
+}
+
 // A single Cypher query ending with a semicolon (;)
 message PhysicalPlan {
   int32 plan_id = 1;
   // to be deprecated
   repeated PhysicalOpr plan = 3;
   ExecutionFlag flag = 4;
+  ExplainMode explain_mode = 5;
 }
 
 

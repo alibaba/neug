@@ -34,7 +34,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -264,7 +264,7 @@ bool data_type_to_property_type(const common::DataType& data_type,
 
 bool default_expression_to_value(const DataType& type,
                                  const common::Expression& expression,
-                                 execution::Value& out_value) {
+                                 Value& out_value) {
   try {
     auto expr = execution::parse_expression(
         expression, execution::ContextMeta{}, execution::VarType::kRecord);
@@ -280,7 +280,7 @@ bool default_expression_to_value(const DataType& type,
       return false;
     }
 
-    execution::DataChunk empty_chunk;
+    DataChunk empty_chunk;
     out_value = bound_expr->Cast<execution::RecordExprBase>().eval_record(
         empty_chunk, 0);
   } catch (const std::exception& e) {
@@ -293,6 +293,10 @@ bool default_expression_to_value(const DataType& type,
     return false;
   }
 
+  if (out_value.type().id() == DataTypeId::kNull) {
+    out_value = get_default_value(type);
+    return true;
+  }
   if (out_value.type() != type) {
     LOG(ERROR) << "Default expression type mismatch, expected "
                << type.ToString() << ", got " << out_value.type().ToString()
@@ -305,22 +309,20 @@ bool default_expression_to_value(const DataType& type,
       max_length = type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length;
     }
     if (max_length <= std::numeric_limits<uint16_t>::max()) {
-      out_value =
-          execution::Value::VARCHAR(execution::StringValue::Get(out_value),
-                                    static_cast<uint16_t>(max_length));
+      out_value = Value::VARCHAR(StringValue::Get(out_value),
+                                 static_cast<uint16_t>(max_length));
     }
   }
   return true;
 }
 
-neug::result<std::vector<std::pair<std::string, execution::Value>>>
-property_defs_to_value(
+neug::result<std::vector<std::pair<std::string, Value>>> property_defs_to_value(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::pair<std::string, execution::Value>> result;
+  std::vector<std::pair<std::string, Value>> result;
   for (const auto& property : properties) {
     const auto& name = property.name();
-    execution::Value default_value(DataType::SQLNULL);
+    Value default_value(DataType::SQLNULL);
     DataType type;
     if (!data_type_to_property_type(property.type(), type)) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,

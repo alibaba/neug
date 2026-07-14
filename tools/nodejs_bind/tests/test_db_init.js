@@ -20,8 +20,8 @@ const assert = require('assert').strict;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Database } = require('../lib');
 const {
+  Database,
   ERR_CONFIG_INVALID,
   ERR_CORRUPTION_DETECTED,
   ERR_DATABASE_LOCKED,
@@ -30,7 +30,7 @@ const {
   ERR_INVALID_PATH,
   ERR_PERMISSION,
   ERR_VERSION_MISMATCHED,
-} = require('../lib/error-codes');
+} = require('neug');
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrors Python tmp_path fixture)
@@ -92,8 +92,8 @@ test('test_local_db_open_exists_and_close', () => {
   db2.close();
 });
 
-test('test_local_ldbc_open_and_close', () => {
-  const dbDir = '/tmp/ldbc';
+test('test_local_modern_graph_open_and_close', () => {
+  const dbDir = '/tmp/modern_graph';
   const db = new Database({ databasePath: String(dbDir), mode: 'r' });
   assert.ok(db);
   db.close();

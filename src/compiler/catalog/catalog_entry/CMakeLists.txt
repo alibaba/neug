@@ -6,7 +6,6 @@ add_library(neug_catalog_entry
         table_catalog_entry.cpp
         node_table_catalog_entry.cpp
         rel_table_catalog_entry.cpp
-        rel_group_catalog_entry.cpp
         scalar_macro_catalog_entry.cpp
         type_catalog_entry.cpp
         sequence_catalog_entry.cpp

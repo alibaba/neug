@@ -21,7 +21,6 @@
 #include <ostream>
 #include <string>
 #include <vector>
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -37,6 +36,7 @@
 #include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
@@ -269,12 +269,18 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const binder::PropertyDefinition& propertyDef) {
-  return convert(*propertyDef.boundExpr, {});
+    const PropertyDefinition& propertyDef) {
+  const auto& defaultValue = propertyDef.getDefaultValue();
+  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    return convertValue(
+        compiler_impl::Value::createNullValue(defaultValue.type()));
+  }
+  return convertValue(
+      common::convertToCompilerValue(defaultValue, defaultValue.type()));
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(
-    const neug::common::Value& value) {
+    const compiler_impl::Value& value) {
   if (value.isNull()) {
     auto valuePB = std::make_unique<::common::Value>();
     valuePB->set_allocated_none(new ::common::None());
@@ -328,22 +334,24 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
     switch (typeId) {
     case common::DataTypeId::kDate: {
       auto date = std::make_unique<::common::ToDate>();
-      date->set_date_str(
-          neug::common::Date::toString(value.getValue<neug::common::date_t>()));
+      date->set_date_str(compiler_impl::Date::toString(
+          value.getValue<compiler_impl::date_t>()));
       oprPB->set_allocated_to_date(date.release());
       break;
     }
     case common::DataTypeId::kTimestampMs: {
       auto datetime = std::make_unique<::common::ToDatetime>();
-      datetime->set_datetime_str(neug::common::Timestamp::toString(
-          value.getValue<neug::common::timestamp_t>()));
+      datetime->set_datetime_str(compiler_impl::Timestamp::toString(
+          compiler_impl::Timestamp::fromEpochMilliSeconds(
+              common::normalizeTimestampMillis(
+                  value.getValue<compiler_impl::timestamp_ms_t>()))));
       oprPB->set_allocated_to_datetime(datetime.release());
       break;
     }
     case common::DataTypeId::kInterval: {
       auto interval = std::make_unique<::common::ToInterval>();
-      interval->set_interval_str(neug::common::Interval::toString(
-          value.getValue<neug::common::interval_t>()));
+      interval->set_interval_str(compiler_impl::Interval::toString(
+          value.getValue<compiler_impl::interval_t>()));
       oprPB->set_allocated_to_interval(interval.release());
       break;
     }
@@ -434,7 +442,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
   auto* literalExpr = right->ptrCast<binder::LiteralExpression>();
   std::string pattern = literalExpr->getValue().getValue<std::string>();
   std::string regexPattern = convertRegexValue(pattern, scalarType);
-  literalExpr->value = common::Value(regexPattern);
+  literalExpr->value = compiler_impl::Value(regexPattern);
   return convertChildren(expr, schemaAlias);
 }
 

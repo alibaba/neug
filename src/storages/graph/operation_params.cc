@@ -15,7 +15,7 @@
 
 #include "neug/storages/graph/operation_params.h"
 #include "neug/common/extra_type_info.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -44,7 +44,7 @@ CreateVertexTypeParam CreateVertexTypeParam::Deserialize(OutArchive& arc) {
   for (size_t i = 0; i < prop_size; ++i) {
     DataType type;
     std::string name;
-    execution::Value default_value;
+    Value default_value;
     arc >> type >> name >> default_value;
     builder.AddProperty(name, default_value);
   }
@@ -84,7 +84,7 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
   for (size_t i = 0; i < prop_size; ++i) {
     DataType type;
     std::string name;
-    execution::Value default_value;
+    Value default_value;
     arc >> type >> name >> default_value;
     builder.AddProperty(name, default_value);
   }
@@ -120,7 +120,7 @@ AddVertexPropertiesParam AddVertexPropertiesParam::Deserialize(
   for (size_t i = 0; i < prop_size; ++i) {
     DataType type;
     std::string name;
-    execution::Value default_value;
+    Value default_value;
     arc >> type >> name >> default_value;
     builder.AddProperty(name, default_value);
   }
@@ -147,7 +147,7 @@ AddEdgePropertiesParam AddEdgePropertiesParam::Deserialize(OutArchive& arc) {
   for (size_t i = 0; i < prop_size; ++i) {
     DataType type;
     std::string name;
-    execution::Value default_value;
+    Value default_value;
     arc >> type >> name >> default_value;
     builder.AddProperty(name, default_value);
   }

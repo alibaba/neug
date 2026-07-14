@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/container/i_container.h"
@@ -132,7 +132,7 @@ class ExampleIndex : public StorageIndex {
   }
 
  protected:
-  Status AppendImpl(vid_t, doc_id_t doc_id, const execution::Value& value,
+  Status AppendImpl(vid_t, doc_id_t doc_id, const Value& value,
                     const StorageReadInterface&) override {
     if (value.IsNull() || value.type().id() != DataTypeId::kInt32) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,

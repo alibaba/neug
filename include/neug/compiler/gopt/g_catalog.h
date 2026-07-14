@@ -15,24 +15,13 @@
 
 #pragma once
 
-#include <yaml-cpp/yaml.h>
-#include <filesystem>
-#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
-#include "neug/compiler/gopt/g_rel_table_entry.h"
-#include "neug/compiler/gopt/g_type_utils.h"
 
 namespace neug {
 namespace catalog {
 class GCatalog : public Catalog {
  public:
   GCatalog();
-  GCatalog(const std::filesystem::path& schemaPath);
-  GCatalog(const std::string& schemaData);
-  GCatalog(const YAML::Node& schema);
   ~GCatalog() = default;
 
   void addFunctionWithSignature(transaction::Transaction* transaction,
@@ -46,38 +35,10 @@ class GCatalog : public Catalog {
   function::Function* getFunctionWithSignature(
       const std::string& signatureName);
 
-  void updateSchema(const std::filesystem::path& schemaPath);
-  void updateSchema(const std::string& schema);
-  void updateSchema(const YAML::Node& schema_yaml_node);
+  std::unique_ptr<Catalog> clone(const Schema* schema) const override;
 
  private:
   void registerBuiltInFunctions();
-  void loadSchema(const YAML::Node& schema);
-  std::unique_ptr<TableCatalogEntry> createTableEntry(CatalogEntryType type,
-                                                      const YAML::Node& info);
-  std::unique_ptr<NodeTableCatalogEntry> createNodeTableEntry(
-      const YAML::Node& info);
-  void setTableEntry(const YAML::Node& info, TableCatalogEntry* result,
-                     common::TableType type);
-  std::unique_ptr<GRelTableCatalogEntry> createRelTableEntry(
-      common::table_id_t tableId, common::table_id_t labelId,
-      const std::string& labelName, const YAML::Node& relation,
-      const std::unordered_map<std::string, NodeTableCatalogEntry*>&
-          nodeTableMap);
-  PropertyDefinitionCollection createPropertyDefinitionCollection(
-      const YAML::Node& info, common::TableType type);
-  static std::vector<binder::ColumnDefinition> getBaseNodeStructFields();
-  static std::vector<binder::ColumnDefinition> getBaseRelStructFields();
-  void validateYAMLStructure(const YAML::Node& schema);
-  void validateVertexType(
-      const YAML::Node& vertexType,
-      const std::unordered_set<std::string>& existingNames,
-      const std::unordered_set<common::table_id_t>& existingIds);
-  void validateEdgeType(
-      const YAML::Node& edgeType,
-      const std::unordered_set<std::string>& existingNames,
-      const std::unordered_set<common::table_id_t>& existingIds);
-  void validatePropertyName(const std::string& name, common::TableType type);
 };
 }  // namespace catalog
 }  // namespace neug

@@ -24,6 +24,7 @@
 
 #include <utility>
 
+#include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/null_buffer.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
@@ -33,7 +34,27 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace common {
+namespace compiler_impl {
+
+using common::DataType;
+using common::DataTypeId;
+using common::Deserializer;
+using common::getPhysicalType;
+using common::InMemOverflowBuffer;
+using common::InternalKeyword;
+using common::ListType;
+using common::ListVector;
+using common::LogicalTypeUtils;
+using common::neug_string_t;
+using common::NullMask;
+using common::PhysicalTypeID;
+using common::Serializer;
+using common::stringFormat;
+using common::StringVector;
+using common::StructType;
+using common::StructVector;
+using common::TypeUtils;
+using common::ValueVector;
 
 bool Value::operator==(const Value& rhs) const {
   if (dataType != rhs.dataType || isNull_ != rhs.isNull_) {
@@ -131,7 +152,7 @@ Value Value::createDefaultValue(const DataType& dataType) {
     return Value((uint8_t) 0);
   // INT128 removed — no engine equivalent
   case DataTypeId::kBoolean:
-    return Value(true);
+    return Value(false);
   case DataTypeId::kDouble:
     return Value((double) 0);
   case DataTypeId::kDate:
@@ -477,6 +498,12 @@ void Value::copyValueFrom(const Value& other) {
     for (auto& child : other.children) {
       children.push_back(child->copy());
     }
+  } break;
+  case PhysicalTypeID::ANY: {
+    NEUG_ASSERT(dataType.id() == DataTypeId::kUnknown ||
+                dataType.id() == DataTypeId::kNull ||
+                dataType.id() == DataTypeId::kInvalid ||
+                dataType.id() == DataTypeId::kEmpty);
   } break;
   default:
     NEUG_UNREACHABLE;
@@ -872,5 +899,5 @@ std::string Value::relToString() const {
   return result;
 }
 
-}  // namespace common
+}  // namespace compiler_impl
 }  // namespace neug

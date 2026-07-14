@@ -36,10 +36,11 @@
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/main/plan_printer.h"
 #include "neug/compiler/optimizer/optimizer.h"
+#include "neug/compiler/parser/explain_statement.h"
 #include "neug/compiler/parser/parser.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
-#include "neug/compiler/storage/stats_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/exception/exception.h"
 
 #if defined(_WIN32)
@@ -88,7 +89,8 @@ ClientContext::ClientContext(MetadataManager* database)
 
 ClientContext::~ClientContext() = default;
 
-Value ClientContext::getCurrentSetting(const std::string& optionName) const {
+compiler_impl::Value ClientContext::getCurrentSetting(
+    const std::string& optionName) const {
   auto lowerCaseOptionName = optionName;
   StringUtils::toLower(lowerCaseOptionName);
   const ConfigurationOption* option = nullptr;
@@ -121,7 +123,8 @@ std::unique_ptr<function::ScanReplacementData> ClientContext::tryReplace(
   return nullptr;
 }
 
-void ClientContext::setExtensionOption(std::string name, Value value) {
+void ClientContext::setExtensionOption(std::string name,
+                                       compiler_impl::Value value) {
   StringUtils::toLower(name);
   extensionOptionValues.insert_or_assign(name, std::move(value));
 }
@@ -131,8 +134,8 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
   return localDatabase->extensionManager->getExtensionOption(optionName);
 }
 
-std::shared_ptr<storage::StatsManager> ClientContext::getStatsManager() const {
-  return localDatabase->getStatsManager();
+std::shared_ptr<GraphStats> ClientContext::getGraphStats() const {
+  return localDatabase->getGraphStats();
 }
 
 storage::MemoryManager* ClientContext::getMemoryManager() const {
@@ -204,26 +207,38 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
 
 std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
     std::shared_ptr<Statement> parsedStatement, bool shouldCommitNewTransaction,
-    std::optional<std::unordered_map<std::string, std::shared_ptr<Value>>>
+    std::optional<
+        std::unordered_map<std::string, std::shared_ptr<compiler_impl::Value>>>
         inputParams) {
   auto preparedStatement = std::make_unique<PreparedStatement>();
   auto prepareTimer = TimeMetric(true /* enable */);
   prepareTimer.start();
 
+  auto statementToPrepare = parsedStatement;
+  preparedStatement->explainMode = common::ExplainType::NONE;
+
+  if (parsedStatement->getStatementType() == common::StatementType::EXPLAIN) {
+    auto explainStmt =
+        std::static_pointer_cast<parser::ExplainStatement>(parsedStatement);
+    preparedStatement->explainMode = explainStmt->getExplainType();
+    statementToPrepare = explainStmt->takeStatementToExplain();
+  }
+
+  preparedStatement->parsedStatement = statementToPrepare;
   preparedStatement->preparedSummary.statementType =
       parsedStatement->getStatementType();
+
   auto readWriteAnalyzer = StatementReadWriteAnalyzer(this);
 
-  readWriteAnalyzer.visit(*parsedStatement);
+  readWriteAnalyzer.visit(*statementToPrepare);
 
   preparedStatement->readOnly = readWriteAnalyzer.isReadOnly();
-  preparedStatement->parsedStatement = std::move(parsedStatement);
 
   auto binder = Binder(this);
   if (inputParams) {
     binder.setInputParameters(*inputParams);
   }
-  const auto boundStatement = binder.bind(*preparedStatement->parsedStatement);
+  const auto boundStatement = binder.bind(*statementToPrepare);
   preparedStatement->parameterMap = binder.getParameterMap();
   preparedStatement->statementResult = std::make_unique<BoundStatementResult>(
       boundStatement->getStatementResult()->copy());

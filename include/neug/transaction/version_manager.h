@@ -73,6 +73,8 @@ class IVersionManager {
  *
  * Mechanism:
  * - write_ts_: next available write timestamp (monotonically increasing).
+ *   Storage compaction may reset per-record visibility timestamps to zero, but
+ *   transaction/WAL timestamps must never be reset within a WAL timeline.
  * - read_ts_: highest timestamp fully committed and visible to all readers.
  * - active_readers_/active_inserters_: atomic counters for in-flight ops.
  * - update_state_: 0=normal, 1=update-exec (inserters drained),
@@ -83,7 +85,7 @@ class IVersionManager {
  * - begin_update_commit uses seq_cst store + drain spin to ensure
  *   any reader in the ABA window has rolled back before proceeding.
  * - SpinLock lock_: serializes read_ts advancement (check-and-advance
- *   in release_insert/update_timestamp).
+ *   in complete_write_timestamp).
  * - TimestampWindow ts_window_: tracks completed timestamps for read_ts
  * reclamation.
  */
@@ -109,6 +111,7 @@ class VersionManager : public IVersionManager {
   int thread_num_;
   uint32_t acquire_read_timestamp_slow();
   uint32_t acquire_insert_timestamp_slow();
+  void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
 
   std::atomic<uint32_t> write_ts_{1};

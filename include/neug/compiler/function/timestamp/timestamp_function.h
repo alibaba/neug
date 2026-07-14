@@ -31,27 +31,30 @@ namespace neug {
 namespace function {
 
 struct Century {
-  static inline void operation(common::timestamp_t& timestamp,
+  static inline void operation(compiler_impl::timestamp_t& timestamp,
                                int64_t& result) {
-    result = common::Timestamp::getTimestampPart(
-        common::DatePartSpecifier::CENTURY, timestamp);
+    result = compiler_impl::Timestamp::getTimestampPart(
+        compiler_impl::DatePartSpecifier::CENTURY, timestamp);
   }
 };
 
 struct EpochMs {
-  static inline void operation(int64_t& ms, common::timestamp_t& result) {
-    result = common::Timestamp::fromEpochMilliSeconds(ms);
+  static inline void operation(int64_t& ms,
+                               compiler_impl::timestamp_t& result) {
+    result = compiler_impl::Timestamp::fromEpochMilliSeconds(ms);
   }
 };
 
 struct ToTimestamp {
-  static inline void operation(double& sec, common::timestamp_t& result) {
+  static inline void operation(double& sec,
+                               compiler_impl::timestamp_t& result) {
     int64_t ms = 0;
-    if (!tryCastWithOverflowCheck(sec * common::Interval::MICROS_PER_SEC, ms)) {
+    if (!tryCastWithOverflowCheck(sec * compiler_impl::Interval::MICROS_PER_SEC,
+                                  ms)) {
       THROW_CONVERSION_EXCEPTION(
           "Could not convert epoch seconds to TIMESTAMP");
     }
-    result = common::timestamp_t(ms);
+    result = compiler_impl::timestamp_t(ms);
   }
 };
 

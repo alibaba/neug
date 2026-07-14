@@ -98,8 +98,6 @@ class NEUG_API Planner {
                             LogicalPlan& plan);
   void appendStandaloneCallFunction(const binder::BoundStatement& statement,
                                     LogicalPlan& plan);
-  void appendExplain(const binder::BoundStatement& statement,
-                     LogicalPlan& plan);
   void appendCreateMacro(const binder::BoundStatement& statement,
                          LogicalPlan& plan);
   void appendTransaction(const binder::BoundStatement& statement,

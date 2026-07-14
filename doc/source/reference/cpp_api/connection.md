@@ -58,7 +58,7 @@ Compiles and executes a Cypher query string against the database. The query is p
 auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
 // Query with parameters
 neug::execution::ParamsMap params;
-params["min_age"] = neug::execution::Value(18);
+params["min_age"] = neug::Value(18);
 result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
 "read", params);
 // Process results

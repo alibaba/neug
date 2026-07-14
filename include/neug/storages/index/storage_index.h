@@ -25,7 +25,7 @@
 
 #include "neug/common/types.h"
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/index/doc_id_map.h"
 #include "neug/storages/module/module.h"
@@ -124,7 +124,7 @@ class StorageIndex : public Module {
    * @param values Property values for the indexed columns.
    * @param graph Indexes may need to access graph data.
    */
-  Status Append(vid_t vid, const execution::Value& value,
+  Status Append(vid_t vid, const Value& value,
                 const StorageReadInterface& graph) {
     if (!doc_id_map_) {
       return Status::RuntimeError("DocIDMap not initialized");
@@ -151,7 +151,7 @@ class StorageIndex : public Module {
    * @param graph Indexes may need to access graph data.
    */
   virtual Status AppendImpl(vid_t vid, doc_id_t doc_id,
-                            const execution::Value& value,
+                            const Value& value,
                             const StorageReadInterface& graph) = 0;
 
   std::unique_ptr<IndexMeta> meta_;

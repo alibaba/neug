@@ -45,7 +45,7 @@ class Value;
 
 namespace function {
 
-using optional_params_t = common::case_insensitive_map_t<common::Value>;
+using optional_params_t = common::case_insensitive_map_t<compiler_impl::Value>;
 
 struct TableFunction;
 
@@ -68,12 +68,12 @@ struct NEUG_API TableFuncBindInput {
 
   TableFuncBindInput() = default;
 
-  void addLiteralParam(common::Value value);
+  void addLiteralParam(compiler_impl::Value value);
 
   std::shared_ptr<binder::Expression> getParam(common::idx_t idx) const {
     return params[idx];
   }
-  common::Value getValue(common::idx_t idx) const;
+  compiler_impl::Value getValue(common::idx_t idx) const;
   template <typename T>
   T getLiteralVal(common::idx_t idx) const;
 };

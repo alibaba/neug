@@ -26,7 +26,10 @@ add_neug_test(test_query_result test_query_result.cc)
 
 add_neug_test(test_column test_column.cc)
 
+add_neug_test(test_explain_profile test_explain_profile.cpp)
+
 if (BUILD_HTTP_SERVER)
     add_neug_test(test_http_server test_http_server.cc)
     add_neug_test(test_db_svc test_db_svc.cc)
+    add_neug_test(test_array_service test_array_service.cc)
 endif()

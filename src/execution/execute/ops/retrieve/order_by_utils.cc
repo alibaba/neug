@@ -15,7 +15,7 @@
 
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
 namespace execution {

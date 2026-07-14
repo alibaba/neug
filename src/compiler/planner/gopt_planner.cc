@@ -25,18 +25,25 @@ limitations under the License.
 namespace neug {
 
 result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
-    const std::string& query) {
+    const std::string& query, const Schema* schema, const GraphStats& stats) {
   VLOG(1) << "[GOptPlanner] compilePlan called with query: " << query;
   // read access to the planner
 
-  if (database->getCatalog() == nullptr) {
+  if (schema == nullptr) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA, "Schema is null"));
+  }
+
+  auto queryDatabase = database->clone(schema, stats);
+  main::ClientContext queryContext(queryDatabase.get());
+
+  if (queryDatabase->getCatalog() == nullptr) {
     RETURN_ERROR(
         Status(StatusCode::ERR_INVALID_SCHEMA, "Catalog is not initialized"));
   }
 
   try {
     // Prepare and compile query
-    auto statement = ctx->prepare(query);
+    auto statement = queryContext.prepare(query);
 
     VLOG(1) << "Logical Plan: " << std::endl
             << statement->logicalPlan->toString() << std::endl;
@@ -51,14 +58,15 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     auto aliasManager =
         std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
     neug::gopt::GPhysicalConvertor converter(aliasManager,
-                                             database->getCatalog());
-    auto physicalPlan = converter.convert(*statement->logicalPlan);
+                                             queryDatabase->getCatalog());
+    auto physicalPlan = converter.convert(*statement->logicalPlan, false,
+                                          statement->getExplainMode());
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
 
     // set result schema
     auto resultYaml = gopt::GResultSchema::infer(
-        *statement->logicalPlan, aliasManager, database->getCatalog());
+        *statement->logicalPlan, aliasManager, queryDatabase->getCatalog());
     return std::make_pair(std::move(*physicalPlan), YAML::Dump(resultYaml));
   } catch (const neug::exception::InvalidArgumentException& e) {
     // return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
@@ -92,28 +100,6 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
                         "Unknown error during plan "
                         "compilation"));
   }
-}
-
-void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
-  VLOG(1) << "[GOptPlanner] update_meta called";
-  if (schema_yaml_node.IsNull()) {
-    LOG(ERROR) << "Schema YAML node is null";
-    return;
-  }
-  if (!schema_yaml_node.IsMap()) {
-    LOG(ERROR) << "Schema YAML node is not a map";
-    return;
-  }
-  database->updateSchema(schema_yaml_node);
-}
-
-void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {
-  VLOG(1) << "[GOptPlanner] update_statistics called";
-  if (graph_statistic_json.empty()) {
-    LOG(ERROR) << "Graph statistics JSON is empty";
-    return;
-  }
-  database->updateStats(graph_statistic_json);
 }
 
 bool isTokenEnd(char ch) {

@@ -1,0 +1,72 @@
+name: Build Weekly Wheels
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
+        required: false
+        default: ''
+  schedule:
+    # Trigger the workflow at 22:00(CST) every Monday (14:00 UTC)
+    - cron: '0 14 * * 1'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/weekly-build-wheel.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build_wheels:
+    uses: ./.github/workflows/wheels-common.yml
+    with:
+      python_versions: ${{ inputs.python_versions }}
+      mode: nightly
+      set_nightly_version: true
+      pybind11_findpython_off: true
+      linux_x86_python: '3.13'
+      linux_arm_python: '3.13'
+      mac_python: '3.13'
+      cibuildwheel_version: '3.4.0'
+      enable_macos_x86: false
+      caller_event_name: ${{ github.event_name }}
+    secrets: inherit
+
+  # ============================================================
+  # Notify: Send results to DingTalk
+  # ============================================================
+  notify-weekly-wheel-result:
+    needs: [build_wheels]
+    if: always() && github.repository == 'alibaba/neug'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send DingTalk notification
+        env:
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+        run: |
+          if [ -z "$DINGTALK_TOKEN" ]; then
+            echo "DINGTALK_TOKEN not set, skipping notification."
+            exit 0
+          fi
+          WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
+          STATUS="${{ needs.build_wheels.result }}"
+          if [[ "$STATUS" == "success" ]]; then
+            TITLE="[Weekly Report] Build Weekly Wheels Passed"
+          else
+            TITLE="[Weekly Report] Build Weekly Wheels Failed"
+          fi
+          curl -s -X POST "$WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"title\": \"$TITLE\",
+                \"text\": \"## $TITLE\\n\\n- **build_wheels**: ${STATUS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+              }
+            }"

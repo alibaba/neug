@@ -23,14 +23,14 @@ f_group_pos_set LogicalDelete::getGroupsPosToFlatten() const {
   NEUG_ASSERT(!infos.empty());
   const auto childSchema = children[0]->getSchema();
   f_group_pos_set dependentGroupPos;
-  switch (infos[0].tableType) {
-  case TableType::NODE: {
+  switch (infos[0].entryType) {
+  case SchemaEntryType::NODE: {
     for (auto& info : infos) {
       auto nodeID = info.pattern->constCast<NodeExpression>().getInternalID();
       dependentGroupPos.insert(childSchema->getGroupPos(*nodeID));
     }
   } break;
-  case TableType::REL: {
+  case SchemaEntryType::REL: {
     for (auto& info : infos) {
       auto& rel = info.pattern->constCast<RelExpression>();
       dependentGroupPos.insert(

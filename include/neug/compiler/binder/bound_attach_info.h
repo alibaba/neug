@@ -29,7 +29,7 @@ namespace neug {
 namespace binder {
 
 struct NEUG_API AttachOption {
-  common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<compiler_impl::Value> options;
 };
 
 struct NEUG_API AttachInfo {

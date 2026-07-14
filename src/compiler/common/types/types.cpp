@@ -155,7 +155,7 @@ uint32_t PhysicalTypeUtils::getFixedTypeSize(PhysicalTypeID physicalType) {
   case PhysicalTypeID::FLOAT:
     return sizeof(float);
   case PhysicalTypeID::INTERVAL:
-    return sizeof(interval_t);
+    return sizeof(compiler_impl::interval_t);
   case PhysicalTypeID::INTERNAL_ID:
     return sizeof(internalID_t);
   default:
@@ -192,6 +192,7 @@ PhysicalTypeID getPhysicalType(DataTypeId typeId) {
   case DataTypeId::kDouble:
     return PhysicalTypeID::DOUBLE;
   case DataTypeId::kDate:
+    return PhysicalTypeID::INT32;
   case DataTypeId::kTimestampMs:
     return PhysicalTypeID::INT64;
   case DataTypeId::kInterval:

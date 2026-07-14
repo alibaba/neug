@@ -17,6 +17,7 @@
 #include <rapidjson/document.h>
 #include <stddef.h>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -25,9 +26,10 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
+#include "neug/utils/property/property_definition.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -42,6 +44,52 @@ namespace neug {
 class PropertyGraph;
 class Schema;
 
+// Schema entry category exposed to the compiler layer for distinguishing node,
+// relationship, and non-graph table metadata.
+enum class SchemaEntryType : uint8_t {
+  UNKNOWN = 0,
+  NODE = 1,
+  REL = 2,
+  FOREIGN = 5,
+};
+
+struct SchemaEntryTypeUtils {
+  static std::string toString(SchemaEntryType entryType);
+};
+
+// Compatibility interface used by the compiler layer to access graph schema
+// metadata with minimal changes to compiler-side catalog calls.
+class SchemaEntry {
+ public:
+  virtual ~SchemaEntry() = default;
+
+  virtual uint64_t get_entry_id() const = 0;
+
+  virtual bool is_parent(uint64_t /*tableID*/) const { return false; };
+
+  virtual SchemaEntryType get_entry_type() const = 0;
+
+  virtual uint32_t get_max_column_id() const = 0;
+
+  virtual std::vector<PropertyDefinition> get_properties() const = 0;
+
+  virtual uint32_t get_num_properties() const = 0;
+
+  virtual bool contains_property(const std::string& propertyName) const = 0;
+
+  virtual uint32_t get_property_id(const std::string& propertyName) const = 0;
+
+  virtual PropertyDefinition get_property(
+      const std::string& propertyName) const = 0;
+
+  virtual const PropertyDefinition get_property(uint32_t idx) const = 0;
+
+  virtual uint32_t get_column_id(const std::string& propertyName) const;
+
+  virtual uint32_t get_column_id(uint32_t idx) const { return idx; };
+
+  virtual std::string get_label() const = 0;
+};
 class LabelIndexer {
  public:
   bool add(const std::string& name, label_t& lid);
@@ -91,7 +139,7 @@ class LabelIndexer {
  *
  * @since v0.1.0
  */
-struct VertexSchema {
+struct VertexSchema : public SchemaEntry {
   VertexSchema() = default;
 
   /**
@@ -107,15 +155,14 @@ struct VertexSchema {
    *
    * @since v0.1.0
    */
-  VertexSchema(
-      const std::string& label_name_,
-      const std::vector<DataType>& property_types_,
-      const std::vector<std::string>& property_names_,
-      const std::vector<std::tuple<DataType, std::string, size_t>>&
-          primary_keys_,
-      const std::vector<execution::Value>& default_property_values_ = {},
-      const std::string& description_ = "",
-      size_t max_num_ = static_cast<size_t>(1) << 32)
+  VertexSchema(const std::string& label_name_,
+               const std::vector<DataType>& property_types_,
+               const std::vector<std::string>& property_names_,
+               const std::vector<std::tuple<DataType, std::string, size_t>>&
+                   primary_keys_,
+               const std::vector<Value>& default_property_values_ = {},
+               const std::string& description_ = "",
+               size_t max_num_ = static_cast<size_t>(1) << 32)
       : label_name(label_name_),
         property_types(property_types_),
         property_names(property_names_),
@@ -140,10 +187,10 @@ struct VertexSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<execution::Value>& default_values = {});
+                      const std::vector<Value>& default_values = {});
 
   void set_properties(const std::vector<DataType>& types,
-                      const std::vector<execution::Value>& default_values = {});
+                      const std::vector<Value>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -167,18 +214,36 @@ struct VertexSchema {
 
   bool has_property(const std::string& prop) const;
 
-  const std::vector<execution::Value>& get_default_property_values() const {
+  const std::vector<Value>& get_default_property_values() const {
     return default_property_values;
   }
 
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
+  uint64_t get_entry_id() const override { return label_id; }
+  SchemaEntryType get_entry_type() const override {
+    return SchemaEntryType::NODE;
+  }
+  uint32_t get_max_column_id() const override;
+  std::vector<PropertyDefinition> get_properties() const override;
+  uint32_t get_num_properties() const override;
+  bool contains_property(const std::string& propertyName) const override;
+  uint32_t get_property_id(const std::string& propertyName) const override;
+  PropertyDefinition get_property(
+      const std::string& propertyName) const override;
+  const PropertyDefinition get_property(uint32_t idx) const override;
+  std::string get_label() const override;
+
+  uint32_t getPrimaryKeyID() const;
+  std::string getPrimaryKeyName() const;
+
   std::string label_name;
+  label_t label_id = std::numeric_limits<label_t>::max();
   std::vector<DataType> property_types;
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
-  std::vector<execution::Value> default_property_values;
+  std::vector<Value> default_property_values;
   std::string description;
   size_t max_num;
 
@@ -226,7 +291,7 @@ struct VertexSchema {
  *
  * @since v0.1.0
  */
-struct EdgeSchema {
+struct EdgeSchema : public SchemaEntry {
   EdgeSchema() = default;
 
   /**
@@ -257,7 +322,7 @@ struct EdgeSchema {
              EdgeStrategy ie_strategy_,
              const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
-             const std::vector<execution::Value>& default_property_values_ = {})
+             const std::vector<Value>& default_property_values_ = {})
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
         edge_label_name(edge_label_name_),
@@ -289,7 +354,7 @@ struct EdgeSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<execution::Value>& default_values = {});
+                      const std::vector<Value>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -303,11 +368,37 @@ struct EdgeSchema {
 
   int32_t get_property_index(const std::string& prop) const;
 
-  const std::vector<execution::Value>& get_default_property_values() const {
+  const std::vector<Value>& get_default_property_values() const {
     return default_property_values;
   }
 
+  uint64_t get_entry_id() const override { return entry_id; }
+  bool is_parent(uint64_t tableID) const override {
+    return src_label_id == tableID || dst_label_id == tableID;
+  }
+  SchemaEntryType get_entry_type() const override {
+    return SchemaEntryType::REL;
+  }
+  uint32_t get_max_column_id() const override;
+  std::vector<PropertyDefinition> get_properties() const override;
+  uint32_t get_num_properties() const override;
+  bool contains_property(const std::string& propertyName) const override;
+  uint32_t get_property_id(const std::string& propertyName) const override;
+  PropertyDefinition get_property(
+      const std::string& propertyName) const override;
+  const PropertyDefinition get_property(uint32_t idx) const override;
+  std::string get_label() const override;
+
+  uint64_t getSrcTableID() const { return src_label_id; }
+  uint64_t getDstTableID() const { return dst_label_id; }
+  uint64_t getLabelId() const { return edge_label_id; }
+  const std::string& getEdgeLabelName() const { return edge_label_name; }
+
   std::string src_label_name, dst_label_name, edge_label_name;
+  uint64_t entry_id = UINT64_MAX;
+  label_t src_label_id = std::numeric_limits<label_t>::max();
+  label_t dst_label_id = std::numeric_limits<label_t>::max();
+  label_t edge_label_id = std::numeric_limits<label_t>::max();
   std::optional<std::string> sort_key_for_nbr;
   std::string description;
   bool ie_mutable;
@@ -316,7 +407,7 @@ struct EdgeSchema {
   EdgeStrategy ie_strategy;
   std::vector<DataType> properties;
   std::vector<std::string> property_names;
-  std::vector<execution::Value> default_property_values;
+  std::vector<Value> default_property_values;
 
   // Mark whether the edge property is soft deleted
   std::vector<bool> eprop_soft_deleted;
@@ -464,20 +555,20 @@ class Schema {
       const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
-      const std::vector<execution::Value>& default_property_values = {},
+      const std::vector<Value>& default_property_values = {},
       bool temporary = false);
 
-  void AddEdgeLabel(
-      const std::string& src_label, const std::string& dst_label,
-      const std::string& edge_label, const std::vector<DataType>& properties,
-      const std::vector<std::string>& prop_names,
-      EdgeStrategy oe = EdgeStrategy::kMultiple,
-      EdgeStrategy ie = EdgeStrategy::kMultiple, bool oe_mutable = true,
-      bool ie_mutable = true,
-      std::optional<std::string> sort_key_for_nbr = std::nullopt,
-      const std::string& description = "",
-      const std::vector<execution::Value>& default_property_values = {},
-      bool temporary = false);
+  void AddEdgeLabel(const std::string& src_label, const std::string& dst_label,
+                    const std::string& edge_label,
+                    const std::vector<DataType>& properties,
+                    const std::vector<std::string>& prop_names,
+                    EdgeStrategy oe = EdgeStrategy::kMultiple,
+                    EdgeStrategy ie = EdgeStrategy::kMultiple,
+                    bool oe_mutable = true, bool ie_mutable = true,
+                    std::optional<std::string> sort_key_for_nbr = std::nullopt,
+                    const std::string& description = "",
+                    const std::vector<Value>& default_property_values = {},
+                    bool temporary = false);
 
   bool is_vertex_label_temporary(label_t label) const;
   bool is_edge_label_temporary(uint32_t edge_triplet_key) const;
@@ -496,18 +587,17 @@ class Schema {
   void DeleteEdgeLabel(const std::string& src, const std::string& dst,
                        const std::string& edge, bool is_soft = false);
 
-  void AddVertexProperties(
-      const std::string& label,
-      const std::vector<std::string>& properties_names,
-      const std::vector<DataType>& properties_types,
-      const std::vector<execution::Value>& properties_default_values);
+  void AddVertexProperties(const std::string& label,
+                           const std::vector<std::string>& properties_names,
+                           const std::vector<DataType>& properties_types,
+                           const std::vector<Value>& properties_default_values);
 
-  void AddEdgeProperties(
-      const std::string& src_label, const std::string& dst_label,
-      const std::string& edge_label,
-      const std::vector<std::string>& properties_names,
-      const std::vector<DataType>& properties_types,
-      const std::vector<execution::Value>& properties_default_values);
+  void AddEdgeProperties(const std::string& src_label,
+                         const std::string& dst_label,
+                         const std::string& edge_label,
+                         const std::vector<std::string>& properties_names,
+                         const std::vector<DataType>& properties_types,
+                         const std::vector<Value>& properties_default_values);
 
   void RenameVertexProperties(
       const std::string& label,
@@ -560,7 +650,7 @@ class Schema {
 
   void set_vertex_properties(
       label_t label_id, const std::vector<DataType>& types,
-      const std::vector<execution::Value>& default_property_values = {});
+      const std::vector<Value>& default_property_values = {});
 
   std::vector<DataType> get_vertex_properties(const std::string& label) const;
   std::vector<DataTypeId> get_vertex_properties_id(
@@ -569,7 +659,7 @@ class Schema {
   std::vector<DataType> get_vertex_properties(label_t label) const;
   std::vector<DataTypeId> get_vertex_properties_id(label_t label) const;
 
-  const std::vector<execution::Value>& get_vertex_default_property_values(
+  const std::vector<Value>& get_vertex_default_property_values(
       label_t label) const;
 
   std::vector<std::string> get_vertex_property_names(
@@ -590,7 +680,7 @@ class Schema {
   bool is_edge_triplet_valid(label_type src_label, label_type dst_label,
                              label_type edge_label) const;
 
-  const std::vector<execution::Value>& get_edge_default_property_values(
+  const std::vector<Value>& get_edge_default_property_values(
       label_t src_label_id, label_t dst_label_id, label_t edge_label_id) const;
 
   std::vector<DataType> get_edge_properties(const std::string& src_label,

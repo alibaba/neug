@@ -74,9 +74,6 @@ int main(int argc, char** argv) {
   neug::NeugDB db;
   neug::NeugDBConfig config(data_path, thread_num);
   config.memory_level = memory_level;
-  if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
-    config.enable_auto_compaction = true;
-  }
   db.Open(config);
 
   auto end = std::chrono::high_resolution_clock::now();

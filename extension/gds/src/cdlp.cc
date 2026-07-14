@@ -53,7 +53,7 @@ struct CDLPInput : public function::CallFuncInputBase {
 
   label_t vertex_label;
   std::unique_ptr<execution::ExprBase> vertex_pred;
-  execution::LabelTriplet edge_triplet;
+  LabelTriplet edge_triplet;
   std::unique_ptr<execution::ExprBase> edge_pred;
   int32_t max_iterations;
   int32_t node_alias, label_alias;
@@ -90,7 +90,7 @@ std::unique_ptr<function::CallFuncInputBase> CDLPFunction::bind(
 }
 
 execution::Context CDLPFunction::exec(const function::CallFuncInputBase& input,
-                                      neug::IStorageInterface& g) {
+                                      IStorageInterface& g) {
   const auto& lp_input = dynamic_cast<const CDLPInput&>(input);
   const auto& graph = dynamic_cast<const StorageReadInterface&>(g);
 
@@ -117,14 +117,15 @@ function::function_set CDLPFunction::getFunctionSet() {
   // two input params:
   // 1. subgraph name in string
   // 2. options in map
-  std::vector<common::DataTypeId> inputTypes = {common::DataTypeId::kVarchar,
-                                                common::DataTypeId::kUnknown};
+  function::call_input_types inputTypes = {
+      common::DataType(common::DataTypeId::kVarchar),
+      common::DataType(common::DataTypeId::kUnknown)};
   // two output columns:
   // 1. node type
   // 2. label id in int64
   function::call_output_columns outputColumns = {
-      {"node", common::DataTypeId::kVertex},
-      {"label", common::DataTypeId::kInt64}};
+      {"node", common::DataType(common::DataTypeId::kVertex)},
+      {"label", common::DataType(common::DataTypeId::kInt64)}};
   auto function = std::make_unique<function::GDSAlgoFunction>(name, inputTypes,
                                                               outputColumns);
   function->bindFunc = bind;

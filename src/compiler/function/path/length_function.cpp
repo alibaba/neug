@@ -49,7 +49,8 @@ static std::shared_ptr<Expression> rewriteFunc(
         recursiveRels.push_back(child->constPtrCast<RelExpression>());
       }
     }
-    auto numRelsExpression = binder->createLiteralExpression(Value(numRels));
+    auto numRelsExpression =
+        binder->createLiteralExpression(compiler_impl::Value(numRels));
     if (recursiveRels.empty()) {
       return numRelsExpression;
     }

@@ -144,6 +144,9 @@ src/compiler/scripts/antlr4/hash.md5
 # Extension wheel build
 tools/python_bind/neug/extensions/
 
+# Auto-generated commit info for Python wheel build
+tools/python_bind/neug/_commit.py
+
 # Coverage file
 **/.coverage
 

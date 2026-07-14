@@ -65,6 +65,18 @@ class UnionOpr : public IOperator {
     return out;
   }
 
+  void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,
+                              IStorageInterface& graph) override {
+    // Build explain tree for each sub plan
+    // and add them as children to the parent timer
+    for (auto& plan : sub_plans_) {
+      auto tree_result = plan.explain_tree(graph, params);
+      if (tree_result && tree_result.value()) {
+        parent_timer->add_child(std::move(tree_result.value()));
+      }
+    }
+  }
+
  private:
   std::vector<Pipeline> sub_plans_;
 };

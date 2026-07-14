@@ -15,47 +15,51 @@
 
 #include "neug/utils/property/default_value.h"
 #include "neug/common/extra_type_info.h"
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 
 namespace neug {
 
-execution::Value get_default_value(const DataType& type) {
+Value get_default_value(const DataType& type) {
   switch (type.id()) {
   case DataTypeId::kEmpty:
-    return execution::Value(type);
+    return Value(type);
   case DataTypeId::kBoolean:
-    return execution::Value::BOOLEAN(false);
+    return Value::BOOLEAN(false);
   case DataTypeId::kInt32:
-    return execution::Value::INT32(0);
+    return Value::INT32(0);
   case DataTypeId::kUInt32:
-    return execution::Value::UINT32(0);
+    return Value::UINT32(0);
   case DataTypeId::kInt64:
-    return execution::Value::INT64(0);
+    return Value::INT64(0);
   case DataTypeId::kUInt64:
-    return execution::Value::UINT64(0);
+    return Value::UINT64(0);
   case DataTypeId::kFloat:
-    return execution::Value::FLOAT(0.0);
+    return Value::FLOAT(0.0);
   case DataTypeId::kDouble:
-    return execution::Value::DOUBLE(0.0);
+    return Value::DOUBLE(0.0);
   case DataTypeId::kVarchar: {
     int32_t width =
         type.getExtraTypeInfo()
             ? type.getExtraTypeInfo()->Cast<StringTypeInfo>().max_length
             : STRING_DEFAULT_MAX_LENGTH;
-    return execution::Value::VARCHAR("", width);
+    return Value::VARCHAR("", width);
   }
   case DataTypeId::kDate:
-    return execution::Value::DATE(Date(0));
+    return Value::DATE(Date(0));
   case DataTypeId::kTimestampMs:
-    return execution::Value::TIMESTAMPMS(DateTime(0));
+    return Value::TIMESTAMPMS(DateTime(0));
   case DataTypeId::kInterval:
-    return execution::Value::INTERVAL(Interval());
+    return Value::INTERVAL(Interval());
+  case DataTypeId::kInternalId:
+    return Value(type);
+  case DataTypeId::kList:
+    return Value::LIST(ListType::GetChildType(type), {});
   case DataTypeId::kArray: {
     auto child_type = ArrayType::GetChildType(type);
     auto child_default = get_default_value(child_type);
     uint64_t size = ArrayType::GetNumElements(type);
-    std::vector<execution::Value> values(size, child_default);
-    return execution::Value::ARRAY(type, std::move(values));
+    std::vector<Value> values(size, child_default);
+    return Value::ARRAY(type, std::move(values));
   }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(

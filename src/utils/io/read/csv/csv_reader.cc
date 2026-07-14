@@ -15,7 +15,7 @@
 
 #include "neug/utils/io/reader.h"
 
-#include "neug/execution/common/columns/container_types.h"
+#include "neug/common/types/container_types.h"
 
 #include <glog/logging.h>
 
@@ -49,24 +49,24 @@ namespace neug {
 namespace reader {
 namespace {
 
-execution::Value proto_value_to_execution(const ::common::Value& value) {
+Value proto_value_to_execution(const ::common::Value& value) {
   switch (value.item_case()) {
   case ::common::Value::kBoolean:
-    return execution::Value::BOOLEAN(value.boolean());
+    return Value::BOOLEAN(value.boolean());
   case ::common::Value::kI32:
-    return execution::Value::INT32(value.i32());
+    return Value::INT32(value.i32());
   case ::common::Value::kI64:
-    return execution::Value::INT64(value.i64());
+    return Value::INT64(value.i64());
   case ::common::Value::kU32:
-    return execution::Value::UINT32(value.u32());
+    return Value::UINT32(value.u32());
   case ::common::Value::kU64:
-    return execution::Value::UINT64(value.u64());
+    return Value::UINT64(value.u64());
   case ::common::Value::kF32:
-    return execution::Value::FLOAT(value.f32());
+    return Value::FLOAT(value.f32());
   case ::common::Value::kF64:
-    return execution::Value::DOUBLE(value.f64());
+    return Value::DOUBLE(value.f64());
   case ::common::Value::kStr:
-    return execution::Value::STRING(value.str());
+    return Value::STRING(value.str());
   default:
     THROW_CONVERSION_EXCEPTION("Unsupported constant type in CSV row filter");
   }
@@ -90,7 +90,7 @@ bool is_numeric_type(DataTypeId id) {
   }
 }
 
-double value_to_double(const execution::Value& v) {
+double value_to_double(const Value& v) {
   switch (v.type().id()) {
   case DataTypeId::kInt8:
     return static_cast<double>(v.GetValue<int32_t>());
@@ -115,9 +115,8 @@ double value_to_double(const execution::Value& v) {
   }
 }
 
-bool compare_values(const ::common::Logical& logical,
-                    const execution::Value& left,
-                    const execution::Value& right) {
+bool compare_values(const ::common::Logical& logical, const Value& left,
+                    const Value& right) {
   // Numeric type coercion: promote both operands to double when types differ.
   if (left.type() != right.type() && is_numeric_type(left.type().id()) &&
       is_numeric_type(right.type().id())) {
@@ -173,7 +172,7 @@ class CsvRowFilter {
     compile(expr);
   }
 
-  bool eval(const execution::DataChunk& chunk, size_t row) const {
+  bool eval(const DataChunk& chunk, size_t row) const {
     if (!evaluator_) {
       return true;
     }
@@ -181,9 +180,8 @@ class CsvRowFilter {
   }
 
  private:
-  using ValueFn =
-      std::function<execution::Value(const execution::DataChunk&, size_t)>;
-  using EvalFn = std::function<bool(const execution::DataChunk&, size_t)>;
+  using ValueFn = std::function<Value(const DataChunk&, size_t)>;
+  using EvalFn = std::function<bool(const DataChunk&, size_t)>;
 
   void compile(const ::common::Expression& expr) {
     std::stack<ValueFn> value_stack;
@@ -200,33 +198,33 @@ class CsvRowFilter {
         auto left_fn = value_stack.top();
         value_stack.pop();
         auto arith = opr.arith();
-        value_stack.push([left_fn, right_fn, arith](
-                             const execution::DataChunk& chunk, size_t row) {
-          double l = value_to_double(left_fn(chunk, row));
-          double r = value_to_double(right_fn(chunk, row));
-          double result = 0;
-          switch (arith) {
-          case ::common::Arithmetic::ADD:
-            result = l + r;
-            break;
-          case ::common::Arithmetic::SUB:
-            result = l - r;
-            break;
-          case ::common::Arithmetic::MUL:
-            result = l * r;
-            break;
-          case ::common::Arithmetic::DIV:
-            result = (r != 0) ? l / r : 0;
-            break;
-          case ::common::Arithmetic::MOD:
-            result = (r != 0) ? std::fmod(l, r) : 0;
-            break;
-          default:
-            result = 0;
-            break;
-          }
-          return execution::Value::DOUBLE(result);
-        });
+        value_stack.push(
+            [left_fn, right_fn, arith](const DataChunk& chunk, size_t row) {
+              double l = value_to_double(left_fn(chunk, row));
+              double r = value_to_double(right_fn(chunk, row));
+              double result = 0;
+              switch (arith) {
+              case ::common::Arithmetic::ADD:
+                result = l + r;
+                break;
+              case ::common::Arithmetic::SUB:
+                result = l - r;
+                break;
+              case ::common::Arithmetic::MUL:
+                result = l * r;
+                break;
+              case ::common::Arithmetic::DIV:
+                result = (r != 0) ? l / r : 0;
+                break;
+              case ::common::Arithmetic::MOD:
+                result = (r != 0) ? std::fmod(l, r) : 0;
+                break;
+              default:
+                result = 0;
+                break;
+              }
+              return Value::DOUBLE(result);
+            });
         return;
       }
       if (opr.item_case() != ::common::ExprOpr::kLogical) {
@@ -239,12 +237,11 @@ class CsvRowFilter {
         }
         auto operand = value_stack.top();
         value_stack.pop();
-        value_stack.push(
-            [operand](const execution::DataChunk& chunk, size_t row) {
-              return execution::Value::BOOLEAN(
-                  compare_values(::common::Logical::NOT, operand(chunk, row),
-                                 execution::Value::BOOLEAN(false)));
-            });
+        value_stack.push([operand](const DataChunk& chunk, size_t row) {
+          return Value::BOOLEAN(compare_values(::common::Logical::NOT,
+                                               operand(chunk, row),
+                                               Value::BOOLEAN(false)));
+        });
         return;
       }
       if (value_stack.size() < 2) {
@@ -256,19 +253,18 @@ class CsvRowFilter {
       auto left_fn = value_stack.top();
       value_stack.pop();
       auto logical = opr.logical();
-      value_stack.push([left_fn, right_fn, logical](
-                           const execution::DataChunk& chunk, size_t row) {
-        auto left_val = left_fn(chunk, row);
-        auto right_val = right_fn(chunk, row);
-        if (logical == ::common::Logical::AND ||
-            logical == ::common::Logical::OR) {
-          return execution::Value::BOOLEAN(compare_values(
-              logical, execution::Value::BOOLEAN(left_val.GetValue<bool>()),
-              execution::Value::BOOLEAN(right_val.GetValue<bool>())));
-        }
-        return execution::Value::BOOLEAN(
-            compare_values(logical, left_val, right_val));
-      });
+      value_stack.push(
+          [left_fn, right_fn, logical](const DataChunk& chunk, size_t row) {
+            auto left_val = left_fn(chunk, row);
+            auto right_val = right_fn(chunk, row);
+            if (logical == ::common::Logical::AND ||
+                logical == ::common::Logical::OR) {
+              return Value::BOOLEAN(compare_values(
+                  logical, Value::BOOLEAN(left_val.GetValue<bool>()),
+                  Value::BOOLEAN(right_val.GetValue<bool>())));
+            }
+            return Value::BOOLEAN(compare_values(logical, left_val, right_val));
+          });
     };
 
     for (int i = 0; i < expr.operators_size(); ++i) {
@@ -276,8 +272,7 @@ class CsvRowFilter {
       switch (opr.item_case()) {
       case ::common::ExprOpr::kConst: {
         auto value = proto_value_to_execution(opr.const_());
-        value_stack.push(
-            [value](const execution::DataChunk&, size_t) { return value; });
+        value_stack.push([value](const DataChunk&, size_t) { return value; });
         break;
       }
       case ::common::ExprOpr::kVar: {
@@ -288,15 +283,14 @@ class CsvRowFilter {
                                            column_name);
         }
         int col_idx = iter->second;
-        value_stack.push(
-            [col_idx](const execution::DataChunk& chunk, size_t row) {
-              auto col = chunk.get(col_idx);
-              if (!col) {
-                THROW_RUNTIME_ERROR("Missing filter column at index " +
-                                    std::to_string(col_idx));
-              }
-              return col->get_elem(row);
-            });
+        value_stack.push([col_idx](const DataChunk& chunk, size_t row) {
+          auto col = chunk.get(col_idx);
+          if (!col) {
+            THROW_RUNTIME_ERROR("Missing filter column at index " +
+                                std::to_string(col_idx));
+          }
+          return col->get_elem(row);
+        });
         break;
       }
       case ::common::ExprOpr::kBrace: {
@@ -346,7 +340,7 @@ class CsvRowFilter {
           case ::common::ExprOpr::kConst: {
             auto value = proto_value_to_execution(child_opr.const_());
             value_stack.push(
-                [value](const execution::DataChunk&, size_t) { return value; });
+                [value](const DataChunk&, size_t) { return value; });
             break;
           }
           case ::common::ExprOpr::kVar: {
@@ -357,15 +351,14 @@ class CsvRowFilter {
                                                col_name);
             }
             int idx = it->second;
-            value_stack.push(
-                [idx](const execution::DataChunk& chunk, size_t row) {
-                  auto col = chunk.get(idx);
-                  if (!col) {
-                    THROW_RUNTIME_ERROR("Missing filter column at index " +
-                                        std::to_string(idx));
-                  }
-                  return col->get_elem(row);
-                });
+            value_stack.push([idx](const DataChunk& chunk, size_t row) {
+              auto col = chunk.get(idx);
+              if (!col) {
+                THROW_RUNTIME_ERROR("Missing filter column at index " +
+                                    std::to_string(idx));
+              }
+              return col->get_elem(row);
+            });
             break;
           }
           default:
@@ -396,7 +389,7 @@ class CsvRowFilter {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid filter expression");
     }
     auto value_fn = value_stack.top();
-    evaluator_ = [value_fn](const execution::DataChunk& chunk, size_t row) {
+    evaluator_ = [value_fn](const DataChunk& chunk, size_t row) {
       return value_fn(chunk, row).GetValue<bool>();
     };
   }
@@ -405,9 +398,9 @@ class CsvRowFilter {
   EvalFn evaluator_;
 };
 
-execution::DataChunk read_all_chunks(
+DataChunk read_all_chunks(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
-  execution::DataChunk merged;
+  DataChunk merged;
   for (const auto& supplier : suppliers) {
     while (true) {
       auto chunk = supplier->GetNextChunk();
@@ -431,10 +424,9 @@ void build_name_to_index(const std::vector<std::string>& column_names,
   }
 }
 
-execution::DataChunk filter_chunk(
-    const execution::DataChunk& input,
-    const std::shared_ptr<::common::Expression>& filter_expr,
-    const std::vector<std::string>& column_names) {
+DataChunk filter_chunk(const DataChunk& input,
+                       const std::shared_ptr<::common::Expression>& filter_expr,
+                       const std::vector<std::string>& column_names) {
   if (!filter_expr || input.row_num() == 0) {
     return input;
   }
@@ -451,15 +443,14 @@ execution::DataChunk filter_chunk(
     }
   }
 
-  execution::DataChunk filtered = input;
+  DataChunk filtered = input;
   filtered.reshuffle(keep_offsets);
   return filtered;
 }
 
-execution::DataChunk project_chunk(
-    const execution::DataChunk& input,
-    const std::vector<std::string>& column_names,
-    const std::vector<std::string>& project_columns) {
+DataChunk project_chunk(const DataChunk& input,
+                        const std::vector<std::string>& column_names,
+                        const std::vector<std::string>& project_columns) {
   if (project_columns.empty()) {
     return input;
   }
@@ -467,7 +458,7 @@ execution::DataChunk project_chunk(
   std::unordered_map<std::string, int> name_to_index;
   build_name_to_index(column_names, &name_to_index);
 
-  execution::DataChunk projected;
+  DataChunk projected;
   for (size_t i = 0; i < project_columns.size(); ++i) {
     auto iter = name_to_index.find(project_columns[i]);
     if (iter == name_to_index.end()) {

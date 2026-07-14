@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'workflow_call'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'workflow_call'
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
@@ -79,7 +79,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
@@ -88,7 +88,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Prepare test data
@@ -171,7 +171,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
@@ -180,7 +180,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Prepare test data
@@ -221,7 +221,7 @@ jobs:
 
   build_npm_macos_aarch64:
     needs: format_check
-    if: github.event_name == 'workflow_call' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_call' || github.event_name == 'release' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     steps:
       - name: checkout
@@ -238,17 +238,24 @@ jobs:
         run: |
           bash scripts/install_deps.sh
 
+      - name: Prepare for macos
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0"
+          source ~/.neug_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
       - name: Build
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+          make build EXTRA_CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Pack
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF"
+          make pack EXTRA_CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Prepare test data
         run: |

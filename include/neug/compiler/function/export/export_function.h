@@ -35,11 +35,11 @@ struct ExportFuncBindData {
   std::vector<std::string> columnNames;
   std::vector<common::DataType> types;
   std::string fileName;
-  common::case_insensitive_map_t<common::Value> options;
+  common::case_insensitive_map_t<compiler_impl::Value> options;
 
   ExportFuncBindData(
       std::vector<std::string> columnNames, std::string fileName,
-      const common::case_insensitive_map_t<common::Value>& options)
+      const common::case_insensitive_map_t<compiler_impl::Value>& options)
       : columnNames{std::move(columnNames)},
         fileName{std::move(fileName)},
         options{options} {}
@@ -71,7 +71,7 @@ struct ExportFuncBindData {
 struct ExportFuncBindInput {
   std::vector<std::string> columnNames;
   std::string filePath;
-  common::case_insensitive_map_t<common::Value> parsingOptions;
+  common::case_insensitive_map_t<compiler_impl::Value> parsingOptions;
 };
 using export_bind_t = std::function<std::unique_ptr<ExportFuncBindData>(
     function::ExportFuncBindInput& bindInput)>;
@@ -81,7 +81,8 @@ using write_exec_func_t = std::function<execution::Context(
     const StorageReadInterface& graph)>;
 
 struct NEUG_API ExportFunction : public Function {
-  explicit ExportFunction(std::string name) : Function{std::move(name), {}} {}
+  explicit ExportFunction(std::string name)
+      : Function{std::move(name), std::vector<common::DataType>{}} {}
 
   export_bind_t bind;
   write_exec_func_t execFunc;

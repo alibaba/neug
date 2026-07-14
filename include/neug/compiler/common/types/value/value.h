@@ -34,24 +34,36 @@
 namespace neug {
 
 namespace common {
-
-class NodeVal;
-class RelVal;
-struct FileInfo;
-class NestedVal;
-class RecursiveRelVal;
-class ArrowRowBatch;
-class ValueVector;
-class Serializer;
 class Deserializer;
+class Serializer;
+class NestedVal;
+class NodeVal;
+class RecursiveRelVal;
+class RelVal;
+class ValueVector;
+}  // namespace common
+
+namespace compiler_impl {
+
+using common::getPhysicalType;
+using common::int128_t;
+using common::internalID_t;
+using common::list_entry_t;
+using common::neug_list_t;
+using common::nodeID_t;
+using common::PhysicalTypeID;
+using common::struct_entry_t;
+
+struct FileInfo;
+class ArrowRowBatch;
 
 class Value {
-  friend class NodeVal;
-  friend class RelVal;
-  friend class NestedVal;
-  friend class RecursiveRelVal;
+  friend class common::NodeVal;
+  friend class common::RelVal;
+  friend class common::NestedVal;
+  friend class common::RecursiveRelVal;
   friend class ArrowRowBatch;
-  friend class ValueVector;
+  friend class common::ValueVector;
 
  public:
   /**
@@ -199,7 +211,7 @@ class Value {
    * @param value value to copy from.
    */
   NEUG_API void copyFromColLayout(const uint8_t* value,
-                                  ValueVector* vec = nullptr);
+                                  common::ValueVector* vec = nullptr);
   /**
    * @brief Copies from the other.
    * @param other value to copy from.
@@ -237,10 +249,10 @@ class Value {
    */
   NEUG_API std::string toString() const;
 
-  NEUG_API void serialize(Serializer& serializer) const;
+  NEUG_API void serialize(common::Serializer& serializer) const;
 
   NEUG_API static std::unique_ptr<Value> deserialize(
-      Deserializer& deserializer);
+      common::Deserializer& deserializer);
 
   NEUG_API void validateType(common::DataTypeId targetTypeID) const;
 
@@ -258,10 +270,11 @@ class Value {
   void resizeChildrenVector(uint64_t size, const DataType& childType);
   void copyFromRowLayoutList(const neug_list_t& list,
                              const DataType& childType);
-  void copyFromColLayoutList(const list_entry_t& list, ValueVector* vec);
+  void copyFromColLayoutList(const list_entry_t& list,
+                             common::ValueVector* vec);
   void copyFromRowLayoutStruct(const uint8_t* kuStruct);
   void copyFromColLayoutStruct(const struct_entry_t& structEntry,
-                               ValueVector* vec);
+                               common::ValueVector* vec);
   std::string mapToString() const;
   std::string listToString() const;
   std::string structToString() const;
@@ -305,7 +318,8 @@ class Value {
  */
 template <>
 NEUG_API inline bool Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::BOOL);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::BOOL);
   return val.booleanVal;
 }
 
@@ -314,7 +328,8 @@ NEUG_API inline bool Value::getValue() const {
  */
 template <>
 NEUG_API inline int8_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT8);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT8);
   return val.int8Val;
 }
 
@@ -323,7 +338,8 @@ NEUG_API inline int8_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int16_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT16);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT16);
   return val.int16Val;
 }
 
@@ -332,7 +348,8 @@ NEUG_API inline int16_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int32_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT32);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT32);
   return val.int32Val;
 }
 
@@ -341,7 +358,8 @@ NEUG_API inline int32_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int64_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT64);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT64);
   return val.int64Val;
 }
 
@@ -350,7 +368,8 @@ NEUG_API inline int64_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint64_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT64);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT64);
   return val.uint64Val;
 }
 
@@ -359,7 +378,8 @@ NEUG_API inline uint64_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint32_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT32);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT32);
   return val.uint32Val;
 }
 
@@ -368,7 +388,8 @@ NEUG_API inline uint32_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint16_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT16);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT16);
   return val.uint16Val;
 }
 
@@ -377,7 +398,8 @@ NEUG_API inline uint16_t Value::getValue() const {
  */
 template <>
 NEUG_API inline uint8_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT8);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT8);
   return val.uint8Val;
 }
 
@@ -386,7 +408,8 @@ NEUG_API inline uint8_t Value::getValue() const {
  */
 template <>
 NEUG_API inline int128_t Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT128);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT128);
   return val.int128Val;
 }
 
@@ -395,7 +418,8 @@ NEUG_API inline int128_t Value::getValue() const {
  */
 template <>
 NEUG_API inline float Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::FLOAT);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::FLOAT);
   return val.floatVal;
 }
 
@@ -404,7 +428,8 @@ NEUG_API inline float Value::getValue() const {
  */
 template <>
 NEUG_API inline double Value::getValue() const {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::DOUBLE);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::DOUBLE);
   return val.doubleVal;
 }
 
@@ -467,7 +492,8 @@ NEUG_API inline std::string Value::getValue() const {
  */
 template <>
 NEUG_API inline bool& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::BOOL);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::BOOL);
   return val.booleanVal;
 }
 
@@ -476,7 +502,8 @@ NEUG_API inline bool& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int8_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT8);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT8);
   return val.int8Val;
 }
 
@@ -485,7 +512,8 @@ NEUG_API inline int8_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int16_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT16);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT16);
   return val.int16Val;
 }
 
@@ -494,7 +522,8 @@ NEUG_API inline int16_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int32_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT32);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT32);
   return val.int32Val;
 }
 
@@ -503,7 +532,8 @@ NEUG_API inline int32_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int64_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT64);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT64);
   return val.int64Val;
 }
 
@@ -512,7 +542,8 @@ NEUG_API inline int64_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint8_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT8);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT8);
   return val.uint8Val;
 }
 
@@ -521,7 +552,8 @@ NEUG_API inline uint8_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint16_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT16);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT16);
   return val.uint16Val;
 }
 
@@ -530,7 +562,8 @@ NEUG_API inline uint16_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint32_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT32);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT32);
   return val.uint32Val;
 }
 
@@ -539,7 +572,8 @@ NEUG_API inline uint32_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline uint64_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::UINT64);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::UINT64);
   return val.uint64Val;
 }
 
@@ -548,7 +582,8 @@ NEUG_API inline uint64_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline int128_t& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::INT128);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::INT128);
   return val.int128Val;
 }
 
@@ -557,7 +592,8 @@ NEUG_API inline int128_t& Value::getValueReference() {
  */
 template <>
 NEUG_API inline float& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::FLOAT);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::FLOAT);
   return val.floatVal;
 }
 
@@ -566,7 +602,8 @@ NEUG_API inline float& Value::getValueReference() {
  */
 template <>
 NEUG_API inline double& Value::getValueReference() {
-  NEUG_ASSERT(getPhysicalType(dataType.id()) == PhysicalTypeID::DOUBLE);
+  NEUG_ASSERT(common::getPhysicalType(dataType.id()) ==
+              common::PhysicalTypeID::DOUBLE);
   return val.doubleVal;
 }
 
@@ -773,5 +810,6 @@ NEUG_API inline Value Value::createValue(const char* value) {
   return Value(DataType::Varchar(), std::string(value));
 }
 
-}  // namespace common
+}  // namespace compiler_impl
+
 }  // namespace neug

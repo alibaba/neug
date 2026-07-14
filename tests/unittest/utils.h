@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/data_chunk.h"
+#include "neug/common/columns/value_columns.h"
+#include "neug/common/types/data_chunk.h"
 #include "neug/main/connection.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -43,11 +43,11 @@
 class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
  public:
   explicit GeneratedChunkSupplier(
-      std::vector<std::shared_ptr<neug::execution::DataChunk>>&& chunks)
+      std::vector<std::shared_ptr<neug::DataChunk>>&& chunks)
       : chunks_(std::move(chunks)) {}
   ~GeneratedChunkSupplier() override = default;
 
-  std::shared_ptr<neug::execution::DataChunk> GetNextChunk() override {
+  std::shared_ptr<neug::DataChunk> GetNextChunk() override {
     if (chunks_.empty()) {
       return nullptr;
     }
@@ -67,24 +67,24 @@ class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
   }
 
  private:
-  std::vector<std::shared_ptr<neug::execution::DataChunk>> chunks_;
+  std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
 };
 
 template <typename T>
-std::shared_ptr<neug::execution::IContextColumn> build_value_column_slice(
+std::shared_ptr<neug::IContextColumn> build_value_column_slice(
     const std::vector<T>& data, size_t begin, size_t end) {
-  neug::execution::ValueColumnBuilder<T> builder;
+  neug::ValueColumnBuilder<T> builder;
   for (size_t i = begin; i < end && i < data.size(); ++i) {
-    builder.push_back_elem(neug::execution::Value::CreateValue<T>(data[i]));
+    builder.push_back_elem(neug::Value::CreateValue<T>(data[i]));
   }
   return builder.finish();
 }
 
 template <typename T>
-std::vector<std::shared_ptr<neug::execution::IContextColumn>>
-split_column_to_chunks(const std::vector<T>& data, int num_chunks) {
+std::vector<std::shared_ptr<neug::IContextColumn>> split_column_to_chunks(
+    const std::vector<T>& data, int num_chunks) {
   size_t chunk_size = (data.size() + num_chunks - 1) / num_chunks;
-  std::vector<std::shared_ptr<neug::execution::IContextColumn>> columns;
+  std::vector<std::shared_ptr<neug::IContextColumn>> columns;
   for (int i = 0; i < num_chunks; ++i) {
     size_t begin = i * chunk_size;
     size_t end = std::min(begin + chunk_size, data.size());
@@ -96,10 +96,8 @@ split_column_to_chunks(const std::vector<T>& data, int num_chunks) {
   return columns;
 }
 
-inline std::vector<std::shared_ptr<neug::execution::DataChunk>>
-convert_to_data_chunks(
-    const std::vector<
-        std::vector<std::shared_ptr<neug::execution::IContextColumn>>>&
+inline std::vector<std::shared_ptr<neug::DataChunk>> convert_to_data_chunks(
+    const std::vector<std::vector<std::shared_ptr<neug::IContextColumn>>>&
         column_chunks) {
   if (column_chunks.empty()) {
     return {};
@@ -118,14 +116,13 @@ convert_to_data_chunks(
       }
     }
   }
-  std::vector<std::shared_ptr<neug::execution::DataChunk>> chunks;
+  std::vector<std::shared_ptr<neug::DataChunk>> chunks;
   for (size_t i = 0; i < chunk_sizes.size(); ++i) {
-    neug::execution::DataChunk chunk;
+    neug::DataChunk chunk;
     for (size_t col = 0; col < column_chunks.size(); ++col) {
       chunk.set(static_cast<int>(col), column_chunks[col][i]);
     }
-    chunks.push_back(
-        std::make_shared<neug::execution::DataChunk>(std::move(chunk)));
+    chunks.push_back(std::make_shared<neug::DataChunk>(std::move(chunk)));
   }
   return chunks;
 }

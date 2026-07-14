@@ -17,6 +17,7 @@
 #include "neug/compiler/function/gds/project_graph_function.h"
 #include <string>
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
@@ -27,7 +28,6 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
@@ -53,12 +53,12 @@ struct ProjectedGraphInfoCallInput : public CallFuncInputBase {
   std::string graphName;
 };
 
-static std::string getStringVal(const common::Value& value) {
+static std::string getStringVal(const compiler_impl::Value& value) {
   value.validateType(common::DataTypeId::kVarchar);
   return value.getValue<std::string>();
 }
 
-static std::vector<std::string> getListVal(const common::Value& value) {
+static std::vector<std::string> getListVal(const compiler_impl::Value& value) {
   std::vector<std::string> vals;
   for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
     const auto& childValue = *common::NestedVal::getChildVal(&value, i);
@@ -68,9 +68,10 @@ static std::vector<std::string> getListVal(const common::Value& value) {
 }
 
 static std::vector<graph::ParsedGraphEntryTableInfo>
-extractGraphEntryTableInfos(const common::Value& value) {
+extractGraphEntryTableInfos(const compiler_impl::Value& value) {
   std::vector<graph::ParsedGraphEntryTableInfo> infos;
   switch (value.getDataType().id()) {
+  case common::DataTypeId::kArray:
   case common::DataTypeId::kList: {
     for (auto i = 0u; i < common::NestedVal::getChildrenSize(&value); ++i) {
       const auto& childValue = *common::NestedVal::getChildVal(&value, i);
@@ -80,6 +81,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
         auto tableName = getStringVal(childValue);
         infos.emplace_back(tableName, "" /* empty predicate */);
       } break;
+      case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
         if (triplets.size() != 3) {
@@ -137,6 +139,7 @@ extractGraphEntryTableInfos(const common::Value& value) {
         auto tableName = getStringVal(tableField);
         infos.emplace_back(tableName, predicate);
       } break;
+      case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
         if (triplets.size() != 3) {
@@ -159,7 +162,8 @@ extractGraphEntryTableInfos(const common::Value& value) {
   } break;
   default:
     THROW_BINDER_EXCEPTION(common::stringFormat(
-        "Argument {} has data type {}. LIST or STRUCT or MAP was expected.",
+        "Argument {} has data type {}. LIST, ARRAY, STRUCT or MAP was "
+        "expected.",
         value.toString(), value.getDataType().ToString()));
   }
   return infos;
@@ -208,9 +212,10 @@ static std::unique_ptr<TableFuncBindData> bindDropProjectedGraph(
 
 function_set ProjectGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
-      name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar,
-                                            common::DataTypeId::kUnknown,
-                                            common::DataTypeId::kUnknown});
+      name, function::call_input_types{
+                common::DataType(common::DataTypeId::kVarchar),
+                common::DataType(common::DataTypeId::kUnknown),
+                common::DataType(common::DataTypeId::kUnknown)});
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindProjectGraph;
@@ -234,7 +239,8 @@ function_set ProjectGraphFunction::getFunctionSet() {
 
 function_set DropProjectedGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
-      name, std::vector<common::DataTypeId>{common::DataTypeId::kVarchar});
+      name, function::call_input_types{
+                common::DataType(common::DataTypeId::kVarchar)});
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindDropProjectedGraph;
@@ -258,10 +264,10 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
 
 function_set ShowProjectedGraphsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
-      ShowProjectedGraphsFunction::name,
-      std::vector<neug::common::DataTypeId>{},
-      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
-          {"name", neug::common::DataTypeId::kVarchar}});
+      ShowProjectedGraphsFunction::name, function::call_input_types{},
+      std::vector<std::pair<std::string, neug::common::DataType>>{
+          {"name",
+           neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -273,7 +279,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   function->execFunc = [](const CallFuncInputBase& /*input*/,
                           neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
-    neug::execution::ValueColumnBuilder<std::string> name_builder;
+    neug::ValueColumnBuilder<std::string> name_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
     if (metadataManager == nullptr) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
@@ -284,7 +290,7 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
     for (const auto& [name, _] : nameToEntryMap) {
       name_builder.push_back_opt(name);
     }
-    execution::DataChunk chunk;
+    neug::DataChunk chunk;
     chunk.set(0, name_builder.finish());
     out.append_chunk(std::move(chunk));
     out.tag_ids = {0};
@@ -299,10 +305,12 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
 function_set ProjectedGraphInfoFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ProjectedGraphInfoFunction::name,
-      std::vector<common::DataTypeId>{common::DataTypeId::kVarchar},
-      std::vector<std::pair<std::string, neug::common::DataTypeId>>{
-          {"label", neug::common::DataTypeId::kVarchar},
-          {"predicate", neug::common::DataTypeId::kVarchar}});
+      function::call_input_types{
+          common::DataType(common::DataTypeId::kVarchar)},
+      std::vector<std::pair<std::string, neug::common::DataType>>{
+          {"label", neug::common::DataType(neug::common::DataTypeId::kVarchar)},
+          {"predicate",
+           neug::common::DataType(neug::common::DataTypeId::kVarchar)}});
 
   function->bindFunc = [](const neug::Schema& schema,
                           const neug::execution::ContextMeta& ctx_meta,
@@ -326,8 +334,8 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   function->execFunc = [](const CallFuncInputBase& input,
                           neug::IStorageInterface& /*graph*/) {
     neug::execution::Context out;
-    neug::execution::ValueColumnBuilder<std::string> name_builder;
-    neug::execution::ValueColumnBuilder<std::string> predicate_builder;
+    neug::ValueColumnBuilder<std::string> name_builder;
+    neug::ValueColumnBuilder<std::string> predicate_builder;
     auto metadataManager = main::MetadataRegistry::getMetadata();
     if (metadataManager == nullptr) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
@@ -351,7 +359,7 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
       name_builder.push_back_opt(std::move(triplets));
       predicate_builder.push_back_opt(relInfo.predicate);
     }
-    execution::DataChunk chunk;
+    neug::DataChunk chunk;
     chunk.set(0, name_builder.finish());
     chunk.set(1, predicate_builder.finish());
     out.append_chunk(std::move(chunk));

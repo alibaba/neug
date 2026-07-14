@@ -138,8 +138,8 @@ struct ComparisonFunction {
                                           uint8_t, FUNC>;
     } break;
     case common::PhysicalTypeID::INTERVAL: {
-      func = BinaryComparisonExecFunction<common::interval_t,
-                                          common::interval_t, uint8_t, FUNC>;
+      func = BinaryComparisonExecFunction<
+          compiler_impl::interval_t, compiler_impl::interval_t, uint8_t, FUNC>;
     } break;
     case common::PhysicalTypeID::ARRAY:
     case common::PhysicalTypeID::LIST: {
@@ -211,8 +211,8 @@ struct ComparisonFunction {
                                             FUNC>;
     } break;
     case common::PhysicalTypeID::INTERVAL: {
-      func = BinaryComparisonSelectFunction<common::interval_t,
-                                            common::interval_t, FUNC>;
+      func = BinaryComparisonSelectFunction<compiler_impl::interval_t,
+                                            compiler_impl::interval_t, FUNC>;
     } break;
     case common::PhysicalTypeID::ARRAY:
     case common::PhysicalTypeID::LIST: {

@@ -49,9 +49,12 @@ namespace catalog {
 class Catalog;
 }  // namespace catalog
 
+namespace compiler_impl {
+class Value;
+}  // namespace compiler_impl
+
 namespace common {
 enum class StatementType : uint8_t;
-class Value;
 struct FileInfo;
 class VirtualFileSystem;
 }  // namespace common
@@ -59,10 +62,11 @@ class VirtualFileSystem;
 namespace storage {
 class MemoryManager;
 class BufferManager;
-class StatsManager;
 class WAL;
 enum class WALReplayMode : uint8_t;
 }  // namespace storage
+
+class GraphStats;
 
 namespace planner {
 class LogicalOperator;

@@ -1,0 +1,100 @@
+name: Release NPM Packages
+
+# Published GitHub releases drive npm publishing.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Keep one publish run per tag.
+concurrency:
+  group: ${{ github.repository }}-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Reuse the npm build/test workflow so release artifacts come from the tested build.
+  build:
+    uses: ./.github/workflows/npm-build-test.yml
+
+  publish:
+    name: Publish npm packages
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Needed for main package assets and validation scripts.
+      - name: checkout
+        uses: actions/checkout@v4
+
+      # Configure npm registry auth; publish uses NODE_AUTH_TOKEN below.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Download artifact containers uploaded by npm-build-test; their contents are .tgz files.
+      - name: Download npm tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nodejs-*-${{ github.run_id }}
+          path: dist/npm
+          merge-multiple: true
+
+      # Show the actual npm tarballs after artifact extraction.
+      - name: List npm tarballs
+        run: |
+          find dist/npm -maxdepth 2 -name '*.tgz' -print | sort
+
+      # Assemble the pure-JS main package that depends on platform packages.
+      - name: Prepare main package
+        run: |
+          MAIN_DIR="dist/npm-main"
+          mkdir -p "$MAIN_DIR"
+          cp tools/nodejs_bind/assets/package.json "$MAIN_DIR/package.json"
+          cp tools/nodejs_bind/assets/index.js "$MAIN_DIR/index.js"
+
+      # Validate package metadata, unpack platform packages, then publish all packages.
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # These names are npm pack outputs inside the downloaded artifact containers.
+          linux_x86_64=(dist/npm/graphscope-neug-linux-x86_64-*.tgz)
+          osx_arm64=(dist/npm/graphscope-neug-osx-arm64-*.tgz)
+
+          # Fail early if a required platform package was not built or downloaded.
+          if [ ! -f "${linux_x86_64[0]}" ]; then
+            echo "No linux-x86_64 npm tarball found."
+            exit 1
+          fi
+
+          if [ ! -f "${osx_arm64[0]}" ]; then
+            echo "No osx-arm64 npm tarball found."
+            exit 1
+          fi
+
+          # The tag version must match every package version before publish is attempted.
+          VERSION="${RELEASE_TAG#v}"
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            "${linux_x86_64[0]}" '@graphscope-neug/linux-x86_64' "$VERSION"
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            "${osx_arm64[0]}" '@graphscope-neug/osx-arm64' "$VERSION"
+          python3 tools/nodejs_bind/scripts/validate_npm_version.py \
+            dist/npm-main '@graphscope-neug/neug' "$VERSION" \
+            --optional-dependency '@graphscope-neug/linux-x86_64' \
+            --optional-dependency '@graphscope-neug/osx-arm64'
+
+          # npm publish must run from package directories, so unpack platform tarballs first.
+          mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/osx-arm64
+          tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
+          tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
+
+          npm publish ./dist/npm-packages/linux-x86_64/package --access public
+          npm publish ./dist/npm-packages/osx-arm64/package --access public
+          npm publish ./dist/npm-main --access public

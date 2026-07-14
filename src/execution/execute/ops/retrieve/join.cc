@@ -17,9 +17,9 @@
 
 #include <glog/logging.h>
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/join.h"
-#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/params.h"
@@ -83,6 +83,21 @@ class JoinOpr : public IOperator {
     Context out;
     out.append_chunk(std::move(join_result.value()));
     return out;
+  }
+
+  void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,
+                              IStorageInterface& graph) override {
+    // Build explain tree for left and right pipelines
+    // and add them as children to the parent timer
+    auto left_tree_result = left_pipeline_.explain_tree(graph, params);
+    auto right_tree_result = right_pipeline_.explain_tree(graph, params);
+
+    if (left_tree_result && left_tree_result.value()) {
+      parent_timer->add_child(std::move(left_tree_result.value()));
+    }
+    if (right_tree_result && right_tree_result.value()) {
+      parent_timer->add_child(std::move(right_tree_result.value()));
+    }
   }
 
  private:

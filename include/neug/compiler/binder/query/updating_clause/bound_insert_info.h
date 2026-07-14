@@ -24,19 +24,19 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/conflict_action.h"
-#include "neug/compiler/common/enums/table_type.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace binder {
 
 struct BoundInsertInfo {
-  common::TableType tableType;
+  SchemaEntryType tableType;
   std::shared_ptr<Expression> pattern;
   expression_vector columnExprs;
   expression_vector columnDataExprs;
   common::ConflictAction conflictAction;
 
-  BoundInsertInfo(common::TableType tableType,
+  BoundInsertInfo(SchemaEntryType tableType,
                   std::shared_ptr<Expression> pattern)
       : tableType{tableType},
         pattern{std::move(pattern)},

@@ -21,9 +21,9 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/common/columns/vertex_columns.h"
+#include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -132,7 +132,7 @@ neug::result<vid_t> insert_vertex_row(
   }
 
   Value pk_value;
-  std::vector<execution::Value> property_values(properties.size() - 1);
+  std::vector<Value> property_values(properties.size() - 1);
   for (size_t j = 0; j < properties.size(); ++j) {
     const auto& [prop_name, prop_expr] = properties[j];
     Value value = prop_expr->Cast<RecordExprBase>().eval_record(chunk, row);

@@ -25,19 +25,16 @@
 #include <map>
 #include <sstream>
 
-#include "neug/compiler/common/serializer/deserializer.h"
-#include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_utils.h"
 
-using namespace neug::binder;
 using namespace neug::common;
 
 namespace neug {
 namespace catalog {
 
-std::vector<binder::PropertyDefinition>
-PropertyDefinitionCollection::getDefinitions() const {
-  std::vector<binder::PropertyDefinition> propertyDefinitions;
+std::vector<PropertyDefinition> PropertyDefinitionCollection::getDefinitions()
+    const {
+  std::vector<PropertyDefinition> propertyDefinitions;
   for (auto i = 0u; i < nextPropertyID; i++) {
     if (definitions.contains(i)) {
       propertyDefinitions.push_back(definitions.at(i).copy());
@@ -133,43 +130,6 @@ std::string PropertyDefinitionCollection::toCypher() const {
        << " " << typeStr << ",";
   }
   return ss.str();
-}
-
-void PropertyDefinitionCollection::serialize(Serializer& serializer) const {
-  serializer.writeDebuggingInfo("nextColumnID");
-  serializer.serializeValue(nextColumnID);
-  serializer.writeDebuggingInfo("nextPropertyID");
-  serializer.serializeValue(nextPropertyID);
-  serializer.writeDebuggingInfo("definitions");
-  serializer.serializeMap(definitions);
-  serializer.writeDebuggingInfo("columnIDs");
-  serializer.serializeUnorderedMap(columnIDs);
-}
-
-PropertyDefinitionCollection PropertyDefinitionCollection::deserialize(
-    Deserializer& deserializer) {
-  std::string debuggingInfo;
-  column_id_t nextColumnID = 0;
-  deserializer.validateDebuggingInfo(debuggingInfo, "nextColumnID");
-  deserializer.deserializeValue(nextColumnID);
-  property_id_t nextPropertyID = 0;
-  deserializer.validateDebuggingInfo(debuggingInfo, "nextPropertyID");
-  deserializer.deserializeValue(nextPropertyID);
-  std::map<property_id_t, PropertyDefinition> definitions;
-  deserializer.validateDebuggingInfo(debuggingInfo, "definitions");
-  deserializer.deserializeMap(definitions);
-  std::unordered_map<property_id_t, column_id_t> columnIDs;
-  deserializer.validateDebuggingInfo(debuggingInfo, "columnIDs");
-  deserializer.deserializeUnorderedMap(columnIDs);
-  auto collection = PropertyDefinitionCollection();
-  for (auto& [propertyID, definition] : definitions) {
-    collection.nameToPropertyIDMap.insert({definition.getName(), propertyID});
-  }
-  collection.nextColumnID = nextColumnID;
-  collection.nextPropertyID = nextPropertyID;
-  collection.definitions = std::move(definitions);
-  collection.columnIDs = std::move(columnIDs);
-  return collection;
 }
 
 }  // namespace catalog

@@ -29,6 +29,7 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 #include <memory>
@@ -708,31 +709,16 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
   checkCatalogInitialized();
 
   const auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  std::vector<neug::catalog::GRelTableCatalogEntry*> relTableEntries;
+  std::vector<EdgeSchema*> relTableEntries;
 
   if (catalog->containsRelGroup(&transaction, labelName)) {
-    auto* groupEntry = catalog->getRelGroupEntry(&transaction, labelName);
-    const auto& relTableIds = groupEntry->getRelTableIDs();
-    relTableEntries.reserve(relTableIds.size());
-
-    for (const auto& tableId : relTableIds) {
-      auto* entry = catalog->getTableCatalogEntry(&transaction, tableId);
-      if (!entry ||
-          entry->getType() != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-        THROW_RUNTIME_ERROR("Edge Table Entry Not found: " + tableId);
-      }
-      auto* edgeTableEntry =
-          static_cast<neug::catalog::GRelTableCatalogEntry*>(entry);
-      relTableEntries.push_back(edgeTableEntry);
-    }
+    relTableEntries = catalog->getRelGroupEntry(&transaction, labelName);
   } else {
     auto* entry = catalog->getTableCatalogEntry(&transaction, labelName);
-    if (!entry ||
-        entry->getType() != catalog::CatalogEntryType::REL_TABLE_ENTRY) {
+    auto* edgeTableEntry = dynamic_cast<EdgeSchema*>(entry);
+    if (!edgeTableEntry) {
       THROW_RUNTIME_ERROR("Edge table entry not found: " + labelName);
     }
-    auto* edgeTableEntry =
-        static_cast<neug::catalog::GRelTableCatalogEntry*>(entry);
     relTableEntries.push_back(edgeTableEntry);
   }
 
@@ -751,12 +737,12 @@ std::string GDDLConverter::getVertexLabelName(neug::common::oid_t tableId) {
 
   auto* entry = catalog->getTableCatalogEntry(
       &neug::Constants::DEFAULT_TRANSACTION, tableId);
-  if (!entry ||
-      entry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
+  auto* vertexSchema = dynamic_cast<const VertexSchema*>(entry);
+  if (!vertexSchema) {
     THROW_RUNTIME_ERROR("Node table entry not found for id: " +
                         std::to_string(tableId));
   }
-  return entry->getName();
+  return vertexSchema->get_label();
 }
 
 bool GDDLConverter::checkEntryType(const std::string& labelName,
@@ -768,7 +754,14 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   if (!entry) {
     THROW_RUNTIME_ERROR("Catalog entry not found for label: " + labelName);
   }
-  return entry->getType() == expectedType;
+  switch (expectedType) {
+  case catalog::CatalogEntryType::NODE_TABLE_ENTRY:
+    return entry->get_entry_type() == SchemaEntryType::NODE;
+  case catalog::CatalogEntryType::REL_TABLE_ENTRY:
+    return entry->get_entry_type() == SchemaEntryType::REL;
+  default:
+    return false;
+  }
 }
 
 }  // namespace gopt

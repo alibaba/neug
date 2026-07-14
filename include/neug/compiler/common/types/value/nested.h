@@ -28,15 +28,18 @@
 #include "neug/utils/api.h"
 
 namespace neug {
-namespace common {
-
+namespace compiler_impl {
 class Value;
+}  // namespace compiler_impl
+
+namespace common {
 
 class NestedVal {
  public:
-  NEUG_API static uint32_t getChildrenSize(const Value* val);
+  NEUG_API static uint32_t getChildrenSize(const compiler_impl::Value* val);
 
-  NEUG_API static Value* getChildVal(const Value* val, uint32_t idx);
+  NEUG_API static compiler_impl::Value* getChildVal(
+      const compiler_impl::Value* val, uint32_t idx);
 };
 
 }  // namespace common

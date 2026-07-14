@@ -27,6 +27,18 @@
 namespace neug {
 namespace common {
 
+namespace {
+int64_t normalizeTimestampMillis(compiler_impl::timestamp_ms_t val) {
+  constexpr int64_t kLikelyMicrosThreshold = 100000000000000LL;
+  if (val.value > kLikelyMicrosThreshold ||
+      val.value < -kLikelyMicrosThreshold) {
+    return compiler_impl::Timestamp::getEpochMilliSeconds(
+        compiler_impl::timestamp_t(val.value));
+  }
+  return val.value;
+}
+}  // namespace
+
 std::string TypeUtils::entryToString(const DataType& dataType,
                                      const uint8_t* value,
                                      ValueVector* vector) {
@@ -55,11 +67,14 @@ std::string TypeUtils::entryToString(const DataType& dataType,
   case DataTypeId::kFloat:
     return TypeUtils::toString(*reinterpret_cast<const float*>(value));
   case DataTypeId::kDate:
-    return TypeUtils::toString(*reinterpret_cast<const date_t*>(value));
+    return TypeUtils::toString(
+        *reinterpret_cast<const compiler_impl::date_t*>(value));
   case DataTypeId::kTimestampMs:
-    return TypeUtils::toString(*reinterpret_cast<const timestamp_ms_t*>(value));
+    return TypeUtils::toString(
+        *reinterpret_cast<const compiler_impl::timestamp_ms_t*>(value));
   case DataTypeId::kInterval:
-    return TypeUtils::toString(*reinterpret_cast<const interval_t*>(value));
+    return TypeUtils::toString(
+        *reinterpret_cast<const compiler_impl::interval_t*>(value));
   case DataTypeId::kVarchar:
     return TypeUtils::toString(*reinterpret_cast<const neug_string_t*>(value));
   case DataTypeId::kInternalId:
@@ -111,24 +126,27 @@ std::string TypeUtils::toString(const internalID_t& val,
 }
 
 template <>
-std::string TypeUtils::toString(const date_t& val, void* /*valueVector*/) {
-  return Date::toString(val);
-}
-
-template <>
-std::string TypeUtils::toString(const timestamp_ms_t& val,
+std::string TypeUtils::toString(const compiler_impl::date_t& val,
                                 void* /*valueVector*/) {
-  return toString(Timestamp::fromEpochMilliSeconds(val.value));
+  return compiler_impl::Date::toString(val);
 }
 
 template <>
-std::string TypeUtils::toString(const timestamp_t& val, void* /*valueVector*/) {
-  return Timestamp::toString(val);
+std::string TypeUtils::toString(const compiler_impl::timestamp_ms_t& val,
+                                void* /*valueVector*/) {
+  return toString(compiler_impl::Timestamp::fromEpochMilliSeconds(val.value));
 }
 
 template <>
-std::string TypeUtils::toString(const interval_t& val, void* /*valueVector*/) {
-  return Interval::toString(val);
+std::string TypeUtils::toString(const compiler_impl::timestamp_t& val,
+                                void* /*valueVector*/) {
+  return compiler_impl::Timestamp::toString(val);
+}
+
+template <>
+std::string TypeUtils::toString(const compiler_impl::interval_t& val,
+                                void* /*valueVector*/) {
+  return compiler_impl::Interval::toString(val);
 }
 
 template <>

@@ -1,0 +1,46 @@
+name: Weekly Build NeuG image
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  workflow_dispatch:
+  schedule:
+    # The notifications for scheduled workflows are sent to the user who
+    # last modified the cron syntax in the workflow file.
+    # Trigger the workflow at 22:00(CST) every Monday.
+    - cron:  '0 14 * * 1'
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/weekly-build-image.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-neug-image:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: false
+    
+    - name: Build NeuG Image
+      run: |
+        cd ${GITHUB_WORKSPACE}/
+        cd docker && make neug-release
+        ARCH=$(uname -m)
+        docker image inspect neug/neug:${ARCH}
+
+    - name: Remove Image
+      run: |
+        ARCH=$(uname -m)
+        docker rmi neug/neug:${ARCH}

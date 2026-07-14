@@ -21,21 +21,23 @@
  */
 
 #include "neug/compiler/binder/binder.h"
+
+#include <optional>
 #include "neug/compiler/binder/ddl/bound_alter.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/index_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/main/client_context.h"
@@ -49,6 +51,7 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
+#include "neug/utils/property/default_value.h"
 
 using namespace neug::common;
 using namespace neug::parser;
@@ -56,6 +59,46 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
+
+static std::optional<::neug::Value> tryConvertTemporalDefault(
+    const ParsedExpression* parsedDefault, const DataType& type) {
+  auto functionExpr =
+      dynamic_cast<const ParsedFunctionExpression*>(parsedDefault);
+  if (functionExpr == nullptr || functionExpr->getNumChildren() != 1) {
+    return std::nullopt;
+  }
+  auto literalExpr =
+      dynamic_cast<const ParsedLiteralExpression*>(functionExpr->getChild(0));
+  if (literalExpr == nullptr) {
+    return std::nullopt;
+  }
+  auto literal = literalExpr->getValue();
+  if (literal.getDataType().id() != DataTypeId::kVarchar) {
+    return std::nullopt;
+  }
+  const auto literalString = literal.getValue<std::string>();
+  const auto functionName = functionExpr->getNormalizedFunctionName();
+  switch (type.id()) {
+  case DataTypeId::kDate:
+    if (functionName == "DATE") {
+      return ::neug::Value::DATE(::neug::Date(literalString));
+    }
+    break;
+  case DataTypeId::kTimestampMs:
+    if (functionName == "TIMESTAMP") {
+      return ::neug::Value::TIMESTAMPMS(::neug::DateTime(literalString));
+    }
+    break;
+  case DataTypeId::kInterval:
+    if (functionName == "INTERVAL") {
+      return ::neug::Value::INTERVAL(::neug::Interval(literalString));
+    }
+    break;
+  default:
+    break;
+  }
+  return std::nullopt;
+}
 
 static void validatePropertyName(
     const std::vector<PropertyDefinition>& definitions) {
@@ -80,15 +123,30 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
   std::vector<PropertyDefinition> definitions;
   for (auto& def : parsedDefinitions) {
     auto type = convertFromString(def.getType(), clientContext);
-    auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
-                                              tableName, def.getName());
-    auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
-    if (boundExpr->dataType != type) {
-      boundExpr = expressionBinder.implicitCast(boundExpr, type);
+    auto defaultValue = get_default_value(type);
+    if (def.defaultExpr != nullptr) {
+      auto directDefault =
+          tryConvertTemporalDefault(def.defaultExpr.get(), type);
+      if (directDefault.has_value()) {
+        defaultValue = std::move(*directDefault);
+      } else {
+        auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
+                                                  tableName, def.getName());
+        auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
+        if (boundExpr->dataType != type) {
+          boundExpr = expressionBinder.implicitCast(boundExpr, type);
+        }
+        if (ConstantExpressionVisitor::needFold(*boundExpr)) {
+          boundExpr = expressionBinder.foldExpression(boundExpr);
+        }
+        defaultValue = common::convertToExecutionValue(
+            boundExpr->constCast<LiteralExpression>().getValue(), type);
+      }
     }
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
     definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultExpr), std::move(boundExpr));
+                             std::move(defaultValue),
+                             def.defaultExpr != nullptr);
   }
   validatePropertyName(definitions);
   return definitions;
@@ -100,7 +158,7 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
   if (parsedDefault == nullptr) {  // No default provided.
     // set system default value if query default value is not set
     return std::make_unique<ParsedLiteralExpression>(
-        Value::createDefaultValue(type), "NULL");
+        compiler_impl::Value::createDefaultValue(type), "NULL");
   } else {
     return parsedDefault->copy();
   }
@@ -144,32 +202,7 @@ static void validatePrimaryKey(
 }
 
 void Binder::validateNoIndexOnProperty(const std::string& tableName,
-                                       const std::string& propertyName) const {
-  auto transaction = clientContext->getTransaction();
-  auto catalog = clientContext->getCatalog();
-  if (catalog->containsRelGroup(transaction, tableName)) {
-    // RelGroup does not have indexes.
-    return;
-  }
-  auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
-  if (!tableEntry->containsProperty(propertyName)) {
-    return;
-  }
-  auto propertyID = tableEntry->getPropertyID(propertyName);
-  for (auto indexCatalogEntry : catalog->getIndexEntries(transaction)) {
-    auto propertiesWithIndex = indexCatalogEntry->getPropertyIDs();
-    if (indexCatalogEntry->getTableID() == tableEntry->getTableID() &&
-        std::find(propertiesWithIndex.begin(), propertiesWithIndex.end(),
-                  propertyID) != propertiesWithIndex.end()) {
-      THROW_BINDER_EXCEPTION(
-          stringFormat("Cannot drop property {} in table {} because it is used "
-                       "in one or more indexes. "
-                       "Please remove the associated indexes before attempting "
-                       "to drop this property.",
-                       propertyName, tableName));
-    }
-  }
-}
+                                       const std::string& propertyName) const {}
 
 BoundCreateTableInfo Binder::bindCreateTableInfo(const CreateTableInfo* info) {
   switch (info->type) {
@@ -201,10 +234,10 @@ BoundCreateTableInfo Binder::bindCreateNodeTableInfo(
       std::move(boundExtraInfo), clientContext->useInternalCatalogEntry());
 }
 
-void Binder::validateNodeTableType(const TableCatalogEntry* entry) {
-  if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
+void Binder::validateNodeTableType(SchemaEntry* entry) {
+  if (entry->get_entry_type() != SchemaEntryType::NODE) {
     THROW_BINDER_EXCEPTION(
-        stringFormat("{} is not of type NODE.", entry->getName()));
+        stringFormat("{} is not of type NODE.", entry->get_label()));
   }
 }
 
@@ -216,16 +249,16 @@ void Binder::validateTableExistence(const main::ClientContext& context,
   }
 }
 
-void Binder::validateColumnExistence(const TableCatalogEntry* entry,
+void Binder::validateColumnExistence(SchemaEntry* entry,
                                      const std::string& columnName) {
-  if (!entry->containsProperty(columnName)) {
+  if (!entry->contains_property(columnName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Column {} does not exist in table {}.",
-                                        columnName, entry->getName()));
+                                        columnName, entry->get_label()));
   }
 }
 
 static ExtendDirection getStorageDirection(
-    const case_insensitive_map_t<Value>& options) {
+    const case_insensitive_map_t<compiler_impl::Value>& options) {
   if (options.contains(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)) {
     return ExtendDirectionUtil::fromString(
         options.at(TableOptionConstants::REL_STORAGE_DIRECTION_OPTION)
@@ -262,7 +295,7 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
   auto storageDirection = getStorageDirection(boundOptions);
   auto boundExtraInfo = std::make_unique<BoundExtraCreateRelTableInfo>(
       srcMultiplicity, dstMultiplicity, storageDirection,
-      srcEntry->getTableID(), dstEntry->getTableID(),
+      srcEntry->get_entry_id(), dstEntry->get_entry_id(),
       std::move(propertyDefinitions));
   boundExtraInfo->options = std::move(boundOptions);
   return BoundCreateTableInfo(
@@ -338,16 +371,6 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
   int64_t increment = 0;
   int64_t minValue = 0;
   int64_t maxValue = 0;
-  switch (info.onConflict) {
-  case ConflictAction::ON_CONFLICT_THROW: {
-    if (clientContext->getCatalog()->containsSequence(
-            clientContext->getTransaction(), sequenceName)) {
-      THROW_BINDER_EXCEPTION(sequenceName + " already exists in catalog.");
-    }
-  } break;
-  default:
-    break;
-  }
   auto literal = neug_string_t{info.increment.c_str(), info.increment.length()};
   if (!function::CastString::tryCast(literal, increment)) {
     THROW_BINDER_EXCEPTION(
@@ -459,9 +482,14 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   if (ConstantExpressionVisitor::needFold(*boundDefault)) {
     boundDefault = expressionBinder.foldExpression(boundDefault);
   }
+  auto defaultValue =
+      extraInfo->defaultValue == nullptr
+          ? ::neug::Value(type.copy())
+          : common::convertToExecutionValue(
+                boundDefault->constCast<LiteralExpression>().getValue(), type);
   auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultExpr),
-                         std::move(boundDefault));
+      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue),
+                         extraInfo->defaultValue != nullptr);
   auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
       std::move(propertyDefinition), std::move(boundDefault));
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,

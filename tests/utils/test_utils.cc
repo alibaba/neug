@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/execution/common/types/value.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/encoder.h"
@@ -246,6 +246,12 @@ TEST_F(DatetimeParserTest, Timestamp_YYYYMMDD) {
   EXPECT_TRUE(neug::utils::parse_timestamp(
       "2023-01-01", 10, neug::utils::TimestampUnit::kMilli, &result));
   EXPECT_EQ(result, 1672531200LL * 1000);
+}
+
+TEST_F(DatetimeParserTest, Timestamp_AllowsYearZero) {
+  int64_t result = 0;
+  EXPECT_TRUE(neug::utils::parse_timestamp(
+      "0000-02-29", 10, neug::utils::TimestampUnit::kMilli, &result));
 }
 
 TEST_F(DatetimeParserTest, Timestamp_WithTime) {
@@ -1060,7 +1066,7 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_ArrayDefaultExpression) {
   ASSERT_EQ(result.value().size(), 1U);
   const auto& value = result.value()[0].second;
   EXPECT_EQ(value.type().id(), DataTypeId::kArray);
-  const auto& children = execution::ArrayValue::GetChildren(value);
+  const auto& children = ArrayValue::GetChildren(value);
   ASSERT_EQ(children.size(), 2U);
   EXPECT_EQ(children[0].GetValue<int32_t>(), 1);
   EXPECT_EQ(children[1].GetValue<int32_t>(), 2);
@@ -1095,11 +1101,10 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_NestedArrayDefaultExpression) {
 
   auto result = property_defs_to_value(props);
   ASSERT_TRUE(result.has_value());
-  const auto& rows =
-      execution::ArrayValue::GetChildren(result.value()[0].second);
+  const auto& rows = ArrayValue::GetChildren(result.value()[0].second);
   ASSERT_EQ(rows.size(), 2U);
-  const auto& first_row = execution::ArrayValue::GetChildren(rows[0]);
-  const auto& second_row = execution::ArrayValue::GetChildren(rows[1]);
+  const auto& first_row = ArrayValue::GetChildren(rows[0]);
+  const auto& second_row = ArrayValue::GetChildren(rows[1]);
   ASSERT_EQ(first_row.size(), 2U);
   ASSERT_EQ(second_row.size(), 2U);
   EXPECT_EQ(first_row[0].GetValue<int32_t>(), 1);

@@ -210,7 +210,7 @@ bool ExpressionUtil::isFalseLiteral(const Expression& expression) {
 }
 
 bool ExpressionUtil::isEmptyList(const Expression& expression) {
-  auto val = Value::createNullValue();
+  auto val = compiler_impl::Value::createNullValue();
   switch (expression.expressionType) {
   case ExpressionType::LITERAL: {
     val = expression.constCast<LiteralExpression>().getValue();
@@ -373,7 +373,8 @@ static bool compatible(const DataType& type, const DataType& target) {
 // Handle special cases where value can be compatible to a type. This happens
 // when a value is a nested value but does not have any child. E.g. [] is
 // compatible with [1,2]
-static bool compatible(const Value& value, const DataType& targetType) {
+static bool compatible(const compiler_impl::Value& value,
+                       const DataType& targetType) {
   if (value.isNull()) {  // Value is null. We can safely change its type.
     return true;
   }
@@ -434,7 +435,7 @@ static bool compatible(const Value& value, const DataType& targetType) {
 
 bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
                                         DataType& result) {
-  std::vector<Value> secondaryValues;
+  std::vector<compiler_impl::Value> secondaryValues;
   std::vector<DataType> primaryTypes;
   bool propKeyValues = false;
   if (expressions.size() == 2 &&
@@ -503,9 +504,10 @@ bool ExpressionUtil::canEvaluateAsLiteral(const Expression& expr) {
            expr.getDataType().id() != DataTypeId::kUnknown));
 }
 
-Value ExpressionUtil::evaluateAsLiteralValue(const Expression& expr) {
+compiler_impl::Value ExpressionUtil::evaluateAsLiteralValue(
+    const Expression& expr) {
   NEUG_ASSERT(canEvaluateAsLiteral(expr));
-  auto value = Value::createDefaultValue(expr.dataType);
+  auto value = compiler_impl::Value::createDefaultValue(expr.dataType);
   switch (expr.expressionType) {
   case ExpressionType::LITERAL: {
     value = expr.constCast<LiteralExpression>().getValue();

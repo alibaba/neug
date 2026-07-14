@@ -33,7 +33,8 @@ project (
 
 option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
-option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
+option(NEUG_PACKAGE_BUILD "Whether to build portable distributable artifacts" OFF)
+option(NEUG_NATIVE_ARCH "Whether to enable host-specific CPU tuning for local builds" OFF)
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
@@ -106,6 +107,8 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 
 include(CheckCXXCompilerFlag)
 include(cmake/neug_symbol_visibility.cmake)
+include(cmake/NeugNativeArch.cmake)
+neug_configure_native_arch()
 
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -187,11 +190,6 @@ if (HAVE_CHRONO_YMD)
     add_definitions(-DENABLE_CHRONO_YMD)
 endif()
 
-# -Wno-psabi for no warning about returning a pair in c++ function
-if (OPTIMIZE_FOR_HOST AND NOT APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-endif()
-
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #if compiler is gcc
@@ -252,6 +250,7 @@ check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECA
 check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
 check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
 check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+check_cxx_compiler_flag("-Wno-deprecated-builtins" COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
 if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
 endif()
@@ -266,6 +265,9 @@ if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
 endif()
 if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
+endif()
+if (COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-builtins")
 endif()
 
 macro(install_neug_target target)
@@ -355,6 +357,7 @@ build_abseil_as_third_party()
 
 if(BUILD_TEST)
     enable_testing()
+    add_compile_definitions(NEUG_BUILD_TEST)
     # Always use the bundled googletest to avoid discrepancies in system packages.
     add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
     add_library(neug::GTest INTERFACE IMPORTED)
@@ -438,8 +441,15 @@ function(add_neug_test TEST_NAME)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${OPENSSL_LIBRARIES} 
+        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
         ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    # The bundled googletest (v1.13.0, fetched into _deps) must beat any
+    # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
+    # tests compile against newer gtest headers but link the bundled library,
+    # producing undefined MakeAndRegisterTestInfo symbols at link time.
+    target_include_directories(${TEST_NAME} BEFORE PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googletest/include
+        ${CMAKE_BINARY_DIR}/_deps/googletest-src/googlemock/include)
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
         target_link_options(${TEST_NAME} PRIVATE --coverage)
@@ -918,6 +928,7 @@ endif()
 
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
+neug_apply_native_arch_to_directory("${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_subdirectory(tools)
 if (BUILD_EXECUTABLES)
     add_subdirectory(bin)
@@ -963,14 +974,27 @@ install(EXPORT neug-targets
 	    NAMESPACE neug::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/neug)
 
+# Cover the same dirs and .h/.cc/.cpp extensions as the CI format gate
+# (.github/workflows/format-check.yml), which neug_clformat is advertised to
+# fix. NOTE: the excludes applied below (generated/.pb/third_party/etc.) are
+# broader than CI's find (which only skips *pb.h/*pb.cc), so a non-generated
+# source under an excluded path is checked by CI but not formatted here.
 file(GLOB_RECURSE FILES_NEED_FORMAT
         "include/**/*.h"
+        "include/**/*.cc"
+        "include/**/*.cpp"
         "src/**/*.h"
         "src/**/*.cc"
+        "src/**/*.cpp"
         "tests/**/*.h"
         "tests/**/*.cc"
+        "tests/**/*.cpp"
         "tools/**/*.h"
-        "tools/**/*.cc")
+        "tools/**/*.cc"
+        "tools/**/*.cpp"
+        "extension/**/*.h"
+        "extension/**/*.cc"
+        "extension/**/*.cpp")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.act.h$|.*\.actg.h$|.*\.autogen.h$|.*\.autogen.cc$")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*/third_party/.*")
 list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*\.pb.h$|.*\.pb.cc$")

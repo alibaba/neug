@@ -143,7 +143,8 @@ Connect to the database.
 def serve(port: int = 10000,
           host: str = "localhost",
           blocking: bool = True,
-          thread_num: int = 0)
+          thread_num: int = 0,
+          auto_compaction: bool = True)
 ```
 
 Start the database server for handling remote connections(TP mode).
@@ -167,6 +168,8 @@ documentation of Session.
     `max_thread_num`. With the default database thread setting,
     `max_thread_num` is resolved from hardware concurrency and falls back to
     `1` if the runtime cannot detect it.
+  - `auto_compaction` (bool)
+    Enable background auto-compaction while serving. Default is `True`.
 
 - **Returns:**
   - `uri` (str)
@@ -184,6 +187,7 @@ documentation of Session.
   - **Make sure to close all connections before starting the server.**
   - **After starting the server, no new connections to the local database will be allowed.**
   - **`thread_num` controls server-side service threads; client-side `Session(..., num_threads=...)` controls the HTTP connection pool used by that client.**
+  - **`auto_compaction` controls serve-time background compaction behavior.**
 
 <a id="neug.database.Database.stop_serving"></a>
 

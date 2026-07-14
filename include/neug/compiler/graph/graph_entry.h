@@ -26,10 +26,10 @@
 #include <unordered_map>
 
 #include "neug/compiler/binder/expression/node_expression.h"
-#include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/storages/graph/schema.h"
 
 namespace neug {
 namespace main {
@@ -68,14 +68,13 @@ struct ParsedGraphEntry {
 };
 
 struct BoundGraphEntryTableInfo {
-  catalog::TableCatalogEntry* entry;
+  SchemaEntry* entry;
 
   std::shared_ptr<binder::Expression> nodeOrRel;
   std::shared_ptr<binder::Expression> predicate;
 
-  explicit BoundGraphEntryTableInfo(catalog::TableCatalogEntry* entry)
-      : entry{entry} {}
-  BoundGraphEntryTableInfo(catalog::TableCatalogEntry* entry,
+  explicit BoundGraphEntryTableInfo(SchemaEntry* entry) : entry{entry} {}
+  BoundGraphEntryTableInfo(SchemaEntry* entry,
                            std::shared_ptr<binder::Expression> nodeOrRel,
                            std::shared_ptr<binder::Expression> predicate)
       : entry{entry},
@@ -91,16 +90,16 @@ struct NEUG_API GraphEntry {
   std::vector<BoundGraphEntryTableInfo> relInfos;
 
   GraphEntry() = default;
-  GraphEntry(std::vector<catalog::TableCatalogEntry*> nodeEntries,
-             std::vector<catalog::TableCatalogEntry*> relEntries);
+  GraphEntry(std::vector<SchemaEntry*> nodeEntries,
+             std::vector<SchemaEntry*> relEntries);
   EXPLICIT_COPY_DEFAULT_MOVE(GraphEntry);
 
   bool isEmpty() const { return nodeInfos.empty() && relInfos.empty(); }
 
   std::vector<common::table_id_t> getNodeTableIDs() const;
   std::vector<common::table_id_t> getRelTableIDs() const;
-  std::vector<catalog::TableCatalogEntry*> getNodeEntries() const;
-  std::vector<catalog::TableCatalogEntry*> getRelEntries() const;
+  std::vector<SchemaEntry*> getNodeEntries() const;
+  std::vector<SchemaEntry*> getRelEntries() const;
 
   const BoundGraphEntryTableInfo& getRelInfo(common::table_id_t tableID) const;
 
@@ -110,11 +109,11 @@ struct NEUG_API GraphEntry {
     std::string result = "GraphEntry{";
     result += "nodeInfos=[";
     for (auto& nodeInfo : nodeInfos) {
-      result += nodeInfo.entry->getName() + ", ";
+      result += nodeInfo.entry->get_label() + ", ";
     }
     result += "], relInfos=[";
     for (auto& relInfo : relInfos) {
-      result += relInfo.entry->getName() + ", ";
+      result += relInfo.entry->get_label() + ", ";
     }
     result += "]}";
     return result;
@@ -182,13 +181,12 @@ class NEUG_API GDSFunction {
 
   static std::shared_ptr<binder::NodeExpression> bindNodeOutput(
       const function::TableFuncBindInput& bindInput,
-      const std::vector<catalog::TableCatalogEntry*>& nodeEntries,
-      const std::string& name,
+      const std::vector<SchemaEntry*>& nodeEntries, const std::string& name,
       const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);
 
   static std::shared_ptr<binder::Expression> bindRelOutput(
       const function::TableFuncBindInput& bindInput,
-      const std::vector<catalog::TableCatalogEntry*>& relEntries,
+      const std::vector<SchemaEntry*>& relEntries,
       std::shared_ptr<binder::NodeExpression> srcNode,
       std::shared_ptr<binder::NodeExpression> dstNode, const std::string& name,
       const std::optional<uint64_t>& yieldVariableIdx = std::nullopt);

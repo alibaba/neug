@@ -14,7 +14,7 @@
  */
 
 #include "neug/execution/expression/accessors/record_accessor.h"
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types/i_context_column.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {

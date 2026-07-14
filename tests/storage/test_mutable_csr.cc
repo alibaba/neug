@@ -794,9 +794,9 @@ TYPED_TEST(MutableCsrTest, TestPutEdge) {
   EXPECT_EQ(single_mutable_csr.edge_num(), edge_num);
   EXPECT_EQ(empty_csr.edge_num(), 0);
 
-  mutable_csr.reset_timestamp();
-  single_mutable_csr.reset_timestamp();
-  empty_csr.reset_timestamp();
+  mutable_csr.compact();
+  single_mutable_csr.compact();
+  empty_csr.compact();
 }
 
 TEST(CsrToolTest, OpenNonExistFile) {
@@ -998,7 +998,7 @@ TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
   auto p2 = nbr_path(d2);
   EXPECT_EQ(inode_of(p1), inode_of(p2));
 
-  c2.reset_timestamp();
+  c2.compact();
   auto d3 = dump_module_descriptor(c2, *ckp, "c2");
   auto p3 = nbr_path(d3);
   EXPECT_EQ(inode_of(p2), inode_of(p3));

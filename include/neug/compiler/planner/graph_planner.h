@@ -18,8 +18,9 @@
 #include <string>
 #include <vector>
 
-#include <yaml-cpp/yaml.h>
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/graph_stats.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -43,20 +44,8 @@ class IGraphPlanner {
    * @return The executable plan.
    */
   virtual result<std::pair<physical::PhysicalPlan, std::string>> compilePlan(
-      const std::string& query) = 0;
-
-  /**
-   * @brief Update the metadata of the graph. To let the planner be aware of the
-   * changes in the graph schema and statistics.
-   * @param schema_yaml_node The YAML node of the graph schema.
-   */
-  virtual void update_meta(const YAML::Node& schema_yaml_node) = 0;
-
-  /**
-   * @brief Update the statistics of the graph.
-   * @param graph_statistic_json The JSON string of the graph statistics.
-   */
-  virtual void update_statistics(const std::string& graph_statistic_json) = 0;
+      const std::string& query, const Schema* schema,
+      const GraphStats& stats) = 0;
 
   // Attempts to infer the execution access mode from the given query.
   // The current implementation relies on static analysis of the query string

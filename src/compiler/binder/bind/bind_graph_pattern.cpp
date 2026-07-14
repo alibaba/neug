@@ -21,15 +21,14 @@
  */
 
 #include <memory>
+#include <unordered_set>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
-#include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
+#include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
@@ -39,6 +38,7 @@
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -47,6 +47,8 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
+
+using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 
 // A graph pattern contains node/rel and a set of key-value pairs associated
 // with the variable. We bind node/rel as query graph and key-value pairs as a
@@ -166,11 +168,11 @@ std::shared_ptr<Expression> Binder::createPath(
 }
 
 static std::vector<std::string> getPropertyNames(
-    const std::vector<TableCatalogEntry*>& entries) {
+    const std::vector<SchemaEntry*>& entries) {
   std::vector<std::string> result;
   common::case_insensitve_set_t propertyNamesSet;
   for (auto& entry : entries) {
-    for (auto& property : entry->getProperties()) {
+    for (auto& property : entry->get_properties()) {
       if (propertyNamesSet.contains(property.getName())) {
         continue;
       }
@@ -184,23 +186,24 @@ static std::vector<std::string> getPropertyNames(
 static std::unique_ptr<Expression> createPropertyExpression(
     const std::string& propertyName, const std::string& uniqueVariableName,
     const std::string& rawVariableName,
-    const std::vector<TableCatalogEntry*>& entries) {
+    const std::vector<SchemaEntry*>& entries) {
   table_id_map_t<SingleLabelPropertyInfo> infos;
   std::vector<DataType> dataTypes;
   for (auto& entry : entries) {
     bool exists = false;
-    if (entry->containsProperty(propertyName)) {
+    if (entry->contains_property(propertyName)) {
       exists = true;
-      dataTypes.push_back(entry->getProperty(propertyName).getType().copy());
+      dataTypes.push_back(entry->get_property(propertyName).getType().copy());
     }
     // Bind isPrimaryKey
     auto isPrimaryKey = false;
-    if (entry->getTableType() == TableType::NODE) {
-      auto nodeEntry = entry->constPtrCast<NodeTableCatalogEntry>();
+    if (entry->get_entry_type() == SchemaEntryType::NODE) {
+      auto nodeEntry = dynamic_cast<const VertexSchema*>(entry);
+      NEUG_ASSERT(nodeEntry != nullptr);
       isPrimaryKey = nodeEntry->getPrimaryKeyName() == propertyName;
     }
     auto info = SingleLabelPropertyInfo(exists, isPrimaryKey);
-    infos.insert({entry->getTableID(), std::move(info)});
+    infos.insert({entry->get_entry_id(), std::move(info)});
   }
   // Validate property under the same name has the same type.
   NEUG_ASSERT(!dataTypes.empty());
@@ -218,7 +221,7 @@ static std::unique_ptr<Expression> createPropertyExpression(
 
 static std::unique_ptr<Expression> createPropertyExpression(
     const std::string& propertyName, const Expression& pattern,
-    const std::vector<TableCatalogEntry*>& entries) {
+    const std::vector<SchemaEntry*>& entries) {
   return createPropertyExpression(propertyName, pattern.getUniqueName(),
                                   pattern.toString(), entries);
 }
@@ -236,7 +239,7 @@ static void checkRelDirectionTypeAgainstStorageDirection(
     }
     break;
   case RelDirectionType::BOTH:
-    if (rel->getExtendDirections().size() < NUM_REL_DIRECTIONS) {
+    if (rel->getExtendDirections().size() < common::NUM_REL_DIRECTIONS) {
       THROW_BINDER_EXCEPTION(stringFormat(
           "Undirected rel pattern '{}' has at least one matched rel table with "
           "storage type 'fwd' or 'bwd'. Undirected rel patterns are only "
@@ -354,8 +357,7 @@ getBaseRelStructFields(std::shared_ptr<NodeExpression> srcNode,
 }
 
 std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
-    const std::string& parsedName,
-    const std::vector<TableCatalogEntry*>& entries,
+    const std::string& parsedName, const std::vector<SchemaEntry*>& entries,
     std::shared_ptr<NodeExpression> srcNode,
     std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType) {
   auto queryRel = make_shared<RelExpression>(
@@ -380,9 +382,9 @@ std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
     fieldNames.push_back(property.getPropertyName());
     fieldTypes.push_back(property.getDataType().copy());
   }
-  std::vector<catalog::GRelTableCatalogEntry*> relEntries;
+  std::vector<EdgeSchema*> relEntries;
   for (auto& entry : entries) {
-    relEntries.emplace_back(entry->ptrCast<GRelTableCatalogEntry>());
+    relEntries.emplace_back(dynamic_cast<EdgeSchema*>(entry));
   }
   auto relType = std::make_unique<gopt::GRelType>(relEntries);
   auto extraInfo = std::make_unique<common::GRelTypeInfo>(
@@ -429,18 +431,21 @@ static void checkWeightedShortestPathSupportedType(const DataType& type) {
 
 std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
     const parser::RelPattern& relPattern,
-    const std::vector<TableCatalogEntry*>& entries,
+    const std::vector<SchemaEntry*>& entries,
     std::shared_ptr<NodeExpression> srcNode,
     std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType) {
   auto catalog = clientContext->getCatalog();
   auto transaction = clientContext->getTransaction();
-  table_catalog_entry_set_t entrySet;
+  schema_entry_set_t entrySet;
+  auto getMutableTableEntry = [&](common::table_id_t tableID) {
+    auto* entry = catalog->getTableCatalogEntry(transaction, tableID);
+    return catalog->getTableCatalogEntry(transaction, entry->get_label());
+  };
   for (auto entry : entries) {
-    auto& relTableEntry = entry->constCast<RelTableCatalogEntry>();
-    entrySet.insert(catalog->getTableCatalogEntry(
-        transaction, relTableEntry.getSrcTableID()));
-    entrySet.insert(catalog->getTableCatalogEntry(
-        transaction, relTableEntry.getDstTableID()));
+    auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
+    NEUG_ASSERT(relTableEntry != nullptr);
+    entrySet.insert(getMutableTableEntry(relTableEntry->getSrcTableID()));
+    entrySet.insert(getMutableTableEntry(relTableEntry->getDstTableID()));
   }
   auto recursivePatternInfo = relPattern.getRecursiveInfo();
   auto prevScope = saveScope();
@@ -448,13 +453,13 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
   // Bind intermediate node.
   auto node = createQueryNode(
       recursivePatternInfo->nodeName,
-      std::vector<TableCatalogEntry*>{entrySet.begin(), entrySet.end()});
+      std::vector<SchemaEntry*>{entrySet.begin(), entrySet.end()});
   addToScope(node->toString(), node);
   auto nodeProjectionList =
       bindRecursivePatternNodeProjectionList(*recursivePatternInfo, *node);
   auto nodeCopy = createQueryNode(
       recursivePatternInfo->nodeName,
-      std::vector<TableCatalogEntry*>{entrySet.begin(), entrySet.end()});
+      std::vector<SchemaEntry*>{entrySet.begin(), entrySet.end()});
   // Bind intermediate rel
   auto rel = createNonRecursiveQueryRel(recursivePatternInfo->relName, entries,
                                         srcNode, dstNode, directionType);
@@ -717,8 +722,7 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
 }
 
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
-    const std::string& parsedName,
-    const std::vector<TableCatalogEntry*>& entries) {
+    const std::string& parsedName, const std::vector<SchemaEntry*>& entries) {
   auto queryNode = make_shared<NodeExpression>(
       DataType(DataTypeId::kVertex), getUniqueExpressionName(parsedName),
       parsedName, entries);
@@ -737,9 +741,9 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
     structFieldNames.push_back(property->getPropertyName());
     structFieldTypes.push_back(property->getDataType().copy());
   }
-  std::vector<catalog::NodeTableCatalogEntry*> nodeEntries;
+  std::vector<VertexSchema*> nodeEntries;
   for (auto& entry : entries) {
-    nodeEntries.emplace_back(entry->ptrCast<catalog::NodeTableCatalogEntry>());
+    nodeEntries.emplace_back(dynamic_cast<VertexSchema*>(entry));
   }
   auto nodeType = std::make_unique<gopt::GNodeType>(nodeEntries);
   auto extraInfo = std::make_unique<common::GNodeTypeInfo>(
@@ -758,25 +762,32 @@ void Binder::bindQueryNodeProperties(NodeExpression& node) {
   }
 }
 
-static std::vector<TableCatalogEntry*> sortEntries(
-    const table_catalog_entry_set_t& set) {
-  std::vector<TableCatalogEntry*> entries;
+static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
+  std::vector<SchemaEntry*> entries;
   for (auto entry : set) {
     entries.push_back(entry);
   }
   std::sort(entries.begin(), entries.end(),
-            [](const TableCatalogEntry* a, const TableCatalogEntry* b) {
-              return a->getTableID() < b->getTableID();
+            [](const SchemaEntry* a, const SchemaEntry* b) {
+              auto* lhsEdge = dynamic_cast<const EdgeSchema*>(a);
+              auto* rhsEdge = dynamic_cast<const EdgeSchema*>(b);
+              if (lhsEdge != nullptr && rhsEdge != nullptr) {
+                return std::tie(lhsEdge->edge_label_id, lhsEdge->src_label_id,
+                                lhsEdge->dst_label_id, lhsEdge->entry_id) <
+                       std::tie(rhsEdge->edge_label_id, rhsEdge->src_label_id,
+                                rhsEdge->dst_label_id, rhsEdge->entry_id);
+              }
+              return a->get_entry_id() < b->get_entry_id();
             });
   return entries;
 }
 
-std::vector<TableCatalogEntry*> Binder::bindNodeTableEntries(
+std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
-  table_catalog_entry_set_t entrySet;
+  schema_entry_set_t entrySet;
   if (tableNames.empty()) {
     for (auto entry : catalog->getNodeTableEntries(transaction, useInternal)) {
       entrySet.insert(entry);
@@ -784,9 +795,9 @@ std::vector<TableCatalogEntry*> Binder::bindNodeTableEntries(
   } else {
     for (auto& name : tableNames) {
       auto entry = bindNodeTableEntry(name);
-      if (entry->getType() != CatalogEntryType::NODE_TABLE_ENTRY) {
+      if (entry->get_entry_type() != SchemaEntryType::NODE) {
         THROW_BINDER_EXCEPTION(stringFormat(
-            "Cannot bind {} as a node pattern label.", entry->getName()));
+            "Cannot bind {} as a node pattern label.", entry->get_label()));
       }
       entrySet.insert(entry);
     }
@@ -794,7 +805,7 @@ std::vector<TableCatalogEntry*> Binder::bindNodeTableEntries(
   return sortEntries(entrySet);
 }
 
-TableCatalogEntry* Binder::bindNodeTableEntry(const std::string& name) const {
+SchemaEntry* Binder::bindNodeTableEntry(const std::string& name) const {
   auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
@@ -804,12 +815,12 @@ TableCatalogEntry* Binder::bindNodeTableEntry(const std::string& name) const {
   return catalog->getTableCatalogEntry(transaction, name, useInternal);
 }
 
-std::vector<TableCatalogEntry*> Binder::bindRelTableEntries(
+std::vector<SchemaEntry*> Binder::bindRelTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
-  table_catalog_entry_set_t entrySet;
+  schema_entry_set_t entrySet;
   if (tableNames.empty()) {
     for (auto& entry : catalog->getRelTableEntries(transaction, useInternal)) {
       entrySet.insert(entry);
@@ -818,17 +829,16 @@ std::vector<TableCatalogEntry*> Binder::bindRelTableEntries(
     for (auto& name : tableNames) {
       if (catalog->containsRelGroup(transaction, name)) {
         auto groupEntry = catalog->getRelGroupEntry(transaction, name);
-        for (auto& id : groupEntry->getRelTableIDs()) {
-          auto relEntry = catalog->getTableCatalogEntry(transaction, id);
+        for (auto& relEntry : groupEntry) {
           entrySet.insert(relEntry);
         }
       } else if (catalog->containsTable(transaction, name)) {
         auto entry =
             catalog->getTableCatalogEntry(transaction, name, useInternal);
-        if (entry->getType() != CatalogEntryType::REL_TABLE_ENTRY) {
+        if (entry->get_entry_type() != SchemaEntryType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
-                           entry->getName()));
+                           entry->get_label()));
         }
         entrySet.insert(entry);
       } else {

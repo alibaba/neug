@@ -273,21 +273,22 @@ inline void doubleCast(const char* input, uint64_t len, T& result,
 struct TryCastStringToTimestamp {
   template <typename T>
   static bool tryCast(const char* input, uint64_t len,
-                      neug::common::timestamp_t& result);
+                      compiler_impl::timestamp_t& result);
 
   template <typename T>
   static void cast(const char* input, uint64_t len,
-                   neug::common::timestamp_t& result, DataTypeId typeID) {
+                   compiler_impl::timestamp_t& result, DataTypeId typeID) {
     if (!tryCast<T>(input, len, result)) {
-      THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
-          input, len, LogicalTypeUtils::toString(typeID)));
+      THROW_CONVERSION_EXCEPTION(
+          compiler_impl::Timestamp::getTimestampConversionExceptionMsg(
+              input, len, LogicalTypeUtils::toString(typeID)));
     }
   }
 };
 
 template <>
-bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
-    const char* input, uint64_t len, neug::common::timestamp_t& result);
+bool TryCastStringToTimestamp::tryCast<compiler_impl::timestamp_ms_t>(
+    const char* input, uint64_t len, compiler_impl::timestamp_t& result);
 
 }  // namespace function
 }  // namespace neug
