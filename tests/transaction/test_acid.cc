@@ -421,8 +421,8 @@ void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
       break;
     }
   }
-  auto ed_accessor = gui.GetEdgeDataAccessor(person_label_id, knows_label_id,
-                                             person_label_id, 0);
+  auto ed_accessor = gui.GetEdgeDataAccessor(person_label_id, person_label_id,
+                                             knows_label_id, 0);
   CHECK(oeit != oeit_end);
 
   auto cur = ed_accessor.get_data(oeit);
