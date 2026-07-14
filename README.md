@@ -6,7 +6,7 @@
   </picture><br>
   <b>A Graph Database for HTAP Workloads</b><br><br>
   <a href="https://github.com/alibaba/neug/actions/workflows/Linux.yml"><img src="https://github.com/alibaba/neug/actions/workflows/Linux.yml/badge.svg" alt="NeuG Test (Linux)"></a>
-  <a href="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
+  <a href="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
   <a href="https://codecov.io/gh/alibaba/neug"><img src="https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://discord.gg/2S8344ew"><img src="https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white" alt="Discord"></a>

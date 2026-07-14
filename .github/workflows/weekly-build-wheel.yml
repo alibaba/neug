@@ -1,4 +1,4 @@
-name: Build Nightly Wheels
+name: Build Weekly Wheels
 
 on:
   # Trigger the workflow on push or pull request,
@@ -10,13 +10,13 @@ on:
         required: false
         default: ''
   schedule:
-    # Trigger the workflow at 22:00(CST) every day (14:00 UTC)
-    - cron: '0 14 * * *'
+    # Trigger the workflow at 22:00(CST) every Monday (14:00 UTC)
+    - cron: '0 14 * * 1'
   pull_request:
     branches:
       - main
     paths:
-      - '.github/workflows/build-nightly-wheel.yml'
+      - '.github/workflows/weekly-build-wheel.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -41,7 +41,7 @@ jobs:
   # ============================================================
   # Notify: Send results to DingTalk
   # ============================================================
-  notify-nightly-wheel-result:
+  notify-weekly-wheel-result:
     needs: [build_wheels]
     if: always() && github.repository == 'alibaba/neug'
     runs-on: ubuntu-latest
@@ -57,9 +57,9 @@ jobs:
           WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
           STATUS="${{ needs.build_wheels.result }}"
           if [[ "$STATUS" == "success" ]]; then
-            TITLE="[Nightly Report] Build Nightly Wheels Passed"
+            TITLE="[Weekly Report] Build Weekly Wheels Passed"
           else
-            TITLE="[Nightly Report] Build Nightly Wheels Failed"
+            TITLE="[Weekly Report] Build Weekly Wheels Failed"
           fi
           curl -s -X POST "$WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
