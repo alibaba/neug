@@ -36,7 +36,7 @@ namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
   // Resolve deferred $param args against query ParamsMap before execFunc.
-  virtual void evaluateParams(const execution::ParamsMap& /*params*/) {}
+  virtual void bindParams(const execution::ParamsMap& /*params*/) {}
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(

@@ -42,7 +42,7 @@ neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
   if (algo_input_ == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
   }
-  algo_input_->evaluateParams(params);
+  algo_input_->bindParams(params);
   return algo_func_->execFunc(*algo_input_, graph_interface);
 }
 

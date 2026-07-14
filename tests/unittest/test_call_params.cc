@@ -64,7 +64,7 @@ struct EchoParamFuncInput : public function::CallFuncInputBase {
   DeferredCallArg arg;
   Value value;
 
-  void evaluateParams(const execution::ParamsMap& params) override {
+  void bindParams(const execution::ParamsMap& params) override {
     value = arg.resolve(params);
   }
 };
