@@ -53,9 +53,8 @@ class StatementReadWriteAnalyzer final : public StatementVisitor {
   void visitStandaloneCall(const Statement& /*statement*/) override {
     readOnly = true;
   }
-  void visitStandaloneCallFunction(const Statement& /*statement*/) override {
-    readOnly = false;
-  }
+  void visitStandaloneCallFunction(const Statement& statement) override;
+  void visitInQueryCall(const ReadingClause* readingClause) override;
   void visitCreateMacro(const Statement& /*statement*/) override {
     readOnly = false;
   }

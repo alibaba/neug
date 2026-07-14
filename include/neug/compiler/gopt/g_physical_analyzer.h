@@ -237,7 +237,14 @@ class GPhysicalAnalyzer {
       if (isDataSource(op)) {
         flag.batch = true;
       } else {
-        flag.procedure_call = true;
+        auto& call = op.constCast<planner::LogicalTableFunctionCall>();
+        // Read-only CALL/GDS procedures can run on the read path; mutating
+        // ones keep the procedure_call flag so TP rejects access_mode=read.
+        if (call.getTableFunc().isReadOnly) {
+          flag.read = true;
+        } else {
+          flag.procedure_call = true;
+        }
       }
       break;
     }
