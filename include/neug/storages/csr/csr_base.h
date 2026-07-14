@@ -99,7 +99,9 @@ class CsrBase : public Module {
  private:
   friend class EdgeTable;
 
-  virtual void mark_edge_data_dirty() = 0;
+  // Called after a timestamped edge update so compact() cannot take the
+  // "nothing to do" fast path.
+  virtual void mark_compaction_required() = 0;
 };
 
 template <typename EDATA_T>

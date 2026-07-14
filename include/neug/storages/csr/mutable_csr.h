@@ -241,7 +241,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {
+  void mark_compaction_required() override {
     needs_compact_.store(true, std::memory_order_relaxed);
   }
 
@@ -399,7 +399,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {
+  void mark_compaction_required() override {
     needs_compact_.store(true, std::memory_order_relaxed);
   }
 
@@ -502,7 +502,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {}
+  void mark_compaction_required() override {}
 };
 
 }  // namespace neug

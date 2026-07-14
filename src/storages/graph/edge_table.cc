@@ -604,7 +604,7 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
     THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
   }
   if (ts != 0) {
-    out_csr_->mark_edge_data_dirty();
+    out_csr_->mark_compaction_required();
   }
   accessor.set_data(oe_iter, prop, ts);
   if (meta_->is_bundled()) {
@@ -615,7 +615,7 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
       THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
     }
     if (ts != 0) {
-      in_csr_->mark_edge_data_dirty();
+      in_csr_->mark_compaction_required();
     }
     accessor.set_data(ie_iter, prop, ts);
   }

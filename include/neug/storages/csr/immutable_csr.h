@@ -134,7 +134,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {
+  void mark_compaction_required() override {
     needs_compact_.store(true, std::memory_order_relaxed);
   }
 
@@ -247,7 +247,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {}
+  void mark_compaction_required() override {}
 
   void refresh_prefetch_policy();
   CsrPrefetchPolicy prefetch_policy_;
