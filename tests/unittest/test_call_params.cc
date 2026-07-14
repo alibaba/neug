@@ -47,9 +47,10 @@ struct TestEchoParamFunction {
         function::call_output_columns{
             {"value", common::DataType(common::DataTypeId::kVarchar)}});
 
-    func->bindFunc = [](const Schema&, const execution::ContextMeta&,
-                        const ::physical::PhysicalPlan& plan,
-                        int op_idx) -> std::unique_ptr<function::CallFuncInputBase> {
+    func->bindFunc =
+        [](const Schema&, const execution::ContextMeta&,
+           const ::physical::PhysicalPlan& plan,
+           int op_idx) -> std::unique_ptr<function::CallFuncInputBase> {
       auto input = std::make_unique<EchoParamFuncInput>();
       const auto& procedure = plan.plan(op_idx).opr().procedure_call();
       if (procedure.query().arguments_size() < 1) {
@@ -166,8 +167,8 @@ TEST_F(CallParamsTest, LiteralArgumentStillWorks) {
   auto conn = db_->Connect();
   ASSERT_NE(conn, nullptr);
 
-  auto res = conn->Query("CALL TEST_ECHO_PARAM('literal-ok') RETURN value;",
-                         "update");
+  auto res =
+      conn->Query("CALL TEST_ECHO_PARAM('literal-ok') RETURN value;", "update");
   ASSERT_TRUE(res) << res.error().ToString();
 
   auto& result = res.value();
