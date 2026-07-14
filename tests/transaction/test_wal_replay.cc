@@ -43,7 +43,6 @@ std::string make_test_dir() {
 neug::NeugDBConfig make_config(const std::string& db_dir) {
   neug::NeugDBConfig config(db_dir, 1);
   config.memory_level = neug::MemoryLevel::kInMemory;
-  config.enable_auto_compaction = false;
   config.checkpoint_on_close = false;
   config.checkpoint_on_recovery = false;
   return config;

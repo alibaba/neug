@@ -104,6 +104,7 @@ TEST_F(NeugDBServiceTest, GetServiceConfig) {
   EXPECT_EQ(retrieved_config.query_port, config_.query_port);
   EXPECT_EQ(retrieved_config.host_str, config_.host_str);
   EXPECT_EQ(retrieved_config.thread_num, config_.thread_num);
+  EXPECT_EQ(retrieved_config.auto_compaction, config_.auto_compaction);
 }
 
 TEST_F(NeugDBServiceTest, DefaultServiceThreadsFollowDatabaseMaxThreadNum) {
