@@ -1,4 +1,4 @@
-name: Memory Leak Nightly
+name: Memory Leak Weekly
 
 on:
   workflow_dispatch:
@@ -16,8 +16,8 @@ on:
         required: false
         default: '2000'
   schedule:
-    # UTC 19:00 = UTC+8 03:00 every day
-    - cron: '0 19 * * *'
+    # UTC 19:00 Saturday = UTC+8 03:00 Sunday
+    - cron: '0 19 * * 6'
 
 concurrency:
   group: ${{ github.workflow }}
@@ -191,7 +191,7 @@ jobs:
       - name: Summarize verdicts
         if: always()
         run: |
-          echo '## Memory Leak Nightly Summary' >> "$GITHUB_STEP_SUMMARY"
+          echo '## Memory Leak Weekly Summary' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           if [ -f "$LOG_DIR/test_node_create.log" ]; then
             echo '### gtest test_node_create' >> "$GITHUB_STEP_SUMMARY"
@@ -216,13 +216,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: memory-leak-nightly-${{ github.run_id }}
+          name: weekly-memory-leak-test-${{ github.run_id }}
           path: ${{ env.LOG_DIR }}
           if-no-files-found: warn
           retention-days: 14
 
   # ============================================================
-  # Job: send DingTalk notification for the nightly memory-leak run.
+  # Job: send DingTalk notification for the weekly memory-leak run.
   # Mirrors benchmark.yml's notify-benchmark-result style.
   # Only runs on the canonical alibaba/neug repo to avoid fork noise.
   # ============================================================
@@ -242,9 +242,9 @@ jobs:
           WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=${DINGTALK_TOKEN}"
           STATUS="${{ needs.memory-leak.result }}"
           if [[ "$STATUS" == "success" ]]; then
-            TITLE="[Nightly Report] NeuG Memory Leak Passed"
+            TITLE="[Weekly Report] NeuG Memory Leak Passed"
           else
-            TITLE="[Nightly Report] NeuG Memory Leak Failed"
+            TITLE="[Weekly Report] NeuG Memory Leak Failed"
           fi
           curl -s -X POST "$WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
@@ -252,6 +252,6 @@ jobs:
               \"msgtype\": \"markdown\",
               \"markdown\": {
                 \"title\": \"$TITLE\",
-                \"text\": \"## $TITLE\n\n- **memory-leak**: ${STATUS}\n- **Repo**: ${{ github.repository }}\n- **Branch**: ${{ github.ref_name }}\n- **Commit**: ${{ github.sha }}\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+                \"text\": \"## $TITLE\\n\\n- **memory-leak**: ${STATUS}\\n- **Repo**: ${{ github.repository }}\\n- **Branch**: ${{ github.ref_name }}\\n- **Commit**: ${{ github.sha }}\\n- [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
               }
             }"

@@ -1,8 +1,6 @@
-name: Build Wheels
+name: Release Wheels
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
   workflow_dispatch:
     inputs:
       python_versions:
@@ -12,30 +10,16 @@ on:
   release:
     types:
       - created
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
-    paths: &wheel_paths
-      - 'cmake/**'
-      - 'src/**'
-      - 'include/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - '!tools/python_bind/tests/**'
-      - '!tools/python_bind/example/**'
-      - 'tools/shell/**'
-      - '.github/workflows/build-wheel.yml'
-      - '.github/workflows/wheels-common.yml'
-      - 'scripts/install_deps.sh'
-      - 'CMakeLists.txt'
-      - 'NEUG_VERSION'
   pull_request:
     branches:
       - main
-    paths: *wheel_paths
+    paths:
+      - '.github/workflows/release-wheel.yml'
+      - '.github/workflows/wheels-common.yml'
+      - 'tools/python_bind/setup.py'
+      - 'tools/python_bind/pyproject.toml'
+      - 'tools/python_bind/Makefile'
+      - 'tools/python_bind/README.md'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -43,7 +27,7 @@ concurrency:
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
     uses: ./.github/workflows/format-check.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
