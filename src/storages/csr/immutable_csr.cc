@@ -400,7 +400,6 @@ void SingleImmutableCsr<EDATA_T>::Open(Checkpoint& ckp,
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
       memory_level));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
-  needs_compact_.store(false, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -424,12 +423,7 @@ void SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
 }
 
 template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::compact() {
-  if (!needs_compact_.load(std::memory_order_relaxed)) {
-    return;
-  }
-  needs_compact_.store(false, std::memory_order_relaxed);
-}
+void SingleImmutableCsr<EDATA_T>::compact() {}
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
@@ -459,9 +453,6 @@ void SingleImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {}
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
-  if (!src_set.empty() || !dst_set.empty()) {
-    needs_compact_.store(true, std::memory_order_relaxed);
-  }
   vid_t vnum = size();
   auto* nbr_arr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
   for (auto src : src_set) {
@@ -486,9 +477,6 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_vertices(
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
-  if (!src_list.empty()) {
-    needs_compact_.store(true, std::memory_order_relaxed);
-  }
   vid_t vnum = size();
   auto* nbr_arr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -509,9 +497,6 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
-  if (!edges.empty()) {
-    needs_compact_.store(true, std::memory_order_relaxed);
-  }
   vid_t vnum = size();
   auto* nbr_arr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
   for (const auto& edge : edges) {
@@ -542,7 +527,6 @@ void SingleImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
   edge_num_.fetch_sub(1, std::memory_order_relaxed);
-  needs_compact_.store(true, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>

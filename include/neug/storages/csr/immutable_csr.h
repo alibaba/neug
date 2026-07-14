@@ -232,9 +232,6 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     auto cow_clone = std::make_unique<SingleImmutableCsr<EDATA_T>>();
     cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
     cow_clone->edge_num_ = edge_num_.load();
-    cow_clone->needs_compact_.store(
-        needs_compact_.load(std::memory_order_relaxed),
-        std::memory_order_relaxed);
     return cow_clone;
   }
 
@@ -250,15 +247,12 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  void mark_edge_data_dirty() override {
-    needs_compact_.store(true, std::memory_order_relaxed);
-  }
+  void mark_edge_data_dirty() override {}
 
   void refresh_prefetch_policy();
   CsrPrefetchPolicy prefetch_policy_;
   std::shared_ptr<IDataContainer> nbr_list_buffer_;
   std::atomic<uint64_t> edge_num_{0};
-  std::atomic<bool> needs_compact_{false};
 };
 
 }  // namespace neug
