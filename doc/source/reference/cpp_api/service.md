@@ -20,6 +20,7 @@ int main() {
   config.query_port = 10000;
   config.host_str = "0.0.0.0";
   config.thread_num = 0;  // Auto-select service threads from database max_thread_num.
+  config.auto_compaction = true;
   // 3. Start HTTP service
   neug::NeugDBService service(db, config);
   std::string url = service.Start();
@@ -44,6 +45,9 @@ count. The default `0` auto-selects from the database `max_thread_num`. If set
 explicitly, it must be less than or equal to the database `max_thread_num`. With
 the default database thread setting, `max_thread_num` is resolved from hardware
 concurrency and falls back to `1` if the runtime cannot detect it.
+
+**Auto Compaction:** `ServiceConfig::auto_compaction` controls whether a
+background auto-compaction thread runs while serving. Default is `true`.
 
 ### Constructors & Destructors
 

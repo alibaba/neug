@@ -51,7 +51,6 @@ Open(
     int32_t max_thread_num=0,
     const DBMode mode=DBMode::READ_WRITE,
     const std::string &planner_kind="gopt",
-    bool enable_auto_compaction=false,
     bool checkpoint_on_close=true
 )
 ```
@@ -81,7 +80,6 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
     back to `1` if the runtime cannot detect it.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
-  - `enable_auto_compaction`: Enable background auto-compaction thread
   - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
 
 - **Notes:**
@@ -105,7 +103,6 @@ config.data_dir = "/path/to/graph";
 config.max_thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
 config.memory_level = 1;  // Use memory-mapped virtual memory
-config.enable_auto_compaction = true;
 neug::NeugDB db;
 db.Open(config);
 ```

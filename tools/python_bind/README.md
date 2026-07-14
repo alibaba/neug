@@ -77,6 +77,7 @@ endpoint = db.serve(
     port=10000,
     blocking=False,
     thread_num=0,
+    auto_compaction=True,
 )
 ```
 
@@ -86,6 +87,9 @@ value. With the default database thread setting, `max_thread_num` is resolved
 from hardware concurrency and falls back to `1` if the runtime cannot detect it.
 This is separate from client-side `Session(..., num_threads=...)`, which
 configures the client's HTTP connection pool.
+
+`auto_compaction` controls whether a background auto-compaction thread
+runs while serving (default `True`).
 
 ### Multi-version wheels via cibuildwheel
 

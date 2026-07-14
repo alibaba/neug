@@ -254,6 +254,7 @@ class Database(object):
         host: str = "localhost",
         blocking: bool = True,
         thread_num: int = 0,
+        auto_compaction: bool = True,
     ):
         """
         Start the database server for handling remote connections(TP mode).
@@ -276,6 +277,8 @@ class Database(object):
             Service thread count. Default is 0, which means auto-select from
             database max_thread_num. If set explicitly, it must be less than or
             equal to max_thread_num.
+        auto_compaction : bool
+            Enable background auto-compaction while serving. Default is True.
 
         Returns
         -------
@@ -331,7 +334,9 @@ class Database(object):
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
         try:
-            endpoint = self._database.serve(port, host, thread_num, blocking)
+            endpoint = self._database.serve(
+                port, host, thread_num, blocking, auto_compaction
+            )
         except KeyboardInterrupt:
             self.stop_serving()
         return endpoint
