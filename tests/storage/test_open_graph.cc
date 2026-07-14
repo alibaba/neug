@@ -269,7 +269,7 @@ TEST(DatabaseTest, TestCopyInitialLoadCheckpointReopen) {
 
   {
     neug::NeugDB db;
-    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false);
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false);
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
