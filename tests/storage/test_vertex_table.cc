@@ -737,6 +737,64 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
   EXPECT_EQ(vts.ValidVertexNum(1, 50), 48);
 }
 
+TEST_F(VertexTableTest, VertexTimestampCompactFastPathForZeroInsertLoad) {
+  auto ckp = make_checkpoint(Workspace());
+  neug::VertexTimestamp vts;
+  vts.Open(*ckp, neug::ModuleDescriptor(), memory_level_);
+  vts.Init(0, 20000);
+
+  for (neug::vid_t vid = 0; vid < 10000; ++vid) {
+    vts.InsertVertex(vid, 0);
+  }
+  EXPECT_EQ(vts.InitVertexNum(), 0);
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10000);
+
+  vts.Compact();
+  EXPECT_EQ(vts.InitVertexNum(), 10000);
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10000);
+
+  vts.InsertVertex(10000, 7);
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10000);
+  EXPECT_EQ(vts.ValidVertexNum(7, 20000), 10001);
+  vts.Compact();
+  EXPECT_EQ(vts.InitVertexNum(), 10001);
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10001);
+
+  vts.InsertVertex(10001, 0);
+  vts.RemoveVertex(10001);
+  vts.Compact();
+  EXPECT_TRUE(vts.IsRemoved(10001));
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10001);
+  vts.Compact();
+  EXPECT_TRUE(vts.IsRemoved(10001));
+  EXPECT_EQ(vts.ValidVertexNum(0, 20000), 10001);
+
+  neug::VertexTimestamp all_zero_vts;
+  all_zero_vts.Open(*ckp, neug::ModuleDescriptor(), memory_level_);
+  all_zero_vts.Init(0, 128);
+  for (neug::vid_t vid = 0; vid < 128; ++vid) {
+    all_zero_vts.InsertVertex(vid, 0);
+  }
+  all_zero_vts.Compact();
+  EXPECT_EQ(all_zero_vts.InitVertexNum(), 128);
+  EXPECT_EQ(all_zero_vts.ValidVertexNum(0, 128), 128);
+  EXPECT_FALSE(all_zero_vts.IsVertexValid(128, 0));
+
+  all_zero_vts.Reserve(256);
+  all_zero_vts.InsertVertex(128, 0);
+  EXPECT_TRUE(all_zero_vts.IsVertexValid(128, 0));
+
+  neug::VertexTimestamp sparse_zero_vts;
+  sparse_zero_vts.Open(*ckp, neug::ModuleDescriptor(), memory_level_);
+  sparse_zero_vts.Init(0, 32);
+  sparse_zero_vts.InsertVertex(0, 0);
+  sparse_zero_vts.InsertVertex(10, 0);
+  sparse_zero_vts.Compact();
+  EXPECT_EQ(sparse_zero_vts.InitVertexNum(), 1);
+  EXPECT_TRUE(sparse_zero_vts.IsVertexValid(10, 0));
+  EXPECT_EQ(sparse_zero_vts.ValidVertexNum(0, 32), 2);
+}
+
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());

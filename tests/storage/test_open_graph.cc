@@ -14,6 +14,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include "column_assertions.h"
@@ -23,6 +26,15 @@
 #include "unittest/utils.h"
 
 #include <glog/logging.h>
+
+namespace {
+
+std::filesystem::path unique_test_dir(const std::string& test_name) {
+  return std::filesystem::temp_directory_path() /
+         (test_name + "_" + std::to_string(::getpid()));
+}
+
+}  // namespace
 
 TEST(DatabaseTest, OpenClose) {
   std::string dir = "/tmp/test_open_close";
@@ -224,6 +236,69 @@ TEST(DatabaseTest, TestPersist) {
     conn->Close();
     db2.Close();
   }
+}
+
+TEST(DatabaseTest, TestCopyInitialLoadCheckpointReopen) {
+  auto test_dir = unique_test_dir("test_copy_initial_load_checkpoint_reopen");
+  auto db_dir = (test_dir / "db").string();
+  auto csv_dir = (test_dir / "csv").string();
+  if (std::filesystem::exists(test_dir)) {
+    std::filesystem::remove_all(test_dir);
+  }
+  std::filesystem::create_directories(csv_dir);
+  auto person_csv_path =
+      (std::filesystem::path(csv_dir) / "person.csv").string();
+  auto knows_csv_path =
+      (std::filesystem::path(csv_dir) / "person_knows_person.csv").string();
+  {
+    std::ofstream person_csv(person_csv_path);
+    ASSERT_TRUE(person_csv.good());
+    person_csv << "id|name|age\n";
+    person_csv << "1|Alice|30\n";
+    person_csv << "2|Bob|31\n";
+    person_csv << "3|Cora|32\n";
+    person_csv << "4|Dan|33\n";
+  }
+  {
+    std::ofstream knows_csv(knows_csv_path);
+    ASSERT_TRUE(knows_csv.good());
+    knows_csv << "from|to|weight\n";
+    knows_csv << "1|2|0.5\n";
+    knows_csv << "2|3|1.5\n";
+  }
+
+  {
+    neug::NeugDB db;
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false);
+    auto conn = db.Connect();
+    EXPECT_TRUE(conn->Query(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
+        "PRIMARY KEY(id));"));
+    EXPECT_TRUE(conn->Query(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
+    EXPECT_TRUE(conn->Query("COPY person from \"" + person_csv_path + "\";"));
+    EXPECT_TRUE(conn->Query("COPY knows from \"" + knows_csv_path +
+                            "\" (from=\"person\", to=\"person\");"));
+    EXPECT_TRUE(conn->Query("CHECKPOINT;"));
+    conn->Close();
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    db.Open(db_dir, 1, neug::DBMode::READ_ONLY);
+    auto conn = db.Connect();
+    auto vertex_count = conn->Query("MATCH (n: person) return COUNT(n);");
+    EXPECT_TRUE(vertex_count);
+    neug::test::AssertInt64Column(vertex_count.value().response(), 0, {4});
+    auto edge_count = conn->Query(
+        "MATCH (a: person)-[r: knows]->(b: person) return COUNT(r);");
+    EXPECT_TRUE(edge_count);
+    neug::test::AssertInt64Column(edge_count.value().response(), 0, {2});
+    conn->Close();
+    db.Close();
+  }
+  std::filesystem::remove_all(test_dir);
 }
 
 TEST(DatabaseTest, TestCompaction) {
