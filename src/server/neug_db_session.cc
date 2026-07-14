@@ -80,34 +80,22 @@ neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
                                  pipeline_cache_, ts);
 }
 
-inline bool is_read_only(const physical::ExecutionFlag flags) {
-  return !(flags.insert() || flags.update() || flags.schema() ||
-           flags.batch() || flags.create_temp_table() || flags.checkpoint() ||
-           flags.procedure_call());
-}
-
-inline bool is_insert_only(const physical::ExecutionFlag flags) {
-  return flags.insert() && !(flags.read() || flags.update() || flags.schema() ||
-                             flags.batch() || flags.create_temp_table() ||
-                             flags.checkpoint() || flags.procedure_call());
-}
-
 Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
                       const NeugDBConfig& db_config) {
   if (db_config.mode == DBMode::READ_ONLY) {
-    if (!is_read_only(flags) || mode != AccessMode::kRead) {
+    if (!IsReadOnlyExecutionFlag(flags) || mode != AccessMode::kRead) {
       return neug::Status(
           neug::StatusCode::ERR_INVALID_ARGUMENT,
           "Database is in read-only mode; write operations are not allowed.");
     }
   }
   if (mode == neug::AccessMode::kRead) {
-    if (!is_read_only(flags)) {
+    if (!IsReadOnlyExecutionFlag(flags)) {
       return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                           "Read-only mode does not support write operations.");
     }
   } else if (mode == neug::AccessMode::kInsert) {
-    if (!is_insert_only(flags)) {
+    if (!IsInsertOnlyExecutionFlag(flags)) {
       return neug::Status(
           neug::StatusCode::ERR_INVALID_ARGUMENT,
           "Insert-only mode does not support read or update operations.");
@@ -196,8 +184,13 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     RETURN_ERROR(parse_res);
   }
   if (mode == AccessMode::kUnKnown) {
+    // Token-based analyzeMode still treats "call" as update. Read-only CALL is
+    // only accepted on the read path when access_mode=read is set explicitly.
     mode = planner_->analyzeMode(query);
   }
+  // Explicit access_mode=read: GPhysicalAnalyzer sets flag.read (not
+  // procedure_call) when Function::isReadOnly is true, so validate_flags()
+  // accepts those plans on the read path.
 
   google::protobuf::Arena arena;
   // Create a QueryResponse message on the arena to hold the results.

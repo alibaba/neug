@@ -47,14 +47,13 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
   GS_AUTO(cache_value, global_query_cache_->Get(stats, query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;
-  if (is_read_only_) {
-    if (flags.insert() || flags.update() || flags.schema() || flags.batch() ||
-        flags.create_temp_table() || flags.checkpoint() ||
-        flags.procedure_call()) {
-      RETURN_ERROR(
-          neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                       "Write queries are not supported in read-only mode"));
-    }
+  // Explicit access_mode=read accepts read-only CALL (no procedure_call flag).
+  // Unspecified mode: token-based analyzeMode still classifies CALL as update.
+  if ((is_read_only_ || access_mode == AccessMode::kRead) &&
+      !IsReadOnlyExecutionFlag(flags)) {
+    RETURN_ERROR(
+        neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                     "Write queries are not supported in read-only mode"));
   }
   return std::make_pair(access_mode, cache_value);
 }

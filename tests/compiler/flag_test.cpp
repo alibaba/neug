@@ -267,9 +267,26 @@ TEST_F(FlagTest, InstallJson) {
   EXPECT_FALSE(flag.transaction);
 }
 
-// Test 9: CALL procedure (procedure_call)
+// Test 9: CALL read-only procedure (read, not procedure_call)
 TEST_F(FlagTest, CallProcedure) {
   std::string query = "CALL SHOW_LOADED_EXTENSIONS();";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  GPhysicalAnalyzer analyzer(getCatalog());
+  auto flag = analyzer.analyze(*logical);
+  EXPECT_TRUE(flag.read);
+  EXPECT_FALSE(flag.procedure_call);
+  EXPECT_FALSE(flag.insert);
+  EXPECT_FALSE(flag.update);
+  EXPECT_FALSE(flag.schema);
+  EXPECT_FALSE(flag.batch);
+  EXPECT_FALSE(flag.create_temp_table);
+  EXPECT_FALSE(flag.transaction);
+}
+
+// Mutating CALL keeps procedure_call so access_mode=read is rejected.
+TEST_F(FlagTest, CallMutatingProcedure) {
+  std::string query =
+      "CALL project_graph('g', ['person'], {'[person, knows, person]': ''});";
   auto logical = planLogical(query, schemaData, statsData, rules);
   GPhysicalAnalyzer analyzer(getCatalog());
   auto flag = analyzer.analyze(*logical);

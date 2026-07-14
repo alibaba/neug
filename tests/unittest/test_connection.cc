@@ -159,6 +159,30 @@ TEST_F(ConnectionTest, TestReadOnlyConnections) {
   EXPECT_FALSE(res3);
 }
 
+// Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.
+TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_NE(conn, nullptr);
+
+  auto show_res = conn->Query("CALL SHOW_LOADED_EXTENSIONS();", "read");
+  ASSERT_TRUE(show_res) << show_res.error().ToString();
+
+  auto project_res = conn->Query(
+      "CALL project_graph('g', ['person'], {'[person, knows, person]': ''});",
+      "read");
+  ASSERT_FALSE(project_res);
+  EXPECT_NE(project_res.error().ToString().find(
+                "Write queries are not supported in read-only mode"),
+            std::string::npos)
+      << project_res.error().ToString();
+}
+
 // Test Parallel Execution
 TEST_F(ConnectionTest, TestParallelExecutionAtomicity) {
   NeugDB db;
