@@ -693,7 +693,6 @@ static void open_db_for_checkpoint_test(neug::NeugDB& db,
                                         const std::string& db_path) {
   neug::NeugDBConfig config(db_path);
   config.checkpoint_on_close = true;
-  config.enable_auto_compaction = false;
   db.Open(config);
 }
 
@@ -1126,7 +1125,6 @@ TEST(CheckpointGCTest,
     neug::NeugDBConfig config(db_path);
     config.checkpoint_on_close = checkpoint_on_close;
     config.checkpoint_on_recovery = checkpoint_on_recovery;
-    config.enable_auto_compaction = false;
     return config;
   };
 
