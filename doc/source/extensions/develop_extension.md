@@ -39,7 +39,7 @@ cmake -S my-extension/neug -B my-extension/build/release \
   -DBUILD_EXTENSIONS=my_ext \
   -DNEUG_EXTENSION_CONFIGS=/absolute/path/to/my-extension/extension_config.cmake
 
-cmake --build my-extension/build/release --target neug_my_ext_extension -j
+cmake --build my-extension/build/release --target neug_my_ext_extension -j$(nproc)
 ```
 
 Built-in extensions under `neug/extension/` (`parquet`, `pattern_matching`, `gds`, `httpfs`) do not need `NEUG_EXTENSION_CONFIGS`; list them in `BUILD_EXTENSIONS` only.
