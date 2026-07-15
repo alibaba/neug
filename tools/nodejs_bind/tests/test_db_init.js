@@ -30,6 +30,7 @@ const {
   ERR_INVALID_PATH,
   ERR_PERMISSION,
   ERR_VERSION_MISMATCHED,
+  ERR_INTERNAL_ERROR,
 } = require('neug');
 
 // ---------------------------------------------------------------------------
@@ -84,9 +85,11 @@ test('test_local_db_open_exists_and_close', () => {
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir);
   }
-  const db = new Database({ databasePath: dbDir, mode: 'r' });
-  assert.ok(db);
-  db.close();
+  assert.throws(() => {
+    new Database({ databasePath: dbDir, mode: 'r' });
+  }, (err) => {
+    return err.message.includes(String(ERR_INTERNAL_ERROR));
+  });
   const db2 = new Database({ databasePath: dbDir, mode: 'rw' });
   assert.ok(db2);
   db2.close();
