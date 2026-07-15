@@ -1168,7 +1168,7 @@ def test_leiden_incremental_with_writeback(tmp_path):
             conn.execute(
                 """
                 CALL leiden('g_leiden',
-                    {concurrency: 1, initial_community_property: 'leiden_comm'})
+                    {concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true})
                 YIELD node, community
                 RETURN node.id, community;
                 """
@@ -1242,7 +1242,7 @@ def test_louvain_incremental_with_writeback(tmp_path):
             conn.execute(
                 """
                 CALL louvain('g_louvain',
-                    {concurrency: 1, initial_community_property: 'louvain_comm'})
+                    {concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true})
                 YIELD node, community
                 RETURN node.id, community;
                 """
@@ -1344,7 +1344,7 @@ def test_leiden_incremental_alias(tmp_path):
             conn.execute(
                 """
                 CALL leiden('g_leiden_alias',
-                    {concurrency: 1, initial_community_property: 'leiden_comm'})
+                    {concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true})
                 YIELD node, community
                 RETURN node.id, community;
                 """
@@ -1403,7 +1403,7 @@ def test_louvain_incremental_alias(tmp_path):
             conn.execute(
                 """
                 CALL louvain('g_louvain_alias',
-                    {concurrency: 1, initial_community_property: 'louvain_comm'})
+                    {concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true})
                 YIELD node, community
                 RETURN node.id, community;
                 """
@@ -1532,7 +1532,7 @@ def test_leiden_incremental_data_changed(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community RETURN node.id, community;"
             )
         )
@@ -1579,7 +1579,7 @@ def test_leiden_warmstart_multi_edge(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community RETURN node.id, community;"
             )
         )
@@ -1650,7 +1650,7 @@ def test_leiden_warmstart_stability_strict(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community RETURN node.id, community;"
             )
         )
@@ -1699,7 +1699,7 @@ def test_leiden_incremental_previous_community_unchanged(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN node.id, community, previous_community;"
             )
@@ -1754,7 +1754,7 @@ def test_leiden_incremental_previous_community_with_data_change(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN node.id, community, previous_community;"
             )
@@ -1839,7 +1839,7 @@ def test_leiden_incremental_previous_community_new_vertex(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN node.id, community, previous_community;"
             )
@@ -1887,7 +1887,7 @@ def test_leiden_incremental_optional_column_not_yielded(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community RETURN node.id, community;"
             )
         )
@@ -1930,7 +1930,7 @@ def test_louvain_incremental_previous_community_unchanged(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL louvain('g', "
-                "{concurrency: 1, initial_community_property: 'louvain_comm'}) "
+                "{concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN node.id, community, previous_community;"
             )
@@ -1980,7 +1980,7 @@ def test_louvain_incremental_previous_community_with_data_change(tmp_path):
         rows_r2 = list(
             conn.execute(
                 "CALL louvain('g', "
-                "{concurrency: 1, initial_community_property: 'louvain_comm'}) "
+                "{concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN node.id, community, previous_community;"
             )
@@ -2030,7 +2030,7 @@ def test_leiden_incremental_cypher_migration_matrix(tmp_path):
         mig_rows = list(
             conn.execute(
                 "CALL leiden('g', "
-                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
                 "YIELD node, community, previous_community "
                 "RETURN previous_community, community, count(*) AS members "
                 "ORDER BY previous_community, community;"
@@ -2053,3 +2053,192 @@ def test_leiden_incremental_cypher_migration_matrix(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+def test_leiden_freeze_old_vertices_unchanged(tmp_path):
+    """Freeze mode (default when initial_community_property is set):
+    old vertices' communities must not change on re-run."""
+    db_dir = tmp_path / "gds_leiden_freeze_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # All old vertices must have unchanged communities
+        for nid, old_comm in r1_map.items():
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == old_comm, (
+                f"Vertex {nid} community changed: {old_comm} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_freeze_old_vertices_unchanged(tmp_path):
+    """Freeze mode (default when initial_community_property is set):
+    old vertices' communities must not change on re-run."""
+    db_dir = tmp_path / "gds_louvain_freeze_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "louvain_comm", r1_map)
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL louvain('g', "
+                "{concurrency: 1, initial_community_property: 'louvain_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # All old vertices must have unchanged communities
+        for nid, old_comm in r1_map.items():
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == old_comm, (
+                f"Vertex {nid} community changed: {old_comm} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_freeze_new_vertex_assignment(tmp_path):
+    """Freeze mode: new vertices (no initial community) are assigned to existing
+    or new communities. Old vertices' communities are frozen.
+
+    Also verifies previous_community semantics:
+    - Old vertices: previous_community == community (frozen, non-NULL)
+    - New vertices: previous_community is NULL
+    """
+    with custom_graph_connection(
+        tmp_path,
+        db_name="gds_leiden_freeze_new_vtx_db",
+        create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+        node_inserts=[
+            "CREATE (:n {id: 1});",
+            "CREATE (:n {id: 2});",
+            "CREATE (:n {id: 3});",
+            "CREATE (:n {id: 4});",
+            "CREATE (:n {id: 5});",
+            "CREATE (:n {id: 6});",
+        ],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 2 AND b.id = 3" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 4 AND b.id = 5" " CREATE (a)-[:e]->(b);",
+            # Connect vertex 6 to vertex 1 so it can join an existing community
+            "MATCH (a:n), (b:n) WHERE a.id = 6 AND b.id = 1" " CREATE (a)-[:e]->(b);",
+        ],
+        graph_name="g",
+        vertex_entries="['n']",
+        edge_entries="{'[n, e, n]': ''}",
+    ) as conn:
+        # Add community property column
+        conn.execute("ALTER TABLE n ADD leiden_comm INT64;")
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        # Write back communities to vertices 1-4 only
+        # Vertices 5,6 will have -1 (simulate "new" vertices)
+        when_clauses = " ".join(
+            f"WHEN n.id = {nid} THEN {comm}"
+            for nid, comm in r1_map.items()
+            if nid in [1, 2, 3, 4]
+        )
+        conn.execute(
+            f"MATCH (n:n) " f"SET n.leiden_comm = CASE {when_clauses} ELSE -1 END;"
+        )
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute("CALL project_graph('g', ['n'], " "{'[n, e, n]': ''});")
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        prev_map = {row[0]: row[2] for row in rows_r2}
+        # Vertices 1-4 (frozen): communities must be unchanged
+        for nid in [1, 2, 3, 4]:
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == r1_map[nid], (
+                f"Vertex {nid} community changed: {r1_map[nid]} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+            assert prev_map[nid] is not None, (
+                f"Vertex {nid} previous_community should be non-NULL "
+                f"(had initial community)"
+            )
+            assert prev_map[nid] == r2_map[nid], (
+                f"Vertex {nid} previous_community ({prev_map[nid]}) should equal "
+                f"community ({r2_map[nid]}) in freeze mode"
+            )
+        # Vertices 5,6 (new): should be assigned to some community
+        for nid in [5, 6]:
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert isinstance(
+                r2_map[nid], int
+            ), f"Vertex {nid} should have an integer community ID"
+            assert prev_map[nid] is None, (
+                f"Vertex {nid} previous_community should be NULL "
+                f"(new vertex, no initial community)"
+            )

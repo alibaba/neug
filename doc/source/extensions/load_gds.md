@@ -438,7 +438,8 @@ RETURN node, community;
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
-| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental/stable updates. When set, unchanged communities inherit their original IDs across runs. |
+| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
+| `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
 
 **Output columns:**
 
@@ -470,8 +471,10 @@ RETURN node.fName, community
 ORDER BY community;
 ```
 
-**Incremental warm-start:** To preserve community IDs across runs, write back the
-results and re-run with `initial_community_property`:
+**Incremental mode:** To preserve community IDs across runs, write back the
+results and re-run with `initial_community_property`. By default, this uses
+**freeze-assign** mode: existing vertices keep their community assignments
+unchanged, and only new vertices (without a previous community) are clustered.
 
 ```cypher
 -- 1. Add a property column to store community IDs
@@ -482,29 +485,34 @@ CALL louvain('social', {concurrency: 8}) YIELD node, community
 MATCH (n:person) WHERE n.id = node.id
 SET n.comm = community;
 
--- 3. Re-run with warm-start using the written-back property
+-- 3. Re-run with freeze-assign (default): old communities frozen, new vertices assigned
 CALL louvain('social', {initial_community_property: 'comm', concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+
+-- 3b. Alternative: warm-start mode (allow old vertices to be re-assigned)
+CALL louvain('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
 ```
 
 **Incremental delta analysis:** When running with `initial_community_property`,
 you can YIELD the optional `previous_community` column to analyze community
-changes at the vertex level. Community-level changes (split, merge, stable) can
-be computed via Cypher aggregation:
+changes at the vertex level. In freeze-assign mode, `previous_community` is
+`NULL` for new vertices and equals `community` for existing vertices.
 
 ```cypher
 -- Migration matrix: how vertices moved between communities
-CALL louvain('social', {initial_community_property: 'comm', concurrency: 8})
+CALL louvain('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
 YIELD node, community, previous_community
 RETURN previous_community, community, count(*) AS members
 ORDER BY previous_community, community;
 
--- Vertices that changed community
+-- New vertices (freeze-assign mode): previous_community is NULL
 CALL louvain('social', {initial_community_property: 'comm', concurrency: 8})
 YIELD node, community, previous_community
-WHERE previous_community <> community
-RETURN node.id, previous_community, community;
+WHERE previous_community IS NULL
+RETURN node.id, community;
 ```
 
 **Predicate support:** Neither node nor edge predicates are supported.
@@ -533,7 +541,8 @@ RETURN node, community;
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
-| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental/stable updates. When set, unchanged communities inherit their original IDs across runs. |
+| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
+| `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
 
 **Output columns:**
 
@@ -565,8 +574,10 @@ RETURN node.fName, community
 ORDER BY community;
 ```
 
-**Incremental warm-start:** To preserve community IDs across runs, write back the
-results and re-run with `initial_community_property`:
+**Incremental mode:** To preserve community IDs across runs, write back the
+results and re-run with `initial_community_property`. By default, this uses
+**freeze-assign** mode: existing vertices keep their community assignments
+unchanged, and only new vertices (without a previous community) are clustered.
 
 ```cypher
 -- 1. Add a property column to store community IDs
@@ -577,29 +588,34 @@ CALL leiden('social', {concurrency: 8}) YIELD node, community
 MATCH (n:person) WHERE n.id = node.id
 SET n.comm = community;
 
--- 3. Re-run with warm-start using the written-back property
+-- 3. Re-run with freeze-assign (default): old communities frozen, new vertices assigned
 CALL leiden('social', {initial_community_property: 'comm', concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+
+-- 3b. Alternative: warm-start mode (allow old vertices to be re-assigned)
+CALL leiden('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
 ```
 
 **Incremental delta analysis:** When running with `initial_community_property`,
 you can YIELD the optional `previous_community` column to analyze community
-changes at the vertex level. Community-level changes (split, merge, stable) can
-be computed via Cypher aggregation:
+changes at the vertex level. In freeze-assign mode, `previous_community` is
+`NULL` for new vertices and equals `community` for existing vertices.
 
 ```cypher
 -- Migration matrix: how vertices moved between communities
-CALL leiden('social', {initial_community_property: 'comm', concurrency: 8})
+CALL leiden('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
 YIELD node, community, previous_community
 RETURN previous_community, community, count(*) AS members
 ORDER BY previous_community, community;
 
--- Vertices that changed community
+-- New vertices (freeze-assign mode): previous_community is NULL
 CALL leiden('social', {initial_community_property: 'comm', concurrency: 8})
 YIELD node, community, previous_community
-WHERE previous_community <> community
-RETURN node.id, previous_community, community;
+WHERE previous_community IS NULL
+RETURN node.id, community;
 ```
 
 **Predicate support:** Neither node nor edge predicates are supported.
@@ -676,8 +692,8 @@ RETURN distance, path;
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | CDLP | `cdlp` | `node`, `label` | `max_iterations` |
-| Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property` |
-| Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property` |
+| Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation` |
+| Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation` |
 
 **Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. The `previous_community` column for Louvain and Leiden is optional and only available when `initial_community_property` is set. See the individual algorithm sections for details.
 
