@@ -74,7 +74,8 @@ option(ENABLE_UBSAN "Enable undefined behavior sanitizer." FALSE)
 option(ENABLE_RUNTIME_CHECKS "Enable runtime coherency checks (e.g. asserts)" FALSE)
 option(ENABLE_LTO "Enable Link-Time Optimization" FALSE)
 option(AUTO_UPDATE_GRAMMAR "Automatically regenerate C++ grammar files on change." FALSE)
-option(BUILD_EXTENSIONS "Semicolon-separated list of extensions to build." "")
+set(BUILD_EXTENSIONS "" CACHE STRING
+    "Semicolon-separated list of extensions to build.")
 set(NEUG_EXTENSION_CONFIGS "" CACHE STRING
     "Semicolon-separated list of extension_config.cmake files for out-of-tree extensions")
 option(BUILD_SINGLE_FILE_HEADER "Build single file header. Requires Python >= 3.9." FALSE)

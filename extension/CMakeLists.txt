@@ -5,8 +5,9 @@ include(${CMAKE_SOURCE_DIR}/cmake/neug_extension.cmake)
 if(NEUG_EXTENSION_CONFIGS)
     foreach(_ext_config IN LISTS NEUG_EXTENSION_CONFIGS)
         if(NOT IS_ABSOLUTE "${_ext_config}")
+            # Relative paths are resolved from the NeuG source tree root.
             get_filename_component(_ext_config "${_ext_config}" ABSOLUTE
-                BASE_DIR "${CMAKE_BINARY_DIR}")
+                BASE_DIR "${CMAKE_SOURCE_DIR}")
         endif()
         if(NOT EXISTS "${_ext_config}")
             message(FATAL_ERROR "NEUG_EXTENSION_CONFIGS entry does not exist: ${_ext_config}")
@@ -136,14 +137,17 @@ function(add_extension_test)
 endfunction()
 
 function(add_extension_if_enabled extension)
+    if(extension STREQUAL "")
+        return()
+    endif()
     if ("${extension}" IN_LIST BUILD_EXTENSIONS)
         message(STATUS "Adding extension: ${extension}")
         if("${extension}" IN_LIST NEUG_BUILTIN_EXTENSIONS)
-            add_subdirectory(${extension})
+            add_subdirectory("${extension}")
         elseif(DEFINED NEUG_EXTENSION_${extension}_SOURCE_DIR)
             add_subdirectory(
-                ${NEUG_EXTENSION_${extension}_SOURCE_DIR}
-                ${CMAKE_BINARY_DIR}/external_extension/${extension})
+                "${NEUG_EXTENSION_${extension}_SOURCE_DIR}"
+                "${CMAKE_BINARY_DIR}/external_extension/${extension}")
         else()
             message(FATAL_ERROR
                 "Extension '${extension}' is not built-in and was not registered "
