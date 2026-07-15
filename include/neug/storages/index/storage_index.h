@@ -24,10 +24,9 @@
 #include <rapidjson/document.h>
 
 #include "neug/common/types.h"
-#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/common/types/value.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/index/doc_id_map.h"
+#include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/storages/index/index_id_accessor.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -56,16 +55,11 @@ struct IndexMeta {
   static IndexMeta FromJsonString(const std::string& json_str);
 };
 
-// --- Query/filter parameter types ---
+// --- Query parameter types ---
 
 // Stores the index query parameters, i.e., target value, comparison type, etc.
 struct IndexQueryParams {
   virtual ~IndexQueryParams() = default;
-};
-
-// perform scalar filtering during the index lookup process
-struct IndexFilterParams {
-  virtual ~IndexFilterParams() = default;
 };
 
 // --- Index base class ---
@@ -74,21 +68,17 @@ struct IndexFilterParams {
  * @brief Abstract base class for all index implementations.
  *
  * Index inherits Module for lifecycle (Open/Dump) and provides the
- * data operations (Search/Append/Delete) plus COW support (Fork/LazyFork).
+ * data operations (Search/Upsert/Delete) plus COW support (Fork/LazyFork).
  *
  * Extensions (e.g. zvec) provide concrete implementations by subclassing
  * Index and registering them through the ModuleFactory.
  */
 class StorageIndex : public Module {
  public:
-  StorageIndex()
-      : meta_(std::make_unique<IndexMeta>()),
-        doc_id_map_(std::make_unique<DocIDMap>()) {}
+  StorageIndex() = default;
 
-  StorageIndex(std::string name, std::unique_ptr<IndexMeta> meta)
-      : meta_(std::move(meta)), doc_id_map_(std::make_unique<DocIDMap>()) {
-    meta_->name = std::move(name);
-  }
+  Status Init(std::unique_ptr<IndexMeta> meta,
+              std::unique_ptr<IndexIDAccessor> index_id_accessor);
 
   ~StorageIndex() override = default;
 
@@ -103,59 +93,38 @@ class StorageIndex : public Module {
   // --- Data operations ---
 
   /**
-   * @brief Search for nearest neighbors.
+   * @brief Search the index and translate internal index ids to vertex ids.
    * @param params Query parameters (subclass-specific).
-   * @param filter_params MVCC filter parameters.
-   * @param graph Indexes may need to access graph data. For example, when
-   * vector data is stored in the NeuG graph, ZVec can access this NeuG vector
-   * data through this interface.
-   * @param results Output: vid_t results after doc_id -> vid translation.
+   * @return Vertex ids corresponding to valid internal index ids.
    */
-  virtual result<std::vector<vid_t>> Search(
-      const IndexQueryParams& params, const IndexFilterParams& filter_params,
-      const StorageReadInterface& graph) = 0;
+  result<std::vector<vid_t>> Search(const IndexQueryParams& params);
 
   /**
-   * @brief Append a record for the given vertex id.
+   * @brief Insert or replace the index record for a vertex id.
    *
-   * Non-virtual: allocates doc_id via DocIDMap, then delegates to AppendImpl.
+   * Non-virtual: allocates a new internal index id via IndexIDAccessor, then
+   * delegates to AppendImpl.
    *
    * @param vid The vertex id.
-   * @param values Property values for the indexed columns.
-   * @param graph Indexes may need to access graph data.
+   * @param new_value The new property value for the indexed column.
    */
-  Status Append(vid_t vid, const Value& value,
-                const StorageReadInterface& graph) {
-    if (!doc_id_map_) {
-      return Status::RuntimeError("DocIDMap not initialized");
-    }
-    doc_id_t doc_id = doc_id_map_->Insert(vid);
-    return AppendImpl(vid, doc_id, value, graph);
-  }
+  Status Upsert(vid_t vid, const Value& new_value);
 
   /**
    * @brief Mark a vertex as deleted in the index.
    */
-  virtual Status Delete(vid_t vid) = 0;
+  virtual Status Delete(vid_t vid);
 
   // --- Metadata ---
   const IndexMeta& GetMeta() const { return *meta_; }
-  void SetMeta(std::unique_ptr<IndexMeta> meta) { meta_ = std::move(meta); }
 
  protected:
-  /**
-   * @brief Subclass-specific append implementation.
-   * @param vid The vertex id.
-   * @param doc_id The doc_id allocated by DocIDMap.
-   * @param values Property values for the indexed columns.
-   * @param graph Indexes may need to access graph data.
-   */
-  virtual Status AppendImpl(vid_t vid, doc_id_t doc_id,
-                            const Value& value,
-                            const StorageReadInterface& graph) = 0;
+  virtual result<std::vector<index_id_t>> SearchImpl(
+      const IndexQueryParams& params) = 0;
+  virtual Status AppendImpl(index_id_t index_id, const Value& value) = 0;
 
   std::unique_ptr<IndexMeta> meta_;
-  std::unique_ptr<DocIDMap> doc_id_map_;
+  std::unique_ptr<IndexIDAccessor> index_id_accessor_;
 };
 
 }  // namespace neug

@@ -42,8 +42,7 @@ namespace {
 
 class VectorChunkSupplier : public IDataChunkSupplier {
  public:
-  explicit VectorChunkSupplier(
-      std::vector<std::shared_ptr<DataChunk>> chunks)
+  explicit VectorChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)
       : chunks_(std::move(chunks)) {}
 
   std::shared_ptr<DataChunk> GetNextChunk() override {
@@ -67,8 +66,7 @@ class VectorChunkSupplier : public IDataChunkSupplier {
 };
 
 template <typename T>
-std::shared_ptr<IContextColumn> MakeValueColumn(
-    const std::vector<T>& values) {
+std::shared_ptr<IContextColumn> MakeValueColumn(const std::vector<T>& values) {
   ValueColumnBuilder<T> builder;
   builder.reserve(values.size());
   for (const auto& value : values) {
@@ -151,24 +149,24 @@ class APIndexTest : public ::testing::Test {
 
   void CreatePersonTable() {
     CreateVertexTypeParamBuilder builder;
-    auto status = ap_->CreateVertexType(
-        builder.VertexLabel("Person")
-            .AddProperty("id", Value::INT64(0))
-            .AddProperty("name", Value::STRING(""))
-            .AddProperty("age", Value::INT32(0))
-            .AddPrimaryKeyName("id")
-            .Build());
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Person")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("name", Value::STRING(""))
+                                  .AddProperty("age", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
   void CreateReplacementTable() {
     CreateVertexTypeParamBuilder builder;
-    auto status = ap_->CreateVertexType(
-        builder.VertexLabel("Replacement")
-            .AddProperty("id", Value::INT64(0))
-            .AddProperty("value", Value::INT32(0))
-            .AddPrimaryKeyName("id")
-            .Build());
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Replacement")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("value", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
@@ -212,9 +210,8 @@ class APIndexTest : public ::testing::Test {
                  vid_t* out = nullptr) {
     auto label = graph_->schema().get_vertex_label_id("Person");
     vid_t vid = 0;
-    auto status = ap_->AddVertex(
-        label, Value::INT64(id),
-        {Value::STRING(name), Value::INT32(age)}, vid);
+    auto status = ap_->AddVertex(label, Value::INT64(id),
+                                 {Value::STRING(name), Value::INT32(age)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
     if (out) {
       *out = vid;
@@ -224,8 +221,8 @@ class APIndexTest : public ::testing::Test {
   void AddReplacement(int64_t id, int32_t value) {
     auto label = graph_->schema().get_vertex_label_id("Replacement");
     vid_t vid = 0;
-    auto status = ap_->AddVertex(label, Value::INT64(id),
-                                 {Value::INT32(value)}, vid);
+    auto status =
+        ap_->AddVertex(label, Value::INT64(id), {Value::INT32(value)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
@@ -236,8 +233,7 @@ class APIndexTest : public ::testing::Test {
       return {};
     }
     ExampleIndexQueryParams params(age);
-    IndexFilterParams filter;
-    auto result = index->Search(params, filter, *ap_);
+    auto result = index->Search(params);
     EXPECT_TRUE(result) << result.error().ToString();
     if (!result) {
       return {};
@@ -299,10 +295,10 @@ TEST_F(APIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
 
   AddVertexPropertiesParamBuilder add_builder;
-  auto add_status = ap_->AddVertexProperties(
-      add_builder.VertexLabel("Person")
-          .AddProperty("score", Value::INT32(0))
-          .Build());
+  auto add_status =
+      ap_->AddVertexProperties(add_builder.VertexLabel("Person")
+                                   .AddProperty("score", Value::INT32(0))
+                                   .Build());
   ASSERT_TRUE(add_status.ok()) << add_status.ToString();
 
   ASSERT_TRUE(CreateIndex("idx_person_score", "Person", "score"));
@@ -342,8 +338,8 @@ TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
   ASSERT_NE(age_it, schema->property_names.end());
   auto age_col =
       static_cast<int>(std::distance(schema->property_names.begin(), age_it));
-  auto update_status = ap_->UpdateVertexProperty(label, bob, age_col,
-                                                 Value::INT32(30));
+  auto update_status =
+      ap_->UpdateVertexProperty(label, bob, age_col, Value::INT32(30));
   ASSERT_TRUE(update_status.ok()) << update_status.ToString();
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{}));
   EXPECT_EQ(SearchPersonNames(30),

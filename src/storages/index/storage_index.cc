@@ -25,6 +25,58 @@
 
 namespace neug {
 
+Status StorageIndex::Init(std::unique_ptr<IndexMeta> meta,
+                          std::unique_ptr<IndexIDAccessor> index_id_accessor) {
+  if (!meta) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Cannot initialize index with null metadata");
+  }
+  if (!index_id_accessor) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Cannot initialize index with null IndexIDAccessor");
+  }
+  meta_ = std::move(meta);
+  index_id_accessor_ = std::move(index_id_accessor);
+  return Status::OK();
+}
+
+result<std::vector<vid_t>> StorageIndex::Search(
+    const IndexQueryParams& params) {
+  if (!index_id_accessor_) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
+                        "Index ID accessor is not initialized");
+  }
+  auto index_ids = SearchImpl(params);
+  if (!index_ids) {
+    return tl::unexpected(index_ids.error());
+  }
+
+  std::vector<vid_t> results;
+  results.reserve(index_ids->size());
+  for (auto index_id : index_ids.value()) {
+    auto vid = index_id_accessor_->GetVIDByIndexID(index_id);
+    if (vid != INVALID_VID) {
+      results.emplace_back(vid);
+    }
+  }
+  return results;
+}
+
+Status StorageIndex::Upsert(vid_t vid, const Value& new_value) {
+  if (!index_id_accessor_) {
+    return Status::InternalError("Index ID accessor is not initialized");
+  }
+  auto index_id = index_id_accessor_->UpsertVID(vid);
+  return AppendImpl(index_id, new_value);
+}
+
+Status StorageIndex::Delete(vid_t vid) {
+  if (!index_id_accessor_) {
+    return Status::InternalError("Index ID accessor is not initialized");
+  }
+  return index_id_accessor_->DeleteVID(vid);
+}
+
 // --- IndexBindSchema serialization ---
 
 rapidjson::Value IndexBindSchema::ToJson(
@@ -131,8 +183,10 @@ void StorageIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
         IndexMeta::FromJsonString(index_meta_str.value()));
   }
 
-  doc_id_map_ = std::make_unique<DocIDMap>();
-  doc_id_map_->Open(ckp, descriptor, level);
+  if (!index_id_accessor_) {
+    index_id_accessor_ = std::make_unique<DefaultIndexIDAccessor>();
+  }
+  index_id_accessor_->Open(ckp, descriptor, level);
 }
 
 void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
@@ -141,17 +195,17 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.module_type = ModuleTypeName();
   desc.set("index_meta", meta_->ToJsonString());
 
-  if (doc_id_map_) {
-    CheckpointManifest doc_meta;
-    doc_id_map_->Dump(ckp, doc_meta, "doc_id_map");
-    auto doc_desc = doc_meta.module("doc_id_map");
-    auto next_doc_id = doc_desc->get("next_doc_id");
-    if (next_doc_id.has_value()) {
-      desc.set("next_doc_id", next_doc_id.value());
+  if (index_id_accessor_) {
+    CheckpointManifest accessor_meta;
+    index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
+    auto accessor_desc = accessor_meta.module("index_id_accessor");
+    auto next_index_id = accessor_desc->get("next_index_id");
+    if (next_index_id.has_value()) {
+      desc.set("next_index_id", next_index_id.value());
     }
-    auto doc_buffer = doc_desc->get_path("doc_id_buffer");
-    if (doc_buffer.has_value()) {
-      desc.set_path("doc_id_buffer", doc_buffer.value());
+    auto index_id_to_vid = accessor_desc->get_path("index_id_to_vid");
+    if (index_id_to_vid.has_value()) {
+      desc.set_path("index_id_to_vid", index_id_to_vid.value());
     }
   }
 
@@ -159,8 +213,8 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 void StorageIndex::Detach(Checkpoint& ckp, MemoryLevel level) {
-  if (doc_id_map_) {
-    doc_id_map_->Detach(ckp, level);
+  if (index_id_accessor_) {
+    index_id_accessor_->Detach(ckp, level);
   }
 }
 

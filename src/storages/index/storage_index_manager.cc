@@ -52,7 +52,12 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
       dynamic_cast<StorageIndex*>(module.release()));
   ModuleDescriptor desc;
   desc.module_type = module_type;
-  index->SetMeta(std::move(meta));
+  meta->name = name;
+  auto init_status =
+      index->Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+  if (!init_status.ok()) {
+    return tl::unexpected(std::move(init_status));
+  }
   index->Open(*ckp_, desc, memory_level_);
 
   auto* raw_ptr = index.get();

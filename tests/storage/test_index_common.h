@@ -79,27 +79,27 @@ class ExampleIndex : public StorageIndex {
   std::unique_ptr<Module> Clone() const override {
     auto cloned = std::make_unique<ExampleIndex>();
     if (meta_) {
-      cloned->SetMeta(std::make_unique<IndexMeta>(*meta_));
+      cloned->meta_ = std::make_unique<IndexMeta>(*meta_);
     }
-    if (doc_id_map_) {
-      auto cloned_doc_id_map = doc_id_map_->Clone();
-      cloned->doc_id_map_ = std::unique_ptr<DocIDMap>(
-          static_cast<DocIDMap*>(cloned_doc_id_map.release()));
+    if (index_id_accessor_) {
+      auto cloned_accessor = index_id_accessor_->Clone();
+      cloned->index_id_accessor_ = std::unique_ptr<IndexIDAccessor>(
+          static_cast<IndexIDAccessor*>(cloned_accessor.release()));
     }
     cloned->index_buffer_ = index_buffer_;
     return cloned;
   }
 
-  result<std::vector<vid_t>> Search(
-      const IndexQueryParams& params, const IndexFilterParams&,
-      const StorageReadInterface& graph) override {
+ protected:
+  result<std::vector<index_id_t>> SearchImpl(
+      const IndexQueryParams& params) override {
     const auto* example_params =
         dynamic_cast<const ExampleIndexQueryParams*>(&params);
     if (!example_params) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "ExampleIndex requires ExampleIndexQueryParams");
     }
-    if (!index_buffer_ || !doc_id_map_) {
+    if (!index_buffer_ || !index_id_accessor_) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
                           "ExampleIndex is not open");
     }
@@ -108,32 +108,23 @@ class ExampleIndex : public StorageIndex {
                           "Index metadata is not initialized");
     }
 
-    std::vector<vid_t> results;
+    std::vector<index_id_t> results;
     const auto* values = static_cast<const int32_t*>(index_buffer_->GetData());
-    label_t vertex_label = meta_->schema.label_id;
-    for (doc_id_t doc_id = 0; doc_id < doc_id_map_->size(); ++doc_id) {
-      auto vid = doc_id_map_->GetVID(doc_id);
-      if (vid == INVALID_VID || !graph.IsValidVertex(vertex_label, vid)) {
-        continue;
-      }
-      if (values[doc_id] == example_params->target_value) {
-        results.push_back(vid);
+    auto* accessor =
+        dynamic_cast<DefaultIndexIDAccessor*>(index_id_accessor_.get());
+    if (!accessor) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
+                          "ExampleIndex requires DefaultIndexIDAccessor");
+    }
+    for (index_id_t index_id = 0; index_id < accessor->size(); ++index_id) {
+      if (values[index_id] == example_params->target_value) {
+        results.push_back(index_id);
       }
     }
     return results;
   }
 
-  Status Delete(vid_t vid) override {
-    if (!doc_id_map_) {
-      return Status::InternalError("ExampleIndex is not open");
-    }
-    doc_id_map_->Erase(vid);
-    return Status::OK();
-  }
-
- protected:
-  Status AppendImpl(vid_t, doc_id_t doc_id, const Value& value,
-                    const StorageReadInterface&) override {
+  Status AppendImpl(index_id_t index_id, const Value& value) override {
     if (value.IsNull() || value.type().id() != DataTypeId::kInt32) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "ExampleIndex requires one non-null INT32 value");
@@ -141,11 +132,11 @@ class ExampleIndex : public StorageIndex {
     if (!index_buffer_) {
       return Status::InternalError("ExampleIndex is not open");
     }
-    if (doc_id >= capacity()) {
+    if (index_id >= capacity()) {
       Resize(std::max(capacity() * 2, kInitialCapacity));
     }
     auto* index_data = static_cast<int32_t*>(index_buffer_->GetData());
-    index_data[doc_id] = value.GetValue<int32_t>();
+    index_data[index_id] = value.GetValue<int32_t>();
     return Status::OK();
   }
 

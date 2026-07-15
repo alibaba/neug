@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
-#include "neug/compiler/planner/graph_planner.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/value.h"
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/container/i_container.h"
@@ -139,24 +139,24 @@ class TPIndexTest : public ::testing::Test {
 
   void CreatePersonTableAP() {
     CreateVertexTypeParamBuilder builder;
-    auto status = ap_->CreateVertexType(
-        builder.VertexLabel("Person")
-            .AddProperty("id", Value::INT64(0))
-            .AddProperty("name", Value::STRING(""))
-            .AddProperty("age", Value::INT32(0))
-            .AddPrimaryKeyName("id")
-            .Build());
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Person")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("name", Value::STRING(""))
+                                  .AddProperty("age", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
   void CreateReplacementTableAP() {
     CreateVertexTypeParamBuilder builder;
-    auto status = ap_->CreateVertexType(
-        builder.VertexLabel("Replacement")
-            .AddProperty("id", Value::INT64(0))
-            .AddProperty("value", Value::INT32(0))
-            .AddPrimaryKeyName("id")
-            .Build());
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Replacement")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("value", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
@@ -165,13 +165,13 @@ class TPIndexTest : public ::testing::Test {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
     CreateVertexTypeParamBuilder builder;
-    auto status = tp.CreateVertexType(
-        builder.VertexLabel("Person")
-            .AddProperty("id", Value::INT64(0))
-            .AddProperty("name", Value::STRING(""))
-            .AddProperty("age", Value::INT32(0))
-            .AddPrimaryKeyName("id")
-            .Build());
+    auto status =
+        tp.CreateVertexType(builder.VertexLabel("Person")
+                                .AddProperty("id", Value::INT64(0))
+                                .AddProperty("name", Value::STRING(""))
+                                .AddProperty("age", Value::INT32(0))
+                                .AddPrimaryKeyName("id")
+                                .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
@@ -233,9 +233,8 @@ class TPIndexTest : public ::testing::Test {
                    const std::string& name, int32_t age, vid_t* out = nullptr) {
     auto label = tp.schema().get_vertex_label_id("Person");
     vid_t vid = 0;
-    auto status = tp.AddVertex(
-        label, Value::INT64(id),
-        {Value::STRING(name), Value::INT32(age)}, vid);
+    auto status = tp.AddVertex(label, Value::INT64(id),
+                               {Value::STRING(name), Value::INT32(age)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
     if (out) {
       *out = vid;
@@ -251,8 +250,7 @@ class TPIndexTest : public ::testing::Test {
       return {};
     }
     ExampleIndexQueryParams params(age);
-    IndexFilterParams filter;
-    auto result = index->Search(params, filter, reader);
+    auto result = index->Search(params);
     EXPECT_TRUE(result) << result.error().ToString();
     if (!result) {
       return {};
@@ -343,10 +341,10 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
     AddVertexPropertiesParamBuilder add_builder;
-    auto status = tp.AddVertexProperties(
-        add_builder.VertexLabel("Person")
-            .AddProperty("score", Value::INT32(0))
-            .Build());
+    auto status =
+        tp.AddVertexProperties(add_builder.VertexLabel("Person")
+                                   .AddProperty("score", Value::INT32(0))
+                                   .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
@@ -398,8 +396,8 @@ TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
     ASSERT_NE(age_it, schema->property_names.end());
     auto age_col =
         static_cast<int>(std::distance(schema->property_names.begin(), age_it));
-    auto update_status = tp.UpdateVertexProperty(label, bob, age_col,
-                                                 Value::INT32(30));
+    auto update_status =
+        tp.UpdateVertexProperty(label, bob, age_col, Value::INT32(30));
     ASSERT_TRUE(update_status.ok()) << update_status.ToString();
     EXPECT_EQ(SearchPersonNames(tp, 25), (std::vector<std::string>{}));
     EXPECT_EQ(SearchPersonNames(tp, 30),
@@ -581,8 +579,8 @@ TEST_F(TPIndexTest, AbortDiscardsIndexMutations) {
     ASSERT_NE(age_it, schema->property_names.end());
     auto age_col =
         static_cast<int>(std::distance(schema->property_names.begin(), age_it));
-    ASSERT_TRUE(tp.UpdateVertexProperty(label, alice, age_col,
-                                        Value::INT32(40)));
+    ASSERT_TRUE(
+        tp.UpdateVertexProperty(label, alice, age_col, Value::INT32(40)));
     AddPersonTP(tp, 2, "Bob", 25);
     EXPECT_EQ(SearchPersonNames(tp, 40), (std::vector<std::string>{"Alice"}));
     EXPECT_EQ(SearchPersonNames(tp, 25), (std::vector<std::string>{"Bob"}));
@@ -621,8 +619,7 @@ TEST_F(TPIndexTest, ReadTransactionIsolationFromUpdateTransaction) {
   ASSERT_NE(age_it, schema->property_names.end());
   auto age_col =
       static_cast<int>(std::distance(schema->property_names.begin(), age_it));
-  ASSERT_TRUE(tp.UpdateVertexProperty(label, alice, age_col,
-                                      Value::INT32(40)));
+  ASSERT_TRUE(tp.UpdateVertexProperty(label, alice, age_col, Value::INT32(40)));
   AddPersonTP(tp, 2, "Bob", 25);
 
   EXPECT_EQ(SearchPersonNames(tp, 40), (std::vector<std::string>{"Alice"}));

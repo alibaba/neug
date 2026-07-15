@@ -34,8 +34,8 @@ namespace {
 // Index names are copied out before calling DropIndex because DropIndex mutates
 // IndexManager's internal container. Keeping only the names avoids using Index*
 // values after the manager has been modified.
-static Status deleteVertexIndexSchema(PropertyGraph& graph, label_t label,
-                                      const std::string& prop_name) {
+static Status dropVertexIndex(PropertyGraph& graph, label_t label,
+                              const std::string& prop_name) {
   auto& index_manager = graph.mutable_index_manager();
   auto indexes = index_manager.GetIndex(label, prop_name);
   if (!indexes) {
@@ -62,13 +62,9 @@ static Status deleteVertexIndexSchema(PropertyGraph& graph, label_t label,
 // not present in the input payload are skipped because they do not have valid
 // row values to add.
 //
-// The reader is passed through to Index::Append so index implementations can
-// read any additional graph state they need while building the index entry. If
-// a property has no index, IndexManager returns an empty list and no work is
+// If a property has no index, IndexManager returns an empty list and no work is
 // done for that property.
-static Status addVertexIndexData(PropertyGraph& graph,
-                                 const StorageReadInterface& reader,
-                                 label_t label, vid_t lid,
+static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                                  const std::vector<Value>& props) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
@@ -83,7 +79,7 @@ static Status addVertexIndexData(PropertyGraph& graph,
       return indexes.error();
     }
     for (auto* index : indexes.value()) {
-      RETURN_IF_NOT_OK(index->Append(lid, props[prop_idx], reader));
+      RETURN_IF_NOT_OK(index->Upsert(lid, props[prop_idx]));
     }
   }
   return Status::OK();
@@ -101,9 +97,7 @@ static Status addVertexIndexData(PropertyGraph& graph,
 // Missing property columns are ignored. That keeps this helper tolerant of
 // schema/table states where a property is known to the schema but the
 // corresponding column has not been materialized for the AP table.
-static Status batchAddVertexIndexData(PropertyGraph& graph,
-                                      const StorageReadInterface& reader,
-                                      label_t label,
+static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
                                       const std::vector<vid_t>& vids) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   const auto& vtable = graph.get_vertex_table(label);
@@ -128,7 +122,7 @@ static Status batchAddVertexIndexData(PropertyGraph& graph,
     }
     for (auto* index : indexes.value()) {
       for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Append(vid, col->get_any(vid), reader));
+        RETURN_IF_NOT_OK(index->Upsert(vid, col->get_any(vid)));
       }
     }
   }
@@ -147,9 +141,8 @@ static Status batchAddVertexIndexData(PropertyGraph& graph,
 // no valid index should be maintained for them. The helper only touches indexes
 // attached to the updated property; indexes on other properties of the same
 // vertex label are unaffected.
-static Status updateVertexIndexData(PropertyGraph& graph,
-                                    const StorageReadInterface& reader,
-                                    label_t label, vid_t lid, int32_t col_id,
+static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
+                                    vid_t lid, int32_t col_id,
                                     const Value& value) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   if (col_id < 0 ||
@@ -166,7 +159,7 @@ static Status updateVertexIndexData(PropertyGraph& graph,
   }
   for (auto* index : indexes.value()) {
     RETURN_IF_NOT_OK(index->Delete(lid));
-    RETURN_IF_NOT_OK(index->Append(lid, value, reader));
+    RETURN_IF_NOT_OK(index->Upsert(lid, value));
   }
   return Status::OK();
 }
@@ -208,11 +201,12 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 
 }  // namespace
 
-Status StorageAPUpdateInterface::UpdateVertexProperty(
-    label_t label, vid_t lid, int col_id, const Value& value) {
+Status StorageAPUpdateInterface::UpdateVertexProperty(label_t label, vid_t lid,
+                                                      int col_id,
+                                                      const Value& value) {
   RETURN_IF_NOT_OK(
       graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
-  return updateVertexIndexData(graph_, *this, label, lid, col_id, value);
+  return updateVertexIndexData(graph_, label, lid, col_id, value);
 }
 
 Status StorageAPUpdateInterface::UpdateEdgeProperty(
@@ -248,7 +242,7 @@ Status StorageAPUpdateInterface::AddVertex(label_t label, const Value& id,
     return status;
   }
 
-  RETURN_IF_NOT_OK(addVertexIndexData(graph_, *this, label, vid, props));
+  RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, props));
   return Status::OK();
 }
 
@@ -321,7 +315,7 @@ Status StorageAPUpdateInterface::BatchAddVertices(
     return Status::OK();
   }
 
-  return batchAddVertexIndexData(graph_, *this, v_label_id, new_vids.value());
+  return batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
 }
 
 Status StorageAPUpdateInterface::BatchAddEdges(
@@ -399,7 +393,9 @@ Status StorageAPUpdateInterface::RenameVertexProperties(
   const auto& vertex_type_name = config.GetVertexLabel();
   auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
   for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
-    RETURN_IF_NOT_OK(deleteVertexIndexSchema(graph_, v_label, old_name));
+    if (old_name == new_name)
+      continue;
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, v_label, old_name));
   }
   return graph_.RenameVertexProperties(config);
 }
@@ -414,7 +410,7 @@ Status StorageAPUpdateInterface::DeleteVertexProperties(
   const auto& vertex_type_name = config.GetVertexLabel();
   auto v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
   for (const auto& prop_name : config.GetDeleteProperties()) {
-    RETURN_IF_NOT_OK(deleteVertexIndexSchema(graph_, v_label, prop_name));
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, v_label, prop_name));
   }
   auto status = graph_.DeleteVertexProperties(config);
   if (status.ok()) {
@@ -444,8 +440,8 @@ Status StorageAPUpdateInterface::DeleteVertexType(
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx])
       continue;
-    RETURN_IF_NOT_OK(deleteVertexIndexSchema(
-        graph_, v_label, v_schema->property_names[prop_idx]));
+    RETURN_IF_NOT_OK(
+        dropVertexIndex(graph_, v_label, v_schema->property_names[prop_idx]));
   }
   auto status = graph_.DeleteVertexType(vertex_type_name);
   if (status.ok()) {
