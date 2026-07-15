@@ -272,7 +272,7 @@ void NeugDB::openGraphAndIngestWals() {
     auto ckp = checkpoint_mgr_.CurrentCheckpoint();
     if (ckp == nullptr) {
       if (config_.mode == DBMode::READ_ONLY && !is_pure_memory_) {
-        THROW_CHECKPOINT_EXCEPTION(
+        THROW_NO_CHECKPOINT_EXCEPTION(
             "NeugDB::Open: no checkpoint found in read-only database: " +
             checkpoint_mgr_.db_dir());
       }
@@ -300,6 +300,8 @@ void NeugDB::openGraphAndIngestWals() {
     snapshot_store_ =
         std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
 
+  } catch (const neug::exception::NoCheckpointException&) {
+    throw;
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());

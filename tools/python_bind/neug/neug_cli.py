@@ -58,6 +58,7 @@ except ImportError:
 from neug.connection import Connection
 from neug.database import Database
 from neug.format import parse_and_format_results
+from neug.utils import readable
 
 # Build-in commands
 COMMAND_HELP = ":help"
@@ -640,12 +641,13 @@ def open(db_uri, mode):
 
       neug-cli open
     """
-    if len(db_uri) > 0:
-        click.echo(f"Opened database at {db_uri} in {mode} mode")
-    else:
-        click.echo("Opened in-memory database in read-write mode")
     database = Database(db_path=str(db_uri), mode=mode)
     connection = database.connect()
+    normalized_mode = readable(mode)
+    if len(db_uri) > 0:
+        click.echo(f"Opened database at {db_uri} in {normalized_mode} mode")
+    else:
+        click.echo(f"Opened in-memory database in {normalized_mode} mode")
     shell = NeugShell(connection)
     shell.cmdloop()
 

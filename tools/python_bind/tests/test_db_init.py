@@ -30,9 +30,9 @@ from neug.proto.error_pb2 import ERR_CONFIG_INVALID
 from neug.proto.error_pb2 import ERR_CORRUPTION_DETECTED
 from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_DISK_SPACE_EXHAUSTED
-from neug.proto.error_pb2 import ERR_INTERNAL_ERROR
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_PATH
+from neug.proto.error_pb2 import ERR_NO_CHECKPOINT
 from neug.proto.error_pb2 import ERR_PERMISSION
 from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
 
@@ -62,10 +62,10 @@ def test_local_db_open_exists_and_close(tmp_path):
     db_dir = tmp_path / "existdb"
     if not db_dir.exists():
         db_dir.mkdir()
-    with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="r")
-        assert str(ERR_INTERNAL_ERROR) in str(excinfo.value)
-    db2 = Database(db_path=str(db_dir), mode="rw")
+    db1 = Database(db_path=str(db_dir), mode="rw")
+    assert db1 is not None
+    db1.close()
+    db2 = Database(db_path=str(db_dir), mode="r")
     assert db2 is not None
     db2.close()
 
@@ -89,7 +89,7 @@ def test_local_db_open_not_exists_and_close(tmp_path):
     assert not db_dir.exists()
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="r")
-        assert str(ERR_INTERNAL_ERROR) in str(excinfo.value)
+        assert str(ERR_NO_CHECKPOINT) in str(excinfo.value)
     if not db_dir.exists():
         db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
