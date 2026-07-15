@@ -142,6 +142,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.data = data;
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
+    if (ts != 0) {
+      needs_compact_.store(true, std::memory_order_relaxed);
+    }
     // invalidate sort flag
     if (ts < unsorted_since_) {
       unsorted_since_ = 0;
@@ -217,6 +220,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->nbr_list_ = nbr_list_;
     cow_clone->unsorted_since_ = unsorted_since_;
     cow_clone->edge_num_ = edge_num_.load();
+    cow_clone->needs_compact_.store(
+        needs_compact_.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
     return cow_clone;
   }
 
@@ -235,6 +241,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  void mark_compaction_required() override {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
+
   std::unique_ptr<SpinLock[]> locks_;
   std::shared_ptr<IDataContainer> adj_list_buffer_;
   std::shared_ptr<IDataContainer> degree_list_;
@@ -242,6 +252,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
+  std::atomic<bool> needs_compact_{false};
   CsrPrefetchPolicy prefetch_policy_;
 
   void refresh_prefetch_policy();
@@ -331,6 +342,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (ts != 0) {
+      needs_compact_.store(true, std::memory_order_relaxed);
+    }
     return {0, static_cast<const void*>(&nbrs[src].data)};
   }
 
@@ -367,6 +381,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     auto cow_clone = std::make_unique<SingleMutableCsr<EDATA_T>>();
     cow_clone->nbr_list_ = nbr_list_;
     cow_clone->edge_num_ = edge_num_.load();
+    cow_clone->needs_compact_.store(
+        needs_compact_.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
     return cow_clone;
   }
 
@@ -382,8 +399,13 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  void mark_compaction_required() override {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
+
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
+  std::atomic<bool> needs_compact_{false};
   CsrPrefetchPolicy prefetch_policy_;
 
   void refresh_prefetch_policy();
@@ -478,6 +500,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   static std::string type_name() {
     return "empty_csr<" + type_name_string<EDATA_T>() + ">";
   }
+
+ private:
+  void mark_compaction_required() override {}
 };
 
 }  // namespace neug

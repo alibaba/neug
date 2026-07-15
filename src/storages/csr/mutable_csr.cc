@@ -85,6 +85,7 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
         " but degree list implies " + std::to_string(edge_count) +
         ", desc: " + descriptor.ToJsonString());
   }
+  needs_compact_.store(false, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -171,6 +172,9 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::compact() {
+  if (!needs_compact_.load(std::memory_order_relaxed)) {
+    return;
+  }
   // Remove deleted edges and reset timestamps on surviving edges.
   size_t vnum = vertex_capacity();
   auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
@@ -209,6 +213,7 @@ void MutableCsr<EDATA_T>::compact() {
         std::to_string(edge_num_.load()) + ", actual " +
         std::to_string(total_edge_num));
   }
+  needs_compact_.store(false, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -278,6 +283,9 @@ void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
+  if (!src_set.empty() || !dst_set.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
@@ -333,6 +341,9 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
+  if (!src_list.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   std::map<vid_t, std::set<vid_t>> src_dst_map;
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -367,6 +378,9 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
+  if (!edges.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   std::map<vid_t, std::set<int32_t>> src_offset_map;
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
@@ -413,6 +427,7 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   if (old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    needs_compact_.store(true, std::memory_order_relaxed);
     unsorted_since_ = 0;
   } else if (old_ts == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Attempting to delete already deleted edge.";
@@ -442,6 +457,9 @@ void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
     assert(nbrs[offset].neighbor == nbr);
     nbrs[offset].timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (ts != 0) {
+      needs_compact_.store(true, std::memory_order_relaxed);
+    }
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
@@ -519,6 +537,9 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     added_edge_num++;
   }
   edge_num_.fetch_add(added_edge_num, std::memory_order_relaxed);
+  if (ts != 0 && added_edge_num > 0) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   // invalidate sort flag
   if (ts < unsorted_since_) {
     unsorted_since_ = 0;
@@ -535,6 +556,7 @@ void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
   nbr_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""), level));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
+  needs_compact_.store(false, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -558,6 +580,9 @@ void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::compact() {
+  if (!needs_compact_.load(std::memory_order_relaxed)) {
+    return;
+  }
   if (!nbr_list_) {
     return;
   }
@@ -568,6 +593,7 @@ void SingleMutableCsr<EDATA_T>::compact() {
       data[i].timestamp.store(0, std::memory_order_relaxed);
     }
   }
+  needs_compact_.store(false, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -601,6 +627,9 @@ void SingleMutableCsr<EDATA_T>::batch_delete_vertices(
   if (!nbr_list_) {
     return;
   }
+  if (!src_set.empty() || !dst_set.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (auto src : src_set) {
@@ -629,6 +658,9 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
   if (!nbr_list_) {
     return;
   }
+  if (!src_list.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (size_t i = 0; i != src_list.size(); ++i) {
@@ -652,6 +684,9 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edge_list) {
   if (!nbr_list_) {
     return;
+  }
+  if (!edge_list.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
   }
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
@@ -685,6 +720,7 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   if (nbr.timestamp.load() <= ts) {
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    needs_compact_.store(true, std::memory_order_relaxed);
   } else if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Fail to delete edge, already deleted.";
   } else {
@@ -711,6 +747,9 @@ void SingleMutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr_vid,
   if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (ts != 0) {
+      needs_compact_.store(true, std::memory_order_relaxed);
+    }
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
@@ -736,6 +775,9 @@ void SingleMutableCsr<EDATA_T>::batch_put_edges(
     nbr.data = data_list[i];
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1, std::memory_order_relaxed);
+    if (ts != 0) {
+      needs_compact_.store(true, std::memory_order_relaxed);
+    }
   }
 }
 

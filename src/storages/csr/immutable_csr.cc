@@ -42,6 +42,7 @@ void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
   unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
+  needs_compact_.store(false, std::memory_order_relaxed);
   degree_list_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
       memory_level));
@@ -90,6 +91,9 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
+  if (!needs_compact_.load(std::memory_order_relaxed)) {
+    return;
+  }
   // For current adj_list where the dst vertex is invalid, swap it to the end.
   vid_t vnum = size();
   if (vnum <= 0) {
@@ -126,6 +130,7 @@ void ImmutableCsr<EDATA_T>::compact() {
     adj_arr[i] = ptr;
     ptr += deg_arr[i];
   }
+  needs_compact_.store(false, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -183,6 +188,9 @@ void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
+  if (!src_set.empty() || !dst_set.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   vid_t vnum = size();
   auto** adj_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* deg_arr = reinterpret_cast<int*>(degree_list_buffer_->GetData());
@@ -233,6 +241,9 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
+  if (!src_list.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   std::map<vid_t, std::set<vid_t>> src_dst_map;
   vid_t vnum = size();
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -271,6 +282,9 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
+  if (!edges.empty()) {
+    needs_compact_.store(true, std::memory_order_relaxed);
+  }
   std::map<vid_t, std::set<int32_t>> src_offset_map;
   vid_t vnum = size();
   auto** adj_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
@@ -315,6 +329,7 @@ void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbrs[offset].neighbor = std::numeric_limits<vid_t>::max();
   edge_num_.fetch_sub(1, std::memory_order_relaxed);
+  needs_compact_.store(true, std::memory_order_relaxed);
   unsorted_since_ = 0;
 }
 
