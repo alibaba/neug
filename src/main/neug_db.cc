@@ -152,6 +152,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     }
     initPlannerAndQueryProcessor();
   } catch (...) {
+    snapshot_store_.reset();
+    allocators_.clear();
     checkpoint_mgr_.Close();
     if (file_lock_) {
       file_lock_->unlock();
@@ -192,6 +194,7 @@ void NeugDB::Close() {
 
   // Clear GraphSnapshotStore instead of graph_
   snapshot_store_.reset();
+  allocators_.clear();
 
   if (file_lock_) {
     file_lock_->unlock();
@@ -251,6 +254,7 @@ void NeugDB::preprocessConfig() {
 
 void NeugDB::initAllocators(const std::string& allocator_dir) {
   // Initialize the default allocator for ingesting wals
+  allocators_.clear();
   remove_directory(allocator_dir);
   std::filesystem::create_directories(allocator_dir);
   assert(config_.max_thread_num > 0);
@@ -395,7 +399,10 @@ void NeugDB::createCheckpointAfterRecovery() {
     reopened_graph->Open(published_checkpoint, memory_level);
     snapshot_store_ = std::make_unique<GraphSnapshotStore>(
         config_.storage_slot_num, std::move(reopened_graph));
+    initAllocators(published_checkpoint->allocator_dir());
   } catch (...) {
+    snapshot_store_.reset();
+    allocators_.clear();
     rollback_published_checkpoint();
     throw;
   }
@@ -417,6 +424,7 @@ void NeugDB::createCheckpointOnClose() {
   // Close-path checkpointing does not reopen a live graph. Release all
   // snapshot/container/mmap resources before deleting the retired checkpoint.
   snapshot_store_.reset();
+  allocators_.clear();
   checkpoint_mgr_.CleanupRetiredCheckpoints();
 
   last_ts_ = 0;
