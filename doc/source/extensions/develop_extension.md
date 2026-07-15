@@ -13,8 +13,6 @@ my-extension/
   include/
 ```
 
-You can also start from the [neug-extension-template](https://github.com/alibaba/neug-extension-template).
-
 ## Register the extension
 
 Create `extension_config.cmake` at the root of your extension repo:

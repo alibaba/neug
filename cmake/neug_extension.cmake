@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# CMake helpers for out-of-tree NeuG extensions (used by neug-extension-template).
+# CMake helpers for out-of-tree NeuG extensions.
 
 set(NEUG_BUILTIN_EXTENSIONS parquet pattern_matching gds httpfs CACHE INTERNAL "")
 
