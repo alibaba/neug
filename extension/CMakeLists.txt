@@ -1,6 +1,6 @@
 message(STATUS "=== Building extensions: ${BUILD_EXTENSIONS} ===")
 
-include(${CMAKE_SOURCE_DIR}/cmake/neug_extension.cmake)
+include("${CMAKE_SOURCE_DIR}/cmake/neug_extension.cmake")
 
 if(NEUG_EXTENSION_CONFIGS)
     foreach(_ext_config IN LISTS NEUG_EXTENSION_CONFIGS)

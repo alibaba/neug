@@ -74,6 +74,12 @@ option(ENABLE_UBSAN "Enable undefined behavior sanitizer." FALSE)
 option(ENABLE_RUNTIME_CHECKS "Enable runtime coherency checks (e.g. asserts)" FALSE)
 option(ENABLE_LTO "Enable Link-Time Optimization" FALSE)
 option(AUTO_UPDATE_GRAMMAR "Automatically regenerate C++ grammar files on change." FALSE)
+# Legacy builds used option(BUILD_EXTENSIONS), which caches a BOOL (ON/OFF).
+# Migrate so reconfigure does not treat "ON" as an extension name.
+get_property(_neug_build_extensions_cache_type CACHE BUILD_EXTENSIONS PROPERTY TYPE)
+if(_neug_build_extensions_cache_type STREQUAL "BOOL")
+    unset(BUILD_EXTENSIONS CACHE)
+endif()
 set(BUILD_EXTENSIONS "" CACHE STRING
     "Semicolon-separated list of extensions to build.")
 set(NEUG_EXTENSION_CONFIGS "" CACHE STRING

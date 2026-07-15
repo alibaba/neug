@@ -9,7 +9,10 @@ function(neug_extension_load EXT_NAME)
     if(NOT EXT_SOURCE_DIR)
         message(FATAL_ERROR "neug_extension_load(${EXT_NAME}): SOURCE_DIR is required")
     endif()
-    get_filename_component(_abs_source "${EXT_SOURCE_DIR}" ABSOLUTE)
+    # Relative SOURCE_DIR is resolved from the including config file's directory
+    # (CMAKE_CURRENT_LIST_DIR at the call site), not the process CWD.
+    get_filename_component(_abs_source "${EXT_SOURCE_DIR}" ABSOLUTE
+        BASE_DIR "${CMAKE_CURRENT_LIST_DIR}")
     if(NOT IS_DIRECTORY "${_abs_source}")
         message(FATAL_ERROR
             "neug_extension_load(${EXT_NAME}): SOURCE_DIR '${_abs_source}' does not exist")
