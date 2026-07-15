@@ -308,17 +308,32 @@ class NeugDB {
   void ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlannerAndQueryProcessor();
   std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
-      CheckpointSession& checkpoint_session, MemoryLevel* memory_level);
+      CheckpointSession& checkpoint_session);
 
   /**
-   * @brief Create a checkpoint of the current graph. Must not be called while a
-   * NeugDBService is running.
+   * @brief Create a checkpoint after WAL recovery and keep the DB open.
+   *
+   * A recovery checkpoint publishes the recovered graph, reopens the graph from
+   * the published checkpoint so the live store owns checkpoint files, and rolls
+   * back to the previous checkpoint if reopening fails.
    *
    * A durable checkpoint is a transaction timeline reset boundary: it always
    * compacts storage timestamps before dumping, and a successful checkpoint
-   * resets last_ts_ to 0.
+   * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
    */
   void createCheckpointAfterRecovery();
+
+  /**
+   * @brief Create a checkpoint while closing the DB.
+   *
+   * The close path publishes the checkpoint, then releases the live graph,
+   * snapshot, allocator, and mmap resources before removing retired checkpoint
+   * directories. It does not reopen a graph because the DB is shutting down.
+   *
+   * A durable checkpoint is a transaction timeline reset boundary: it always
+   * compacts storage timestamps before dumping, and a successful checkpoint
+   * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
+   */
   void createCheckpointOnClose();
 
   friend class NeugDBSession;
