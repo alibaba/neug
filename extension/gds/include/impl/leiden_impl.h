@@ -23,6 +23,7 @@
 
 #include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
@@ -40,7 +41,8 @@ class Leiden {
          std::vector<LabelTriplet> edge_triplets, double resolution,
          double threshold, int concurrency,
          const std::string& initial_community_property = "",
-         bool allow_relocation = false);
+         bool allow_relocation = false,
+         const std::string& weight_property = "");
 
   void compute();
 
@@ -56,6 +58,11 @@ class Leiden {
   int concurrency_;
   std::string initial_community_property_;
   bool allow_relocation_ = false;
+  std::string weight_property_;
+  bool has_weight_ = false;
+  EdgeDataAccessor weight_accessor_;
+  std::vector<EdgeDataAccessor> triplet_weight_accessors_;
+  std::vector<bool> triplet_has_weight_;
 
   std::vector<size_t> label_base_offsets_;
   std::vector<size_t> label_local_sizes_;

@@ -440,6 +440,7 @@ RETURN node, community;
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 | `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
 | `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
+| `weight` | STRING | `""` | Edge property name to use as edge weight. When set, the algorithm uses weighted modularity. When empty (default), all edges are treated with weight 1.0 (unweighted). |
 
 **Output columns:**
 
@@ -543,6 +544,7 @@ RETURN node, community;
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
 | `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
 | `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
+| `weight` | STRING | `""` | Edge property name to use as edge weight. When set, the algorithm uses weighted modularity. When empty (default), all edges are treated with weight 1.0 (unweighted). |
 
 **Output columns:**
 
@@ -692,8 +694,8 @@ RETURN distance, path;
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | CDLP | `cdlp` | `node`, `label` | `max_iterations` |
-| Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation` |
-| Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation` |
+| Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
+| Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
 
 **Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. The `previous_community` column for Louvain and Leiden is optional and only available when `initial_community_property` is set. See the individual algorithm sections for details.
 

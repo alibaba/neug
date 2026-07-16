@@ -31,7 +31,8 @@ Louvain::Louvain(const StorageReadInterface& graph,
                  std::vector<LabelTriplet> edge_triplets, double resolution,
                  double threshold, int concurrency,
                  const std::string& initial_community_property,
-                 bool allow_relocation)
+                 bool allow_relocation,
+                 const std::string& weight_property)
     : graph_(graph),
       vertex_labels_(std::move(vertex_labels)),
       edge_triplets_(std::move(edge_triplets)),
@@ -39,7 +40,9 @@ Louvain::Louvain(const StorageReadInterface& graph,
       threshold_(threshold),
       concurrency_(concurrency),
       initial_community_property_(initial_community_property),
-      allow_relocation_(allow_relocation) {
+      allow_relocation_(allow_relocation),
+      weight_property_(weight_property),
+      has_weight_(!weight_property.empty()) {
   for (size_t i = 0; i < vertex_labels_.size(); ++i)
     label_to_index_[vertex_labels_[i]] = i;
   label_base_offsets_.resize(vertex_labels_.size(), 0);
@@ -156,6 +159,40 @@ Louvain::Louvain(const StorageReadInterface& graph,
     simple_vertex_label_ = vertex_labels_[0];
     simple_edge_label_ = edge_triplets_[0].edge_label;
   }
+  // Always initialize triplet weight vectors to avoid out-of-bounds access
+  // in the multi-label code path when has_weight_ is false.
+  triplet_weight_accessors_.resize(edge_triplets_.size());
+  triplet_has_weight_.resize(edge_triplets_.size(), false);
+  // Create edge weight accessors if weight property is specified
+  if (has_weight_) {
+    if (is_simple_graph_) {
+      try {
+        weight_accessor_ = graph_.GetEdgeDataAccessor(
+            simple_vertex_label_, simple_vertex_label_, simple_edge_label_,
+            weight_property_);
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "Edge property '" << weight_property_
+                     << "' not found on edge label " << simple_edge_label_
+                     << "; using default weight 1.0";
+        has_weight_ = false;
+      }
+    } else {
+      for (size_t ti = 0; ti < edge_triplets_.size(); ++ti) {
+        const auto& t = edge_triplets_[ti];
+        try {
+          triplet_weight_accessors_[ti] = graph_.GetEdgeDataAccessor(
+              t.src_label, t.dst_label, t.edge_label, weight_property_);
+          triplet_has_weight_[ti] = true;
+        } catch (const std::exception& e) {
+          LOG(WARNING) << "Edge property '" << weight_property_
+                       << "' not found on edge triplet [" << t.src_label
+                       << ", " << t.dst_label << ", " << t.edge_label
+                       << "]; using default weight 1.0";
+          triplet_has_weight_[ti] = false;
+        }
+      }
+    }
+  }
 }
 void Louvain::compute() {
   if (is_simple_graph_) {
@@ -170,10 +207,14 @@ void Louvain::compute() {
           double deg = 0;
           auto oes = oe_view.get_edges(v);
           for (auto it = oes.begin(); it != oes.end(); ++it)
-            deg += 1.0;
+            deg += has_weight_
+                       ? weight_accessor_.get_typed_data<double>(it)
+                       : 1.0;
           auto ies = ie_view.get_edges(v);
           for (auto it = ies.begin(); it != ies.end(); ++it)
-            deg += 1.0;
+            deg += has_weight_
+                       ? weight_accessor_.get_typed_data<double>(it)
+                       : 1.0;
           degree_[v] = deg;
         },
         num_threads_);
@@ -184,7 +225,9 @@ void Louvain::compute() {
           auto oes = oe_view.get_edges(v);
           double cnt = 0;
           for (auto it = oes.begin(); it != oes.end(); ++it)
-            cnt += 1.0;
+            cnt += has_weight_
+                       ? weight_accessor_.get_typed_data<double>(it)
+                       : 1.0;
           local_m[tid] += cnt;
         },
         num_threads_);
@@ -217,9 +260,13 @@ void Louvain::compute() {
             auto oes = oe_view.get_edges(v);
             for (auto it = oes.begin(); it != oes.end(); ++it) {
               vid_t u = *it;
-              if (community_[v] == community_[u])
-                local_mod[tid] += 1.0 / (2.0 * m_) -
+              if (community_[v] == community_[u]) {
+                double w = has_weight_
+                               ? weight_accessor_.get_typed_data<double>(it)
+                               : 1.0;
+                local_mod[tid] += w / (2.0 * m_) -
                                   degree_[v] * degree_[u] / (4.0 * m_ * m_);
+              }
             }
           },
           num_threads_);
@@ -253,12 +300,18 @@ void Louvain::compute() {
           for (size_t ti : label_out_triplets_[li]) {
             auto e = out_views[ti].get_edges(lv);
             for (auto it = e.begin(); it != e.end(); ++it)
-              deg += 1.0;
+              deg += triplet_has_weight_[ti]
+                         ? triplet_weight_accessors_[ti]
+                               .get_typed_data<double>(it)
+                         : 1.0;
           }
           for (size_t ti : label_in_triplets_[li]) {
             auto e = in_views[ti].get_edges(lv);
             for (auto it = e.begin(); it != e.end(); ++it)
-              deg += 1.0;
+              deg += triplet_has_weight_[ti]
+                         ? triplet_weight_accessors_[ti]
+                               .get_typed_data<double>(it)
+                         : 1.0;
           }
           degree_[gid] = deg;
         },
@@ -274,7 +327,10 @@ void Louvain::compute() {
           for (size_t ti : label_out_triplets_[li]) {
             auto e = out_views[ti].get_edges(lv);
             for (auto it = e.begin(); it != e.end(); ++it)
-              cnt += 1.0;
+              cnt += triplet_has_weight_[ti]
+                         ? triplet_weight_accessors_[ti]
+                               .get_typed_data<double>(it)
+                         : 1.0;
           }
           local_m[tid] += cnt;
         },
@@ -306,9 +362,14 @@ void Louvain::compute() {
           auto oes = out_views[ti].get_edges(lv);
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             uint32_t ug = static_cast<uint32_t>(db + (*it));
-            if (community_[gid] == community_[ug])
-              new_mod += 1.0 / (2.0 * m_) -
+            if (community_[gid] == community_[ug]) {
+              double w = triplet_has_weight_[ti]
+                             ? triplet_weight_accessors_[ti]
+                                   .get_typed_data<double>(it)
+                             : 1.0;
+              new_mod += w / (2.0 * m_) -
                          degree_[gid] * degree_[ug] / (4.0 * m_ * m_);
+            }
           }
         }
       }
@@ -367,7 +428,7 @@ bool Louvain::one_level() {
                 double du = degree_[u];
                 ++gv;
                 mt.clear();
-                auto pn = [&](vid_t v) {
+                auto pn = [&](vid_t v, double w) {
                   if (v == u)
                     return;
                   uint32_t cm = community_[v];
@@ -376,14 +437,18 @@ bool Louvain::one_level() {
                     mc[cm] = 0.0;
                     mt.push_back(cm);
                   }
-                  mc[cm] += 1.0;
+                  mc[cm] += w;
                 };
                 auto oes = oe_view.get_edges(u);
                 for (auto it = oes.begin(); it != oes.end(); ++it)
-                  pn(*it);
+                  pn(*it, has_weight_
+                            ? weight_accessor_.get_typed_data<double>(it)
+                            : 1.0);
                 auto ies = ie_view.get_edges(u);
                 for (auto it = ies.begin(); it != ies.end(); ++it)
-                  pn(*it);
+                  pn(*it, has_weight_
+                            ? weight_accessor_.get_typed_data<double>(it)
+                            : 1.0);
                 double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
                 double sm = stot_[cc] - du;
                 uint32_t best = cc;
@@ -469,7 +534,7 @@ bool Louvain::one_level() {
                 vid_t uv = global_to_vid_[ug];
                 ++gv;
                 mt.clear();
-                auto pn = [&](uint32_t vg) {
+                auto pn = [&](uint32_t vg, double w) {
                   if (vg == ug)
                     return;
                   uint32_t cm = community_[vg];
@@ -478,7 +543,7 @@ bool Louvain::one_level() {
                     mc[cm] = 0.0;
                     mt.push_back(cm);
                   }
-                  mc[cm] += 1.0;
+                  mc[cm] += w;
                 };
                 for (size_t ti : label_out_triplets_[ul]) {
                   if (triplet_dst_base_[ti] == SIZE_MAX)
@@ -486,7 +551,11 @@ bool Louvain::one_level() {
                   size_t db = triplet_dst_base_[ti];
                   auto oes = out_views[ti].get_edges(uv);
                   for (auto it = oes.begin(); it != oes.end(); ++it)
-                    pn(static_cast<uint32_t>(db + (*it)));
+                    pn(static_cast<uint32_t>(db + (*it)),
+                       triplet_has_weight_[ti]
+                           ? triplet_weight_accessors_[ti]
+                                 .get_typed_data<double>(it)
+                           : 1.0);
                 }
                 for (size_t ti : label_in_triplets_[ul]) {
                   if (triplet_src_base_[ti] == SIZE_MAX)
@@ -494,7 +563,11 @@ bool Louvain::one_level() {
                   size_t sb = triplet_src_base_[ti];
                   auto ies = in_views[ti].get_edges(uv);
                   for (auto it = ies.begin(); it != ies.end(); ++it)
-                    pn(static_cast<uint32_t>(sb + (*it)));
+                    pn(static_cast<uint32_t>(sb + (*it)),
+                       triplet_has_weight_[ti]
+                           ? triplet_weight_accessors_[ti]
+                                 .get_typed_data<double>(it)
+                           : 1.0);
                 }
                 double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
                 double sm = stot_[cc] - du;
