@@ -47,6 +47,7 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  MarkModified();
   auto row_nums = supplier->RowNum();
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
@@ -167,6 +168,7 @@ bool VertexTable::AddVertex(const Value& id, const std::vector<Value>& props,
   if (indexer_->capacity() <= indexer_->size()) {
     return false;
   }
+  MarkModified();
   vid = internal::insert_vertex_pk_internal(*indexer_, *v_ts_, id, ts,
                                             insert_safe);
   assert([&]() {
@@ -196,6 +198,7 @@ bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id, const Value& value,
     return false;
   }
   table_->get_column_by_id(prop_id)->set_any(vid, value, true);
+  MarkModified();
   return true;
 }
 
@@ -238,6 +241,9 @@ void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
       delete_cnt++;
     }
   }
+  if (delete_cnt > 0) {
+    MarkModified();
+  }
   VLOG(10) << "Deleted " << delete_cnt << " vertices in batch.";
 }
 
@@ -257,6 +263,7 @@ void VertexTable::DeleteVertex(vid_t lid, timestamp_t ts) {
   }
   if (v_ts_->IsVertexValid(lid, ts)) {
     v_ts_->RemoveVertex(lid);
+    MarkModified();
   } else {
     LOG(WARNING) << "Vertex with lid " << lid << " has been deleted.";
   }
@@ -266,6 +273,7 @@ void VertexTable::RevertDeleteVertex(vid_t lid, timestamp_t ts) {
   assert(lid < indexer_->size());
   if (v_ts_->IsRemoved(lid)) {
     v_ts_->RevertRemoveVertex(lid, ts);
+    MarkModified();
   } else {
     LOG(WARNING) << "Vertex with lid " << lid << " is not deleted.";
   }
@@ -275,6 +283,9 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   for (const auto& prop : properties) {
     table_->delete_column(prop);
   }
+  if (!properties.empty()) {
+    MarkModified();
+  }
 }
 
 void VertexTable::AddProperties(Checkpoint& ckp,
@@ -283,6 +294,9 @@ void VertexTable::AddProperties(Checkpoint& ckp,
                                 const std::vector<Value>& default_values) {
   table_->add_columns(ckp, properties, types, default_values,
                       indexer_->capacity(), memory_level_);
+  if (!properties.empty()) {
+    MarkModified();
+  }
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
@@ -291,10 +305,14 @@ void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
   for (size_t i = 0; i < old_names.size(); ++i) {
     table_->rename_column(old_names[i], new_names[i]);
   }
+  if (!old_names.empty()) {
+    MarkModified();
+  }
 }
 
 void VertexTable::Compact(timestamp_t ts) {
   v_ts_->Compact();
+  MarkModified();
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
 
@@ -365,6 +383,7 @@ VertexTable VertexTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
 
 void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                                 Checkpoint& ckp) {
+  const auto revision = changes_.CurrentRevision();
   const auto& lbl = vertex_schema_->label_name;
   auto& idx = get_indexer();
 
@@ -383,6 +402,7 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
+  changes_.MarkPersisted(revision);
 }
 
 VertexTable VertexTable::Clone() const {
@@ -396,6 +416,9 @@ VertexTable VertexTable::Clone() const {
       dynamic_cast<VertexTimestamp*>(v_ts_->Clone().release()));
   cow_clone.pk_type_ = pk_type_;
   cow_clone.memory_level_ = memory_level_;
+  // Inherit the modification revision: Clone shares underlying containers
+  // until Detach, so pre-clone mutations must still be dumped.
+  cow_clone.changes_.CopyFrom(changes_);
   return cow_clone;
 }
 

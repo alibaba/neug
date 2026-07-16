@@ -67,7 +67,8 @@ void TableView::insert(size_t index, const std::vector<Value>& values,
 // ── VertexTableView ──
 
 VertexTableView::VertexTableView(VertexTable& table)
-    : pk_name_(std::get<1>(table.get_vertex_schema_ptr()->primary_keys[0])),
+    : table_(&table),
+      pk_name_(std::get<1>(table.get_vertex_schema_ptr()->primary_keys[0])),
       indexer_(&table.get_indexer()),
       v_ts_(table.v_ts_.get()),
       view_(*table.table_) {}
@@ -123,6 +124,7 @@ bool VertexTableView::AddVertex(const Value& id,
   if (indexer_->capacity() <= indexer_->size()) {
     return false;
   }
+  table_->MarkModified();
   ret = internal::insert_vertex_pk_internal(*indexer_, *v_ts_, id, ts,
                                             insert_safe);
   view_.insert(ret, props, insert_safe);
@@ -132,7 +134,8 @@ bool VertexTableView::AddVertex(const Value& id,
 // ── EdgeTableView ──
 
 EdgeTableView::EdgeTableView(EdgeTable& table)
-    : meta_(table.get_edge_schema_ptr()),
+    : table_(&table),
+      meta_(table.get_edge_schema_ptr()),
       out_csr_(table.out_csr_.get()),
       in_csr_(table.in_csr_.get()),
       table_idx_(&table.table_idx_),
@@ -181,9 +184,11 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(
 std::pair<int32_t, const void*> EdgeTableView::AddEdge(
     vid_t src_lid, vid_t dst_lid, const std::vector<Value>& properties,
     timestamp_t ts, Allocator& alloc, bool insert_safe) {
-  return internal::insert_edge_into_csr_internal(
+  table_->MarkModified();
+  auto ret = internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
       properties, ts, alloc, insert_safe);
+  return ret;
 }
 
 // ── GraphView ──

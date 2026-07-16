@@ -20,6 +20,8 @@ add_neug_test(test_indexer test_indexer.cc)
 
 add_neug_test(test_mmap_container test_mmap_container.cc)
 
+add_neug_test(test_modification_tracker test_modification_tracker.cc)
+
 add_neug_test(test_connection test_connection.cc)
 
 add_neug_test(test_call_params test_call_params.cc)

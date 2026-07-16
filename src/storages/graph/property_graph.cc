@@ -58,6 +58,7 @@ void PropertyGraph::Clear() {
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
+  schema_changes_.Reset();
   ckp_.reset();
 }
 
@@ -228,6 +229,7 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
   }
   auto& vtable = vertex_tables_[vertex_label_id];
   vtable.EnsureCapacity(4096);
+  schema_changes_.MarkModified();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
 
@@ -323,6 +325,7 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
+  schema_changes_.MarkModified();
 
   return neug::Status::OK();
 }
@@ -355,6 +358,7 @@ Status PropertyGraph::AddVertexProperties(
   vertex_tables_[v_label].AddProperties(*ckp_, add_property_names,
                                         add_property_types,
                                         add_default_property_values);
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -406,6 +410,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
   auto& edge_table = edge_tables_.at(index);
   edge_table.AddProperties(*ckp_, add_property_names, add_property_types,
                            add_default_props);
+  schema_changes_.MarkModified();
 
   return neug::Status::OK();
 }
@@ -434,6 +439,7 @@ Status PropertyGraph::RenameVertexProperties(
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].RenameProperties(update_property_names,
                                            update_property_renames);
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -476,6 +482,7 @@ Status PropertyGraph::RenameEdgeProperties(
   auto& edge_table = edge_tables_.at(index);
 
   edge_table.RenameProperties(update_property_names, update_property_renames);
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -511,6 +518,7 @@ Status PropertyGraph::DeleteVertexProperties(
 
   schema_.DeleteVertexProperties(vertex_type_name, delete_property_names);
   vertex_tables_[v_label].DeleteProperties(delete_property_names);
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -568,6 +576,7 @@ Status PropertyGraph::DeleteEdgeProperties(
   edge_tables_.at(index).DeleteProperties(*ckp_, delete_property_names);
   schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                                delete_property_names);
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -579,6 +588,7 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name) {
 Status PropertyGraph::DeleteVertexType(label_t v_label_id) {
   schema_.DeleteVertexLabel(v_label_id, false);
   vertex_tables_[v_label_id].Close();
+  schema_changes_.MarkModified();
 
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
     if (!schema_.is_vertex_label_valid(i)) {
@@ -630,6 +640,7 @@ Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
     it->second.Close();
     edge_tables_.erase(it);
   }
+  schema_changes_.MarkModified();
   return neug::Status::OK();
 }
 
@@ -846,6 +857,7 @@ void PropertyGraph::compact_schema() {
   vertex_tables_.swap(new_vertex_tables);
   edge_tables_.swap(new_edge_tables);
   v_mutex_.resize(new_schema.vertex_label_frontier());
+  schema_changes_.MarkModified();
 }
 
 void PropertyGraph::Compact(timestamp_t ts) {
@@ -858,12 +870,23 @@ void PropertyGraph::Compact(timestamp_t ts) {
    *
    * Assume concurrency is controlled by the caller.
    */
-  compact_schema();
+  if (!NeedsDump()) {
+    LOG(INFO) << "Skip compaction: schema and tables are clean";
+    return;
+  }
+
+  // Schema compaction is only needed after DDL. Compacting it unconditionally
+  // would turn a table-only update into a schema update.
+  if (schema_changes_.HasChanges()) {
+    compact_schema();
+  }
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
     if (schema_.is_vertex_label_valid(src_label_i) &&
         !schema_.is_vertex_label_temporary(src_label_i)) {
-      vertex_tables_[src_label_i].Compact(ts);
+      if (vertex_tables_[src_label_i].HasChanges()) {
+        vertex_tables_[src_label_i].Compact(ts);
+      }
     } else {
       continue;
     }
@@ -887,7 +910,9 @@ void PropertyGraph::Compact(timestamp_t ts) {
               schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
           if (edge_tables_.count(index) > 0) {
             auto& edge_table = edge_tables_.at(index);
-            edge_table.Compact(sort_key_for_nbr, ts);
+            if (edge_table.HasChanges()) {
+              edge_table.Compact(sort_key_for_nbr, ts);
+            }
           }
         }
       }
@@ -897,10 +922,17 @@ void PropertyGraph::Compact(timestamp_t ts) {
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
+  if (!NeedsDump()) {
+    LOG(INFO) << "Skip checkpoint dump: schema and tables are clean";
+    return;
+  }
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
 
   CheckpointManifest meta;
   ModuleBroker store;
+  const CheckpointManifest* prev_meta =
+      (ckp_ != nullptr && ckp_->GetMeta().has_schema()) ? &ckp_->GetMeta()
+                                                        : nullptr;
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
@@ -912,10 +944,22 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (schema_.is_vertex_label_valid(i) &&
-        !schema_.is_vertex_label_temporary(i)) {
-      vertex_tables_[i].DisassembleTo(store, meta, *ckp);
+    if (!schema_.is_vertex_label_valid(i) ||
+        schema_.is_vertex_label_temporary(i)) {
+      continue;
     }
+    auto& vtable = vertex_tables_[i];
+    if (vtable.HasChanges()) {
+      vtable.DisassembleTo(store, meta, *ckp);
+    } else if (prev_meta != nullptr &&
+               TryReuseVertexTable(*ckp, meta, *prev_meta, vtable)) {
+      VLOG(1) << "Reuse clean vertex table "
+              << vtable.get_vertex_schema_ptr()->label_name;
+    } else if (vtable.LidNum() > 0) {
+      // Safety: has data but no reusable prior modules — must dump.
+      vtable.DisassembleTo(store, meta, *ckp);
+    }
+    // else: schema-only empty create — OpenFrom will Init().
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
@@ -942,8 +986,24 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         if (schema_.is_edge_label_temporary(index)) {
           continue;
         }
-        if (edge_tables_.count(index) > 0) {
-          auto& edge_table = edge_tables_.at(index);
+        if (edge_tables_.count(index) == 0) {
+          continue;
+        }
+        auto& edge_table = edge_tables_.at(index);
+        if (edge_table.HasChanges()) {
+          auto e_size = edge_table.PropTableSize();
+          auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+          EnsureCapacity(src_label_i, dst_label_i, e_label_i,
+                         vertex_capacity[src_label_i],
+                         vertex_capacity[dst_label_i], new_cap);
+          edge_table.DisassembleTo(store, meta, *ckp);
+        } else if (prev_meta != nullptr &&
+                   TryReuseEdgeTable(*ckp, meta, *prev_meta, edge_table)) {
+          VLOG(1) << "Reuse clean edge table "
+                  << edge_table.meta()->src_label_name << "-["
+                  << edge_table.meta()->edge_label_name << "]->"
+                  << edge_table.meta()->dst_label_name;
+        } else if (edge_table.EdgeNum() > 0) {
           auto e_size = edge_table.PropTableSize();
           auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
@@ -951,6 +1011,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
                          vertex_capacity[dst_label_i], new_cap);
           edge_table.DisassembleTo(store, meta, *ckp);
         }
+        // else: schema-only empty create — OpenFrom will Init().
       }
     }
   }
@@ -964,12 +1025,115 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
       std::move(meta));  // Persist meta and set checkpoint to use this meta.
   LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
 
+  schema_changes_.MarkPersisted(schema_changes_.CurrentRevision());
   Clear();
+}
+
+ModuleDescriptor PropertyGraph::RelinkDescriptor(Checkpoint& dst_ckp,
+                                                 const ModuleDescriptor& desc) {
+  ModuleDescriptor out = desc;
+  for (auto& [name, path] : out.mutable_paths()) {
+    if (!path.empty()) {
+      path = dst_ckp.LinkToSnapshot(path);
+    }
+  }
+  return out;
+}
+
+bool PropertyGraph::TryReuseVertexTable(Checkpoint& dst_ckp,
+                                        CheckpointManifest& meta,
+                                        const CheckpointManifest& prev_meta,
+                                        const VertexTable& table) const {
+  const auto& lbl = table.get_vertex_schema_ptr()->label_name;
+  const auto& vs = table.get_vertex_schema_ptr();
+  std::vector<std::string> keys = {
+      VertexTable::KeyIndexer(lbl),
+      VertexTable::KeyKeys(lbl),
+      VertexTable::KeyIndices(lbl),
+      VertexTable::KeyVertexTimestamp(lbl),
+  };
+  for (size_t i = 0; i < vs->property_types.size(); ++i) {
+    keys.push_back(VertexTable::KeyProperty(lbl, i));
+  }
+  for (const auto& key : keys) {
+    if (!prev_meta.has_module(key)) {
+      return false;
+    }
+  }
+  for (const auto& key : keys) {
+    meta.set_module(key, RelinkDescriptor(dst_ckp, *prev_meta.module(key)));
+  }
+  return true;
+}
+
+bool PropertyGraph::TryReuseEdgeTable(Checkpoint& dst_ckp,
+                                      CheckpointManifest& meta,
+                                      const CheckpointManifest& prev_meta,
+                                      const EdgeTable& table) const {
+  const auto& es = table.meta();
+  const auto& src = es->src_label_name;
+  const auto& edge = es->edge_label_name;
+  const auto& dst = es->dst_label_name;
+  std::vector<std::string> keys = {
+      EdgeTable::KeyOutCsr(src, edge, dst),
+      EdgeTable::KeyInCsr(src, edge, dst),
+  };
+  if (!es->is_bundled()) {
+    for (size_t i = 0; i < es->properties.size(); ++i) {
+      keys.push_back(EdgeTable::KeyProperty(src, edge, dst, i));
+    }
+  }
+  for (const auto& key : keys) {
+    if (!prev_meta.has_module(key)) {
+      return false;
+    }
+  }
+  auto cap_key = EdgeTable::ScalarKey(src, edge, dst, "capacity");
+  auto cap = prev_meta.GetScalar(cap_key);
+  if (!cap.has_value()) {
+    return false;
+  }
+  std::optional<std::string> table_idx;
+  std::string table_idx_key;
+  if (!es->is_bundled()) {
+    table_idx_key = EdgeTable::ScalarKey(src, edge, dst, "table_idx");
+    table_idx = prev_meta.GetScalar(table_idx_key);
+    if (!table_idx.has_value()) {
+      return false;
+    }
+  }
+  for (const auto& key : keys) {
+    meta.set_module(key, RelinkDescriptor(dst_ckp, *prev_meta.module(key)));
+  }
+  meta.SetScalar(cap_key, *cap);
+  if (table_idx.has_value()) {
+    meta.SetScalar(table_idx_key, *table_idx);
+  }
+  return true;
+}
+
+bool PropertyGraph::AnyTableChanged() const {
+  for (size_t i = 0; i < vertex_tables_.size(); ++i) {
+    if (schema_.is_vertex_label_valid(i) && vertex_tables_[i].HasChanges()) {
+      return true;
+    }
+  }
+  for (const auto& [index, edge_table] : edge_tables_) {
+    auto [src, dst, edge] = schema_.parse_edge_label(index);
+    if (schema_.is_edge_triplet_valid(src, dst, edge) &&
+        edge_table.HasChanges()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
 
-Schema& PropertyGraph::mutable_schema() { return schema_; }
+Schema& PropertyGraph::mutable_schema() {
+  schema_changes_.MarkModified();
+  return schema_;
+}
 
 vid_t PropertyGraph::LidNum(label_t vertex_label) const {
   schema_.ensure_vertex_label_valid(vertex_label);
@@ -1253,6 +1417,7 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
+  cow_clone->schema_changes_.CopyFrom(schema_changes_);
 
   return cow_clone;
 }

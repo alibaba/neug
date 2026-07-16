@@ -67,6 +67,7 @@ class VertexTableView {
                  timestamp_t ts, bool insert_safe);
 
  private:
+  VertexTable* table_{nullptr};
   std::string pk_name_;
   IndexerType* indexer_{nullptr};
   VertexTimestamp* v_ts_{nullptr};
@@ -90,6 +91,7 @@ class EdgeTableView {
                                           bool insert_safe);
 
  private:
+  EdgeTable* table_{nullptr};
   std::shared_ptr<const EdgeSchema> meta_;
   CsrBase* out_csr_{nullptr};
   CsrBase* in_csr_{nullptr};

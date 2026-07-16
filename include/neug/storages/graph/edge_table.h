@@ -28,6 +28,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view.h"
+#include "neug/storages/graph/modification_tracker.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/indexers.h"
@@ -189,6 +190,9 @@ class EdgeTable {
   /// Detach the incoming adjlist of vertex vid.
   void DetachInAdjlist(vid_t vid, Allocator& alloc);
 
+  void MarkModified() { changes_.MarkModified(); }
+  bool HasChanges() const { return changes_.HasChanges(); }
+
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
@@ -201,6 +205,7 @@ class EdgeTable {
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
+  ModificationTracker changes_;
 
   friend class PropertyGraph;
   friend class EdgeTableView;

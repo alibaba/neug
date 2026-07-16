@@ -202,6 +202,19 @@ void NeugDB::Close() {
   }
 }
 
+bool NeugDB::CheckpointAndReopenIfNeeded() {
+  CloseAllConnection();
+  if (snapshot_store_ == nullptr ||
+      !snapshot_store_->CurrentSnapshot().NeedsDump()) {
+    return false;
+  }
+
+  const auto reopen_config = config_;
+  Close();
+  Open(reopen_config);
+  return true;
+}
+
 std::shared_ptr<Connection> NeugDB::Connect() {
   return connection_manager_->CreateConnection();
 }
@@ -378,6 +391,10 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
     CheckpointSession& checkpoint_session) {
   SnapshotGuard guard(*snapshot_store_);
   auto* live_graph = guard.get().mutable_graph();
+  if (!live_graph->NeedsDump()) {
+    LOG(INFO) << "Skip checkpoint: schema and tables are clean";
+    return checkpoint_mgr_.CurrentCheckpoint();
+  }
   live_graph->Compact(MAX_TIMESTAMP);
   live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
   auto published_checkpoint = checkpoint_session.Commit();

@@ -14,8 +14,15 @@
  */
 #pragma once
 
+#include <memory>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
+#include "neug/storages/graph/modification_tracker.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
@@ -118,7 +125,8 @@ class VertexTable {
         pk_type_(other.pk_type_),
         vertex_schema_(other.vertex_schema_),
         v_ts_(std::move(other.v_ts_)),
-        memory_level_(other.memory_level_) {}
+        memory_level_(other.memory_level_),
+        changes_(std::move(other.changes_)) {}
 
   VertexTable(const VertexTable&) = delete;
 
@@ -130,7 +138,11 @@ class VertexTable {
     std::swap(vertex_schema_, other.vertex_schema_);
     v_ts_.swap(other.v_ts_);
     std::swap(memory_level_, other.memory_level_);
+    changes_.Swap(other.changes_);
   }
+
+  void MarkModified() { changes_.MarkModified(); }
+  bool HasChanges() const { return changes_.HasChanges(); }
 
   void Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
@@ -294,6 +306,7 @@ class VertexTable {
   std::shared_ptr<const VertexSchema> vertex_schema_;
   std::unique_ptr<VertexTimestamp> v_ts_;
   MemoryLevel memory_level_;
+  ModificationTracker changes_;
 
   friend class PropertyGraph;
   friend class VertexTableView;

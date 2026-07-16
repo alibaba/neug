@@ -33,6 +33,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/modification_tracker.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -129,7 +130,16 @@ class PropertyGraph {
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
   /// checkpoint and rebuild any GraphView that pointed into this graph.
+  /// If neither schema nor any table is dirty, this is a no-op (graph kept).
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
+
+  bool AnyTableChanged() const;
+  bool NeedsDump() const {
+    // A graph without a persisted schema still needs its initial checkpoint,
+    // even when it contains no data.
+    return ckp_ == nullptr || !ckp_->GetMeta().has_schema() ||
+           schema_changes_.HasChanges() || AnyTableChanged();
+  }
 
   Checkpoint& checkpoint() {
     assert(ckp_);
@@ -610,6 +620,20 @@ class PropertyGraph {
 
   void compact_schema();
 
+  /// Copy @p desc into @p dst_ckp, hardlinking/copying each owned path.
+  static ModuleDescriptor RelinkDescriptor(Checkpoint& dst_ckp,
+                                           const ModuleDescriptor& desc);
+
+  /// Reuse a clean vertex/edge table's modules from @p prev_meta into @p meta.
+  /// Returns false if the table has no reusable prior modules (caller should
+  /// DisassembleTo or skip for schema-only empty creates).
+  bool TryReuseVertexTable(Checkpoint& dst_ckp, CheckpointManifest& meta,
+                           const CheckpointManifest& prev_meta,
+                           const VertexTable& table) const;
+  bool TryReuseEdgeTable(Checkpoint& dst_ckp, CheckpointManifest& meta,
+                         const CheckpointManifest& prev_meta,
+                         const EdgeTable& table) const;
+
   std::shared_ptr<Checkpoint> ckp_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
@@ -618,6 +642,10 @@ class PropertyGraph {
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;
+  // DDL advances the schema revision. Create*Type is schema-only: new empty
+  // tables have no data changes, and OpenFrom Init()s them when modules are
+  // absent.
+  ModificationTracker schema_changes_;
 
   friend class GraphView;
 };

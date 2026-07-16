@@ -452,7 +452,8 @@ void EdgeTable::SetOutCsr(std::unique_ptr<CsrBase> csr) {
 EdgeTable::EdgeTable(EdgeTable&& edge_table)
     : ckp_(std::move(edge_table.ckp_)),
       meta_(edge_table.meta_),
-      memory_level_(edge_table.memory_level_) {
+      memory_level_(edge_table.memory_level_),
+      changes_(std::move(edge_table.changes_)) {
   out_csr_ = std::move(edge_table.out_csr_);
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
@@ -473,6 +474,7 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   auto cap = capacity_.load();
   capacity_.store(edge_table.capacity_.load());
   edge_table.capacity_.store(cap);
+  changes_.Swap(edge_table.changes_);
 }
 
 EdgeTable EdgeTable::Clone() const {
@@ -490,6 +492,9 @@ EdgeTable EdgeTable::Clone() const {
 
   cow_clone.table_idx_ = table_idx_.load();
   cow_clone.capacity_ = capacity_.load();
+  // Inherit the modification revision: Clone shares CSR/column buffers until
+  // Detach.
+  cow_clone.changes_.CopyFrom(changes_);
   return cow_clone;
 }
 
@@ -529,12 +534,18 @@ void EdgeTable::SortByEdgeData(timestamp_t ts) {
 
 void EdgeTable::BatchDeleteVertices(const std::set<vid_t>& src_set,
                                     const std::set<vid_t>& dst_set) {
+  if (!src_set.empty() || !dst_set.empty()) {
+    MarkModified();
+  }
   out_csr_->batch_delete_vertices(src_set, dst_set);
   in_csr_->batch_delete_vertices(dst_set, src_set);
 }
 
 void EdgeTable::BatchDeleteEdges(const std::vector<vid_t>& src_list,
                                  const std::vector<vid_t>& dst_list) {
+  if (!src_list.empty() || !dst_list.empty()) {
+    MarkModified();
+  }
   out_csr_->batch_delete_edges(src_list, dst_list);
   in_csr_->batch_delete_edges(dst_list, src_list);
 }
@@ -542,12 +553,16 @@ void EdgeTable::BatchDeleteEdges(const std::vector<vid_t>& src_list,
 void EdgeTable::BatchDeleteEdges(
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  if (!oe_edges.empty() || !ie_edges.empty()) {
+    MarkModified();
+  }
   out_csr_->batch_delete_edges(oe_edges);
   in_csr_->batch_delete_edges(ie_edges);
 }
 
 void EdgeTable::DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                            int32_t ie_offset, timestamp_t ts) {
+  MarkModified();
   out_csr_->delete_edge(src_lid, oe_offset, ts);
   in_csr_->delete_edge(dst_lid, ie_offset, ts);
 }
@@ -603,7 +618,6 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
   if (oe_iter == oe_edges.end()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
   }
-  accessor.set_data(oe_iter, prop, ts);
   if (meta_->is_bundled()) {
     auto ie_edges = in_csr_->get_generic_view(ts).get_edges(dst_lid);
     auto ie_iter = ie_edges.begin();
@@ -611,7 +625,12 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
     if (ie_iter == ie_edges.end()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
     }
+    MarkModified();
+    accessor.set_data(oe_iter, prop, ts);
     accessor.set_data(ie_iter, prop, ts);
+  } else {
+    MarkModified();
+    accessor.set_data(oe_iter, prop, ts);
   }
 }
 
@@ -711,15 +730,22 @@ void EdgeTable::AddProperties(Checkpoint& ckp,
     table_->add_columns(ckp, prop_names, prop_types, default_values,
                         property_size, memory_level_);
   }
+  if (!prop_names.empty()) {
+    MarkModified();
+  }
 }
 
 void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
                                  const std::vector<std::string>& new_names) {
   CHECK_EQ(old_names.size(), new_names.size());
+  if (meta_->is_bundled()) {
+    return;
+  }
   for (size_t i = 0; i < old_names.size(); ++i) {
-    if (!meta_->is_bundled()) {
-      table_->rename_column(old_names[i], new_names[i]);
-    }
+    table_->rename_column(old_names[i], new_names[i]);
+  }
+  if (!old_names.empty()) {
+    MarkModified();
   }
 }
 
@@ -738,6 +764,7 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
     }
     if (found) {
       dropAndCreateNewUnbundledCSR(ckp, true);
+      MarkModified();
     }
   } else {
     for (const auto& col : col_names) {
@@ -752,20 +779,26 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
         dropAndCreateNewBundledCSR(ckp, remaining_col);
       }
     }
+    if (!col_names.empty()) {
+      MarkModified();
+    }
   }
 }
 
 std::pair<int32_t, const void*> EdgeTable::AddEdge(
     vid_t src_lid, vid_t dst_lid, const std::vector<Value>& edge_data,
     timestamp_t ts, Allocator& alloc, bool insert_safe) {
-  return internal::insert_edge_into_csr_internal(
+  MarkModified();
+  auto ret = internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, *table_.get(), table_idx_, *meta_, src_lid, dst_lid,
       edge_data, ts, alloc, insert_safe);
+  return ret;
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
                               std::shared_ptr<IDataChunkSupplier> supplier) {
+  MarkModified();
   in_csr_->resize(dst_indexer.size());
   out_csr_->resize(src_indexer.size());
   std::vector<vid_t> src_lid, dst_lid;
@@ -832,6 +865,9 @@ void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
     const std::vector<std::vector<Value>>& edge_data_list) {
+  if (!src_lid_list.empty()) {
+    MarkModified();
+  }
   size_t new_size = table_idx_.load() + src_lid_list.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;
@@ -881,6 +917,7 @@ void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr,
     out_csr_->batch_sort_by_edge_data(1);
     in_csr_->batch_sort_by_edge_data(1);
   }
+  MarkModified();
 }
 
 size_t EdgeTable::PropTableSize() const {
@@ -1114,6 +1151,7 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   if (!meta_) {
     return;
   }
+  const auto revision = changes_.CurrentRevision();
   const auto& src = meta_->src_label_name;
   const auto& edge = meta_->edge_label_name;
   const auto& dst = meta_->dst_label_name;
@@ -1131,6 +1169,7 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   }
   meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
                  std::to_string(GetCapacity()));
+  changes_.MarkPersisted(revision);
 }
 
 }  // namespace neug
