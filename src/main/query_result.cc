@@ -659,9 +659,9 @@ class ProfileTree {
     // alignment)
     std::ostringstream metrics_oss;
     double elapsed_ms = op.elapsed_ms();
-    metrics_oss << "time: " << std::fixed << std::setprecision(2)
-                << elapsed_ms << "ms | rows: " << std::setw(5)
-                << op.output_rows() << " tuples";
+    metrics_oss << "time: " << std::fixed << std::setprecision(2) << elapsed_ms
+                << "ms | rows: " << std::setw(5) << op.output_rows()
+                << " tuples";
     std::string metrics = metrics_oss.str();
     left_pad = (available - metrics.length()) / 2;
     right_pad = available - metrics.length() - left_pad;
