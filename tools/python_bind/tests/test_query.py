@@ -56,6 +56,29 @@ def test_query_on_empty_graph(empty_db):
     assert res is not None and len(res) == 0
 
 
+def test_empty_grouped_aggregate(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+
+    result = conn.execute(
+        "MATCH (person:person) "
+        "RETURN person.id AS person_id, count(person) AS person_count;"
+    )
+
+    assert len(result) == 0
+    assert list(result) == []
+    assert result.column_names() == ["person_id", "person_count"]
+
+
+def test_empty_ungrouped_count(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+
+    result = conn.execute("MATCH (person:person) RETURN count(person);")
+
+    assert list(result) == [[0]]
+
+
 def test_result_getitem(modern_graph):
     conn = modern_graph
     res = conn.execute("MATCH (n) RETURN count(n);")
