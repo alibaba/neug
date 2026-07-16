@@ -326,11 +326,11 @@ class NeugDB {
   /**
    * @brief Create a checkpoint and keep the DB open on the published graph.
    *
-   * This publishes the current live graph, reopens it from the published
-   * checkpoint so the live store owns checkpoint files, and rolls back to the
-   * previous checkpoint if reopening fails. It is shared by recovery checkpoint
-   * and AP-to-TP service preparation.
-   *
+   * This publishes the current live graph and reopens it from the published
+   * checkpoint so the live store owns checkpoint files. If reopening fails, the
+   * published checkpoint is discarded and the checkpoint manager is restored to
+   * the previous checkpoint generation; callers should treat the failure as
+   * fatal. It is shared by recovery checkpoint and AP-to-TP service preparation.
    * A durable checkpoint is a transaction timeline reset boundary: it always
    * compacts storage timestamps before dumping, and a successful checkpoint
    * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
