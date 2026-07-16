@@ -569,8 +569,8 @@ class ProfileTree {
     oss << "║         PROFILE REPORT                 ║\n";
     oss << "╚════════════════════════════════════════╝\n";
     oss << "Total output tuples: " << profile_.total_output_rows() << "\n";
-    oss << "Total elapsed time: " << std::fixed << std::setprecision(3)
-        << profile_.total_elapsed_ms() / 1000.0 << " s\n\n";
+    oss << "Total elapsed time: " << std::fixed << std::setprecision(2)
+        << profile_.total_elapsed_ms() << " ms\n\n";
 
     // Build operator map for quick lookup
     std::map<int64_t, const neug::ProfileResult_OperatorMetrics*> op_map;
@@ -609,18 +609,12 @@ class ProfileTree {
       max_field_width = std::max(
           max_field_width, static_cast<uint32_t>(op.operator_name().length()));
 
-      // Metrics string width: "time: X.XXXs | rows: YYYY tuples"
+      // Metrics string width: "time: X.XXms | rows: YYYY tuples"
       std::ostringstream metrics_oss;
-      double elapsed_sec = op.elapsed_ms() / 1000.0;
-      if (elapsed_sec < 10.0) {
-        metrics_oss << "time: " << std::fixed << std::setprecision(3)
-                    << elapsed_sec;
-      } else {
-        metrics_oss << "time: " << std::fixed << std::setprecision(2)
-                    << elapsed_sec;
-      }
-      metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
-                  << " tuples";
+      double elapsed_ms = op.elapsed_ms();
+      metrics_oss << "time: " << std::fixed << std::setprecision(2)
+                  << elapsed_ms << "ms | rows: " << std::setw(5)
+                  << op.output_rows() << " tuples";
       max_field_width = std::max(
           max_field_width, static_cast<uint32_t>(metrics_oss.str().length()));
     }
@@ -664,17 +658,10 @@ class ProfileTree {
     // Metrics line with fixed-width formatting (ASCII only for correct
     // alignment)
     std::ostringstream metrics_oss;
-    double elapsed_sec = op.elapsed_ms() / 1000.0;
-    if (elapsed_sec < 10.0) {
-      metrics_oss << "time: " << std::fixed << std::setprecision(3)
-                  << elapsed_sec;
-    } else {
-      metrics_oss << "time: " << std::fixed << std::setprecision(2)
-                  << elapsed_sec;
-    }
-    // Right-align output rows to 5 digits
-    metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
-                << " tuples";
+    double elapsed_ms = op.elapsed_ms();
+    metrics_oss << "time: " << std::fixed << std::setprecision(2)
+                << elapsed_ms << "ms | rows: " << std::setw(5)
+                << op.output_rows() << " tuples";
     std::string metrics = metrics_oss.str();
     left_pad = (available - metrics.length()) / 2;
     right_pad = available - metrics.length() - left_pad;
