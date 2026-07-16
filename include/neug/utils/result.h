@@ -173,6 +173,9 @@ inline std::string to_string(const neug::interactive::Code& status) {
     RETURN_ERROR(neug::Status(neug::StatusCode::ERR_COMPILATION, err.what())); \
   } catch (const neug::exception::CatalogException& err) {                     \
     RETURN_ERROR(neug::Status(neug::StatusCode::ERR_COMPILATION, err.what())); \
+  } catch (const neug::exception::NoCheckpointException& err) {                \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_NO_CHECKPOINT, err.what()));        \
   } catch (const neug::exception::CheckpointException& err) {                  \
     RETURN_ERROR(                                                              \
         neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \

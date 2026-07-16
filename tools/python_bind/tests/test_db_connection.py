@@ -277,6 +277,8 @@ def test_connection_pool_exhausted(started_server):
 def test_parallel_connections(tmp_path):
     db_dir = tmp_path / "parallel_conn_db"
     shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="rw")
+    db.close()
     db = Database(db_path=str(db_dir), mode="r")
     connections = []
     for _ in range(5):

@@ -44,6 +44,8 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   case neug::StatusCode::ERR_NOT_FOUND:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case neug::StatusCode::ERR_NO_CHECKPOINT:
+    return brpc::HTTP_STATUS_NOT_FOUND;
   case neug::StatusCode::ERR_INVALID_ARGUMENT:
     return brpc::HTTP_STATUS_BAD_REQUEST;
   case neug::StatusCode::ERR_COMPILATION:

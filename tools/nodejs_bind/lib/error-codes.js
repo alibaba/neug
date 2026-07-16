@@ -29,7 +29,7 @@
 const { Code } = require('./proto/error_pb');
 
 // ---- Numeric error code constants (from error.proto Code enum) ----
-// General errors (1001-1017)
+// General errors (1001-1018)
 const OK                    = Code.OK;
 const ERR_PERMISSION        = Code.ERR_PERMISSION;
 const ERR_VERSION_MISMATCHED = Code.ERR_VERSION_MISMATCHED;
@@ -48,6 +48,7 @@ const ERR_IO_ERROR          = Code.ERR_IO_ERROR;
 const ERR_BAD_ENCODING      = Code.ERR_BAD_ENCODING;
 const ERR_INVALID_FILE      = Code.ERR_INVALID_FILE;
 const ERR_EXTENSION         = Code.ERR_EXTENSION;
+const ERR_NO_CHECKPOINT     = Code.ERR_NO_CHECKPOINT;
 
 // Network errors (2001-2007)
 const ERR_NETWORK           = Code.ERR_NETWORK;
@@ -122,6 +123,7 @@ module.exports = {
   ERR_BAD_ENCODING,
   ERR_INVALID_FILE,
   ERR_EXTENSION,
+  ERR_NO_CHECKPOINT,
   // Network errors
   ERR_NETWORK,
   ERR_SESSION_CLOSED,
