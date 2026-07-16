@@ -42,6 +42,7 @@ class ProcedureCallOpr : public IOperator {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
+    callInput->bindParams(params);
     return neug::result<neug::execution::Context>(
         callFunction->execFunc(*callInput, graph));
   }  // namespace ops
