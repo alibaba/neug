@@ -99,6 +99,19 @@ CheckpointException::CheckpointException(const std::string& msg)
     : Exception("Checkpoint exception: " + msg,
                 neug::StatusCode::ERR_INTERNAL_ERROR) {}
 
+CheckpointException::CheckpointException(const std::string& msg,
+                                         const std::string& file_line)
+    : Exception("Checkpoint exception: " + msg, file_line,
+                neug::StatusCode::ERR_INTERNAL_ERROR) {}
+
+NoCheckpointException::NoCheckpointException(const std::string& msg)
+    : Exception("No checkpoint: " + msg, neug::StatusCode::ERR_NO_CHECKPOINT) {}
+
+NoCheckpointException::NoCheckpointException(const std::string& msg,
+                                             const std::string& file_line)
+    : Exception("No checkpoint: " + msg, file_line,
+                neug::StatusCode::ERR_NO_CHECKPOINT) {}
+
 ConnectionException::ConnectionException(const std::string& msg)
     : Exception("Connection exception: " + msg,
                 neug::StatusCode::ERR_CONNECTION_ERROR) {}

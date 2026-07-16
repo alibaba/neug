@@ -20,9 +20,11 @@
 #include <iostream>
 #include <string>
 #include "column_assertions.h"
+#include "neug/generated/proto/plan/error.pb.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
 #include <glog/logging.h>
@@ -80,6 +82,27 @@ TEST(DatabaseTest, OpenClose) {
     db4.Close();
     LOG(INFO) << "After close db4";
   }
+}
+
+TEST(DatabaseTest, ReadOnlyOpenEmptyDirectoryReturnsNoCheckpoint) {
+  auto db_dir = unique_test_dir("test_readonly_empty_no_checkpoint");
+  if (std::filesystem::exists(db_dir)) {
+    std::filesystem::remove_all(db_dir);
+  }
+  std::filesystem::create_directories(db_dir);
+
+  neug::NeugDB db;
+  try {
+    db.Open(db_dir.string(), 1, neug::DBMode::READ_ONLY);
+    FAIL() << "Expected NoCheckpointException";
+  } catch (const neug::exception::NoCheckpointException& e) {
+    const auto expected_code =
+        "Error Code: " +
+        std::to_string(static_cast<int>(neug::StatusCode::ERR_NO_CHECKPOINT));
+    EXPECT_NE(std::string(e.what()).find(expected_code), std::string::npos);
+  } catch (...) { FAIL() << "Unexpected exception type"; }
+
+  std::filesystem::remove_all(db_dir);
 }
 
 TEST(DatabaseTest, TestDangling) {

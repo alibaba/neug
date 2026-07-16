@@ -87,9 +87,10 @@ Status StorageAPUpdateInterface::AddEdge(label_t src_label, vid_t src,
 }
 
 void StorageAPUpdateInterface::CreateCheckpoint() {
-  graph_.Dump();
-  // Dump(reopen=true) clears and re-opens the graph, replacing all vertex/edge
-  // tables.  Rebuild the view so cached pointers stay valid.
+  auto ckp = graph_.checkpoint_ptr();
+  auto memory_level = graph_.memory_level();
+  graph_.DumpAndClear(ckp);
+  graph_.Open(ckp, memory_level);
   mut_view_.Rebuild(graph_);
 }
 

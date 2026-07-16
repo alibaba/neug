@@ -48,18 +48,18 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                MemoryLevel memory_level) {
   unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
-  degree_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+  degree_list_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
-      memory_level));
-  cap_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+      memory_level);
+  cap_list_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kCapacityListPath).value_or(""),
-      memory_level));
-  nbr_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
+      memory_level);
+  nbr_list_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""),
-      memory_level));
+      memory_level);
   auto v_cap = degree_list_->GetDataSize() / sizeof(int);
-  adj_list_buffer_ = std::shared_ptr<IDataContainer>(
-      ckp.CreateRuntimeContainer(v_cap * sizeof(nbr_t*), memory_level));
+  adj_list_buffer_ =
+      ckp.CreateRuntimeContainer(v_cap * sizeof(nbr_t*), memory_level);
   if (cap_list_->GetDataSize() != degree_list_->GetDataSize()) {
     THROW_INTERNAL_EXCEPTION(
         "Capacity list size does not match degree list size");
@@ -146,8 +146,8 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   } else {
     std::string nbr_path_committed;
 
-    auto runtime_uuid = ckp.CreateRuntimeObject();
-    auto nbr_path = ckp.runtime_dir() + "/" + runtime_uuid;
+    auto runtime_file = ckp.CreateRuntimeFile();
+    const auto& nbr_path = runtime_file.path();
     std::ofstream nbr_out(nbr_path, std::ios::binary);
     if (!nbr_out.is_open()) {
       THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
@@ -160,7 +160,7 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
     }
     nbr_out.flush();
     nbr_out.close();
-    nbr_path_committed = ckp.CommitRuntimeObject(runtime_uuid);
+    nbr_path_committed = ckp.CommitRuntimeFile(std::move(runtime_file));
 
     descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_path_committed);
   }
@@ -553,8 +553,8 @@ void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                      MemoryLevel level) {
   assert(descriptor.module_type.empty() ||
          descriptor.module_type == ModuleTypeName());
-  nbr_list_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
-      descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""), level));
+  nbr_list_ = ckp.OpenFile(
+      descriptor.get_path(ModuleDescriptor::kNbrListPath).value_or(""), level);
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
   needs_compact_.store(false, std::memory_order_relaxed);
   refresh_prefetch_policy();

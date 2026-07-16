@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <random>
@@ -247,12 +248,22 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
   return edges;
 }
 
-// Allocates a fresh checkpoint on `ws` and returns a shared_ptr to it.
-// Replaces the boilerplate `auto id = ws.CreateCheckpoint(); auto ckp =
-// ws.GetCheckpoint(id);` pair that recurs across the storage tests.
+// Allocates a fresh standalone checkpoint for storage module round-trip tests.
+//
+// These tests only need a Checkpoint with snapshot/runtime directories; they
+// are not exercising CheckpointManager's publish/GC state machine. Keeping the
+// helper independent from CreateStagingCheckpoint() avoids consuming the single
+// production staging slot when a test needs multiple temporary checkpoints.
 inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
     neug::CheckpointManager& ws) {
-  return ws.GetCheckpoint(ws.CreateCheckpoint());
+  static std::atomic<uint32_t> next_checkpoint_id{0};
+  auto id = next_checkpoint_id.fetch_add(1, std::memory_order_relaxed);
+  auto checkpoint_path = std::filesystem::path(ws.db_dir()) /
+                         ".test-checkpoints" / std::to_string(id);
+  std::filesystem::create_directories(checkpoint_path);
+  neug::CheckpointManifest::GenerateEmptyMeta(
+      (checkpoint_path / neug::CheckpointManifest::kMetaFileName).string());
+  return neug::Checkpoint::Open(checkpoint_path.string(), id);
 }
 
 template <typename ModuleT>

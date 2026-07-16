@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <limits>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 #include "neug/compiler/planner/gopt_planner.h"
@@ -37,6 +38,8 @@
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/checkpoint_session.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
@@ -116,27 +119,51 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
 bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
-  checkpoint_mgr_.Open(config_.data_dir);
-  VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
-  file_lock_ = std::make_unique<FileLock>(checkpoint_mgr_.db_dir());
+  config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
+  const bool recover_workspace =
+      config_.mode == DBMode::READ_WRITE || is_pure_memory_;
+  if (recover_workspace) {
+    std::filesystem::create_directories(config_.data_dir);
+  } else if (!std::filesystem::is_directory(config_.data_dir)) {
+    THROW_NO_CHECKPOINT_EXCEPTION(
+        "NeugDB::Open: no checkpoint found in read-only database: " +
+        config_.data_dir);
+  }
+
+  file_lock_ = std::make_unique<FileLock>(config_.data_dir);
 
   std::string error_msg;
   if (!file_lock_->lock(error_msg, config.mode)) {
-    THROW_DATABASE_LOCKED_EXCEPTION(
-        "Failed to lock data directory: " + checkpoint_mgr_.db_dir() +
-        ", error: " + error_msg);
+    THROW_DATABASE_LOCKED_EXCEPTION("Failed to lock data directory: " +
+                                    config_.data_dir + ", error: " + error_msg);
   }
-  neug::execution::PlanParser::get().init();
-  openGraphAndIngestWals();
-  initPlannerAndQueryProcessor();
+  try {
+    checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
+    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
+    neug::execution::PlanParser::get().init();
+    openGraphAndIngestWals();
+    if (last_ts_ > 0 && config.checkpoint_on_recovery &&
+        config_.mode == DBMode::READ_WRITE) {
+      LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
+      createCheckpointAfterRecovery();
+    }
+    if (config_.mode == DBMode::READ_WRITE) {
+      checkpoint_mgr_.CleanupRetiredCheckpoints();
+    }
+    initPlannerAndQueryProcessor();
+  } catch (...) {
+    snapshot_store_.reset();
+    allocators_.clear();
+    checkpoint_mgr_.Close();
+    if (file_lock_) {
+      file_lock_->unlock();
+      file_lock_.reset();
+    }
+    throw;
+  }
 
   LOG(INFO) << "NeugDB opened successfully";
   closed_.store(false);
-  if (last_ts_ > 0 && config.checkpoint_on_recovery &&
-      config_.mode == DBMode::READ_WRITE) {
-    LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
-    createCheckpoint();
-  }
   return true;
 }
 
@@ -159,7 +186,7 @@ void NeugDB::Close() {
   if (config_.checkpoint_on_close && config_.mode == DBMode::READ_WRITE) {
     VLOG(1) << "Creating checkpoint on close...";
     try {
-      createCheckpoint(false);
+      createCheckpointOnClose();
     } catch (const std::exception& e) {
       LOG(ERROR) << "Checkpoint on close failed: " << e.what();
     }
@@ -167,6 +194,7 @@ void NeugDB::Close() {
 
   // Clear GraphSnapshotStore instead of graph_
   snapshot_store_.reset();
+  allocators_.clear();
 
   if (file_lock_) {
     file_lock_->unlock();
@@ -226,6 +254,7 @@ void NeugDB::preprocessConfig() {
 
 void NeugDB::initAllocators(const std::string& allocator_dir) {
   // Initialize the default allocator for ingesting wals
+  allocators_.clear();
   remove_directory(allocator_dir);
   std::filesystem::create_directories(allocator_dir);
   assert(config_.max_thread_num > 0);
@@ -240,14 +269,22 @@ void NeugDB::initAllocators(const std::string& allocator_dir) {
 void NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
   try {
-    int ckp_id;
-    if (checkpoint_mgr_.HeadId() >= 0) {
-      ckp_id = checkpoint_mgr_.HeadId();
-    } else {
-      ckp_id = checkpoint_mgr_.CreateCheckpoint();
-      LOG(INFO) << "No checkpoint found, created new checkpoint: " << ckp_id;
+    auto ckp = checkpoint_mgr_.CurrentCheckpoint();
+    if (ckp == nullptr) {
+      if (config_.mode == DBMode::READ_ONLY && !is_pure_memory_) {
+        THROW_NO_CHECKPOINT_EXCEPTION(
+            "NeugDB::Open: no checkpoint found in read-only database: " +
+            checkpoint_mgr_.db_dir());
+      }
+      auto staging_checkpoint = checkpoint_mgr_.CreateStagingCheckpoint();
+      ckp = staging_checkpoint.checkpoint();
+      CheckpointManifest meta;
+      meta.SetSchema(Schema());
+      ckp->UpdateMeta(std::move(meta));
+      ckp = staging_checkpoint.Commit();
+      LOG(INFO) << "No checkpoint found, created initial checkpoint: "
+                << ckp->path();
     }
-    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
     LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
     auto graph = std::make_shared<PropertyGraph>();
     graph->Open(ckp, config_.memory_level);
@@ -263,6 +300,8 @@ void NeugDB::openGraphAndIngestWals() {
     snapshot_store_ =
         std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
 
+  } catch (const neug::exception::NoCheckpointException&) {
+    throw;
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());
@@ -315,28 +354,77 @@ void NeugDB::initPlannerAndQueryProcessor() {
       *snapshot_store_, planner_, query_processor_, config_);
 }
 
-void NeugDB::createCheckpoint(bool reopen) {
-  std::unique_lock<std::mutex> lock(mutex_);
+std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
+    CheckpointSession& checkpoint_session) {
   SnapshotGuard guard(*snapshot_store_);
-  auto& graph = *guard.get().mutable_graph();
-  graph.Compact(MAX_TIMESTAMP);
-  auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
-  auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
+  auto* live_graph = guard.get().mutable_graph();
+  live_graph->Compact(MAX_TIMESTAMP);
+  live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
+  auto published_checkpoint = checkpoint_session.Commit();
+  guard.release();
+  return published_checkpoint;
+}
+
+void NeugDB::createCheckpointAfterRecovery() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
+  auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
+  auto published_checkpoint =
+      consumeLiveGraphAndCommitCheckpoint(checkpoint_session);
+
+  auto rollback_published_checkpoint = [&]() {
+    if (previous_checkpoint == nullptr) {
+      return false;
+    }
+    try {
+      checkpoint_mgr_.RestoreCurrentCheckpoint(previous_checkpoint);
+      checkpoint_mgr_.CleanupPublishedCheckpoint(published_checkpoint);
+      return true;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Failed to restore previous checkpoint "
+                 << previous_checkpoint->path() << ": " << e.what();
+    } catch (...) {
+      LOG(ERROR) << "Failed to restore previous checkpoint "
+                 << previous_checkpoint->path();
+    }
+    return false;
+  };
+
   try {
-    graph.Dump(ckp, reopen);
+    auto reopened_graph = std::make_shared<PropertyGraph>();
+    reopened_graph->Open(published_checkpoint, config_.memory_level);
+    snapshot_store_ = std::make_unique<GraphSnapshotStore>(
+        config_.storage_slot_num, std::move(reopened_graph));
+    initAllocators(published_checkpoint->allocator_dir());
   } catch (...) {
-    LOG(ERROR) << "Checkpoint dump failed, rolling back checkpoint " << ckp_id;
-    checkpoint_mgr_.RemoveCheckpoint(ckp_id);
+    snapshot_store_.reset();
+    allocators_.clear();
+    rollback_published_checkpoint();
     throw;
   }
-  if (reopen) {
-    // Dump with reopen=true rebuilds the PropertyGraph in-place (Clear + Open),
-    // invalidating raw pointers held by the GraphView. Rebuild the view so it
-    // points to the freshly loaded internal structures.
-    guard.get().mutable_view().Rebuild(*guard.get().mutable_graph());
-  }
-  last_ts_ = 0;  // Reset last_ts_ after checkpointing.
-  VLOG(1) << "Finish checkpoint: " << ckp->path();
+
+  // Replacing snapshot_store_ releases the consumed recovery graph before the
+  // retired checkpoint directory is removed.
+  previous_checkpoint.reset();
+  checkpoint_mgr_.CleanupRetiredCheckpoints();
+
+  last_ts_ = 0;
+  last_compaction_ts_ = 0;
+}
+
+void NeugDB::createCheckpointOnClose() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
+  consumeLiveGraphAndCommitCheckpoint(checkpoint_session);
+
+  // Close-path checkpointing does not reopen a live graph. Release all
+  // snapshot/container/mmap resources before deleting the retired checkpoint.
+  snapshot_store_.reset();
+  allocators_.clear();
+  checkpoint_mgr_.CleanupRetiredCheckpoints();
+
+  last_ts_ = 0;
+  last_compaction_ts_ = 0;
 }
 
 }  // namespace neug

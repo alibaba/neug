@@ -66,6 +66,14 @@ class FakeBuffer:
         self.document = Document(self.text)
 
 
+class DummyConnection:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
 def test_cli_tab_cycles_inline_suggestions():
     buffer = FakeBuffer("m")
     assert neug_cli._handle_tab(buffer)
@@ -100,11 +108,8 @@ def test_cli_cypher_keywords_align_with_parser_keywords():
         assert keyword in neug_cli.CYPHER_CANDIDATES
 
 
-def test_shell_do_help(capsys, tmp_path):
-    db_path = tmp_path / "test_shell_help_db"
-    shutil.rmtree(db_path, ignore_errors=True)
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_help(capsys):
+    connection = DummyConnection()
     shell = neug_cli.NeugShell(connection)
     shell.default(":help")
     captured = capsys.readouterr()
@@ -120,19 +125,15 @@ def test_shell_do_help(capsys, tmp_path):
             - Use Tab to cycle candidates and right arrow to accept the current suggestion.
         """
     assert expected_output.strip() in captured.out.strip()
-    connection.close()
 
 
-def test_shell_do_quit(capsys, tmp_path):
-    db_path = tmp_path / "test_shell_quit_db"
-    shutil.rmtree(db_path, ignore_errors=True)
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_quit(capsys):
+    connection = DummyConnection()
     shell = neug_cli.NeugShell(connection)
     shell.default(":quit")
     captured = capsys.readouterr()
     assert "Exiting..." in captured.out
-    connection.close()
+    assert connection.closed
 
 
 def test_shell_do_max_rows(capsys, modern_graph):
@@ -176,16 +177,12 @@ def test_shell_do_max_rows(capsys, modern_graph):
     """
 
 
-def test_shell_do_max_rows_invalid(capsys, tmp_path):
-    db_path = tmp_path / "test_shell_max_rows_invalid_db"
-    shutil.rmtree(db_path, ignore_errors=True)
-    database = Database(db_path=str(db_path), mode="r")
-    connection = database.connect()
+def test_shell_do_max_rows_invalid(capsys):
+    connection = DummyConnection()
     shell = neug_cli.NeugShell(connection)
     shell.default(":max_rows -1")
     captured = capsys.readouterr()
     assert "max_rows must be a positive integer." in captured.out
-    connection.close()
 
 
 def test_shell_do_query(capsys, modern_graph):

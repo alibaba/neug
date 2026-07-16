@@ -125,6 +125,8 @@ test('test_local_connection_after_close', () => {
 
 test('test_parallel_connections', () => {
   const dbDir = makeTmpDir('parallel_conn_db');
+  const db_rw = new Database({ databasePath: dbDir, mode: 'rw' });
+  db_rw.close();
   const db = new Database({ databasePath: dbDir, mode: 'r' });
   const connections = [];
   for (let i = 0; i < 5; i++) {
