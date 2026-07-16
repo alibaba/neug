@@ -14,6 +14,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include "column_assertions.h"
@@ -25,6 +28,15 @@
 #include "unittest/utils.h"
 
 #include <glog/logging.h>
+
+namespace {
+
+std::filesystem::path unique_test_dir(const std::string& test_name) {
+  return std::filesystem::temp_directory_path() /
+         (test_name + "_" + std::to_string(::getpid()));
+}
+
+}  // namespace
 
 TEST(DatabaseTest, OpenClose) {
   std::string dir = "/tmp/test_open_close";
