@@ -330,10 +330,11 @@ class NeugDB {
    * checkpoint so the live store owns checkpoint files. If reopening fails, the
    * published checkpoint is discarded and the checkpoint manager is restored to
    * the previous checkpoint generation; callers should treat the failure as
-   * fatal. It is shared by recovery checkpoint and AP-to-TP service preparation.
-   * A durable checkpoint is a transaction timeline reset boundary: it always
-   * compacts storage timestamps before dumping, and a successful checkpoint
-   * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
+   * fatal. It is shared by recovery checkpoint and AP-to-TP service
+   * preparation. A durable checkpoint is a transaction timeline reset boundary:
+   * it always compacts storage timestamps before dumping, and a successful
+   * checkpoint resets last_ts_ to 0. Must not be called while a NeugDBService
+   * is running.
    */
   void createCheckpointAndRefreshLiveGraph();
 
