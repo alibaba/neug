@@ -145,7 +145,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     if (last_ts_ > 0 && config.checkpoint_on_recovery &&
         config_.mode == DBMode::READ_WRITE) {
       LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
-      createCheckpointAfterRecovery();
+      createCheckpointAndRefreshLiveGraph();
     }
     if (config_.mode == DBMode::READ_WRITE) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
@@ -211,6 +211,17 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
 }
 
 void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
+
+void NeugDB::PrepareForServing() {
+  if (IsClosed()) {
+    THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
+  }
+  CloseAllConnection();
+  if (config_.mode == DBMode::READ_WRITE) {
+    createCheckpointAndRefreshLiveGraph();
+  }
+  initQueryRuntime();
+}
 
 void NeugDB::preprocessConfig() {
   if (config_.max_thread_num < 0) {
@@ -334,16 +345,20 @@ void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
   last_ts_ = parser.last_ts();
 }
 
-void NeugDB::initPlannerAndQueryProcessor() {
+void NeugDB::initPlanner() {
   if (config_.planner_kind == "gopt") {
-    // Gopt planner is the default planner, so we don't need to create it.
     planner_ = std::make_shared<GOptPlanner>();
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid planner kind: " +
                                      config_.planner_kind);
   }
   LOG(INFO) << "Finish initializing planner";
+}
 
+void NeugDB::initQueryRuntime() {
+  if (!planner_) {
+    THROW_RUNTIME_ERROR("Planner is not initialized");
+  }
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 
   query_processor_ = std::make_shared<QueryProcessor>(
@@ -352,6 +367,11 @@ void NeugDB::initPlannerAndQueryProcessor() {
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       *snapshot_store_, planner_, query_processor_, config_);
+}
+
+void NeugDB::initPlannerAndQueryProcessor() {
+  initPlanner();
+  initQueryRuntime();
 }
 
 std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
@@ -365,7 +385,7 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
   return published_checkpoint;
 }
 
-void NeugDB::createCheckpointAfterRecovery() {
+void NeugDB::createCheckpointAndRefreshLiveGraph() {
   std::lock_guard<std::mutex> lock(mutex_);
   auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
   auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
@@ -403,8 +423,8 @@ void NeugDB::createCheckpointAfterRecovery() {
     throw;
   }
 
-  // Replacing snapshot_store_ releases the consumed recovery graph before the
-  // retired checkpoint directory is removed.
+  // Replacing snapshot_store_ releases the consumed graph before the retired
+  // checkpoint directory is removed.
   previous_checkpoint.reset();
   checkpoint_mgr_.CleanupRetiredCheckpoints();
 
